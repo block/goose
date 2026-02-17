@@ -21,6 +21,11 @@ import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../prede
 import { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
 
+const THINKING_LEVEL_OPTIONS = [
+  { value: 'low', label: 'Low - Better latency, lighter reasoning' },
+  { value: 'high', label: 'High - Deeper reasoning, higher latency' },
+];
+
 const PREFERRED_MODEL_PATTERNS = [
   /claude-sonnet-4/i,
   /claude-4/i,
@@ -97,6 +102,10 @@ export const SwitchModelModal = ({
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
+  const [thinkingLevel, setThinkingLevel] = useState<string>('low');
+
+  const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
+  const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -144,16 +153,25 @@ export const SwitchModelModal = ({
       } else {
         const providerMetaData = await getProviderMetadata(provider || '', getProviders);
         const providerDisplayName = providerMetaData.display_name;
-        modelObj = { name: model, provider: provider, subtext: providerDisplayName } as Model;
+        modelObj = {
+          name: model,
+          provider: provider,
+          subtext: providerDisplayName,
+        } as Model;
+      }
+
+      if (isGemini3Model) {
+        modelObj = {
+          ...modelObj,
+          request_params: { ...modelObj.request_params, thinking_level: thinkingLevel },
+        };
       }
 
       await changeModel(sessionId, modelObj);
+      onModelSelected?.(modelObj.name);
 
       trackModelChanged(modelObj.provider || '', modelObj.name);
 
-      if (onModelSelected) {
-        onModelSelected(modelObj.name);
-      }
       onClose();
     }
   };
@@ -188,8 +206,7 @@ export const SwitchModelModal = ({
     // Load providers for manual model selection
     (async () => {
       try {
-        // Force refresh if initialProvider is set (OAuth flow needs fresh data)
-        const providersResponse = await getProviders(!!initialProvider);
+        const providersResponse = await getProviders(false);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -258,7 +275,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read, initialProvider]);
+  }, [getProviders, usePredefinedModels, read]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
@@ -352,7 +369,7 @@ export const SwitchModelModal = ({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bot size={24} className="text-textStandard" />
+            <Bot size={24} className="text-text-default" />
             {titleOverride || 'Switch models'}
           </DialogTitle>
           <DialogDescription>
@@ -364,7 +381,7 @@ export const SwitchModelModal = ({
           {usePredefinedModels ? (
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-textStandard">Choose a model:</label>
+                <label className="text-sm font-medium text-text-default">Choose a model:</label>
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -384,7 +401,7 @@ export const SwitchModelModal = ({
                             {model.alias || model.name}
                           </span>
                           {model.alias?.includes('recommended') && (
-                            <span className="text-xs bg-background-muted text-textStandard px-2 py-1 rounded-full border border-borderSubtle ml-2">
+                            <span className="text-xs bg-background-muted text-text-default px-2 py-1 rounded-full border border-border-default ml-2">
                               Recommended
                             </span>
                           )}
@@ -406,7 +423,7 @@ export const SwitchModelModal = ({
                           className="peer sr-only"
                         />
                         <div
-                          className="h-4 w-4 rounded-full border border-border-default 
+                          className="h-4 w-4 rounded-full border border-border-default
                                 peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                                 peer-checked:bg-white dark:peer-checked:bg-black
                                 transition-all duration-200 ease-in-out group-hover:border-border-default"
@@ -419,6 +436,24 @@ export const SwitchModelModal = ({
 
               {attemptedSubmit && validationErrors.model && (
                 <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+              )}
+
+              {isGemini3Model && (
+                <div className="mt-2">
+                  <label className="text-sm text-textSubtle mb-1 block">
+                    Thinking Level
+                    <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
+                  </label>
+                  <Select
+                    options={THINKING_LEVEL_OPTIONS}
+                    value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}
+                    onChange={(newValue: unknown) => {
+                      const option = newValue as { value: string; label: string } | null;
+                      setThinkingLevel(option?.value || 'low');
+                    }}
+                    placeholder="Select thinking level"
+                  />
+                </div>
               )}
             </div>
           ) : (
@@ -499,10 +534,10 @@ export const SwitchModelModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
-                        <label className="text-sm text-textSubtle">Custom model name</label>
+                        <label className="text-sm text-text-muted">Custom model name</label>
                         <button
                           onClick={() => setIsCustomModel(false)}
-                          className="text-sm text-textSubtle"
+                          className="text-sm text-text-muted"
                         >
                           Back to model list
                         </button>
@@ -518,6 +553,24 @@ export const SwitchModelModal = ({
                       )}
                     </div>
                   )}
+
+                  {isGemini3Model && (
+                    <div className="mt-2">
+                      <label className="text-sm text-textSubtle mb-1 block">
+                        Thinking Level
+                        <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
+                      </label>
+                      <Select
+                        options={THINKING_LEVEL_OPTIONS}
+                        value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}
+                        onChange={(newValue: unknown) => {
+                          const option = newValue as { value: string; label: string } | null;
+                          setThinkingLevel(option?.value || 'low');
+                        }}
+                        placeholder="Select thinking level"
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -529,7 +582,7 @@ export const SwitchModelModal = ({
             href={QUICKSTART_GUIDE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center text-text-muted hover:text-textStandard text-sm mr-auto"
+            className="inline-flex items-center text-text-muted hover:text-text-default text-sm mr-auto"
           >
             <ExternalLink size={14} className="mr-1" />
             Quick start guide

@@ -255,13 +255,15 @@ goose works with [supported LLM providers][providers] that give goose the AI int
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    On the welcome screen, choose how to configure a provider:
+    On the welcome screen the first time you open goose, choose how to configure a provider:
     <OnboardingProviderSetup />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     The CLI automatically enters configuration mode where you can choose how to configure a provider:
 
-    <OnboardingProviderSetup />
+    - **OpenRouter Login** - Sign in with OpenRouter to automatically configure models
+    - **Tetrate Agent Router Service Login** - Sign in with Tetrate Agent Router Service to automatically configure models
+    - **Manual Configuration** - Choose a provider and enter credentials manually
 
     Example configuration flow:
 
@@ -310,6 +312,10 @@ goose works with [supported LLM providers][providers] that give goose the AI int
 
 :::tip
 <ModelSelectionTip />
+:::
+
+:::info Free Credits Offer
+You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through goose. This offer is available to both new and existing Tetrate users.
 :::
 
 ## Update Provider
@@ -395,6 +401,11 @@ While core configurations are shared between interfaces, extensions have flexibi
         ```
     </TabItem>
 </Tabs>
+
+## Pin a goose version in CI/CD
+In CI/CD (and other automated, non-interactive environments), pin a specific version with `GOOSE_VERSION` to make installs reproducible and avoid 404s when downloading the goose CLI binary assets if the `stable` release tag doesn’t include them.
+
+See [CI/CD Environments](/docs/tutorials/cicd) for a complete example and usage details.
 
 ## Additional Resources
 

@@ -11,7 +11,6 @@ use axum::{
 };
 use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
-use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
@@ -247,7 +246,9 @@ async fn update_session_user_recipe_values(
                     status,
                 })?;
             if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, false).await {
-                agent.extend_system_prompt(prompt).await;
+                agent
+                    .extend_system_prompt("recipe".to_string(), prompt)
+                    .await;
             }
             Ok(Json(UpdateSessionUserRecipeValuesResponse { recipe }))
         }
@@ -479,10 +480,10 @@ async fn get_session_extensions(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Try to get session-specific extensions, fall back to global config
-    let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
-        .map(|state| state.extensions)
-        .unwrap_or_else(goose::config::get_enabled_extensions);
+    let extensions = EnabledExtensionsState::extensions_or_default(
+        Some(&session.extension_data),
+        goose::config::Config::global(),
+    );
 
     Ok(Json(SessionExtensionsResponse { extensions }))
 }
@@ -490,6 +491,7 @@ async fn get_session_extensions(
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
+        .route("/sessions/search", get(search_sessions))
         .route("/sessions/{session_id}", get(get_session))
         .route("/sessions/{session_id}", delete(delete_session))
         .route("/sessions/{session_id}/export", get(export_session))
@@ -509,4 +511,89 @@ pub fn routes(state: Arc<AppState>) -> Router {
             get(get_session_extensions),
         )
         .with_state(state)
+}
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchSessionsQuery {
+    /// Search query string (keywords separated by spaces)
+    query: String,
+    /// Maximum number of results to return (default: 10, max: 50)
+    #[serde(default = "default_limit")]
+    limit: usize,
+    /// Filter results to sessions after this date (ISO 8601 format)
+    after_date: Option<String>,
+    /// Filter results to sessions before this date (ISO 8601 format)
+    before_date: Option<String>,
+}
+
+fn default_limit() -> usize {
+    10
+}
+
+#[utoipa::path(
+    get,
+    path = "/sessions/search",
+    params(
+        ("query" = String, Query, description = "Search query string"),
+        ("limit" = Option<usize>, Query, description = "Maximum results (default: 10, max: 50)"),
+        ("after_date" = Option<String>, Query, description = "Filter after date (ISO 8601)"),
+        ("before_date" = Option<String>, Query, description = "Filter before date (ISO 8601)")
+    ),
+    responses(
+        (status = 200, description = "Matching sessions", body = Vec<Session>),
+        (status = 400, description = "Bad request - Invalid query"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("api_key" = [])
+    ),
+    tag = "Session Management"
+)]
+async fn search_sessions(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(params): axum::extract::Query<SearchSessionsQuery>,
+) -> Result<Json<Vec<Session>>, StatusCode> {
+    let query = params.query.trim();
+    if query.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let limit = params.limit.min(50);
+
+    let after_date = params
+        .after_date
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
+    let before_date = params
+        .before_date
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
+    let search_results = state
+        .session_manager()
+        .search_chat_history(query, Some(limit), after_date, before_date, None)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Get full Session objects for matching session IDs
+    let session_ids: Vec<String> = search_results
+        .results
+        .into_iter()
+        .map(|r| r.session_id)
+        .collect();
+
+    let all_sessions = state
+        .session_manager()
+        .list_sessions()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let matching_sessions: Vec<Session> = all_sessions
+        .into_iter()
+        .filter(|s| session_ids.contains(&s.id))
+        .collect();
+
+    Ok(Json(matching_sessions))
 }

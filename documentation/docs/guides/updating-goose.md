@@ -162,3 +162,7 @@ The goose CLI and desktop apps are under active and continuous development. To g
     </Tabs>
   </TabItem>
 </Tabs>
+
+:::info Updating in CI/CD
+If you're running goose in CI or other non-interactive environments, pin a specific version with `GOOSE_VERSION` for reproducible installs. See [CI/CD Environments](/docs/tutorials/cicd) for a complete example and usage details.
+:::

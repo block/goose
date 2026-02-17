@@ -35,6 +35,7 @@ goose operates autonomously by default. Combined with the Developer extension's 
 
 Platform extensions are built-in extensions that provide global features like conversation search, task tracking, and extension management. These extensions are always available and can be toggled on or off as needed.
 
+- [Apps](/docs/mcp/apps-mcp): Create, manage, and launch custom HTML apps in standalone windows
 - [Chat Recall](/docs/mcp/chatrecall-mcp): Search conversation content across all your session history
 - [Code Execution](/docs/mcp/code-execution-mcp): Execute JavaScript code for tool discovery and tool calling
 - [Extension Manager](/docs/mcp/extension-manager-mcp): Discover, enable, and disable extensions dynamically during sessions (enabled by default)
@@ -663,6 +664,10 @@ For example, to start a session with a Streamable HTTP extension, you'd run:
 ```bash
 goose session --with-streamable-http-extension "https://example.com/streamable"
 ```
+
+### Extensions in Containers
+
+goose can use the `--container` flag to run extensions inside your Docker containers for devcontainer workflows. See [Running Extensions in Docker Containers](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers) for details.
 
 ## Developing Extensions
 

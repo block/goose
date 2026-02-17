@@ -64,7 +64,7 @@ const ClassifierEndpointInputs = ({
           placeholder={endpointPlaceholder}
           className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
             disabled
-              ? 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
               : 'border-border-default bg-background-default text-text-default'
           }`}
         />
@@ -86,7 +86,7 @@ const ClassifierEndpointInputs = ({
           placeholder={tokenPlaceholder}
           className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
             disabled
-              ? 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
               : 'border-border-default bg-background-default text-text-default'
           }`}
         />
@@ -265,90 +265,13 @@ export const SecurityToggle = () => {
               className={`w-24 px-2 py-1 text-sm border rounded ${
                 enabled
                   ? 'border-border-default bg-background-default text-text-default'
-                  : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                  : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
               }`}
               placeholder="0.80"
             />
           </div>
 
-          {/* ML Detection Toggle */}
-          <div className="border-t border-border-default pt-4">
-            <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
-              <div>
-                <h4
-                  className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
-                >
-                  Enable ML-Based Detection
-                </h4>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">
-                  Use machine learning models for more accurate detection
-                </p>
-              </div>
-              <div className="flex items-center">
-                <Switch
-                  checked={mlEnabled}
-                  onCheckedChange={handleMlToggle}
-                  disabled={!enabled}
-                  variant="mono"
-                />
-              </div>
-            </div>
-
-            {/* Configuration Section */}
-            <div
-              className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                enabled && mlEnabled ? 'max-h-[32rem] opacity-100 mt-3' : 'max-h-0 opacity-0'
-              }`}
-            >
-              <div className={enabled && mlEnabled ? '' : 'opacity-50'}>
-                {showModelDropdown ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label
-                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
-                      >
-                        Detection Model
-                      </label>
-                      <p className="text-xs text-text-muted mb-2">
-                        Select which ML model to use for prompt injection detection
-                      </p>
-                      <select
-                        value={effectiveModel}
-                        onChange={(e) => handleModelChange(e.target.value)}
-                        disabled={!enabled || !mlEnabled}
-                        className={`w-full px-3 py-2 text-sm border rounded ${
-                          enabled && mlEnabled
-                            ? 'border-border-default bg-background-default text-text-default'
-                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
-                        }`}
-                      >
-                        {availablePromptModels.map((model) => (
-                          <option key={model.value} value={model.value}>
-                            {model.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                ) : (
-                  <ClassifierEndpointInputs
-                    endpointValue={endpointInput}
-                    tokenValue={tokenInput}
-                    onEndpointChange={setEndpointInput}
-                    onTokenChange={setTokenInput}
-                    onEndpointBlur={handleEndpointChange}
-                    onTokenBlur={handleTokenChange}
-                    disabled={!enabled || !mlEnabled}
-                    endpointPlaceholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
-                    tokenPlaceholder="hf_..."
-                    endpointDescription="Enter the full URL for your ML classification service (including model identifier)"
-                    tokenDescription="Authentication token for the ML service (e.g., HuggingFace token)"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-
+          {/* Command Injection Detection Toggle */}
           <div className="border-t border-border-default pt-4">
             <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
               <div>
@@ -402,6 +325,84 @@ export const SecurityToggle = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Prompt Injection Detection Toggle */}
+          <div className="border-t border-border-default pt-4">
+            <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
+              <div>
+                <h4
+                  className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
+                >
+                  Enable Prompt Injection ML Detection
+                </h4>
+                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                  Use ML models to detect potential prompt injection in your chat
+                </p>
+              </div>
+              <div className="flex items-center">
+                <Switch
+                  checked={mlEnabled}
+                  onCheckedChange={handleMlToggle}
+                  disabled={!enabled}
+                  variant="mono"
+                />
+              </div>
+            </div>
+
+            {/* Configuration Section */}
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                enabled && mlEnabled ? 'max-h-[32rem] opacity-100 mt-3' : 'max-h-0 opacity-0'
+              }`}
+            >
+              <div className={enabled && mlEnabled ? '' : 'opacity-50'}>
+                {showModelDropdown ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label
+                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
+                      >
+                        Detection Model
+                      </label>
+                      <p className="text-xs text-text-muted mb-2">
+                        Select which ML model to use for prompt injection detection
+                      </p>
+                      <select
+                        value={effectiveModel}
+                        onChange={(e) => handleModelChange(e.target.value)}
+                        disabled={!enabled || !mlEnabled}
+                        className={`w-full px-3 py-2 text-sm border rounded ${
+                          enabled && mlEnabled
+                            ? 'border-border-default bg-background-default text-text-default'
+                            : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
+                        }`}
+                      >
+                        {availablePromptModels.map((model) => (
+                          <option key={model.value} value={model.value}>
+                            {model.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <ClassifierEndpointInputs
+                    endpointValue={endpointInput}
+                    tokenValue={tokenInput}
+                    onEndpointChange={setEndpointInput}
+                    onTokenChange={setTokenInput}
+                    onEndpointBlur={handleEndpointChange}
+                    onTokenBlur={handleTokenChange}
+                    disabled={!enabled || !mlEnabled}
+                    endpointPlaceholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
+                    tokenPlaceholder="hf_..."
+                    endpointDescription="Enter the full URL for your ML classification service (including model identifier)"
+                    tokenDescription="Authentication token for the ML service (e.g., HuggingFace token)"
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

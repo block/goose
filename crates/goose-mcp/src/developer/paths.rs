@@ -1,3 +1,4 @@
+use crate::subprocess::SubprocessExt;
 use anyhow::Result;
 use std::env;
 use std::path::PathBuf;
@@ -81,12 +82,14 @@ async fn get_windows_path_async(shell: &str) -> Result<String> {
         "pwsh" | "powershell" => {
             Command::new(shell)
                 .args(["-NoLogo", "-Command", "$env:PATH"])
+                .set_no_window()
                 .output()
                 .await
         }
         _ => {
             Command::new(shell)
                 .args(["/c", "echo %PATH%"])
+                .set_no_window()
                 .output()
                 .await
         }

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
-# dependencies = ["textual>=0.87.0"]
+# dependencies = ["textual>=0.87.0", "pyperclip"]
 # ///
 """
 WARNING: entirely vibe coded. use as a throwaway tool
@@ -16,6 +16,8 @@ import sys
 import zipfile
 from pathlib import Path
 from typing import Optional, Any
+
+import pyperclip
 
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Static, Tree, ListView, ListItem, Label, Input
@@ -145,6 +147,7 @@ class TextViewerModal(ModalScreen):
 
     BINDINGS = [
         Binding("escape,q,enter", "dismiss", "Close", show=True),
+        Binding("c", "copy", "Copy", show=True),
     ]
 
     def __init__(self, title: str, text: str):
@@ -158,11 +161,16 @@ class TextViewerModal(ModalScreen):
             yield Static(f"[bold]{self.title}[/bold]", id="modal-title")
             with VerticalScroll(id="modal-scroll"):
                 yield Static(self.text, id="modal-text")
-            yield Static("[dim]Press Escape, Q, or Enter to close[/dim]", id="modal-footer")
+            yield Static("[dim]Press C to copy, Escape/Q/Enter to close[/dim]", id="modal-footer")
 
     def action_dismiss(self):
         """Dismiss the modal."""
         self.app.pop_screen()
+
+    def action_copy(self):
+        """Copy the text to clipboard."""
+        pyperclip.copy(self.text)
+        self.notify("Copied to clipboard")
 
 
 class SearchOverlay(Container):
@@ -280,6 +288,8 @@ class FileViewer(Vertical):
     def __init__(self):
         super().__init__()
         self.current_session = None
+        self.current_filename = None
+        self.current_part = None
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -297,6 +307,8 @@ class FileViewer(Vertical):
             part: For JSONL files, either "request" or "responses"
         """
         self.current_session = session
+        self.current_filename = filename
+        self.current_part = part
 
         content = session.read_file(filename)
         if content is None:
@@ -411,6 +423,7 @@ class SessionViewer(Vertical):
 
     BINDINGS = [
         Binding("ctrl+f,cmd+f", "search", "Search", show=True),
+        Binding("c", "copy_file", "Copy file", show=True),
     ]
 
     def __init__(self, session: DiagnosticsSession):
@@ -504,6 +517,47 @@ class SessionViewer(Vertical):
         """Toggle search in the file viewer."""
         viewer = self.query_one(FileViewer)
         viewer.action_search()
+
+    def action_copy_file(self):
+        """Copy the current file content to clipboard."""
+        viewer = self.query_one(FileViewer)
+        if not viewer.current_session or not viewer.current_filename:
+            self.app.notify("No file selected")
+            return
+
+        content = viewer.current_session.read_file(viewer.current_filename)
+        if content is None:
+            self.app.notify("Could not read file")
+            return
+
+        # For JSONL files with a part, extract just that part and pretty-format
+        if viewer.current_filename.endswith('.jsonl') and viewer.current_part:
+            lines = [line.strip() for line in content.strip().split('\n') if line.strip()]
+            if viewer.current_part == "request" and lines:
+                try:
+                    data = json.loads(lines[0])
+                    content = json.dumps(data, indent=2)
+                except json.JSONDecodeError:
+                    content = lines[0]
+            elif viewer.current_part == "responses" and len(lines) > 1:
+                try:
+                    responses = [json.loads(line) for line in lines[1:]]
+                    if len(responses) == 1:
+                        content = json.dumps(responses[0], indent=2)
+                    else:
+                        content = json.dumps(responses, indent=2)
+                except json.JSONDecodeError:
+                    content = '\n'.join(lines[1:])
+        # Pretty-format regular JSON files too
+        elif viewer.current_filename.endswith('.json'):
+            try:
+                data = json.loads(content)
+                content = json.dumps(data, indent=2)
+            except json.JSONDecodeError:
+                pass
+
+        pyperclip.copy(content)
+        self.app.notify("Copied to clipboard")
 
     def on_key(self, event):
         """Handle left/right navigation between panels."""

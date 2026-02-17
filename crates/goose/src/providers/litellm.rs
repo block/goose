@@ -1,19 +1,21 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
+use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::conversation::message::Message;
-
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
+const LITELLM_PROVIDER_NAME: &str = "litellm";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
@@ -69,7 +71,7 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             model,
-            name: Self::metadata().name,
+            name: LITELLM_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -129,11 +131,12 @@ impl LiteLLMProvider {
     }
 }
 
-#[async_trait]
-impl Provider for LiteLLMProvider {
+impl ProviderDef for LiteLLMProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "litellm",
+            LITELLM_PROVIDER_NAME,
             "LiteLLM",
             "LiteLLM proxy supporting multiple models with automatic prompt caching",
             LITELLM_DEFAULT_MODEL,
@@ -154,6 +157,16 @@ impl Provider for LiteLLMProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for LiteLLMProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -213,17 +226,11 @@ impl Provider for LiteLLMProvider {
         self.model.model_name.to_lowercase().contains("claude")
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        match self.fetch_models().await {
-            Ok(models) => {
-                let model_names: Vec<String> = models.into_iter().map(|m| m.name).collect();
-                Ok(Some(model_names))
-            }
-            Err(e) => {
-                tracing::warn!("Failed to fetch models from LiteLLM: {}", e);
-                Ok(None)
-            }
-        }
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let models = self.fetch_models().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to fetch models from LiteLLM: {}", e))
+        })?;
+        Ok(models.into_iter().map(|m| m.name).collect())
     }
 }
 

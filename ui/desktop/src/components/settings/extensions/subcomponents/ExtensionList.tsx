@@ -2,6 +2,7 @@ import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
 import { ExtensionConfig } from '../../../../api';
 import { FixedExtensionEntry } from '../../../ConfigContext';
+import { combineCmdAndArgs } from '../utils';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
@@ -104,7 +105,9 @@ export function formatExtensionName(name: string): string {
 }
 
 export function getFriendlyTitle(extension: FixedExtensionEntry): string {
-  const name = (extension.type === 'builtin' && extension.display_name) || extension.name;
+  const name =
+    ((extension.type === 'builtin' || extension.type === 'platform') && extension.display_name) ||
+    extension.name;
   return formatExtensionName(name);
 }
 
@@ -135,7 +138,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? [config.cmd, ...config.args].join(' ') : null,
+        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
       };
   }
 }

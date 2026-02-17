@@ -149,18 +149,19 @@ impl PromptInjectionScanner {
         tracing::info!(
             "Classifier Results - Command: {:.3}, Prompt: {:.3}, Threshold: {:.3}",
             tool_result.confidence,
-            context_result.confidence,
+            context_result.ml_confidence.unwrap_or(0.0),
             threshold
         );
 
         let final_confidence =
-            self.combine_confidences(tool_result.confidence, context_result.confidence);
+            self.combine_confidences(tool_result.confidence, context_result.ml_confidence);
 
         tracing::info!(
             tool_confidence = %tool_result.confidence,
-            context_confidence = %context_result.confidence,
+            context_confidence = ?context_result.ml_confidence,
             final_confidence = %final_confidence,
-            has_ml = tool_result.ml_confidence.is_some(),
+            has_command_ml = tool_result.ml_confidence.is_some(),
+            has_prompt_ml = context_result.ml_confidence.is_some(),
             has_patterns = !tool_result.pattern_matches.is_empty(),
             threshold = %threshold,
             malicious = final_confidence >= threshold,
@@ -239,7 +240,11 @@ impl PromptInjectionScanner {
         })
     }
 
-    fn combine_confidences(&self, tool_confidence: f32, context_confidence: f32) -> f32 {
+    fn combine_confidences(&self, tool_confidence: f32, context_confidence: Option<f32>) -> f32 {
+        let Some(context_confidence) = context_confidence else {
+            return tool_confidence;
+        };
+
         // If tool is safe, context is not taken into account
         if tool_confidence < 0.3 {
             return tool_confidence;
@@ -345,6 +350,15 @@ impl PromptInjectionScanner {
     }
 
     fn extract_tool_content(&self, tool_call: &CallToolRequestParams) -> String {
+        if let Some(cmd_str) = tool_call
+            .arguments
+            .as_ref()
+            .and_then(|args| args.get("command"))
+            .and_then(|v| v.as_str())
+        {
+            return cmd_str.to_string();
+        }
+
         let mut s = format!("Tool: {}", tool_call.name);
         if let Some(args) = &tool_call.arguments {
             if let Ok(json) = serde_json::to_string(args) {

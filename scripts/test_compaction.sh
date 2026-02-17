@@ -2,6 +2,11 @@
 
 # Compaction smoke test script
 # Tests both manual (trigger prompt) and auto compaction (threshold-based)
+#
+# Environment variable overrides:
+#   COMPACTION_PROVIDER - Override the provider for tests 1 & 2 (default: use system default)
+#   COMPACTION_MODEL    - Override the model for tests 1 & 2 (default: use system default)
+#   SKIP_BUILD          - Skip cargo build if set
 
 if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs)
@@ -9,7 +14,7 @@ fi
 
 if [ -z "$SKIP_BUILD" ]; then
   echo "Building goose..."
-  cargo build --release --bin goose
+  cargo build --bin goose
   echo ""
 else
   echo "Skipping build (SKIP_BUILD is set)..."
@@ -17,7 +22,20 @@ else
 fi
 
 SCRIPT_DIR=$(pwd)
-GOOSE_BIN="$SCRIPT_DIR/target/release/goose"
+GOOSE_BIN="$SCRIPT_DIR/target/debug/goose"
+
+# Apply provider/model overrides if set
+if [ -n "$COMPACTION_PROVIDER" ]; then
+  echo "Using override provider: $COMPACTION_PROVIDER"
+  export GOOSE_PROVIDER="$COMPACTION_PROVIDER"
+fi
+if [ -n "$COMPACTION_MODEL" ]; then
+  echo "Using override model: $COMPACTION_MODEL"
+  export GOOSE_MODEL="$COMPACTION_MODEL"
+fi
+if [ -n "$COMPACTION_PROVIDER" ] || [ -n "$COMPACTION_MODEL" ]; then
+  echo ""
+fi
 
 # Validation function to check compaction structure in session JSON
 validate_compaction() {

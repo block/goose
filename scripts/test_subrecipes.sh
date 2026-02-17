@@ -7,7 +7,7 @@ fi
 
 if [ -z "$SKIP_BUILD" ]; then
   echo "Building goose..."
-  cargo build --release --bin goose
+  cargo build --bin goose
   echo ""
 else
   echo "Skipping build (SKIP_BUILD is set)..."
@@ -17,12 +17,12 @@ fi
 SCRIPT_DIR=$(pwd)
 
 # Add goose binary to PATH so subagents can find it when spawning
-export PATH="$SCRIPT_DIR/target/release:$PATH"
+export PATH="$SCRIPT_DIR/target/debug:$PATH"
 
 # Set default provider and model if not already set
 # Use fast model for CI to speed up tests
 export GOOSE_PROVIDER="${GOOSE_PROVIDER:-anthropic}"
-export GOOSE_MODEL="${GOOSE_MODEL:-claude-3-5-haiku-20241022}"
+export GOOSE_MODEL="${GOOSE_MODEL:-claude-haiku-4-5}"
 
 echo "Using provider: $GOOSE_PROVIDER"
 echo "Using model: $GOOSE_MODEL"
@@ -76,18 +76,18 @@ RESULTS=()
 check_recipe_output() {
   local tmpfile=$1
   local mode=$2
-  
-  # Check for unified subagent tool invocation (new format: "─── subagent |")
-  if grep -q "─── subagent" "$tmpfile"; then
-    echo "✓ SUCCESS: Subagent tool invoked"
-    RESULTS+=("✓ Subagent tool invocation ($mode)")
+
+  # Check for delegate tool invocation (old: "─── delegate |", new: "▸ delegate")
+  if grep -qE "(─── delegate)|(▸.*delegate)" "$tmpfile"; then
+    echo "✓ SUCCESS: Delegate tool invoked"
+    RESULTS+=("✓ Delegate tool invocation ($mode)")
   else
-    echo "✗ FAILED: No evidence of subagent tool invocation"
-    RESULTS+=("✗ Subagent tool invocation ($mode)")
+    echo "✗ FAILED: No evidence of delegate tool invocation"
+    RESULTS+=("✗ Delegate tool invocation ($mode)")
   fi
-  
-  # Check that both subrecipes were called (shown as "subrecipe: <name>" in output)
-  if grep -q "subrecipe:.*file_stats\|file_stats.*subrecipe" "$tmpfile" && grep -q "subrecipe:.*code_patterns\|code_patterns.*subrecipe" "$tmpfile"; then
+
+  # Check that both subrecipes were called (shown as "source: <name>" in delegate output)
+  if grep -q "source:.*file_stats\|source.*file_stats" "$tmpfile" && grep -q "source:.*code_patterns\|source.*code_patterns" "$tmpfile"; then
     echo "✓ SUCCESS: Both subrecipes (file_stats, code_patterns) found in output"
     RESULTS+=("✓ Both subrecipes present ($mode)")
   else
@@ -98,7 +98,7 @@ check_recipe_output() {
 
 echo "Running recipe with parallel subrecipes..."
 TMPFILE=$(mktemp)
-if (cd "$TESTDIR" && "$SCRIPT_DIR/target/release/goose" run --recipe project_analyzer_parallel.yaml --no-session 2>&1) | tee "$TMPFILE"; then
+if (cd "$TESTDIR" && "$SCRIPT_DIR/target/debug/goose" run --recipe project_analyzer_parallel.yaml --no-session 2>&1) | tee "$TMPFILE"; then
   echo "✓ SUCCESS: Recipe completed successfully"
   RESULTS+=("✓ Recipe exit code")
   check_recipe_output "$TMPFILE" "parallel"

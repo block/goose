@@ -1,3 +1,4 @@
+use crate::subprocess::SubprocessExt;
 use std::{env, ffi::OsString, process::Stdio};
 
 #[cfg(unix)]
@@ -8,7 +9,6 @@ use std::os::unix::process::CommandExt;
 pub struct ShellConfig {
     pub executable: String,
     pub args: Vec<String>,
-    #[allow(dead_code)]
     pub envs: Vec<(OsString, OsString)>,
 }
 
@@ -112,6 +112,7 @@ pub fn configure_shell_command(
     working_dir: Option<&std::path::Path>,
 ) -> tokio::process::Command {
     let mut command_builder = tokio::process::Command::new(&shell_config.executable);
+    command_builder.set_no_window();
 
     if let Some(dir) = working_dir {
         command_builder.current_dir(dir);
@@ -123,14 +124,20 @@ pub fn configure_shell_command(
         .stdin(Stdio::null())
         .kill_on_drop(true)
         .env("GOOSE_TERMINAL", "1")
+        .env("AGENT", "goose")
         .env("GIT_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
         .env("GIT_SEQUENCE_EDITOR", "sh -c 'echo \"Interactive Git commands are not supported in this environment.\" >&2; exit 1'")
         .env("VISUAL", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")
         .env("EDITOR", "sh -c 'echo \"Interactive editor not available in this environment.\" >&2; exit 1'")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_PAGER", "cat")
-        .args(&shell_config.args)
-        .arg(command);
+        .args(&shell_config.args);
+
+    for (key, value) in &shell_config.envs {
+        command_builder.env(key, value);
+    }
+
+    command_builder.arg(command);
 
     // On Unix systems, create a new process group so we can kill child processes
     #[cfg(unix)]
@@ -172,6 +179,7 @@ pub async fn kill_process_group(
             // Use taskkill to kill the process tree on Windows
             let _kill_result = tokio::process::Command::new("taskkill")
                 .args(&["/F", "/T", "/PID", &pid.to_string()])
+                .set_no_window()
                 .output()
                 .await;
         }

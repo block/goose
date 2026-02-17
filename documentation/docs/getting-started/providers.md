@@ -7,6 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
 import { ModelSelectionTip } from '@site/src/components/ModelSelectionTip';
+import { OnboardingProviderSetup } from '@site/src/components/OnboardingProviderSetup';
 
 # Supported LLM Providers
 
@@ -21,22 +22,24 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 
 | Provider                                                                    | Description                                                                                                                                                                                                               | Parameters                                                                                                                                                                          |
 |-----------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Amazon Bedrock](https://aws.amazon.com/bedrock/)                           | Offers a variety of foundation models, including Claude, Jurassic-2, and others. **AWS environment variables must be set in advance, not configured through `goose configure`**                                           | `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`                                                                                                 |
+| [Amazon Bedrock](https://aws.amazon.com/bedrock/)                           | Offers a variety of foundation models, including Claude, Jurassic-2, and others. **AWS environment variables must be set in advance, not configured through `goose configure`**                                           | Credential auth: `AWS_PROFILE`, or `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`<br /><br />Bearer token auth: `AWS_BEARER_TOKEN_BEDROCK` and `AWS_REGION`, `AWS_DEFAULT_REGION`, or `AWS_PROFILE` |
 | [Amazon SageMaker TGI](https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html) | Run Text Generation Inference models through Amazon SageMaker endpoints. **AWS credentials must be configured in advance.** | `SAGEMAKER_ENDPOINT_NAME`, `AWS_REGION` (optional), `AWS_PROFILE` (optional)  |
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
 | [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
+| [ChatGPT Codex](https://chatgpt.com/codex) | Access GPT-5 Codex models optimized for code generation and understanding. **Requires a ChatGPT Plus/Pro subscription.** | No manual key. Uses browser-based OAuth authentication for both CLI and Desktop. |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
-| [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).**                 | `GCP_PROJECT_ID`, `GCP_LOCATION` and optionally `GCP_MAX_RATE_LIMIT_RETRIES` (5), `GCP_MAX_OVERLOADED_RETRIES` (5), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
+| [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).** Filters for allowed models by organization policy (if configured). | `GCP_PROJECT_ID`, `GCP_LOCATION` and optionally `GCP_MAX_RATE_LIMIT_RETRIES` (5), `GCP_MAX_OVERLOADED_RETRIES` (5), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Uses [device flow authentication](#github-copilot-authentication) for both CLI and Desktop. |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [LiteLLM](https://docs.litellm.ai/docs/) | LiteLLM proxy supporting multiple models with automatic prompt caching and unified API access. | `LITELLM_HOST`, `LITELLM_BASE_PATH` (optional), `LITELLM_API_KEY` (optional), `LITELLM_CUSTOM_HEADERS` (optional), `LITELLM_TIMEOUT` (optional) |
 | [Mistral AI](https://mistral.ai/)                                           | Provides access to Mistral models including general-purpose models, specialized coding models (Codestral), and multimodal models (Pixtral).                                                                   | `MISTRAL_API_KEY`                                                                                                 |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
-| [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API an compatible alternative to Ollama and can be used with the goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
 | [OpenRouter](https://openrouter.ai/)                                        | API gateway for unified access to various models with features like rate-limiting management.                                                                                                                             | `OPENROUTER_API_KEY`                                                                                                                                                                |
+| [OVHcloud AI](https://www.ovhcloud.com/en/public-cloud/ai-endpoints/)       | Provides access to open-source models including Qwen, Llama, Mistral, and DeepSeek through AI Endpoints service.                                                       | `OVHCLOUD_API_KEY`                                                                                                                                                                  |
+| [Ramalama](https://ramalama.ai/)                                            | Local model using native [OCI](https://opencontainers.org/) container runtimes, [CNCF](https://www.cncf.io/) tools, and supporting models as OCI artifacts. Ramalama API is a compatible alternative to Ollama and can be used with the goose Ollama provider. Supports Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [Snowflake](https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model) | Access the latest models using Snowflake Cortex services, including Claude models. **Requires a Snowflake account and programmatic access token (PAT)**.                                                     | `SNOWFLAKE_HOST`, `SNOWFLAKE_TOKEN`                                                                                                                                                                 |
 | [Tetrate Agent Router Service](https://router.tetrate.ai)                   | Unified API gateway for AI models including Claude, Gemini, GPT, open-weight models, and others. Supports PKCE authentication flow for secure API key generation.                                                                                | `TETRATE_API_KEY`, `TETRATE_HOST` (optional)                                                                                                                                        |
 | [Venice AI](https://venice.ai/home)                                         | Provides access to open source models like Llama, Mistral, and Qwen while prioritizing user privacy. **Requires an account and an [API key](https://docs.venice.ai/overview/guides/generating-api-key)**.                 | `VENICE_API_KEY`, `VENICE_HOST` (optional), `VENICE_BASE_PATH` (optional), `VENICE_MODELS_PATH` (optional)                                                                          |
@@ -69,26 +72,39 @@ To configure your chosen provider, see available options, or select a model, vis
   <TabItem value="ui" label="goose Desktop" default>
   **First-time users:**
   
-  On the welcome screen the first time you open goose, you have three options:
-  - **Automatic setup with [Tetrate Agent Router](https://tetrate.io/products/tetrate-agent-router-service)**
-  - **Automatic Setup with [OpenRouter](https://openrouter.ai/)**
-  - **Other Providers**
+  On the welcome screen the first time you open goose, you have these options:
+  
+  <OnboardingProviderSetup />
+  
   <Tabs groupId="setup">
-    <TabItem value="tetrate" label="Tetrate Agent Router" default>
-    We recommend starting with Tetrate Agent Router. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
+    <TabItem value="apikey" label="Quick Setup" default>
+    1. Choose `Quick Setup with API Key`.
+    2. Enter your API key from your provider (for example, OpenAI, Anthropic, or Google).
+    3. goose will automatically detect your provider and configure the connection.
+    4. When setup is complete, you're ready to begin your first session.
+    </TabItem>
+
+    <TabItem value="chatgpt" label="ChatGPT Subscription">
+    1. Choose `ChatGPT Subscription`.
+    2. goose will open a browser window for you to sign in with the credentials of your active ChatGPT Plus or Pro subscription.
+    3. Authorize goose to access your ChatGPT subscription.
+    4. When you return to goose Desktop, you're ready to begin your first session.
+    </TabItem>
+    <TabItem value="tetrate" label="Agent Router">
+    We recommend new users start with Agent Router by Tetrate. Tetrate provides access to multiple AI models with built-in rate limiting and automatic failover. 
 
     :::info Free Credits Offer
     You'll receive $10 in free credits the first time you automatically authenticate with Tetrate through goose. This offer is available to both new and existing Tetrate users.
     :::
-    1. Choose `Automatic setup with Tetrate Agent Router`. 
+    1. Choose `Agent Router by Tetrate`. 
     2. goose will open a browser window for you to authenticate with Tetrate, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
+    3. When you return to goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="openrouter" label="OpenRouter">
     1. Choose `Automatic setup with OpenRouter`. 
     2. goose will open a browser window for you to authenticate with OpenRouter, or create a new account if you don't have one already.
-    3. When you return to the goose desktop app, you're ready to begin your first session.
+    3. When you return to the goose Desktop, you're ready to begin your first session.
     </TabItem>
 
     <TabItem value="others" label="Other Providers">
@@ -328,7 +344,7 @@ For enterprise deployments, you can pre-configure these values using environment
 
 ## Configure Custom Provider
 
-Custom providers let you connect to services that aren't in the [available providers](#available-providers) list. They appear in goose's provider list and can be selected like any other provider.
+Create custom providers to connect to services that aren't [already supported](#available-providers) or customize how you connect to them. Custom providers appear in goose's provider list and can be selected like any other provider.
 
 **Benefits:**
 - **Multiple endpoints**: Switch between different services (e.g., vLLM, corporate proxy, OpenAI)
@@ -337,7 +353,7 @@ Custom providers let you connect to services that aren't in the [available provi
 - **Custom naming**: Show "Corporate API" instead of "OpenAI" in the UI
 - **Separate credentials**: Assign each provider its own API key
 
-Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. OpenAI-compatible providers can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
+Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. They can include custom headers for additional authentication, API keys, tokens, or tenant identifiers. Each custom provider maps to a JSON configuration file.
 
 **To add a custom provider:**
 <Tabs groupId="interface">
@@ -354,14 +370,15 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
          - `Ollama Compatible`
        - **Display Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, click `This is a local model (no auth required)`
+       - **Authentication**:
+         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled or cannot be accessed)
+            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
     7. Click `Create Provider`
 
     :::info Custom Headers
-    Currently, custom headers for OpenAI compatible providers can't be defined in goose Desktop. As a workaround, configure the provider using goose CLI or edit the provider configuration file directly.
+    Currently, custom headers can't be defined in goose Desktop. As a workaround, edit the provider configuration file after creation.
     :::
 
   </TabItem>
@@ -412,11 +429,16 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
          - `Ollama Compatible`
        - **Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
-       - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
-         - For `Ollama Compatible` providers, press `Enter` to skip (or enter any value to be able to use the provider in goose Desktop)
+       - **Authentication Required**: Answer "Yes" if your provider needs an API key, or "No" if authentication is not required
+         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain, or in `secrets.yaml` if the keyring is disabled or cannot be accessed)
+         - If No: The API key prompt is skipped
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
-       - **Custom Headers**: Required header names and values (`OpenAI Compatible` providers only)
+       - **Custom Headers**: Any additional header names and values
+
+    :::info Custom Headers
+    Currently, custom headers can only be defined for OpenAI compatible providers in the CLI. For Anthropic or Ollama compatible providers, edit the provider configuration file after creation.
+    :::
 
   </TabItem>
   <TabItem value="config" label="Config File">
@@ -448,7 +470,8 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
         "x-origin-client-id": "YOUR_CLIENT_ID",
         "x-origin-secret": "YOUR_SECRET_VALUE"
       },
-      "supports_streaming": true
+      "supports_streaming": true,
+      "requires_auth": true
     }
     ```
 
@@ -475,7 +498,6 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. O
     4. Click `Configure providers`
     5. Click on your custom provider in the list
     6. Update the fields you want to change
-       <br/>**Important:** Verify that `Provider Type` shows the correct value before saving. Otherwise, it may default to `OpenAI Compatible` regardless of the original setting.
     7. Click `Update Provider`
 
   </TabItem>
@@ -767,7 +789,7 @@ Here are some local providers we support:
           6. Enter the host where your model is running
 
           :::info Endpoint
-          For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we preprend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
+          For the Ollama provider, if you don't provide a host, we set it to `localhost:11434`. When constructing the URL, we prepend `http://` if the scheme is not `http` or `https`. Since Ramalama's default port to serve on is 8080, we set `OLLAMA_HOST=http://0.0.0.0:8080`
           :::
 
           ```

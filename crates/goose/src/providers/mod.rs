@@ -8,23 +8,25 @@ pub mod bedrock;
 pub mod canonical;
 pub mod chatgpt_codex;
 pub mod claude_code;
+pub(crate) mod cli_common;
 pub mod codex;
 pub mod cursor_agent;
 pub mod databricks;
 pub mod embedding;
 pub mod errors;
-mod factory;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
 pub mod gemini_cli;
 pub mod githubcopilot;
 pub mod google;
+mod init;
 pub mod lead_worker;
 pub mod litellm;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;
+pub mod openai_compatible;
 pub mod openrouter;
 pub mod provider_registry;
 pub mod provider_test;
@@ -39,7 +41,7 @@ pub mod utils;
 pub mod venice;
 pub mod xai;
 
-pub use factory::{
+pub use init::{
     create, create_with_default_model, create_with_named_model, providers, refresh_custom_providers,
 };
 pub use retry::{retry_operation, RetryConfig};

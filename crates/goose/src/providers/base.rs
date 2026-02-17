@@ -1,4 +1,6 @@
 use anyhow::Result;
+use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
@@ -6,6 +8,7 @@ use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
+use crate::config::ExtensionConfig;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -42,9 +45,9 @@ pub struct ModelInfo {
     pub name: String,
     /// The maximum context length this model supports
     pub context_limit: usize,
-    /// Cost per token for input (optional)
+    /// Cost per token for input in USD (optional)
     pub input_token_cost: Option<f64>,
-    /// Cost per token for output (optional)
+    /// Cost per token for output in USD (optional)
     pub output_token_cost: Option<f64>,
     /// Currency for the costs (default: "$")
     pub currency: Option<String>,
@@ -130,9 +133,11 @@ impl ProviderMetadata {
             default_model: default_model.to_string(),
             known_models: model_names
                 .iter()
-                .map(|&name| ModelInfo {
-                    name: name.to_string(),
-                    context_limit: ModelConfig::new_or_fail(name).context_limit(),
+                .map(|&model_name| ModelInfo {
+                    name: model_name.to_string(),
+                    context_limit: ModelConfig::new_or_fail(model_name)
+                        .with_canonical_limits(name)
+                        .context_limit(),
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,
@@ -341,7 +346,20 @@ impl Usage {
     }
 }
 
-use async_trait::async_trait;
+pub trait ProviderDef: Send + Sync {
+    type Provider: Provider + 'static;
+
+    fn metadata() -> ProviderMetadata
+    where
+        Self: Sized;
+
+    fn from_env(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>>
+    where
+        Self: Sized;
+}
 
 /// Trait for LeadWorkerProvider-specific functionality
 pub trait LeadWorkerProviderTrait {
@@ -358,11 +376,6 @@ pub trait LeadWorkerProviderTrait {
 /// Base trait for AI providers (OpenAI, Anthropic, etc)
 #[async_trait]
 pub trait Provider: Send + Sync {
-    /// Get the metadata for this provider type
-    fn metadata() -> ProviderMetadata
-    where
-        Self: Sized;
-
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
@@ -439,16 +452,13 @@ pub trait Provider: Send + Sync {
         RetryConfig::default()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(None)
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(vec![])
     }
 
     /// Fetch models filtered by canonical registry and usability
-    async fn fetch_recommended_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let all_models = match self.fetch_supported_models().await? {
-            Some(models) => models,
-            None => return Ok(None),
-        };
+    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+        let all_models = self.fetch_supported_models().await?;
 
         let registry = CanonicalModelRegistry::bundled().map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
@@ -456,21 +466,50 @@ pub trait Provider: Send + Sync {
 
         let provider_name = self.get_name();
 
-        let recommended_models: Vec<String> = all_models
+        // Get all text-capable models with their release dates
+        let mut models_with_dates: Vec<(String, Option<String>)> = all_models
             .iter()
-            .filter(|model| {
-                map_to_canonical_model(provider_name, model, registry)
-                    .and_then(|canonical_id| registry.get(&canonical_id))
-                    .map(|m| m.input_modalities.contains(&"text".to_string()))
-                    .unwrap_or(false)
+            .filter_map(|model| {
+                let canonical_id = map_to_canonical_model(provider_name, model, registry)?;
+
+                let (provider, model_name) = canonical_id.split_once('/')?;
+                let canonical_model = registry.get(provider, model_name)?;
+
+                if !canonical_model
+                    .modalities
+                    .input
+                    .contains(&crate::providers::canonical::Modality::Text)
+                {
+                    return None;
+                }
+
+                if !canonical_model.tool_call && !self.get_model_config().toolshim {
+                    return None;
+                }
+
+                let release_date = canonical_model.release_date.clone();
+
+                Some((model.clone(), release_date))
             })
-            .cloned()
+            .collect();
+
+        // Sort by release date (most recent first), then alphabetically for models without dates
+        models_with_dates.sort_by(|a, b| match (&a.1, &b.1) {
+            (Some(date_a), Some(date_b)) => date_b.cmp(date_a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => a.0.cmp(&b.0),
+        });
+
+        let recommended_models: Vec<String> = models_with_dates
+            .into_iter()
+            .map(|(name, _)| name)
             .collect();
 
         if recommended_models.is_empty() {
-            Ok(Some(all_models))
+            Ok(all_models)
         } else {
-            Ok(Some(recommended_models))
+            Ok(recommended_models)
         }
     }
 

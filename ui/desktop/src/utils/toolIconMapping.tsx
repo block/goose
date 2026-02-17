@@ -109,7 +109,8 @@ export const getExtensionIcon = (extensionName: string): React.ComponentType<Too
  * @returns Extracted tool name (e.g., "text_editor")
  */
 export const extractToolName = (toolCallName: string): string => {
-  return toolCallName.substring(toolCallName.lastIndexOf('__') + 2);
+  const lastIndex = toolCallName.lastIndexOf('__');
+  return lastIndex === -1 ? toolCallName : toolCallName.substring(lastIndex + 2);
 };
 
 /**

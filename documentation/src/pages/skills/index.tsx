@@ -37,12 +37,13 @@ export default function SkillsPage() {
 
   const sidebarFilterGroups: SidebarFilterGroup[] = [
     {
-      title: "Tags",
-      options: uniqueTags
-    },
-    {
       title: "Source",
       options: sourceOptions
+    },
+    {
+      title: "Tags",
+      options: uniqueTags,
+      maxHeight: "max-h-64 overflow-y-auto"
     }
   ];
 

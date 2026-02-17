@@ -106,11 +106,10 @@ fn format_tool_response(
 ///   even though the message structure is otherwise following openai, the enum switches this
 fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let filtered = message.agent_visible_content();
+    for message in messages {
         let mut converted = DatabricksMessage {
             content: Value::Null,
-            role: match filtered.role {
+            role: match message.role {
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
             },
@@ -122,7 +121,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         let mut has_tool_calls = false;
         let mut has_multiple_content = false;
 
-        for content in &filtered.content {
+        for content in &message.content {
             match content {
                 MessageContent::Text(text) => {
                     if !text.text.is_empty() {
@@ -162,11 +161,23 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                                 })
                                 .unwrap_or_else(|| "{}".to_string());
 
-                            converted.tool_calls.get_or_insert_default().push(json!({
+                            let tool_calls = converted.tool_calls.get_or_insert_default();
+                            let mut tool_call_json = json!({
                                 "id": request.id,
                                 "type": "function",
-                                "function": {"name": sanitized_name, "arguments": arguments_str}
-                            }));
+                                "function": {
+                                    "name": sanitized_name,
+                                    "arguments": arguments_str,
+                                }
+                            });
+
+                            if let Some(metadata) = &request.metadata {
+                                for (key, value) in metadata {
+                                    tool_call_json[key] = value.clone();
+                                }
+                            }
+
+                            tool_calls.push(tool_call_json);
                         }
                         Err(e) => {
                             content_array
@@ -194,6 +205,10 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                 MessageContent::SystemNotification(_)
                 | MessageContent::ToolConfirmationRequest(_)
                 | MessageContent::ActionRequired(_) => {}
+                MessageContent::Reasoning(_reasoning) => {
+                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
+                    // Databricks doesn't use this format, so skip
+                }
             }
         }
 
@@ -1041,7 +1056,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -1073,7 +1088,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
@@ -1384,6 +1399,39 @@ mod tests {
     }
 
     #[test]
+    fn test_format_messages_with_thought_signature_metadata() -> anyhow::Result<()> {
+        let mut metadata = serde_json::Map::new();
+        metadata.insert(
+            "thoughtSignature".to_string(),
+            json!("sig_abc123_test_signature"),
+        );
+
+        let message = Message::assistant().with_tool_request_with_metadata(
+            "tool1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "test_tool".into(),
+                arguments: Some(object!({"param": "value"})),
+            }),
+            Some(&metadata),
+            None,
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        assert_eq!(spec_array.len(), 1);
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["id"], "tool1");
+        assert_eq!(tool_call["function"]["name"], "test_tool");
+        assert_eq!(tool_call["thoughtSignature"], "sig_abc123_test_signature");
+
+        Ok(())
+    }
+
+    #[test]
     fn test_create_request_claude_has_cache_control() -> anyhow::Result<()> {
         let model_config = ModelConfig {
             model_name: "databricks-claude-sonnet-4".to_string(),
@@ -1392,7 +1440,7 @@ mod tests {
             max_tokens: Some(8192),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
 
@@ -1444,7 +1492,7 @@ mod tests {
             max_tokens: Some(4096),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
 
@@ -1475,6 +1523,47 @@ mod tests {
         // Verify tool does NOT have cache_control
         let tools = request["tools"].as_array().unwrap();
         assert!(tools[0]["function"].get("cache_control").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_multiple_metadata_fields() -> anyhow::Result<()> {
+        let mut metadata = serde_json::Map::new();
+        metadata.insert("thoughtSignature".to_string(), json!("sig_top_level"));
+        metadata.insert(
+            "extra_content".to_string(),
+            json!({
+                "google": {
+                    "thought_signature": "sig_nested"
+                }
+            }),
+        );
+        metadata.insert("custom_field".to_string(), json!("custom_value"));
+
+        let message = Message::assistant().with_tool_request_with_metadata(
+            "tool1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "test_tool".into(),
+                arguments: None,
+            }),
+            Some(&metadata),
+            None,
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+        let as_value = serde_json::to_value(spec)?;
+        let spec_array = as_value.as_array().unwrap();
+
+        let tool_call = &spec_array[0]["tool_calls"][0];
+        assert_eq!(tool_call["thoughtSignature"], "sig_top_level");
+        assert_eq!(
+            tool_call["extra_content"]["google"]["thought_signature"],
+            "sig_nested"
+        );
+        assert_eq!(tool_call["custom_field"], "custom_value");
 
         Ok(())
     }

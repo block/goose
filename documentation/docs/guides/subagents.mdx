@@ -243,10 +243,14 @@ Subagents use the following pre-configured settings, but you can override any de
 ### Default Settings
 | Parameter | Default | How to Customize |
 |-----------|---------|------------------|
-| **Max Turns** | 25 | Use natural language or set `GOOSE_SUBAGENT_MAX_TURNS` |
+| **Max Turns** | 25 | Use natural language, set `GOOSE_SUBAGENT_MAX_TURNS`, or configure `settings.max_turns` in [recipes](/docs/guides/recipes/recipe-reference#settings) or subagent tool calls |
 | **Timeout** | 5 minutes | Request longer timeout in your prompt |
 | **Extensions** | Inherited from parent | Specify which extensions to use in your prompt |
 | **Return Mode** | All subagent information provided in main session | Specify how much detail you want in your prompt |
+
+:::tip Advanced Customization
+You can also customize subagent behavior by editing the `subagent_system.md` [prompt template](/docs/guides/prompt-templates).
+:::
 
 ### Customizing Settings in Prompts
 
@@ -344,7 +348,7 @@ import agentCoordination from '@site/blog/2025-08-14-agent-coordination-patterns
       title: 'Tutorial: Using Subagents',
       description: 'Spin up a team of subagents to build a fully functional app',
       thumbnailUrl: 'https://block.github.io/goose/assets/images/tutorial-using-subagents-ef265627024db73e73d80e5799ed0c1a.png',
-      linkUrl: '/docs/tutorials/subagents',
+      linkUrl: '/goose/docs/tutorials/subagents',
       date: '2026-01-27',
       duration: '1 hour'
     },

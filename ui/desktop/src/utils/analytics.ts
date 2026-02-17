@@ -168,7 +168,7 @@ export type AnalyticsEvent =
   | {
       name: 'input_voice_dictation';
       properties: {
-        action: 'start' | 'stop' | 'transcribed' | 'error';
+        action: 'start' | 'stop' | 'transcribed' | 'error' | 'auto_submit';
         duration_seconds?: number;
         error_type?: string;
       };
@@ -241,10 +241,10 @@ export function trackPageView(page: string, referrer?: string): void {
 export function trackError(
   errorType: string,
   options: {
-    component?: string; // React component name
-    page?: string; // Current route/page
-    action?: string; // What user was doing
-    stackSummary?: string; // Use getStackSummary() to generate
+    component?: string;
+    page?: string;
+    action?: string;
+    stackSummary?: string;
     recoverable?: boolean;
   } = {}
 ): void {
@@ -593,7 +593,7 @@ export function trackFileAttached(fileType: 'file' | 'directory'): void {
 }
 
 export function trackVoiceDictation(
-  action: 'start' | 'stop' | 'transcribed' | 'error',
+  action: 'start' | 'stop' | 'transcribed' | 'error' | 'auto_submit',
   durationSeconds?: number,
   errorType?: string
 ): void {

@@ -1,20 +1,20 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::MessageStream;
 use super::errors::ProviderError;
+use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{
-    handle_response_google_compat, handle_status_openai_compat, unescape_json_values, RequestLog,
-};
+use super::utils::{handle_response_google_compat, unescape_json_values, RequestLog};
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use crate::providers::formats::google::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::TryStreamExt;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -24,6 +24,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
+const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
@@ -68,7 +69,7 @@ pub struct GoogleProvider {
 
 impl GoogleProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL, GOOGLE_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
@@ -87,7 +88,7 @@ impl GoogleProvider {
         Ok(Self {
             api_client,
             model,
-            name: Self::metadata().name,
+            name: GOOGLE_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -120,11 +121,12 @@ impl GoogleProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GoogleProvider {
+impl ProviderDef for GoogleProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "google",
+            GOOGLE_PROVIDER_NAME,
             "Google Gemini",
             "Gemini models from Google AI",
             GOOGLE_DEFAULT_MODEL,
@@ -137,6 +139,16 @@ impl Provider for GoogleProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GoogleProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -178,24 +190,28 @@ impl Provider for GoogleProvider {
         Ok((message, provider_usage))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, "v1beta/models")
             .response_get()
             .await?;
         let json: serde_json::Value = response.json().await?;
-        let arr = match json.get("models").and_then(|v| v.as_array()) {
-            Some(arr) => arr,
-            None => return Ok(None),
-        };
+        let arr = json
+            .get("models")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed(
+                    "Missing 'models' array in Google models response".to_string(),
+                )
+            })?;
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| m.get("name").and_then(|v| v.as_str()))
             .map(|name| name.split('/').next_back().unwrap_or(name).to_string())
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     fn supports_streaming(&self) -> bool {

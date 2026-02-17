@@ -1,4 +1,6 @@
-import { parse, quote } from 'shell-quote';
+import type { FixedExtensionEntry } from '../../ConfigContext';
+import type { ExtensionConfig } from '../../../api/types.gen';
+import { parse as parseShellQuote } from 'shell-quote';
 
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
@@ -16,9 +18,6 @@ export function nameToKey(name: string): string {
     .join('')
     .toLowerCase();
 }
-
-import { FixedExtensionEntry } from '../../ConfigContext';
-import { ExtensionConfig } from '../../../api/types.gen';
 
 export interface ExtensionFormData {
   name: string;
@@ -105,7 +104,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       extension.type === 'platform'
         ? 'stdio'
         : extension.type,
-    cmd: extension.type === 'stdio' ? quote([extension.cmd, ...extension.args]) : undefined,
+    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint:
       extension.type === 'streamable_http' || extension.type === 'sse'
         ? (extension.uri ?? undefined)
@@ -156,7 +155,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       timeout: formData.timeout,
       uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
-      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      headers,
     };
   } else {
     // For other types
@@ -170,8 +169,31 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
 }
 
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
-  const parts = parse(str.trim()).filter((p): p is string => typeof p === 'string');
-  return { cmd: parts[0] || '', args: parts.slice(1) };
+  const trimmed = str.trim();
+  if (!trimmed) {
+    return { cmd: '', args: [] };
+  }
+
+  const parsed = parseShellQuote(trimmed);
+  const words = parsed.filter((item): item is string => typeof item === 'string').map(String);
+
+  const cmd = words[0] || '';
+  const args = words.slice(1);
+
+  return {
+    cmd,
+    args,
+  };
+}
+
+export function combineCmdAndArgs(cmd: string, args: string[]): string {
+  return [cmd, ...args]
+    .map((a) => {
+      if (!a.includes(' ')) return a;
+      if (a.includes('"')) return `'${a}'`;
+      return `"${a}"`;
+    })
+    .join(' ');
 }
 
 export function extractCommand(link: string): string {

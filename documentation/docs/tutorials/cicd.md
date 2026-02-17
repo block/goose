@@ -69,7 +69,7 @@ jobs:
            run: |
               mkdir -p /home/runner/.local/bin
               curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-              | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
+                | GOOSE_VERSION=REPLACE_WITH_VERSION CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
               echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
          - name: Configure goose
@@ -159,7 +159,7 @@ steps:
       run: |
           mkdir -p /home/runner/.local/bin
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-            | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
+            | GOOSE_VERSION=REPLACE_WITH_VERSION CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
           echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
     - name: Configure goose
@@ -172,8 +172,17 @@ steps:
           EOF
 ```
 
+#### Pinning goose versions in CI/CD
+
+In CI/CD, we recommend pinning a specific goose version with `GOOSE_VERSION` for reproducible runs. This also avoids 404 errors when downloading the goose CLI binary assets if the `stable` release tag doesn’t include them.
+
+Relevant installer options for CI:
+- `GOOSE_VERSION`: the version to pin the install to (both `1.21.1` and `v1.21.1` formats are supported)
+- `GOOSE_BIN_DIR`: install directory (make sure this directory is on `PATH`)
+- `CONFIGURE=false`: skip interactive `goose configure` flow
+
 :::info Replacements
-Replace `REPLACE_WITH_PROVIDER` and `REPLACE_WITH_MODEL` with your LLM provider and model names and add any other necessary configuration required.
+Replace `REPLACE_WITH_VERSION`, `REPLACE_WITH_PROVIDER`, and `REPLACE_WITH_MODEL` with the goose version you want to pin and your LLM provider/model names. Add any other necessary configuration required.
 :::
 
 ### 4. Gather PR Changes and Prepare Instructions
@@ -227,6 +236,14 @@ Finally, post the goose output as a comment on the pull request:
 With this workflow, goose will run on pull requests, analyze the changes, and post a summary as a comment on the PR.
 
 This is just one example of what's possible. Feel free to modify your GitHub Action to meet your needs.
+
+---
+
+## Running Multiple goose Instances in Parallel
+
+goose supports running multiple concurrent sessions with isolated state, making it safe to run parallel jobs in your CI/CD pipeline. Each goose instance maintains its own conversation history, agent context, and extension configurations without interference.
+
+This enables use cases like matrix builds across different environments or processing multiple components simultaneously.
 
 ---
 

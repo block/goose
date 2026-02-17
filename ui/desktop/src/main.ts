@@ -23,12 +23,13 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { checkServerStatus, startGoosed } from './goosed';
+import { checkServerStatus } from './goosed';
+import { startGoosed } from './goosed';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName, errorMessage } from './utils/conversionUtils';
+import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
 import type { Settings } from './utils/settings';
 import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
@@ -43,9 +44,10 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { Client, createClient, createConfig } from './api/client';
+import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -156,7 +158,6 @@ if (process.platform !== 'darwin') {
               undefined,
               deeplinkData?.config,
               scheduledJobId || undefined,
-              undefined,
               deeplinkData?.parameters
             );
           });
@@ -257,7 +258,6 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       undefined,
       deeplinkData?.config,
       scheduledJobId || undefined,
-      undefined,
       deeplinkData?.parameters
     );
     pendingDeepLink = null;
@@ -296,7 +296,6 @@ app.on('open-url', async (_event, url) => {
         undefined,
         deeplinkData?.config,
         scheduledJobId || undefined,
-        undefined,
         deeplinkData?.parameters
       );
       windowDeeplinkURL = null;
@@ -394,6 +393,12 @@ async function handleFileOpen(filePath: string) {
 declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
+function getAppUrl(): URL {
+  return MAIN_WINDOW_VITE_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+}
+
 // Parse command line arguments
 const parseArgs = () => {
   let dirPath = null;
@@ -473,21 +478,33 @@ const createChat = async (
   viewType?: string,
   recipeDeeplink?: string, // Raw deeplink decoded on server
   scheduledJobId?: string, // Scheduled job ID if applicable
-  recipeId?: string,
   recipeParameters?: Record<string, string> // Recipe parameter values from deeplink URL
 ) => {
   const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
   const goosedResult = await startGoosed({
-    app,
     serverSecret,
     dir: dir || os.homedir(),
     env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
     externalGoosed: settings.externalGoosed,
+    isPackaged: app.isPackaged,
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+    logger: log,
   });
 
-  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
+  app.on('will-quit', async () => {
+    log.info('App quitting, terminating goosed server');
+    await goosedResult.cleanup();
+  });
+
+  const {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+    client: goosedClient,
+  } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -521,7 +538,6 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
-          recipeId: recipeId,
           recipeDeeplink: recipeDeeplink,
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
@@ -541,15 +557,6 @@ const createChat = async (
       .catch((err) => log.info('failed to install react dev tools:', err));
   }
 
-  const goosedClient = createClient(
-    createConfig({
-      baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': serverSecret,
-      },
-    })
-  );
   goosedClients.set(mainWindow.id, goosedClient);
 
   const serverReady = await checkServerStatus(goosedClient, errorLog);
@@ -653,14 +660,19 @@ const createChat = async (
     }
   });
 
-  // Handle new window creation for links
+  // Handle new window creation for links (fallback for any links not handled by onClick)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Open all links in external browser
-    if (url.startsWith('http:') || url.startsWith('https:')) {
-      shell.openExternal(url);
+    try {
+      const protocol = new URL(url).protocol;
+      if (BLOCKED_PROTOCOLS.includes(protocol)) {
+        return { action: 'deny' };
+      }
+    } catch {
       return { action: 'deny' };
     }
-    return { action: 'allow' };
+
+    shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   // Handle new-window events (alternative approach for external links)
@@ -668,13 +680,19 @@ const createChat = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
     event.preventDefault();
+    try {
+      const protocol = new URL(url).protocol;
+      if (BLOCKED_PROTOCOLS.includes(protocol)) {
+        return;
+      }
+    } catch {
+      return;
+    }
     shell.openExternal(url);
   });
 
   const windowId = mainWindow.id;
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   let appPath = '/';
   const routeMap: Record<string, string> = {
@@ -693,24 +711,13 @@ const createChat = async (
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (
-    appPath === '/' &&
-    (recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
-  ) {
+  if (appPath === '/' && (recipeDeeplink !== undefined || initialMessage)) {
     appPath = '/pair';
   }
 
   let searchParams = new URLSearchParams();
   if (resumeSessionId) {
     searchParams.set('resumeSessionId', resumeSessionId);
-    if (appPath === '/') {
-      appPath = '/pair';
-    }
-  }
-  // Only add recipeId to URL for the non-deeplink case (saved recipes launched from UI)
-  // For deeplinks, the recipe object is passed via appConfig, not URL params
-  if (recipeId) {
-    searchParams.set('recipeId', recipeId);
     if (appPath === '/') {
       appPath = '/pair';
     }
@@ -832,9 +839,7 @@ const createLauncher = () => {
   );
 
   // Load launcher window content
-  const url = MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  const url = getAppUrl();
 
   url.hash = '/launcher';
   launcherWindow.loadURL(formatUrl(url));
@@ -1048,7 +1053,6 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
       undefined,
       deeplinkData?.config,
       undefined,
-      undefined,
       deeplinkData?.parameters
     );
   }
@@ -1117,12 +1121,12 @@ const handleFatalError = (error: Error) => {
 };
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  console.error('Uncaught Exception:', formatErrorForLogging(error));
   handleFatalError(error);
 });
 
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Rejection:', error);
+  console.error('Unhandled Rejection:', formatErrorForLogging(error));
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
@@ -1164,15 +1168,15 @@ ipcMain.on('react-ready', (event) => {
   log.info('React ready - window is prepared for deep links');
 });
 
-// Handle external URL opening
 ipcMain.handle('open-external', async (_event, url: string) => {
-  try {
-    await shell.openExternal(url);
-    return true;
-  } catch (error) {
-    console.error('Error opening external URL:', error);
-    throw error;
+  const parsedUrl = new URL(url);
+
+  if (BLOCKED_PROTOCOLS.includes(parsedUrl.protocol)) {
+    console.warn(`[Main] Blocked dangerous protocol: ${parsedUrl.protocol}`);
+    return;
   }
+
+  await shell.openExternal(url);
 });
 
 ipcMain.handle('directory-chooser', async () => {
@@ -2002,13 +2006,13 @@ async function appMain() {
 
   ipcMain.on(
     'create-chat-window',
-    (event, query, dir, version, resumeSessionId, viewType, recipeId) => {
+    (event, query, dir, version, resumeSessionId, viewType, recipeDeeplink) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
 
-      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
+      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeDeeplink;
 
       if (isFromLauncher) {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -2036,9 +2040,9 @@ async function appMain() {
         version,
         resumeSessionId,
         viewType,
+        recipeDeeplink,
         undefined,
-        undefined,
-        recipeId
+        undefined
       );
     }
   );
@@ -2148,8 +2152,8 @@ async function appMain() {
       // Validate URL
       const parsedUrl = new URL(url);
 
-      // Only allow http and https protocols
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      // Only allow http and https protocols for fetching web content
+      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
         throw new Error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
       }
 
@@ -2187,8 +2191,8 @@ async function appMain() {
       // Validate URL
       const parsedUrl = new URL(url);
 
-      // Only allow http and https protocols
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      // Only allow http and https protocols for browser URLs
+      if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
         console.error('Invalid URL protocol. Only HTTP and HTTPS are allowed.');
         return;
       }
@@ -2241,9 +2245,6 @@ async function appMain() {
         throw new Error('No client found for launching window');
       }
 
-      const currentUrl = launchingWindow.webContents.getURL();
-      const baseUrl = new URL(currentUrl).origin;
-
       const appWindow = new BrowserWindow({
         title: formatAppName(gooseApp.name),
         width: gooseApp.width ?? 800,
@@ -2269,14 +2270,17 @@ async function appMain() {
 
       const workingDir = app.getPath('home');
       const extensionName = gooseApp.mcpServers?.[0] ?? '';
-      const standaloneUrl =
-        `${baseUrl}/#/standalone-app?` +
-        `resourceUri=${encodeURIComponent(gooseApp.uri)}` +
-        `&extensionName=${encodeURIComponent(extensionName)}` +
-        `&appName=${encodeURIComponent(gooseApp.name)}` +
-        `&workingDir=${encodeURIComponent(workingDir)}`;
 
-      await appWindow.loadURL(standaloneUrl);
+      const url = getAppUrl();
+
+      const searchParams = new URLSearchParams();
+      searchParams.set('resourceUri', gooseApp.uri);
+      searchParams.set('extensionName', extensionName);
+      searchParams.set('appName', gooseApp.name);
+      searchParams.set('workingDir', workingDir);
+
+      url.hash = `/standalone-app?${searchParams.toString()}`;
+      await appWindow.loadURL(formatUrl(url));
       appWindow.show();
     } catch (error) {
       console.error('Failed to launch app:', error);

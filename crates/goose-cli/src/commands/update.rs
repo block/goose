@@ -30,6 +30,7 @@ pub fn update(canary: bool, reconfigure: bool) -> Result<()> {
         .env("CANARY", canary.to_string())
         .env("CONFIGURE", reconfigure.to_string())
         .env("GOOSE_TERMINAL", "1")
+        .env("AGENT", "goose")
         .spawn()?;
 
     update.wait_with_output()?;

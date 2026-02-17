@@ -76,9 +76,12 @@ export function useAutoSubmit({
 
     // Scenario 2: Forked session with edited message
     if (shouldStartAgent && initialMessage) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      clearInitialMessage();
+      if (messages.length > 0) {
+        hasAutoSubmittedRef.current = true;
+        handleSubmit(initialMessage);
+        clearInitialMessage();
+        return;
+      }
       return;
     }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { Recipe } from '../../recipe';
+import { Recipe, encodeRecipe, stripEmptyExtensions } from '../../recipe';
 import { Geese } from '../icons/Geese';
 import { X, Save, Play, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -182,19 +182,20 @@ export default function CreateRecipeFromSessionModal({
             : undefined,
       };
 
-      let recipeId = await saveRecipe(recipe, null);
+      await saveRecipe(recipe, null);
 
       onRecipeCreated?.(recipe);
       onClose();
 
       if (runAfterSave) {
+        const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe));
         window.electron.createChatWindow(
           undefined,
           undefined,
           undefined,
           undefined,
           undefined,
-          recipeId
+          encodedRecipe
         );
       }
     } catch (error) {
@@ -218,10 +219,10 @@ export default function CreateRecipeFromSessionModal({
       className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4"
       data-testid="create-recipe-modal"
     >
-      <div className="bg-background-default border border-borderSubtle rounded-lg w-full max-w-4xl h-full max-h-[90vh] flex flex-col shadow-xl">
+      <div className="bg-background-default border border-border-default rounded-lg w-full max-w-4xl h-full max-h-[90vh] flex flex-col shadow-xl">
         {/* Header */}
         <div
-          className="flex items-center justify-between p-6 border-b border-borderSubtle shrink-0"
+          className="flex items-center justify-between p-6 border-b border-border-default shrink-0"
           data-testid="modal-header"
         >
           <div className="flex items-center gap-3">
@@ -229,8 +230,8 @@ export default function CreateRecipeFromSessionModal({
               <Geese className="w-6 h-6 text-iconProminent" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-textProminent">Create Recipe from Session</h1>
-              <p className="text-textSubtle text-sm">
+              <h1 className="text-xl font-medium text-text-default">Create Recipe from Session</h1>
+              <p className="text-text-muted text-sm">
                 Create a reusable recipe based on your current conversation.
               </p>
             </div>
@@ -239,7 +240,7 @@ export default function CreateRecipeFromSessionModal({
             onClick={onClose}
             variant="ghost"
             size="sm"
-            className="p-2 hover:bg-bgSubtle rounded-lg transition-colors"
+            className="p-2 hover:bg-background-muted rounded-lg transition-colors"
             data-testid="close-button"
           >
             <X className="w-5 h-5" />
@@ -259,16 +260,16 @@ export default function CreateRecipeFromSessionModal({
                   data-testid="analysis-spinner"
                 />
                 <div
-                  className="text-lg font-medium text-textProminent"
+                  className="text-lg font-medium text-text-default"
                   data-testid="analyzing-title"
                 >
                   Analyzing your conversation
                 </div>
               </div>
-              <div className="text-textSubtle text-center max-w-md" data-testid="analysis-stage">
+              <div className="text-text-muted text-center max-w-md" data-testid="analysis-stage">
                 {analysisStage}
               </div>
-              <div className="flex items-center space-x-2 text-textSubtle">
+              <div className="flex items-center space-x-2 text-text-muted">
                 <Geese className="w-5 h-5 animate-pulse" />
                 <span className="text-sm">Extracting insights from your chat</span>
               </div>
@@ -282,13 +283,13 @@ export default function CreateRecipeFromSessionModal({
 
         {/* Footer */}
         <div
-          className="flex items-center justify-between p-6 border-t border-borderSubtle shrink-0"
+          className="flex items-center justify-between p-6 border-t border-border-default shrink-0"
           data-testid="modal-footer"
         >
           <Button
             onClick={onClose}
             variant="ghost"
-            className="px-4 py-2 text-textSubtle rounded-lg hover:bg-bgSubtle transition-colors"
+            className="px-4 py-2 text-text-muted rounded-lg hover:bg-background-muted transition-colors"
             data-testid="cancel-button"
           >
             Cancel
@@ -303,7 +304,7 @@ export default function CreateRecipeFromSessionModal({
                   }}
                   disabled={!isFormValid || isCreating}
                   variant="outline"
-                  className="px-4 py-2 border border-borderStandard rounded-lg hover:bg-bgSubtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 border border-border-default rounded-lg hover:bg-background-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="create-recipe-button"
                 >
                   <Save className="w-4 h-4 mr-2" />
@@ -314,7 +315,7 @@ export default function CreateRecipeFromSessionModal({
                     handleCreateRecipe(form.state.values, true);
                   }}
                   disabled={!isFormValid || isCreating}
-                  className="px-4 py-2 bg-textProminent text-bgApp rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-text-on-accent rounded-lg hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   data-testid="create-and-run-recipe-button"
                 >
                   <Play className="w-4 h-4 mr-2" />

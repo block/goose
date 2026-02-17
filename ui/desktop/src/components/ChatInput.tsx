@@ -16,12 +16,10 @@ import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionS
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
-import { useWhisper } from '../hooks/useWhisper';
-import { DICTATION_PROVIDER_ELEVENLABS } from '../hooks/dictationConstants';
-import { WaveformVisualizer } from './WaveformVisualizer';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
-import { COST_TRACKING_ENABLED, VOICE_DICTATION_ELEVENLABS_ENABLED } from '../updates';
+import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
 import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
 import { Recipe } from '../recipe';
@@ -43,6 +41,7 @@ import {
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
+import { fetchCanonicalModelInfo } from '../utils/canonical';
 
 interface PastedImage {
   id: string;
@@ -59,11 +58,6 @@ const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 // Manual compact trigger message - must match backend constant
 const MANUAL_COMPACT_TRIGGER = '/compact';
-
-interface ModelLimit {
-  pattern: string;
-  context_limit: number;
-}
 
 interface ChatInputProps {
   sessionId: string | null;
@@ -128,6 +122,7 @@ export default function ChatInput({
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
   const [pastedImages, setPastedImages] = useState<PastedImage[]>([]);
+  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
@@ -143,14 +138,13 @@ export default function ChatInput({
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
-  const { getProviders, read } = useConfig();
+  const { getProviders } = useConfig();
   const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [showCreateRecipeModal, setShowCreateRecipeModal] = useState(false);
   const [showEditRecipeModal, setShowEditRecipeModal] = useState(false);
-  const [isFilePickerOpen, setIsFilePickerOpen] = useState(false);
   const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
 
   useEffect(() => {
@@ -254,39 +248,53 @@ export default function ChatInput({
     selectFile: (index: number) => void;
   }>(null);
 
-  // Whisper hook for voice dictation
+  // Audio recorder hook for voice dictation
   const {
+    isEnabled,
+    dictationProvider,
     isRecording,
     isTranscribing,
-    canUseDictation,
-    audioContext,
-    analyser,
     startRecording,
     stopRecording,
-    recordingDuration,
-    estimatedSize,
-    dictationSettings,
-  } = useWhisper({
+  } = useAudioRecorder({
     onTranscription: (text) => {
       trackVoiceDictation('transcribed');
-      // Append transcribed text to the current input
-      const newValue = displayValue.trim() ? `${displayValue.trim()} ${text}` : text;
+
+      let filteredText = text.replace(/\([^)]*\)/g, '').trim();
+
+      if (!filteredText) {
+        return;
+      }
+
+      const shouldAutoSubmit = /\bsubmit[.,!?;'"\s]*$/i.test(filteredText);
+
+      const cleanedText = shouldAutoSubmit
+        ? filteredText.replace(/\bsubmit[.,!?;'"\s]*$/i, '').trim()
+        : filteredText;
+
+      const newValue =
+        displayValue.trim() && cleanedText
+          ? `${displayValue.trim()} ${cleanedText}`
+          : displayValue.trim() || cleanedText;
+
       setDisplayValue(newValue);
       setValue(newValue);
-      textAreaRef.current?.focus();
+
+      if (shouldAutoSubmit && newValue.trim()) {
+        trackVoiceDictation('auto_submit');
+        setTimeout(() => {
+          performSubmit(newValue);
+        }, 100);
+      } else {
+        textAreaRef.current?.focus();
+      }
     },
-    onError: (error) => {
-      const errorType = error.name || 'DictationError';
+    onError: (message) => {
+      const errorType = 'DictationError';
       trackVoiceDictation('error', undefined, errorType);
       toastError({
         title: 'Dictation Error',
-        msg: error.message,
-      });
-    },
-    onSizeWarning: (sizeMB) => {
-      toastError({
-        title: 'Recording Size Warning',
-        msg: `Recording is ${sizeMB.toFixed(1)}MB. Maximum size is 25MB.`,
+        msg: message,
       });
     },
   });
@@ -355,28 +363,6 @@ export default function ChatInput({
     }
   }, [textAreaRef]);
 
-  // Load model limits from the API
-  const getModelLimits = async () => {
-    try {
-      const response = await read('model-limits', false);
-      if (response) {
-        // The response is already parsed, no need for JSON.parse
-        return response as ModelLimit[];
-      }
-    } catch (err) {
-      console.error('Error fetching model limits:', err);
-    }
-    return [];
-  };
-
-  const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
-    if (!modelName) return null;
-    const matchingLimit = modelLimits.find((limit) =>
-      modelName.toLowerCase().includes(limit.pattern.toLowerCase())
-    );
-    return matchingLimit ? matchingLimit.context_limit : null;
-  };
-
   // Load providers and get current model's token limit
   const loadProviderDetails = async () => {
     try {
@@ -391,7 +377,7 @@ export default function ChatInput({
         return;
       }
 
-      // First, check predefined models from environment (highest priority)
+      // Priority 1: Check predefined models from environment
       const predefinedModels = getPredefinedModelsFromEnv();
       const predefinedModel = predefinedModels.find((m) => m.name === model);
       if (predefinedModel?.context_limit) {
@@ -400,12 +386,18 @@ export default function ChatInput({
         return;
       }
 
-      const providers = await getProviders(true);
+      // Priority 2: Check canonical model info (source of truth)
+      const canonicalInfo = await fetchCanonicalModelInfo(provider, model);
+      if (canonicalInfo?.context_limit) {
+        setTokenLimit(canonicalInfo.context_limit);
+        setIsTokenLimitLoaded(true);
+        return;
+      }
 
-      // Find the provider details for the current provider
+      // Priority 3: Fall back to provider metadata known_models (may be outdated)
+      const providers = await getProviders(true);
       const currentProvider = providers.find((p) => p.name === provider);
       if (currentProvider?.metadata?.known_models) {
-        // Find the model's token limit from the backend response
         const modelConfig = currentProvider.metadata.known_models.find((m) => m.name === model);
         if (modelConfig?.context_limit) {
           setTokenLimit(modelConfig.context_limit);
@@ -414,16 +406,7 @@ export default function ChatInput({
         }
       }
 
-      // Fallback: Use pattern matching logic if no exact model match was found
-      const modelLimit = await getModelLimits();
-      const fallbackLimit = findModelLimit(model as string, modelLimit);
-      if (fallbackLimit !== null) {
-        setTokenLimit(fallbackLimit);
-        setIsTokenLimitLoaded(true);
-        return;
-      }
-
-      // If no match found, use the default model limit
+      // Priority 4: Use default if nothing else found
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
       setIsTokenLimitLoaded(true);
     } catch (err) {
@@ -918,7 +901,6 @@ export default function ChatInput({
   );
 
   const handleKeyDown = (evt: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // If mention popover is open, handle arrow keys and enter
     if (mentionPopover.isOpen && mentionPopoverRef.current) {
       if (evt.key === 'ArrowDown') {
         evt.preventDefault();
@@ -950,7 +932,6 @@ export default function ChatInput({
       }
     }
 
-    // Handle history navigation first
     handleHistoryNavigation(evt);
 
     if (evt.key === 'Enter') {
@@ -1184,8 +1165,8 @@ export default function ChatInput({
         disableAnimation ? '' : 'page-transition'
       } ${
         isFocused
-          ? 'border-borderProminent hover:border-borderProminent'
-          : 'border-borderSubtle hover:border-borderStandard'
+          ? 'border-border-strong hover:border-border-strong'
+          : 'border-border-default hover:border-border-default'
       } bg-background-default z-10 rounded-t-2xl`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
@@ -1210,7 +1191,7 @@ export default function ChatInput({
           onTriggerQueueProcessing={handleResumeQueue}
           editingMessageIdRef={editingMessageIdRef}
           isPaused={queuePausedRef.current}
-          className="border-b border-borderSubtle"
+          className="border-b border-border-default"
         />
       )}
       {/* Input row with inline action buttons wrapped in form */}
@@ -1231,31 +1212,22 @@ export default function ChatInput({
             onBlur={() => setIsFocused(false)}
             ref={textAreaRef}
             rows={1}
+            readOnly={isRecording}
             style={{
               minHeight: `${minTextareaHeight}px`,
               maxHeight: `${maxHeight}px`,
               overflowY: 'auto',
-              opacity: isRecording ? 0 : 1,
-              paddingRight: dictationSettings?.enabled ? '180px' : '120px',
+              paddingRight: dictationProvider ? '180px' : '120px',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-textStandard placeholder:text-textPlaceholder"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-text-default placeholder:text-text-muted"
           />
-          {isRecording && (
-            <div className="absolute inset-0 flex items-center pl-4 pr-32 pt-3 pb-1.5">
-              <WaveformVisualizer
-                audioContext={audioContext}
-                analyser={analyser}
-                isRecording={isRecording}
-              />
-            </div>
-          )}
 
           {/* Inline action buttons - absolutely positioned on the right */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            {/* Microphone button - show only if dictation is enabled */}
-            {dictationSettings?.enabled && (
+            {/* Microphone button - show only if provider is selected */}
+            {dictationProvider && (
               <>
-                {!canUseDictation ? (
+                {!isEnabled ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex">
@@ -1273,21 +1245,20 @@ export default function ChatInput({
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {dictationSettings.provider === 'openai' ? (
+                      {dictationProvider === 'openai' ? (
                         <p>
                           OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Models.</b>
                         </p>
-                      ) : VOICE_DICTATION_ELEVENLABS_ENABLED &&
-                        dictationSettings.provider === DICTATION_PROVIDER_ELEVENLABS ? (
+                      ) : dictationProvider === 'elevenlabs' ? (
                         <p>
                           ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
                           <b>Chat</b> {'>'} <b>Voice Dictation.</b>
                         </p>
-                      ) : dictationSettings.provider === null ? (
+                      ) : dictationProvider === 'local' ? (
                         <p>
-                          Dictation is not configured. Configure it in <b>Settings</b> {'>'}{' '}
-                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                          Local Whisper model not found. Download a model in{' '}
+                          <b>Settings &gt; Dictation &gt; Local (Offline)</b>
                         </p>
                       ) : (
                         <p>Dictation provider is not properly configured.</p>
@@ -1295,31 +1266,41 @@ export default function ChatInput({
                     </TooltipContent>
                   </Tooltip>
                 ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    shape="round"
-                    variant="outline"
-                    onClick={() => {
-                      if (isRecording) {
-                        trackVoiceDictation('stop', Math.floor(recordingDuration));
-                        stopRecording();
-                      } else {
-                        trackVoiceDictation('start');
-                        startRecording();
-                      }
-                    }}
-                    disabled={isTranscribing}
-                    className={`rounded-full px-6 py-2 ${
-                      isRecording
-                        ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                        : isTranscribing
-                          ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
-                    }`}
-                  >
-                    <Microphone />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="sm"
+                        shape="round"
+                        variant="outline"
+                        onClick={() => {
+                          if (isRecording) {
+                            trackVoiceDictation('stop');
+                            stopRecording();
+                          } else {
+                            trackVoiceDictation('start');
+                            startRecording();
+                          }
+                        }}
+                        disabled={isTranscribing}
+                        className={`rounded-full px-6 py-2 ${
+                          isRecording
+                            ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                            : isTranscribing
+                              ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                              : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                        }`}
+                      >
+                        <Microphone />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        Voice dictation
+                        {isRecording ? '' : ' • Say "submit" to send'}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </>
             )}
@@ -1365,21 +1346,22 @@ export default function ChatInput({
 
             {/* Recording/transcribing status indicator - positioned above the button row */}
             {(isRecording || isTranscribing) && (
-              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-borderSubtle">
-                {isTranscribing ? (
-                  <span className="text-blue-500 flex items-center gap-1">
-                    <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                    Transcribing...
-                  </span>
-                ) : (
-                  <span
-                    className={`flex items-center gap-2 ${estimatedSize > 20 ? 'text-orange-500' : 'text-textSubtle'}`}
-                  >
-                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                    {Math.floor(recordingDuration)}s • ~{estimatedSize.toFixed(1)}MB
-                    {estimatedSize > 20 && <span className="text-xs">(near 25MB limit)</span>}
-                  </span>
-                )}
+              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-border-default">
+                <span className="flex items-center gap-2">
+                  {isRecording && (
+                    <span className="flex items-center gap-1 text-text-muted">
+                      <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      Listening
+                    </span>
+                  )}
+                  {isRecording && isTranscribing && <span className="text-text-muted">•</span>}
+                  {isTranscribing && (
+                    <span className="flex items-center gap-1 text-blue-500">
+                      <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                      Transcribing
+                    </span>
+                  )}
+                </span>
               </div>
             )}
           </div>
@@ -1388,7 +1370,7 @@ export default function ChatInput({
 
       {/* Combined files and images preview */}
       {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-borderSubtle">
+        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-border-default">
           {/* Render pasted images first */}
           {pastedImages.map((img) => (
             <div key={img.id} className="relative group w-20 h-20">
@@ -1396,7 +1378,7 @@ export default function ChatInput({
                 <img
                   src={img.dataUrl}
                   alt={`Pasted image ${img.id}`}
-                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-borderStandard'}`}
+                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-border-default'}`}
                 />
               )}
               {img.isLoading && (
@@ -1437,7 +1419,7 @@ export default function ChatInput({
                     <img
                       src={file.dataUrl}
                       alt={file.name}
-                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-borderStandard'}`}
+                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-border-default'}`}
                     />
                   )}
                   {file.isLoading && (
@@ -1455,15 +1437,15 @@ export default function ChatInput({
                 </div>
               ) : (
                 // File box preview
-                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-borderStandard rounded-lg min-w-[120px] max-w-[200px]">
-                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-borderSubtle rounded flex items-center justify-center text-xs font-mono text-textSubtle">
+                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-border-default rounded-lg min-w-[120px] max-w-[200px]">
+                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-border-default rounded flex items-center justify-center text-xs font-mono text-text-muted">
                     {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-textStandard truncate" title={file.name}>
+                    <p className="text-sm text-text-default truncate" title={file.name}>
                       {file.name}
                     </p>
-                    <p className="text-xs text-textSubtle">{file.type || 'Unknown type'}</p>
+                    <p className="text-xs text-text-muted">{file.type || 'Unknown type'}</p>
                   </div>
                 </div>
               )}

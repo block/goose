@@ -41,9 +41,16 @@ If you use Goose, Copilot, Claude, or other AI tools to help with your PRs:
 
 ## Prerequisites
 
-goose includes Rust binaries alongside an electron app for the GUI. To work
-on the Rust backend, you will need to [install Rust and cargo][rustup]. To work
-on the App, you will also need to [install node and npm][nvm] - we recommend through nvm.
+goose includes Rust binaries alongside an electron app for the GUI.
+
+We use [Hermit][hermit] to manage development dependencies (Rust, Node, npm, just, etc.).
+Activate Hermit when entering the project:
+
+```bash
+source bin/activate-hermit
+```
+
+Or add [shell hook auto-activation](https://cashapp.github.io/hermit/usage/shell/#shell-hooks) so Hermit activates automatically when you `cd` into the project (recommended).
 
 We provide a shortcut to standard commands using [just][just] in our `justfile`.
 
@@ -96,7 +103,7 @@ When making changes to the Rust code, test them on the CLI or run checks, tests,
 cargo check  # verify changes compile
 cargo test  # run tests with changes
 cargo fmt   # format code
-./scripts/clippy-lint.sh # run the linter
+cargo clippy --all-targets -- -D warnings # run the linter
 ```
 
 ### Node
@@ -235,7 +242,7 @@ This process will help you keep your branch aligned with the ongoing changes in 
 
 Before you submit a pull request, please ensure your fork is synchronized as described above. This check ensures your changes are compatible with the latest in the main repository and streamlines the review process.
 
-If you encounter any issues during this process or have any questions, please reach out by opening an issue [here][issues], and we'll be happy to help.
+If you encounter any issues during this process or have any questions, please reach out by [opening an issue][issues], and we'll be happy to help.
 
 ## Env Vars
 
@@ -270,7 +277,7 @@ This creates isolated `config/`, `data/`, and `state/` directories under the spe
 
 ## Enable traces in goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
-- Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
+- [Start a local Langfuse using the docs](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
 - Set the environment variables so that goose can connect to the langfuse server:
 
 ```
@@ -285,8 +292,7 @@ Then you can view your traces at http://localhost:3000
 This project follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification for PR titles. Conventional Commits make it easier to understand the history of a project and facilitate automation around versioning and changelog generation.
 
 [issues]: https://github.com/block/goose/issues
-[rustup]: https://doc.rust-lang.org/cargo/getting-started/installation.html
-[nvm]: https://github.com/nvm-sh/nvm
+[hermit]: https://cashapp.github.io/hermit/
 [just]: https://github.com/casey/just?tab=readme-ov-file#installation
 
 ## Developer Certificate of Origin

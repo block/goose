@@ -21,14 +21,28 @@ pub struct ExtensionEntry {
 }
 
 pub fn name_to_key(name: &str) -> String {
-    name.chars()
-        .filter(|c| !c.is_whitespace())
-        .collect::<String>()
-        .to_lowercase()
+    let mut result = String::with_capacity(name.len());
+    for c in name.chars() {
+        result.push(match c {
+            c if c.is_ascii_alphanumeric() || c == '_' || c == '-' => c,
+            c if c.is_whitespace() => continue,
+            _ => '_',
+        });
+    }
+    result.to_lowercase()
 }
 
-fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
-    let raw: Mapping = Config::global()
+pub(crate) fn is_extension_available(config: &ExtensionConfig) -> bool {
+    match config {
+        ExtensionConfig::Platform { name, .. } => {
+            PLATFORM_EXTENSIONS.contains_key(name_to_key(name).as_str())
+        }
+        _ => true,
+    }
+}
+
+fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, ExtensionEntry> {
+    let raw: Mapping = config
         .get_param(EXTENSIONS_CONFIG_KEY)
         .unwrap_or_else(|err| {
             warn!(
@@ -42,6 +56,9 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
     for (k, v) in raw {
         match (k, serde_yaml::from_value::<ExtensionEntry>(v)) {
             (serde_yaml::Value::String(key), Ok(entry)) => {
+                if !is_extension_available(&entry.config) {
+                    continue;
+                }
                 extensions_map.insert(key, entry);
             }
             (k, v) => {
@@ -54,25 +71,11 @@ fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
         }
     }
 
-    // Always inject platform extensions (code_execution, todo, skills, etc.)
-    // These are internal agent extensions that should always be available
-    for (name, def) in PLATFORM_EXTENSIONS.iter() {
-        if !extensions_map.contains_key(*name) {
-            extensions_map.insert(
-                name.to_string(),
-                ExtensionEntry {
-                    config: ExtensionConfig::Platform {
-                        name: def.name.to_string(),
-                        description: def.description.to_string(),
-                        bundled: Some(true),
-                        available_tools: Vec::new(),
-                    },
-                    enabled: def.default_enabled,
-                },
-            );
-        }
-    }
     extensions_map
+}
+
+fn get_extensions_map() -> IndexMap<String, ExtensionEntry> {
+    get_extensions_map_with_config(Config::global())
 }
 
 fn save_extensions_map(extensions: IndexMap<String, ExtensionEntry>) {
@@ -135,6 +138,14 @@ pub fn get_enabled_extensions() -> Vec<ExtensionConfig> {
         .collect()
 }
 
+pub fn get_enabled_extensions_with_config(config: &Config) -> Vec<ExtensionConfig> {
+    get_extensions_map_with_config(config)
+        .into_values()
+        .filter(|ext| ext.enabled)
+        .map(|ext| ext.config)
+        .collect()
+}
+
 pub fn get_warnings() -> Vec<String> {
     let raw: Mapping = Config::global()
         .get_param(EXTENSIONS_CONFIG_KEY)
@@ -160,13 +171,44 @@ pub fn resolve_extensions_for_new_session(
     recipe_extensions: Option<&[ExtensionConfig]>,
     override_extensions: Option<Vec<ExtensionConfig>>,
 ) -> Vec<ExtensionConfig> {
-    if let Some(exts) = recipe_extensions {
-        return exts.to_vec();
-    }
+    let extensions = if let Some(exts) = recipe_extensions {
+        exts.to_vec()
+    } else if let Some(exts) = override_extensions {
+        exts
+    } else {
+        get_enabled_extensions()
+    };
 
-    if let Some(exts) = override_extensions {
-        return exts;
-    }
+    extensions
+        .into_iter()
+        .filter(is_extension_available)
+        .collect()
+}
 
-    get_enabled_extensions()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_extension_available_filters_unknown_platform() {
+        let unknown_platform = ExtensionConfig::Platform {
+            name: "definitely_not_real_platform_extension".to_string(),
+            description: "unknown".to_string(),
+            display_name: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        };
+
+        let builtin = ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: "".to_string(),
+            display_name: Some("Developer".to_string()),
+            timeout: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        };
+
+        assert!(!is_extension_available(&unknown_platform));
+        assert!(is_extension_available(&builtin));
+    }
 }

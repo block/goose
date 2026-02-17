@@ -13,6 +13,7 @@ import {
 import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
+import { getModelDisplayName } from '../predefinedModelsUtils';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 
@@ -29,13 +30,7 @@ export default function ModelsBottomBar({
   setView,
   alerts,
 }: ModelsBottomBarProps) {
-  const {
-    currentModel,
-    currentProvider,
-    getCurrentModelAndProviderForDisplay,
-    getCurrentModelDisplayName,
-    getCurrentProviderDisplayName,
-  } = useModelAndProvider();
+  const { currentModel, currentProvider } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
@@ -62,7 +57,6 @@ export default function ModelsBottomBar({
   // Refresh lead/worker status when modal closes
   const handleLeadWorkerModalClose = () => {
     setIsLeadWorkerModalOpen(false);
-    // Refresh the lead/worker status after modal closes
     const checkLeadWorker = async () => {
       try {
         const leadModel = await read('GOOSE_LEAD_MODEL', false);
@@ -78,8 +72,6 @@ export default function ModelsBottomBar({
     checkLeadWorker();
   };
 
-  // Since currentModelInfo.mode is not working, let's determine mode differently
-  // We'll need to get the lead model and compare it with the current model
   const [leadModelName, setLeadModelName] = useState<string>('');
   const [currentActiveModel, setCurrentActiveModel] = useState<string>('');
 
@@ -111,20 +103,16 @@ export default function ModelsBottomBar({
       ? currentModelInfo.model
       : currentModel || providerDefaultModel || displayModelName;
 
-  // Update display provider when current provider changes
   useEffect(() => {
-    if (currentProvider) {
-      (async () => {
-        const providerDisplayName = await getCurrentProviderDisplayName();
-        if (providerDisplayName) {
-          setDisplayProvider(providerDisplayName);
-        } else {
-          const modelProvider = await getCurrentModelAndProviderForDisplay();
-          setDisplayProvider(modelProvider.provider);
-        }
-      })();
-    }
-  }, [currentProvider, getCurrentProviderDisplayName, getCurrentModelAndProviderForDisplay]);
+    if (!currentProvider) return;
+    getProviderMetadata(currentProvider, getProviders)
+      .then((metadata) => {
+        setDisplayProvider(metadata.display_name || currentProvider);
+      })
+      .catch(() => {
+        setDisplayProvider(currentProvider);
+      });
+  }, [currentProvider, currentModel, getProviders]);
 
   // Fetch provider default model when provider changes and no current model
   useEffect(() => {
@@ -139,18 +127,14 @@ export default function ModelsBottomBar({
         }
       })();
     } else if (currentModel) {
-      // Clear provider default when we have a current model
       setProviderDefaultModel(null);
     }
   }, [currentProvider, currentModel, getProviders]);
 
-  // Update display model name when current model changes
   useEffect(() => {
-    (async () => {
-      const displayName = await getCurrentModelDisplayName();
-      setDisplayModelName(displayName);
-    })();
-  }, [currentModel, getCurrentModelDisplayName]);
+    if (!currentModel) return;
+    setDisplayModelName(getModelDisplayName(currentModel));
+  }, [currentModel]);
 
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
@@ -168,7 +152,7 @@ export default function ModelsBottomBar({
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
-          <h6 className="text-xs text-textProminent mt-2 ml-2">Current model</h6>
+          <h6 className="text-xs text-text-default mt-2 ml-2">Current model</h6>
           <p className="flex items-center justify-between text-sm mx-2 pb-2 border-b mb-2">
             {displayModelName}
             {displayProvider && ` — ${displayProvider}`}

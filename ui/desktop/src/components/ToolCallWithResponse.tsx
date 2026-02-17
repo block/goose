@@ -1,7 +1,7 @@
 import { AppEvents } from '../constants/events';
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -9,6 +9,7 @@ import {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   NotificationEvent,
+  ToolConfirmationData,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
@@ -18,6 +19,7 @@ import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
+import ToolApprovalButtons from './ToolApprovalButtons';
 
 interface ToolGraphNode {
   tool: string;
@@ -58,6 +60,8 @@ interface ToolCallWithResponseProps {
   isStreamingMessage?: boolean;
   isPendingApproval: boolean;
   append?: (value: string) => void;
+  confirmationContent?: ToolConfirmationData;
+  isApprovalClicked?: boolean;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -112,16 +116,11 @@ function McpAppWrapper({
       ? requestWithMeta.toolCall.value.arguments
       : undefined;
 
-  const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
+  const toolInput = { arguments: toolArguments || {} };
 
-  const toolResult = useMemo(() => {
-    if (!toolResponse) return undefined;
-    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
-    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      return resultWithMeta.value;
-    }
-    return undefined;
-  }, [toolResponse]);
+  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  const toolResult =
+    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
@@ -136,12 +135,6 @@ function McpAppWrapper({
         sessionId={sessionId}
         append={append}
       />
-      <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
-        <FlaskConical className="mr-2" size={20} />
-        <div className="text-sm font-sans">
-          MCP Apps are experimental and may change at any time.
-        </div>
-      </div>
     </div>
   );
 }
@@ -155,6 +148,8 @@ export default function ToolCallWithResponse({
   isStreamingMessage,
   isPendingApproval,
   append,
+  confirmationContent,
+  isApprovalClicked,
 }: ToolCallWithResponseProps) {
   // Handle both the wrapped ToolResult format and the unwrapped format
   // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
@@ -176,11 +171,14 @@ export default function ToolCallWithResponse({
 
   const shouldShowMcpContent = !isPendingApproval;
 
+  const showInlineApproval = isPendingApproval && confirmationContent && sessionId;
+
   return (
     <>
       <div
         className={cn(
-          'w-full text-sm font-sans rounded-lg overflow-hidden border-borderSubtle border'
+          'w-full text-sm font-sans rounded-lg overflow-hidden border',
+          showInlineApproval ? 'border-amber-500/50 bg-amber-50/5' : 'border-border-default'
         )}
       >
         <ToolCallView
@@ -192,6 +190,27 @@ export default function ToolCallWithResponse({
             isStreamingMessage,
           }}
         />
+        {/* Inline approval UI */}
+        {showInlineApproval && (
+          <div className="border-t border-amber-500/30">
+            {confirmationContent.prompt && (
+              <div className="px-4 py-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50/10">
+                {confirmationContent.prompt}
+              </div>
+            )}
+            <div className="px-4 pb-2">
+              <ToolApprovalButtons
+                data={{
+                  id: confirmationContent.id,
+                  toolName: confirmationContent.toolName,
+                  prompt: confirmationContent.prompt ?? undefined,
+                  sessionId,
+                  isClicked: isApprovalClicked,
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
       {/* MCP UI — Inline */}
       {shouldShowMcpContent &&
@@ -205,7 +224,7 @@ export default function ToolCallWithResponse({
             return (
               <div key={index} className="mt-3">
                 <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
-                <div className="mt-3 p-4 py-3 border border-borderSubtle rounded-lg bg-background-muted flex items-center">
+                <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
                     MCP UI is experimental and may change at any time.
@@ -291,9 +310,78 @@ interface Progress {
   message?: string;
 }
 
+interface SubagentToolRequestData {
+  type: 'subagent_tool_request';
+  subagent_id: string;
+  tool_call: {
+    name: string;
+    arguments?: { tool_graph?: ToolGraphNode[] };
+  };
+}
+
+const isSubagentToolRequestData = (data: unknown): data is SubagentToolRequestData => {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  const record = data as Record<string, unknown>;
+  if (record.type !== 'subagent_tool_request') {
+    return false;
+  }
+  if (typeof record.subagent_id !== 'string') {
+    return false;
+  }
+  if (!record.tool_call || typeof record.tool_call !== 'object') {
+    return false;
+  }
+  const toolCall = record.tool_call as Record<string, unknown>;
+  return typeof toolCall.name === 'string';
+};
+
+const formatSubagentToolCall = (data: SubagentToolRequestData): string => {
+  const subagentId = data.subagent_id;
+  const toolCall = data.tool_call;
+  const toolCallName = toolCall.name;
+
+  const shortId = subagentId?.split('_').pop() || subagentId;
+
+  const parts = toolCallName.split('__').reverse();
+  const toolName = parts[0] || 'unknown';
+  const extensionName = parts.slice(1).reverse().join('__') || '';
+  const toolGraph = toolCall.arguments?.tool_graph;
+
+  if (toolName === 'execute_code' && toolGraph && toolGraph.length > 0) {
+    const plural = toolGraph.length === 1 ? '' : 's';
+    const header = `[subagent:${shortId}] ${toolGraph.length} tool call${plural} | execute_code`;
+    const lines = toolGraph.map((node, idx) => {
+      const deps =
+        node.depends_on && node.depends_on.length > 0
+          ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})`
+          : '';
+      return `  ${idx + 1}. ${node.tool}: ${node.description}${deps}`;
+    });
+    return [header, ...lines].join('\n');
+  }
+
+  return extensionName
+    ? `[subagent:${shortId}] ${toolName} | ${extensionName}`
+    : `[subagent:${shortId}] ${toolName}`;
+};
+
 const logToString = (logMessage: NotificationEvent) => {
   const message = logMessage.message as { method: string; params: unknown };
   const params = message.params as Record<string, unknown>;
+
+  if (
+    params &&
+    params.data &&
+    typeof params.data === 'object' &&
+    'type' in params.data &&
+    params.data.type === 'subagent_tool_request'
+  ) {
+    if (isSubagentToolRequestData(params.data)) {
+      return formatSubagentToolCall(params.data);
+    }
+  }
 
   // Special case for the developer system shell logs
   if (
@@ -428,7 +516,7 @@ function ToolCallView({
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
-    const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+    const args = (toolCall.arguments ?? {}) as Record<string, ToolCallArgumentValue>;
     const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {
@@ -545,7 +633,7 @@ function ToolCallView({
       case 'computer_control':
         return `poking around...`;
 
-      case 'execute_code': {
+      case 'execute': {
         const toolGraph = args.tool_graph as unknown as ToolGraphNode[] | undefined;
         if (toolGraph && Array.isArray(toolGraph) && toolGraph.length > 0) {
           if (toolGraph.length === 1) {
@@ -639,26 +727,23 @@ function ToolCallView({
       }
     >
       {(() => {
-        const toolName = toolCall.name.substring(toolCall.name.lastIndexOf('__') + 2);
-        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
         const code = toolCall.arguments?.code as unknown as string | undefined;
-        const hasToolGraph =
-          toolName === 'execute_code' &&
-          toolGraph &&
-          Array.isArray(toolGraph) &&
-          toolGraph.length > 0;
+        const toolGraph = toolCall.arguments?.tool_graph as unknown as ToolGraphNode[] | undefined;
 
-        if (hasToolGraph) {
+        if (
+          toolCall.name === 'code_execution__execute' &&
+          (typeof code === 'string' || Array.isArray(toolGraph))
+        ) {
           return (
-            <div className="border-t border-borderSubtle">
-              <ToolGraphView toolGraph={toolGraph} code={code} />
+            <div className="border-t border-border-default">
+              <CodeModeView toolGraph={toolGraph} code={code} />
             </div>
           );
         }
 
         if (isToolDetails) {
           return (
-            <div className="border-t border-borderSubtle">
+            <div className="border-t border-border-default">
               <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
             </div>
           );
@@ -668,7 +753,7 @@ function ToolCallView({
       })()}
 
       {logs && logs.length > 0 && (
-        <div className="border-t border-borderSubtle">
+        <div className="border-t border-border-default">
           <ToolLogsView
             logs={logs}
             working={loadingStatus === 'loading'}
@@ -682,7 +767,7 @@ function ToolCallView({
       {toolResults.length === 0 &&
         progressEntries.length > 0 &&
         progressEntries.map((entry, index) => (
-          <div className="p-3 border-t border-borderSubtle" key={index}>
+          <div className="p-3 border-t border-border-default" key={index}>
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
@@ -691,8 +776,8 @@ function ToolCallView({
       {!isCancelledMessage && (
         <>
           {toolResults.map((result, index) => (
-            <div key={index} className={cn('border-t border-borderSubtle')}>
-              <ToolResultView result={result} isStartExpanded={false} />
+            <div key={index} className={cn('border-t border-border-default')}>
+              <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
             </div>
           ))}
         </>
@@ -724,18 +809,19 @@ function ToolDetailsView({ toolCall, isStartExpanded }: ToolDetailsViewProps) {
   );
 }
 
-interface ToolGraphViewProps {
-  toolGraph: ToolGraphNode[];
+interface CodeModeViewProps {
+  toolGraph?: ToolGraphNode[];
   code?: string;
 }
 
-function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
+function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
   const renderGraph = () => {
-    if (toolGraph.length === 0) return null;
+    const graph = toolGraph ?? [];
+    if (graph.length === 0) return null;
 
     const lines: string[] = [];
 
-    toolGraph.forEach((node, index) => {
+    graph.forEach((node, index) => {
       const deps =
         node.depends_on.length > 0 ? ` (uses ${node.depends_on.map((d) => d + 1).join(', ')})` : '';
       lines.push(`${index + 1}. ${node.tool}: ${node.description}${deps}`);
@@ -746,16 +832,19 @@ function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
 
   return (
     <div className="px-4 py-2">
-      <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+      {toolGraph && (
+        <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+      )}
       {code && (
-        <div className="border-t border-borderSubtle -mx-4 mt-2">
+        <div className="border-t border-border-default -mx-4 mt-2">
           <ToolCallExpandable
             label={<span className="pl-4 font-sans text-sm">Code</span>}
             isStartExpanded={false}
           >
-            <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap overflow-x-auto px-4 py-2">
-              {code}
-            </pre>
+            <MarkdownContent
+              content={'```typescript\n' + code + '\n```'}
+              className="whitespace-pre-wrap max-w-full overflow-x-auto"
+            />
           </ToolCallExpandable>
         </div>
       )}
@@ -764,11 +853,15 @@ function ToolGraphView({ toolGraph, code }: ToolGraphViewProps) {
 }
 
 interface ToolResultViewProps {
+  toolCall: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
   result: Content;
   isStartExpanded: boolean;
 }
 
-function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
+function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
   const hasText = (c: Content): c is Content & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
@@ -780,6 +873,18 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
 
   const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
 
+  const wrapMarkdown = (text: string): string => {
+    if (
+      ['code_execution__list_functions', 'code_execution__get_function_details'].includes(
+        toolCall.name
+      )
+    ) {
+      return '```typescript\n' + text + '\n```';
+    } else {
+      return text;
+    }
+  };
+
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
@@ -788,7 +893,7 @@ function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
       <div className="pl-4 pr-4 py-4">
         {hasText(result) && (
           <MarkdownContent
-            content={result.text}
+            content={wrapMarkdown(result.text)}
             className="whitespace-pre-wrap max-w-full overflow-x-auto"
           />
         )}

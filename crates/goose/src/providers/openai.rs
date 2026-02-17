@@ -1,5 +1,7 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -7,16 +9,17 @@ use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message,
     responses_api_to_streaming_message, ResponsesApiResponse,
 };
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    ImageFormat,
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
 };
+use super::retry::ProviderRetry;
+use super::utils::{get_model, ImageFormat};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
 use serde_json::Value;
@@ -31,6 +34,10 @@ use crate::providers::base::MessageStream;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
+const OPEN_AI_PROVIDER_NAME: &str = "openai";
+const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
+const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
+const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -43,6 +50,7 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
     ("gpt-3.5-turbo", 16_385),
     ("gpt-4-turbo", 128_000),
     ("o4-mini", 128_000),
+    ("gpt-5-nano", 400_000),
     ("gpt-5.1-codex", 400_000),
     ("gpt-5-codex", 400_000),
 ];
@@ -64,22 +72,25 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
         let host: String = config
             .get_param("OPENAI_HOST")
             .unwrap_or_else(|_| "https://api.openai.com".to_string());
 
-        let api_key: Option<String> = config.get_secret("OPENAI_API_KEY").ok();
-        let custom_headers: Option<HashMap<String, String>> = config
-            .get_secret::<String>("OPENAI_CUSTOM_HEADERS")
-            .ok()
+        let secrets = config
+            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
+            .unwrap_or_default();
+        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
+        let custom_headers: Option<HashMap<String, String>> = secrets
+            .get("OPENAI_CUSTOM_HEADERS")
+            .cloned()
             .map(parse_custom_headers);
 
         let base_path: String = config
             .get_param("OPENAI_BASE_PATH")
-            .unwrap_or_else(|_| "v1/chat/completions".to_string());
+            .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string());
         let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
         let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
         let timeout_secs: u64 = config.get_param("OPENAI_TIMEOUT").unwrap_or(600);
@@ -117,7 +128,7 @@ impl OpenAiProvider {
             model,
             custom_headers,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -125,13 +136,13 @@ impl OpenAiProvider {
     pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
         Self {
             api_client,
-            base_path: "v1/chat/completions".to_string(),
+            base_path: OPEN_AI_DEFAULT_BASE_PATH.to_string(),
             organization: None,
             project: None,
             model,
             custom_headers: None,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
         }
     }
 
@@ -199,11 +210,65 @@ impl OpenAiProvider {
         })
     }
 
-    fn uses_responses_api(model_name: &str) -> bool {
-        model_name.starts_with("gpt-5-codex")
-            || model_name.starts_with("gpt-5.1-codex")
-            || model_name.starts_with("gpt-5.2-codex")
-            || model_name.starts_with("gpt-5.2-pro")
+    fn normalize_base_path(base_path: &str) -> String {
+        if let Some(path) = base_path.strip_prefix('/') {
+            format!("/{}", path.trim_end_matches('/'))
+        } else {
+            base_path.trim_end_matches('/').to_string()
+        }
+    }
+
+    fn is_chat_completions_path(base_path: &str) -> bool {
+        let normalized = Self::normalize_base_path(base_path).to_ascii_lowercase();
+        normalized.contains("chat/completions")
+    }
+
+    fn is_responses_path(base_path: &str) -> bool {
+        let normalized = Self::normalize_base_path(base_path).to_ascii_lowercase();
+        normalized.ends_with("responses") || normalized.contains("/responses")
+    }
+
+    fn is_responses_model(model_name: &str) -> bool {
+        let normalized_model = model_name.to_ascii_lowercase();
+        (normalized_model.starts_with("gpt-5") && normalized_model.contains("codex"))
+            || normalized_model.starts_with("gpt-5.2-pro")
+    }
+
+    fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
+        let normalized_base_path = Self::normalize_base_path(base_path);
+        let has_custom_base_path = normalized_base_path != OPEN_AI_DEFAULT_BASE_PATH;
+
+        if has_custom_base_path {
+            if Self::is_responses_path(&normalized_base_path) {
+                return true;
+            }
+            if Self::is_chat_completions_path(&normalized_base_path) {
+                return false;
+            }
+        }
+
+        Self::is_responses_model(model_name)
+    }
+
+    fn map_base_path(base_path: &str, target: &str, fallback: &str) -> String {
+        let normalized = Self::normalize_base_path(base_path);
+        if normalized.ends_with(target) || normalized.contains(&format!("/{target}")) {
+            return normalized;
+        }
+
+        if Self::is_chat_completions_path(&normalized) {
+            return normalized.replacen("chat/completions", target, 1);
+        }
+
+        if Self::is_responses_path(&normalized) {
+            return normalized.replacen("responses", target, 1);
+        }
+
+        if normalized.starts_with('/') {
+            format!("/{}", fallback.trim_start_matches('/'))
+        } else {
+            fallback.to_string()
+        }
     }
 
     async fn post(
@@ -225,21 +290,26 @@ impl OpenAiProvider {
     ) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(session_id, "v1/responses", payload)
+            .response_post(
+                session_id,
+                &Self::map_base_path(&self.base_path, "responses", OPEN_AI_DEFAULT_RESPONSES_PATH),
+                payload,
+            )
             .await?;
         handle_response_openai_compat(response).await
     }
 }
 
-#[async_trait]
-impl Provider for OpenAiProvider {
+impl ProviderDef for OpenAiProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         let models = OPEN_AI_KNOWN_MODELS
             .iter()
             .map(|(name, limit)| ModelInfo::new(*name, *limit))
             .collect();
         ProviderMetadata::with_models(
-            "openai",
+            OPEN_AI_PROVIDER_NAME,
             "OpenAI",
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
@@ -257,6 +327,16 @@ impl Provider for OpenAiProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OpenAiProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -277,7 +357,7 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        if Self::uses_responses_api(&model_config.model_name) {
+        if Self::should_use_responses_api(&model_config.model_name, &self.base_path) {
             let payload = create_responses_request(model_config, system, messages, tools)?;
             let mut log = RequestLog::start(&self.model, &payload)?;
 
@@ -341,8 +421,9 @@ impl Provider for OpenAiProvider {
         }
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let models_path = self.base_path.replace("v1/chat/completions", "v1/models");
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let models_path =
+            Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
         let response = self
             .api_client
             .request(None, &models_path)
@@ -365,7 +446,7 @@ impl Provider for OpenAiProvider {
             .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     fn supports_embeddings(&self) -> bool {
@@ -393,7 +474,7 @@ impl Provider for OpenAiProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        if Self::uses_responses_api(&self.model.model_name) {
+        if Self::should_use_responses_api(&self.model.model_name, &self.base_path) {
             let mut payload = create_responses_request(&self.model, system, messages, tools)?;
             payload["stream"] = serde_json::Value::Bool(true);
 
@@ -404,7 +485,15 @@ impl Provider for OpenAiProvider {
                     let payload_clone = payload.clone();
                     let resp = self
                         .api_client
-                        .response_post(Some(session_id), "v1/responses", &payload_clone)
+                        .response_post(
+                            Some(session_id),
+                            &Self::map_base_path(
+                                &self.base_path,
+                                "responses",
+                                OPEN_AI_DEFAULT_RESPONSES_PATH,
+                            ),
+                            &payload_clone,
+                        )
                         .await?;
                     handle_status_openai_compat(resp).await
                 })
@@ -526,22 +615,81 @@ impl EmbeddingCapable for OpenAiProvider {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::OpenAiProvider;
 
     #[test]
-    fn uses_responses_api_for_supported_models() {
-        assert!(OpenAiProvider::uses_responses_api("gpt-5-codex"));
-        assert!(OpenAiProvider::uses_responses_api("gpt-5-codex-2025-12-11"));
-        assert!(OpenAiProvider::uses_responses_api("gpt-5.1-codex"));
-        assert!(OpenAiProvider::uses_responses_api(
-            "gpt-5.1-codex-2025-12-11"
+    fn gpt_5_2_codex_uses_responses_when_base_path_is_default() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.2-codex",
+            "v1/chat/completions"
         ));
-        assert!(OpenAiProvider::uses_responses_api("gpt-5.2-codex"));
-        assert!(OpenAiProvider::uses_responses_api(
-            "gpt-5.2-codex-2025-12-11"
+    }
+
+    #[test]
+    fn gpt_5_2_pro_uses_responses_when_base_path_is_default() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.2-pro",
+            "v1/chat/completions"
         ));
-        assert!(OpenAiProvider::uses_responses_api("gpt-5.2-pro"));
-        assert!(OpenAiProvider::uses_responses_api("gpt-5.2-pro-2025-12-11"));
-        assert!(!OpenAiProvider::uses_responses_api("gpt-4o"));
+    }
+
+    #[test]
+    fn gpt_5_2_pro_with_date_uses_responses() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.2-pro-2025-12-11",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn explicit_chat_path_forces_chat_completions() {
+        assert!(!OpenAiProvider::should_use_responses_api(
+            "gpt-5.2-codex",
+            "openai/v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_4o_does_not_use_responses() {
+        assert!(!OpenAiProvider::should_use_responses_api(
+            "gpt-4o",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn custom_chat_path_maps_to_responses_path() {
+        let responses_path = OpenAiProvider::map_base_path(
+            "openai/v1/chat/completions",
+            "responses",
+            "v1/responses",
+        );
+        assert_eq!(responses_path, "openai/v1/responses");
+    }
+
+    #[test]
+    fn responses_path_maps_to_models_path() {
+        let models_path =
+            OpenAiProvider::map_base_path("openai/v1/responses", "models", "v1/models");
+        assert_eq!(models_path, "openai/v1/models");
+    }
+
+    #[test]
+    fn unknown_path_falls_back_to_default_models_path() {
+        let models_path = OpenAiProvider::map_base_path("custom/path", "models", "v1/models");
+        assert_eq!(models_path, "v1/models");
+    }
+
+    #[test]
+    fn absolute_chat_path_maps_to_absolute_responses_path() {
+        let responses_path =
+            OpenAiProvider::map_base_path("/v1/chat/completions", "responses", "v1/responses");
+        assert_eq!(responses_path, "/v1/responses");
+    }
+
+    #[test]
+    fn unknown_absolute_path_falls_back_to_absolute_models_path() {
+        let models_path = OpenAiProvider::map_base_path("/custom/path", "models", "v1/models");
+        assert_eq!(models_path, "/v1/models");
     }
 }

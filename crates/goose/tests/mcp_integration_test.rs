@@ -11,14 +11,15 @@ use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
-use goose::agents::extension_manager::ExtensionManager;
+use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
+use goose::agents::GoosePlatform;
 use goose::model::ModelConfig;
 
 use test_case::test_case;
 
 use async_trait::async_trait;
 use goose::conversation::message::Message;
-use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use goose::providers::errors::ProviderError;
 use once_cell::sync::Lazy;
 use std::process::Command;
@@ -47,12 +48,23 @@ impl MockProvider {
     }
 }
 
-#[async_trait]
-impl Provider for MockProvider {
+impl ProviderDef for MockProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::empty()
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<goose::config::ExtensionConfig>,
+    ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+        Box::pin(async move { Ok(Self::new(model)) })
+    }
+}
+
+#[async_trait]
+impl Provider for MockProvider {
     fn get_name(&self) -> &str {
         "mock"
     }
@@ -243,12 +255,17 @@ async fn test_replayed_session(
     let session_manager = Arc::new(goose::session::SessionManager::new(
         temp_dir.path().to_path_buf(),
     ));
-    let extension_manager = Arc::new(ExtensionManager::new(provider, session_manager));
+    let extension_manager = Arc::new(ExtensionManager::new(
+        provider,
+        session_manager,
+        GoosePlatform::GooseDesktop.to_string(),
+        ExtensionManagerCapabilities { mcpui: true },
+    ));
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
         extension_manager
-            .add_extension_with_working_dir(extension_config, None, None)
+            .add_extension(extension_config, None, None, None)
             .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {
@@ -259,7 +276,12 @@ async fn test_replayed_session(
                 arguments: tool_call.arguments,
             };
             let result = extension_manager
-                .dispatch_tool_call("test-session-id", tool_call, CancellationToken::default())
+                .dispatch_tool_call(
+                    "test-session-id",
+                    tool_call,
+                    None,
+                    CancellationToken::default(),
+                )
                 .await;
 
             let tool_result = result?;

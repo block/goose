@@ -6,7 +6,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 This guide shows you how to set up isolated development environments using the **[Container Use MCP](https://github.com/dagger/container-use)** with goose. With this setup, your development work will be isolated to both git branches and containers, allowing you to experiment freely without affecting your main system state.
-Note that the container-use MCP is very new and emerging, but offers powerful ways to do isolated development which are very agent friendly (build on tools like Docker, copy on write filesystems and more)
+The Container Use MCP offers powerful ways to do isolated development which are very agent friendly (build on tools like Docker, copy on write filesystems, and more).
 
 ## Overview
 
@@ -18,81 +18,19 @@ The **[Container Use MCP](https://github.com/dagger/container-use)** server prov
 - Maintain clean separation between different projects and experiments
 - Work on things in parallel
 
+:::info Already Using Devcontainers?
+If you develop inside Docker containers (like VS Code Remote-Containers), see how you can [run extensions in your existing containers](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers).
+:::
+
 ## Prerequisites
 
 - Docker ([Podman](https://docs.dagger.io/ci/integrations/podman), [NerdCtl](https://docs.dagger.io/ci/integrations/nerdctl/) or [Container](https://docs.dagger.io/ci/integrations/apple-container/)) installed and running on your system
 - Git installed and configured
 - goose installed and configured
 
-## Installation
+## Setup
 
-### Install Container Use
-
-Head on over to the [Container Use README](https://github.com/dagger/container-use/blob/main/README.md) for up-to-date install instructions for this fast moving project.
-
-## Adding to goose
-
-### Method 1: Quick Setup Link
-
-Click this link to automatically add the extension to goose:
-
-**[Add Container-Use to goose](goose://extension?cmd=cu&arg=stdio&id=container-use&name=container%20use&description=use%20containers%20with%20dagger%20and%20git%20for%20isolated%20environments)**
-
-### Method 2: Manual Configuration
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-
-  1. Click `...` in the top right corner of the goose Desktop.
-  2. Select `Advanced Settings` from the menu.
-  3. Under `Extensions`, click `Add custom extension`.
-  4. Fill in the details:
-     - **Type**: `Standard IO`
-     - **ID**: `container-use`
-     - **Name**: `Container Use`
-     - **Description**: `Use containers with dagger and git for isolated environments`
-     - **Command**: `cu`
-     - **Arguments**: `stdio`
-  5. Click `Add` button
-
-  </TabItem>
-  <TabItem value="cli" label="goose CLI">
-
-  1. Run the configuration command:
-  ```bash
-  goose configure
-  ```
-
-  2. Select `Add Extension` from the menu.
-
-  3. Choose `Command-line Extension`.
-
-  4. Follow the prompts:
-     - **Extension name**: `Container Use`
-     - **Command**: `cu stdio`
-     - **Timeout**: `300` (or your preferred timeout)
-     - **Environment variables**: None needed
-
-  </TabItem>
-  <TabItem value="config" label="Config File">
-
-Add the following configuration to your `~/.config/goose/config.yaml` file:
-
-```yaml
-extensions:
-  container-use:
-    name: container-use
-    type: stdio
-    enabled: true
-    cmd: cu
-    args:
-    - stdio
-    envs: {}
-    timeout: 300
-```
-
-  </TabItem>
-</Tabs>
+For installation and configuration instructions, see the [Container Use Extension](/docs/mcp/container-use-mcp) tutorial.
 
 ## Usage
 

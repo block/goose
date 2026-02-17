@@ -43,9 +43,15 @@ impl SecurityManager {
     fn is_ml_scanning_enabled(&self) -> bool {
         let config = Config::global();
 
-        config
+        let prompt_enabled = config
             .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
-            .unwrap_or(false)
+            .unwrap_or(false);
+
+        let command_enabled = config
+            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+            .unwrap_or(false);
+
+        prompt_enabled || command_enabled
     }
 
     pub async fn analyze_tool_requests(
@@ -55,7 +61,7 @@ impl SecurityManager {
     ) -> Result<Vec<SecurityResult>> {
         if !self.is_prompt_injection_detection_enabled() {
             tracing::debug!(
-                counter.goose.prompt_injection_scanner_disabled = 1,
+                monotonic_counter.goose.prompt_injection_scanner_disabled = 1,
                 "Security scanning disabled"
             );
             return Ok(vec![]);
@@ -68,7 +74,7 @@ impl SecurityManager {
                 match PromptInjectionScanner::with_ml_detection() {
                     Ok(s) => {
                         tracing::info!(
-                            counter.goose.prompt_injection_scanner_enabled = 1,
+                            monotonic_counter.goose.prompt_injection_scanner_enabled = 1,
                             "Security scanner initialized with ML-based detection"
                         );
                         s
@@ -84,7 +90,7 @@ impl SecurityManager {
                 }
             } else {
                 tracing::info!(
-                    counter.goose.prompt_injection_scanner_enabled = 1,
+                    monotonic_counter.goose.prompt_injection_scanner_enabled = 1,
                     "Security scanner initialized with pattern-based detection only"
                 );
                 PromptInjectionScanner::new()
@@ -118,7 +124,7 @@ impl SecurityManager {
                         serde_json::to_string(&tool_call).unwrap_or_else(|_| "{}".to_string());
 
                     tracing::warn!(
-                        counter.goose.prompt_injection_finding = 1,
+                        monotonic_counter.goose.prompt_injection_finding = 1,
                         threat_type = "command_injection",
                         above_threshold = above_threshold,
                         tool_name = %tool_call.name,
@@ -158,7 +164,7 @@ impl SecurityManager {
         }
 
         tracing::info!(
-            counter.goose.prompt_injection_analysis_performed = 1,
+            monotonic_counter.goose.prompt_injection_analysis_performed = 1,
             security_issues_found = results.len(),
             "Prompt injection detection: Security analysis complete"
         );

@@ -257,7 +257,8 @@ async function streamFromResponse(
           currentMessages = pushMessage(currentMessages, msg);
 
           const hasToolConfirmation = msg.content.some(
-            (content) => content.type === 'toolConfirmationRequest'
+            (content) =>
+              content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
           );
 
           const hasElicitation = msg.content.some(
@@ -368,9 +369,6 @@ export function useChatStream({
 
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
       if (isNewSession) {
-        console.log(
-          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
-        );
         window.dispatchEvent(new CustomEvent(AppEvents.MESSAGE_STREAM_FINISHED));
       }
 
@@ -462,6 +460,7 @@ export function useChatStream({
         const extensionResults = resumeData?.extension_results;
 
         showExtensionLoadResults(extensionResults);
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
 
         dispatch({
           type: 'SESSION_LOADED',
@@ -590,6 +589,7 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             user_message: newMessage,
+            ...(hasExistingMessages && { conversation_so_far: currentState.messages }),
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -704,6 +704,8 @@ export function useChatStream({
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
       const currentState = stateRef.current;
 
+      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
+
       try {
         const { forkSession } = await import('../api');
         const message = currentState.messages.find((m) => m.id === messageId);
@@ -730,6 +732,7 @@ export function useChatStream({
         }
 
         if (editType === 'fork') {
+          dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
           const event = new CustomEvent(AppEvents.SESSION_FORKED, {
             detail: {
               newSessionId: targetSessionId,
@@ -747,11 +750,46 @@ export function useChatStream({
           });
 
           if (sessionResponse.data?.conversation) {
-            dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
+            const truncatedMessages = [...sessionResponse.data.conversation];
+            const updatedUserMessage = createUserMessage(newContent);
+
+            for (const content of message.content) {
+              if (content.type === 'image') {
+                updatedUserMessage.content.push(content);
+              }
+            }
+
+            const messagesForUI = [...truncatedMessages, updatedUserMessage];
+            dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
+            dispatch({ type: 'START_STREAMING' });
+
+            abortControllerRef.current = new AbortController();
+
+            try {
+              const { stream } = await reply({
+                body: {
+                  session_id: targetSessionId,
+                  user_message: updatedUserMessage,
+                  conversation_so_far: truncatedMessages,
+                },
+                throwOnError: true,
+                signal: abortControllerRef.current.signal,
+              });
+
+              await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId);
+            } catch (error) {
+              if (error instanceof Error && error.name === 'AbortError') {
+                dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
+              } else {
+                throw error;
+              }
+            }
+          } else {
+            await handleSubmit({ msg: newContent, images: [] });
           }
-          await handleSubmit({ msg: newContent, images: [] });
         }
       } catch (error) {
+        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
         const { toastError } = await import('../toasts');
@@ -761,7 +799,7 @@ export function useChatStream({
         });
       }
     },
-    [sessionId, handleSubmit]
+    [sessionId, handleSubmit, onFinish]
   );
 
   const setChatState = useCallback((newState: ChatState) => {
