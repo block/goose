@@ -11393,5 +11393,55 @@
     "from": "WelcomeState",
     "to": "AppLayout",
     "relationType": "related_to"
+  },
+  {
+    "from": "DesignSystemAudit",
+    "to": "DesignTokenArchitecture",
+    "relationType": "analyzes"
+  },
+  {
+    "from": "DesignSystemAudit",
+    "to": "GooseComponentCatalog",
+    "relationType": "analyzes"
+  },
+  {
+    "from": "DesignSystemAudit",
+    "to": "GenUIArchitectureGap",
+    "relationType": "documents"
+  },
+  {
+    "from": "DesignSystemAudit",
+    "to": "LightThemeContrastFailure",
+    "relationType": "documents"
+  },
+  {
+    "from": "LightThemeContrastFailure",
+    "to": "DesignTokenArchitecture",
+    "relationType": "affects"
+  },
+  {
+    "from": "GenUIArchitectureGap",
+    "to": "JsonRenderReference",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "GenUIArchitectureGap",
+    "to": "GooseComponentCatalog",
+    "relationType": "affects"
+  },
+  {
+    "from": "GooseComponentCatalog",
+    "to": "ShadcnComponentCatalog",
+    "relationType": "related_to"
+  },
+  {
+    "from": "GooseComponentCatalog",
+    "to": "DesignTokenArchitecture",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "JsonRenderReference",
+    "to": "GooseGenerativeUI",
+    "relationType": "related_to"
   }
 ]

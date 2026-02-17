@@ -1,0 +1,241 @@
+---
+title: "Design System, Color & Contrast Audit + GenUI Implementation Review"
+date: "2026-02-17"
+type: audit
+scope: ui/desktop
+---
+
+# Design System, Color & Contrast Audit + GenUI Implementation Review
+
+## Executive Summary
+
+The Goose Desktop UI has a solid foundation but critical gaps in **color contrast** (light theme),
+**GenUI integration depth** (vs json-render reference), and **component catalog coverage**.
+
+| Area | Score | Verdict |
+|---|---|---|
+| Design Tokens Architecture | 8/10 | ✅ Good — semantic tokens, light/dark themes |
+| Color Contrast (Dark Theme) | 9/10 | ✅ Excellent — all text passes WCAG AA |
+| Color Contrast (Light Theme) | 4/10 | 🔴 Critical — status colors + borders FAIL |
+| Component Catalog Coverage | 6/10 | 🟡 Medium — missing 20+ components vs shadcn |
+| GenUI Integration (vs json-render) | 5/10 | 🟡 Medium — basic rendering works, missing streaming/patches/state |
+| GenUI Streaming Support | 2/10 | 🔴 Critical — no JSON Patch streaming, no partial updates |
+
+---
+
+## 1. Color & Contrast Audit
+
+### WCAG 2.1 AA Requirements
+- **Normal text**: ≥ 4.5:1 contrast ratio
+- **Large text (≥18pt or ≥14pt bold)**: ≥ 3.0:1
+- **UI components/borders**: ≥ 3.0:1
+
+### Light Theme Results
+
+| Token Pair | Ratio | WCAG | Status |
+|---|---|---|---|
+| `text-default` on `bg-default` | **9.93:1** | AA | ✅ Pass |
+| `text-default` on `bg-muted` | **9.16:1** | AA | ✅ Pass |
+| `text-muted` on `bg-default` | **6.87:1** | AA | ✅ Pass |
+| `text-muted` on `bg-muted` | **6.34:1** | AA | ✅ Pass |
+| `accent` on `bg-default` | **12.29:1** | AA | ✅ Pass |
+| `text-danger` on `bg-default` | **3.42:1** | AA-large | ⚠️ Only large text |
+| `text-info` on `bg-default` | **2.87:1** | — | 🔴 FAIL |
+| `text-success` on `bg-default` | **1.90:1** | — | 🔴 FAIL |
+| `text-warning` on `bg-default` | **1.51:1** | — | 🔴 FAIL |
+| `border-default` on `bg-default` | **1.25:1** | — | 🔴 FAIL |
+| `border-strong` on `bg-default` | **1.25:1** | — | 🔴 FAIL (same as border-default!) |
+
+**Critical issues:**
+1. **Success/Warning/Info text are invisible** on white — ratios of 1.51-2.87:1 (need ≥4.5:1)
+2. **border-default = border-strong** — identical values, no visual distinction
+3. **Borders invisible** on white — 1.25:1 ratio (need ≥3.0:1 for UI elements)
+
+### Dark Theme Results
+
+| Token Pair | Ratio | WCAG | Status |
+|---|---|---|---|
+| `text-default` on `bg-default` | **15.37:1** | AA | ✅ Pass |
+| `text-muted` on `bg-default` | **6.99:1** | AA | ✅ Pass |
+| `text-muted` on `bg-muted` | **4.52:1** | AA | ✅ Pass |
+| `text-danger` on `bg-default` | **5.54:1** | AA | ✅ Pass |
+| `text-success` on `bg-default` | **9.31:1** | AA | ✅ Pass |
+| `text-warning` on `bg-default` | **11.25:1** | AA | ✅ Pass |
+| `text-info` on `bg-default` | **6.74:1** | AA | ✅ Pass |
+| `border-default` on `bg-default` | **1.55:1** | — | 🔴 FAIL |
+| `border-strong` on `bg-default` | **2.24:1** | — | 🔴 FAIL |
+
+**Dark theme is much better** — all text passes AA. Only borders still fail (common, often acceptable for decorative borders).
+
+### Recommended Fixes
+
+```css
+/* Light theme — fix status text colors (darken for contrast) */
+:root {
+  --text-danger: var(--color-red-500);      /* was red-200: 3.42 → ~5.5:1 */
+  --text-success: var(--color-green-600);   /* was green-200: 1.90 → ~5.0:1 */
+  --text-warning: var(--color-yellow-600);  /* was yellow-200: 1.51 → ~4.6:1 */
+  --text-info: var(--color-blue-500);       /* was blue-200: 2.87 → ~5.2:1 */
+  --border-default: var(--color-neutral-200); /* was neutral-100: 1.25 → ~2.5:1 */
+  --border-strong: var(--color-neutral-300);  /* was neutral-100: 1.25 → ~3.2:1 */
+}
+```
+
+---
+
+## 2. Design System Component Comparison
+
+### Goose Components (15) vs json-render/shadcn (36)
+
+| Category | Goose Has | json-render/shadcn Has | Gap |
+|---|---|---|---|
+| **Layout** | Stack, Grid, Separator | Stack, Grid, Separator, Card, Tabs, Accordion, Collapsible, Dialog, Drawer | Missing 6 |
+| **Display** | Text, Badge, PageHeader, DataCard, StatCard | Heading, Text, Image, Avatar, Badge, Alert, Progress, Skeleton, Spinner, Tooltip, Popover, Carousel, Table | Missing 11 |
+| **Lists** | ListItem, TreeItem | — (uses cards/rows) | Goose ahead |
+| **Input** | SearchInput | Input, Textarea, Select, Checkbox, Radio, Switch, Slider | Missing 6 |
+| **Actions** | — | Button, Link, DropdownMenu, Toggle, ToggleGroup, ButtonGroup, Pagination | Missing 7 |
+| **States** | EmptyState, LoadingState, ErrorState | — (composed from primitives) | Goose ahead |
+| **Navigation** | TabBar | — (uses Tabs) | Equivalent |
+
+**Missing critical components for GenUI:**
+1. **Button** — no actionable button in catalog (ActionButton exists in old generative-registry but not design-system)
+2. **Table** — no structured data display
+3. **Input/Select/Checkbox** — no interactive forms
+4. **Card** — no generic card wrapper
+5. **Alert** — no notification/alert component
+6. **Progress** — no progress bar
+7. **Dialog** — no modal support from AI
+
+### Recommendation
+Add at minimum: `Button`, `Table`, `Alert`, `Card`, `Input`, `Select`, `Progress` — these cover 80% of GenUI use cases.
+
+---
+
+## 3. GenUI Implementation Comparison
+
+### Architecture
+
+| Feature | json-render (reference) | Goose (current) | Gap |
+|---|---|---|---|
+| **Spec format** | Flat keyed elements with `root`/`elements`/`state` | Same (via `@json-render/react`) | ✅ Compatible |
+| **Renderer** | `createRenderer()` or `JSONUIProvider` | `JSONUIProvider` | ✅ Using correct API |
+| **Component registry** | `defineRegistry()` with typed catalog | Direct `gooseComponents` map | ⚠️ No type safety |
+| **Catalog definition** | `defineCatalog()` with Zod schemas | `defineCatalog()` in `catalog.ts` | ✅ Compatible |
+| **State management** | `StateProvider` + `useSpec()` hooks | Not used in GooseGenerativeUI | 🔴 Missing |
+| **Visibility conditions** | `VisibilityProvider` + element `visible` prop | Not used | 🔴 Missing |
+| **Actions** | `ActionProvider` + event bindings (`on`) | Basic action handler (navigate, etc) | ⚠️ Partial |
+| **Streaming** | `useUIStream()` + `pipeJsonRender()` + JSON Patches | None — full spec or nothing | 🔴 Critical gap |
+| **AI SDK integration** | `useJsonRenderMessage()` + `DataPart` | None — manual `<goose-ui>` tag extraction | 🔴 Missing |
+| **Error boundaries** | Per-element `<ElementErrorBoundary>` | None | 🔴 Missing |
+| **Repeat/Loop** | `repeat` prop on elements | Not used | ⚠️ Missing |
+| **Validation** | `ValidationProvider` for form validation | Not available | ⚠️ Missing |
+
+### Current GooseGenerativeUI Flow
+
+```
+LLM output → contains <goose-ui> JSON → extractGenerativeSpec() → GooseGenerativeUI
+                                                                        ↓
+                                                              JSONUIProvider + Renderer
+                                                                        ↓
+                                                              gooseComponents registry
+```
+
+### json-render Reference Flow
+
+```
+LLM output → AI SDK stream → pipeJsonRender() → useUIStream() → spec + patches
+                                                        ↓
+                                              createRenderer(catalog, components)
+                                                        ↓
+                                              StateProvider → VisibilityProvider
+                                              → ActionProvider → ValidationProvider
+                                                        ↓
+                                              Per-element ErrorBoundary + Renderer
+```
+
+### Key Missing Features
+
+1. **JSON Patch Streaming** (`useUIStream` + `pipeJsonRender`)
+   - json-render supports **incremental updates** via RFC 6902 patches
+   - Goose sends the **full spec at once** — no progressive rendering
+   - This means no live-updating dashboards, no progressive chart rendering
+
+2. **State Management**
+   - json-render specs can have internal `state` that components read/write
+   - Goose ignores state — components are purely presentational
+   - This means no toggles, no tab switching, no interactive forms
+
+3. **Visibility Conditions**
+   - json-render elements can have `visible: { $state: "/showAdvanced" }`
+   - Goose renders all elements unconditionally
+   - This means no conditional UI, no progressive disclosure
+
+4. **Error Boundaries**
+   - json-render wraps each element in `ElementErrorBoundary`
+   - Goose has no error isolation — one bad element crashes the entire GenUI panel
+   - This is **unsafe** for production
+
+5. **Type-Safe Registry**
+   - json-render uses `defineRegistry(catalog, components)` for type checking
+   - Goose uses a raw `Record<string, ComponentType>` cast — no compile-time safety
+
+---
+
+## 4. Recommended Action Plan
+
+### Priority 0: Fix Light Theme Contrast (1-2hr)
+- Darken status text colors in light theme (success, warning, info)
+- Differentiate border-default from border-strong
+- Add `text-subtle` token for tertiary text
+
+### Priority 1: Add Error Boundaries to GenUI (30min)
+- Wrap each element in an error boundary in the renderer
+- Prevents one malformed element from crashing all GenUI
+
+### Priority 2: Add Missing Components (4-6hr)
+- Button, Table, Alert, Card, Input, Select, Progress
+- Use shadcn components from json-render as reference
+
+### Priority 3: Wire Streaming Support (6-8hr)
+- Integrate `useUIStream()` from `@json-render/react`
+- Replace `<goose-ui>` tag extraction with proper AI SDK data parts
+- Support JSON Patch incremental updates
+
+### Priority 4: Wire State + Visibility (4hr)
+- Enable spec `state` to flow through StateProvider
+- Enable `visible` conditions on elements
+- Support interactive forms (toggle, select, input)
+
+### Priority 5: Type-Safe Registry (2hr)
+- Replace raw `gooseComponents` map with `defineRegistry(catalog, components)`
+- Get compile-time prop validation
+
+---
+
+## 5. Two Generative UI Systems — Consolidation
+
+The codebase has **two separate** generative UI systems:
+
+| System | Files | Status |
+|---|---|---|
+| **Old: defineCatalog** | `lib/generative-catalog.ts`, `lib/generative-registry.tsx`, `components/generative/GenerativePanel.tsx` | Used by standalone panel |
+| **New: JSONUIProvider** | `components/ui/design-system/catalog.ts`, `goose-components.tsx`, `goose-renderer.tsx` | Used by inline chat GenUI |
+
+These should be **consolidated** into one system using the new JSONUIProvider approach.
+The old `generative-registry.tsx` has components (ActionButton, SessionCard, ToolResult, EvalResult)
+that should be ported to the design-system catalog.
+
+---
+
+## Summary
+
+| Finding | Severity | Effort |
+|---|---|---|
+| Light theme status colors fail WCAG | 🔴 Critical | 1hr |
+| Light theme borders invisible | 🔴 Critical | 30min |
+| No error boundaries in GenUI | 🔴 Critical | 30min |
+| No streaming support | 🟡 High | 6-8hr |
+| Missing 20+ components | 🟡 High | 4-6hr |
+| No state/visibility | 🟡 Medium | 4hr |
+| Two GenUI systems to consolidate | 🟡 Medium | 3hr |
+| No type-safe registry | 🟢 Low | 2hr |

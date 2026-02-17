@@ -16471,5 +16471,92 @@
     "observations": [
       "ui/desktop/src/components/ui/Tooltip.tsx \u2014 removed Portal wrapper"
     ]
+  },
+  {
+    "name": "DesignSystemAudit",
+    "entityType": "Finding",
+    "observations": [
+      "Comprehensive audit of design tokens, contrast ratios, and GenUI implementation",
+      "Light theme has 5 FAIL contrast ratios (status colors + borders)",
+      "Dark theme passes all text WCAG AA checks",
+      "border-default = border-strong in light theme (identical values)",
+      "Located at docs/reviews/design-system-audit.mdx",
+      "confidence: 0.98"
+    ]
+  },
+  {
+    "name": "LightThemeContrastFailure",
+    "entityType": "Finding",
+    "observations": [
+      "text-success on white: 1.90:1 (FAIL, needs 4.5:1)",
+      "text-warning on white: 1.51:1 (FAIL, needs 4.5:1)",
+      "text-info on white: 2.87:1 (FAIL, needs 4.5:1)",
+      "text-danger on white: 3.42:1 (AA-large only)",
+      "border-default on white: 1.25:1 (FAIL, needs 3.0:1)",
+      "Fix: darken light theme status colors to 500/600 shades",
+      "confidence: 0.99"
+    ]
+  },
+  {
+    "name": "GenUIArchitectureGap",
+    "entityType": "Finding",
+    "observations": [
+      "Goose uses JSONUIProvider from @json-render/react correctly",
+      "Missing: useUIStream for streaming, JSON Patch support, state management",
+      "Missing: visibility conditions, error boundaries, type-safe registry",
+      "Current spec delivery via <goose-ui> tag extraction - should use AI SDK data parts",
+      "Two GenUI systems exist (old defineCatalog + new JSONUIProvider) - need consolidation",
+      "Reference: json-render at /home/jmercier/codes/json-render",
+      "confidence: 0.97"
+    ]
+  },
+  {
+    "name": "JsonRenderReference",
+    "entityType": "Source",
+    "observations": [
+      "Vercel json-render monorepo at /home/jmercier/codes/json-render",
+      "packages/core (types, spec, streaming transforms)",
+      "packages/react (renderer, hooks, contexts, state management)",
+      "packages/shadcn (36 components with full catalog + Zod schemas)",
+      "Key hooks: useUIStream, useChatUI, useJsonRenderMessage",
+      "Key features: JSON Patch streaming, state/visibility/validation providers",
+      "confidence: 1.0"
+    ]
+  },
+  {
+    "name": "GooseComponentCatalog",
+    "entityType": "Component",
+    "observations": [
+      "15 components: Stack, Grid, Text, Separator, Badge, PageHeader, DataCard, StatCard, ListItem, TreeItem, EmptyState, LoadingState, ErrorState, SearchInput, TabBar",
+      "Missing vs shadcn (36): Button, Table, Alert, Card, Input, Select, Checkbox, Radio, Switch, Slider, Progress, Dialog, Drawer, Accordion, Avatar, Image, Heading, Skeleton, Spinner, Tooltip, Popover",
+      "Components use ComponentRenderProps interface with props and children",
+      "All use semantic design tokens (text-text-*, bg-background-*, border-border-*)",
+      "Located in ui/desktop/src/components/ui/design-system/",
+      "confidence: 0.98"
+    ]
+  },
+  {
+    "name": "ShadcnComponentCatalog",
+    "entityType": "Component",
+    "observations": [
+      "Reference implementation: 36 components with typed props via BaseComponentProps",
+      "Full Zod schema catalog in packages/shadcn/src/catalog.ts (502 lines)",
+      "Components in packages/shadcn/src/components.tsx (1199 lines)",
+      "Includes layout (Card, Tabs, Accordion, Dialog, Drawer), display (Table, Image, Avatar, Badge, Alert, Progress), input (Input, Select, Checkbox, Radio, Switch, Slider), actions (Button, Link, DropdownMenu, Toggle)",
+      "confidence: 1.0"
+    ]
+  },
+  {
+    "name": "DesignTokenArchitecture",
+    "entityType": "Component",
+    "observations": [
+      "Defined in styles/main.css with CSS custom properties",
+      "Two-tier: raw colors (--color-neutral-800) \u2192 semantic tokens (--text-default)",
+      "Light and dark themes via @media (prefers-color-scheme)",
+      "Tailwind @theme inline maps semantic tokens to utility classes",
+      "Font: Cash Sans (Block corporate font)",
+      "All semantic tokens available as Tailwind classes: text-text-default, bg-background-muted, etc.",
+      "confidence: 0.99"
+    ]
   }
 ]
