@@ -403,11 +403,22 @@ export const tauriBridge = {
   // ── Mouse ───────────────────────────────────────────────────────────
 
   onMouseBackButtonClicked: (callback: () => void) => {
-    listen('mouse-back-button-clicked', () => callback());
+    const unlistenPromise = listen('mouse-back-button-clicked', () => callback());
+    if (!unlistenMap.has('mouse-back-button-clicked')) {
+      unlistenMap.set('mouse-back-button-clicked', new Map());
+    }
+    unlistenMap.get('mouse-back-button-clicked')!.set(callback, unlistenPromise);
   },
 
-  offMouseBackButtonClicked: (_callback: () => void) => {
-    // Cleanup handled via unlisten
+  offMouseBackButtonClicked: (callback: () => void) => {
+    const channelMap = unlistenMap.get('mouse-back-button-clicked');
+    if (channelMap) {
+      const unlistenPromise = channelMap.get(callback);
+      if (unlistenPromise) {
+        channelMap.delete(callback);
+        unlistenPromise.then((unlisten) => unlisten());
+      }
+    }
   },
 
   // ── Logging ─────────────────────────────────────────────────────────
@@ -433,6 +444,14 @@ export const appConfigBridge = {
 
 export async function initTauriBridge(): Promise<void> {
   await loadConfig();
+
+  // Detect mouse back/forward buttons and emit as Tauri events
+  document.addEventListener('mouseup', (event: MouseEvent) => {
+    if (event.button === 3 || event.button === 4) {
+      event.preventDefault();
+      emit('mouse-back-button-clicked', null);
+    }
+  });
 
   // Listen for Tauri drag-drop events to capture full file paths
   getCurrentWindow().onDragDropEvent((event) => {
