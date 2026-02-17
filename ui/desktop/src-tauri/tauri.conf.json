@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Goose",
+  "identifier": "com.block.goose",
+  "version": "1.24.0",
+  "build": {
+    "beforeDevCommand": "npm run dev:frontend",
+    "beforeBuildCommand": "npm run build:frontend",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:* https:; object-src 'none'; frame-src 'self' https: http:; font-src 'self' data: https:; media-src 'self' mediastream:; form-action 'none'; base-uri 'self'"
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Goose",
+        "width": 750,
+        "height": 730,
+        "minWidth": 560,
+        "minHeight": 600,
+        "decorations": false,
+        "transparent": false
+      }
+    ],
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["goose"]
+      }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/block/goose/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
+  }
+}

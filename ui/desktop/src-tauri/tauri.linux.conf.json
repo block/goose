@@ -1,0 +1,14 @@
+{
+  "bundle": {
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0"],
+        "section": "utils"
+      },
+      "rpm": {
+        "depends": ["webkit2gtk4.1"]
+      },
+      "appimage": {}
+    }
+  }
+}

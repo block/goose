@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  }
+}
