@@ -336,15 +336,15 @@ pub async fn reply(
                 let provider = Arc::new(tokio::sync::Mutex::new(agent.provider().await.ok()));
                 let mut router = OrchestratorAgent::new(provider);
 
-                // Sync router state from the agent slot registry
-                for slot_name in &["Goose Agent", "Developer Agent"] {
-                    let enabled = state.agent_slot_registry.is_enabled(slot_name).await;
-                    router.set_enabled(slot_name, enabled);
+                // Sync router state from the agent slot registry (all known agents, not just builtins)
+                for slot_name in state.agent_slot_registry.all_agent_names().await {
+                    let enabled = state.agent_slot_registry.is_enabled(&slot_name).await;
+                    router.set_enabled(&slot_name, enabled);
                     let bound = state
                         .agent_slot_registry
-                        .get_bound_extensions(slot_name)
+                        .get_bound_extensions(&slot_name)
                         .await;
-                    router.set_bound_extensions(slot_name, bound.into_iter().collect());
+                    router.set_bound_extensions(&slot_name, bound.into_iter().collect());
                 }
 
                 let plan = router.route(&user_text).await;

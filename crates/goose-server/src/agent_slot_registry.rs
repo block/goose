@@ -131,6 +131,10 @@ impl AgentSlotRegistry {
             .insert(name.to_string(), SlotDelegation::ExternalAcp);
     }
 
+    pub async fn all_agent_names(&self) -> Vec<String> {
+        self.enabled_agents.read().await.keys().cloned().collect()
+    }
+
     pub async fn unregister_agent(&self, name: &str) {
         self.enabled_agents.write().await.remove(name);
         self.delegation_strategies.write().await.remove(name);
