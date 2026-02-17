@@ -40,7 +40,7 @@ run_test() {
       echo "failure|test content not found by model" > "$result_file"
     fi
   else
-    if ! grep -q "text_editor | developer" "$output_file"; then
+    if ! grep -qE "(text_editor \| developer)|(▸.*text_editor.*developer)" "$output_file"; then
       echo "failure|model did not use text_editor tool" > "$result_file"
     elif ! grep -q "TEST-CONTENT-ABC123" "$output_file"; then
       echo "failure|model did not return uppercased file content" > "$result_file"

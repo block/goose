@@ -133,9 +133,11 @@ impl ProviderMetadata {
             default_model: default_model.to_string(),
             known_models: model_names
                 .iter()
-                .map(|&name| ModelInfo {
-                    name: name.to_string(),
-                    context_limit: ModelConfig::new_or_fail(name).context_limit(),
+                .map(|&model_name| ModelInfo {
+                    name: model_name.to_string(),
+                    context_limit: ModelConfig::new_or_fail(model_name)
+                        .with_canonical_limits(name)
+                        .context_limit(),
                     input_token_cost: None,
                     output_token_cost: None,
                     currency: None,
@@ -478,6 +480,10 @@ pub trait Provider: Send + Sync {
                     .input
                     .contains(&crate::providers::canonical::Modality::Text)
                 {
+                    return None;
+                }
+
+                if !canonical_model.tool_call && !self.get_model_config().toolshim {
                     return None;
                 }
 

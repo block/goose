@@ -136,4 +136,20 @@ jobs:
             [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             **Instructions:**
-            After downloading, unzip the file and drag the goose.app to a location you prefer. The app is unsigned, so to run it run `xattr -r -d com.apple.quarantine '/path/to/goose.app'` and then open the app
+            
+            The easiest way is to just run the following script:
+            
+            `./scripts/pre-release.sh`
+            
+            script which will download the latest release (or you can specify the release you need), does the
+            unzip, xattr to get it out of quarantine and signs it.
+            
+            If you need to do this manually:
+            
+               * Download the file
+               * Unzip
+               * run `xattr -r -d com.apple.quarantine '/path/to/Goose.app'`
+               * optionally run `codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist '/path/to/Goose.app'`
+               * start the app
+            
+            The signing step is only needed if you do something that uses mac entitlements like speech to text

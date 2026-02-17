@@ -45,9 +45,7 @@ export default function HeadersSection({
     const valueEmpty = !newValue.trim();
     const keyHasSpaces = newKey.includes(' ');
     const normalizedNewKey = newKey.trim().toLowerCase();
-    const isDuplicate = headers.some(
-      h => h.key.trim().toLowerCase() === normalizedNewKey
-    );
+    const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedNewKey);
 
     if (keyEmpty || valueEmpty) {
       setInvalidFields({

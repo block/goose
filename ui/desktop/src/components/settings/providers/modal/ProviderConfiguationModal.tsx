@@ -105,8 +105,14 @@ export default function ProviderConfigurationModal({
 
     const toSubmit = Object.fromEntries(
       Object.entries(configValues)
-        .filter(([_k, entry]) => !!entry.value)
-        .map(([k, entry]) => [k, entry.value || ''])
+        .filter(
+          ([_k, entry]) =>
+            !!entry.value || (entry.serverValue != null && typeof entry.serverValue === 'string')
+        )
+        .map(([k, entry]) => [
+          k,
+          entry.value ?? (typeof entry.serverValue === 'string' ? entry.serverValue : ''),
+        ])
     );
 
     try {

@@ -549,6 +549,7 @@ async fn update_agent_provider(
                 format!("Invalid model config: {}", e),
             )
         })?
+        .with_canonical_limits(&payload.provider)
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 

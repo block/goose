@@ -51,7 +51,7 @@ pub struct OpenRouterProvider {
 
 impl OpenRouterProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL, OPENROUTER_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
@@ -311,7 +311,6 @@ impl Provider for OpenRouterProvider {
         Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
-    /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
@@ -350,32 +349,8 @@ impl Provider for OpenRouterProvider {
         let mut models: Vec<String> = data
             .iter()
             .filter_map(|model| {
-                // Get the model ID
                 let id = model.get("id").and_then(|v| v.as_str())?;
-
-                // Check if the model supports tools
-                let supported_params =
-                    match model.get("supported_parameters").and_then(|v| v.as_array()) {
-                        Some(params) => params,
-                        None => {
-                            // If supported_parameters is missing, skip this model (assume no tool support)
-                            tracing::debug!(
-                                "Model '{}' missing supported_parameters field, skipping",
-                                id
-                            );
-                            return None;
-                        }
-                    };
-
-                let has_tool_support = supported_params
-                    .iter()
-                    .any(|param| param.as_str() == Some("tools"));
-
-                if has_tool_support {
-                    Some(id.to_string())
-                } else {
-                    None
-                }
+                Some(id.to_string())
             })
             .collect();
 

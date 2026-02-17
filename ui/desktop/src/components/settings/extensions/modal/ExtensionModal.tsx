@@ -163,7 +163,7 @@ export default function ExtensionModal({
       const trimmedNewKey = value.trim();
       const normalizedNewKey = trimmedNewKey.toLowerCase();
       const isDuplicate = formData.headers.some(
-        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedNewKey,
+        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedNewKey
       );
       if (isDuplicate && trimmedNewKey !== '') {
         return;

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -14,9 +15,11 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
+use crate::agents::extension_manager::{
+    get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
+};
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
@@ -84,6 +87,21 @@ pub struct ExtensionLoadResult {
     pub error: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub enum GoosePlatform {
+    GooseDesktop,
+    GooseCli,
+}
+
+impl fmt::Display for GoosePlatform {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GoosePlatform::GooseCli => write!(f, "goose-cli"),
+            GoosePlatform::GooseDesktop => write!(f, "goose-desktop"),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AgentConfig {
     pub session_manager: Arc<SessionManager>,
@@ -91,6 +109,7 @@ pub struct AgentConfig {
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
     pub disable_session_naming: bool,
+    pub goose_platform: GoosePlatform,
 }
 
 impl AgentConfig {
@@ -100,6 +119,7 @@ impl AgentConfig {
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
         disable_session_naming: bool,
+        goose_platform: GoosePlatform,
     ) -> Self {
         Self {
             session_manager,
@@ -107,6 +127,7 @@ impl AgentConfig {
             scheduler_service,
             goose_mode,
             disable_session_naming,
+            goose_platform,
         }
     }
 }
@@ -190,6 +211,7 @@ impl Agent {
             Config::global()
                 .get_goose_disable_session_naming()
                 .unwrap_or(false),
+            GoosePlatform::GooseCli,
         ))
     }
 
@@ -199,12 +221,22 @@ impl Agent {
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
+        let goose_platform = config.goose_platform.clone();
+        let capabilities = match config.goose_platform {
+            GoosePlatform::GooseDesktop => ExtensionManagerCapabilities { mcpui: true },
+            GoosePlatform::GooseCli => ExtensionManagerCapabilities { mcpui: false },
+        };
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         Self {
             provider: provider.clone(),
             config,
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
+            extension_manager: Arc::new(ExtensionManager::new(
+                provider.clone(),
+                session_manager,
+                goose_platform.to_string(),
+                capabilities,
+            )),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -1378,8 +1410,9 @@ impl Agent {
                                     }
                                 }
 
-                                // Preserve thinking content from the original response
+                                // Preserve thinking/reasoning content from the original response
                                 // Gemini (and other thinking models) require thinking to be echoed back
+                                // Kimi/DeepSeek require reasoning_content on assistant tool call messages
                                 let thinking_content: Vec<MessageContent> = response.content.iter()
                                     .filter(|c| matches!(c, MessageContent::Thinking(_)))
                                     .cloned()
@@ -1393,10 +1426,25 @@ impl Agent {
                                     messages_to_add.push(thinking_msg);
                                 }
 
+                                // Collect reasoning content to attach to tool request messages
+                                let reasoning_content: Vec<MessageContent> = response.content.iter()
+                                    .filter(|c| matches!(c, MessageContent::Reasoning(_)))
+                                    .cloned()
+                                    .collect();
+
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
-                                        let request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                        let mut request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()));
+
+                                        // Attach reasoning content to EVERY split tool request message.
+                                        // Providers like Kimi require reasoning_content on all assistant
+                                        // messages with tool_calls when thinking mode is enabled.
+                                        for rc in &reasoning_content {
+                                            request_msg = request_msg.with_content(rc.clone());
+                                        }
+
+                                        request_msg = request_msg
                                             .with_tool_request_with_metadata(
                                                 request.id.clone(),
                                                 request.tool_call.clone(),
@@ -1613,6 +1661,7 @@ impl Agent {
                     .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
+                    .with_canonical_limits(&provider_name)
             }
         };
 

@@ -30,8 +30,9 @@ run_test() {
 
   # Verify: code_execution tool must be called
   # Matches: "execute | code_execution", "get_function_details | code_execution",
-  #           "tool call | execute", "tool calls | execute"
-  if grep -qE "(execute \| code_execution)|(get_function_details \| code_execution)|(tool calls? \| execute)" "$output_file"; then
+  #           "tool call | execute", "tool calls | execute" (old format)
+  #           "▸ execute N tool call" (new format with tool_graph)
+  if grep -qE "(execute \| code_execution)|(get_function_details \| code_execution)|(tool calls? \| execute)|(▸.*execute.*tool call)" "$output_file"; then
     echo "success|code_execution tool called" > "$result_file"
   else
     echo "failure|no code_execution tool calls found" > "$result_file"

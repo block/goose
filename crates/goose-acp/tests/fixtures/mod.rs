@@ -199,7 +199,11 @@ pub async fn spawn_acp_server_in_process(
     fs::create_dir_all(data_root).unwrap();
     let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
     if !config_path.exists() {
-        fs::write(&config_path, format!("GOOSE_MODEL: {TEST_MODEL}\n")).unwrap();
+        fs::write(
+            &config_path,
+            format!("GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\n"),
+        )
+        .unwrap();
     }
     let provider_factory = provider_factory.unwrap_or_else(|| {
         let base_url = openai_base_url.to_string();

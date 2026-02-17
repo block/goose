@@ -17,19 +17,19 @@ use tracing::log::warn;
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
 const CONVERSATION_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared because a context limit was reached.
+    "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
-Just continue the conversation naturally based on the summarized context";
+Just continue the conversation naturally based on the summarized context.";
 
 const TOOL_LOOP_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared because a context limit was reached.
+    "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
 Continue calling tools as necessary to complete the task.";
 
 const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared at the user's request.
+    "Your context was compacted at the user's request. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
-Just continue the conversation naturally based on the summarized context";
+Just continue the conversation naturally based on the summarized context.";
 
 #[derive(Serialize)]
 struct SummarizeContext {
@@ -549,7 +549,7 @@ mod tests {
                     max_tokens: None,
                     toolshim: false,
                     toolshim_model: None,
-                    fast_model: None,
+                    fast_model_config: None,
                     request_params: None,
                 },
                 max_tool_responses: None,

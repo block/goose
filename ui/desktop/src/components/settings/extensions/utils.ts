@@ -1,6 +1,6 @@
 import type { FixedExtensionEntry } from '../../ConfigContext';
 import type { ExtensionConfig } from '../../../api/types.gen';
-import { parse as parseShellQuote, quote as quoteShell } from 'shell-quote';
+import { parse as parseShellQuote } from 'shell-quote';
 
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
@@ -100,11 +100,11 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     description: extension.description || '',
     type:
       extension.type === 'frontend' ||
-        extension.type === 'inline_python' ||
-        extension.type === 'platform'
+      extension.type === 'inline_python' ||
+      extension.type === 'platform'
         ? 'stdio'
         : extension.type,
-    cmd: extension.type === 'stdio' ? quoteShell([extension.cmd, ...extension.args]) : undefined,
+    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
     endpoint:
       extension.type === 'streamable_http' || extension.type === 'sse'
         ? (extension.uri ?? undefined)
@@ -187,7 +187,13 @@ export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
 }
 
 export function combineCmdAndArgs(cmd: string, args: string[]): string {
-  return quoteShell([cmd, ...args]);
+  return [cmd, ...args]
+    .map((a) => {
+      if (!a.includes(' ')) return a;
+      if (a.includes('"')) return `'${a}'`;
+      return `"${a}"`;
+    })
+    .join(' ');
 }
 
 export function extractCommand(link: string): string {
