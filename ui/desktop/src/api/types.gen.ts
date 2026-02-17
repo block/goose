@@ -107,6 +107,11 @@ export type AddExtensionRequest = {
     session_id: string;
 };
 
+export type AgentCatalogResponse = {
+    agents: Array<CatalogAgent>;
+    total: number;
+};
+
 export type AgentDelta = {
     agent: string;
     baselineAccuracy: number;
@@ -288,6 +293,29 @@ export type CallToolResponse = {
     is_error: boolean;
     structured_content?: unknown;
 };
+
+export type CatalogAgent = {
+    capabilities: Array<string>;
+    default_mode: string;
+    description: string;
+    id: string;
+    kind: CatalogAgentKind;
+    modes: Array<CatalogAgentMode>;
+    name: string;
+    status: CatalogAgentStatus;
+    url?: string | null;
+};
+
+export type CatalogAgentKind = 'builtin' | 'external' | 'a2a';
+
+export type CatalogAgentMode = {
+    description: string;
+    name: string;
+    slug: string;
+    tool_groups: Array<string>;
+};
+
+export type CatalogAgentStatus = 'active' | 'disabled' | 'connected' | 'unreachable';
 
 export type ChatRequest = {
     conversation_so_far?: Array<Message> | null;
@@ -3145,6 +3173,22 @@ export type ToggleBuiltinAgentResponses = {
 };
 
 export type ToggleBuiltinAgentResponse = ToggleBuiltinAgentResponses[keyof ToggleBuiltinAgentResponses];
+
+export type AgentCatalogData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/agents/catalog';
+};
+
+export type AgentCatalogResponses = {
+    /**
+     * Unified agent catalog
+     */
+    200: AgentCatalogResponse;
+};
+
+export type AgentCatalogResponse2 = AgentCatalogResponses[keyof AgentCatalogResponses];
 
 export type ListAgents2Data = {
     body?: never;

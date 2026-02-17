@@ -1152,6 +1152,26 @@
         }
       }
     },
+    "/agents/catalog": {
+      "get": {
+        "tags": [
+          "Agent Catalog"
+        ],
+        "operationId": "agent_catalog",
+        "responses": {
+          "200": {
+            "description": "Unified agent catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCatalogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agents/external": {
       "get": {
         "tags": [
@@ -5293,6 +5313,25 @@
           }
         }
       },
+      "AgentCatalogResponse": {
+        "type": "object",
+        "required": [
+          "agents",
+          "total"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogAgent"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
       "AgentDelta": {
         "type": "object",
         "required": [
@@ -5806,6 +5845,98 @@
             "nullable": true
           }
         }
+      },
+      "CatalogAgent": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "kind",
+          "status",
+          "modes",
+          "default_mode",
+          "capabilities"
+        ],
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default_mode": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CatalogAgentKind"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogAgentMode"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CatalogAgentStatus"
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CatalogAgentKind": {
+        "type": "string",
+        "enum": [
+          "builtin",
+          "external",
+          "a2a"
+        ]
+      },
+      "CatalogAgentMode": {
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "description",
+          "tool_groups"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "tool_groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CatalogAgentStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "disabled",
+          "connected",
+          "unreachable"
+        ]
       },
       "ChatRequest": {
         "type": "object",

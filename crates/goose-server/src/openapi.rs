@@ -460,6 +460,7 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::agent_management::bind_extension_to_agent,
         super::routes::agent_management::unbind_extension_from_agent,
         super::routes::agent_management::orchestrator_status,
+        super::routes::agent_management::agent_catalog,
         // ACP Discovery
         super::routes::acp_discovery::ping,
         super::routes::acp_discovery::list_agents,
@@ -713,6 +714,12 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::agent_management::BuiltinAgentsResponse,
         super::routes::agent_management::ToggleAgentResponse,
         super::routes::agent_management::BindExtensionRequest,
+        // Agent Catalog types
+        super::routes::agent_management::CatalogAgent,
+        super::routes::agent_management::CatalogAgentKind,
+        super::routes::agent_management::CatalogAgentStatus,
+        super::routes::agent_management::CatalogAgentMode,
+        super::routes::agent_management::AgentCatalogResponse,
         super::routes::extension_routes::LiveExtensionInfo,
         super::routes::extension_routes::LiveExtensionsResponse,
         // A2A Instance Management types
