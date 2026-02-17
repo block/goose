@@ -1,0 +1,365 @@
+# `crates/goose/src/agents/` — Architectural Review
+
+## Executive Summary
+
+The `agents/` module is a **20,600-line monolith** containing 42 files that mix 6 fundamentally different concerns into a single flat namespace. This creates high coupling, makes onboarding difficult, and will increasingly resist the multi-instance/A2A architecture we've built.
+
+**Verdict**: The module needs a **domain-driven decomposition** into sub-modules, not a rewrite. The code quality is generally good — the problem is organizational, not qualitative.
+
+---
+
+## File Categorization (42 files, 20,603 LOC)
+
+### Category 1: Agent Definitions (Personas) — 7 files, 3,329 LOC
+These define **what an agent knows** — its identity, system prompt, modes, and tool bindings.
+
+| File | LOC | Purpose |
+|------|-----|---------|
+| `goose_agent.rs` | 481 | Default general-purpose persona |
+| `developer_agent.rs` | 302 | Software engineering persona |
+| `orchestrator_agent.rs` | 1,052 | Meta-agent that routes to specialists |
+| `pm_agent.rs` | 170 | Product management persona |
+| `qa_agent.rs` | 192 | Quality assurance persona |
+| `research_agent.rs` | 185 | Research persona |
+| `security_agent.rs` | 171 | Application security persona |
+
+**Pattern**: Each file defines a struct with `modes: HashMap<String, UniversalMode>`, prompt templates, extra tool groups, and bound extensions. These are **catalog entries** (class definitions), not runtime instances.
+
+**Key insight**: These are really **persona configurations** — data, not behavior. They could be YAML/TOML files or a single `PersonaDefinition` struct with different data.
+
+### Category 2: Agent Runtime (Core Engine) — 5 files, 5,506 LOC
+The actual agent execution machinery — how agents think, act, and respond.
+
+| File | LOC | Purpose |
+|------|-----|---------|
+| `agent.rs` | 2,108 | Core Agent struct: provider, extensions, reply loop, tool dispatch |
+| `specialist_handler.rs` | 518 | Creates and runs specialist sub-agents |
+| `specialist_config.rs` | 63 | TaskConfig for specialist execution |
+| `retry.rs` | 507 | Retry logic with backoff, error classification |
+| `reply_parts.rs` | 641 | Streaming reply decomposition (text, tools, artifacts) |
+
+**Concern**: `agent.rs` at 2,108 lines is doing too much — it's the provider interface, the extension interface, the tool dispatch loop, and the session management all in one.
+
+### Category 3: Extensions / Tools (MCP Integrations) — 10 files, 5,553 LOC
+Platform tools and MCP client implementations.
+
+| File | LOC | Purpose |
+|------|-----|---------|
+| `summon_extension.rs` | 2,426 | **THE** orchestration backbone — delegate, load, recipes, skills |
+| `extension_manager.rs` | 2,158 | Manages MCP extension lifecycle, tool dispatch |
+| `extension.rs` | 1,085 | ExtensionConfig enum, platform extension registry |
+| `extension_manager_extension.rs` | 498 | Meta-extension: enable/disable other extensions at runtime |
+| `extension_malware_check.rs` | 511 | Security scanning of extension packages |
+| `extension_registry.rs` | 158 | Global registry of extension configs |
+| `apps_extension.rs` | 676 | Goose Apps (HTML app creation) |
+| `chatrecall_extension.rs` | 322 | Chat history recall |
+| `code_execution_extension.rs` | 523 | Sandboxed code execution |
+| `todo_extension.rs` | 218 | Todo list management |
+| `tom_extension.rs` | 134 | Tom tool (unclear purpose — possibly a placeholder?) |
+
+**Red flag**: `summon_extension.rs` at 2,426 lines is the largest file and mixes:
+- Recipe loading and parsing
+- Skill discovery and metadata
+- Agent delegation (sync + async)
+- Background task management
+- ACP compatibility
+- A2A routing
+- Tool schema generation
+
+This single file has **more responsibilities than most entire modules**.
+
+### Category 4: Routing & Modes — 4 files, 1,636 LOC
+How messages get routed to the right agent/mode.
+
+| File | LOC | Purpose |
+|------|-----|---------|
+| `intent_router.rs` | 512 | Routes messages to agent+mode based on intent |
+| `routing_eval.rs` | 610 | Evaluates routing accuracy (confusion matrix, metrics) |
+| `universal_mode.rs` | 277 | Defines behavioral modes (ask/plan/write/review) |
+| `tool_filter.rs` | 237 | Filters available tools based on active mode |
+
+**This is clean** — clear separation of concerns within the routing domain.
+
+### Category 5: Tool Infrastructure — 4 files, 1,084 LOC
+The plumbing that connects tools to agents.
+
+| File | LOC | Purpose |
+|------|-----|---------|
+| `tool_registry.rs` | 256 | Tool caching, filtering, resolution |
+| `tool_execution.rs` | 177 | Tool call streaming and execution |
+| `final_output_tool.rs` | 281 | Structured final output extraction |
+| `schedule_tool.rs` | 470 | Schedule management platform tool |
+
+### Category 6: Delegation & Sub-agents — 4 files, 718 LOC
+Multi-agent orchestration primitives.
+
+| File | LOC | Purpose |
+|------|-----|---------|
+| `delegation.rs` | 201 | DelegationStrategy enum (InProcess/ACP/A2A) |
+| `subagent_execution_tool/mod.rs` | 98 | Re-export |
+| `subagent_execution_tool/notification_events.rs` | 227 | CLI notification events for sub-agent status |
+| `execute_commands.rs` | 392 | Command execution with compact triggers |
+
+### Category 7: Cross-cutting — 5 files, 2,577 LOC
+
+| File | LOC | Purpose |
+|------|-----|---------|
+| `mcp_client.rs` | 991 | MCP protocol client trait and transport |
+| `prompt_manager.rs` | 395 | System prompt assembly |
+| `large_response_handler.rs` | 256 | Handling oversized tool responses |
+| `types.rs` | 160 | Shared types (SessionConfig, FrontendTool, etc.) |
+| `moim.rs` | 173 | MOIM integration (unclear abbreviation) |
+| `platform_tools.rs` | ? | Platform-level tool definitions |
+
+### Category 8: Data / Test Support — 2 directories
+
+| Path | Purpose |
+|------|---------|
+| `builtin_skills/` | Bundled skill definitions |
+| `snapshots/` | Test snapshots for prompt_manager |
+
+---
+
+## Architectural Smells 🔍
+
+### 1. **Flat Namespace Overload**
+42 files in a single directory with no sub-modules. A developer looking for "how routing works" must scan 42 filenames. This violates the **principle of least surprise**.
+
+### 2. **God Files**
+Three files exceed 2,000 lines:
+- `summon_extension.rs` (2,426) — 6+ responsibilities
+- `extension_manager.rs` (2,158) — extension lifecycle + tool dispatch + resource management
+- `agent.rs` (2,108) — agent lifecycle + provider interface + tool loop + session
+
+### 3. **Persona ≠ Agent**
+The codebase conflates "persona definition" (data) with "agent instance" (runtime). A `DeveloperAgent` struct is really a `DeveloperPersonaConfig` — it produces AgentSlots, not running agents. This confusion will intensify with multi-instance (same persona, many instances).
+
+### 4. **Extension ≠ Agent**
+Extensions (`*_extension.rs`) live in `agents/` but they're not agents — they're MCP tool providers. The naming creates confusion: is `summon_extension` an agent or a tool?
+
+### 5. **Orchestration Buried in Extensions**
+The most critical piece of multi-agent behavior (`summon_extension.rs`) is categorized as an "extension" rather than a first-class orchestration concern. It should be the **centerpiece** of the architecture, not a plugin.
+
+### 6. **Circular Conceptual Dependencies**
+- Agents use ExtensionManager → which uses Agent (for specialist creation)
+- IntentRouter uses AgentSlots → which are defined by Agent structs
+- SummonExtension uses AgentManager → which creates Agents → which use Extensions
+
+---
+
+## Proposed Restructuring
+
+### Target Directory Layout
+
+```
+crates/goose/src/agents/
+├── mod.rs                          # Re-exports, backward compat aliases
+│
+├── core/                           # Agent Runtime Engine
+│   ├── mod.rs
+│   ├── agent.rs                    # Core Agent struct (slimmed down)
+│   ├── reply.rs                    # Reply streaming + decomposition
+│   ├── retry.rs                    # Retry logic
+│   ├── prompt.rs                   # System prompt assembly
+│   └── types.rs                    # SessionConfig, AgentEvent, etc.
+│
+├── personas/                       # Agent Definitions (Data, not behavior)
+│   ├── mod.rs                      # PersonaDefinition trait/struct
+│   ├── goose.rs                    # General-purpose
+│   ├── developer.rs                # Software engineering
+│   ├── pm.rs                       # Product management
+│   ├── qa.rs                       # Quality assurance
+│   ├── research.rs                 # Research
+│   ├── security.rs                 # Application security
+│   └── orchestrator.rs             # Meta-routing orchestrator
+│
+├── routing/                        # Message Routing
+│   ├── mod.rs
+│   ├── intent_router.rs            # Intent-based routing
+│   ├── routing_eval.rs             # Routing evaluation metrics
+│   ├── universal_mode.rs           # Behavioral modes
+│   └── tool_filter.rs              # Mode-based tool filtering
+│
+├── extensions/                     # MCP Extension Management
+│   ├── mod.rs
+│   ├── manager.rs                  # ExtensionManager (lifecycle)
+│   ├── config.rs                   # ExtensionConfig enum
+│   ├── registry.rs                 # Global registry
+│   ├── client.rs                   # MCP client trait + transport
+│   ├── malware_check.rs            # Security scanning
+│   └── manager_extension.rs        # Meta-extension (enable/disable)
+│
+├── tools/                          # Tool Infrastructure
+│   ├── mod.rs
+│   ├── registry.rs                 # Tool caching + resolution
+│   ├── execution.rs                # Tool call streaming
+│   ├── final_output.rs             # Structured output extraction
+│   ├── large_response.rs           # Oversized response handling
+│   └── schedule.rs                 # Schedule tool handlers
+│
+├── orchestration/                  # Multi-Agent Coordination
+│   ├── mod.rs
+│   ├── summon.rs                   # Delegate + Load (split from summon_extension)
+│   ├── delegation.rs               # DelegationStrategy enum
+│   ├── specialist.rs               # Specialist creation + execution
+│   ├── background_tasks.rs         # Async background task tracking
+│   └── notification_events.rs      # Sub-agent status notifications
+│
+└── platform/                       # Platform-specific Extensions
+    ├── mod.rs
+    ├── apps.rs                     # Goose Apps
+    ├── chat_recall.rs              # Chat history
+    ├── code_execution.rs           # Sandboxed code
+    ├── todo.rs                     # Todo management
+    ├── tom.rs                      # Tom tool
+    ├── builtin_skills/             # Bundled skills
+    └── container.rs                # Docker container management
+```
+
+### Migration Strategy
+
+This can be done **incrementally** with zero API breakage:
+
+1. **Phase A**: Create sub-directories, move files, update `mod.rs` with re-exports for backward compatibility
+2. **Phase B**: Split `summon_extension.rs` into `orchestration/summon.rs` + `orchestration/background_tasks.rs`
+3. **Phase C**: Split `agent.rs` — extract tool dispatch loop into `core/tool_loop.rs`
+4. **Phase D**: Rename persona files to make the data-vs-behavior distinction explicit
+
+Each phase is a separate PR, each maintains `pub use` aliases in `agents/mod.rs`.
+
+---
+
+## Answers to Your Open Questions
+
+### Q1: When agents work on the same project, should they notify others when they edit a file, rebuild, etc.?
+
+**Yes — absolutely.** This is the "shared workspace problem" and it has well-known solutions:
+
+- **File-level locking**: Agent A announces "editing `src/auth.rs`" → Agent B skips that file or waits
+- **Event bus**: Broadcast `FileChanged { path, agent_id }`, `BuildStarted`, `BuildFailed` events
+- **Conflict detection**: Before writing, check if the file was modified since last read
+
+**Where to implement**: The `AgentPool` already has an event bus pattern (tokio broadcast). We could add a `WorkspaceEventBus` that pool instances subscribe to. A2A's `TaskStatusUpdateEvent` could carry workspace events as metadata.
+
+**Practical approach**: Start with a `SharedWorkspace` struct that wraps `Arc<RwLock<HashSet<PathBuf>>>` for active edits. Before an agent writes a file, it acquires a "soft lock." If another agent holds it, the agent either waits or works on something else.
+
+### Q2: How can agents cooperate within the A2A framework?
+
+A2A was designed for exactly this. The cooperation patterns:
+
+1. **Task delegation**: Agent A sends a `sendMessage` to Agent B's A2A endpoint with instructions
+2. **Status polling**: Agent A calls `getTask` to check progress
+3. **Streaming**: Agent A subscribes to Agent B's SSE stream for real-time updates
+4. **Multi-turn**: Agent A sends follow-up messages to the same task_id
+5. **Artifact exchange**: Agent B returns `Artifact` objects (code, docs, data) that Agent A consumes
+
+**What we built enables this**: The `/a2a/instances/{id}/card` endpoint means each pool instance is discoverable. Another agent can fetch the card, see capabilities, and send work.
+
+**What's missing**: A **coordination protocol** — who decides what to delegate? Currently the `OrchestratorAgent` does this, but it's sequential. We need:
+- A `Coordinator` that spawns pool instances and dispatches tasks
+- A shared context/memory that agents can read (not just event notifications)
+- A merge strategy for when two agents produce conflicting changes
+
+### Q3: Where are the roles and instructions of builtin agents actually written?
+
+In the **persona files** themselves:
+
+| Agent | File | System Prompt Source |
+|-------|------|---------------------|
+| Goose | `goose_agent.rs` | `prompt_template!("goose_agent")` → loads from templates dir |
+| Developer | `developer_agent.rs` | `prompt_template!("developer_agent")` |
+| PM | `pm_agent.rs` | `prompt_template!("pm_agent")` |
+| QA | `qa_agent.rs` | `prompt_template!("qa_agent")` |
+| Research | `research_agent.rs` | `prompt_template!("research_agent")` |
+| Security | `security_agent.rs` | `prompt_template!("security_agent")` |
+| Orchestrator | `orchestrator_agent.rs` | `prompt_template!("orchestrator_agent")` |
+
+The `prompt_template!` macro loads from `crates/goose/src/prompt_templates/`. The actual instructions are Jinja2-style templates.
+
+The **modes** (ask/plan/write/review) are defined in `universal_mode.rs` and each persona adds its own mode-specific prompts and tool groups.
+
+### Q4: Should we consider builtin agents as sub-agents by default?
+
+**Yes, conceptually — but with nuance:**
+
+- **Today**: Builtin agents are **persona configurations** that the `IntentRouter` selects between. They share one `Agent` runtime instance and just switch system prompts and tool groups.
+- **Better model**: Each builtin agent is a **sub-agent template** that can be instantiated independently via `AgentPool`. The `OrchestratorAgent` becomes the **coordinator** that spawns instances as needed.
+
+The key shift: from "switching personas on a shared agent" to "spawning persona instances on demand."
+
+This maps perfectly to the **Class vs Instance** model you identified in Q6.
+
+### Q5: Should agents autonomously open/close/reopen sessions? Sessions by topic?
+
+**Yes — this is a maturity step.** Currently sessions are user-initiated (CLI/UI). Autonomous session management would enable:
+
+1. **Topic-scoped sessions**: "Auth module refactor" session vs "Database migration" session — each with its own conversation history, context, and working state
+2. **Session parking**: Agent A hits a blocker → parks its session → picks up a different task → resumes when unblocked
+3. **Session forking**: Agent encounters a sub-problem → forks a new session for it → merges results back
+
+**Implementation path**:
+- `SessionManager` already supports create/restore/list
+- Add `Agent::fork_session()` and `Agent::park_session(reason)`
+- Add a `SessionScheduler` that picks the highest-priority unblocked session
+- This aligns perfectly with the `AgentPool` — each pool instance IS a session
+
+**Risk**: Autonomous session creation without limits → context explosion. Need a budget (max sessions, max total tokens).
+
+### Q6: Is the catalog like a class definition and the agent like an instance?
+
+**Exactly right.** This is the key architectural insight:
+
+```
+PersonaDefinition (Class)     AgentInstance (Object)
+─────────────────────────    ────────────────────────
+DeveloperAgent config    →   dev-instance-1 (claude-sonnet-4, project-A)
+                         →   dev-instance-2 (gpt-4o, project-B)  
+                         →   dev-instance-3 (deepseek-r1, project-A, review mode)
+```
+
+**The `AgentPool` already supports this!** You can call:
+```
+POST /a2a/instances
+{ "persona": "developer", "model": "claude-sonnet-4", "instructions": "Fix auth" }
+
+POST /a2a/instances  
+{ "persona": "developer", "model": "gpt-4o", "instructions": "Refactor DB" }
+```
+
+Both are instances of the same "developer" class with different configurations.
+
+**For the Desktop UI**: Yes, the catalog would show one "Developer" card, but clicking "Deploy" would let you configure:
+- Provider/model
+- Working directory
+- Max turns
+- Extra extensions
+- Custom instructions
+
+And it would spawn a new pool instance. The UI would show a list of running instances (like Docker containers), each with status, turns taken, current task.
+
+**The "extra config" at deploy time** is exactly what `SpawnConfig` provides:
+```rust
+pub struct SpawnConfig {
+    pub persona: String,           // which class
+    pub provider: Arc<dyn Provider>, // which LLM
+    pub instructions: String,      // task-specific instructions
+    pub working_dir: PathBuf,      // which project
+    pub extensions: Vec<ExtensionConfig>, // extra tools
+    pub exclude_extensions: Vec<String>,  // disabled tools
+    pub max_turns: Option<usize>,  // budget
+    // ...
+}
+```
+
+---
+
+## Priority Recommendations
+
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| **P1** | Split `summon_extension.rs` into orchestration sub-module | Unlocks clean multi-agent patterns | Medium |
+| **P1** | Rename persona files to `personas/` sub-dir | Clarifies class-vs-instance | Low |
+| **P2** | Add `WorkspaceEventBus` for file-change coordination | Enables safe parallel editing | Medium |
+| **P2** | Wire `AgentPool` into Desktop UI (catalog → deploy → manage) | User-visible multi-instance | High |
+| **P3** | Full directory restructuring (all 8 categories) | Long-term maintainability | High |
+| **P3** | Autonomous session management (fork/park/resume) | Agent efficiency | High |
