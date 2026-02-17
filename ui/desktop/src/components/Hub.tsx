@@ -1,23 +1,6 @@
-import { AppEvents } from '../constants/events';
-/**
- * Hub Component
- *
- * The Hub is the main landing page and entry point for the Goose Desktop application.
- * It serves as the welcome screen where users can start new conversations.
- *
- * Key Responsibilities:
- * - Displays SessionInsights to show session statistics and recent chats
- * - Provides a ChatInput for users to start new conversations
- * - Creates a new session and navigates to Pair with the session ID
- * - Shows loading state while session is being created
- *
- * Navigation Flow:
- * Hub (input submission) → Create Session → Pair (with session ID and initial message)
- */
-
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SessionInsights } from './sessions/SessionsInsights';
-import ChatInput from './ChatInput';
+import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 import 'react-toastify/dist/ReactToastify.css';
 import { View, ViewOptions } from '../utils/navigationUtils';
@@ -37,7 +20,7 @@ export default function Hub({
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
   const { extensionsList } = useConfig();
-  const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
+  const [workingDir] = useState(getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const handleSubmit = useCallback(async (input: UserInput) => {
@@ -72,7 +55,7 @@ export default function Hub({
     }
   }, [extensionsList, workingDir, isCreatingSession, setView]);
 
-  // Listen for PROMPT_BAR_SUBMIT events from the persistent prompt bar
+  // Listen for PROMPT_BAR_SUBMIT events from the unified PromptBar
   useEffect(() => {
     const handlePromptBarSubmit = (e: Event) => {
       const message = (e as CustomEvent<string>).detail;
@@ -86,34 +69,13 @@ export default function Hub({
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-background-muted">
-      <div className="flex-1 flex flex-col min-h-[45vh] overflow-hidden mb-0.5 relative">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
         <SessionInsights />
         {isCreatingSession && (
           <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
             <LoadingGoose chatState={ChatState.LoadingConversation} />
           </div>
         )}
-      </div>
-
-      <div className="flex-shrink-0 max-h-[50vh] min-h-0 overflow-hidden flex flex-col">
-        <ChatInput
-          sessionId={null}
-          handleSubmit={handleSubmit}
-          chatState={isCreatingSession ? ChatState.LoadingConversation : ChatState.Idle}
-          onStop={() => {}}
-          initialValue=""
-          setView={setView}
-          totalTokens={0}
-          accumulatedInputTokens={0}
-          accumulatedOutputTokens={0}
-          droppedFiles={[]}
-          onFilesProcessed={() => {}}
-          messages={[]}
-          disableAnimation={false}
-          sessionCosts={undefined}
-          toolCount={0}
-          onWorkingDirChange={setWorkingDir}
-        />
       </div>
     </div>
   );
