@@ -33,7 +33,7 @@ pub fn goose_message_to_a2a(msg: &Message) -> A2aMessage {
 /// Convert an A2A Message to a Goose Message.
 pub fn a2a_message_to_goose(msg: &A2aMessage) -> Message {
     let role = match msg.role {
-        A2aRole::User => Role::User,
+        A2aRole::User | A2aRole::Unspecified => Role::User,
         A2aRole::Agent => Role::Assistant,
     };
 

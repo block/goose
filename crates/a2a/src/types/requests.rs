@@ -128,7 +128,7 @@ mod tests {
             metadata: None,
         };
         let json = serde_json::to_value(&request).unwrap();
-        assert_eq!(json["message"]["role"], "user");
+        assert_eq!(json["message"]["role"], "ROLE_USER");
         assert_eq!(json["configuration"]["blocking"], true);
     }
 

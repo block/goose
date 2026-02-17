@@ -19,14 +19,15 @@ use a2a::types::security::*;
 #[test]
 fn spec_all_task_states_serialize() {
     let states = vec![
-        (TaskState::Submitted, "\"submitted\""),
-        (TaskState::Working, "\"working\""),
-        (TaskState::Completed, "\"completed\""),
-        (TaskState::Failed, "\"failed\""),
-        (TaskState::Canceled, "\"canceled\""),
-        (TaskState::InputRequired, "\"input-required\""),
-        (TaskState::Rejected, "\"rejected\""),
-        (TaskState::AuthRequired, "\"auth-required\""),
+        (TaskState::Unspecified, "\"TASK_STATE_UNSPECIFIED\""),
+        (TaskState::Submitted, "\"TASK_STATE_SUBMITTED\""),
+        (TaskState::Working, "\"TASK_STATE_WORKING\""),
+        (TaskState::Completed, "\"TASK_STATE_COMPLETED\""),
+        (TaskState::Failed, "\"TASK_STATE_FAILED\""),
+        (TaskState::Canceled, "\"TASK_STATE_CANCELED\""),
+        (TaskState::InputRequired, "\"TASK_STATE_INPUT_REQUIRED\""),
+        (TaskState::Rejected, "\"TASK_STATE_REJECTED\""),
+        (TaskState::AuthRequired, "\"TASK_STATE_AUTH_REQUIRED\""),
     ];
     for (state, expected) in &states {
         let json = serde_json::to_string(state).unwrap();
@@ -41,14 +42,15 @@ fn spec_all_task_states_serialize() {
 #[test]
 fn spec_all_task_states_deserialize() {
     let cases = vec![
-        ("\"submitted\"", TaskState::Submitted),
-        ("\"working\"", TaskState::Working),
-        ("\"completed\"", TaskState::Completed),
-        ("\"failed\"", TaskState::Failed),
-        ("\"canceled\"", TaskState::Canceled),
-        ("\"input-required\"", TaskState::InputRequired),
-        ("\"rejected\"", TaskState::Rejected),
-        ("\"auth-required\"", TaskState::AuthRequired),
+        ("\"TASK_STATE_UNSPECIFIED\"", TaskState::Unspecified),
+        ("\"TASK_STATE_SUBMITTED\"", TaskState::Submitted),
+        ("\"TASK_STATE_WORKING\"", TaskState::Working),
+        ("\"TASK_STATE_COMPLETED\"", TaskState::Completed),
+        ("\"TASK_STATE_FAILED\"", TaskState::Failed),
+        ("\"TASK_STATE_CANCELED\"", TaskState::Canceled),
+        ("\"TASK_STATE_INPUT_REQUIRED\"", TaskState::InputRequired),
+        ("\"TASK_STATE_REJECTED\"", TaskState::Rejected),
+        ("\"TASK_STATE_AUTH_REQUIRED\"", TaskState::AuthRequired),
     ];
     for (json, expected) in &cases {
         let state: TaskState = serde_json::from_str(json).unwrap();
@@ -88,8 +90,8 @@ fn spec_interrupted_states() {
 fn spec_role_values() {
     let user_json = serde_json::to_string(&Role::User).unwrap();
     let agent_json = serde_json::to_string(&Role::Agent).unwrap();
-    assert_eq!(user_json, "\"user\"");
-    assert_eq!(agent_json, "\"agent\"");
+    assert_eq!(user_json, "\"ROLE_USER\"");
+    assert_eq!(agent_json, "\"ROLE_AGENT\"");
 }
 
 // ============================================================================
@@ -99,7 +101,7 @@ fn spec_role_values() {
 #[test]
 fn spec_message_minimal() {
     let json = r#"{
-        "role": "user",
+        "role": "ROLE_USER",
         "parts": [{"type": "text", "text": "Hello"}],
         "messageId": "msg-001"
     }"#;
@@ -112,7 +114,7 @@ fn spec_message_minimal() {
 #[test]
 fn spec_message_with_context_and_task() {
     let json = r#"{
-        "role": "agent",
+        "role": "ROLE_AGENT",
         "parts": [{"type": "text", "text": "Done"}],
         "messageId": "msg-002",
         "contextId": "ctx-001",
@@ -205,7 +207,7 @@ fn spec_task_full() {
         "id": "task-001",
         "contextId": "ctx-001",
         "status": {
-            "state": "working",
+            "state": "TASK_STATE_WORKING",
             "timestamp": "2025-01-01T00:00:00Z"
         },
         "artifacts": [{
@@ -214,7 +216,7 @@ fn spec_task_full() {
             "name": "output"
         }],
         "history": [{
-            "role": "user",
+            "role": "ROLE_USER",
             "parts": [{"type": "text", "text": "do something"}],
             "messageId": "msg-001"
         }],
@@ -234,7 +236,7 @@ fn spec_task_minimal() {
     let json = r#"{
         "id": "task-002",
         "contextId": "ctx-002",
-        "status": {"state": "submitted"}
+        "status": {"state": "TASK_STATE_SUBMITTED"}
     }"#;
     let task: Task = serde_json::from_str(json).unwrap();
     assert_eq!(task.id, "task-002");
@@ -271,7 +273,7 @@ fn spec_artifact_with_all_fields() {
 fn spec_send_message_request() {
     let json = r#"{
         "message": {
-            "role": "user",
+            "role": "ROLE_USER",
             "parts": [{"type": "text", "text": "Analyze this code"}],
             "messageId": "msg-001"
         },
@@ -289,7 +291,7 @@ fn spec_send_message_request() {
 fn spec_send_message_request_minimal() {
     let json = r#"{
         "message": {
-            "role": "user",
+            "role": "ROLE_USER",
             "parts": [{"type": "text", "text": "Hello"}],
             "messageId": "msg-003"
         }
@@ -308,10 +310,10 @@ fn spec_jsonrpc_request_envelope() {
     let json = r#"{
         "jsonrpc": "2.0",
         "id": 1,
-        "method": "message/send",
+        "method": "SendMessage",
         "params": {
             "message": {
-                "role": "user",
+                "role": "ROLE_USER",
                 "parts": [{"type": "text", "text": "test"}],
                 "messageId": "msg-001"
             }
@@ -330,7 +332,7 @@ fn spec_jsonrpc_response_with_result() {
         "result": {
             "id": "task-001",
             "contextId": "ctx-001",
-            "status": {"state": "completed"}
+            "status": {"state": "TASK_STATE_COMPLETED"}
         }
     }"#;
     let resp: JsonRpcResponse = serde_json::from_str(json).unwrap();
@@ -362,17 +364,17 @@ fn spec_jsonrpc_error_response() {
 
 #[test]
 fn spec_method_constants() {
-    assert_eq!(methods::SEND_MESSAGE, "message/send");
-    assert_eq!(methods::SEND_STREAM, "message/stream");
-    assert_eq!(methods::GET_TASK, "tasks/get");
-    assert_eq!(methods::CANCEL_TASK, "tasks/cancel");
-    assert_eq!(methods::LIST_TASKS, "tasks/list");
-    assert_eq!(methods::SUBSCRIBE_TASK, "tasks/resubscribe");
-    assert_eq!(methods::SET_PUSH_CONFIG, "tasks/pushNotificationConfig/set");
-    assert_eq!(methods::GET_PUSH_CONFIG, "tasks/pushNotificationConfig/get");
+    assert_eq!(methods::SEND_MESSAGE, "SendMessage");
+    assert_eq!(methods::SEND_STREAM, "SendStreamingMessage");
+    assert_eq!(methods::GET_TASK, "GetTask");
+    assert_eq!(methods::CANCEL_TASK, "CancelTask");
+    assert_eq!(methods::LIST_TASKS, "ListTasks");
+    assert_eq!(methods::SUBSCRIBE_TASK, "SubscribeToTask");
+    assert_eq!(methods::SET_PUSH_CONFIG, "CreateTaskPushNotificationConfig");
+    assert_eq!(methods::GET_PUSH_CONFIG, "GetTaskPushNotificationConfig");
     assert_eq!(
         methods::DELETE_PUSH_CONFIG,
-        "tasks/pushNotificationConfig/delete"
+        "DeleteTaskPushNotificationConfig"
     );
 }
 

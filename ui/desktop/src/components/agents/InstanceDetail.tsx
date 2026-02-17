@@ -10,7 +10,7 @@ import {
   CheckCircle,
   AlertTriangle,
 } from 'lucide-react';
-import type { InstanceResponse, InstanceResultResponse } from '../../api/instances';
+import type { InstanceResponse, InstanceResultResponse, InstanceStatus } from '../../api/instances';
 import { getInstanceResult } from '../../api/instances';
 import { InstanceStatusBadge } from './InstanceStatusBadge';
 import { InstanceEventLog } from './InstanceEventLog';
@@ -93,7 +93,7 @@ export function InstanceDetail({ instance, onClose, onCancel }: InstanceDetailPr
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-3 min-w-0">
           <h3 className="font-semibold text-sm truncate">{instance.persona}</h3>
-          <InstanceStatusBadge status={instance.status} size="sm" />
+          <InstanceStatusBadge status={instance.status as InstanceStatus} size="sm" />
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {isRunning && (

@@ -13,6 +13,242 @@
     "version": "1.23.0"
   },
   "paths": {
+    "/a2a/agents": {
+      "get": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "List all available personas.",
+        "operationId": "list_personas",
+        "responses": {
+          "200": {
+            "description": "List of available personas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PersonaSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/a2a/instances": {
+      "get": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "List all pool instances with their current status.",
+        "operationId": "list_instances",
+        "responses": {
+          "200": {
+            "description": "List of all agent pool instances",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstanceResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "Spawn a new agent instance in the pool.",
+        "operationId": "spawn_instance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpawnInstanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Instance spawned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid provider or model config"
+          },
+          "503": {
+            "description": "No default provider or spawn failed"
+          }
+        }
+      }
+    },
+    "/a2a/instances/{instance_id}": {
+      "get": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "Get status of a specific instance.",
+        "operationId": "get_instance",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Instance status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Instance not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "Cancel a running instance.",
+        "operationId": "cancel_instance",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Instance cancelled"
+          },
+          "404": {
+            "description": "Instance not found"
+          }
+        }
+      }
+    },
+    "/a2a/instances/{instance_id}/card": {
+      "get": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "Get the A2A agent card for a specific instance.",
+        "operationId": "get_instance_card",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Instance agent card"
+          },
+          "404": {
+            "description": "Instance not found"
+          }
+        }
+      }
+    },
+    "/a2a/instances/{instance_id}/events": {
+      "get": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "Stream real-time events from a running pool instance via SSE.",
+        "description": "Subscribes to the instance's broadcast channel and streams PoolEvents\nas Server-Sent Events. The stream closes when the instance completes\nor the client disconnects.",
+        "operationId": "stream_instance_events",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE event stream for instance"
+          },
+          "404": {
+            "description": "Instance not found"
+          }
+        }
+      }
+    },
+    "/a2a/instances/{instance_id}/result": {
+      "get": {
+        "tags": [
+          "A2A Instances"
+        ],
+        "summary": "Get the result of a completed instance.",
+        "operationId": "get_instance_result",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "description": "Instance ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Instance result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceResultResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Instance not found"
+          }
+        }
+      }
+    },
     "/action-required/tool-confirmation": {
       "post": {
         "tags": [
@@ -7528,6 +7764,90 @@
           }
         }
       },
+      "InstanceResponse": {
+        "type": "object",
+        "description": "Response for instance creation and status queries.",
+        "required": [
+          "id",
+          "persona",
+          "status",
+          "turns",
+          "provider_name",
+          "model_name",
+          "elapsed_secs",
+          "last_activity_ms"
+        ],
+        "properties": {
+          "elapsed_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_activity_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "persona": {
+            "type": "string"
+          },
+          "provider_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "turns": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "InstanceResultResponse": {
+        "type": "object",
+        "description": "Response for instance results.",
+        "required": [
+          "id",
+          "persona",
+          "status",
+          "turns_taken",
+          "duration_secs"
+        ],
+        "properties": {
+          "duration_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string",
+            "nullable": true
+          },
+          "persona": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "turns_taken": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "JsonObject": {
         "type": "object",
         "additionalProperties": true
@@ -8532,6 +8852,31 @@
           "url": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "PersonaSummary": {
+        "type": "object",
+        "description": "Summary for the /a2a/agents listing endpoint.",
+        "required": [
+          "slug",
+          "name",
+          "description",
+          "skills_count"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "skills_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "slug": {
+            "type": "string"
           }
         }
       },
@@ -10400,6 +10745,35 @@
             "items": {
               "$ref": "#/components/schemas/SlashCommand"
             }
+          }
+        }
+      },
+      "SpawnInstanceRequest": {
+        "type": "object",
+        "description": "Request body for POST /a2a/instances",
+        "required": [
+          "persona"
+        ],
+        "properties": {
+          "instructions": {
+            "type": "string",
+            "nullable": true
+          },
+          "max_turns": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "persona": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

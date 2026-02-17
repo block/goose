@@ -163,7 +163,7 @@ export function InstanceList({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-sm truncate">{inst.persona}</span>
-                    <InstanceStatusBadge status={inst.status} size="sm" />
+                    <InstanceStatusBadge status={inst.status as InstanceStatus} size="sm" />
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                     <span className="font-mono truncate max-w-[120px]" title={inst.id}>

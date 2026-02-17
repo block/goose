@@ -75,17 +75,17 @@ impl JsonRpcResponse {
 
 /// A2A JSON-RPC method name constants per spec section 9.4.
 pub mod methods {
-    pub const SEND_MESSAGE: &str = "message/send";
-    pub const SEND_STREAM: &str = "message/stream";
-    pub const GET_TASK: &str = "tasks/get";
-    pub const LIST_TASKS: &str = "tasks/list";
-    pub const CANCEL_TASK: &str = "tasks/cancel";
-    pub const SUBSCRIBE_TASK: &str = "tasks/resubscribe";
-    pub const SET_PUSH_CONFIG: &str = "tasks/pushNotificationConfig/set";
-    pub const GET_PUSH_CONFIG: &str = "tasks/pushNotificationConfig/get";
-    pub const LIST_PUSH_CONFIG: &str = "tasks/pushNotificationConfig/list";
-    pub const DELETE_PUSH_CONFIG: &str = "tasks/pushNotificationConfig/delete";
-    pub const GET_EXTENDED_CARD: &str = "agent/authenticatedExtendedCard";
+    pub const SEND_MESSAGE: &str = "SendMessage";
+    pub const SEND_STREAM: &str = "SendStreamingMessage";
+    pub const GET_TASK: &str = "GetTask";
+    pub const LIST_TASKS: &str = "ListTasks";
+    pub const CANCEL_TASK: &str = "CancelTask";
+    pub const SUBSCRIBE_TASK: &str = "SubscribeToTask";
+    pub const SET_PUSH_CONFIG: &str = "CreateTaskPushNotificationConfig";
+    pub const GET_PUSH_CONFIG: &str = "GetTaskPushNotificationConfig";
+    pub const LIST_PUSH_CONFIG: &str = "ListTaskPushNotificationConfig";
+    pub const DELETE_PUSH_CONFIG: &str = "DeleteTaskPushNotificationConfig";
+    pub const GET_EXTENDED_CARD: &str = "GetExtendedAgentCard";
 }
 
 /// A2A HTTP header constants per spec section 4.7.
@@ -107,7 +107,7 @@ mod tests {
         );
         let json = serde_json::to_value(&req).unwrap();
         assert_eq!(json["jsonrpc"], "2.0");
-        assert_eq!(json["method"], "message/send");
+        assert_eq!(json["method"], "SendMessage");
         assert_eq!(json["id"], 1);
     }
 

@@ -59,23 +59,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
 
     // --- Per-persona discovery endpoint ---
     let persona_state = state.clone();
-    let list_personas = Router::new()
-        .route(
-            "/agents",
-            axum::routing::get(move |State(_): State<Arc<AppState>>| async move {
-                let cards = build_all_persona_cards();
-                let summary: Vec<PersonaSummary> = cards
-                    .into_iter()
-                    .map(|(slug, card)| PersonaSummary {
-                        slug,
-                        name: card.name,
-                        description: card.description,
-                        skills_count: card.skills.len(),
-                    })
-                    .collect();
-                Json(summary)
-            }),
-        )
+    let list_personas_router = Router::new()
+        .route("/agents", axum::routing::get(list_personas))
         .with_state(persona_state);
 
     // --- Per-persona A2A endpoints ---
@@ -118,7 +103,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
     // Compose: /a2a/instances/* + /a2a/agents/* + /a2a/*
     Router::new()
         .nest("/a2a", instance_router)
-        .nest("/a2a", list_personas)
+        .nest("/a2a", list_personas_router)
         .nest("/a2a", persona_router)
         .nest("/a2a", main_router)
 }
@@ -327,48 +312,56 @@ impl AgentExecutor for GooseServerExecutor {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request body for POST /a2a/instances
-#[derive(Deserialize)]
-struct SpawnInstanceRequest {
-    persona: String,
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct SpawnInstanceRequest {
+    pub persona: String,
     #[serde(default)]
-    instructions: Option<String>,
+    pub instructions: Option<String>,
     #[serde(default)]
-    provider: Option<String>,
+    pub provider: Option<String>,
     #[serde(default)]
-    model: Option<String>,
+    pub model: Option<String>,
     #[serde(default)]
-    max_turns: Option<usize>,
+    pub max_turns: Option<usize>,
 }
 
 /// Response for instance creation and status queries.
-#[derive(Serialize)]
-struct InstanceResponse {
-    id: String,
-    persona: String,
-    status: String,
-    turns: u32,
-    provider_name: String,
-    model_name: String,
-    elapsed_secs: f64,
-    last_activity_ms: u64,
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct InstanceResponse {
+    pub id: String,
+    pub persona: String,
+    pub status: String,
+    pub turns: u32,
+    pub provider_name: String,
+    pub model_name: String,
+    pub elapsed_secs: f64,
+    pub last_activity_ms: u64,
 }
 
 /// Response for instance results.
-#[derive(Serialize)]
-struct InstanceResultResponse {
-    id: String,
-    persona: String,
-    status: String,
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct InstanceResultResponse {
+    pub id: String,
+    pub persona: String,
+    pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    output: Option<String>,
+    pub output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-    turns_taken: u32,
-    duration_secs: f64,
+    pub error: Option<String>,
+    pub turns_taken: u32,
+    pub duration_secs: f64,
 }
 
 /// List all pool instances with their current status.
-async fn list_instances(State(state): State<Arc<AppState>>) -> Json<Vec<InstanceResponse>> {
+#[utoipa::path(
+    get,
+    path = "/a2a/instances",
+    responses(
+        (status = 200, description = "List of all agent pool instances", body = Vec<InstanceResponse>)
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn list_instances(State(state): State<Arc<AppState>>) -> Json<Vec<InstanceResponse>> {
     let snapshots = state.agent_pool.status_all().await;
     let instances: Vec<InstanceResponse> =
         snapshots.into_iter().map(snapshot_to_response).collect();
@@ -389,7 +382,18 @@ fn snapshot_to_response(snap: goose::execution::pool::InstanceSnapshot) -> Insta
 }
 
 /// Spawn a new agent instance in the pool.
-async fn spawn_instance(
+#[utoipa::path(
+    post,
+    path = "/a2a/instances",
+    request_body = SpawnInstanceRequest,
+    responses(
+        (status = 201, description = "Instance spawned", body = InstanceResponse),
+        (status = 400, description = "Invalid provider or model config"),
+        (status = 503, description = "No default provider or spawn failed")
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn spawn_instance(
     State(state): State<Arc<AppState>>,
     axum::extract::Json(req): axum::extract::Json<SpawnInstanceRequest>,
 ) -> Result<(StatusCode, Json<InstanceResponse>), StatusCode> {
@@ -452,7 +456,17 @@ async fn spawn_instance(
 }
 
 /// Get status of a specific instance.
-async fn get_instance(
+#[utoipa::path(
+    get,
+    path = "/a2a/instances/{instance_id}",
+    params(("instance_id" = String, Path, description = "Instance ID")),
+    responses(
+        (status = 200, description = "Instance status", body = InstanceResponse),
+        (status = 404, description = "Instance not found")
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn get_instance(
     State(state): State<Arc<AppState>>,
     Path(instance_id): Path<String>,
 ) -> Result<Json<InstanceResponse>, StatusCode> {
@@ -466,7 +480,17 @@ async fn get_instance(
 }
 
 /// Cancel a running instance.
-async fn cancel_instance(
+#[utoipa::path(
+    delete,
+    path = "/a2a/instances/{instance_id}",
+    params(("instance_id" = String, Path, description = "Instance ID")),
+    responses(
+        (status = 204, description = "Instance cancelled"),
+        (status = 404, description = "Instance not found")
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn cancel_instance(
     State(state): State<Arc<AppState>>,
     Path(instance_id): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
@@ -480,7 +504,17 @@ async fn cancel_instance(
 }
 
 /// Get the A2A agent card for a specific instance.
-async fn get_instance_card(
+#[utoipa::path(
+    get,
+    path = "/a2a/instances/{instance_id}/card",
+    params(("instance_id" = String, Path, description = "Instance ID")),
+    responses(
+        (status = 200, description = "Instance agent card"),
+        (status = 404, description = "Instance not found")
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn get_instance_card(
     State(state): State<Arc<AppState>>,
     Path(instance_id): Path<String>,
 ) -> Result<Json<AgentCard>, StatusCode> {
@@ -509,7 +543,17 @@ async fn get_instance_card(
 }
 
 /// Get the result of a completed instance.
-async fn get_instance_result(
+#[utoipa::path(
+    get,
+    path = "/a2a/instances/{instance_id}/result",
+    params(("instance_id" = String, Path, description = "Instance ID")),
+    responses(
+        (status = 200, description = "Instance result", body = InstanceResultResponse),
+        (status = 404, description = "Instance not found")
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn get_instance_result(
     State(state): State<Arc<AppState>>,
     Path(instance_id): Path<String>,
 ) -> Result<Json<InstanceResultResponse>, StatusCode> {
@@ -548,7 +592,17 @@ async fn get_instance_result(
 /// Subscribes to the instance's broadcast channel and streams PoolEvents
 /// as Server-Sent Events. The stream closes when the instance completes
 /// or the client disconnects.
-async fn stream_instance_events(
+#[utoipa::path(
+    get,
+    path = "/a2a/instances/{instance_id}/events",
+    params(("instance_id" = String, Path, description = "Instance ID")),
+    responses(
+        (status = 200, description = "SSE event stream for instance"),
+        (status = 404, description = "Instance not found")
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn stream_instance_events(
     State(state): State<Arc<AppState>>,
     Path(instance_id): Path<String>,
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, std::convert::Infallible>>>, StatusCode> {
@@ -605,12 +659,35 @@ async fn stream_instance_events(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Summary for the /a2a/agents listing endpoint.
-#[derive(Serialize)]
-struct PersonaSummary {
-    slug: String,
-    name: String,
-    description: String,
-    skills_count: usize,
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct PersonaSummary {
+    pub slug: String,
+    pub name: String,
+    pub description: String,
+    pub skills_count: usize,
+}
+
+/// List all available personas.
+#[utoipa::path(
+    get,
+    path = "/a2a/agents",
+    responses(
+        (status = 200, description = "List of available personas", body = Vec<PersonaSummary>)
+    ),
+    tag = "A2A Instances"
+)]
+pub async fn list_personas() -> Json<Vec<PersonaSummary>> {
+    let cards = build_all_persona_cards();
+    let summary: Vec<PersonaSummary> = cards
+        .into_iter()
+        .map(|(slug, card)| PersonaSummary {
+            slug,
+            name: card.name,
+            description: card.description,
+            skills_count: card.skills.len(),
+        })
+        .collect();
+    Json(summary)
 }
 
 /// Build the main (aggregated) A2A AgentCard with skills from ALL personas.

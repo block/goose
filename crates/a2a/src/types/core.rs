@@ -6,25 +6,28 @@ use serde::{Deserialize, Serialize};
 
 /// Task lifecycle states per A2A proto `TaskState` enum.
 ///
+/// Serialized as ProtoJSON SCREAMING_SNAKE_CASE per ADR-001.
 /// Terminal states: Completed, Failed, Canceled, Rejected.
 /// Interrupted states: InputRequired, AuthRequired.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TaskState {
-    #[serde(rename = "submitted")]
+    #[serde(rename = "TASK_STATE_UNSPECIFIED")]
+    Unspecified,
+    #[serde(rename = "TASK_STATE_SUBMITTED")]
     Submitted,
-    #[serde(rename = "working")]
+    #[serde(rename = "TASK_STATE_WORKING")]
     Working,
-    #[serde(rename = "completed")]
+    #[serde(rename = "TASK_STATE_COMPLETED")]
     Completed,
-    #[serde(rename = "failed")]
+    #[serde(rename = "TASK_STATE_FAILED")]
     Failed,
-    #[serde(rename = "canceled")]
+    #[serde(rename = "TASK_STATE_CANCELED")]
     Canceled,
-    #[serde(rename = "input-required")]
+    #[serde(rename = "TASK_STATE_INPUT_REQUIRED")]
     InputRequired,
-    #[serde(rename = "rejected")]
+    #[serde(rename = "TASK_STATE_REJECTED")]
     Rejected,
-    #[serde(rename = "auth-required")]
+    #[serde(rename = "TASK_STATE_AUTH_REQUIRED")]
     AuthRequired,
 }
 
@@ -68,10 +71,15 @@ pub struct Task {
 }
 
 /// Message sender role (proto `Role` enum).
+///
+/// Serialized as ProtoJSON SCREAMING_SNAKE_CASE per ADR-001.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
 pub enum Role {
+    #[serde(rename = "ROLE_UNSPECIFIED")]
+    Unspecified,
+    #[serde(rename = "ROLE_USER")]
     User,
+    #[serde(rename = "ROLE_AGENT")]
     Agent,
 }
 
@@ -248,16 +256,25 @@ mod tests {
     fn test_task_state_serde_roundtrip() {
         let state = TaskState::InputRequired;
         let json = serde_json::to_string(&state).unwrap();
-        assert_eq!(json, "\"input-required\"");
+        assert_eq!(json, "\"TASK_STATE_INPUT_REQUIRED\"");
         let deserialized: TaskState = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, state);
+    }
+
+    #[test]
+    fn test_task_state_unspecified() {
+        let state = TaskState::Unspecified;
+        let json = serde_json::to_string(&state).unwrap();
+        assert_eq!(json, "\"TASK_STATE_UNSPECIFIED\"");
+        assert!(!state.is_terminal());
+        assert!(!state.is_interrupted());
     }
 
     #[test]
     fn test_message_serde_roundtrip() {
         let msg = Message::user(vec![Part::text("Hello")]);
         let json = serde_json::to_value(&msg).unwrap();
-        assert_eq!(json["role"], "user");
+        assert_eq!(json["role"], "ROLE_USER");
         assert_eq!(json["parts"][0]["type"], "text");
         assert_eq!(json["parts"][0]["text"], "Hello");
         let deserialized: Message = serde_json::from_value(json).unwrap();
@@ -270,7 +287,7 @@ mod tests {
         let json = serde_json::to_value(&task).unwrap();
         assert_eq!(json["id"], "task-1");
         assert_eq!(json["contextId"], "ctx-1");
-        assert_eq!(json["status"]["state"], "submitted");
+        assert_eq!(json["status"]["state"], "TASK_STATE_SUBMITTED");
         let deserialized: Task = serde_json::from_value(json).unwrap();
         assert_eq!(deserialized.id, "task-1");
     }

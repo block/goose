@@ -1,125 +1,101 @@
-// Manual API client for /a2a/instances endpoints
-// These endpoints are not yet in the OpenAPI spec, so we use manual fetch
-// following the same pattern as components/analytics/AgentCatalog.tsx
+/**
+ * A2A Instance management — thin wrapper around the auto-generated SDK.
+ *
+ * Re-exports generated types and provides:
+ * 1. Convenience wrappers that unwrap SDK responses (throw on error)
+ * 2. SSE/utility helpers that cannot be expressed in OpenAPI
+ */
+
 import { client } from './client.gen';
+import {
+  listInstances as sdkListInstances,
+  spawnInstance as sdkSpawnInstance,
+  getInstance as sdkGetInstance,
+  cancelInstance as sdkCancelInstance,
+  getInstanceResult as sdkGetInstanceResult,
+  listPersonas as sdkListPersonas,
+} from './sdk.gen';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+// Re-export generated types so existing component imports keep working
+export type {
+  InstanceResponse,
+  InstanceResultResponse,
+  SpawnInstanceRequest,
+  PersonaSummary,
+} from './types.gen';
 
+import type {
+  InstanceResponse,
+  InstanceResultResponse,
+  PersonaSummary,
+  SpawnInstanceRequest,
+} from './types.gen';
+
+// --- Types that are NOT in the OpenAPI spec ---
+
+/** Status values returned by the backend */
 export type InstanceStatus = 'running' | 'completed' | 'failed' | 'cancelled';
 
-export interface SpawnInstanceRequest {
-  persona: string;
-  instructions?: string;
-  provider?: string;
-  model?: string;
-  max_turns?: number;
-}
-
-export interface InstanceResponse {
-  id: string;
-  persona: string;
-  status: InstanceStatus;
-  turns: number;
-  provider_name: string;
-  model_name: string;
-  elapsed_secs: number;
-  last_activity_ms: number;
-}
-
-export interface InstanceResultResponse {
-  id: string;
-  persona: string;
-  status: string;
-  output?: string;
-  error?: string;
-  turns_taken: number;
-  duration_secs: number;
-}
-
+/** SSE event from the instance event stream */
 export interface InstanceEvent {
-  timestamp: number;
   type: string;
   data: string;
+  timestamp: number;
 }
 
-// ─── Internal helpers ───────────────────────────────────────────────────────
-
-function getClientConfig(): { baseUrl: string; headers: Record<string, string> } {
-  const baseUrl = client.getConfig().baseUrl || '';
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const rawHeaders = client.getConfig().headers;
-  if (rawHeaders) {
-    const h = rawHeaders as Record<string, string>;
-    const secretKey =
-      typeof h.get === 'function'
-        ? (h as unknown as globalThis.Headers).get('X-Secret-Key')
-        : h['X-Secret-Key'];
-    if (secretKey) {
-      headers['X-Secret-Key'] = secretKey;
-    }
-  }
-  return { baseUrl, headers };
-}
-
-async function handleResponse<T>(resp: Response): Promise<T> {
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status}: ${body || resp.statusText}`);
-  }
-  return resp.json();
-}
-
-// ─── API Functions ──────────────────────────────────────────────────────────
+// --- Convenience wrappers (unwrap SDK { data, error } pattern) ---
 
 export async function listInstances(): Promise<InstanceResponse[]> {
-  const { baseUrl, headers } = getClientConfig();
-  const resp = await fetch(`${baseUrl}/a2a/instances`, { headers });
-  return handleResponse<InstanceResponse[]>(resp);
+  const { data, error } = await sdkListInstances();
+  if (error) throw new Error(String(error));
+  return (data as InstanceResponse[]) ?? [];
 }
 
-export async function spawnInstance(body: SpawnInstanceRequest): Promise<InstanceResponse> {
-  const { baseUrl, headers } = getClientConfig();
-  const resp = await fetch(`${baseUrl}/a2a/instances`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
+export async function spawnInstance(req: SpawnInstanceRequest): Promise<InstanceResponse> {
+  const { data, error } = await sdkSpawnInstance({
+    body: req,
   });
-  return handleResponse<InstanceResponse>(resp);
+  if (error) throw new Error(String(error));
+  return data as InstanceResponse;
 }
 
-export async function getInstance(id: string): Promise<InstanceResponse> {
-  const { baseUrl, headers } = getClientConfig();
-  const resp = await fetch(`${baseUrl}/a2a/instances/${encodeURIComponent(id)}`, { headers });
-  return handleResponse<InstanceResponse>(resp);
-}
-
-export async function cancelInstance(id: string): Promise<void> {
-  const { baseUrl, headers } = getClientConfig();
-  const resp = await fetch(`${baseUrl}/a2a/instances/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers,
+export async function getInstance(instanceId: string): Promise<InstanceResponse> {
+  const { data, error } = await sdkGetInstance({
+    path: { instance_id: instanceId },
   });
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status}: ${body || resp.statusText}`);
-  }
+  if (error) throw new Error(String(error));
+  return data as InstanceResponse;
 }
 
-export async function getInstanceResult(id: string): Promise<InstanceResultResponse> {
-  const { baseUrl, headers } = getClientConfig();
-  const resp = await fetch(`${baseUrl}/a2a/instances/${encodeURIComponent(id)}/result`, {
-    headers,
+export async function cancelInstance(instanceId: string): Promise<void> {
+  const { error } = await sdkCancelInstance({
+    path: { instance_id: instanceId },
   });
-  return handleResponse<InstanceResultResponse>(resp);
+  if (error) throw new Error(String(error));
 }
 
-export async function listPersonas(): Promise<string[]> {
-  const { baseUrl, headers } = getClientConfig();
-  const resp = await fetch(`${baseUrl}/a2a/agents`, { headers });
-  return handleResponse<string[]>(resp);
+export async function getInstanceResult(instanceId: string): Promise<InstanceResultResponse> {
+  const { data, error } = await sdkGetInstanceResult({
+    path: { instance_id: instanceId },
+  });
+  if (error) throw new Error(String(error));
+  return data as InstanceResultResponse;
 }
 
-export function createInstanceEventSourceUrl(id: string): string {
-  const { baseUrl } = getClientConfig();
-  return `${baseUrl}/a2a/instances/${encodeURIComponent(id)}/events`;
+export async function listPersonas(): Promise<PersonaSummary[]> {
+  const { data, error } = await sdkListPersonas();
+  if (error) throw new Error(String(error));
+  return (data as PersonaSummary[]) ?? [];
+}
+
+// --- SSE helper (EventSource URLs can't be auto-generated) ---
+
+/**
+ * Build the full URL for an instance's SSE event stream.
+ * Used by useInstanceEvents to create an EventSource connection.
+ */
+export function createInstanceEventSourceUrl(instanceId: string): string {
+  const config = client.getConfig();
+  const baseUrl = (config.baseUrl || '').replace(/\/$/, '');
+  return `${baseUrl}/a2a/instances/${instanceId}/events`;
 }

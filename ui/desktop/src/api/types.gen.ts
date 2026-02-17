@@ -921,6 +921,33 @@ export type InspectJobResponse = {
     sessionId?: string | null;
 };
 
+/**
+ * Response for instance creation and status queries.
+ */
+export type InstanceResponse = {
+    elapsed_secs: number;
+    id: string;
+    last_activity_ms: number;
+    model_name: string;
+    persona: string;
+    provider_name: string;
+    status: string;
+    turns: number;
+};
+
+/**
+ * Response for instance results.
+ */
+export type InstanceResultResponse = {
+    duration_secs: number;
+    error?: string | null;
+    id: string;
+    output?: string | null;
+    persona: string;
+    status: string;
+    turns_taken: number;
+};
+
 export type JsonObject = {
     [key: string]: unknown;
 };
@@ -1273,6 +1300,16 @@ export type PermissionsMetadata = {
 export type Person = {
     name: string;
     url?: string | null;
+};
+
+/**
+ * Summary for the /a2a/agents listing endpoint.
+ */
+export type PersonaSummary = {
+    description: string;
+    name: string;
+    skills_count: number;
+    slug: string;
 };
 
 /**
@@ -1865,6 +1902,17 @@ export type SlashCommandsResponse = {
     commands: Array<SlashCommand>;
 };
 
+/**
+ * Request body for POST /a2a/instances
+ */
+export type SpawnInstanceRequest = {
+    instructions?: string | null;
+    max_turns?: number | null;
+    model?: string | null;
+    persona: string;
+    provider?: string | null;
+};
+
 export type StartAgentRequest = {
     extension_overrides?: Array<ExtensionConfig> | null;
     recipe?: Recipe | null;
@@ -2227,6 +2275,201 @@ export type WindowProps = {
     resizable: boolean;
     width: number;
 };
+
+export type ListPersonasData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/a2a/agents';
+};
+
+export type ListPersonasResponses = {
+    /**
+     * List of available personas
+     */
+    200: Array<PersonaSummary>;
+};
+
+export type ListPersonasResponse = ListPersonasResponses[keyof ListPersonasResponses];
+
+export type ListInstancesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/a2a/instances';
+};
+
+export type ListInstancesResponses = {
+    /**
+     * List of all agent pool instances
+     */
+    200: Array<InstanceResponse>;
+};
+
+export type ListInstancesResponse = ListInstancesResponses[keyof ListInstancesResponses];
+
+export type SpawnInstanceData = {
+    body: SpawnInstanceRequest;
+    path?: never;
+    query?: never;
+    url: '/a2a/instances';
+};
+
+export type SpawnInstanceErrors = {
+    /**
+     * Invalid provider or model config
+     */
+    400: unknown;
+    /**
+     * No default provider or spawn failed
+     */
+    503: unknown;
+};
+
+export type SpawnInstanceResponses = {
+    /**
+     * Instance spawned
+     */
+    201: InstanceResponse;
+};
+
+export type SpawnInstanceResponse = SpawnInstanceResponses[keyof SpawnInstanceResponses];
+
+export type CancelInstanceData = {
+    body?: never;
+    path: {
+        /**
+         * Instance ID
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/a2a/instances/{instance_id}';
+};
+
+export type CancelInstanceErrors = {
+    /**
+     * Instance not found
+     */
+    404: unknown;
+};
+
+export type CancelInstanceResponses = {
+    /**
+     * Instance cancelled
+     */
+    204: void;
+};
+
+export type CancelInstanceResponse = CancelInstanceResponses[keyof CancelInstanceResponses];
+
+export type GetInstanceData = {
+    body?: never;
+    path: {
+        /**
+         * Instance ID
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/a2a/instances/{instance_id}';
+};
+
+export type GetInstanceErrors = {
+    /**
+     * Instance not found
+     */
+    404: unknown;
+};
+
+export type GetInstanceResponses = {
+    /**
+     * Instance status
+     */
+    200: InstanceResponse;
+};
+
+export type GetInstanceResponse = GetInstanceResponses[keyof GetInstanceResponses];
+
+export type GetInstanceCardData = {
+    body?: never;
+    path: {
+        /**
+         * Instance ID
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/a2a/instances/{instance_id}/card';
+};
+
+export type GetInstanceCardErrors = {
+    /**
+     * Instance not found
+     */
+    404: unknown;
+};
+
+export type GetInstanceCardResponses = {
+    /**
+     * Instance agent card
+     */
+    200: unknown;
+};
+
+export type StreamInstanceEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Instance ID
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/a2a/instances/{instance_id}/events';
+};
+
+export type StreamInstanceEventsErrors = {
+    /**
+     * Instance not found
+     */
+    404: unknown;
+};
+
+export type StreamInstanceEventsResponses = {
+    /**
+     * SSE event stream for instance
+     */
+    200: unknown;
+};
+
+export type GetInstanceResultData = {
+    body?: never;
+    path: {
+        /**
+         * Instance ID
+         */
+        instance_id: string;
+    };
+    query?: never;
+    url: '/a2a/instances/{instance_id}/result';
+};
+
+export type GetInstanceResultErrors = {
+    /**
+     * Instance not found
+     */
+    404: unknown;
+};
+
+export type GetInstanceResultResponses = {
+    /**
+     * Instance result
+     */
+    200: InstanceResultResponse;
+};
+
+export type GetInstanceResultResponse = GetInstanceResultResponses[keyof GetInstanceResultResponses];
 
 export type ConfirmToolActionData = {
     body: ConfirmToolActionRequest;

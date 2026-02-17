@@ -472,6 +472,15 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::runs::cancel_run,
         super::routes::runs::get_run_events,
         super::routes::runs::list_runs,
+        // A2A Instance Management
+        super::routes::a2a::list_instances,
+        super::routes::a2a::spawn_instance,
+        super::routes::a2a::get_instance,
+        super::routes::a2a::cancel_instance,
+        super::routes::a2a::get_instance_card,
+        super::routes::a2a::get_instance_result,
+        super::routes::a2a::stream_instance_events,
+        super::routes::a2a::list_personas,
     ),
     components(schemas(
         super::routes::agent_management::OrchestratorStatus,
@@ -706,6 +715,11 @@ derive_utoipa!(PromptArgument as PromptArgumentSchema);
         super::routes::agent_management::BindExtensionRequest,
         super::routes::extension_routes::LiveExtensionInfo,
         super::routes::extension_routes::LiveExtensionsResponse,
+        // A2A Instance Management types
+        super::routes::a2a::SpawnInstanceRequest,
+        super::routes::a2a::InstanceResponse,
+        super::routes::a2a::InstanceResultResponse,
+        super::routes::a2a::PersonaSummary,
         // ACP types
         goose::acp_compat::AcpRun,
         goose::acp_compat::AcpRunStatus,

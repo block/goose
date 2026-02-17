@@ -43,7 +43,7 @@ mod tests {
         let response = SendMessageResponse::Task(task);
         let json = serde_json::to_value(&response).unwrap();
         assert_eq!(json["id"], "task-1");
-        assert_eq!(json["status"]["state"], "completed");
+        assert_eq!(json["status"]["state"], "TASK_STATE_COMPLETED");
     }
 
     #[test]
@@ -51,7 +51,7 @@ mod tests {
         let msg = Message::agent(vec![crate::types::core::Part::text("Hi")]);
         let response = SendMessageResponse::Message(msg);
         let json = serde_json::to_value(&response).unwrap();
-        assert_eq!(json["role"], "agent");
+        assert_eq!(json["role"], "ROLE_AGENT");
     }
 
     #[test]

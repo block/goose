@@ -365,11 +365,11 @@ mod tests {
         let raw = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 1,
-            "method": "message/send",
+            "method": "SendMessage",
             "params": {
                 "message": {
                     "messageId": "msg-1",
-                    "role": "user",
+                    "role": "ROLE_USER",
                     "parts": [{"type": "text", "text": "Hello!"}]
                 }
             }
@@ -405,7 +405,7 @@ mod tests {
         let raw = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 1,
-            "method": "tasks/get",
+            "method": "GetTask",
             "params": {}
         });
 
@@ -429,7 +429,7 @@ mod tests {
         let raw = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 1,
-            "method": "agent/authenticatedExtendedCard",
+            "method": "GetExtendedAgentCard",
             "params": {}
         });
 

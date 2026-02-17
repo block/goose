@@ -72,7 +72,7 @@ mod tests {
         };
         let json = serde_json::to_value(&event).unwrap();
         assert_eq!(json["taskId"], "task-1");
-        assert_eq!(json["status"]["state"], "working");
+        assert_eq!(json["status"]["state"], "TASK_STATE_WORKING");
     }
 
     #[test]
@@ -89,6 +89,6 @@ mod tests {
         });
         let json = serde_json::to_value(&response).unwrap();
         assert_eq!(json["kind"], "status-update");
-        assert_eq!(json["status"]["state"], "completed");
+        assert_eq!(json["status"]["state"], "TASK_STATE_COMPLETED");
     }
 }

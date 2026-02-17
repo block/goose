@@ -24,5 +24,5 @@ pub use super::extension_registry::ExtensionRegistry;
 pub use super::mcp_client::{Error as McpError, McpClient, McpClientTrait};
 
 // Platform tools
-pub use super::platform_tools;
 pub use super::extension_manager_extension;
+pub use super::platform_tools;
