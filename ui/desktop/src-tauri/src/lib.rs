@@ -181,15 +181,43 @@ pub fn run() {
 fn setup_global_shortcuts(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-    let app_handle = app.handle().clone();
+    let settings = {
+        let state = app.state::<settings::SettingsState>();
+        state.0.lock().unwrap().clone()
+    };
 
-    // Register the default focus shortcut
-    app.global_shortcut().on_shortcut("CmdOrCtrl+Alt+G", move |_app, _shortcut, _event| {
+    let shortcuts = settings
+        .keyboard_shortcuts
+        .unwrap_or_default();
+
+    // Focus window shortcut
+    let focus_shortcut = shortcuts
+        .focus_window
+        .unwrap_or_else(|| "CmdOrCtrl+Alt+G".to_string());
+
+    let app_handle = app.handle().clone();
+    if let Err(e) = app.global_shortcut().on_shortcut(&focus_shortcut, move |_app, _shortcut, _event| {
         if let Some(window) = app_handle.get_webview_window("main") {
             let _ = window.show();
             let _ = window.set_focus();
         }
-    })?;
+    }) {
+        log::warn!("Failed to register focus shortcut '{}': {}", focus_shortcut, e);
+    }
+
+    // Quick launcher shortcut
+    if let Some(ref launcher_shortcut) = shortcuts.quick_launcher {
+        let app_handle2 = app.handle().clone();
+        if let Err(e) = app.global_shortcut().on_shortcut(launcher_shortcut, move |_app, _shortcut, _event| {
+            if let Some(window) = app_handle2.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = window.emit("quick-launcher", ());
+            }
+        }) {
+            log::warn!("Failed to register launcher shortcut '{}': {}", launcher_shortcut, e);
+        }
+    }
 
     Ok(())
 }
