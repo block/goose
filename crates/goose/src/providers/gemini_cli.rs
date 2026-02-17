@@ -3,11 +3,14 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
 use super::cli_common::{error_from_event, extract_usage_tokens};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
@@ -18,6 +21,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_subprocess;
+use async_stream::try_stream;
 use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -39,7 +43,7 @@ pub struct GeminiCliProvider {
     #[serde(skip)]
     name: String,
     #[serde(skip)]
-    cli_session_id: OnceLock<String>,
+    cli_session_id: Arc<OnceLock<String>>,
 }
 
 impl GeminiCliProvider {
@@ -52,7 +56,7 @@ impl GeminiCliProvider {
             command: resolved_command,
             model,
             name: GEMINI_CLI_PROVIDER_NAME.to_string(),
-            cli_session_id: OnceLock::new(),
+            cli_session_id: Arc::new(OnceLock::new()),
         })
     }
 
@@ -119,13 +123,18 @@ impl GeminiCliProvider {
         cmd
     }
 
-    async fn execute_command(
+    fn spawn_command(
         &self,
         system: &str,
         messages: &[Message],
-        _tools: &[Tool],
         model_name: &str,
-    ) -> Result<Vec<Value>, ProviderError> {
+    ) -> Result<
+        (
+            tokio::process::Child,
+            BufReader<tokio::process::ChildStdout>,
+        ),
+        ProviderError,
+    > {
         let prompt = self.build_prompt(system, messages);
 
         tracing::debug!(command = ?self.command, "Executing Gemini CLI command");
@@ -145,6 +154,18 @@ impl GeminiCliProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
+        Ok((child, BufReader::new(stdout)))
+    }
+
+    async fn execute_command(
+        &self,
+        system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+        model_name: &str,
+    ) -> Result<Vec<Value>, ProviderError> {
+        let (mut child, mut reader) = self.spawn_command(system, messages, model_name)?;
+
         // Drain stderr concurrently to avoid pipe deadlock
         let stderr_task = tokio::spawn(async move {
             let mut buf = String::new();
@@ -154,7 +175,6 @@ impl GeminiCliProvider {
             (child, buf)
         });
 
-        let mut reader = BufReader::new(stdout);
         let mut events = Vec::new();
         let mut line = String::new();
 
@@ -221,10 +241,18 @@ impl GeminiCliProvider {
 
     fn parse_stream_json_response(events: &[Value]) -> Result<(Message, Usage), ProviderError> {
         let mut all_text_content = Vec::new();
+        let mut all_thinking_content = Vec::new();
         let mut usage = Usage::default();
 
         for parsed in events {
             match parsed.get("type").and_then(|t| t.as_str()) {
+                Some("thinking") => {
+                    if let Some(content) = parsed.get("content").and_then(|c| c.as_str()) {
+                        if !content.is_empty() {
+                            all_thinking_content.push(content.to_string());
+                        }
+                    }
+                }
                 Some("message") => {
                     if parsed.get("role").and_then(|r| r.as_str()) == Some("assistant") {
                         if let Some(content) = parsed.get("content").and_then(|c| c.as_str()) {
@@ -253,11 +281,16 @@ impl GeminiCliProvider {
             ));
         }
 
-        let message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(combined_text)],
-        );
+        let mut content = Vec::new();
+
+        let combined_thinking = all_thinking_content.join("");
+        if !combined_thinking.is_empty() {
+            content.push(MessageContent::thinking(combined_thinking, String::new()));
+        }
+
+        content.push(MessageContent::text(combined_text));
+
+        let message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
 
         Ok((message, usage))
     }
@@ -353,6 +386,129 @@ impl Provider for GeminiCliProvider {
             ProviderUsage::new(model_config.model_name.clone(), usage),
         ))
     }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        _session_id: &str,
+        system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        if super::cli_common::is_session_description_request(system) {
+            let (message, usage) = super::cli_common::generate_simple_session_description(
+                &self.model.model_name,
+                messages,
+            )?;
+            return Ok(stream_from_single_message(message, usage));
+        }
+
+        let (mut child, mut reader) =
+            self.spawn_command(system, messages, &self.model.model_name)?;
+        let session_id_lock = Arc::clone(&self.cli_session_id);
+        let model_name = self.model.model_name.clone();
+        let message_id = uuid::Uuid::new_v4().to_string();
+
+        // Drain stderr concurrently to avoid pipe deadlock
+        let stderr = child.stderr.take();
+        let stderr_drain = tokio::spawn(async move {
+            let mut buf = String::new();
+            if let Some(mut stderr) = stderr {
+                let _ = AsyncReadExt::read_to_string(&mut stderr, &mut buf).await;
+            }
+            buf
+        });
+
+        Ok(Box::pin(try_stream! {
+            let mut line = String::new();
+            let mut accumulated_usage = Usage::default();
+            let stream_timestamp = chrono::Utc::now().timestamp();
+
+            loop {
+                line.clear();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let trimmed = line.trim();
+                        if trimmed.is_empty() {
+                            continue;
+                        }
+
+                        if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
+                            match parsed.get("type").and_then(|t| t.as_str()) {
+                                Some("init") => {
+                                    if let Some(sid) =
+                                        parsed.get("session_id").and_then(|s| s.as_str())
+                                    {
+                                        let _ = session_id_lock.set(sid.to_string());
+                                    }
+                                }
+                                Some("message") => {
+                                    let is_assistant = parsed.get("role").and_then(|r| r.as_str())
+                                        == Some("assistant");
+                                    let content = parsed
+                                        .get("content")
+                                        .and_then(|c| c.as_str())
+                                        .unwrap_or("");
+                                    if is_assistant && !content.is_empty() {
+                                        let mut partial = Message::new(
+                                            Role::Assistant,
+                                            stream_timestamp,
+                                            vec![MessageContent::text(content)],
+                                        );
+                                        partial.id = Some(message_id.clone());
+                                        yield (Some(partial), None);
+                                    }
+                                }
+                                Some("result") => {
+                                    if let Some(stats) = parsed.get("stats") {
+                                        accumulated_usage = extract_usage_tokens(stats);
+                                    }
+                                    break;
+                                }
+                                Some("error") => {
+                                    let _ = child.wait().await;
+                                    Err(error_from_event("Gemini CLI", &parsed))?;
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            tracing::warn!(line = trimmed, "Non-JSON line in stream-json output");
+                        }
+                    }
+                    Err(e) => {
+                        let _ = child.wait().await;
+                        Err(ProviderError::RequestFailed(format!(
+                            "Failed to read streaming output: {e}"
+                        )))?;
+                    }
+                }
+            }
+
+            let stderr_text = stderr_drain.await.unwrap_or_default();
+            let exit_status = child.wait().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to wait for command: {e}"))
+            })?;
+
+            if !exit_status.success() {
+                let stderr_snippet = stderr_text.trim();
+                let detail = if stderr_snippet.is_empty() {
+                    format!("exit code {:?}", exit_status.code())
+                } else {
+                    format!("exit code {:?}: {stderr_snippet}", exit_status.code())
+                };
+                Err(ProviderError::RequestFailed(format!(
+                    "Gemini CLI command failed ({detail})"
+                )))?;
+            }
+
+            let provider_usage = ProviderUsage::new(model_name, accumulated_usage);
+            yield (None, Some(provider_usage));
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -365,7 +521,7 @@ mod tests {
             command: PathBuf::from("gemini"),
             model: ModelConfig::new("gemini-2.5-pro").unwrap(),
             name: "gemini-cli".to_string(),
-            cli_session_id: OnceLock::new(),
+            cli_session_id: Arc::new(OnceLock::new()),
         }
     }
 
@@ -393,6 +549,44 @@ mod tests {
 
         let empty: Vec<Value> = vec![];
         assert!(GeminiCliProvider::parse_stream_json_response(&empty).is_err());
+    }
+
+    #[test]
+    fn test_parse_thinking_blocks() {
+        let events = vec![
+            json!({"type":"init","session_id":"abc","model":"gemini-2.5-pro"}),
+            json!({"type":"thinking","content":"Let me reason about this...","delta":true}),
+            json!({"type":"thinking","content":" Step 1: analyze the problem.","delta":true}),
+            json!({"type":"message","role":"assistant","content":"Here is the answer.","delta":true}),
+            json!({"type":"result","status":"success","stats":{"input_tokens":30,"output_tokens":15,"total_tokens":45}}),
+        ];
+        let (message, usage) = GeminiCliProvider::parse_stream_json_response(&events).unwrap();
+        assert_eq!(message.role, Role::Assistant);
+
+        // Should have thinking content followed by text content
+        assert_eq!(message.content.len(), 2);
+        let thinking = message.content[0]
+            .as_thinking()
+            .expect("first content should be thinking");
+        assert_eq!(
+            thinking.thinking,
+            "Let me reason about this... Step 1: analyze the problem."
+        );
+        assert_eq!(message.as_concat_text(), "Here is the answer.");
+        assert_eq!(usage.input_tokens, Some(30));
+        assert_eq!(usage.output_tokens, Some(15));
+    }
+
+    #[test]
+    fn test_parse_no_thinking_blocks() {
+        // When there's no thinking, message should only have text content
+        let events = vec![
+            json!({"type":"message","role":"assistant","content":"Direct answer.","delta":true}),
+            json!({"type":"result","status":"success","stats":{"input_tokens":10,"output_tokens":5,"total_tokens":15}}),
+        ];
+        let (message, _usage) = GeminiCliProvider::parse_stream_json_response(&events).unwrap();
+        assert_eq!(message.content.len(), 1);
+        assert_eq!(message.as_concat_text(), "Direct answer.");
     }
 
     #[test]

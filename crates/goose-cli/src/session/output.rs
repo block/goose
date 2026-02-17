@@ -19,6 +19,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::streaming_buffer::MarkdownBuffer;
+
 pub const DEFAULT_MIN_PRIORITY: f32 = 0.0;
 pub const DEFAULT_CLI_LIGHT_THEME: &str = "GitHub";
 pub const DEFAULT_CLI_DARK_THEME: &str = "zenburn";
@@ -272,6 +274,94 @@ pub fn render_message(message: &Message, debug: bool) {
     let _ = std::io::stdout().flush();
 }
 
+/// Render a streaming message, using a buffer to accumulate text content
+/// and only render when markdown constructs are complete.
+pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, debug: bool) {
+    let theme = get_theme();
+
+    for content in &message.content {
+        match content {
+            MessageContent::Text(text) => {
+                if let Some(safe_content) = buffer.push(&text.text) {
+                    print_markdown(&safe_content, theme);
+                }
+            }
+            MessageContent::ToolRequest(req) => {
+                flush_markdown_buffer(buffer, theme);
+                render_tool_request(req, theme, debug);
+            }
+            MessageContent::ToolResponse(resp) => {
+                flush_markdown_buffer(buffer, theme);
+                render_tool_response(resp, theme, debug);
+            }
+            MessageContent::ActionRequired(action) => {
+                flush_markdown_buffer(buffer, theme);
+                match &action.data {
+                    ActionRequiredData::ToolConfirmation { tool_name, .. } => {
+                        println!("action_required(tool_confirmation): {}", tool_name)
+                    }
+                    ActionRequiredData::Elicitation { message, .. } => {
+                        println!("action_required(elicitation): {}", message)
+                    }
+                    ActionRequiredData::ElicitationResponse { id, .. } => {
+                        println!("action_required(elicitation_response): {}", id)
+                    }
+                }
+            }
+            MessageContent::Image(image) => {
+                flush_markdown_buffer(buffer, theme);
+                println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
+            }
+            MessageContent::Thinking(thinking) => {
+                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
+                    && std::io::stdout().is_terminal()
+                {
+                    flush_markdown_buffer(buffer, theme);
+                    println!("\n{}", style("Thinking:").dim().italic());
+                    print_markdown(&thinking.thinking, theme);
+                }
+            }
+            MessageContent::RedactedThinking(_) => {
+                flush_markdown_buffer(buffer, theme);
+                println!("\n{}", style("Thinking:").dim().italic());
+                print_markdown("Thinking was redacted", theme);
+            }
+            MessageContent::SystemNotification(notification) => {
+                use goose::conversation::message::SystemNotificationType;
+
+                match notification.notification_type {
+                    SystemNotificationType::ThinkingMessage => {
+                        show_thinking();
+                        set_thinking_message(&notification.msg);
+                    }
+                    SystemNotificationType::InlineMessage => {
+                        flush_markdown_buffer(buffer, theme);
+                        hide_thinking();
+                        println!("\n{}", style(&notification.msg).yellow());
+                    }
+                }
+            }
+            _ => {
+                flush_markdown_buffer(buffer, theme);
+                println!("WARNING: Message content type could not be rendered");
+            }
+        }
+    }
+
+    let _ = std::io::stdout().flush();
+}
+
+pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme) {
+    let remaining = buffer.flush();
+    if !remaining.is_empty() {
+        print_markdown(&remaining, theme);
+    }
+}
+
+pub fn flush_markdown_buffer_current_theme(buffer: &mut MarkdownBuffer) {
+    flush_markdown_buffer(buffer, get_theme());
+}
+
 pub fn render_text(text: &str, color: Option<Color>, dim: bool) {
     render_text_no_newlines(format!("\n{}\n\n", text).as_str(), color, dim);
 }
@@ -329,6 +419,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
+            "load" => {}
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
@@ -744,17 +835,197 @@ pub fn env_no_color() -> bool {
 
 fn print_markdown(content: &str, theme: Theme) {
     if std::io::stdout().is_terminal() {
-        bat::PrettyPrinter::new()
-            .input(bat::Input::from_bytes(content.as_bytes()))
-            .theme(theme.as_str())
-            .colored_output(env_no_color())
-            .language("Markdown")
-            .wrapping_mode(WrappingMode::NoWrapping(true))
-            .print()
-            .unwrap();
+        if let Some((before, table, after)) = extract_markdown_table(content) {
+            if !before.is_empty() {
+                print_markdown_raw(&before, theme);
+            }
+            print_table(&table, theme);
+            if !after.is_empty() {
+                print_markdown(after, theme);
+            }
+        } else {
+            print_markdown_raw(content, theme);
+        }
     } else {
         print!("{}", content);
     }
+}
+
+/// Renders markdown content using bat (no table processing)
+fn print_markdown_raw(content: &str, theme: Theme) {
+    bat::PrettyPrinter::new()
+        .input(bat::Input::from_bytes(content.as_bytes()))
+        .theme(theme.as_str())
+        .colored_output(env_no_color())
+        .language("Markdown")
+        .wrapping_mode(WrappingMode::NoWrapping(true))
+        .print()
+        .unwrap();
+}
+
+fn extract_markdown_table(content: &str) -> Option<(String, Vec<&str>, &str)> {
+    let lines: Vec<&str> = content.lines().collect();
+
+    // Track newline positions for safe slicing later
+    let newline_indices: Vec<usize> = content
+        .bytes()
+        .enumerate()
+        .filter_map(|(i, b)| if b == b'\n' { Some(i) } else { None })
+        .collect();
+
+    // Skip tables inside code blocks
+    let mut in_code_block = false;
+    let mut table_start = None;
+    let mut table_end = None;
+
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_code_block = !in_code_block;
+            continue;
+        }
+
+        if in_code_block {
+            continue;
+        }
+
+        if trimmed.starts_with('|') && trimmed.ends_with('|') {
+            if table_start.is_none() {
+                table_start = Some(i);
+            }
+            table_end = Some(i);
+        } else if table_start.is_some() {
+            break;
+        }
+    }
+
+    let start = table_start?;
+    let end = table_end?;
+
+    // Need at least header + separator (2 rows minimum)
+    if end < start + 1 {
+        return None;
+    }
+
+    // Require separator to be the second row with proper format
+    let separator_line = lines.get(start + 1)?;
+    let is_valid_separator = separator_line.trim().starts_with('|')
+        && separator_line.trim().ends_with('|')
+        && separator_line
+            .trim()
+            .trim_matches('|')
+            .split('|')
+            .all(|cell| {
+                let t = cell.trim();
+                !t.is_empty() && t.chars().all(|c| c == '-' || c == ':' || c == ' ')
+            });
+
+    if !is_valid_separator {
+        return None;
+    }
+
+    let before = lines[..start].join("\n");
+    let before = if before.is_empty() {
+        before
+    } else {
+        before + "\n"
+    };
+    let table = lines[start..=end].to_vec();
+
+    let after = if end + 1 >= lines.len() {
+        ""
+    } else if let Some(&newline_pos) = newline_indices.get(end) {
+        content.get(newline_pos + 1..).unwrap_or("")
+    } else {
+        ""
+    };
+
+    Some((before, table, after))
+}
+
+fn print_table(table_lines: &[&str], theme: Theme) {
+    use comfy_table::{presets, Cell, CellAlignment, ContentArrangement, Table};
+
+    let mut table = Table::new();
+    table.set_content_arrangement(ContentArrangement::Dynamic);
+
+    table.load_preset(presets::ASCII_MARKDOWN);
+
+    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut alignments: Vec<CellAlignment> = Vec::new();
+    let mut separator_idx = None;
+
+    for (i, line) in table_lines.iter().enumerate() {
+        let cells: Vec<String> = line
+            .trim()
+            .trim_matches('|')
+            .split('|')
+            .map(|s| s.trim().to_string())
+            .collect();
+
+        let is_separator = cells.iter().all(|c| {
+            let t = c.trim();
+            t.chars().all(|ch| ch == '-' || ch == ':') && t.contains('-')
+        });
+        if is_separator {
+            separator_idx = Some(i);
+            alignments = cells
+                .iter()
+                .map(|c| {
+                    let t = c.trim();
+                    if t.starts_with(':') && t.ends_with(':') {
+                        CellAlignment::Center
+                    } else if t.ends_with(':') {
+                        CellAlignment::Right
+                    } else {
+                        CellAlignment::Left
+                    }
+                })
+                .collect();
+        } else {
+            rows.push(cells);
+        }
+    }
+
+    if separator_idx.is_none() && !rows.is_empty() {
+        alignments = vec![CellAlignment::Left; rows[0].len()];
+    }
+
+    if let Some(header) = rows.first() {
+        let header_cells: Vec<Cell> = header
+            .iter()
+            .enumerate()
+            .map(|(i, text)| {
+                let cell = Cell::new(text);
+                if let Some(align) = alignments.get(i) {
+                    cell.set_alignment(*align)
+                } else {
+                    cell
+                }
+            })
+            .collect();
+        table.set_header(header_cells);
+    }
+
+    for row in rows.iter().skip(1) {
+        let cells: Vec<Cell> = row
+            .iter()
+            .enumerate()
+            .map(|(i, text)| {
+                let cell = Cell::new(text);
+                if let Some(align) = alignments.get(i) {
+                    cell.set_alignment(*align)
+                } else {
+                    cell
+                }
+            })
+            .collect();
+        table.add_row(cells);
+    }
+
+    let table_str = table.to_string();
+    print_markdown_raw(&table_str, theme);
 }
 
 const INDENT: &str = "    ";
