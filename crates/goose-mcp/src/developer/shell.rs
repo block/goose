@@ -10,8 +10,9 @@ use tokio_stream::{wrappers::SplitStream, StreamExt};
 
 use crate::subprocess::SubprocessExt;
 
-const DEFAULT_MAX_LINES: usize = 2000;
-const DEFAULT_MAX_BYTES: usize = 50 * 1024;
+const OUTPUT_LIMIT_MAX_LINES: usize = 2000;
+const OUTPUT_PREVIEW_LINES: usize = 50;
+const OUTPUT_LIMIT_MAX_BYTES: usize = 50 * 1024;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ShellParams {
@@ -274,50 +275,48 @@ fn truncate_string_to_bytes_from_end(text: &str, max_bytes: usize) -> String {
 }
 
 fn render_output(full_output: &str) -> Result<String, String> {
-    let truncation = truncate_tail(full_output, DEFAULT_MAX_LINES, DEFAULT_MAX_BYTES);
-    let mut rendered = if truncation.content.is_empty() {
-        "(no output)".to_string()
-    } else {
-        truncation.content
-    };
-
-    if !truncation.truncated {
-        return Ok(rendered);
+    let hard_limit = truncate_tail(full_output, OUTPUT_LIMIT_MAX_LINES, OUTPUT_LIMIT_MAX_BYTES);
+    if !hard_limit.truncated {
+        return Ok(if hard_limit.content.is_empty() {
+            "(no output)".to_string()
+        } else {
+            hard_limit.content
+        });
     }
 
-    let output_path = persist_full_output(full_output)?;
-    let start_line = truncation
-        .total_lines
-        .saturating_sub(truncation.output_lines)
-        .saturating_add(1);
-    let end_line = truncation.total_lines;
+    let preview = truncate_tail(full_output, OUTPUT_PREVIEW_LINES, OUTPUT_LIMIT_MAX_BYTES);
+    let mut rendered = if preview.content.is_empty() {
+        "(no output)".to_string()
+    } else {
+        preview.content
+    };
 
-    if truncation.last_line_partial {
+    let output_path = persist_full_output(full_output)?;
+
+    if preview.last_line_partial {
         let last_line_size = full_output.lines().last().map(str::len).unwrap_or_default();
         rendered.push_str(&format!(
-            "\n\n[Showing last {} of line {} (line is {}). Full output: {}]",
-            format_size(truncation.output_bytes),
-            end_line,
+            "\n\n[Output truncated. Showing last {} of line {} (line is {}). Earlier output is omitted. Full output: {}]",
+            format_size(preview.output_bytes),
+            hard_limit.total_lines,
             format_size(last_line_size),
             output_path.display()
         ));
-    } else if truncation.truncated_by == Some(TruncatedBy::Lines) {
-        rendered.push_str(&format!(
-            "\n\n[Showing lines {}-{} of {}. Full output: {}]",
-            start_line,
-            end_line,
-            truncation.total_lines,
-            output_path.display()
-        ));
     } else {
+        let omitted_lines = hard_limit.total_lines.saturating_sub(preview.output_lines);
         rendered.push_str(&format!(
-            "\n\n[Showing lines {}-{} of {} ({} limit). Full output: {}]",
-            start_line,
-            end_line,
-            truncation.total_lines,
-            format_size(DEFAULT_MAX_BYTES),
+            "\n\n[Output truncated. Showing last {} lines of {} (omitted first {}). Full output: {}]",
+            preview.output_lines,
+            hard_limit.total_lines,
+            omitted_lines,
             output_path.display()
         ));
+        if hard_limit.truncated_by == Some(TruncatedBy::Bytes) {
+            rendered.push_str(&format!(
+                " Hard limit: {}.",
+                format_size(OUTPUT_LIMIT_MAX_BYTES)
+            ));
+        }
     }
 
     Ok(rendered)
@@ -392,9 +391,28 @@ mod tests {
             input.push_str(&format!("line {}\n", index));
         }
 
-        let result = truncate_tail(&input, DEFAULT_MAX_LINES, DEFAULT_MAX_BYTES);
+        let result = truncate_tail(&input, OUTPUT_LIMIT_MAX_LINES, OUTPUT_LIMIT_MAX_BYTES);
         assert!(result.truncated);
-        assert!(result.output_lines <= DEFAULT_MAX_LINES);
+        assert!(result.output_lines <= OUTPUT_LIMIT_MAX_LINES);
         assert_eq!(result.truncated_by, Some(TruncatedBy::Lines));
+    }
+
+    #[test]
+    fn render_output_uses_tail_preview_for_large_output() {
+        let input = (0..2500)
+            .map(|index| format!("line {}", index))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let rendered = render_output(&input).unwrap();
+        let (preview, metadata) = rendered.split_once("\n\n[").unwrap();
+
+        assert_eq!(preview.lines().count(), OUTPUT_PREVIEW_LINES);
+        assert!(preview.starts_with("line 2450"));
+        assert!(preview.contains("line 2499"));
+        assert!(metadata.contains("Output truncated."));
+        assert!(metadata.contains("Showing last 50 lines"));
+        assert!(metadata.contains("omitted first 2450"));
+        assert!(metadata.contains("Full output: "));
     }
 }

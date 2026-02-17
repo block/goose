@@ -67,8 +67,8 @@ impl DeveloperServer {
             - **Explore**: Navigate codebases with `tree`
             - **Read**: Read text files and image files with `read`
 
-            `shell` output is truncated to the last 2000 lines or 50KB, whichever is reached first.
-            If truncation happens, full output is written to a temp file and the path is returned.
+            `shell` output has a hard limit of 2000 lines or 50KB.
+            When that limit is exceeded, responses show only the last 50 lines and include a temp file path to the full output.
             For long-running commands, pass `timeout_secs`.
 
             operating system: {os}
@@ -90,7 +90,7 @@ impl DeveloperServer {
 
     #[tool(
         name = "shell",
-        description = "Execute a shell command. Returns stdout/stderr as text. Output is tail-truncated to 2000 lines or 50KB with a temp-file pointer when truncated."
+        description = "Execute a shell command. Returns stdout/stderr as text. Output has a 2000-line/50KB hard limit; when exceeded, the response includes only the last 50 lines plus a full-output temp-file path."
     )]
     pub async fn shell(
         &self,
@@ -131,7 +131,7 @@ impl DeveloperServer {
 
     #[tool(
         name = "read",
-        description = "Read a text file or image file. For text, supports offset/limit and truncates to 2000 lines or 50KB. For images, returns the image payload."
+        description = "Read a text file or image file. For text, supports a 0-indexed offset and limit, rejects binary files, and truncates to 2000 lines or 50KB. For images, returns the image payload."
     )]
     pub async fn read(&self, params: Parameters<ReadParams>) -> Result<CallToolResult, ErrorData> {
         Ok(self.read_tool.read(params.0))

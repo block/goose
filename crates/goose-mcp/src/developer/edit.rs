@@ -5,6 +5,8 @@ use rmcp::model::{CallToolResult, Content};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+const NO_MATCH_PREVIEW_LINES: usize = 20;
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct FileWriteParams {
     pub path: String,
@@ -76,14 +78,12 @@ impl EditTools {
         match matches.len() {
             0 => {
                 let suggestion = find_similar_context(&content, &params.before);
-                let msg = if let Some(hint) = suggestion {
-                    format!(
-                        "No match found for the specified text.\n\nDid you mean:\n```\n{}\n```",
-                        hint
-                    )
-                } else {
-                    "No match found for the specified text.".to_string()
-                };
+                let mut msg = "No match found for the specified text.".to_string();
+                if let Some(hint) = suggestion {
+                    msg.push_str(&format!("\n\nDid you mean:\n```\n{}\n```", hint));
+                }
+                let preview = build_file_preview(&content, NO_MATCH_PREVIEW_LINES);
+                msg.push_str(&format!("\n\nFile preview:\n```\n{}\n```", preview));
                 CallToolResult::error(vec![Content::text(msg)])
             }
             1 => {
@@ -169,14 +169,43 @@ fn find_similar_context(content: &str, search: &str) -> Option<String> {
     None
 }
 
+fn build_file_preview(content: &str, max_lines: usize) -> String {
+    if content.is_empty() {
+        return "(file is empty)".to_string();
+    }
+
+    let lines: Vec<&str> = content.lines().collect();
+    let preview_end = lines.len().min(max_lines);
+    let mut preview = lines[..preview_end]
+        .iter()
+        .enumerate()
+        .map(|(index, line)| format!("{:>4}: {}", index + 1, line))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if lines.len() > preview_end {
+        preview.push_str(&format!("\n... ({} more lines)", lines.len() - preview_end));
+    }
+
+    preview
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rmcp::model::RawContent;
     use std::fs;
     use tempfile::TempDir;
 
     fn setup() -> TempDir {
         tempfile::tempdir().unwrap()
+    }
+
+    fn extract_text(result: &CallToolResult) -> &str {
+        match &result.content[0].raw {
+            RawContent::Text(text) => &text.text,
+            _ => panic!("expected text"),
+        }
     }
 
     #[test]
@@ -259,6 +288,10 @@ mod tests {
         });
 
         assert!(result.is_error.unwrap_or(false));
+        let text = extract_text(&result);
+        assert!(text.contains("No match found"));
+        assert!(text.contains("File preview:"));
+        assert!(text.contains("some content"));
     }
 
     #[test]

@@ -11,12 +11,15 @@ use serde::Deserialize;
 const DEFAULT_MAX_LINES: usize = 2000;
 const DEFAULT_MAX_BYTES: usize = 50 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 2000;
+const BINARY_SAMPLE_SIZE: usize = 8 * 1024;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ReadParams {
     pub path: String,
+    #[schemars(description = "0-indexed line offset for text files. offset=0 starts at line 1.")]
     #[serde(default)]
     pub offset: Option<usize>,
+    #[schemars(description = "Maximum number of lines to return for text files.")]
     #[serde(default)]
     pub limit: Option<usize>,
 }
@@ -156,22 +159,26 @@ fn read_text(path: &Path, offset: Option<usize>, limit: Option<usize>) -> CallTo
         }
     };
 
-    let content = String::from_utf8_lossy(&bytes).into_owned();
-    let all_lines: Vec<&str> = content.split('\n').collect();
-    let total_lines = all_lines.len();
-
-    let start_line = offset.unwrap_or(1);
-    if start_line == 0 {
-        return CallToolResult::error(vec![Content::text(
-            "Offset must be a 1-indexed positive line number.".to_string(),
-        )]);
+    if bytes.is_empty() {
+        return CallToolResult::success(vec![Content::text("File is empty.".to_string())]);
     }
 
-    let start_index = start_line - 1;
+    if is_probably_binary(&bytes) {
+        return CallToolResult::error(vec![Content::text(format!(
+            "Refusing to read binary file as text: {}",
+            path.display()
+        ))]);
+    }
+
+    let content = String::from_utf8_lossy(&bytes).into_owned();
+    let all_lines: Vec<&str> = content.lines().collect();
+    let total_lines = all_lines.len();
+
+    let start_index = offset.unwrap_or(0);
     if start_index >= total_lines {
         return CallToolResult::error(vec![Content::text(format!(
-            "Offset {} is beyond end of file ({} lines total).",
-            start_line, total_lines
+            "Offset {} is beyond end of file ({} lines total). Offsets are 0-indexed.",
+            start_index, total_lines
         ))]);
     }
 
@@ -195,26 +202,29 @@ fn read_text(path: &Path, offset: Option<usize>, limit: Option<usize>) -> CallTo
             .get(start_index)
             .map(|line| line.len())
             .unwrap_or_default();
+        let line_number = start_index + 1;
         output = format!(
             "[Line {} is {}, exceeds {} limit. Use shell: sed -n '{}p' {} | head -c {}]",
-            start_line,
+            line_number,
             format_size(first_line_size),
             format_size(DEFAULT_MAX_BYTES),
-            start_line,
+            line_number,
             path.display(),
             DEFAULT_MAX_BYTES
         );
     } else if truncation.truncated {
-        let end_line = start_line + truncation.output_lines.saturating_sub(1);
-        let next_offset = end_line + 1;
+        let end_index = start_index + truncation.output_lines.saturating_sub(1);
+        let start_line = start_index + 1;
+        let end_line = end_index + 1;
+        let next_offset = end_index + 1;
         if truncation.truncated_by == Some(TruncatedBy::Lines) {
             output.push_str(&format!(
-                "\n\n[Showing lines {}-{} of {}. Use offset={} to continue.]",
+                "\n\n[Showing lines {}-{} of {}. Offsets are 0-indexed; use offset={} to continue.]",
                 start_line, end_line, total_lines, next_offset
             ));
         } else {
             output.push_str(&format!(
-                "\n\n[Showing lines {}-{} of {} ({} limit). Use offset={} to continue.]",
+                "\n\n[Showing lines {}-{} of {} ({} limit). Offsets are 0-indexed; use offset={} to continue.]",
                 start_line,
                 end_line,
                 total_lines,
@@ -226,9 +236,9 @@ fn read_text(path: &Path, offset: Option<usize>, limit: Option<usize>) -> CallTo
         let end = (start_index + limit).min(total_lines);
         if end < total_lines {
             output.push_str(&format!(
-                "\n\n[{} more lines in file. Use offset={} to continue.]",
+                "\n\n[{} more lines in file. Offsets are 0-indexed; use offset={} to continue.]",
                 total_lines - end,
-                end + 1
+                end
             ));
         }
     }
@@ -311,6 +321,22 @@ fn format_size(bytes: usize) -> String {
     }
 }
 
+fn is_probably_binary(bytes: &[u8]) -> bool {
+    let sample_len = bytes.len().min(BINARY_SAMPLE_SIZE);
+    let sample = &bytes[..sample_len];
+
+    if sample.contains(&0) {
+        return true;
+    }
+
+    let control_bytes = sample
+        .iter()
+        .filter(|byte| !matches!(**byte, b'\n' | b'\r' | b'\t' | 0x20..=0x7e | 0x80..=0xff))
+        .count();
+
+    control_bytes * 10 > sample_len * 3
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,13 +361,13 @@ mod tests {
         let tool = ReadTool::new();
         let result = tool.read(ReadParams {
             path: file.display().to_string(),
-            offset: Some(2),
+            offset: Some(1),
             limit: Some(2),
         });
 
         let text = extract_text(&result).unwrap();
         assert!(text.starts_with("b\nc"));
-        assert!(text.contains("Use offset=4 to continue."));
+        assert!(text.contains("use offset=3 to continue."));
     }
 
     #[test]
@@ -379,5 +405,41 @@ mod tests {
             .content
             .iter()
             .any(|item| matches!(item.raw, RawContent::Image(_))));
+    }
+
+    #[test]
+    fn read_empty_file_reports_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("empty.txt");
+        fs::write(&file, "").unwrap();
+
+        let tool = ReadTool::new();
+        let result = tool.read(ReadParams {
+            path: file.display().to_string(),
+            offset: None,
+            limit: None,
+        });
+
+        assert_eq!(result.is_error, Some(false));
+        let text = extract_text(&result).unwrap();
+        assert_eq!(text, "File is empty.");
+    }
+
+    #[test]
+    fn read_binary_file_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("binary.bin");
+        fs::write(&file, [0_u8, 159, 146, 150]).unwrap();
+
+        let tool = ReadTool::new();
+        let result = tool.read(ReadParams {
+            path: file.display().to_string(),
+            offset: None,
+            limit: None,
+        });
+
+        assert_eq!(result.is_error, Some(true));
+        let text = extract_text(&result).unwrap();
+        assert!(text.contains("binary file"));
     }
 }
