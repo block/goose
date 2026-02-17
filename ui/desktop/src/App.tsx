@@ -44,7 +44,8 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import AgentsView from './components/agents/AgentsView';
-import AnalyticsView from './components/analytics/AnalyticsView';
+import MonitoringView from './components/analytics/MonitoringView';
+import EvaluateView from './components/analytics/EvaluateView';
 import ToolsHealthView from './components/tools/ToolsHealthView';
 import CatalogsOverview from './components/catalogs/CatalogsOverview';
 import AppsView from './components/apps/AppsView';
@@ -186,7 +187,15 @@ const AgentsRoute = () => {
 };
 
 const AnalyticsRoute = () => {
-  return <AnalyticsView />;
+  return <MonitoringView />;
+};
+
+const MonitoringRoute = () => {
+  return <MonitoringView />;
+};
+
+const EvaluateRoute = () => {
+  return <EvaluateView />;
 };
 
 const ToolsRoute = () => {
@@ -689,6 +698,8 @@ export function AppInner() {
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="agents" element={<AgentsRoute />} />
               <Route path="analytics" element={<AnalyticsRoute />} />
+              <Route path="monitoring" element={<MonitoringRoute />} />
+              <Route path="evaluate" element={<EvaluateRoute />} />
               <Route path="tools" element={<ToolsRoute />} />
               <Route path="catalogs" element={<CatalogsRoute />} />
               <Route

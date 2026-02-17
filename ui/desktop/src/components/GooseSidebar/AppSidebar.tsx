@@ -1,21 +1,21 @@
 import { AppEvents } from '../../constants/events';
 import React, { useEffect, useState } from 'react';
 import {
+  Activity,
   AppWindow,
   BarChart3,
   Bot,
   ChefHat,
   ChevronRight,
   Clock,
-  Eye,
   FileText,
+  FlaskConical,
   FolderOpen,
   History,
   Home,
   MessageSquarePlus,
   Puzzle,
   Workflow,
-  Wrench,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -65,7 +65,7 @@ interface NavigationZone {
   route?: string;
 }
 
-// Zone-based navigation: Workflows → Observatory → Platform
+// Zone-based navigation: Workflows → Monitoring → Evaluate → Catalog → Settings
 const navigationZones: NavigationZone[] = [
   {
     id: 'workflows',
@@ -74,9 +74,9 @@ const navigationZones: NavigationZone[] = [
     items: [
       {
         path: '/recipes',
-        label: 'Workflows',
+        label: 'Recipes',
         icon: FileText,
-        tooltip: 'Browse and run workflows',
+        tooltip: 'Browse and run installed workflows',
       },
       {
         path: '/apps',
@@ -94,42 +94,56 @@ const navigationZones: NavigationZone[] = [
     ],
   },
   {
-    id: 'observatory',
-    label: 'Observatory',
-    icon: Eye,
+    id: 'monitoring',
+    label: 'Monitoring',
+    icon: Activity,
     items: [
       {
-        path: '/analytics',
-        label: 'Analytics',
+        path: '/monitoring',
+        label: 'Dashboard',
         icon: BarChart3,
-        tooltip: 'View usage analytics and insights',
-      },
-      {
-        path: '/tools',
-        label: 'Tools',
-        icon: Wrench,
-        tooltip: 'Monitor tool health and performance',
-      },
-      {
-        path: '/agents',
-        label: 'Agent Catalog',
-        icon: Bot,
-        tooltip: 'Browse and manage agents',
+        tooltip: 'View usage dashboard and live metrics',
       },
     ],
   },
   {
-    id: 'platform',
-    label: 'Catalogs',
+    id: 'evaluate',
+    label: 'Evaluate',
+    icon: FlaskConical,
+    items: [
+      {
+        path: '/evaluate',
+        label: 'Overview',
+        icon: BarChart3,
+        tooltip: 'Eval overview, datasets, runs, and topics',
+      },
+    ],
+  },
+  {
+    id: 'catalog',
+    label: 'Catalog',
     icon: Puzzle,
     route: '/catalogs',
     items: [
       {
-        path: '/extensions',
-        label: 'Tools Catalog',
-        icon: Puzzle,
-        tooltip: 'Browse and manage tool extensions',
+        path: '/agents',
+        label: 'Agents',
+        icon: Bot,
+        tooltip: 'Browse and manage agent personas',
       },
+      {
+        path: '/extensions',
+        label: 'Extensions',
+        icon: Puzzle,
+        tooltip: 'Browse and install tool extensions',
+      },
+    ],
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: Gear,
+    items: [
       {
         path: '/settings',
         label: 'Settings',

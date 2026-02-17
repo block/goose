@@ -20,6 +20,8 @@ export type View =
   | 'recipes'
   | 'agents'
   | 'analytics'
+  | 'monitoring'
+  | 'evaluate'
   | 'permission';
 
 export type ViewOptions = {
@@ -73,7 +75,13 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         navigate('/agents', { state: options });
         break;
       case 'analytics':
-        navigate('/analytics', { state: options });
+        navigate('/monitoring', { state: options });
+        break;
+      case 'monitoring':
+        navigate('/monitoring', { state: options });
+        break;
+      case 'evaluate':
+        navigate('/evaluate', { state: options });
         break;
       case 'permission':
         navigate('/permission', { state: options });
