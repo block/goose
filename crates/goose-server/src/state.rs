@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use goose::builtin_extension::register_builtin_extensions;
 use goose::execution::manager::AgentManager;
+use goose::execution::pool::AgentPool;
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
@@ -30,6 +31,7 @@ pub struct AppState {
     /// Shared extension registry — live MCP connections shared across agents
     pub extension_registry: Arc<ExtensionRegistry>,
     run_store: RunStore,
+    pub agent_pool: Arc<AgentPool>,
 }
 
 impl AppState {
@@ -49,6 +51,7 @@ impl AppState {
             agent_slot_registry: AgentSlotRegistry::new(),
             extension_registry,
             run_store: RunStore::new(),
+            agent_pool: Arc::new(AgentPool::new(10)),
         }))
     }
 

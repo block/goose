@@ -25,13 +25,16 @@ use a2a::types::agent_card::{
 };
 use a2a::types::core::{Artifact, Message, Part, PartContent, TaskState, TaskStatus};
 use a2a::types::events::{AgentExecutionEvent, TaskArtifactUpdateEvent, TaskStatusUpdateEvent};
-use axum::extract::State;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::response::Json;
 use axum::Router;
 use futures::StreamExt;
 use goose::a2a_compat::message::{a2a_message_to_goose, goose_message_to_a2a};
 use goose::agents::intent_router::IntentRouter;
 use goose::agents::{AgentEvent, SessionConfig};
+use goose::execution::pool::{InstanceStatus, SpawnConfig};
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, warn};
 
@@ -87,8 +90,29 @@ pub fn routes(state: Arc<AppState>) -> Router {
         persona_router = persona_router.nest(&format!("/agents/{slug}"), sub);
     }
 
-    // Compose: /a2a/agents/* + /a2a/*
+    // --- Instance management routes ---
+    let instance_state = state.clone();
+    let instance_router = Router::new()
+        .route("/instances", axum::routing::get(list_instances))
+        .route("/instances", axum::routing::post(spawn_instance))
+        .route("/instances/{instance_id}", axum::routing::get(get_instance))
+        .route(
+            "/instances/{instance_id}",
+            axum::routing::delete(cancel_instance),
+        )
+        .route(
+            "/instances/{instance_id}/card",
+            axum::routing::get(get_instance_card),
+        )
+        .route(
+            "/instances/{instance_id}/result",
+            axum::routing::get(get_instance_result),
+        )
+        .with_state(instance_state);
+
+    // Compose: /a2a/instances/* + /a2a/agents/* + /a2a/*
     Router::new()
+        .nest("/a2a", instance_router)
         .nest("/a2a", list_personas)
         .nest("/a2a", persona_router)
         .nest("/a2a", main_router)
@@ -294,11 +318,232 @@ impl AgentExecutor for GooseServerExecutor {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Instance Management — A2A-native agent instances
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Request body for POST /a2a/instances
+#[derive(Deserialize)]
+struct SpawnInstanceRequest {
+    persona: String,
+    #[serde(default)]
+    instructions: Option<String>,
+    #[serde(default)]
+    provider: Option<String>,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    max_turns: Option<usize>,
+}
+
+/// Response for instance creation and status queries.
+#[derive(Serialize)]
+struct InstanceResponse {
+    id: String,
+    persona: String,
+    status: String,
+    turns: u32,
+    provider_name: String,
+    model_name: String,
+    elapsed_secs: f64,
+    last_activity_ms: u64,
+}
+
+/// Response for instance results.
+#[derive(Serialize)]
+struct InstanceResultResponse {
+    id: String,
+    persona: String,
+    status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    turns_taken: u32,
+    duration_secs: f64,
+}
+
+/// List all pool instances with their current status.
+async fn list_instances(State(state): State<Arc<AppState>>) -> Json<Vec<InstanceResponse>> {
+    let snapshots = state.agent_pool.status_all().await;
+    let instances: Vec<InstanceResponse> =
+        snapshots.into_iter().map(snapshot_to_response).collect();
+    Json(instances)
+}
+
+fn snapshot_to_response(snap: goose::execution::pool::InstanceSnapshot) -> InstanceResponse {
+    InstanceResponse {
+        id: snap.id,
+        persona: snap.persona,
+        status: snap.status.to_string(),
+        turns: snap.turns,
+        provider_name: snap.provider_name,
+        model_name: snap.model_name,
+        elapsed_secs: snap.elapsed.as_secs_f64(),
+        last_activity_ms: snap.last_activity_ms,
+    }
+}
+
+/// Spawn a new agent instance in the pool.
+async fn spawn_instance(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Json(req): axum::extract::Json<SpawnInstanceRequest>,
+) -> Result<(StatusCode, Json<InstanceResponse>), StatusCode> {
+    let provider = if req.provider.is_some() || req.model.is_some() {
+        let provider_name = req.provider.unwrap_or_else(|| "openai".to_string());
+        let model_name = req.model.unwrap_or_else(|| "gpt-4o".to_string());
+        let model_config = goose::model::ModelConfig::new(&model_name).map_err(|e| {
+            warn!("Invalid model config: {e}");
+            StatusCode::BAD_REQUEST
+        })?;
+        goose::providers::create(&provider_name, model_config, vec![])
+            .await
+            .map_err(|e| {
+                warn!("Failed to create provider: {e}");
+                StatusCode::BAD_REQUEST
+            })?
+    } else {
+        state
+            .agent_manager
+            .get_default_provider()
+            .await
+            .ok_or(StatusCode::SERVICE_UNAVAILABLE)?
+    };
+
+    let instructions = req
+        .instructions
+        .unwrap_or_else(|| format!("You are operating as the {} persona.", req.persona));
+
+    let config = SpawnConfig {
+        persona: req.persona.clone(),
+        instructions: instructions.clone(),
+        prompt: instructions,
+        working_dir: std::env::current_dir().unwrap_or_default(),
+        provider,
+        extensions: vec![],
+        exclude_extensions: vec![],
+        inherit_extensions: None,
+        max_turns: req.max_turns,
+        session_manager: state.agent_manager.session_manager_arc(),
+    };
+
+    let instance_id = state.agent_pool.spawn(config).await.map_err(|e| {
+        warn!("Failed to spawn instance: {e}");
+        StatusCode::SERVICE_UNAVAILABLE
+    })?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(InstanceResponse {
+            id: instance_id,
+            persona: req.persona,
+            status: InstanceStatus::Running.to_string(),
+            turns: 0,
+            provider_name: String::new(),
+            model_name: String::new(),
+            elapsed_secs: 0.0,
+            last_activity_ms: 0,
+        }),
+    ))
+}
+
+/// Get status of a specific instance.
+async fn get_instance(
+    State(state): State<Arc<AppState>>,
+    Path(instance_id): Path<String>,
+) -> Result<Json<InstanceResponse>, StatusCode> {
+    let snap = state
+        .agent_pool
+        .status(&instance_id)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    Ok(Json(snapshot_to_response(snap)))
+}
+
+/// Cancel a running instance.
+async fn cancel_instance(
+    State(state): State<Arc<AppState>>,
+    Path(instance_id): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    state
+        .agent_pool
+        .cancel(&instance_id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Get the A2A agent card for a specific instance.
+async fn get_instance_card(
+    State(state): State<Arc<AppState>>,
+    Path(instance_id): Path<String>,
+) -> Result<Json<AgentCard>, StatusCode> {
+    let snap = state
+        .agent_pool
+        .status(&instance_id)
+        .await
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let card = build_card_base(
+        &format!("Goose Instance: {}", snap.persona),
+        &format!(
+            "A2A-native agent instance running as '{}' persona (id: {})",
+            snap.persona, snap.id
+        ),
+        vec![AgentSkill {
+            id: format!("instance.{}", snap.id),
+            name: snap.persona.clone(),
+            description: format!("Running instance of {} persona", snap.persona),
+            tags: vec!["instance".to_string()],
+            ..Default::default()
+        }],
+    );
+
+    Ok(Json(card))
+}
+
+/// Get the result of a completed instance.
+async fn get_instance_result(
+    State(state): State<Arc<AppState>>,
+    Path(instance_id): Path<String>,
+) -> Result<Json<InstanceResultResponse>, StatusCode> {
+    // Check completed results first
+    let results = state.agent_pool.completed_results().await;
+    if let Some(result) = results.iter().find(|r| r.id == instance_id) {
+        return Ok(Json(InstanceResultResponse {
+            id: result.id.clone(),
+            persona: result.persona.clone(),
+            status: result.status.to_string(),
+            output: result.output.clone(),
+            error: result.error.clone(),
+            turns_taken: result.turns_taken,
+            duration_secs: result.duration.as_secs_f64(),
+        }));
+    }
+
+    // Check if still running
+    if let Some(snap) = state.agent_pool.status(&instance_id).await {
+        return Ok(Json(InstanceResultResponse {
+            id: snap.id,
+            persona: snap.persona,
+            status: snap.status.to_string(),
+            output: None,
+            error: None,
+            turns_taken: snap.turns,
+            duration_secs: snap.elapsed.as_secs_f64(),
+        }));
+    }
+
+    Err(StatusCode::NOT_FOUND)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Agent Card builders
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Summary for the /a2a/agents listing endpoint.
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 struct PersonaSummary {
     slug: String,
     name: String,

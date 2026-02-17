@@ -90,9 +90,18 @@ impl AgentManager {
         &self.session_manager
     }
 
+    /// Get the shared SessionManager as an Arc for ownership transfer
+    pub fn session_manager_arc(&self) -> Arc<SessionManager> {
+        Arc::clone(&self.session_manager)
+    }
+
     pub async fn set_default_provider(&self, provider: Arc<dyn crate::providers::base::Provider>) {
         debug!("Setting default provider on AgentManager");
         *self.default_provider.write().await = Some(provider);
+    }
+
+    pub async fn get_default_provider(&self) -> Option<Arc<dyn crate::providers::base::Provider>> {
+        self.default_provider.read().await.clone()
     }
 
     pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
