@@ -4,18 +4,41 @@ use etcetera::AppStrategy;
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use include_dir::{include_dir, Dir};
 use indoc::{formatdoc, indoc};
+use once_cell::sync::Lazy;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, CancelledNotificationParam, Content, ErrorCode, ErrorData,
         GetPromptRequestParams, GetPromptResult, Implementation, ListPromptsResult, LoggingLevel,
-        LoggingMessageNotificationParam, PaginatedRequestParams, Prompt, PromptArgument,
+        LoggingMessageNotificationParam, Meta, PaginatedRequestParams, Prompt, PromptArgument,
         PromptMessage, PromptMessageRole, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::{NotificationContext, RequestContext},
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
+
+const WORKING_DIR_HEADER: &str = "agent-working-dir";
+const SESSION_ID_HEADER: &str = "agent-session-id";
+
+fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
+    meta.0
+        .get(WORKING_DIR_HEADER)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .filter(|s| !s.contains('\0'))
+        .map(PathBuf::from)
+}
+
+fn extract_session_id_from_meta(meta: &Meta) -> Option<String> {
+    meta.0
+        .get(SESSION_ID_HEADER)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .filter(|s| !s.contains('\0'))
+        .map(String::from)
+}
+
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -120,6 +143,13 @@ pub struct PromptArgumentTemplate {
 
 // Embeds the prompts directory to the build
 static PROMPTS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/developer/prompts");
+
+static MACOS_SCREENSHOT_FILENAME_RE: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(
+        r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$",
+    )
+    .expect("macOS screenshot filename regex should be valid")
+});
 
 const DEFAULT_GOOSEIGNORE_CONTENT: &str = concat!(
     "# This file is created automatically if no .gooseignore exists.\n",
@@ -397,6 +427,7 @@ impl ServerHandler for DeveloperServer {
                 name: "goose-developer".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },
@@ -865,6 +896,9 @@ impl DeveloperServer {
         let peer = context.peer;
         let request_id = context.id;
 
+        let working_dir = extract_working_dir_from_meta(&context.meta);
+        let session_id = extract_session_id_from_meta(&context.meta);
+
         // Validate the shell command
         self.validate_shell_command(command)?;
 
@@ -878,7 +912,13 @@ impl DeveloperServer {
 
         // Execute the command and capture output
         let output_result = self
-            .execute_shell_command(command, &peer, cancellation_token.clone())
+            .execute_shell_command(
+                command,
+                &peer,
+                cancellation_token.clone(),
+                working_dir,
+                session_id,
+            )
             .await;
 
         // Clean up the process from tracking
@@ -962,16 +1002,14 @@ impl DeveloperServer {
         command: &str,
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
+        working_dir: Option<PathBuf>,
+        session_id: Option<String>,
     ) -> Result<String, ErrorData> {
         let mut shell_config = ShellConfig::default();
         let shell_name = std::path::Path::new(&shell_config.executable)
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("bash");
-
-        let working_dir = std::env::var("GOOSE_WORKING_DIR")
-            .ok()
-            .map(std::path::PathBuf::from);
 
         if let Some(ref env_file) = self.bash_env_file {
             if shell_name == "bash" {
@@ -980,6 +1018,12 @@ impl DeveloperServer {
                     env_file.clone().into_os_string(),
                 ))
             }
+        }
+
+        if let Some(sid) = session_id {
+            shell_config
+                .envs
+                .push((OsString::from("AGENT_SESSION_ID"), OsString::from(sid)));
         }
 
         let mut command = configure_shell_command(&shell_config, command, working_dir.as_deref());
@@ -1387,27 +1431,22 @@ impl DeveloperServer {
         if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
             // Check if this matches Mac screenshot pattern:
             // "Screenshot YYYY-MM-DD at H.MM.SS AM/PM.png"
-            if let Some(captures) = regex::Regex::new(r"^Screenshot \d{4}-\d{2}-\d{2} at \d{1,2}\.\d{2}\.\d{2} (AM|PM|am|pm)(?: \(\d+\))?\.png$")
-                .ok()
-                .and_then(|re| re.captures(filename))
-            {
+            if let Some(captures) = MACOS_SCREENSHOT_FILENAME_RE.captures(filename) {
                 // Get the AM/PM part
                 let meridian = captures.get(1).unwrap().as_str();
 
                 // Find the last space before AM/PM and replace it with U+202F
-                let space_pos = filename.rfind(meridian)
+                let space_pos = filename
+                    .rfind(meridian)
                     .and_then(|pos| filename.get(..pos).map(|s| s.trim_end().len()))
                     .unwrap_or(0);
 
                 if space_pos > 0 {
                     let parent = path.parent().unwrap_or(Path::new(""));
-                    if let (Some(before), Some(after)) = (filename.get(..space_pos), filename.get(space_pos+1..)) {
-                        let new_filename = format!(
-                            "{}{}{}",
-                            before,
-                            '\u{202F}',
-                            after
-                        );
+                    if let (Some(before), Some(after)) =
+                        (filename.get(..space_pos), filename.get(space_pos + 1..))
+                    {
+                        let new_filename = format!("{}{}{}", before, '\u{202F}', after);
                         let new_path = parent.join(new_filename);
 
                         return new_path;
@@ -1726,6 +1765,25 @@ mod tests {
             .as_text()
             .unwrap();
         assert!(user_content.text.contains("Hello, world!"));
+
+        // The assistant-audience content must be extractable via as_text()
+        let assistant_content = view_result
+            .content
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .expect("view should return content with Assistant audience");
+        assert!(
+            assistant_content.as_text().is_some(),
+            "assistant content must be RawContent::Text, not Resource"
+        );
+        assert!(assistant_content
+            .as_text()
+            .unwrap()
+            .text
+            .contains("Hello, world!"));
     }
 
     #[tokio::test]

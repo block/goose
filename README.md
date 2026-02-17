@@ -32,6 +32,7 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
 - [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/HOWTOAI.md)
 - [Governance](https://github.com/block/goose/blob/main/GOVERNANCE.md)
+- [Custom Distributions](https://github.com/block/goose/blob/main/CUSTOM_DISTROS.md) - build your own goose distro with preconfigured providers, extensions, and branding
 
 ## Need Help?
 - [Diagnostics & Reporting](https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting)

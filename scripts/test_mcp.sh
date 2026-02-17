@@ -3,7 +3,7 @@ set -e
 
 if [ -z "$SKIP_BUILD" ]; then
   echo "Building goose..."
-  cargo build --release --bin goose
+  cargo build --bin goose
   echo ""
 else
   echo "Skipping build (SKIP_BUILD is set)..."
@@ -11,7 +11,7 @@ else
 fi
 
 SCRIPT_DIR=$(pwd)
-GOOSE_BIN="$SCRIPT_DIR/target/release/goose"
+GOOSE_BIN="$SCRIPT_DIR/target/debug/goose"
 
 TEST_PROVIDER=${GOOSE_PROVIDER:-anthropic}
 TEST_MODEL=${GOOSE_MODEL:-claude-haiku-4-5-20251001}
@@ -57,7 +57,7 @@ TMPFILE=$(mktemp)
 (cd "$TESTDIR" && GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
     "$GOOSE_BIN" run --recipe recipe.yaml 2>&1) | tee "$TMPFILE"
 
-if grep -q "add | test_mcp" "$TMPFILE" && grep -q "100" "$TMPFILE"; then
+if grep -qE "(add \| test_mcp)|(▸.*add.*test_mcp)" "$TMPFILE" && grep -q "100" "$TMPFILE"; then
     echo "✓ FastMCP stderr test passed"
     RESULTS+=("✓ FastMCP stderr")
 else
@@ -73,20 +73,20 @@ TESTDIR=$(mktemp -d)
 TMPFILE=$(mktemp)
 
 (cd "$TESTDIR" && GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
-    "$GOOSE_BIN" run --text "Use the sampleLLM tool to ask for a quote from The Great Gatsby" \
+    "$GOOSE_BIN" run --text "Use the sampleLLM tool to ask for an original short poem about the ocean" \
     --with-extension "npx -y @modelcontextprotocol/server-everything@2026.1.14" 2>&1) | tee "$TMPFILE"
 
-if grep -q "$MCP_SAMPLING_TOOL | " "$TMPFILE"; then
+if grep -qE "($MCP_SAMPLING_TOOL \| )|(▸.*$MCP_SAMPLING_TOOL)" "$TMPFILE"; then
     JUDGE_PROMPT=$(cat <<EOF
 You are a validator. You will be given a transcript of a CLI run that used an MCP tool to initiate MCP sampling.
-The MCP server requests a quote from The Great Gatsby from the model via sampling.
+The MCP server requests an original short poem about the ocean from the model via sampling.
 
 Task: Determine whether the transcript shows that the sampling request reached the model and that the output included either:
-  • A recognizable quote, paraphrase, or reference from The Great Gatsby, or
-  • A clear attempt or explanation from the model about why the quote could not be returned.
+  • A poem, verse, or creative text about the ocean or sea, or
+  • A clear attempt or explanation from the model about the poem request.
 
 If either of these conditions is true, respond PASS.
-If there is no evidence that the model attempted or returned a Gatsby-related response, respond FAIL.
+If there is no evidence that the model attempted or returned a poem-related response, respond FAIL.
 If uncertain, lean toward PASS.
 
 Output format: Respond with exactly one word on a single line:

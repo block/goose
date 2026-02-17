@@ -2,7 +2,7 @@ use reqwest::StatusCode;
 use std::time::Duration;
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, Clone, PartialEq)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
     Authentication(String),

@@ -180,6 +180,10 @@ You can turn your current goose session into a reusable recipe that includes the
   </TabItem>
 </Tabs>
 
+:::tip Customize Recipe Generation
+You can customize how goose generates recipes by editing the `recipe.md` [prompt template](/docs/guides/prompt-templates).
+:::
+
 ## Edit Recipe
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>

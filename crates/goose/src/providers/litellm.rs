@@ -1,19 +1,23 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
+use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_openai_compat, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::conversation::message::Message;
-
 use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
+const LITELLM_PROVIDER_NAME: &str = "litellm";
 pub const LITELLM_DEFAULT_MODEL: &str = "gpt-4o-mini";
 pub const LITELLM_DOC_URL: &str = "https://docs.litellm.ai/docs/";
 
@@ -69,7 +73,7 @@ impl LiteLLMProvider {
             api_client,
             base_path,
             model,
-            name: Self::metadata().name,
+            name: LITELLM_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -129,11 +133,12 @@ impl LiteLLMProvider {
     }
 }
 
-#[async_trait]
-impl Provider for LiteLLMProvider {
+impl ProviderDef for LiteLLMProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "litellm",
+            LITELLM_PROVIDER_NAME,
             "LiteLLM",
             "LiteLLM proxy supporting multiple models with automatic prompt caching",
             LITELLM_DEFAULT_MODEL,
@@ -154,6 +159,16 @@ impl Provider for LiteLLMProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for LiteLLMProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -163,14 +178,19 @@ impl Provider for LiteLLMProvider {
     }
 
     #[tracing::instrument(skip_all, name = "provider_complete")]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let mut payload = super::formats::openai::create_request(
             model_config,
             system,
@@ -196,7 +216,11 @@ impl Provider for LiteLLMProvider {
         let response_model = get_model(&response);
         let mut log = RequestLog::start(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(response_model, usage)))
+        let provider_usage = ProviderUsage::new(response_model, usage);
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 
     fn supports_embeddings(&self) -> bool {
@@ -213,17 +237,11 @@ impl Provider for LiteLLMProvider {
         self.model.model_name.to_lowercase().contains("claude")
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        match self.fetch_models().await {
-            Ok(models) => {
-                let model_names: Vec<String> = models.into_iter().map(|m| m.name).collect();
-                Ok(Some(model_names))
-            }
-            Err(e) => {
-                tracing::warn!("Failed to fetch models from LiteLLM: {}", e);
-                Ok(None)
-            }
-        }
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let models = self.fetch_models().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to fetch models from LiteLLM: {}", e))
+        })?;
+        Ok(models.into_iter().map(|m| m.name).collect())
     }
 }
 

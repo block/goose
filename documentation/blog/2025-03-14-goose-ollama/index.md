@@ -17,7 +17,7 @@ Together, they create a self-contained AI agent workflow that puts advanced capa
 
 # Getting Started
 
-Before diving deep into various capabilities, Rizel walked us through how to set yourself up for success by integrating goose with Ollama. To follow along, you can download goose [here](https://block.github.io/goose/) and follow a step-by-step walk through in the [Configure LLM Provider](https://block.github.io/goose/docs/getting-started/providers) guide.
+Before diving deep into various capabilities, Rizel walked us through how to set yourself up for success by integrating goose with Ollama. To follow along, you can [download goose](https://block.github.io/goose/) and follow a step-by-step walk through in the [Configure LLM Provider](https://block.github.io/goose/docs/getting-started/providers) guide.
 
 If you have any questions or get stuck, feel free to chat with us on [Discord](https://discord.gg/goose-oss) or post an issue/discussion on [GitHub](https://github.com/block/goose/). Thanks for reading!
 

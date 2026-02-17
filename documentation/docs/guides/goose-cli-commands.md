@@ -187,7 +187,9 @@ Start or resume interactive chat sessions.
 - **`-n, --name <name>`**: Give the session a name
 - **`--path <path>`**: Legacy parameter for specifying session by file path
 - **`-r, --resume`**: Resume a previous session
+- **`--fork`**: Create a new duplicate session with copied history. Must be used with `--resume`. Provide `--name` or `--session-id` to fork a specific session. Otherwise, forks the most recent session.
 - **`--history`**: Show previous messages when resuming a session
+- **`--container <container_id>`**: Run extensions inside a [Docker container](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers).
 - **`--debug`**: Enable debug mode to output complete tool responses, detailed parameter values, and full file paths
 - **`--max-tool-repetitions <NUMBER>`**: Set the maximum number of times the same tool can be called consecutively with identical parameters. Helps prevent infinite loops.
 - **`--max-turns <NUMBER>`**: Set the maximum number of turns allowed without user input (default: 1000)
@@ -207,6 +209,12 @@ goose session --resume -n my-project
 goose session --resume --session-id 20251108_2
 goose session --resume --path ./session.json    # exported session
 goose session --resume --path ./session.jsonl   # legacy session storage
+
+# Fork a specific session by name
+goose session --resume --fork --name my-project
+
+# Fork the most recent session and show message history
+goose session --resume --fork --history
 
 # Start with extensions
 goose session --with-extension "npx -y @modelcontextprotocol/server-memory"
@@ -381,6 +389,7 @@ Execute commands from an instruction file or stdin. Check out the [full guide](/
 - **`-n, --name <name>`**: Name for this run session (e.g. `daily-tasks`)
 - **`-r, --resume`**: Resume from a previous run
 - **`--path <PATH>`**: Path for this run session (e.g. `./playground.jsonl`). Used for legacy file-based session storage.
+- **`--container <container_id>`**: Run extensions [inside a Docker container](/docs/tutorials/goose-in-docker#running-extensions-in-docker-containers).
 - **`--no-session`**: Run goose commands without creating or storing a session file
 
 **Extension Options:**
@@ -737,6 +746,59 @@ goose session --name use-custom-theme
 **Navigation:**
 - **`Cmd+Up/Down arrows`** - Navigate through command history
 - **`Ctrl+R`** - Interactive command history search (reverse search). [More info](#command-history-search).
+
+---
+
+### External Editor Mode
+
+For composing longer prompts or working with complex code snippets, you can configure goose to use your preferred text editor instead of CLI input. This replaces the standard CLI input and keyboard shortcuts for the entire session.
+
+**How it works:**
+1. goose opens your configured editor with a template file
+2. Type your prompt after the `# Your prompt:` heading (conversation history is shown below for context)
+3. Save the file and close/exit the editor to send your prompt to goose
+4. goose processes your prompt and reopens the editor with the response added to the conversation history
+5. Repeat steps 2-4 for each message in the conversation
+
+You can use any editor that accepts a file path argument, such as vim, nano, emacs, and VS Code.
+
+**Configuration:**
+
+<Tabs>
+  <TabItem value="envvar" label="Environment Variable" default>
+
+  Applies to the current session only.
+
+  ```bash
+  # For terminal editors like vim or nano
+  export GOOSE_PROMPT_EDITOR=vim
+
+  # Or for GUI editors like VS Code (use --wait flag)
+  export GOOSE_PROMPT_EDITOR="code --wait"
+  ```
+
+  </TabItem>
+  <TabItem value="config" label="Config File">
+
+  Persists across all sessions unless overridden by the environment variable.
+  
+  1. Navigate to the goose [configuration file](/docs/guides/config-files). For example, navigate to `~/.config/goose/config.yaml` on macOS.
+  2. Add `GOOSE_PROMPT_EDITOR` and set it to your preferred editor:
+  
+  ```yaml
+  # For terminal editors like vim or nano
+  GOOSE_PROMPT_EDITOR: vim
+
+  # Or for GUI editors like VS Code (use --wait flag)
+  GOOSE_PROMPT_EDITOR: code --wait
+  ```
+
+  </TabItem>
+</Tabs>
+
+**Using GUI Editors:**
+
+GUI editors require a `--wait` or equivalent flag to ensure goose waits for you to finish editing before continuing. Without this flag, the editor opens but goose immediately proceeds as if you're done. Terminal editors like vim and nano don't need this flag.
 
 ---
 

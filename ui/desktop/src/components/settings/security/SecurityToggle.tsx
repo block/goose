@@ -64,7 +64,7 @@ const ClassifierEndpointInputs = ({
           placeholder={endpointPlaceholder}
           className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
             disabled
-              ? 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
               : 'border-border-default bg-background-default text-text-default'
           }`}
         />
@@ -86,7 +86,7 @@ const ClassifierEndpointInputs = ({
           placeholder={tokenPlaceholder}
           className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
             disabled
-              ? 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
               : 'border-border-default bg-background-default text-text-default'
           }`}
         />
@@ -265,7 +265,7 @@ export const SecurityToggle = () => {
               className={`w-24 px-2 py-1 text-sm border rounded ${
                 enabled
                   ? 'border-border-default bg-background-default text-text-default'
-                  : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                  : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
               }`}
               placeholder="0.80"
             />
@@ -375,7 +375,7 @@ export const SecurityToggle = () => {
                         className={`w-full px-3 py-2 text-sm border rounded ${
                           enabled && mlEnabled
                             ? 'border-border-default bg-background-default text-text-default'
-                            : 'border-border-muted bg-background-muted text-text-muted cursor-not-allowed'
+                            : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
                         }`}
                       >
                         {availablePromptModels.map((model) => (

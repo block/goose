@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use once_cell::sync::Lazy;
@@ -15,19 +16,21 @@ use url::Url;
 
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message, GcpLocation,
-    ModelProvider, RequestContext, DEFAULT_MODEL, KNOWN_MODELS,
+    create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,
+    DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
+use crate::providers::openai_compatible::map_http_error_to_provider_error;
 use crate::providers::retry::RetryConfig;
 use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
 use rmcp::model::Tool;
 
+const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
 /// Base URL for GCP Vertex AI documentation
 const GCP_VERTEX_AI_DOC_URL: &str = "https://cloud.google.com/vertex-ai";
 /// Default timeout for API requests in seconds
@@ -175,7 +178,7 @@ impl GcpVertexAIProvider {
             location,
             model,
             retry_config,
-            name: Self::metadata().name,
+            name: GCP_VERTEX_AI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -347,62 +350,9 @@ impl GcpVertexAIProvider {
                 )));
             } else {
                 let response_text = response.text().await.unwrap_or_default();
-                return Err(ProviderError::RequestFailed(format!(
-                    "Request failed with status {status}: {response_text}"
-                )));
+                let payload = serde_json::from_str::<Value>(&response_text).ok();
+                return Err(map_http_error_to_provider_error(status, payload));
             }
-        }
-    }
-
-    async fn post_with_location(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-        context: &RequestContext,
-        location: &str,
-    ) -> Result<Value, ProviderError> {
-        let url = self
-            .build_request_url(context.provider(), location, false)
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-
-        let response = self
-            .send_request_with_retry(session_id, url, payload)
-            .await?;
-
-        response
-            .json::<Value>()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))
-    }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-        context: &RequestContext,
-    ) -> Result<Value, ProviderError> {
-        let result = self
-            .post_with_location(session_id, payload, context, &self.location)
-            .await;
-
-        if self.location == context.model.known_location().to_string() || result.is_ok() {
-            return result;
-        }
-
-        match &result {
-            Err(ProviderError::RequestFailed(msg)) => {
-                let model_name = context.model.to_string();
-                let configured_location = &self.location;
-                let known_location = context.model.known_location().to_string();
-
-                tracing::warn!(
-                    "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
-                );
-
-                self.post_with_location(session_id, payload, context, &known_location)
-                    .await
-            }
-            _ => result,
         }
     }
 
@@ -541,14 +491,12 @@ impl GcpVertexAIProvider {
     }
 }
 
-#[async_trait]
-impl Provider for GcpVertexAIProvider {
-    fn metadata() -> ProviderMetadata
-    where
-        Self: Sized,
-    {
+impl ProviderDef for GcpVertexAIProvider {
+    type Provider = Self;
+
+    fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "gcp_vertex_ai",
+            GCP_VERTEX_AI_PROVIDER_NAME,
             "GCP Vertex AI",
             "Access variety of AI models such as Claude, Gemini through Vertex AI",
             DEFAULT_MODEL,
@@ -591,6 +539,16 @@ impl Provider for GcpVertexAIProvider {
         .with_unlisted_models()
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for GcpVertexAIProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -601,53 +559,20 @@ impl Provider for GcpVertexAIProvider {
     /// * `system` - System prompt or context
     /// * `messages` - Array of previous messages in the conversation
     /// * `tools` - Array of available tools for the model
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Create request and context
-        let (request, context) = create_request(model_config, system, messages, tools)?;
-
-        // Send request and process response
-        let response = self.post(session_id, &request, &context).await?;
-        let usage = get_usage(&response, &context)?;
-
-        let mut log = RequestLog::start(model_config, &request)?;
-        log.write(&response, Some(&usage))?;
-
-        // Convert response to message
-        let message = response_to_message(response, context)?;
-        let provider_usage = ProviderUsage::new(self.model.model_name.clone(), usage);
-
-        Ok((message, provider_usage))
-    }
-
     /// Returns the current model configuration.
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
     }
 
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let model_config = self.get_model_config();
-        let (mut request, context) = create_request(&model_config, system, messages, tools)?;
+        let (mut request, context) = create_request(model_config, system, messages, tools)?;
 
         if matches!(context.provider(), ModelProvider::Anthropic) {
             if let Some(obj) = request.as_object_mut() {
@@ -655,7 +580,7 @@ impl Provider for GcpVertexAIProvider {
             }
         }
 
-        let mut log = RequestLog::start(&model_config, &request)?;
+        let mut log = RequestLog::start(model_config, &request)?;
 
         let response = self
             .post_stream(Some(session_id), &request, &context)
@@ -686,10 +611,10 @@ impl Provider for GcpVertexAIProvider {
         }))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models: Vec<String> = KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
         let filtered = self.filter_by_org_policy(models).await;
-        Ok(Some(filtered))
+        Ok(filtered)
     }
 }
 

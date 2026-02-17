@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentConfig};
+use crate::agents::{Agent, AgentConfig, GoosePlatform};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -89,6 +89,10 @@ impl AgentManager {
             permission_manager,
             Some(Arc::clone(&self.scheduler)),
             mode,
+            Config::global()
+                .get_goose_disable_session_naming()
+                .unwrap_or(false),
+            GoosePlatform::GooseDesktop,
         );
         let agent = Arc::new(Agent::with_config(config));
         if let Some(provider) = &*self.default_provider.read().await {
@@ -336,7 +340,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remove_nonexistent_session_error() {
-        // Test that removing a non-existent session returns an error
+        // Test that removing a nonexistent session returns an error
         let temp_dir = TempDir::new().unwrap();
         let manager = create_test_manager(&temp_dir).await;
         let session = String::from("never-created");

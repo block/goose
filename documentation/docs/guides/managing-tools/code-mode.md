@@ -32,7 +32,7 @@ Traditional MCP tool calling and Code Mode are two different approaches to the s
 
 | Aspect | Traditional | Code Mode |
 |--------|------------------|-----------|
-| **Tool Discovery** | All tools from enabled extensions, for example:<br/>• `developer.shell`<br/>• `developer.text_editor`<br/>• `github.list_issues`<br/>• `github.get_pull_request`<br/>• `slack.send_message`<br/>• ... *potentially many more* | Code Execution extension's meta-tools:<br/>• `search_modules`<br/>• `read_module`<br/>• `execute_code`<br/><br/>The LLM uses these tools to discover tools from other enabled extensions as needed |
+| **Tool Discovery** | All tools from enabled extensions, for example:<br/>• `developer.shell`<br/>• `developer.text_editor`<br/>• `github.list_issues`<br/>• `github.get_pull_request`<br/>• `slack.send_message`<br/>• ... *potentially many more* | Code Execution extension's meta-tools:<br/>• `list_functions`<br/>• `get_function_details`<br/>• `execute`<br/><br/>The LLM uses these tools to discover tools from other enabled extensions as needed |
 | **Tool Calling** | • Sequential tool calls<br/>• Each result sent to the LLM before the next call | • May require tool discovery calls<br/>• Multiple tool calls batched in one execution<br/>• Intermediate results are chained and processed locally |
 | **Context Window** | Every LLM call includes all tool definitions from enabled extensions | Every LLM call includes the 3 meta-tool definitions, plus any tool definitions previously discovered in the session |
 | **Best For** | • 1-3 enabled extensions<br/>• Simple tasks using 1-2 tools | • 5+ extensions<br/>• Well-defined multi-step workflows |

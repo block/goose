@@ -103,7 +103,7 @@ When making changes to the Rust code, test them on the CLI or run checks, tests,
 cargo check  # verify changes compile
 cargo test  # run tests with changes
 cargo fmt   # format code
-./scripts/clippy-lint.sh # run the linter
+cargo clippy --all-targets -- -D warnings # run the linter
 ```
 
 ### Node
@@ -242,7 +242,7 @@ This process will help you keep your branch aligned with the ongoing changes in 
 
 Before you submit a pull request, please ensure your fork is synchronized as described above. This check ensures your changes are compatible with the latest in the main repository and streamlines the review process.
 
-If you encounter any issues during this process or have any questions, please reach out by opening an issue [here][issues], and we'll be happy to help.
+If you encounter any issues during this process or have any questions, please reach out by [opening an issue][issues], and we'll be happy to help.
 
 ## Env Vars
 
@@ -277,7 +277,7 @@ This creates isolated `config/`, `data/`, and `state/` directories under the spe
 
 ## Enable traces in goose with [locally hosted Langfuse](https://langfuse.com/docs/deployment/self-host)
 
-- Start a local Langfuse using the docs [here](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
+- [Start a local Langfuse using the docs](https://langfuse.com/self-hosting/docker-compose). Create an organization and project and create API credentials.
 - Set the environment variables so that goose can connect to the langfuse server:
 
 ```

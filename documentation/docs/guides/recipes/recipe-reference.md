@@ -516,6 +516,19 @@ The `settings` field allows you to configure the AI model and provider settings 
 | `goose_provider` | String | - | The AI provider to use (e.g., "anthropic", "openai") |
 | `goose_model` | String | - | The specific model name to use |
 | `temperature` | Number | - | The temperature setting for the model (typically 0.0-1.0) |
+| `max_turns` | Number | - | Maximum number of turns for subagent tasks created by this recipe |
+
+#### Understanding max_turns
+
+The `max_turns` setting controls how many iterations an agent can perform before stopping. When set in a recipe's settings, it applies to that recipe's execution and any subagents or subrecipes it creates (unless they specify their own value).
+
+**Configuration precedence (highest to lowest):**
+1. Subagent tool call override
+2. Recipe `settings.max_turns`
+3. `GOOSE_SUBAGENT_MAX_TURNS` environment variable
+4. Default value (1000 for main recipes, 25 for subagents)
+
+**Common use cases:** Limit execution time for automated workflows, prevent runaway subagents, control resource usage in scheduled jobs.
 
 #### Example Settings Configuration
 
@@ -524,6 +537,7 @@ settings:
   goose_provider: "anthropic"
   goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
+  max_turns: 50
 ```
 
 ```yaml
@@ -791,6 +805,7 @@ settings:
   goose_provider: "anthropic"
   goose_model: "claude-sonnet-4-20250514"
   temperature: 0.7
+  max_turns: 100
 
 retry:
   max_retries: 3
@@ -869,7 +884,8 @@ response:
   "settings": {
     "goose_provider": "anthropic",
     "goose_model": "claude-sonnet-4-20250514",
-    "temperature": 0.7
+    "temperature": 0.7,
+    "max_turns": 100
   },
   "retry": {
     "max_retries": 3,

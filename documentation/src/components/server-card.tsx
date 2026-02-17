@@ -128,7 +128,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Star className="h-4 w-4" />
-                  <span>{formatStarCount(githubStars)} on Github</span>
+                  <span>{formatStarCount(githubStars)} on GitHub</span>
                 </Link>
                 )}
               <div className="card-action">

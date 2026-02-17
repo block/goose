@@ -2,11 +2,11 @@ use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
-use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage};
+use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
+use crate::providers::openai_compatible::handle_status_openai_compat;
 use crate::providers::retry::ProviderRetry;
-use crate::providers::utils::handle_status_openai_compat;
 use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
@@ -14,6 +14,7 @@ use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
+use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
@@ -43,6 +44,7 @@ const OAUTH_PORT: u16 = 1455;
 const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
+const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
     "gpt-5.2-codex",
@@ -106,6 +108,12 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
                         };
                         content_items.push(json!({ "type": content_type, "text": text.text }));
                     }
+                }
+                MessageContent::Image(img) => {
+                    content_items.push(json!({
+                        "type": "input_image",
+                        "image_url": format!("data:{};base64,{}", img.mime_type, img.data),
+                    }));
                 }
                 MessageContent::ToolRequest(request) => {
                     flush_text(&mut items, role, &mut content_items);
@@ -787,7 +795,7 @@ impl ChatGptCodexProvider {
         Ok(Self {
             auth_provider,
             model,
-            name: Self::metadata().name,
+            name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -837,11 +845,12 @@ impl ChatGptCodexProvider {
     }
 }
 
-#[async_trait]
-impl Provider for ChatGptCodexProvider {
+impl ProviderDef for ChatGptCodexProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "chatgpt_codex",
+            CHATGPT_CODEX_PROVIDER_NAME,
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
             CHATGPT_CODEX_DEFAULT_MODEL,
@@ -854,8 +863,19 @@ impl Provider for ChatGptCodexProvider {
                 None,
             )],
         )
+        .with_unlisted_models()
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for ChatGptCodexProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -864,76 +884,15 @@ impl Provider for ChatGptCodexProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // ChatGPT Codex API requires streaming - collect the stream into a single response
-        let mut payload = create_codex_request(model_config, system, messages, tools)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        payload["stream"] = serde_json::Value::Bool(true);
-
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post_streaming(session_id, &payload_clone).await
-            })
-            .await?;
-
-        let stream = response.bytes_stream().map_err(io::Error::other);
-        let stream_reader = StreamReader::new(stream);
-        let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-        let message_stream = responses_api_to_streaming_message(framed);
-        pin!(message_stream);
-
-        let mut final_message: Option<Message> = None;
-        let mut final_usage: Option<ProviderUsage> = None;
-
-        while let Some(result) = message_stream.next().await {
-            let (message, usage) = result
-                .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-            if let Some(msg) = message {
-                final_message = Some(msg);
-            }
-            if let Some(u) = usage {
-                final_usage = Some(u);
-            }
-        }
-
-        let message = final_message.ok_or_else(|| {
-            ProviderError::ExecutionError("No message received from stream".to_string())
-        })?;
-        let usage = final_usage.unwrap_or_else(|| {
-            ProviderUsage::new(
-                model_config.model_name.clone(),
-                crate::providers::base::Usage::default(),
-            )
-        });
-
-        Ok((message, usage))
-    }
-
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_codex_request(&self.model, system, messages, tools)
+        let mut payload = create_codex_request(model_config, system, messages, tools)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         payload["stream"] = serde_json::Value::Bool(true);
 
@@ -967,13 +926,11 @@ impl Provider for ChatGptCodexProvider {
         Ok(())
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CHATGPT_CODEX_KNOWN_MODELS
-                .iter()
-                .map(|s| s.to_string())
-                .collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CHATGPT_CODEX_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
     }
 }
 
@@ -981,6 +938,7 @@ impl Provider for ChatGptCodexProvider {
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use goose_test_support::TEST_IMAGE_B64;
     use jsonwebtoken::{Algorithm, EncodingKey, Header};
     use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
     use rmcp::object;
@@ -1083,11 +1041,38 @@ mod tests {
         ];
         "includes tool error output"
     )]
+    #[test_case(
+        vec![
+            Message::user()
+                .with_text("describe this")
+                .with_image(TEST_IMAGE_B64, "image/png"),
+        ],
+        vec![
+            "message:user".to_string(),
+        ];
+        "image content included in user message"
+    )]
     fn test_codex_input_order(messages: Vec<Message>, expected: Vec<String>) {
         let items = build_input_items(&messages).unwrap();
         let payload = json!({ "input": items });
         let kinds = input_kinds(&payload);
         assert_eq!(kinds, expected);
+    }
+
+    #[test]
+    fn test_image_url_format() {
+        let messages = vec![Message::user().with_image(TEST_IMAGE_B64, "image/png")];
+        let items = build_input_items(&messages).unwrap();
+        // The image is inside the content array of the user message
+        let content = items[0]["content"].as_array().unwrap();
+        let image_item = &content[0];
+        assert_eq!(image_item["type"], "input_image");
+        let url = image_item["image_url"].as_str().unwrap();
+        assert!(
+            url.starts_with("data:image/png;base64,"),
+            "image_url should start with data:image/png;base64, but was: {}",
+            url
+        );
     }
 
     #[test_case(

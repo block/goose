@@ -30,6 +30,11 @@ struct ProviderMetadata {
 }
 
 const MODELS_DEV_API_URL: &str = "https://models.dev/api.json";
+const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
+const SEPARATOR: &str =
+    "================================================================================";
+const SUBSEPARATOR: &str =
+    "--------------------------------------------------------------------------------";
 
 // Providers to include in canonical models (for model data)
 const ALLOWED_PROVIDERS: &[&str] = &[
@@ -87,23 +92,11 @@ struct MappingEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct MappingReport {
-    /// Timestamp of this report
     timestamp: String,
-
-    /// Models that are NOT mapped to canonical models
     unmapped_models: Vec<ProviderModelPair>,
-
-    /// All mappings: (provider, model) -> canonical model
-    /// Stored per provider for backward compatibility
     all_mappings: BTreeMap<String, Vec<ModelMapping>>,
-
-    /// Flat list of all mappings for easier comparison (lock file format)
     mapped_models: Vec<MappingEntry>,
-
-    /// Total models checked per provider
     model_counts: BTreeMap<String, usize>,
-
-    /// Canonical models referenced
     canonical_models_used: BTreeSet<String>,
 }
 
@@ -126,16 +119,16 @@ impl MappingReport {
         mappings: Vec<ModelMapping>,
         recommended_models: Vec<String>,
     ) {
-        let mapping_map: HashMap<String, String> = mappings
+        let mapping_map: HashMap<&str, &str> = mappings
             .iter()
-            .map(|m| (m.provider_model.clone(), m.canonical_model.clone()))
+            .map(|m| (m.provider_model.as_str(), m.canonical_model.as_str()))
             .collect();
 
-        let recommended_set: std::collections::HashSet<String> =
-            recommended_models.into_iter().collect();
+        let recommended_set: std::collections::HashSet<&str> =
+            recommended_models.iter().map(|s| s.as_str()).collect();
 
         for model in &fetched_models {
-            if !mapping_map.contains_key(model) {
+            if !mapping_map.contains_key(model.as_str()) {
                 self.unmapped_models.push(ProviderModelPair {
                     provider: provider_name.to_string(),
                     model: model.clone(),
@@ -143,13 +136,14 @@ impl MappingReport {
             }
         }
 
-        for (model, canonical) in &mapping_map {
-            self.canonical_models_used.insert(canonical.clone());
+        for mapping in &mappings {
+            self.canonical_models_used
+                .insert(mapping.canonical_model.clone());
             self.mapped_models.push(MappingEntry {
                 provider: provider_name.to_string(),
-                model: model.clone(),
-                canonical: canonical.clone(),
-                recommended: recommended_set.contains(model),
+                model: mapping.provider_model.clone(),
+                canonical: mapping.canonical_model.clone(),
+                recommended: recommended_set.contains(mapping.provider_model.as_str()),
             });
         }
 
@@ -160,13 +154,13 @@ impl MappingReport {
     }
 
     fn print_summary(&self) {
-        println!("\n{}", "=".repeat(80));
+        println!("\n{SEPARATOR}");
         println!("CANONICAL MODEL MAPPING REPORT");
-        println!("{}", "=".repeat(80));
+        println!("{SEPARATOR}");
         println!("\nGenerated: {}\n", self.timestamp);
 
         println!("Models Checked Per Provider:");
-        println!("{}", "-".repeat(80));
+        println!("{SUBSEPARATOR}");
         let mut providers: Vec<_> = self.model_counts.iter().collect();
         providers.sort_by_key(|(name, _)| *name);
         for (provider, count) in providers {
@@ -182,9 +176,9 @@ impl MappingReport {
             );
         }
 
-        println!("\n{}", "=".repeat(80));
+        println!("\n{SEPARATOR}");
         println!("UNMAPPED MODELS ({})", self.unmapped_models.len());
-        println!("{}", "=".repeat(80));
+        println!("{SEPARATOR}");
 
         if self.unmapped_models.is_empty() {
             println!("✓ All models are mapped to canonical models!");
@@ -210,12 +204,12 @@ impl MappingReport {
             }
         }
 
-        println!("\n{}", "=".repeat(80));
+        println!("\n{SEPARATOR}");
         println!(
             "CANONICAL MODELS REFERENCED ({})",
             self.canonical_models_used.len()
         );
-        println!("{}", "=".repeat(80));
+        println!("{SEPARATOR}");
         if self.canonical_models_used.is_empty() {
             println!("  (none yet)");
         } else {
@@ -226,56 +220,55 @@ impl MappingReport {
             }
         }
 
-        println!("\n{}", "=".repeat(80));
+        println!("\n{SEPARATOR}");
     }
 
     fn compare_with_previous(&self, previous: &MappingReport) {
-        println!("\n{}", "=".repeat(80));
+        println!("\n{SEPARATOR}");
         println!("CHANGES SINCE PREVIOUS RUN");
-        println!("{}", "=".repeat(80));
+        println!("{SEPARATOR}");
 
-        let mut prev_map: HashMap<(String, String), String> = HashMap::new();
-        for entry in &previous.mapped_models {
-            prev_map.insert(
-                (entry.provider.clone(), entry.model.clone()),
-                entry.canonical.clone(),
-            );
-        }
+        let prev_map: HashMap<(&str, &str), &str> = previous
+            .mapped_models
+            .iter()
+            .map(|e| {
+                (
+                    (e.provider.as_str(), e.model.as_str()),
+                    e.canonical.as_str(),
+                )
+            })
+            .collect();
 
-        let mut curr_map: HashMap<(String, String), String> = HashMap::new();
-        for entry in &self.mapped_models {
-            curr_map.insert(
-                (entry.provider.clone(), entry.model.clone()),
-                entry.canonical.clone(),
-            );
-        }
+        let curr_map: HashMap<(&str, &str), &str> = self
+            .mapped_models
+            .iter()
+            .map(|e| {
+                (
+                    (e.provider.as_str(), e.model.as_str()),
+                    e.canonical.as_str(),
+                )
+            })
+            .collect();
 
         let mut changed_mappings = Vec::new();
         let mut added_mappings = Vec::new();
         let mut removed_mappings = Vec::new();
 
-        for (key @ (provider, model), canonical) in &curr_map {
-            match prev_map.get(key) {
-                Some(prev_canonical) if prev_canonical != canonical => {
-                    changed_mappings.push((
-                        provider.clone(),
-                        model.clone(),
-                        prev_canonical.clone(),
-                        canonical.clone(),
-                    ));
+        for (&key @ (provider, model), &canonical) in &curr_map {
+            match prev_map.get(&key) {
+                Some(&prev_canonical) if prev_canonical != canonical => {
+                    changed_mappings.push((provider, model, prev_canonical, canonical));
                 }
                 None => {
-                    added_mappings.push((provider.clone(), model.clone(), canonical.clone()));
+                    added_mappings.push((provider, model, canonical));
                 }
-                _ => {
-                    // No change
-                }
+                _ => {}
             }
         }
 
-        for (key @ (provider, model), canonical) in &prev_map {
-            if !curr_map.contains_key(key) {
-                removed_mappings.push((provider.clone(), model.clone(), canonical.clone()));
+        for (&key @ (provider, model), &canonical) in &prev_map {
+            if !curr_map.contains_key(&key) {
+                removed_mappings.push((provider, model, canonical));
             }
         }
 
@@ -309,7 +302,7 @@ impl MappingReport {
             }
         }
 
-        println!("\n{}", "=".repeat(80));
+        println!("\n{SEPARATOR}");
     }
 
     fn save_to_file(&self, path: &PathBuf) -> Result<()> {
@@ -344,7 +337,13 @@ impl MappingReport {
     }
 }
 
-async fn build_canonical_models() -> Result<()> {
+fn data_file_path(filename: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("src/providers/canonical/data")
+        .join(filename)
+}
+
+async fn fetch_models_dev() -> Result<Value> {
     println!("Fetching models from models.dev API...");
 
     let client = reqwest::Client::new();
@@ -355,10 +354,34 @@ async fn build_canonical_models() -> Result<()> {
         .await
         .context("Failed to fetch from models.dev API")?;
 
-    let json: Value = response
+    response
         .json()
         .await
-        .context("Failed to parse models.dev response")?;
+        .context("Failed to parse models.dev response")
+}
+
+fn get_string(value: &Value, field: &str) -> Option<String> {
+    value.get(field).and_then(|v| v.as_str()).map(String::from)
+}
+
+fn parse_modalities(model_data: &Value, field: &str) -> Vec<Modality> {
+    model_data
+        .get("modalities")
+        .and_then(|m| m.get(field))
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .filter_map(|s| {
+                    serde_json::from_value(serde_json::Value::String(s.to_string())).ok()
+                })
+                .collect()
+        })
+        .unwrap_or_else(|| vec![Modality::Text])
+}
+
+async fn build_canonical_models() -> Result<()> {
+    let json = fetch_models_dev().await?;
 
     let providers_obj = json
         .as_object()
@@ -413,72 +436,15 @@ async fn build_canonical_models() -> Result<()> {
 
                 let name = model_data["name"]
                     .as_str()
-                    .context(format!("Model {} missing name", model_id))?;
+                    .with_context(|| format!("Model {} missing name", model_id))?;
 
                 // Use canonical_name to normalize the model ID (strips date stamps, etc.)
                 // This deduplicates different versions of the same model
                 let canonical_id = canonical_name(&normalized_provider, model_id);
 
-                let family = model_data
-                    .get("family")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                let attachment = model_data.get("attachment").and_then(|v| v.as_bool());
-
-                let reasoning = model_data.get("reasoning").and_then(|v| v.as_bool());
-
-                let tool_call = model_data
-                    .get("tool_call")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-
-                let temperature = model_data.get("temperature").and_then(|v| v.as_bool());
-
-                let knowledge = model_data
-                    .get("knowledge")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                let release_date = model_data
-                    .get("release_date")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                let last_updated = model_data
-                    .get("last_updated")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
                 let modalities = Modalities {
-                    input: model_data
-                        .get("modalities")
-                        .and_then(|m| m.get("input"))
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_str())
-                                .filter_map(|s| {
-                                    serde_json::from_value(serde_json::Value::String(s.to_string()))
-                                        .ok()
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_else(|| vec![Modality::Text]),
-                    output: model_data
-                        .get("modalities")
-                        .and_then(|m| m.get("output"))
-                        .and_then(|v| v.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|v| v.as_str())
-                                .filter_map(|s| {
-                                    serde_json::from_value(serde_json::Value::String(s.to_string()))
-                                        .ok()
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_else(|| vec![Modality::Text]),
+                    input: parse_modalities(model_data, "input"),
+                    output: parse_modalities(model_data, "output"),
                 };
 
                 let open_weights = model_data.get("open_weights").and_then(|v| v.as_bool());
@@ -504,7 +470,7 @@ async fn build_canonical_models() -> Result<()> {
                         .get("limit")
                         .and_then(|l| l.get("context"))
                         .and_then(|v| v.as_u64())
-                        .unwrap_or(128_000) as usize,
+                        .unwrap_or(DEFAULT_CONTEXT_LIMIT as u64) as usize,
                     output: model_data
                         .get("limit")
                         .and_then(|l| l.get("output"))
@@ -515,14 +481,17 @@ async fn build_canonical_models() -> Result<()> {
                 let canonical_model = CanonicalModel {
                     id: canonical_id.clone(),
                     name: name.to_string(),
-                    family,
-                    attachment,
-                    reasoning,
-                    tool_call,
-                    temperature,
-                    knowledge,
-                    release_date,
-                    last_updated,
+                    family: get_string(model_data, "family"),
+                    attachment: model_data.get("attachment").and_then(|v| v.as_bool()),
+                    reasoning: model_data.get("reasoning").and_then(|v| v.as_bool()),
+                    tool_call: model_data
+                        .get("tool_call")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                    temperature: model_data.get("temperature").and_then(|v| v.as_bool()),
+                    knowledge: get_string(model_data, "knowledge"),
+                    release_date: get_string(model_data, "release_date"),
+                    last_updated: get_string(model_data, "last_updated"),
                     modalities,
                     open_weights,
                     cost,
@@ -605,8 +574,7 @@ async fn build_canonical_models() -> Result<()> {
         println!("  Added {} ({}) - {} models", provider_id, npm, model_count);
     }
 
-    let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/providers/canonical/data/canonical_models.json");
+    let output_path = data_file_path("canonical_models.json");
     registry.to_file(&output_path)?;
     println!(
         "\n✓ Wrote {} models to {}",
@@ -615,8 +583,7 @@ async fn build_canonical_models() -> Result<()> {
     );
 
     // Save provider metadata
-    let provider_metadata_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/providers/canonical/data/provider_metadata.json");
+    let provider_metadata_path = data_file_path("provider_metadata.json");
     let provider_metadata_json = serde_json::to_string_pretty(&provider_metadata_list)?;
     std::fs::write(&provider_metadata_path, provider_metadata_json)?;
     println!(
@@ -634,7 +601,7 @@ async fn check_provider(
 ) -> Result<(Vec<String>, Vec<ModelMapping>, Vec<String>)> {
     println!("Checking provider: {}", provider_name);
 
-    let provider = match create_with_named_model(provider_name, model_for_init).await {
+    let provider = match create_with_named_model(provider_name, model_for_init, Vec::new()).await {
         Ok(p) => p,
         Err(e) => {
             println!("  ⚠ Failed to create provider: {}", e);
@@ -644,13 +611,9 @@ async fn check_provider(
     };
 
     let fetched_models = match provider.fetch_supported_models().await {
-        Ok(Some(models)) => {
+        Ok(models) => {
             println!("  ✓ Fetched {} models", models.len());
             models
-        }
-        Ok(None) => {
-            println!("  ⚠ Provider does not support model listing");
-            Vec::new()
         }
         Err(e) => {
             println!("  ⚠ Failed to fetch models: {}", e);
@@ -660,11 +623,10 @@ async fn check_provider(
     };
 
     let recommended_models = match provider.fetch_recommended_models().await {
-        Ok(Some(models)) => {
+        Ok(models) => {
             println!("  ✓ Found {} recommended models", models.len());
             models
         }
-        Ok(None) => Vec::new(),
         Err(e) => {
             println!("  ⚠ Failed to fetch recommended models: {}", e);
             Vec::new()
@@ -691,11 +653,10 @@ async fn check_provider(
 }
 
 async fn check_canonical_mappings() -> Result<()> {
-    println!("\n{}", "=".repeat(80));
+    println!("\n{SEPARATOR}");
     println!("Canonical Model Checker");
     println!("Checking model mappings for top providers...\n");
 
-    // Define providers to check with their default models
     let providers = vec![
         ("anthropic", "claude-3-5-sonnet-20241022"),
         ("openai", "gpt-4"),
@@ -720,8 +681,7 @@ async fn check_canonical_mappings() -> Result<()> {
 
     report.print_summary();
 
-    let output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("src/providers/canonical/data/canonical_mapping_report.json");
+    let output_path = data_file_path("canonical_mapping_report.json");
 
     if output_path.exists() {
         if let Ok(previous) = MappingReport::load_from_file(&output_path) {
@@ -739,10 +699,8 @@ async fn check_canonical_mappings() -> Result<()> {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Build canonical models
     build_canonical_models().await?;
 
-    // Run the checker unless --no-check is passed
     if !args.no_check {
         check_canonical_mappings().await?;
     }

@@ -25,13 +25,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/colla
 import { Gear } from '../icons';
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { listSessions, Session } from '../../api';
+import { listSessions, Session, updateSessionName } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 import { useConfig } from '../ConfigContext';
+import { InlineEditText } from '../common/InlineEditText';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -95,13 +96,14 @@ const menuItems: NavigationEntry[] = [
 ];
 
 const getSessionDisplayName = (session: Session): string => {
-  if (!shouldShowNewChatTitle(session)) {
-    return session.name;
-  }
   if (session.recipe?.title) {
     return session.recipe.title;
   }
-  return DEFAULT_CHAT_TITLE;
+
+  if (shouldShowNewChatTitle(session)) {
+    return DEFAULT_CHAT_TITLE;
+  }
+  return session.name;
 };
 
 const SessionList = React.memo<{
@@ -123,6 +125,21 @@ const SessionList = React.memo<{
       });
     }, [sessions]);
 
+    const handleRenameSession = async (sessionId: string, newName: string) => {
+      await updateSessionName({
+        path: { session_id: sessionId },
+        body: { name: newName },
+        throwOnError: true,
+      });
+
+      // Dispatch event to update all components
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_RENAMED, {
+          detail: { sessionId, newName },
+        })
+      );
+    };
+
     return (
       <div className="relative ml-3">
         {sortedSessions.map((session, index) => {
@@ -132,6 +149,7 @@ const SessionList = React.memo<{
           const hasUnread = status?.hasUnreadActivity ?? false;
           const displayName = getSessionDisplayName(session);
           const isLast = index === sortedSessions.length - 1;
+          const canRename = !session.recipe?.title;
 
           return (
             <div key={session.id} className="relative flex items-center">
@@ -153,7 +171,19 @@ const SessionList = React.memo<{
                 title={displayName}
               >
                 {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
-                <span className="flex-1 truncate min-w-0 block">{displayName}</span>
+                <div className="flex-1 min-w-0">
+                  {canRename ? (
+                    <InlineEditText
+                      value={displayName}
+                      onSave={(newName) => handleRenameSession(session.id, newName)}
+                      className="text-sm -mx-2 -my-1"
+                      editClassName="text-sm"
+                      singleClickEdit={false}
+                    />
+                  ) : (
+                    <span className="truncate block">{displayName}</span>
+                  )}
+                </div>
                 <SessionIndicators
                   isStreaming={isStreaming}
                   hasUnread={hasUnread}
@@ -407,14 +437,16 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     } else {
       isCreatingSessionRef.current = true;
       try {
-        await startNewSession('', setView, getInitialWorkingDir());
+        await startNewSession('', setView, getInitialWorkingDir(), {
+          allExtensions: configContext.extensionsList,
+        });
       } finally {
         setTimeout(() => {
           isCreatingSessionRef.current = false;
         }, 1000);
       }
     }
-  }, [setView, clearUnread]);
+  }, [setView, clearUnread, configContext.extensionsList]);
 
   useEffect(() => {
     const handleTriggerNewChat = () => {

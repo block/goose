@@ -10,13 +10,11 @@ use crate::state::AppState;
 use anyhow::Result;
 use axum::http::StatusCode;
 use goose::agents::Agent;
-use goose::prompt_template::render_template;
 use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
 use serde::Serialize;
-use serde_json::Value;
 use tracing::error;
 use utoipa::ToSchema;
 
@@ -163,16 +161,8 @@ pub async fn apply_recipe_to_agent(
     include_final_output_tool: bool,
 ) -> Option<String> {
     agent
-        .apply_recipe_components(
-            recipe.sub_recipes.clone(),
-            recipe.response.clone(),
-            include_final_output_tool,
-        )
+        .apply_recipe_components(recipe.response.clone(), include_final_output_tool)
         .await;
 
-    recipe.instructions.as_ref().map(|instructions| {
-        let mut context: HashMap<&str, Value> = HashMap::new();
-        context.insert("recipe_instructions", Value::String(instructions.clone()));
-        render_template("desktop_recipe_instruction.md", &context).expect("Prompt should render")
-    })
+    recipe.instructions.as_ref().cloned()
 }

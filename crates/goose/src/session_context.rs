@@ -1,6 +1,7 @@
 use tokio::task_local;
 
 pub const SESSION_ID_HEADER: &str = "agent-session-id";
+pub const WORKING_DIR_HEADER: &str = "agent-working-dir";
 
 task_local! {
     pub static SESSION_ID: Option<String>;

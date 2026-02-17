@@ -9,7 +9,9 @@ use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
@@ -18,8 +20,10 @@ use crate::session_context::SESSION_ID_HEADER;
 
 use crate::model::ModelConfig;
 use chrono::Utc;
+use futures::future::BoxFuture;
 use rmcp::model::Role;
 
+const SAGEMAKER_TGI_PROVIDER_NAME: &str = "sagemaker_tgi";
 pub const SAGEMAKER_TGI_DOC_LINK: &str =
     "https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html";
 
@@ -82,7 +86,7 @@ impl SageMakerTgiProvider {
             sagemaker_client,
             endpoint_name,
             model,
-            name: Self::metadata().name,
+            name: SAGEMAKER_TGI_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -268,11 +272,12 @@ impl SageMakerTgiProvider {
     }
 }
 
-#[async_trait]
-impl Provider for SageMakerTgiProvider {
+impl ProviderDef for SageMakerTgiProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "sagemaker_tgi",
+            SAGEMAKER_TGI_PROVIDER_NAME,
             "Amazon SageMaker TGI",
             "Run Text Generation Inference models through Amazon SageMaker endpoints. Requires AWS credentials and a SageMaker endpoint URL.",
             SAGEMAKER_TGI_DEFAULT_MODEL,
@@ -286,6 +291,16 @@ impl Provider for SageMakerTgiProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for SageMakerTgiProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -298,14 +313,19 @@ impl Provider for SageMakerTgiProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let model_name = &model_config.model_name;
 
         let request_payload = self.create_tgi_request(system, messages).map_err(|e| {
@@ -338,6 +358,9 @@ impl Provider for SageMakerTgiProvider {
         )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-        Ok((message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }

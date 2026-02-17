@@ -109,8 +109,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
   if (isWelcome) {
     return (
       <>
-        <div className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl">
-          <h3 className="font-medium text-text-standard text-sm sm:text-base mb-1">{title}</h3>
+        <div className="w-full p-4 sm:p-6 bg-transparent border rounded-xl">
+          <h3 className="font-medium text-text-default text-sm sm:text-base mb-1">{title}</h3>
           <p className="text-text-muted text-sm sm:text-base mb-4">{description}</p>
           {toggleRow}
         </div>

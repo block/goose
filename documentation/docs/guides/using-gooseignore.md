@@ -20,7 +20,7 @@ goose supports two types of `.gooseignore` files:
 - **Local ignore file** - Create a `.gooseignore` file at the root of the directory you'd like it applied to. These restrictions will only apply when working in a specific directory.
 
 :::tip
-You can use both global and local `.gooseignore` files simultaneously. When both exist, goose will combine the restrictions from both files to determine which paths are restricted.
+You can use both global and local `.gooseignore` files simultaneously. When both exist, goose will apply patterns from both files, with local patterns able to override global ones using negation.
 :::
 
 ## Example `.gooseignore` file
@@ -41,45 +41,90 @@ downloads/           # Ignore everything in the "downloads" directory
 
 # Ignore all files with this name in any directory
 **/credentials.json  # Ignore all files named "credentials.json" in any directory
-
-# Complex patterns
-*.log                # Ignore all .log files
-!error.log           # Except for error.log file
 ```
+
+## Negation Patterns
+
+Use the `!` prefix to exclude files from ignore rules. This allows you to ignore broad patterns while allowing specific exceptions.
+
+Within each `.gooseignore` file, patterns are processed in order from top to bottom, so later patterns can override earlier ones. Negation patterns also work across files - you can use negation in your local `.gooseignore` to allow access to files blocked by your global `.gooseignore`.
+
+```plaintext
+# Ignore all environment files
+**/.env*
+
+# But allow the example file
+!.env.example
+
+# Ignore all log files
+*.log
+
+# But allow error logs
+!error.log
+
+# Ignore all JSON files in the config directory
+config/*.json
+
+# But allow the template
+!config/template.json
+```
+
+:::tip Pattern Order Matters
+Negation patterns must come after the patterns they're negating. The `!` pattern re-includes files that were previously ignored.
+:::
 
 ## Ignore File Types and Priority
-goose respects ignore rules from global `.gooseignore` and local `.gooseignore` files. It uses a priority system to determine which files should be ignored. 
 
-### 1. Global `.gooseignore`
-- Highest priority and always applied first
-- Located at `~/.config/goose/.gooseignore`
-- Affects all projects on your machine
+goose respects ignore rules from global and local `.gooseignore` files, using a priority system where later patterns can override earlier ones.
+
+### When You Have Ignore Files
+
+When `.gooseignore` files exist, patterns are applied in this order:
+
+1. **Global `.gooseignore`** (applied first)
+   - Located at `~/.config/goose/.gooseignore`
+   - Affects all projects on your machine
+
+2. **Local `.gooseignore`** (applied second, can override global)
+   - Located in the current working directory (the root of the directory you want these rules applied to)
+   - Project-specific rules that can override global patterns
 
 ```
 ~/.config/goose/
-└── .gooseignore      ← Applied to all projects
-```
-
-### 2. Local `.gooseignore`
-- Project-specific rules
-- Located in your project root directory
-
-```
-~/.config/goose/
-└── .gooseignore      ← Global rules applied first
+└── .gooseignore      ← Global patterns applied first
 
 Project/
-├── .gooseignore      ← Local rules applied second
+├── .gooseignore      ← Local patterns applied second (can override global)
 └── src/
 ```
 
-### 3. Default Patterns
-By default, if you haven't created any .gooseignore files, goose will not modify files matching these patterns:
+Because patterns are processed in order, you can use negation patterns in your local `.gooseignore` to allow access to files that were blocked by global patterns.
+
+**Example: Override global restrictions in a specific project**
+
+```plaintext
+# In ~/.config/goose/.gooseignore (global)
+**/.env*              # Block all .env files everywhere
+
+# In your-project/.gooseignore (local)
+!.env.example         # Allow .env.example in this project only
+```
+
+In this example, `.env` and `.env.local` remain blocked, but `.env.example` is accessible in this specific project.
+
+### Default Patterns (No Ignore Files)
+
+If you haven't created any `.gooseignore` files (neither global nor local), goose automatically protects these sensitive files:
+
 ```plaintext
 **/.env
 **/.env.*
 **/secrets.*
 ```
+
+:::info
+These default patterns are only active when **no** `.gooseignore` files exist. Once you create either a global or local `.gooseignore` file, you'll need to add these patterns yourself if you want to keep them.
+:::
 
 ## Common use cases
 

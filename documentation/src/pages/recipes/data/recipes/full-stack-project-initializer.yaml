@@ -153,7 +153,7 @@ prompt: |
        Install dependencies.
        Create app/ with routers, models, schemas, services, core directories.
        Create app/main.py with FastAPI and health endpoint.
-       Set up Black, Flake8, Mypy, and Pytest.
+       Set up Black, Flake8, Mypy, and pytest.
      {% elif backend_framework == "go" %}
        Initialize Go module.
        Install Gin and database libraries.
@@ -175,7 +175,7 @@ prompt: |
          Add integration tests for database operations.
          Create __tests__ directories alongside source files.
        {% elif backend_framework == "python-fastapi" %}
-         Configure Pytest with pytest-asyncio and httpx.
+         Configure pytest with pytest-asyncio and httpx.
          Create tests for endpoints, services, and models.
          Add integration tests for database operations.
          Set up test fixtures and mocks.

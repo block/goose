@@ -217,7 +217,11 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             api_key_env,
             base_url: params.api_url,
             models: model_infos,
-            headers: params.headers.or(existing_config.headers),
+            headers: match params.headers {
+                Some(h) if h.is_empty() => None,
+                Some(h) => Some(h),
+                None => existing_config.headers,
+            },
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming: params.supports_streaming,
             requires_auth: params.requires_auth,

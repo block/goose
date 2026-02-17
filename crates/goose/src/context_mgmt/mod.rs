@@ -2,6 +2,8 @@ use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_template;
+#[cfg(test)]
+use crate::providers::base::{stream_from_single_message, MessageStream};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
@@ -11,25 +13,25 @@ use rmcp::model::Role;
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
+use tracing::info;
 use tracing::log::warn;
-use tracing::{debug, info};
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
 const CONVERSATION_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared because a context limit was reached.
+    "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
-Just continue the conversation naturally based on the summarized context";
+Just continue the conversation naturally based on the summarized context.";
 
 const TOOL_LOOP_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared because a context limit was reached.
+    "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
 Continue calling tools as necessary to complete the task.";
 
 const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared at the user's request.
+    "Your context was compacted at the user's request. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
-Just continue the conversation naturally based on the summarized context";
+Just continue the conversation naturally based on the summarized context.";
 
 #[derive(Serialize)]
 struct SummarizeContext {
@@ -188,7 +190,7 @@ pub async fn check_if_compaction_needed(
 
     let context_limit = provider.get_model_config().context_limit();
 
-    let (current_tokens, token_source) = match session.total_tokens {
+    let (current_tokens, _token_source) = match session.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
             let token_counter = create_token_counter()
@@ -212,17 +214,6 @@ pub async fn check_if_compaction_needed(
     } else {
         usage_ratio > threshold
     };
-
-    debug!(
-        "Compaction check: {} / {} tokens ({:.1}%), threshold: {:.1}%, needs compaction: {}, source: {}",
-        current_tokens,
-        context_limit,
-        usage_ratio * 100.0,
-        threshold * 100.0,
-        needs_compaction,
-        token_source
-    );
-
     Ok(needs_compaction)
 }
 
@@ -347,19 +338,19 @@ fn format_message_for_compacting(msg: &Message) -> String {
     let content_parts: Vec<String> = msg
         .content
         .iter()
-        .map(|content| match content {
-            MessageContent::Text(text) => text.text.clone(),
-            MessageContent::Image(img) => format!("[image: {}]", img.mime_type),
+        .filter_map(|content| match content {
+            MessageContent::Text(text) => Some(text.text.clone()),
+            MessageContent::Image(img) => Some(format!("[image: {}]", img.mime_type)),
             MessageContent::ToolRequest(req) => {
                 if let Ok(call) = &req.tool_call {
-                    format!(
+                    Some(format!(
                         "tool_request({}): {}",
                         call.name,
                         serde_json::to_string(&call.arguments)
                             .unwrap_or_else(|_| "<<invalid json>>".to_string())
-                    )
+                    ))
                 } else {
-                    "tool_request: [error]".to_string()
+                    Some("tool_request: [error]".to_string())
                 }
             }
             MessageContent::ToolResponse(res) => {
@@ -373,40 +364,41 @@ fn format_message_for_compacting(msg: &Message) -> String {
                         .collect();
 
                     if !text_items.is_empty() {
-                        format!("tool_response: {}", text_items.join("\n"))
+                        Some(format!("tool_response: {}", text_items.join("\n")))
                     } else {
-                        "tool_response: [non-text content]".to_string()
+                        Some("tool_response: [non-text content]".to_string())
                     }
                 } else {
-                    "tool_response: [error]".to_string()
+                    Some("tool_response: [error]".to_string())
                 }
             }
             MessageContent::ToolConfirmationRequest(req) => {
-                format!("tool_confirmation_request: {}", req.tool_name)
+                Some(format!("tool_confirmation_request: {}", req.tool_name))
             }
             MessageContent::ActionRequired(action) => match &action.data {
                 ActionRequiredData::ToolConfirmation { tool_name, .. } => {
-                    format!("action_required(tool_confirmation): {}", tool_name)
+                    Some(format!("action_required(tool_confirmation): {}", tool_name))
                 }
                 ActionRequiredData::Elicitation { message, .. } => {
-                    format!("action_required(elicitation): {}", message)
+                    Some(format!("action_required(elicitation): {}", message))
                 }
                 ActionRequiredData::ElicitationResponse { id, .. } => {
-                    format!("action_required(elicitation_response): {}", id)
+                    Some(format!("action_required(elicitation_response): {}", id))
                 }
             },
             MessageContent::FrontendToolRequest(req) => {
                 if let Ok(call) = &req.tool_call {
-                    format!("frontend_tool_request: {}", call.name)
+                    Some(format!("frontend_tool_request: {}", call.name))
                 } else {
-                    "frontend_tool_request: [error]".to_string()
+                    Some("frontend_tool_request: [error]".to_string())
                 }
             }
-            MessageContent::Thinking(_) => "thinking".to_string(),
-            MessageContent::RedactedThinking(_) => "redacted_thinking".to_string(),
+            MessageContent::Thinking(_) => None,
+            MessageContent::RedactedThinking(_) => None,
             MessageContent::SystemNotification(notification) => {
-                format!("system_notification: {}", notification.msg)
+                Some(format!("system_notification: {}", notification.msg))
             }
+            MessageContent::Reasoning(_) => None,
         })
         .collect();
 
@@ -537,10 +529,7 @@ mod tests {
     use super::*;
     use crate::{
         model::ModelConfig,
-        providers::{
-            base::{ProviderMetadata, Usage},
-            errors::ProviderError,
-        },
+        providers::{base::Usage, errors::ProviderError},
     };
     use async_trait::async_trait;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
@@ -562,7 +551,7 @@ mod tests {
                     max_tokens: None,
                     toolshim: false,
                     toolshim_model: None,
-                    fast_model: None,
+                    fast_model_config: None,
                     request_params: None,
                 },
                 max_tool_responses: None,
@@ -577,22 +566,18 @@ mod tests {
 
     #[async_trait]
     impl Provider for MockProvider {
-        fn metadata() -> ProviderMetadata {
-            ProviderMetadata::new("mock", "", "", "", vec![""], "", vec![])
-        }
-
         fn get_name(&self) -> &str {
             "mock"
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &ModelConfig,
+            _session_id: &str,
             _system: &str,
             messages: &[Message],
             _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), ProviderError> {
+        ) -> Result<MessageStream, ProviderError> {
             // If max_tool_responses is set, fail if we have too many
             if let Some(max) = self.max_tool_responses {
                 let tool_response_count = messages
@@ -612,10 +597,9 @@ mod tests {
                 }
             }
 
-            Ok((
-                self.message.clone(),
-                ProviderUsage::new("mock-model".to_string(), Usage::default()),
-            ))
+            let message = self.message.clone();
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
         }
 
         fn get_model_config(&self) -> ModelConfig {

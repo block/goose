@@ -246,8 +246,8 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-gray-900 text-text-default p-8">
         <BackButton onClick={onNavigateBack} />
-        <h1 className="text-2xl font-medium text-text-prominent mt-4">Schedule Not Found</h1>
-        <p className="text-text-subtle mt-2">No schedule ID provided. Return to schedules list.</p>
+        <h1 className="text-2xl font-medium text-text-default mt-4">Schedule Not Found</h1>
+        <p className="text-text-muted mt-2">No schedule ID provided. Return to schedules list.</p>
       </div>
     );
   }
@@ -264,7 +264,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
   return (
     <div className="h-screen w-full flex flex-col bg-background-default text-text-default">
-      <div className="px-8 pt-6 pb-4 border-b border-border-subtle flex-shrink-0">
+      <div className="px-8 pt-6 pb-4 border-b border-border-default flex-shrink-0">
         <BackButton onClick={onNavigateBack} />
         <h1 className="text-4xl font-light mt-1 mb-1 pt-8">Schedule Details</h1>
         <p className="text-sm text-text-muted mb-1">Viewing Schedule ID: {scheduleId}</p>
@@ -273,22 +273,22 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       <ScrollArea className="flex-grow">
         <div className="p-8 space-y-6">
           <section>
-            <h2 className="text-xl font-semibold text-text-prominent mb-3">Schedule Information</h2>
+            <h2 className="text-xl font-semibold text-text-default mb-3">Schedule Information</h2>
             {isLoadingSchedule && (
-              <div className="flex items-center text-text-subtle">
+              <div className="flex items-center text-text-muted">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading schedule...
               </div>
             )}
             {scheduleError && (
-              <p className="text-text-error text-sm p-3 bg-background-error border border-border-error rounded-md">
+              <p className="text-text-danger text-sm p-3 bg-background-danger border border-border-danger rounded-md">
                 Error: {scheduleError}
               </p>
             )}
             {scheduleDetails && (
-              <Card className="p-4 bg-background-card shadow mb-6">
+              <Card className="p-4 bg-background-default shadow mb-6">
                 <div className="space-y-2">
                   <div className="flex flex-col md:flex-row md:items-center justify-between">
-                    <h3 className="text-base font-semibold text-text-prominent">
+                    <h3 className="text-base font-semibold text-text-default">
                       {scheduleDetails.id}
                     </h3>
                     <div className="mt-2 md:mt-0 flex items-center gap-2">
@@ -337,7 +337,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-text-prominent mb-3">Actions</h2>
+            <h2 className="text-xl font-semibold text-text-default mb-3">Actions</h2>
             <div className="flex flex-col md:flex-row gap-2">
               <Button
                 onClick={handleRunNow}
@@ -422,15 +422,15 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-text-prominent mb-4">Recent Sessions</h2>
-            {isLoadingSessions && <p className="text-text-subtle">Loading sessions...</p>}
+            <h2 className="text-xl font-semibold text-text-default mb-4">Recent Sessions</h2>
+            {isLoadingSessions && <p className="text-text-muted">Loading sessions...</p>}
             {sessionsError && (
-              <p className="text-text-error text-sm p-3 bg-background-error border border-border-error rounded-md">
+              <p className="text-text-danger text-sm p-3 bg-background-danger border border-border-danger rounded-md">
                 Error: {sessionsError}
               </p>
             )}
             {!isLoadingSessions && sessions.length === 0 && (
-              <p className="text-text-subtle text-center py-4">
+              <p className="text-text-muted text-center py-4">
                 No sessions found for this schedule.
               </p>
             )}
@@ -440,27 +440,27 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                 {sessions.map((session) => (
                   <Card
                     key={session.id}
-                    className="p-4 bg-background-card shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                    className="p-4 bg-background-default shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
                     onClick={() => loadSession(session.id)}
                   >
                     <h3
-                      className="text-sm font-semibold text-text-prominent truncate"
+                      className="text-sm font-semibold text-text-default truncate"
                       title={session.name || session.id}
                     >
                       {session.name || `Session ID: ${session.id}`}
                     </h3>
-                    <p className="text-xs text-text-subtle mt-1">
+                    <p className="text-xs text-text-muted mt-1">
                       Created:{' '}
                       {session.createdAt ? formatToLocalDateWithTimezone(session.createdAt) : 'N/A'}
                     </p>
                     {session.messageCount !== undefined && (
-                      <p className="text-xs text-text-subtle mt-1">
+                      <p className="text-xs text-text-muted mt-1">
                         Messages: {session.messageCount}
                       </p>
                     )}
                     {session.workingDir && (
                       <p
-                        className="text-xs text-text-subtle mt-1 truncate"
+                        className="text-xs text-text-muted mt-1 truncate"
                         title={session.workingDir}
                       >
                         Dir: {session.workingDir}
@@ -468,7 +468,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     )}
                     {session.accumulatedTotalTokens !== undefined &&
                       session.accumulatedTotalTokens !== null && (
-                        <p className="text-xs text-text-subtle mt-1">
+                        <p className="text-xs text-text-muted mt-1">
                           Tokens: {session.accumulatedTotalTokens}
                         </p>
                       )}

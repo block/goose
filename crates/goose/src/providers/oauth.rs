@@ -295,7 +295,7 @@ impl OAuthFlow {
         // though it will ultimately only get used once
         let tx = Arc::new(tokio::sync::Mutex::new(Some(tx)));
 
-        // Setup a server that will receive the redirect, capture the code, and display success/failure
+        // Set up a server that will receive the redirect, capture the code, and display success/failure
         let app = Router::new().route(
             "/",
             get(move |Query(params): Query<HashMap<String, String>>| {

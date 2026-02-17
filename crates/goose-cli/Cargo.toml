@@ -14,48 +14,54 @@ workspace = true
 name = "goose"
 path = "src/main.rs"
 
+[[bin]]
+name = "generate_manpages"
+path = "src/bin/generate_manpages.rs"
+
 [dependencies]
+clap_mangen = "0.2.31"
 goose = { path = "../goose" }
 goose-acp = { path = "../goose-acp" }
-goose-bench = { path = "../goose-bench" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
-clap = { version = "4.4", features = ["derive"] }
+clap = { workspace = true }
 cliclack = "0.3.5"
 console = "0.16.1"
-uuid = { version = "1.11", features = ["v4"] }
-dotenvy = "0.15.7"
-bat = "0.25.0"
+uuid = { workspace = true }
+dotenvy = { workspace = true }
+bat = { version = "0.26.1", default-features = false, features = ["regex-onig"] }
 anyhow = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }  # For serialization
-serde_yaml = "0.9"
-tempfile = "3"
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+tempfile = { workspace = true }
 etcetera = { workspace = true }
-rand = "0.8.5"
+rand = { workspace = true }
 rustyline = "15.0.0"
 tracing = { workspace = true }
-chrono = "0.4"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "time"] }
-tracing-appender = "0.2"
+chrono = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json", "time"] }
+tracing-appender = { workspace = true }
 shlex = "1.3.0"
-async-trait = "0.1.89"
+async-trait = { workspace = true }
 base64 = { workspace = true }
-regex = "1.11.1"
+regex = { workspace = true }
 tar = "0.4"
 # Web server dependencies
-axum = { version = "0.8.1", features = ["ws", "macros"] }
+axum = { workspace = true, features = ["ws", "macros"] }
 tower-http = { workspace = true, features = ["cors", "fs", "auth"] }
-http = "1.0"
-webbrowser = {workspace = true}
+http = { workspace = true }
+webbrowser = { workspace = true }
 indicatif = "0.18.1"
-tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
+tokio-util = { workspace = true, features = ["compat", "rt"] }
 anstream = "0.6.18"
 open = "5.3.2"
-urlencoding = "2.1"
+url = { workspace = true }
+urlencoding = { workspace = true }
 clap_complete = "4.5.62"
+comfy-table = "7.2.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
@@ -65,5 +71,6 @@ winapi = { version = "0.3", features = ["wincred"] }
 disable-update = []
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
+test-case = { workspace = true }
 tokio = { workspace = true }

@@ -84,7 +84,7 @@ pub fn find_method_for_receiver(
     let mut current = *receiver_node;
     while let Some(parent) = current.parent() {
         if parent.kind() == "method_declaration" {
-            for i in 0..parent.child_count() {
+            for i in 0..parent.child_count() as u32 {
                 if let Some(child) = parent.child(i) {
                     if child.kind() == "field_identifier" {
                         return source.get(child.byte_range()).map(|s| s.to_string());

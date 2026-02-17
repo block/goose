@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use tokio::fs;
 
 use axum::{
     extract::{Path, Query, State},
@@ -9,13 +10,30 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::routes::errors::ErrorResponse;
+use crate::routes::recipe_utils::validate_recipe;
 use crate::state::AppState;
-use goose::scheduler::ScheduledJob;
+use goose::recipe::Recipe;
+use goose::scheduler::{get_default_scheduled_recipes_dir, ScheduledJob};
+
+fn validate_schedule_id(id: &str) -> Result<(), ErrorResponse> {
+    let is_valid = !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ' ');
+
+    if !is_valid {
+        return Err(ErrorResponse::bad_request(
+            "Schedule name must use only alphanumeric characters, hyphens, underscores, or spaces"
+                .to_string(),
+        ));
+    }
+    Ok(())
+}
 
 #[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct CreateScheduleRequest {
     id: String,
-    recipe_source: String,
+    recipe: Recipe,
     cron: String,
 }
 
@@ -89,11 +107,36 @@ async fn create_schedule(
     State(state): State<Arc<AppState>>,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<ScheduledJob>, ErrorResponse> {
-    let scheduler = state.scheduler();
+    let id = req.id.trim().to_string();
+    validate_schedule_id(&id)?;
+
+    if req.recipe.check_for_security_warnings() {
+        return Err(ErrorResponse::bad_request(
+            "This recipe contains hidden characters that could be malicious. Please remove them before trying to save.".to_string(),
+        ));
+    }
+    if let Err(err) = validate_recipe(&req.recipe) {
+        return Err(ErrorResponse {
+            message: err.message,
+            status: err.status,
+        });
+    }
+    let scheduled_recipes_dir = get_default_scheduled_recipes_dir().map_err(|e| {
+        ErrorResponse::internal(format!("Failed to get scheduled recipes directory: {}", e))
+    })?;
+
+    let recipe_path = scheduled_recipes_dir.join(format!("{}.yaml", id));
+    let yaml_content = req
+        .recipe
+        .to_yaml()
+        .map_err(|e| ErrorResponse::internal(format!("Failed to convert recipe to YAML: {}", e)))?;
+    fs::write(&recipe_path, yaml_content)
+        .await
+        .map_err(|e| ErrorResponse::internal(format!("Failed to save recipe file: {}", e)))?;
 
     let job = ScheduledJob {
-        id: req.id,
-        source: req.recipe_source,
+        id,
+        source: recipe_path.to_string_lossy().into_owned(),
         cron: req.cron,
         last_run: None,
         currently_running: false,
@@ -101,8 +144,10 @@ async fn create_schedule(
         current_session_id: None,
         process_start_time: None,
     };
+
+    let scheduler = state.scheduler();
     scheduler
-        .add_scheduled_job(job.clone(), true)
+        .add_scheduled_job(job.clone(), false)
         .await
         .map_err(|e| match e {
             goose::scheduler::SchedulerError::CronParseError(msg) => {
@@ -117,6 +162,7 @@ async fn create_schedule(
             },
             _ => ErrorResponse::internal(format!("Error creating schedule: {}", e)),
         })?;
+
     Ok(Json(job))
 }
 
@@ -228,7 +274,7 @@ async fn run_now_handler(
 
     let recipe_version_tag = recipe_version_opt.as_deref().unwrap_or("");
     tracing::info!(
-        counter.goose.recipe_runs = 1,
+        monotonic_counter.goose.recipe_runs = 1,
         recipe_name = %recipe_display_name,
         recipe_version = %recipe_version_tag,
         session_type = "schedule",

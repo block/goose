@@ -131,7 +131,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-textStandard"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2"></div>
         </div>
         <p className="text-center text-text-muted">Checking for Ollama...</p>
       </div>
@@ -142,8 +142,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
     <div className="space-y-6">
       {/* Header with icon above heading - left aligned like onboarding cards */}
       <div className="text-left">
-        <Ollama className="w-6 h-6 mb-3 text-text-standard" />
-        <h3 className="text-lg font-semibold text-text-standard mb-2">Ollama Setup</h3>
+        <Ollama className="w-6 h-6 mb-3 text-text-default" />
+        <h3 className="text-lg font-semibold text-text-default mb-2">Ollama Setup</h3>
         <p className="text-text-muted">
           Ollama lets you run AI models for free, private and locally on your computer.
         </p>
@@ -159,7 +159,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
 
           {modelStatus === 'checking' ? (
             <div className="flex items-center justify-center py-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-textStandard"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2"></div>
             </div>
           ) : modelStatus === 'not-available' ? (
             <div className="space-y-4">
@@ -174,7 +174,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               <button
                 onClick={handleDownloadModel}
                 disabled={false}
-                className="w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
+                className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
               >
                 Download {getPreferredModel()} (~11GB)
               </button>
@@ -190,7 +190,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
                       <div className="mt-3">
                         <div className="bg-background-muted rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-background-primary h-full transition-all duration-300"
+                            className="h-full transition-all duration-300"
                             style={{
                               width: `${(downloadProgress.completed / downloadProgress.total) * 100}%`,
                             }}
@@ -209,7 +209,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
             <button
               onClick={handleConnectOllama}
               disabled={isConnecting}
-              className="w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium flex items-center justify-center gap-2"
+              className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
             >
               {isConnecting ? 'Connecting...' : 'Use Goose with Ollama'}
             </button>
@@ -226,7 +226,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
           {isPolling ? (
             <div className="space-y-4">
               <div className="flex items-center justify-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-textStandard"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2"></div>
               </div>
               <p className="text-text-muted text-sm">Waiting for Ollama to start...</p>
               <p className="text-text-muted text-xs">
@@ -239,7 +239,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleInstallClick}
-              className="block w-full px-6 py-3 bg-background-muted text-text-standard rounded-lg hover:bg-background-hover transition-colors font-medium text-center"
+              className="block w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium text-center"
             >
               Install Ollama
             </a>

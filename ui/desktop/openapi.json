@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.22.0"
+    "version": "1.24.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -741,6 +741,36 @@
         }
       }
     },
+    "/config/canonical-model-info": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_canonical_model_info",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelInfoQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/check_provider": {
       "post": {
         "tags": [
@@ -1091,36 +1121,6 @@
           },
           "400": {
             "description": "Invalid request"
-          }
-        }
-      }
-    },
-    "/config/pricing": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "get_pricing",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PricingQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Model pricing data retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PricingResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -1639,6 +1639,222 @@
           },
           "500": {
             "description": "Failed to generate diagnostics"
+          }
+        }
+      }
+    },
+    "/dictation/config": {
+      "get": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "get_dictation_config",
+        "responses": {
+          "200": {
+            "description": "Audio transcription provider configurations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/DictationProviderStatus"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dictation/models": {
+      "get": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "list_models",
+        "responses": {
+          "200": {
+            "description": "List of available Whisper models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WhisperModelResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dictation/models/{model_id}": {
+      "delete": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "delete_model",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model deleted"
+          },
+          "404": {
+            "description": "Model not found or not downloaded"
+          },
+          "500": {
+            "description": "Failed to delete model"
+          }
+        }
+      }
+    },
+    "/dictation/models/{model_id}/download": {
+      "get": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "get_download_progress",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadProgress"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Download not found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "download_model",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Download started"
+          },
+          "400": {
+            "description": "Download already in progress"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "cancel_download",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download cancelled"
+          },
+          "404": {
+            "description": "Download not found"
+          }
+        }
+      }
+    },
+    "/dictation/transcribe": {
+      "post": {
+        "tags": [
+          "super::routes::dictation"
+        ],
+        "operationId": "transcribe_dictation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscribeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Audio transcribed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscribeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (bad base64 or unsupported format)"
+          },
+          "401": {
+            "description": "Invalid API key"
+          },
+          "412": {
+            "description": "Provider not configured"
+          },
+          "413": {
+            "description": "Audio file too large (max 25MB)"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "502": {
+            "description": "Provider API error"
+          },
+          "503": {
+            "description": "Service unavailable"
+          },
+          "504": {
+            "description": "Request timeout"
           }
         }
       }
@@ -2601,6 +2817,85 @@
         ]
       }
     },
+    "/sessions/search": {
+      "get": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "search_sessions",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "Search query string",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum results (default: 10, max: 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "after_date",
+            "in": "query",
+            "description": "Filter after date (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "before_date",
+            "in": "query",
+            "description": "Filter before date (ISO 8601)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Session"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid query"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}": {
       "get": {
         "tags": [
@@ -3411,7 +3706,7 @@
         ],
         "properties": {
           "action": {
-            "type": "string"
+            "$ref": "#/components/schemas/Permission"
           },
           "id": {
             "type": "string"
@@ -3509,7 +3804,7 @@
         "type": "object",
         "required": [
           "id",
-          "recipe_source",
+          "recipe",
           "cron"
         ],
         "properties": {
@@ -3519,8 +3814,8 @@
           "id": {
             "type": "string"
           },
-          "recipe_source": {
-            "type": "string"
+          "recipe": {
+            "$ref": "#/components/schemas/Recipe"
           }
         }
       },
@@ -3528,12 +3823,28 @@
         "type": "object",
         "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
         "properties": {
+          "baseUriDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for base-uri",
+            "nullable": true
+          },
           "connectDomains": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "Domains allowed for connect-src (fetch, XHR, WebSocket)",
+            "nullable": true
+          },
+          "frameDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Domains allowed for frame-src (nested iframes)",
             "nullable": true
           },
           "resourceDomains": {
@@ -3671,6 +3982,116 @@
             "type": "string"
           }
         }
+      },
+      "DictationProvider": {
+        "type": "string",
+        "enum": [
+          "openai",
+          "elevenlabs",
+          "groq",
+          "local"
+        ]
+      },
+      "DictationProviderStatus": {
+        "type": "object",
+        "required": [
+          "configured",
+          "description",
+          "uses_provider_config"
+        ],
+        "properties": {
+          "config_key": {
+            "type": "string",
+            "description": "Config key name if uses_provider_config is false",
+            "nullable": true
+          },
+          "configured": {
+            "type": "boolean",
+            "description": "Whether the provider is fully configured and ready to use"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of what this provider does"
+          },
+          "host": {
+            "type": "string",
+            "description": "Custom host URL if configured (only for providers that support it)",
+            "nullable": true
+          },
+          "settings_path": {
+            "type": "string",
+            "description": "Path to settings if uses_provider_config is true",
+            "nullable": true
+          },
+          "uses_provider_config": {
+            "type": "boolean",
+            "description": "Whether this provider uses the main provider config (true) or has its own key (false)"
+          }
+        }
+      },
+      "DownloadProgress": {
+        "type": "object",
+        "required": [
+          "model_id",
+          "status",
+          "bytes_downloaded",
+          "total_bytes",
+          "progress_percent"
+        ],
+        "properties": {
+          "bytes_downloaded": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes downloaded so far",
+            "minimum": 0
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message if failed",
+            "nullable": true
+          },
+          "eta_seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Estimated time remaining in seconds",
+            "nullable": true,
+            "minimum": 0
+          },
+          "model_id": {
+            "type": "string",
+            "description": "Model ID being downloaded"
+          },
+          "progress_percent": {
+            "type": "number",
+            "format": "float",
+            "description": "Download progress percentage (0-100)"
+          },
+          "speed_bps": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Download speed in bytes per second",
+            "nullable": true,
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/DownloadStatus"
+          },
+          "total_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total bytes to download",
+            "minimum": 0
+          }
+        }
+      },
+      "DownloadStatus": {
+        "type": "string",
+        "enum": [
+          "downloading",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
       },
       "EmbeddedResource": {
         "type": "object",
@@ -4716,6 +5137,27 @@
                 }
               }
             ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "reasoning"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         ],
         "description": "Content passed inside a message, which can be both simple content and tool content",
@@ -4921,10 +5363,6 @@
             "nullable": true,
             "minimum": 0
           },
-          "fast_model": {
-            "type": "string",
-            "nullable": true
-          },
           "max_tokens": {
             "type": "integer",
             "format": "int32",
@@ -4994,6 +5432,89 @@
           }
         }
       },
+      "ModelInfoData": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "context_limit",
+          "currency"
+        ],
+        "properties": {
+          "cache_read_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "cache_write_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "context_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string"
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelInfoQuery": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelInfoResponse": {
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "model_info": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelInfoData"
+              }
+            ],
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
       "ModelTemplate": {
         "type": "object",
         "required": [
@@ -5044,6 +5565,16 @@
           }
         }
       },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "always_allow",
+          "allow_once",
+          "cancel",
+          "deny_once",
+          "always_deny"
+        ]
+      },
       "PermissionLevel": {
         "type": "string",
         "description": "Enum representing the possible permission levels for a tool.",
@@ -5053,71 +5584,25 @@
           "never_allow"
         ]
       },
-      "PricingData": {
+      "PermissionsMetadata": {
         "type": "object",
-        "required": [
-          "provider",
-          "model",
-          "input_token_cost",
-          "output_token_cost",
-          "currency"
-        ],
+        "description": "Sandbox permissions for MCP Apps\nSpecifies which browser capabilities the UI needs access to.\nMaps to the iframe Permission Policy `allow` attribute.",
         "properties": {
-          "context_length": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true,
-            "minimum": 0
+          "camera": {
+            "type": "boolean",
+            "description": "Request camera access (maps to Permission Policy `camera` feature)"
           },
-          "currency": {
-            "type": "string"
+          "clipboardWrite": {
+            "type": "boolean",
+            "description": "Request clipboard write access (maps to Permission Policy `clipboard-write` feature)"
           },
-          "input_token_cost": {
-            "type": "number",
-            "format": "double"
+          "geolocation": {
+            "type": "boolean",
+            "description": "Request geolocation access (maps to Permission Policy `geolocation` feature)"
           },
-          "model": {
-            "type": "string"
-          },
-          "output_token_cost": {
-            "type": "number",
-            "format": "double"
-          },
-          "provider": {
-            "type": "string"
-          }
-        }
-      },
-      "PricingQuery": {
-        "type": "object",
-        "required": [
-          "provider",
-          "model"
-        ],
-        "properties": {
-          "model": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          }
-        }
-      },
-      "PricingResponse": {
-        "type": "object",
-        "required": [
-          "pricing",
-          "source"
-        ],
-        "properties": {
-          "pricing": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PricingData"
-            }
-          },
-          "source": {
-            "type": "string"
+          "microphone": {
+            "type": "boolean",
+            "description": "Request microphone access (maps to Permission Policy `microphone` feature)"
           }
         }
       },
@@ -5493,6 +5978,17 @@
             "type": "string"
           },
           "uri": {
+            "type": "string"
+          }
+        }
+      },
+      "ReasoningContent": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
             "type": "string"
           }
         }
@@ -6528,6 +7024,19 @@
           "inlineMessage"
         ]
       },
+      "TaskSupport": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
       "TelemetryEventRequest": {
         "type": "object",
         "required": [
@@ -6672,6 +7181,16 @@
           "description": {
             "type": "string"
           },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolExecution"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
           "icons": {
             "type": "array",
             "items": {
@@ -6734,6 +7253,21 @@
           },
           "toolName": {
             "type": "string"
+          }
+        }
+      },
+      "ToolExecution": {
+        "type": "object",
+        "properties": {
+          "taskSupport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskSupport"
+              },
+              {
+                "type": "object"
+              }
+            ]
           }
         }
       },
@@ -6822,6 +7356,39 @@
           }
         }
       },
+      "TranscribeRequest": {
+        "type": "object",
+        "required": [
+          "audio",
+          "mime_type",
+          "provider"
+        ],
+        "properties": {
+          "audio": {
+            "type": "string",
+            "description": "Base64 encoded audio data"
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "MIME type of the audio (e.g., \"audio/webm\", \"audio/wav\")"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/DictationProvider"
+          }
+        }
+      },
+      "TranscribeResponse": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Transcribed text from the audio"
+          }
+        }
+      },
       "TunnelInfo": {
         "type": "object",
         "required": [
@@ -6871,6 +7438,9 @@
             "type": "string",
             "description": "Preferred domain for the app (used for CORS)",
             "nullable": true
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/PermissionsMetadata"
           },
           "prefersBorder": {
             "type": "boolean",
@@ -7064,6 +7634,54 @@
             }
           }
         }
+      },
+      "WhisperModelResponse": {
+        "allOf": [
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "size_mb",
+              "url",
+              "description"
+            ],
+            "properties": {
+              "description": {
+                "type": "string",
+                "description": "Description"
+              },
+              "id": {
+                "type": "string",
+                "description": "Model identifier (e.g., \"tiny\", \"base\", \"small\")"
+              },
+              "size_mb": {
+                "type": "integer",
+                "format": "int32",
+                "description": "Model file size in MB",
+                "minimum": 0
+              },
+              "url": {
+                "type": "string",
+                "description": "Download URL from HuggingFace"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "downloaded",
+              "recommended"
+            ],
+            "properties": {
+              "downloaded": {
+                "type": "boolean"
+              },
+              "recommended": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
       },
       "WindowProps": {
         "type": "object",

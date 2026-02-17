@@ -326,16 +326,16 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
                 <div
                   onClick={handleChatGptCodexSetup}
-                  className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                  className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <ChatGPT className="w-5 h-5 text-text-standard" />
-                      <span className="font-medium text-text-standard text-sm sm:text-base">
+                      <ChatGPT className="w-5 h-5 text-text-default" />
+                      <span className="font-medium text-text-default text-sm sm:text-base">
                         ChatGPT Subscription
                       </span>
                     </div>
-                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                    <div className="text-text-muted group-hover:text-text-default transition-colors">
                       <svg
                         className="w-4 h-4 sm:w-5 sm:h-5"
                         fill="none"
@@ -367,17 +367,17 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
 
                 <div
                   onClick={handleTetrateSetup}
-                  className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group"
+                  className="w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Tetrate className="w-5 h-5 text-text-standard" />
+                      <Tetrate className="w-5 h-5 text-text-default" />
                       <span className="text-sm sm:text-base">
-                        <span className="font-medium text-text-standard">Agent Router</span>
+                        <span className="font-medium text-text-default">Agent Router</span>
                         <span className="text-text-muted text-xs"> by Tetrate</span>
                       </span>
                     </div>
-                    <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                    <div className="text-text-muted group-hover:text-text-default transition-colors">
                       <svg
                         className="w-4 h-4 sm:w-5 sm:h-5"
                         fill="none"
@@ -402,19 +402,19 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               {/* OpenRouter Card - Full Width */}
               <div
                 onClick={handleOpenRouterSetup}
-                className="relative w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl hover:border-text-muted transition-all duration-200 cursor-pointer group overflow-hidden mb-6"
+                className="relative w-full p-4 sm:p-6 bg-transparent border rounded-xl transition-all duration-200 cursor-pointer group overflow-hidden mb-6"
               >
                 {/* Subtle shimmer effect */}
                 <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/8 to-transparent"></div>
 
                 <div className="relative flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <OpenRouter className="w-5 h-5 text-text-standard" />
-                    <span className="font-medium text-text-standard text-sm sm:text-base">
+                    <OpenRouter className="w-5 h-5 text-text-default" />
+                    <span className="font-medium text-text-default text-sm sm:text-base">
                       OpenRouter
                     </span>
                   </div>
-                  <div className="text-text-muted group-hover:text-text-standard transition-colors">
+                  <div className="text-text-muted group-hover:text-text-default transition-colors">
                     <svg
                       className="w-4 h-4 sm:w-5 sm:h-5"
                       fill="none"
@@ -436,8 +436,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               </div>
 
               {/* Other providers section */}
-              <div className="w-full p-4 sm:p-6 bg-transparent border border-background-hover rounded-xl">
-                <h3 className="font-medium text-text-standard text-sm sm:text-base mb-3">
+              <div className="w-full p-4 sm:p-6 bg-transparent border rounded-xl">
+                <h3 className="font-medium text-text-default text-sm sm:text-base mb-3">
                   Other Providers
                 </h3>
                 <p className="text-text-muted text-sm sm:text-base mb-4">

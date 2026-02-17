@@ -38,6 +38,10 @@ The goose CLI plan mode uses two configuration values:
 goose also supports automatic model switching with [Lead/Worker mode](/docs/guides/environment-variables#leadworker-model-configuration), which provides turn-based switching between two models to help balance model capabilities with cost and speed.
 :::
 
+:::tip Customize Plan Format
+You can also customize how goose creates plans by editing the `plan.md` [prompt template](/docs/guides/prompt-templates).
+:::
+
 ### Set goose planner environment variables
 You might add these lines to your bash shell config file (.bashrc) to add the planner environment variables:
 ```bash
@@ -224,7 +228,7 @@ I still need some critical information to create a comprehensive plan:
 5. Should the application maintain any history of previous search/replace operations?
 
 Without this information, I can only provide a generic plan that might not accurately capture your requirements.
-( O)> please provde a generic plan
+( O)> please provide a generic plan
 ```
 While goose creates a standardized plan format, it customizes the content based on your answers. goose can generate the code needed to implement the steps of the plan it produces. You should review the plan and any code that it generates before ending plan mode (`/endplan`) and asking goose to implement the plan. 
 
@@ -318,13 +322,27 @@ To enter planning mode, type `/plan`.  Optionally, you can append your plan desc
 ( O)> /endplan
 ```
 
-<div className={styles.categorySection}>
-  <h2 className={styles.categoryTitle}>📚 Featured Tutorial</h2>
-  <div className={styles.cardGrid}>
-    <Card 
-      title="Planning Complex Tasks"
-      description="Learn how to use the Plan feature to break down complex tasks into manageable, executable steps."
-      link="/docs/tutorials/plan-feature-devcontainer-setup"
-    />
-  </div>
-</div>
+## Additional Resources
+
+import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
+import blogBanner from '@site/blog/2025-12-19-does-your-ai-agent-need-a-plan/blog-banner.png';
+
+<ContentCardCarousel
+  items={[
+      {
+      type: 'blog',
+      title: 'Does Your AI Agent Need a Plan?',
+      description: 'Knowing when and how to plan with an AI agent can produce better results.',
+      thumbnailUrl: blogBanner,
+      linkUrl: '/goose/blog/2025/12/19/does-your-ai-agent-need-a-plan',
+      date: '2025-12-19',
+      duration: '7 min read'
+    },
+    {
+      type: 'topic',
+      title: 'Planning Complex Tasks',
+      description: 'Learn how to use the Plan feature to break down complex tasks into manageable, executable steps.',
+      linkUrl: '/goose/docs/tutorials/plan-feature-devcontainer-setup',
+    }
+  ]}
+/>

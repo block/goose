@@ -242,8 +242,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {COST_TRACKING_ENABLED && (
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-textStandard">Cost Tracking</h3>
-                <p className="text-xs text-textSubtle max-w-md mt-[2px]">
+                <h3 className="text-text-default">Cost Tracking</h3>
+                <p className="text-xs text-text-muted max-w-md mt-[2px]">
                   Show model pricing and usage costs
                 </p>
               </div>

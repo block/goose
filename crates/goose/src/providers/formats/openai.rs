@@ -1,4 +1,5 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
@@ -10,13 +11,24 @@ use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use rmcp::model::{
-    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
-    ResourceContents, Role, Tool,
+    object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent, Role,
+    Tool,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::ops::Deref;
+
+type ToolCallData = HashMap<
+    i32,
+    (
+        String,
+        String,
+        String,
+        Option<serde_json::Map<String, Value>>,
+    ),
+>;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct DeltaToolCallFunction {
@@ -31,6 +43,8 @@ struct DeltaToolCall {
     function: DeltaToolCallFunction,
     index: Option<i32>,
     r#type: Option<String>,
+    #[serde(flatten)]
+    extra: Option<serde_json::Map<String, Value>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -39,6 +53,7 @@ struct Delta {
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
+    reasoning_content: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -67,6 +82,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
+        let mut reasoning_text = String::new();
 
         for content in &message.content {
             match content {
@@ -99,6 +115,9 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::SystemNotification(_) => {
                     continue;
                 }
+                MessageContent::Reasoning(r) => {
+                    reasoning_text.push_str(&r.text);
+                }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
@@ -115,14 +134,22 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             .entry("tool_calls")
                             .or_insert(json!([]));
 
-                        tool_calls.as_array_mut().unwrap().push(json!({
+                        let mut tool_call_json = json!({
                             "id": request.id,
                             "type": "function",
                             "function": {
                                 "name": sanitized_name,
                                 "arguments": arguments_str,
                             }
-                        }));
+                        });
+
+                        if let Some(metadata) = &request.metadata {
+                            for (key, value) in metadata {
+                                tool_call_json[key] = value.clone();
+                            }
+                        }
+
+                        tool_calls.as_array_mut().unwrap().push(tool_call_json);
                     }
                     Err(e) => {
                         output.push(json!({
@@ -152,12 +179,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                         }));
                                     }
                                     RawContent::Resource(resource) => {
-                                        let text = match &resource.resource {
-                                            ResourceContents::TextResourceContents {
-                                                text, ..
-                                            } => text.clone(),
-                                            _ => String::new(),
-                                        };
+                                        let text = extract_text_from_resource(&resource.resource);
                                         tool_content.push(Content::text(text));
                                     }
                                     _ => {
@@ -247,6 +269,22 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(text_array.join("\n"));
         }
 
+        // Some strict OpenAI-compatible providers require "content" to be present
+        // (even as null) when tool_calls are provided. See #6717.
+        if message.role == Role::Assistant
+            && converted.get("tool_calls").is_some()
+            && converted.get("content").is_none()
+        {
+            converted["content"] = json!(null);
+        }
+
+        // Include reasoning_content only when non-empty.
+        // Kimi rejects empty reasoning_content (""), so we must omit it entirely
+        // when there's no reasoning to send.
+        if !reasoning_text.is_empty() {
+            converted["reasoning_content"] = json!(reasoning_text);
+        }
+
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
             output.insert(0, converted);
         }
@@ -300,6 +338,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 
     let mut content = Vec::new();
 
+    // Capture reasoning_content if present (for DeepSeek reasoning models)
+    if let Some(reasoning_content) = original.get("reasoning_content") {
+        if let Some(reasoning_str) = reasoning_content.as_str() {
+            if !reasoning_str.is_empty() {
+                content.push(MessageContent::reasoning(reasoning_str));
+            }
+        }
+    }
+
     if let Some(text) = original.get("content") {
         if let Some(text_str) = text.as_str() {
             content.push(MessageContent::text(text_str));
@@ -328,6 +375,17 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     arguments_str
                 };
 
+                let standard_fields = ["id", "function", "type", "index"];
+                let metadata: Option<serde_json::Map<String, Value>> = tool_call
+                    .as_object()
+                    .map(|obj| {
+                        obj.iter()
+                            .filter(|(k, _)| !standard_fields.contains(&k.as_str()))
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect()
+                    })
+                    .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
+
                 if !is_valid_function_name(&function_name) {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
@@ -337,11 +395,15 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         )),
                         data: None,
                     };
-                    content.push(MessageContent::tool_request(id, Err(error)));
+                    content.push(MessageContent::tool_request_with_metadata(
+                        id,
+                        Err(error),
+                        metadata.as_ref(),
+                    ));
                 } else {
                     match safely_parse_json(&arguments_str) {
                         Ok(params) => {
-                            content.push(MessageContent::tool_request(
+                            content.push(MessageContent::tool_request_with_metadata(
                                 id,
                                 Ok(CallToolRequestParams {
                                     meta: None,
@@ -349,6 +411,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                     name: function_name.into(),
                                     arguments: Some(object(params)),
                                 }),
+                                metadata.as_ref(),
                             ));
                         }
                         Err(e) => {
@@ -360,7 +423,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 )),
                                 data: None,
                             };
-                            content.push(MessageContent::tool_request(id, Err(error)));
+                            content.push(MessageContent::tool_request_with_metadata(
+                                id,
+                                Err(error),
+                                metadata.as_ref(),
+                            ));
                         }
                     }
                 }
@@ -471,6 +538,7 @@ where
         use futures::StreamExt;
 
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
+        let mut accumulated_reasoning_content = String::new();
 
         'outer: while let Some(response) = stream.next().await {
             if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
@@ -491,6 +559,9 @@ where
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
                     accumulated_reasoning.extend(details.iter().cloned());
                 }
+                if let Some(rc) = &chunk.choices[0].delta.reasoning_content {
+                    accumulated_reasoning_content.push_str(rc);
+                }
             }
 
             let mut usage = extract_usage_with_output_tokens(&chunk);
@@ -498,12 +569,12 @@ where
             if chunk.choices.is_empty() {
                 yield (None, usage)
             } else if chunk.choices[0].delta.tool_calls.as_ref().is_some_and(|tc| !tc.is_empty()) {
-                let mut tool_call_data: std::collections::HashMap<i32, (String, String, String)> = std::collections::HashMap::new();
+                let mut tool_call_data: ToolCallData = HashMap::new();
 
                 if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
                     for tool_call in tool_calls {
                         if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
-                            tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone()));
+                            tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone(), tool_call.extra.clone()));
                         }
                     }
                 }
@@ -531,13 +602,23 @@ where
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
                                         accumulated_reasoning.extend(details.iter().cloned());
                                     }
+                                    if let Some(rc) = &tool_chunk.choices[0].delta.reasoning_content {
+                                        accumulated_reasoning_content.push_str(rc);
+                                    }
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
-                                                if let Some((_, _, ref mut args)) = tool_call_data.get_mut(&index) {
+                                                if let Some((_, _, ref mut args, ref mut extra)) = tool_call_data.get_mut(&index) {
                                                     args.push_str(&delta_call.function.arguments);
+                                                    if extra.is_none() && delta_call.extra.is_some() {
+                                                        *extra = delta_call.extra.clone();
+                                                    } else if let (Some(existing), Some(new_extra)) = (extra.as_mut(), &delta_call.extra) {
+                                                        for (key, value) in new_extra {
+                                                            existing.entry(key.clone()).or_insert(value.clone());
+                                                        }
+                                                    }
                                                 } else if let (Some(id), Some(name)) = (&delta_call.id, &delta_call.function.name) {
-                                                    tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone()));
+                                                    tool_call_data.insert(index, (id.clone(), name.clone(), delta_call.function.arguments.clone(), delta_call.extra.clone()));
                                                 }
                                             }
                                         }
@@ -555,7 +636,7 @@ where
                     }
                 }
 
-                let metadata: Option<ProviderMetadata> = if !accumulated_reasoning.is_empty() {
+                let _metadata: Option<ProviderMetadata> = if !accumulated_reasoning.is_empty() {
                     let mut map = ProviderMetadata::new();
                     map.insert("reasoning_details".to_string(), json!(accumulated_reasoning));
                     Some(map)
@@ -564,27 +645,34 @@ where
                 };
 
                 let mut contents = Vec::new();
+                if !accumulated_reasoning_content.is_empty() {
+                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
+                    accumulated_reasoning_content.clear();
+                }
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
 
                 for index in sorted_indices {
-                    if let Some((id, function_name, arguments)) = tool_call_data.get(&index) {
+                    if let Some((id, function_name, arguments, extra_fields)) = tool_call_data.get(&index) {
                         let parsed = if arguments.is_empty() {
                             Ok(json!({}))
                         } else {
                             serde_json::from_str::<Value>(arguments)
                         };
 
+                        let metadata = extra_fields.as_ref().filter(|m| !m.is_empty());
+
                         let content = match parsed {
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams {
-                                        meta: None, task: None,
+                                        meta: None,
+                                        task: None,
                                         name: function_name.clone().into(),
-                                        arguments: Some(object(params))
+                                        arguments: Some(object(params)),
                                     }),
-                                    metadata.as_ref(),
+                                    metadata,
                                 )
                             },
                             Err(e) => {
@@ -596,7 +684,7 @@ where
                                     )),
                                     data: None,
                                 };
-                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata)
                             }
                         };
                         contents.push(content);
@@ -618,23 +706,44 @@ where
                     Some(msg),
                     usage,
                 )
-            } else if chunk.choices[0].delta.content.is_some() {
-                let text = chunk.choices[0].delta.content.as_ref().unwrap();
-                let mut msg = Message::new(
-                    Role::Assistant,
-                    chrono::Utc::now().timestamp(),
-                    vec![MessageContent::text(text)],
-                );
+            } else if chunk.choices[0].delta.content.is_some() || chunk.choices[0].delta.reasoning_content.is_some() {
+                let mut content = Vec::new();
 
-                // Add ID if present
-                if let Some(id) = chunk.id {
-                    msg = msg.with_id(id);
+                if let Some(reasoning) = &chunk.choices[0].delta.reasoning_content {
+                    if !reasoning.is_empty() {
+                        content.push(MessageContent::reasoning(reasoning));
+                    }
                 }
 
-                yield (
-                    Some(msg),
-                    usage,
-                )
+                if let Some(text) = &chunk.choices[0].delta.content {
+                    if !text.is_empty() {
+                        content.push(MessageContent::text(text));
+                    }
+                }
+
+                if !content.is_empty() {
+                    let mut msg = Message::new(
+                        Role::Assistant,
+                        chrono::Utc::now().timestamp(),
+                        content,
+                    );
+
+                    // Add ID if present
+                    if let Some(id) = chunk.id {
+                        msg = msg.with_id(id);
+                    }
+
+                    yield (
+                        Some(msg),
+                        if chunk.choices[0].finish_reason.is_some() {
+                            usage
+                        } else {
+                            None
+                        },
+                    )
+                } else if usage.is_some() {
+                    yield (None, usage)
+                }
             } else if usage.is_some() {
                 yield (None, usage)
             }
@@ -1387,7 +1496,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1427,7 +1536,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1468,7 +1577,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1658,6 +1767,197 @@ data: [DONE]
         assert_eq!(result.tool_calls.len(), 1, "Expected 1 tool call");
         assert_eq!(result.tool_calls[0], "developer__shell");
         assert_usage_yielded_once(&result, 12376, 79, 12455);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_with_nested_extra_content() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [{
+                        "id": "call_456",
+                        "type": "function",
+                        "function": {
+                            "name": "test_tool",
+                            "arguments": "{}"
+                        },
+                        "extra_content": {
+                            "google": {
+                                "thought_signature": "nested_sig_xyz789"
+                            }
+                        }
+                    }]
+                }
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+        assert_eq!(message.content.len(), 1);
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            assert!(request.tool_call.is_ok());
+            assert!(request.metadata.is_some());
+            let metadata = request.metadata.as_ref().unwrap();
+            let extra_content = metadata.get("extra_content").unwrap();
+            assert_eq!(
+                extra_content["google"]["thought_signature"],
+                "nested_sig_xyz789"
+            );
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_with_multiple_extra_fields() -> anyhow::Result<()> {
+        let response = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [{
+                        "id": "call_789",
+                        "type": "function",
+                        "function": {
+                            "name": "test_tool",
+                            "arguments": "{}"
+                        },
+                        "thoughtSignature": "sig_top_level",
+                        "extra_content": {
+                            "google": {
+                                "thought_signature": "sig_nested"
+                            }
+                        },
+                        "custom_field": "custom_value"
+                    }]
+                }
+            }]
+        });
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let metadata = request.metadata.as_ref().unwrap();
+            assert_eq!(metadata.get("thoughtSignature").unwrap(), "sig_top_level");
+            assert_eq!(
+                metadata.get("extra_content").unwrap()["google"]["thought_signature"],
+                "sig_nested"
+            );
+            assert_eq!(metadata.get("custom_field").unwrap(), "custom_value");
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_response_with_nested_extra_content() -> anyhow::Result<()> {
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"extra_content":{"google":{"thought_signature":"nested_stream_sig"}},"id":"call_nested","function":{"name":"test_tool","arguments":"{}"},"type":"function","index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                if let MessageContent::ToolRequest(request) = &msg.content[0] {
+                    assert!(request.tool_call.is_ok());
+                    assert!(request.metadata.is_some());
+                    let metadata = request.metadata.as_ref().unwrap();
+                    let extra_content = metadata.get("extra_content").unwrap();
+                    assert_eq!(
+                        extra_content["google"]["thought_signature"],
+                        "nested_stream_sig"
+                    );
+                    return Ok(());
+                }
+            }
+        }
+
+        panic!("Expected tool call message with nested extra_content metadata");
+    }
+
+    #[test]
+    fn test_response_to_message_with_reasoning_content() -> anyhow::Result<()> {
+        // Test capturing reasoning_content from DeepSeek reasoning models
+        let response = json!({
+            "choices": [{
+                "role": "assistant",
+                "message": {
+                    "reasoning_content": "Let me think about this step by step...",
+                    "content": "The answer is 9.11 is greater than 9.8"
+                }
+            }],
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 25,
+                "total_tokens": 35
+            }
+        });
+
+        let message = response_to_message(&response)?;
+        assert_eq!(message.content.len(), 2);
+
+        // First should be reasoning content
+        if let MessageContent::Reasoning(reasoning) = &message.content[0] {
+            assert_eq!(reasoning.text, "Let me think about this step by step...");
+        } else {
+            panic!("Expected Reasoning content");
+        }
+
+        // Second should be text content
+        if let MessageContent::Text(text) = &message.content[1] {
+            assert_eq!(text.text, "The answer is 9.11 is greater than 9.8");
+        } else {
+            panic!("Expected Text content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_with_reasoning_content() -> anyhow::Result<()> {
+        // Test that reasoning_content is properly included in formatted messages
+        let mut message = Message::assistant()
+            .with_content(MessageContent::reasoning("Thinking through the problem..."))
+            .with_text("The result is 42");
+
+        // Add a tool call to test that reasoning_content works with tool calls
+        message = message.with_tool_request(
+            "tool1",
+            Ok(rmcp::model::CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "test_tool".into(),
+                arguments: Some(rmcp::object!({"param": "value"})),
+            }),
+        );
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+
+        // Should have reasoning_content field
+        assert!(spec[0].get("reasoning_content").is_some());
+        assert_eq!(
+            spec[0]["reasoning_content"],
+            "Thinking through the problem..."
+        );
+
+        // Should have content
+        assert_eq!(spec[0]["content"], "The result is 42");
+
+        // Should have tool_calls
+        assert!(spec[0]["tool_calls"].is_array());
+        assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
 
         Ok(())
     }

@@ -1,33 +1,40 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
+use super::openai_compatible::handle_status_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-    RequestLog,
-};
+use super::utils::{ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
+use crate::providers::formats::ollama::{create_request, response_to_streaming_message_ollama};
 use crate::utils::safe_truncate;
-use anyhow::Result;
+use anyhow::{Error, Result};
+use async_stream::try_stream;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
+use futures::TryStreamExt;
 use regex::Regex;
+use reqwest::Response;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::time::Duration;
+use tokio::pin;
+use tokio_stream::StreamExt;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 use url::Url;
 
+const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = 600;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
 pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
     OLLAMA_DEFAULT_MODEL,
+    "qwen3-vl",
     "qwen3-coder:30b",
     "qwen3-coder:480b-cloud",
 ];
@@ -78,7 +85,7 @@ impl OllamaProvider {
             api_client,
             model,
             supports_streaming: true,
-            name: Self::metadata().name,
+            name: OLLAMA_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -121,32 +128,30 @@ impl OllamaProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+        if !supports_streaming {
+            return Err(anyhow::anyhow!(
+                "Ollama provider does not support non-streaming mode. All Ollama models support streaming. \
+                Please remove 'supports_streaming: false' from your provider configuration."
+            ));
+        }
+
         Ok(Self {
             api_client,
             model,
-            supports_streaming: config.supports_streaming.unwrap_or(true),
+            supports_streaming,
             name: config.name.clone(),
         })
     }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, "v1/chat/completions", payload)
-            .await?;
-        handle_response_openai_compat(response).await
-    }
 }
 
-#[async_trait]
-impl Provider for OllamaProvider {
+impl ProviderDef for OllamaProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "ollama",
+            OLLAMA_PROVIDER_NAME,
             "Ollama",
             "Local open source models",
             OLLAMA_DEFAULT_MODEL,
@@ -164,63 +169,22 @@ impl Provider for OllamaProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for OllamaProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
-    }
-
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let config = crate::config::Config::global();
-        let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-        let filtered_tools = if goose_mode == GooseMode::Chat {
-            &[]
-        } else {
-            tools
-        };
-
-        let payload = create_request(
-            model_config,
-            system,
-            messages,
-            filtered_tools,
-            &super::utils::ImageFormat::OpenAi,
-            false,
-        )?;
-
-        let mut log = RequestLog::start(model_config, &payload)?;
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
-
-        let message = response_to_message(&response)?;
-
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(response_model, usage)))
     }
 
     async fn generate_session_name(
@@ -230,8 +194,10 @@ impl Provider for OllamaProvider {
     ) -> Result<String, ProviderError> {
         let context = self.get_initial_user_messages(messages);
         let message = Message::user().with_text(self.create_session_name_prompt(&context));
+        let model_config = self.get_model_config();
         let result = self
             .complete(
+                &model_config,
                 session_id,
                 "You are a title generator. Output only the requested title of 4 words or less, with no additional text, reasoning, or explanations.",
                 &[message],
@@ -245,12 +211,9 @@ impl Provider for OllamaProvider {
         Ok(safe_truncate(&description, 100))
     }
 
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
@@ -265,14 +228,14 @@ impl Provider for OllamaProvider {
         };
 
         let payload = create_request(
-            &self.model,
+            model_config,
             system,
             messages,
             filtered_tools,
-            &super::utils::ImageFormat::OpenAi,
+            &ImageFormat::OpenAi,
             true,
         )?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -286,10 +249,10 @@ impl Provider for OllamaProvider {
             .inspect_err(|e| {
                 let _ = log.error(e);
             })?;
-        stream_openai_compat(response, log)
+        stream_ollama(response, log)
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, "api/tags")
@@ -322,7 +285,7 @@ impl Provider for OllamaProvider {
 
         model_names.sort();
 
-        Ok(Some(model_names))
+        Ok(model_names)
     }
 }
 
@@ -364,4 +327,27 @@ impl OllamaProvider {
 
         filtered
     }
+}
+
+/// Ollama-specific streaming handler with XML tool call fallback.
+/// Uses the Ollama format module which buffers text when XML tool calls are detected,
+/// preventing duplicate content from being emitted to the UI.
+fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStream, ProviderError> {
+    let stream = response.bytes_stream().map_err(std::io::Error::other);
+
+    Ok(Box::pin(try_stream! {
+        let stream_reader = StreamReader::new(stream);
+        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+            .map_err(Error::from);
+
+        let message_stream = response_to_streaming_message_ollama(framed);
+        pin!(message_stream);
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+            )?;
+            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+            yield (message, usage);
+        }
+    }))
 }

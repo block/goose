@@ -38,7 +38,7 @@ const LoadingGoose = ({ message, chatState = ChatState.Idle }: LoadingGooseProps
     <div className="w-full animate-fade-slide-up">
       <div
         data-testid="loading-indicator"
-        className="flex items-center gap-2 text-xs text-textStandard py-2"
+        className="flex items-center gap-2 text-xs text-text-default py-2"
       >
         {icon}
         {displayMessage}

@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -11,6 +13,7 @@ use async_trait::async_trait;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
+use futures::future::BoxFuture;
 use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -21,6 +24,7 @@ use super::formats::bedrock::{
 };
 use crate::session_context::SESSION_ID_HEADER;
 
+const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
@@ -140,7 +144,7 @@ impl BedrockProvider {
             client,
             model,
             retry_config,
-            name: Self::metadata().name,
+            name: BEDROCK_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -261,11 +265,12 @@ impl BedrockProvider {
     }
 }
 
-#[async_trait]
-impl Provider for BedrockProvider {
+impl ProviderDef for BedrockProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "aws_bedrock",
+            BEDROCK_PROVIDER_NAME,
             "Amazon Bedrock",
             "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, use environment variables/credentials, or use AWS_BEARER_TOKEN_BEDROCK for bearer token authentication. Region is required for bearer token auth (can be set via AWS_REGION, AWS_DEFAULT_REGION, or AWS profile).",
             BEDROCK_DEFAULT_MODEL,
@@ -279,6 +284,16 @@ impl Provider for BedrockProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for BedrockProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -291,18 +306,27 @@ impl Provider for BedrockProvider {
         self.model.clone()
     }
 
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let model_name = model_config.model_name.clone();
 
         let (bedrock_message, bedrock_usage) = self
@@ -329,7 +353,10 @@ impl Provider for BedrockProvider {
         )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-        Ok((message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }
 

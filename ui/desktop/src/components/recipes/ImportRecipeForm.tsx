@@ -4,12 +4,11 @@ import { z } from 'zod';
 import { Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Recipe, decodeRecipe } from '../../recipe';
+import { Recipe, parseDeeplink, parseRecipeFromFile } from '../../recipe';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { getRecipeJsonSchema } from '../../recipe/validation';
 import { saveRecipe } from '../../recipe/recipe_management';
-import { parseRecipe } from '../../api';
 import { errorMessage } from '../../utils/conversionUtils';
 
 interface ImportRecipeFormProps {
@@ -45,54 +44,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   const [showSchemaModal, setShowSchemaModal] = useState(false);
 
   useEscapeKey(isOpen, onClose);
-
-  const parseDeeplink = async (deeplink: string): Promise<Recipe | null> => {
-    try {
-      const cleanLink = deeplink.trim();
-
-      if (!cleanLink.startsWith('goose://recipe?config=')) {
-        throw new Error('Invalid deeplink format. Expected: goose://recipe?config=...');
-      }
-
-      const recipeEncoded = cleanLink.replace('goose://recipe?config=', '');
-
-      if (!recipeEncoded) {
-        throw new Error('No recipe configuration found in deeplink');
-      }
-      const recipe = await decodeRecipe(recipeEncoded);
-
-      if (!recipe.title || !recipe.description) {
-        throw new Error('Recipe is missing required fields (title, description)');
-      }
-
-      if (!recipe.instructions && !recipe.prompt) {
-        throw new Error('Recipe must have either instructions or prompt');
-      }
-
-      return recipe;
-    } catch (error) {
-      console.error('Failed to parse deeplink:', error);
-      return null;
-    }
-  };
-
-  const parseRecipeFromFile = async (fileContent: string): Promise<Recipe> => {
-    try {
-      let response = await parseRecipe({
-        body: {
-          content: fileContent,
-        },
-        throwOnError: true,
-      });
-      return response.data.recipe;
-    } catch (error) {
-      let error_message = 'unknown error';
-      if (typeof error === 'object' && error !== null && 'message' in error) {
-        error_message = error.message as string;
-      }
-      throw new Error(error_message);
-    }
-  };
 
   const importRecipeForm = useForm({
     defaultValues: {
@@ -195,8 +146,8 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
   return (
     <>
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-        <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-standard mb-4">Import Recipe</h3>
+        <div className="bg-background-default border border-border-default rounded-lg p-6 w-[500px] max-w-[90vw]">
+          <h3 className="text-lg font-medium text-text-default mb-4">Import Recipe</h3>
 
           <form
             onSubmit={(e) => {
@@ -217,7 +168,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                           <div className={isDisabled ? 'opacity-50' : ''}>
                             <label
                               htmlFor="import-deeplink"
-                              className="block text-sm font-medium text-text-standard mb-2"
+                              className="block text-sm font-medium text-text-default mb-2"
                             >
                               Recipe Deeplink
                             </label>
@@ -227,10 +178,10 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                               onChange={(e) => handleDeeplinkChange(e.target.value, field)}
                               onBlur={field.handleBlur}
                               disabled={isDisabled}
-                              className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
+                              className={`w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${
                                 field.state.meta.errors.length > 0
                                   ? 'border-red-500'
-                                  : 'border-border-subtle'
+                                  : 'border-border-default'
                               } ${isDisabled ? 'cursor-not-allowed bg-gray-40 text-gray-300' : ''}`}
                               placeholder="Paste your goose://recipe?config=... deeplink here"
                               rows={3}
@@ -256,7 +207,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
 
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-border-subtle" />
+                        <div className="w-full border-t border-border-default" />
                       </div>
                       <div className="relative flex justify-center text-sm">
                         <span className="px-3 bg-background-default text-text-muted font-medium">
@@ -274,7 +225,7 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                           <div className={isDisabled ? 'opacity-50' : ''}>
                             <label
                               htmlFor="import-recipe-file"
-                              className="block text-sm font-medium text-text-standard mb-3"
+                              className="block text-sm font-medium text-text-default mb-3"
                             >
                               Recipe File
                             </label>
@@ -355,13 +306,13 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
       {/* Schema Modal */}
       {showSchemaModal && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
-          <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
+          <div className="bg-background-default border border-border-default rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-text-standard">Expected Recipe Structure</h3>
+              <h3 className="text-lg font-medium text-text-default">Expected Recipe Structure</h3>
               <button
                 type="button"
                 onClick={() => setShowSchemaModal(false)}
-                className="text-text-muted hover:text-text-standard"
+                className="text-text-muted hover:text-text-default"
               >
                 ✕
               </button>

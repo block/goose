@@ -7,16 +7,22 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+[[bin]]
+name = "goose-acp-server"
+path = "src/bin/server.rs"
+
 [lints]
 workspace = true
 
 [dependencies]
 goose = { path = "../goose" }
+goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
+agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
+tokio-util = { workspace = true, features = ["compat", "rt"] }
 tracing = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
@@ -24,11 +30,23 @@ regex = { workspace = true }
 fs-err = "3"
 url = { workspace = true }
 
+# HTTP server dependencies
+axum = { workspace = true, features = ["ws"] }
+clap = { workspace = true }
+serde = { workspace = true }
+tower-http = { workspace = true, features = ["cors"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+async-stream = { workspace = true }
+bytes = { workspace = true }
+http-body-util = "0.1.3"
+uuid = { workspace = true, features = ["v7"] }
+
 [dev-dependencies]
 assert-json-diff = "2.0.2"
-async-trait = "0.1.89"
+async-trait = { workspace = true }
+goose-test-support = { path = "../goose-test-support" }
 wiremock = { workspace = true }
-tempfile = "3"
+tempfile = { workspace = true }
 test-case = { workspace = true }
-axum = "0.8"
+axum = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }

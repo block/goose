@@ -95,7 +95,7 @@ env:
       - [ ] cargo check
       - [ ] cargo test (affected crates)
       - [ ] cargo fmt
-      - [ ] ./scripts/clippy-lint.sh
+      - [ ] cargo clippy --all-targets -- -D warnings
       - [ ] Fix failures, retry up to 3 times
 
       ## Phase 6: Confirm (MANDATORY)

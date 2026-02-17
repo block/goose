@@ -73,16 +73,20 @@ Forking sessions is useful to:
 
 <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
-
         1. Hover over any of your previous messages
         2. Click the <Edit2 className="inline" size={16} /> `Edit` button that appears
         3. Make your changes in the inline editor
         4. Click `Fork Session` to save your changes and start a new session (or use `Cmd+Enter` (macOS) or `Ctrl+Enter` (Windows/Linux))
 
-        goose copies the conversation history from the original session to the new session. The new session is named "(edited)" and the original session is unchanged.
-    </TabItem>
+        goose creates a new session with conversation history up to and including your edited message. The new session is named "(edited)" and the original session remains unchanged.
+
+        :::tip Fork vs Duplicate
+        - **Fork Session** (Edit button on a message): Creates a new session with history up to a specific edited message. Use this to explore different approaches from a particular point in the conversation.
+        - **[Duplicate Session](/docs/guides/sessions/session-management#duplicate-sessions)** (Copy button in session list): Creates a complete copy of the entire session. Use this to preserve a working session or reuse its configuration.
+        :::
+</TabItem>
     <TabItem value="cli" label="goose CLI">
-        Message editing options are not available in the goose CLI.
+    Message editing is not available in the goose CLI, but you can [duplicate entire sessions](/docs/guides/sessions/session-management#duplicate-sessions) using the `--fork` flag.
     </TabItem>
 </Tabs>
 

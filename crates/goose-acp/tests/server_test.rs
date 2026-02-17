@@ -1,32 +1,58 @@
 mod common_tests;
 use common_tests::fixtures::run_test;
-use common_tests::fixtures::server::ClientToAgentSession;
+use common_tests::fixtures::server::ClientToAgentConnection;
 use common_tests::{
-    run_basic_completion, run_builtin_and_mcp, run_configured_extension, run_mcp_http_server,
-    run_permission_persistence,
+    run_config_mcp, run_initialize_without_provider, run_load_model, run_model_list, run_model_set,
+    run_permission_persistence, run_prompt_basic, run_prompt_codemode, run_prompt_image,
+    run_prompt_mcp,
 };
 
 #[test]
-fn test_acp_basic_completion() {
-    run_test(async { run_basic_completion::<ClientToAgentSession>().await });
+fn test_config_mcp() {
+    run_test(async { run_config_mcp::<ClientToAgentConnection>().await });
 }
 
 #[test]
-fn test_acp_with_mcp_http_server() {
-    run_test(async { run_mcp_http_server::<ClientToAgentSession>().await });
+fn test_initialize_without_provider() {
+    run_test(async { run_initialize_without_provider().await });
 }
 
 #[test]
-fn test_acp_with_builtin_and_mcp() {
-    run_test(async { run_builtin_and_mcp::<ClientToAgentSession>().await });
+fn test_load_model() {
+    run_test(async { run_load_model::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_model_list() {
+    run_test(async { run_model_list::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_model_set() {
+    run_test(async { run_model_set::<ClientToAgentConnection>().await });
 }
 
 #[test]
 fn test_permission_persistence() {
-    run_test(async { run_permission_persistence::<ClientToAgentSession>().await });
+    run_test(async { run_permission_persistence::<ClientToAgentConnection>().await });
 }
 
 #[test]
-fn test_configured_extension() {
-    run_test(async { run_configured_extension::<ClientToAgentSession>().await });
+fn test_prompt_basic() {
+    run_test(async { run_prompt_basic::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_prompt_codemode() {
+    run_test(async { run_prompt_codemode::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_prompt_image() {
+    run_test(async { run_prompt_image::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_prompt_mcp() {
+    run_test(async { run_prompt_mcp::<ClientToAgentConnection>().await });
 }

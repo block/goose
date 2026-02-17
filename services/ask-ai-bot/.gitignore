@@ -1,0 +1,10 @@
+dist
+node_modules
+package-lock.json
+bun.lockb
+yarn.lock
+pnpm-lock.yaml
+.env
+.discraft
+
+*.tsbuildinfo

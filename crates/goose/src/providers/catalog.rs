@@ -121,7 +121,7 @@ pub struct ModelCapabilities {
 /// Get all providers from catalog filtered by format
 pub async fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCatalogEntry> {
     // Get native provider IDs from the factory registry
-    let native_provider_ids = super::factory::providers()
+    let native_provider_ids = super::init::providers()
         .await
         .into_iter()
         .map(|(metadata, _)| metadata.name)

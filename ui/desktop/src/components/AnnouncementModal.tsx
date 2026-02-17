@@ -139,7 +139,7 @@ export default function AnnouncementModal() {
           <Button
             variant="ghost"
             onClick={handleCloseAnnouncement}
-            className="w-full h-[60px] rounded-none border-b border-borderSubtle bg-transparent hover:bg-bgSubtle text-textProminent font-medium text-md"
+            className="w-full h-[60px] rounded-none border-b border-border-default bg-transparent hover:bg-background-muted text-text-default font-medium text-md"
           >
             Got it!
           </Button>

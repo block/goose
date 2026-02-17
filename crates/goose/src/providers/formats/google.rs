@@ -182,6 +182,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }
                         parts.push(json!(part));
                     }
+                    MessageContent::Image(image) => {
+                        parts.push(json!({
+                            "inline_data": {
+                                "mime_type": image.mime_type,
+                                "data": image.data,
+                            }
+                        }));
+                    }
 
                     _ => {}
                 }
@@ -217,19 +225,6 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 enum SignedTextHandling {
     SignedTextAsThinking,
     SignedTextAsRegularText,
-}
-
-pub fn process_response_part(
-    part: &Value,
-    last_signature: &mut Option<String>,
-) -> Option<MessageContent> {
-    let has_signature = part.get(THOUGHT_SIGNATURE_KEY).is_some();
-    let handling = if has_signature {
-        SignedTextHandling::SignedTextAsThinking
-    } else {
-        SignedTextHandling::SignedTextAsRegularText
-    };
-    process_response_part_impl(part, last_signature, handling)
 }
 
 fn process_response_part_non_streaming(
@@ -471,7 +466,9 @@ where
 
             if let Some(parts) = parts {
                 for part in parts {
-                    if let Some(content) = process_response_part(part, &mut last_signature) {
+                    // Always emit text as regular text during streaming — we can't
+                    // know yet whether function calls will follow.
+                    if let Some(content) = process_response_part_impl(part, &mut last_signature, SignedTextHandling::SignedTextAsRegularText) {
                         let message = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
@@ -512,6 +509,21 @@ struct GenerationConfig {
     temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_output_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_config: Option<ThinkingConfig>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ThinkingLevel {
+    Low,
+    High,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ThinkingConfig {
+    thinking_level: ThinkingLevel,
 }
 
 #[derive(Serialize)]
@@ -523,6 +535,45 @@ struct GoogleRequest<'a> {
     tools: Option<ToolsWrapper>,
     #[serde(skip_serializing_if = "Option::is_none")]
     generation_config: Option<GenerationConfig>,
+}
+
+fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
+    if !model_config
+        .model_name
+        .to_lowercase()
+        .starts_with("gemini-3")
+    {
+        return None;
+    }
+
+    let thinking_level_str = model_config
+        .request_params
+        .as_ref()
+        .and_then(|params| params.get("thinking_level"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_lowercase())
+        .or_else(|| {
+            crate::config::Config::global()
+                .get_param::<String>("gemini3_thinking_level")
+                .ok()
+                .map(|s| s.to_lowercase())
+        })
+        .unwrap_or_else(|| "low".to_string());
+
+    let thinking_level = match thinking_level_str.as_str() {
+        "high" => ThinkingLevel::High,
+        "low" => ThinkingLevel::Low,
+        invalid => {
+            tracing::warn!(
+                "Invalid thinking level '{}' for model '{}'. Valid levels: low, high. Using 'low'.",
+                invalid,
+                model_config.model_name,
+            );
+            ThinkingLevel::Low
+        }
+    };
+
+    Some(ThinkingConfig { thinking_level })
 }
 
 pub fn create_request(
@@ -539,15 +590,20 @@ pub fn create_request(
         })
     };
 
-    let generation_config =
-        if model_config.temperature.is_some() || model_config.max_tokens.is_some() {
-            Some(GenerationConfig {
-                temperature: model_config.temperature.map(|t| t as f64),
-                max_output_tokens: model_config.max_tokens,
-            })
-        } else {
-            None
-        };
+    let thinking_config = get_thinking_config(model_config);
+
+    let generation_config = if model_config.temperature.is_some()
+        || model_config.max_tokens.is_some()
+        || thinking_config.is_some()
+    {
+        Some(GenerationConfig {
+            temperature: model_config.temperature.map(|t| t as f64),
+            max_output_tokens: model_config.max_tokens,
+            thinking_config,
+        })
+    } else {
+        None
+    };
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {
@@ -637,6 +693,38 @@ mod tests {
         assert_eq!(payload[0]["parts"][0]["text"], "Hello");
         assert_eq!(payload[1]["role"], "model");
         assert_eq!(payload[1]["parts"][0]["text"], "World");
+    }
+
+    #[test]
+    fn test_message_to_google_spec_image_message() {
+        use rmcp::model::{AnnotateAble, RawImageContent};
+
+        let image = RawImageContent {
+            mime_type: "image/png".to_string(),
+            data: "base64encodeddata".to_string(),
+            meta: None,
+        };
+        let messages = vec![Message::new(
+            Role::User,
+            0,
+            vec![
+                MessageContent::text("What is in this image?".to_string()),
+                MessageContent::Image(image.no_annotation()),
+            ],
+        )];
+        let payload = format_messages(&messages);
+
+        assert_eq!(payload.len(), 1);
+        assert_eq!(payload[0]["role"], "user");
+        assert_eq!(payload[0]["parts"][0]["text"], "What is in this image?");
+        assert_eq!(
+            payload[0]["parts"][1]["inline_data"]["mime_type"],
+            "image/png"
+        );
+        assert_eq!(
+            payload[0]["parts"][1]["inline_data"]["data"],
+            "base64encodeddata"
+        );
     }
 
     #[test]
@@ -1072,42 +1160,68 @@ mod tests {
     async fn test_streaming_with_thought_signature() {
         use futures::StreamExt;
 
-        let signed_stream = concat!(
-            r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}]}"#,
-            "\n",
-            r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": " middle"}]}}]}"#,
-            "\n",
-            r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": " end"}]}}]}"#
-        );
-        let lines: Vec<Result<String, anyhow::Error>> =
-            signed_stream.lines().map(|l| Ok(l.to_string())).collect();
-        let stream = Box::pin(futures::stream::iter(lines));
-        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
-
-        let mut text_parts = Vec::new();
-        let mut thinking_parts = Vec::new();
-
-        while let Some(result) = message_stream.next().await {
-            let (message, _usage) = result.unwrap();
-            if let Some(msg) = message {
-                match msg.content.first() {
-                    Some(MessageContent::Text(text)) => {
-                        text_parts.push(text.text.clone());
+        async fn collect_streaming_text(raw: &str) -> (String, usize) {
+            let lines: Vec<Result<String, anyhow::Error>> =
+                raw.lines().map(|l| Ok(l.to_string())).collect();
+            let stream = Box::pin(futures::stream::iter(lines));
+            let mut msg_stream = std::pin::pin!(response_to_streaming_message(stream));
+            let mut text = String::new();
+            let mut thinking = 0usize;
+            while let Some(Ok((message, _))) = msg_stream.next().await {
+                if let Some(msg) = message {
+                    for c in &msg.content {
+                        match c {
+                            MessageContent::Text(t) => text.push_str(&t.text),
+                            MessageContent::Thinking(_) => thinking += 1,
+                            _ => {}
+                        }
                     }
-                    Some(MessageContent::Thinking(thinking)) => {
-                        thinking_parts.push(thinking.thinking.clone());
-                        assert_eq!(thinking.signature, "sig123");
-                    }
-                    _ => {}
                 }
             }
+            (text, thinking)
         }
 
-        assert_eq!(thinking_parts, vec!["Begin"]);
-        assert_eq!(text_parts, vec![" middle", " end"]);
+        // First chunk signed
+        let (text, thinking) = collect_streaming_text(concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "Hello", "thoughtSignature": "sig1"}]}}], "#,
+            r#""modelVersion": "gemini-3-flash-preview"}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " world"}]}}], "modelVersion": "gemini-3-flash-preview"}"#
+        ))
+        .await;
+        assert_eq!(thinking, 0);
+        assert_eq!(text, "Hello world");
+
+        // Last chunk signed (the reported truncation bug)
+        let (text, thinking) = collect_streaming_text(concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "SECURITY.md: Project"}]}}], "#,
+            r#""modelVersion": "gemini-3-flash-preview"}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": " policies.\n\nRead it?", "thoughtSignature": "sig2"}]}}], "#,
+            r#""modelVersion": "gemini-3-flash-preview"}"#
+        ))
+        .await;
+        assert_eq!(thinking, 0);
+        assert_eq!(text, "SECURITY.md: Project policies.\n\nRead it?");
+
+        // Intermediate chunk signed
+        let (text, thinking) = collect_streaming_text(concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "one "}]}}], "modelVersion": "gemini-3-flash-preview"}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "two ", "thoughtSignature": "sig3"}]}}], "modelVersion": "gemini-3-flash-preview"}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "three"}]}}], "modelVersion": "gemini-3-flash-preview"}"#
+        ))
+        .await;
+        assert_eq!(thinking, 0);
+        assert_eq!(text, "one two three");
     }
 
     #[tokio::test]
@@ -1223,5 +1337,27 @@ data: [DONE]"#;
         let schema = &result[0]["parametersJsonSchema"];
         assert_eq!(schema["properties"]["field"]["$ref"], "#/$defs/MyType");
         assert!(schema.get("$defs").is_some());
+    }
+
+    #[test]
+    fn test_get_thinking_config() {
+        use crate::model::ModelConfig;
+
+        // Test 1: Gemini 3 model defaults to low thinking level
+        let config = ModelConfig::new("gemini-3-pro").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+        let thinking_config = result.unwrap();
+        assert!(matches!(thinking_config.thinking_level, ThinkingLevel::Low));
+
+        // Test 2: Case-insensitive model detection
+        let config = ModelConfig::new("Gemini-3-Flash").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+
+        // Test 3: Non-Gemini 3 model returns None
+        let config = ModelConfig::new("gpt-4o").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_none());
     }
 }

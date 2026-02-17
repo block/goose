@@ -34,12 +34,12 @@ export default function RecipeExpandableInfo({
   return (
     <>
       <div className="flex justify-between items-center mb-2">
-        <label className="block text-md text-textProminent font-bold">
+        <label className="block text-md text-text-default font-bold">
           {infoLabel} {required && <span className="text-red-500">*</span>}
         </label>
       </div>
 
-      <div className="relative rounded-lg bg-background-default text-textStandard">
+      <div className="relative rounded-lg bg-background-default text-text-default">
         {infoValue && (
           <>
             <div
@@ -68,7 +68,7 @@ export default function RecipeExpandableInfo({
               setValueExpanded(true);
               onClickEdit();
             }}
-            className="w-36 px-3 py-3 bg-background-defaultInverse text-sm text-textProminentInverse rounded-xl hover:bg-bgStandardInverse transition-colors"
+            className="w-36 px-3 py-3 text-sm text-text-inverse rounded-xl hover:bg-background-inverse transition-colors"
           >
             {infoValue ? 'Edit' : 'Add'} {infoLabel.toLowerCase()}
           </Button>

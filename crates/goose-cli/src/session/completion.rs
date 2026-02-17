@@ -6,11 +6,11 @@ use rustyline::{Context, Helper, Result};
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use super::CompletionCache;
+use super::{CompletionCache, HintStatus};
 
 /// Completer for goose CLI commands
 pub struct GooseCompleter {
-    completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
+    pub completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     filename_completer: FilenameCompleter,
 }
 
@@ -388,11 +388,30 @@ impl Hinter for GooseCompleter {
     type Hint = String;
 
     fn hint(&self, line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<Self::Hint> {
-        // Only show hint when line is empty
-        if line.is_empty() {
-            Some("Press Enter to send, Ctrl-J for new line".to_string())
-        } else {
-            None
+        let cache = self.completion_cache.read().unwrap();
+
+        if !line.is_empty() && cache.hint_status != HintStatus::Default {
+            drop(cache);
+            let mut cache_write = self.completion_cache.write().unwrap();
+            cache_write.hint_status = HintStatus::Default;
+            return None;
+        }
+
+        if !line.is_empty() {
+            return None;
+        }
+
+        match cache.hint_status {
+            HintStatus::Interrupted => {
+                Some("Interrupted, what should goose work on instead?".to_string())
+            }
+            HintStatus::MaybeExit => {
+                Some("Press Ctrl+C again to exit, or type new instructions to continue".to_string())
+            }
+            HintStatus::Default => {
+                let newline_key = super::input::get_newline_key().to_ascii_uppercase();
+                Some(format!("Enter to send · Ctrl+{} newline", newline_key))
+            }
         }
     }
 }

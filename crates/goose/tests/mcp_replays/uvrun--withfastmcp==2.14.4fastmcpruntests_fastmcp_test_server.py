@@ -1,4 +1,4 @@
-STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"sampling":{},"elicitation":{}},"clientInfo":{"name":"goose","version":"0.0.0"}}}
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"elicitation":{},"extensions":{"io.modelcontextprotocol/ui":{"mimeTypes":["text/html;profile=mcp-app"]}},"sampling":{}},"clientInfo":{"name":"goose-desktop","version":"0.0.0"}}}
 STDERR: 
 STDERR: 
 STDERR: ╭──────────────────────────────────────────────────────────────────────────────╮

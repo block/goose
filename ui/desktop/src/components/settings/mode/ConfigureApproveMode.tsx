@@ -54,11 +54,11 @@ export function ConfigureApproveMode({
         <div className="px-4 pb-0 space-y-6">
           {/* Header */}
           <div className="flex">
-            <h2 className="text-2xl font-regular text-textStandard">Configure approve mode</h2>
+            <h2 className="text-2xl font-regular text-text-default">Configure approve mode</h2>
           </div>
 
           <div className="mt-[24px]">
-            <p className="text-sm text-textSubtle mb-6">
+            <p className="text-sm text-text-muted mb-6">
               Approve requests can either be given to all tool requests or determine which actions
               may need integration
             </p>
@@ -85,7 +85,7 @@ export function ConfigureApproveMode({
               variant="ghost"
               disabled={isSubmitting}
               onClick={handleModeSubmit}
-              className="w-full h-[60px] rounded-none border-t border-borderSubtle hover:bg-bgSubtle text-textStandard dark:border-gray-600 text-base font-regular"
+              className="w-full h-[60px] rounded-none border-t border-border-default hover:bg-background-muted text-text-default dark:border-gray-600 text-base font-regular"
             >
               {isSubmitting ? 'Saving...' : 'Save'}
             </Button>
@@ -94,7 +94,7 @@ export function ConfigureApproveMode({
               variant="ghost"
               disabled={isSubmitting}
               onClick={onClose}
-              className="w-full h-[60px] rounded-none border-t border-borderSubtle text-textSubtle hover:bg-bgSubtle dark:border-gray-600 text-base font-regular"
+              className="w-full h-[60px] rounded-none border-t border-border-default text-text-muted hover:bg-background-muted dark:border-gray-600 text-base font-regular"
             >
               Cancel
             </Button>

@@ -3,12 +3,15 @@ import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
-import { Checkbox } from '@radix-ui/themes';
 import { UpdateCustomProviderRequest } from '../../../../../../api';
+import { Plus, X, Trash2, AlertTriangle } from 'lucide-react';
+import { cn } from '../../../../../../utils';
 
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void;
   onCancel: () => void;
+  onDelete?: () => Promise<void>;
+  isActiveProvider?: boolean;
   initialData: UpdateCustomProviderRequest | null;
   isEditable?: boolean;
 }
@@ -16,6 +19,8 @@ interface CustomProviderFormProps {
 export default function CustomProviderForm({
   onSubmit,
   onCancel,
+  onDelete,
+  isActiveProvider = false,
   initialData,
   isEditable,
 }: CustomProviderFormProps) {
@@ -24,9 +29,18 @@ export default function CustomProviderForm({
   const [apiUrl, setApiUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [models, setModels] = useState('');
-  const [noAuthRequired, setNoAuthRequired] = useState(false);
+  const [requiresApiKey, setRequiresApiKey] = useState(false);
   const [supportsStreaming, setSupportsStreaming] = useState(true);
+  const [headers, setHeaders] = useState<{ key: string; value: string }[]>([]);
+  const [newHeaderKey, setNewHeaderKey] = useState('');
+  const [newHeaderValue, setNewHeaderValue] = useState('');
+  const [headerValidationError, setHeaderValidationError] = useState<string | null>(null);
+  const [invalidHeaderFields, setInvalidHeaderFields] = useState<{ key: boolean; value: boolean }>({
+    key: false,
+    value: false,
+  });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -40,14 +54,101 @@ export default function CustomProviderForm({
       setApiUrl(initialData.api_url);
       setModels(initialData.models.join(', '));
       setSupportsStreaming(initialData.supports_streaming ?? true);
-      setNoAuthRequired(!(initialData.requires_auth ?? true));
+      setRequiresApiKey(initialData.requires_auth ?? true);
+
+      if (initialData.headers) {
+        const headerList = Object.entries(initialData.headers).map(([key, value]) => ({
+          key,
+          value,
+        }));
+        setHeaders(headerList);
+      }
     }
   }, [initialData]);
 
-  const handleNoAuthChange = (checked: boolean) => {
-    setNoAuthRequired(!!checked);
-    if (checked) {
+  const handleRequiresApiKeyChange = (checked: boolean) => {
+    setRequiresApiKey(checked);
+    if (!checked) {
       setApiKey('');
+    }
+  };
+
+  const handleAddHeader = () => {
+    const keyEmpty = !newHeaderKey.trim();
+    const valueEmpty = !newHeaderValue.trim();
+    const keyHasSpaces = newHeaderKey.includes(' ');
+    const normalizedNewKey = newHeaderKey.trim().toLowerCase();
+    const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedNewKey);
+
+    if (keyEmpty || valueEmpty) {
+      setInvalidHeaderFields({
+        key: keyEmpty,
+        value: valueEmpty,
+      });
+      setHeaderValidationError('Both header name and value must be entered');
+      return;
+    }
+
+    if (keyHasSpaces) {
+      setInvalidHeaderFields({
+        key: true,
+        value: false,
+      });
+      setHeaderValidationError('Header name cannot contain spaces');
+      return;
+    }
+
+    if (isDuplicate) {
+      setInvalidHeaderFields({
+        key: true,
+        value: false,
+      });
+      setHeaderValidationError('A header with this name already exists');
+      return;
+    }
+
+    setHeaderValidationError(null);
+    setInvalidHeaderFields({ key: false, value: false });
+    setHeaders([...headers, { key: newHeaderKey, value: newHeaderValue }]);
+    setNewHeaderKey('');
+    setNewHeaderValue('');
+  };
+
+  const handleRemoveHeader = (index: number) => {
+    setHeaders(headers.filter((_, i) => i !== index));
+  };
+
+  const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    if (field === 'key') {
+      if (value.includes(' ')) {
+        return;
+      }
+      const normalizedValue = value.trim().toLowerCase();
+      const isDuplicate = headers.some(
+        (h, i) => i !== index && h.key.trim().toLowerCase() === normalizedValue
+      );
+      if (isDuplicate && normalizedValue !== '') {
+        return;
+      }
+      const updatedHeaders = [...headers];
+      updatedHeaders[index].key = value;
+      setHeaders(updatedHeaders);
+      return;
+    }
+    const updatedHeaders = [...headers];
+    updatedHeaders[index][field] = value;
+    setHeaders(updatedHeaders);
+  };
+
+  const clearHeaderValidation = () => {
+    setHeaderValidationError(null);
+    setInvalidHeaderFields({ key: false, value: false });
+  };
+
+  const handleHeaderKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddHeader();
     }
   };
 
@@ -58,7 +159,7 @@ export default function CustomProviderForm({
     if (!displayName) errors.displayName = 'Display name is required';
     if (!apiUrl) errors.apiUrl = 'API URL is required';
     const existingHadAuth = initialData && (initialData.requires_auth ?? true);
-    if (!noAuthRequired && !apiKey && !existingHadAuth) errors.apiKey = 'API key is required';
+    if (requiresApiKey && !apiKey && !existingHadAuth) errors.apiKey = 'API key is required';
     if (!models) errors.models = 'At least one model is required';
 
     if (Object.keys(errors).length > 0) {
@@ -71,6 +172,28 @@ export default function CustomProviderForm({
       .map((m) => m.trim())
       .filter((m) => m);
 
+    let allHeaders = [...headers];
+
+    if (newHeaderKey.trim() && newHeaderValue.trim()) {
+      const keyHasSpaces = newHeaderKey.includes(' ');
+      const normalizedPendingKey = newHeaderKey.trim().toLowerCase();
+      const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedPendingKey);
+
+      if (!keyHasSpaces && !isDuplicate) {
+        allHeaders.push({ key: newHeaderKey, value: newHeaderValue });
+      }
+    }
+
+    const headersObject = allHeaders.reduce(
+      (acc, header) => {
+        if (header.key.trim() && header.value.trim()) {
+          acc[header.key.trim()] = header.value.trim();
+        }
+        return acc;
+      },
+      {} as Record<string, string>
+    );
+
     onSubmit({
       engine,
       display_name: displayName,
@@ -78,7 +201,8 @@ export default function CustomProviderForm({
       api_key: apiKey,
       models: modelList,
       supports_streaming: supportsStreaming,
-      requires_auth: !noAuthRequired,
+      requires_auth: requiresApiKey,
+      headers: headersObject,
       autogenerated: false,
       catalog_provider_id: undefined,
     });
@@ -91,7 +215,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="provider-select"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               Provider Type
               <span className="text-red-500 ml-1">*</span>
@@ -129,7 +253,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="display-name"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               Display Name
               <span className="text-red-500 ml-1">*</span>
@@ -152,7 +276,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="api-url"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               API URL
               <span className="text-red-500 ml-1">*</span>
@@ -176,25 +300,28 @@ export default function CustomProviderForm({
       )}
 
       <div>
-        <div className="flex items-center space-x-2 mb-2">
-          <Checkbox
-            id="no-auth-required"
-            checked={noAuthRequired}
-            onCheckedChange={handleNoAuthChange}
+        <label className="block text-sm font-medium text-text-default mb-2">Authentication</label>
+        <p className="text-sm text-text-muted mb-3">
+          Local LLMs like Ollama typically don't require an API key.
+        </p>
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="requires-api-key"
+            checked={requiresApiKey}
+            onChange={(e) => handleRequiresApiKeyChange(e.target.checked)}
+            className="rounded border-border-default"
           />
-          <label
-            htmlFor="no-auth-required"
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
-          >
-            No authentication required
+          <label htmlFor="requires-api-key" className="text-sm text-text-muted">
+            This provider requires an API key
           </label>
         </div>
 
-        {!noAuthRequired && (
-          <>
+        {requiresApiKey && (
+          <div className="mt-3">
             <label
               htmlFor="api-key"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               API Key
               {!initialData && <span className="text-red-500 ml-1">*</span>}
@@ -214,7 +341,7 @@ export default function CustomProviderForm({
                 {validationErrors.apiKey}
               </p>
             )}
-          </>
+          </div>
         )}
       </div>
       {isEditable && (
@@ -222,7 +349,7 @@ export default function CustomProviderForm({
           <div>
             <label
               htmlFor="available-models"
-              className="flex items-center text-sm font-medium text-textStandard mb-2"
+              className="flex items-center text-sm font-medium text-text-default mb-2"
             >
               Available Models (comma-separated)
               <span className="text-red-500 ml-1">*</span>
@@ -243,27 +370,150 @@ export default function CustomProviderForm({
             )}
           </div>
           <div className="flex items-center space-x-2 mb-10">
-            <Checkbox
+            <input
+              type="checkbox"
               id="supports-streaming"
               checked={supportsStreaming}
-              onCheckedChange={(checked) => setSupportsStreaming(checked as boolean)}
+              onChange={(e) => setSupportsStreaming(e.target.checked)}
+              className="rounded border-border-default"
             />
-            <label
-              htmlFor="supports-streaming"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-textSubtle"
-            >
+            <label htmlFor="supports-streaming" className="text-sm text-text-muted">
               Provider supports streaming responses
             </label>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-textStandard mb-2 block">
+              Custom Headers
+            </label>
+            <p className="text-xs text-textSubtle mb-4">
+              Add custom HTTP headers to include in requests to the provider. Click the "+" button
+              to add after filling both fields.
+            </p>
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+              {headers.map((header, index) => (
+                <React.Fragment key={index}>
+                  <Input
+                    value={header.key}
+                    onChange={(e) => handleHeaderChange(index, 'key', e.target.value)}
+                    placeholder="Header name"
+                    className="w-full text-textStandard border-borderSubtle hover:border-borderStandard"
+                  />
+                  <Input
+                    value={header.value}
+                    onChange={(e) => handleHeaderChange(index, 'value', e.target.value)}
+                    placeholder="Value"
+                    className="w-full text-textStandard border-borderSubtle hover:border-borderStandard"
+                  />
+                  <Button
+                    onClick={() => handleRemoveHeader(index)}
+                    variant="ghost"
+                    type="button"
+                    className="group p-2 h-auto text-iconSubtle hover:bg-transparent"
+                  >
+                    <X className="h-3 w-3 text-gray-400 group-hover:text-white group-hover:drop-shadow-sm transition-all" />
+                  </Button>
+                </React.Fragment>
+              ))}
+
+              <Input
+                value={newHeaderKey}
+                onChange={(e) => {
+                  setNewHeaderKey(e.target.value);
+                  clearHeaderValidation();
+                }}
+                onKeyDown={handleHeaderKeyDown}
+                placeholder="Header name"
+                className={cn(
+                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+                  invalidHeaderFields.key && 'border-red-500 focus:border-red-500'
+                )}
+              />
+              <Input
+                value={newHeaderValue}
+                onChange={(e) => {
+                  setNewHeaderValue(e.target.value);
+                  clearHeaderValidation();
+                }}
+                onKeyDown={handleHeaderKeyDown}
+                placeholder="Value"
+                className={cn(
+                  'w-full text-textStandard border-borderSubtle hover:border-borderStandard',
+                  invalidHeaderFields.value && 'border-red-500 focus:border-red-500'
+                )}
+              />
+              <Button
+                onClick={handleAddHeader}
+                variant="ghost"
+                type="button"
+                className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-background-default border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
+              >
+                <Plus /> Add
+              </Button>
+            </div>
+            {headerValidationError && (
+              <div className="mt-2 text-red-500 text-sm">{headerValidationError}</div>
+            )}
           </div>
         </>
       )}
       <SecureStorageNotice />
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button type="submit">{initialData ? 'Update Provider' : 'Create Provider'}</Button>
-      </div>
+
+      {showDeleteConfirmation ? (
+        <div className="pt-4 space-y-3">
+          {isActiveProvider ? (
+            <div className="px-4 py-3 bg-yellow-600/20 border border-yellow-500/30 rounded">
+              <p className="text-yellow-500 text-sm flex items-start">
+                <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                <span>
+                  You cannot delete this provider while it's currently in use. Please switch to a
+                  different model first.
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div className="px-4 py-3 bg-red-900/20 border border-red-500/30 rounded">
+              <p className="text-red-400 text-sm">
+                Are you sure you want to delete this custom provider? This will permanently remove
+                the provider and its stored API key. This action cannot be undone.
+              </p>
+            </div>
+          )}
+          <div className="flex justify-end space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowDeleteConfirmation(false)}
+            >
+              Cancel
+            </Button>
+            {!isActiveProvider && (
+              <Button type="button" variant="destructive" onClick={onDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Confirm Delete
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex justify-end space-x-2 pt-4">
+          {initialData && onDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              className="text-red-500 hover:text-red-600 mr-auto"
+              onClick={() => setShowDeleteConfirmation(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Provider
+            </Button>
+          )}
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit">{initialData ? 'Update Provider' : 'Create Provider'}</Button>
+        </div>
+      )}
     </form>
   );
 }

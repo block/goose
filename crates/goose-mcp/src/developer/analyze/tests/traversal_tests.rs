@@ -34,7 +34,7 @@ fn test_validate_path() {
     let ignore = create_test_gitignore();
     let traverser = FileTraverser::new(&ignore);
 
-    // Test non-existent path
+    // Test nonexistent path
     assert!(traverser
         .validate_path(Path::new("/nonexistent/path"))
         .is_err());

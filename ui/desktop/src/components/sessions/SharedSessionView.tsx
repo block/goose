@@ -34,7 +34,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
   return (
     <MainPanelLayout>
       <div className="flex-1 flex flex-col min-h-0 px-8">
-        <div className="flex items-center py-4 border-b border-border-subtle mb-6">
+        <div className="flex items-center py-4 border-b border-border-default mb-6">
           <div className="flex items-center text-text-muted">
             <Share2 className="w-5 h-5 mr-2" />
             <span className="text-sm font-medium">Shared Session</span>

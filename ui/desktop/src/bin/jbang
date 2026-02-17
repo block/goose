@@ -78,7 +78,7 @@ else
 fi
 
 # Trust all jbang scripts that a user might install. Without this, Jbang will attempt to
-# prompt the user to trust each script. However, Goose does not surfact this modal and without
+# prompt the user to trust each script. However, Goose does not surface this modal and without
 # user input, the addExtension method will timeout and fail.
 jbang --quiet trust add *
 

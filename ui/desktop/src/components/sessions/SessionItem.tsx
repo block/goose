@@ -14,7 +14,7 @@ const SessionItem: React.FC<SessionItemProps> = ({ session, extraActions }) => {
   const displayName = shouldShowNewChatTitle(session) ? DEFAULT_CHAT_TITLE : session.name;
 
   return (
-    <Card className="p-4 mb-2 hover:bg-accent/50 cursor-pointer flex justify-between items-center">
+    <Card className="p-4 mb-2 hover:bg-background-accent/50 cursor-pointer flex justify-between items-center">
       <div>
         <div className="font-medium">{displayName}</div>
         <div className="text-sm text-muted-foreground">

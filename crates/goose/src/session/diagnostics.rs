@@ -1,6 +1,7 @@
 use crate::config::base::Config;
 use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
+use crate::prompt_template::list_templates;
 use crate::providers::utils::LOGS_TO_KEEP;
 use crate::session::SessionManager;
 use serde::{Deserialize, Serialize};
@@ -128,6 +129,12 @@ pub async fn generate_diagnostics(
                     zip.write_all(&fs::read(&path)?)?;
                 }
             }
+        }
+
+        for template in list_templates() {
+            let content = template.user_content.unwrap_or(template.default_content);
+            zip.start_file(format!("prompts/{}.txt", template.name), options)?;
+            zip.write_all(content.as_bytes())?;
         }
 
         zip.finish()?;

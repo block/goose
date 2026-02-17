@@ -53,7 +53,15 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         | Focus goose Window | `Cmd+Option+G` | `Ctrl+Alt+G` |
         | Keep goose Window Always on Top | `Cmd+Shift+T` | `Ctrl+Shift+T` |
         
-        <br />
+        #### Customize Keyboard Shortcuts
+        
+        You can customize these keyboard shortcuts in the **Settings** menu:
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `Settings`
+        3. Click the `Keyboard` tab
+        
+        Changes to global shortcuts (Focus Window, Quick Launcher) take effect immediately. Changes to application shortcuts (New Chat, Settings, etc.) require restarting goose.
+        
         #### Quick Launcher
         Start a new session by typing your prompt into a popup:
         1. Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) to open the popup
@@ -96,21 +104,34 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
-        By default, goose names your session using the current timestamp in the format `YYYYMMDD_<COUNT>`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
+        goose sessions are given an auto-generated name based on the context of your initial prompt.
 
-        ```
-        goose session -n react-migration
+        If you'd like to provide a specific session name, you can do so when starting a session. For example, to name your session "react-migration", run:
+
+        ```sh
+        goose session --name react-migration
         ```
 
-        You'll know your session has started when your terminal looks similar to the following:
+        If you want to confirm the session name, run:
 
+        ```sh
+        goose session list -l 1
         ```
-        starting session | provider: openai model: gpt-4o
-        session id: react-migration
-        working directory: /path/to/your/project
+
+        Example result:
+        
+        ```text
+        Available sessions:
+        20260213_9 - react-migration - 2026-02-13 16:20:37 UTC
         ```
+
+        In the output above, `20260213_9` is the session ID. Session IDs use the format `YYYYMMDD_<COUNT>`. Many [goose CLI commands](/docs/guides/goose-cli-commands) let you identify a session by name (`--name` / `-n`) as an alternative to `--session-id`.
     </TabItem>
 </Tabs>
+
+:::tip Disable AI-generated Session Naming
+Use [`GOOSE_DISABLE_SESSION_NAMING`](/docs/guides/environment-variables#session-management) to keep the default name instead of calling a model to generate one (useful in CI/headless workflows). The default name in goose Desktop is "New Chat" and the default name in goose CLI is "CLI Session".
+:::
 
 ## Exit Session
 Note that sessions are automatically saved when you exit.
@@ -142,6 +163,10 @@ Search allows you to find specific content within sessions or find specific sess
     | Use Selection for Find | `Cmd+E` | n/a |
     | Toggle Case-Sensitivity | `Aa` | `Aa` |
     | Close Search | `Esc` or `X` | `Esc` or `X` |
+
+    :::tip Customize Search Shortcuts
+    You can [customize](#keyboard-shortcuts) the Find, Find Next, and Find Previous keyboard shortcuts in **Settings** → **Keyboard** tab.
+    :::
 
     :::info No Regex or operator support
     Using regular expressions or search operators in search text isn't supported.
@@ -325,6 +350,63 @@ While you can resume sessions, we recommend creating new sessions for new tasks 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
         You can use the [`project`](/docs/guides/goose-cli-commands#project) and [`projects`](/docs/guides/goose-cli-commands#projects) commands to start or resume sessions from a project, which is a tracked working directory with session metadata. For a complete guide to using Projects, see [Managing Projects Guide](/docs/guides/managing-projects).
+    </TabItem>
+</Tabs>
+
+## Duplicate Sessions
+
+Create a complete copy of any session to reuse configurations, experiment with variations, or preserve important work.
+
+<Tabs groupId="interface">
+    <TabItem value="ui" label="goose Desktop" default>
+        
+        Duplicate a session from the session list:
+
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+        2. Click `View All` at the bottom of the `Chat` section
+        3. Find the session you want to duplicate
+        4. Hover over the session card to reveal the action buttons
+        5. Click the <Copy className="inline" size={16} /> button that appears in the top-right corner
+
+        The duplicated session includes:
+        - Complete conversation history
+        - All session metadata and settings
+        - Provider and model configuration
+        - Extension data and configurations
+        - Recipe information (if applicable)
+
+        The new session is named the same as the original and appears at the top of your session list.
+
+        :::tip Duplicate vs Fork Session
+        - **Duplicate** (Copy button in session list): Creates a complete copy of the entire session. Use this to preserve a working session or reuse its configuration.
+        - **[Fork Session](/docs/guides/sessions/in-session-actions#fork-session)** (Edit button on a message): Creates a new session with conversation history up to a specific edited message. Use this when editing a message to explore different approaches from that point.
+        :::
+
+    </TabItem>
+    <TabItem value="cli" label="goose CLI">
+        
+        Create a new session by copying all messages from a previous session using the `--fork` flag along with `--resume`.
+
+        ```bash
+        # Fork the most recent session
+        goose session --resume --fork
+
+        # Fork a specific session by name
+        goose session --resume --fork --name my-project
+
+        # Fork a specific session by ID
+        goose session --resume --fork --session-id 20251108_3
+
+        # Fork and show message history
+        goose session --resume --fork --history
+        ```
+
+        The forked session includes:
+        - Complete conversation history from the original session
+        - All session metadata and settings
+        - Provider and model configuration
+        - Extension data and configurations
+        - Recipe information (if applicable)
     </TabItem>
 </Tabs>
 

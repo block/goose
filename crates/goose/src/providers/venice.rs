@@ -5,14 +5,17 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
+use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
-use super::utils::map_http_error_to_provider_error;
 use crate::conversation::message::{Message, MessageContent};
 
 use crate::mcp_utils::ToolResult;
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::{object, CallToolRequestParams, Role, Tool};
 
 // ---------- Capability Flags ----------
@@ -58,6 +61,7 @@ fn strip_flags(model: &str) -> &str {
 }
 // ---------- END Helpers ----------
 
+const VENICE_PROVIDER_NAME: &str = "venice";
 pub const VENICE_DOC_URL: &str = "https://docs.venice.ai/";
 pub const VENICE_DEFAULT_MODEL: &str = "llama-3.3-70b";
 pub const VENICE_DEFAULT_HOST: &str = "https://api.venice.ai";
@@ -83,7 +87,7 @@ pub struct VeniceProvider {
 }
 
 impl VeniceProvider {
-    pub async fn from_env(mut model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("VENICE_API_KEY")?;
         let host: String = config
@@ -96,9 +100,6 @@ impl VeniceProvider {
             .get_param("VENICE_MODELS_PATH")
             .unwrap_or_else(|_| VENICE_DEFAULT_MODELS_PATH.to_string());
 
-        // Ensure we only keep the bare model id internally
-        model.model_name = strip_flags(&model.model_name).to_string();
-
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new(host, auth)?;
 
@@ -107,7 +108,7 @@ impl VeniceProvider {
             base_path,
             models_path,
             model,
-            name: Self::metadata().name,
+            name: VENICE_PROVIDER_NAME.to_string(),
         };
 
         Ok(instance)
@@ -192,11 +193,12 @@ impl VeniceProvider {
     }
 }
 
-#[async_trait]
-impl Provider for VeniceProvider {
+impl ProviderDef for VeniceProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "venice",
+            VENICE_PROVIDER_NAME,
             "Venice.ai",
             "Venice.ai models (Llama, DeepSeek, Mistral) with function calling",
             VENICE_DEFAULT_MODEL,
@@ -221,6 +223,16 @@ impl Provider for VeniceProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for VeniceProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -229,7 +241,7 @@ impl Provider for VeniceProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .request(None, &self.models_path)
@@ -254,21 +266,26 @@ impl Provider for VeniceProvider {
             })
             .collect::<Vec<String>>();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         // Create properly formatted messages for Venice API
         let mut formatted_messages = Vec::new();
 
@@ -492,12 +509,13 @@ impl Provider for VeniceProvider {
                     message = message.with_content(item);
                 }
 
-                return Ok((
+                let provider_usage = ProviderUsage::new(
+                    strip_flags(&model_config.model_name).to_string(),
+                    Usage::default(),
+                );
+                return Ok(super::base::stream_from_single_message(
                     message,
-                    ProviderUsage::new(
-                        strip_flags(&model_config.model_name).to_string(),
-                        Usage::default(),
-                    ),
+                    provider_usage,
                 ));
             }
         }
@@ -524,9 +542,12 @@ impl Provider for VeniceProvider {
             usage_data["total_tokens"].as_i64().map(|v| v as i32),
         );
 
-        Ok((
-            Message::new(Role::Assistant, Utc::now().timestamp(), content),
-            ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage),
+        let message = Message::new(Role::Assistant, Utc::now().timestamp(), content);
+        let provider_usage =
+            ProviderUsage::new(strip_flags(&self.model.model_name).to_string(), usage);
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
         ))
     }
 }

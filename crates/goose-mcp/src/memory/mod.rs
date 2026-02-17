@@ -3,11 +3,12 @@ use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, Implementation, ServerCapabilities,
+        CallToolResult, Content, ErrorCode, ErrorData, Implementation, Meta, ServerCapabilities,
         ServerInfo,
     },
     schemars::JsonSchema,
-    tool, tool_handler, tool_router, ServerHandler,
+    service::RequestContext,
+    tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -16,6 +17,16 @@ use std::{
     io::{self, Read, Write},
     path::PathBuf,
 };
+
+const WORKING_DIR_HEADER: &str = "agent-working-dir";
+
+fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
+    meta.0
+        .get(WORKING_DIR_HEADER)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from)
+}
 
 /// Parameters for the remember_memory tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -66,7 +77,6 @@ pub struct MemoryServer {
     tool_router: ToolRouter<Self>,
     instructions: String,
     global_memory_dir: PathBuf,
-    local_memory_dir: PathBuf,
 }
 
 impl Default for MemoryServer {
@@ -181,17 +191,6 @@ impl MemoryServer {
              - Acknowledge the user about what is stored and where, for transparency and ease of future retrieval.
             "#};
 
-        // Check for .goose/memory in current directory
-        let local_memory_dir = std::env::var("GOOSE_WORKING_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| std::env::current_dir().unwrap())
-            .join(".goose")
-            .join("memory");
-
-        // choose_app_strategy().config_dir()
-        // - macOS/Linux: ~/.config/goose/memory/
-        // - Windows:     ~\AppData\Roaming\Block\goose\config\memory
-        // if it fails, fall back to `.config/goose/memory` (relative to the current dir)
         let global_memory_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_config_dir("memory"))
             .unwrap_or_else(|_| PathBuf::from(".config/goose/memory"));
@@ -200,11 +199,9 @@ impl MemoryServer {
             tool_router: Self::tool_router(),
             instructions: instructions.clone(),
             global_memory_dir,
-            local_memory_dir,
         };
 
-        let retrieved_global_memories = memory_router.retrieve_all(true);
-        let retrieved_local_memories = memory_router.retrieve_all(false);
+        let retrieved_global_memories = memory_router.retrieve_all(true, None);
 
         let mut updated_instructions = instructions;
 
@@ -231,18 +228,6 @@ impl MemoryServer {
             }
         }
 
-        if let Ok(local_memories) = retrieved_local_memories {
-            if !local_memories.is_empty() {
-                updated_instructions.push_str("\n\nLocal Memories:\n");
-                for (category, memories) in local_memories {
-                    updated_instructions.push_str(&format!("\nCategory: {}\n", category));
-                    for memory in memories {
-                        updated_instructions.push_str(&format!("- {}\n", memory));
-                    }
-                }
-            }
-        }
-
         memory_router.set_instructions(updated_instructions);
 
         memory_router
@@ -257,29 +242,45 @@ impl MemoryServer {
         &self.instructions
     }
 
-    fn get_memory_file(&self, category: &str, is_global: bool) -> PathBuf {
-        // Defaults to local memory if no is_global flag is provided
+    fn get_memory_file(
+        &self,
+        category: &str,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> PathBuf {
         let base_dir = if is_global {
-            &self.global_memory_dir
+            self.global_memory_dir.clone()
         } else {
-            &self.local_memory_dir
+            let local_base = working_dir
+                .cloned()
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            local_base.join(".goose").join("memory")
         };
         base_dir.join(format!("{}.txt", category))
     }
 
-    pub fn retrieve_all(&self, is_global: bool) -> io::Result<HashMap<String, Vec<String>>> {
+    pub fn retrieve_all(
+        &self,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<HashMap<String, Vec<String>>> {
         let base_dir = if is_global {
-            &self.global_memory_dir
+            self.global_memory_dir.clone()
         } else {
-            &self.local_memory_dir
+            let local_base = working_dir
+                .cloned()
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            local_base.join(".goose").join("memory")
         };
         let mut memories = HashMap::new();
         if base_dir.exists() {
-            for entry in fs::read_dir(base_dir)? {
+            for entry in fs::read_dir(&base_dir)? {
                 let entry = entry?;
                 if entry.file_type()?.is_file() {
                     let category = entry.file_name().to_string_lossy().replace(".txt", "");
-                    let category_memories = self.retrieve(&category, is_global)?;
+                    let category_memories = self.retrieve(&category, is_global, working_dir)?;
                     memories.insert(
                         category,
                         category_memories.into_iter().flat_map(|(_, v)| v).collect(),
@@ -297,8 +298,9 @@ impl MemoryServer {
         data: &str,
         tags: &[&str],
         is_global: bool,
+        working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global);
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
 
         if let Some(parent) = memory_file_path.parent() {
             fs::create_dir_all(parent)?;
@@ -320,8 +322,9 @@ impl MemoryServer {
         &self,
         category: &str,
         is_global: bool,
+        working_dir: Option<&PathBuf>,
     ) -> io::Result<HashMap<String, Vec<String>>> {
-        let memory_file_path = self.get_memory_file(category, is_global);
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
         if !memory_file_path.exists() {
             return Ok(HashMap::new());
         }
@@ -360,8 +363,9 @@ impl MemoryServer {
         category: &str,
         memory_content: &str,
         is_global: bool,
+        working_dir: Option<&PathBuf>,
     ) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global);
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
         if !memory_file_path.exists() {
             return Ok(());
         }
@@ -382,8 +386,13 @@ impl MemoryServer {
         Ok(())
     }
 
-    pub fn clear_memory(&self, category: &str, is_global: bool) -> io::Result<()> {
-        let memory_file_path = self.get_memory_file(category, is_global);
+    pub fn clear_memory(
+        &self,
+        category: &str,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<()> {
+        let memory_file_path = self.get_memory_file(category, is_global, working_dir);
         if memory_file_path.exists() {
             fs::remove_file(memory_file_path)?;
         }
@@ -391,14 +400,22 @@ impl MemoryServer {
         Ok(())
     }
 
-    pub fn clear_all_global_or_local_memories(&self, is_global: bool) -> io::Result<()> {
+    pub fn clear_all_global_or_local_memories(
+        &self,
+        is_global: bool,
+        working_dir: Option<&PathBuf>,
+    ) -> io::Result<()> {
         let base_dir = if is_global {
-            &self.global_memory_dir
+            self.global_memory_dir.clone()
         } else {
-            &self.local_memory_dir
+            let local_base = working_dir
+                .cloned()
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from("."));
+            local_base.join(".goose").join("memory")
         };
         if base_dir.exists() {
-            fs::remove_dir_all(base_dir)?;
+            fs::remove_dir_all(&base_dir)?;
         }
         Ok(())
     }
@@ -411,8 +428,10 @@ impl MemoryServer {
     pub async fn remember_memory(
         &self,
         params: Parameters<RememberMemoryParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
+        let working_dir = extract_working_dir_from_meta(&context.meta);
 
         if params.data.is_empty() {
             return Err(ErrorData::new(
@@ -429,6 +448,7 @@ impl MemoryServer {
             &params.data,
             &tags,
             params.is_global,
+            working_dir.as_ref(),
         )
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
@@ -446,13 +466,15 @@ impl MemoryServer {
     pub async fn retrieve_memories(
         &self,
         params: Parameters<RetrieveMemoriesParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
+        let working_dir = extract_working_dir_from_meta(&context.meta);
 
         let memories = if params.category == "*" {
-            self.retrieve_all(params.is_global)
+            self.retrieve_all(params.is_global, working_dir.as_ref())
         } else {
-            self.retrieve(&params.category, params.is_global)
+            self.retrieve(&params.category, params.is_global, working_dir.as_ref())
         }
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
@@ -470,18 +492,20 @@ impl MemoryServer {
     pub async fn remove_memory_category(
         &self,
         params: Parameters<RemoveMemoryCategoryParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
+        let working_dir = extract_working_dir_from_meta(&context.meta);
 
         let message = if params.category == "*" {
-            self.clear_all_global_or_local_memories(params.is_global)
+            self.clear_all_global_or_local_memories(params.is_global, working_dir.as_ref())
                 .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
             format!(
                 "Cleared all memory {} categories",
                 if params.is_global { "global" } else { "local" }
             )
         } else {
-            self.clear_memory(&params.category, params.is_global)
+            self.clear_memory(&params.category, params.is_global, working_dir.as_ref())
                 .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
             format!("Cleared memories in category: {}", params.category)
         };
@@ -497,13 +521,16 @@ impl MemoryServer {
     pub async fn remove_specific_memory(
         &self,
         params: Parameters<RemoveSpecificMemoryParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
+        let working_dir = extract_working_dir_from_meta(&context.meta);
 
         self.remove_specific_memory_internal(
             &params.category,
             &params.memory_content,
             params.is_global,
+            working_dir.as_ref(),
         )
         .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
@@ -522,6 +549,7 @@ impl ServerHandler for MemoryServer {
                 name: "goose-memory".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },
@@ -543,16 +571,18 @@ mod tests {
     fn test_lazy_directory_creation() {
         let temp_dir = tempdir().unwrap();
         let memory_base = temp_dir.path().join("test_memory");
+        let working_dir = memory_base.join("working");
 
         let router = MemoryServer {
             tool_router: ToolRouter::new(),
             instructions: String::new(),
             global_memory_dir: memory_base.join("global"),
-            local_memory_dir: memory_base.join("local"),
         };
 
+        let local_memory_dir = working_dir.join(".goose").join("memory");
+
         assert!(!router.global_memory_dir.exists());
-        assert!(!router.local_memory_dir.exists());
+        assert!(!local_memory_dir.exists());
 
         router
             .remember(
@@ -561,10 +591,11 @@ mod tests {
                 "test_data",
                 &["tag1"],
                 false,
+                Some(&working_dir),
             )
             .unwrap();
 
-        assert!(router.local_memory_dir.exists());
+        assert!(local_memory_dir.exists());
         assert!(!router.global_memory_dir.exists());
 
         router
@@ -574,6 +605,7 @@ mod tests {
                 "global_data",
                 &["global_tag"],
                 true,
+                None,
             )
             .unwrap();
 
@@ -584,28 +616,32 @@ mod tests {
     fn test_clear_nonexistent_directories() {
         let temp_dir = tempdir().unwrap();
         let memory_base = temp_dir.path().join("nonexistent_memory");
+        let working_dir = memory_base.join("working");
 
         let router = MemoryServer {
             tool_router: ToolRouter::new(),
             instructions: String::new(),
             global_memory_dir: memory_base.join("global"),
-            local_memory_dir: memory_base.join("local"),
         };
 
-        assert!(router.clear_all_global_or_local_memories(false).is_ok());
-        assert!(router.clear_all_global_or_local_memories(true).is_ok());
+        assert!(router
+            .clear_all_global_or_local_memories(false, Some(&working_dir))
+            .is_ok());
+        assert!(router
+            .clear_all_global_or_local_memories(true, None)
+            .is_ok());
     }
 
     #[test]
     fn test_remember_retrieve_clear_workflow() {
         let temp_dir = tempdir().unwrap();
         let memory_base = temp_dir.path().join("workflow_test");
+        let working_dir = memory_base.join("working");
 
         let router = MemoryServer {
             tool_router: ToolRouter::new(),
             instructions: String::new(),
             global_memory_dir: memory_base.join("global"),
-            local_memory_dir: memory_base.join("local"),
         };
 
         router
@@ -615,10 +651,13 @@ mod tests {
                 "test_data_content",
                 &["test_tag"],
                 false,
+                Some(&working_dir),
             )
             .unwrap();
 
-        let memories = router.retrieve("test_category", false).unwrap();
+        let memories = router
+            .retrieve("test_category", false, Some(&working_dir))
+            .unwrap();
         assert!(!memories.is_empty());
 
         let has_content = memories.values().any(|v| {
@@ -627,9 +666,13 @@ mod tests {
         });
         assert!(has_content);
 
-        router.clear_memory("test_category", false).unwrap();
+        router
+            .clear_memory("test_category", false, Some(&working_dir))
+            .unwrap();
 
-        let memories_after_clear = router.retrieve("test_category", false).unwrap();
+        let memories_after_clear = router
+            .retrieve("test_category", false, Some(&working_dir))
+            .unwrap();
         assert!(memories_after_clear.is_empty());
     }
 
@@ -637,51 +680,77 @@ mod tests {
     fn test_directory_creation_on_write() {
         let temp_dir = tempdir().unwrap();
         let memory_base = temp_dir.path().join("write_test");
+        let working_dir = memory_base.join("working");
 
         let router = MemoryServer {
             tool_router: ToolRouter::new(),
             instructions: String::new(),
             global_memory_dir: memory_base.join("global"),
-            local_memory_dir: memory_base.join("local"),
         };
 
-        assert!(!router.local_memory_dir.exists());
+        let local_memory_dir = working_dir.join(".goose").join("memory");
+        assert!(!local_memory_dir.exists());
 
         router
-            .remember("context", "category", "data", &[], false)
+            .remember(
+                "context",
+                "category",
+                "data",
+                &[],
+                false,
+                Some(&working_dir),
+            )
             .unwrap();
 
-        assert!(router.local_memory_dir.exists());
-        assert!(router.local_memory_dir.join("category.txt").exists());
+        assert!(local_memory_dir.exists());
+        assert!(local_memory_dir.join("category.txt").exists());
     }
 
     #[test]
     fn test_remove_specific_memory() {
         let temp_dir = tempdir().unwrap();
         let memory_base = temp_dir.path().join("remove_test");
+        let working_dir = memory_base.join("working");
 
         let router = MemoryServer {
             tool_router: ToolRouter::new(),
             instructions: String::new(),
             global_memory_dir: memory_base.join("global"),
-            local_memory_dir: memory_base.join("local"),
         };
 
         router
-            .remember("context", "category", "keep_this", &[], false)
+            .remember(
+                "context",
+                "category",
+                "keep_this",
+                &[],
+                false,
+                Some(&working_dir),
+            )
             .unwrap();
         router
-            .remember("context", "category", "remove_this", &[], false)
+            .remember(
+                "context",
+                "category",
+                "remove_this",
+                &[],
+                false,
+                Some(&working_dir),
+            )
             .unwrap();
 
-        let memories = router.retrieve("category", false).unwrap();
+        let memories = router
+            .retrieve("category", false, Some(&working_dir))
+            .unwrap();
         assert_eq!(memories.len(), 1);
 
         router
-            .remove_specific_memory_internal("category", "remove_this", false)
+            .remove_specific_memory_internal("category", "remove_this", false, Some(&working_dir))
             .unwrap();
 
-        let memories_after = router.retrieve("category", false).unwrap();
+        let memories_after = router
+            .retrieve("category", false, Some(&working_dir))
+            .unwrap();
         let has_removed = memories_after
             .values()
             .any(|v| v.iter().any(|content| content.contains("remove_this")));

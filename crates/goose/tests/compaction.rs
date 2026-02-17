@@ -5,7 +5,10 @@ use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::model::ModelConfig;
-use goose::providers::base::{Provider, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
 use goose::providers::errors::ProviderError;
 use goose::session::session_manager::SessionType;
 use goose::session::Session;
@@ -94,14 +97,14 @@ impl MockCompactionProvider {
 
 #[async_trait]
 impl Provider for MockCompactionProvider {
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>,
         _model_config: &ModelConfig,
+        _session_id: &str,
         system_prompt: &str,
         messages: &[Message],
         _tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         // Check if this is a compaction call (message contains "summarize")
         let is_compaction = messages.iter().any(|msg| {
             msg.content.iter().any(|content| {
@@ -163,12 +166,20 @@ impl Provider for MockCompactionProvider {
             ),
         );
 
-        Ok((message, usage))
+        Ok(stream_from_single_message(message, usage))
     }
 
     fn get_model_config(&self) -> ModelConfig {
         ModelConfig::new("mock-model").unwrap()
     }
+
+    fn get_name(&self) -> &str {
+        "mock-compaction"
+    }
+}
+
+impl ProviderDef for MockCompactionProvider {
+    type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
         ProviderMetadata {
@@ -183,12 +194,15 @@ impl Provider for MockCompactionProvider {
         }
     }
 
-    fn get_name(&self) -> &str {
-        "mock-compaction"
+    fn from_env(
+        _model: ModelConfig,
+        _extensions: Vec<goose::config::ExtensionConfig>,
+    ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+        Box::pin(async { Ok(Self::new()) })
     }
 }
 
-/// Helper: Setup a test session with initial messages and token counts
+/// Helper: Set up a test session with initial messages and token counts
 async fn setup_test_session(
     agent: &Agent,
     temp_dir: &TempDir,

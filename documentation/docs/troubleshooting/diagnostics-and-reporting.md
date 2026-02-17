@@ -104,7 +104,7 @@ The bug report feature opens a structured GitHub issue template to help you prov
   <TabItem value="ui" label="goose Desktop" default>
     1. In an active chat session, look for the <Bug className="inline" size={16} /> icon in the bottom toolbar
     2. Click the diagnostics button
-    3. Click `File Bug on Github`
+    3. Click `File Bug on GitHub`
     4. This opens GitHub in your browser with a pre-filled bug report template
   </TabItem>
   <TabItem value="cli" label="goose CLI">

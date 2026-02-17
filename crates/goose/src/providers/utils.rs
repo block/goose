@@ -1,13 +1,10 @@
-use super::base::{MessageStream, Usage};
+use super::base::Usage;
 use super::errors::GoogleErrorCode;
 use crate::config::paths::Paths;
 use crate::model::ModelConfig;
 use crate::providers::errors::ProviderError;
-use crate::providers::formats::openai::response_to_streaming_message;
 use anyhow::{anyhow, Result};
-use async_stream::try_stream;
 use base64::Engine;
-use futures::TryStreamExt;
 use regex::Regex;
 use reqwest::{Response, StatusCode};
 use rmcp::model::{AnnotateAble, ImageContent, RawImageContent};
@@ -15,15 +12,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fmt::Display;
 use std::fs::File;
-use std::io;
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::Duration;
-use tokio::pin;
-use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
-use tokio_util::io::StreamReader;
 use uuid::Uuid;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -77,27 +69,6 @@ pub fn filter_extensions_from_system_prompt(system: &str) -> String {
     }
 }
 
-fn check_context_length_exceeded(text: &str) -> bool {
-    let check_phrases = [
-        "too long",
-        "context length",
-        "context_length_exceeded",
-        "reduce the length",
-        "token count",
-        "exceeds",
-        "exceed context limit",
-        "input length",
-        "max_tokens",
-        "decrease input length",
-        "context limit",
-        "maximum prompt length",
-    ];
-    let text_lower = text.to_lowercase();
-    check_phrases
-        .iter()
-        .any(|phrase| text_lower.contains(phrase))
-}
-
 fn format_server_error_message(status_code: StatusCode, payload: Option<&Value>) -> String {
     match payload {
         Some(Value::Null) | None => format!(
@@ -106,109 +77,6 @@ fn format_server_error_message(status_code: StatusCode, payload: Option<&Value>)
         ),
         Some(p) => format!("HTTP {}: {}", status_code.as_u16(), p),
     }
-}
-
-pub fn map_http_error_to_provider_error(
-    status: StatusCode,
-    payload: Option<Value>,
-) -> ProviderError {
-    let extract_message = || -> String {
-        payload
-            .as_ref()
-            .and_then(|p| {
-                p.get("error")
-                    .and_then(|e| e.get("message"))
-                    .or_else(|| p.get("message"))
-                    .and_then(|m| m.as_str())
-                    .map(String::from)
-            })
-            .unwrap_or_else(|| payload.as_ref().map(|p| p.to_string()).unwrap_or_default())
-    };
-
-    let error = match status {
-        StatusCode::OK => unreachable!("Should not call this function with OK status"),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => ProviderError::Authentication(format!(
-            "Authentication failed. Status: {}. Response: {}",
-            status,
-            extract_message()
-        )),
-        StatusCode::NOT_FOUND => {
-            ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
-        }
-        StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
-        StatusCode::BAD_REQUEST => {
-            let payload_str = extract_message();
-            if check_context_length_exceeded(&payload_str) {
-                ProviderError::ContextLengthExceeded(payload_str)
-            } else {
-                ProviderError::RequestFailed(format!("Bad request (400): {}", payload_str))
-            }
-        }
-        StatusCode::TOO_MANY_REQUESTS => ProviderError::RateLimitExceeded {
-            details: extract_message(),
-            retry_delay: None,
-        },
-        _ if status.is_server_error() => {
-            ProviderError::ServerError(format!("Server error ({}): {}", status, extract_message()))
-        }
-        _ => ProviderError::RequestFailed(format!(
-            "Request failed with status {}: {}",
-            status,
-            extract_message()
-        )),
-    };
-
-    if !status.is_success() {
-        tracing::warn!(
-            "Provider request failed with status: {}. Payload: {:?}. Returning error: {:?}",
-            status,
-            payload,
-            error
-        );
-    }
-
-    error
-}
-
-pub async fn handle_status_openai_compat(response: Response) -> Result<Response, ProviderError> {
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        let payload = serde_json::from_str::<Value>(&body).ok();
-        return Err(map_http_error_to_provider_error(status, payload));
-    }
-    Ok(response)
-}
-
-pub async fn handle_response_openai_compat(response: Response) -> Result<Value, ProviderError> {
-    let response = handle_status_openai_compat(response).await?;
-
-    response.json::<Value>().await.map_err(|e| {
-        ProviderError::RequestFailed(format!("Response body is not valid JSON: {}", e))
-    })
-}
-
-pub fn stream_openai_compat(
-    response: Response,
-    mut log: RequestLog,
-) -> Result<MessageStream, ProviderError> {
-    let stream = response.bytes_stream().map_err(io::Error::other);
-
-    Ok(Box::pin(try_stream! {
-        let stream_reader = StreamReader::new(stream);
-        let framed = FramedRead::new(stream_reader, LinesCodec::new())
-            .map_err(anyhow::Error::from);
-
-        let message_stream = response_to_streaming_message(framed);
-        pin!(message_stream);
-        while let Some(message) = message_stream.next().await {
-            let (message, usage) = message.map_err(|e|
-                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-            )?;
-            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-            yield (message, usage);
-        }
-    }))
 }
 
 pub fn is_google_model(payload: &Value) -> bool {
@@ -660,7 +528,7 @@ mod tests {
         let text = format!("Here is a fake image {}", fake_png_path.to_str().unwrap());
         assert_eq!(detect_image_path(&text), None);
 
-        // Test with non-existent file
+        // Test with nonexistent file
         let text = "Here is a fake.png that doesn't exist";
         assert_eq!(detect_image_path(text), None);
 
@@ -705,7 +573,7 @@ mod tests {
             .to_string()
             .contains("not a valid image"));
 
-        // Test non-existent file
+        // Test nonexistent file
         let result = load_image_file("nonexistent.png");
         assert!(result.is_err());
 

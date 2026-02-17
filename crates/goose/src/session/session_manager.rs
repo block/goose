@@ -491,7 +491,7 @@ impl SessionStorage {
         let options = SqliteConnectOptions::new()
             .filename(path)
             .create_if_missing(true)
-            .busy_timeout(std::time::Duration::from_secs(5))
+            .busy_timeout(std::time::Duration::from_secs(30))
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
         SqlitePoolOptions::new().connect_lazy_with(options)
@@ -697,7 +697,7 @@ impl SessionStorage {
         .bind(&session.name)
         .bind(session.user_set_name)
         .bind(session.session_type.to_string())
-        .bind(session.working_dir.to_string_lossy().as_ref())
+        .bind(&*session.working_dir.to_string_lossy())
         .bind(session.created_at)
         .bind(session.updated_at)
         .bind(serde_json::to_string(&session.extension_data)?)
@@ -924,7 +924,7 @@ impl SessionStorage {
             .bind(&today)
             .bind(&name)
             .bind(session_type.to_string())
-            .bind(working_dir.to_string_lossy().as_ref())
+            .bind(&*working_dir.to_string_lossy())
             .fetch_one(&mut *tx)
             .await?;
 

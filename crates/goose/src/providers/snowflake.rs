@@ -4,17 +4,22 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
+use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, map_http_error_to_provider_error, ImageFormat, RequestLog};
+use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 
 use crate::model::ModelConfig;
+use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
+const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";
 pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &[
     // Claude 4.5 series
@@ -103,7 +108,7 @@ impl SnowflakeProvider {
             api_client,
             model,
             image_format: ImageFormat::OpenAi,
-            name: Self::metadata().name,
+            name: SNOWFLAKE_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -292,11 +297,12 @@ impl SnowflakeProvider {
     }
 }
 
-#[async_trait]
-impl Provider for SnowflakeProvider {
+impl ProviderDef for SnowflakeProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "snowflake",
+            SNOWFLAKE_PROVIDER_NAME,
             "Snowflake",
             "Access the latest models using Snowflake Cortex services.",
             SNOWFLAKE_DEFAULT_MODEL,
@@ -309,6 +315,16 @@ impl Provider for SnowflakeProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for SnowflakeProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -317,18 +333,30 @@ impl Provider for SnowflakeProvider {
         self.model.clone()
     }
 
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(SNOWFLAKE_KNOWN_MODELS
+            .iter()
+            .map(|s| s.to_string())
+            .collect())
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let payload = create_request(model_config, system, messages, tools)?;
 
         let mut log = RequestLog::start(&self.model, &payload)?;
@@ -346,6 +374,10 @@ impl Provider for SnowflakeProvider {
 
         log.write(&response, Some(&usage))?;
 
-        Ok((message, ProviderUsage::new(response_model, usage)))
+        let provider_usage = ProviderUsage::new(response_model, usage);
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }

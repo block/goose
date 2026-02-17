@@ -90,9 +90,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     <div className="fixed inset-0 backdrop-blur-sm z-50 flex justify-center items-center animate-[fadein_200ms_ease-in]">
       {showCancelOptions ? (
         // Cancel options modal
-        <div className="bg-background-default border border-borderSubtle rounded-xl p-8 shadow-2xl w-full max-w-md">
-          <h2 className="text-xl font-bold text-textProminent mb-4">Cancel Recipe Setup</h2>
-          <p className="text-textStandard mb-6">What would you like to do?</p>
+        <div className="bg-background-default border border-border-default rounded-xl p-8 shadow-2xl w-full max-w-md">
+          <h2 className="text-xl font-bold text-text-default mb-4">Cancel Recipe Setup</h2>
+          <p className="text-text-default mb-6">What would you like to do?</p>
           <div className="flex flex-col gap-3">
             <Button
               onClick={() => handleCancelOption('back-to-form')}
@@ -114,15 +114,15 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
         </div>
       ) : (
         // Main parameter form
-        <div className="bg-background-default border border-borderSubtle rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="bg-background-default border border-border-default rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
           <div className="p-8 pb-4 flex-shrink-0">
-            <h2 className="text-xl font-bold text-textProminent mb-6">Recipe Parameters</h2>
+            <h2 className="text-xl font-bold text-text-default mb-6">Recipe Parameters</h2>
           </div>
           <div className="flex-1 overflow-y-auto px-8">
             <form onSubmit={handleSubmit} className="space-y-4 mb-4">
               {parameters.map((param) => (
                 <div key={param.key}>
-                  <label className="block text-md font-medium text-textStandard mb-2">
+                  <label className="block text-md font-medium text-text-default mb-2">
                     {param.description || param.key}
                     {param.requirement === 'required' && (
                       <span className="text-red-500 ml-1">*</span>
@@ -134,10 +134,10 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     <select
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
-                      className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
+                      className={`w-full p-3 border rounded-lg bg-background-muted text-text-default focus:outline-none focus:ring-2 ${
                         validationErrors[param.key]
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-borderSubtle focus:ring-borderProminent'
+                          : 'border-border-default focus:ring-border-strong'
                       }`}
                     >
                       <option value="">Select an option...</option>
@@ -151,10 +151,10 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     <select
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
-                      className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
+                      className={`w-full p-3 border rounded-lg bg-background-muted text-text-default focus:outline-none focus:ring-2 ${
                         validationErrors[param.key]
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-borderSubtle focus:ring-borderProminent'
+                          : 'border-border-default focus:ring-border-strong'
                       }`}
                     >
                       <option value="">Select...</option>
@@ -166,10 +166,10 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                       type={param.input_type === 'number' ? 'number' : 'text'}
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
-                      className={`w-full p-3 border rounded-lg bg-bgSubtle text-textStandard focus:outline-none focus:ring-2 ${
+                      className={`w-full p-3 border rounded-lg bg-background-muted text-text-default focus:outline-none focus:ring-2 ${
                         validationErrors[param.key]
                           ? 'border-red-500 focus:ring-red-500'
-                          : 'border-borderSubtle focus:ring-borderProminent'
+                          : 'border-border-default focus:ring-border-strong'
                       }`}
                       placeholder={param.default || `Enter value for ${param.key}...`}
                     />

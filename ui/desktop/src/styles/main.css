@@ -2,6 +2,9 @@
 @import 'tw-animate-css';
 @plugin '@tailwindcss/typography';
 
+@source '../../index.html';
+@source '../**/*.{js,ts,jsx,tsx}';
+
 @theme {
   --breakpoint-md: 930px;
 }
@@ -58,35 +61,33 @@
   --text-on-accent: var(--color-white);
 
   /* Semantic */
-  --background-app: var(--color-white);
   --background-default: var(--color-white);
-  --background-card: var(--color-white);
   --background-muted: var(--color-neutral-50);
   --background-medium: var(--color-neutral-100);
-  --background-strong: var(--color-neutral-300);
   --background-inverse: var(--color-black);
   --background-danger: var(--color-red-200);
-  --background-success: var(--color-green-200);
   --background-info: var(--color-blue-200);
-  --background-warning: var(--color-yellow-200);
 
   --border-default: var(--color-neutral-100);
-  --border-input: var(--color-neutral-100);
   --border-strong: var(--color-neutral-100);
   --border-danger: var(--color-red-200);
-  --border-success: var(--color-green-200);
-  --border-warning: var(--color-yellow-200);
   --border-info: var(--color-blue-200);
 
   --text-default: var(--color-neutral-800);
-  --text-muted: var(--color-neutral-400);
+  --text-muted: var(--color-neutral-600);
   --text-inverse: var(--color-white);
   --text-danger: var(--color-red-200);
   --text-success: var(--color-green-200);
   --text-warning: var(--color-yellow-200);
   --text-info: var(--color-blue-200);
 
+  --placeholder: var(--color-neutral-400);
+
   --ring: var(--border-strong);
+
+  /* Search highlighting */
+  --highlight-color: rgba(255, 213, 0, 0.5);
+  --highlight-current: rgba(252, 213, 3, 0.6);
 
   --sidebar: var(--background-muted);
   --sidebar-foreground: var(--text-default);
@@ -112,35 +113,33 @@
   --text-on-accent: var(--color-black);
 
   /* semantic */
-  --background-app: var(--color-neutral-950);
   --background-default: var(--color-neutral-950);
-  --background-card: var(--color-neutral-950);
   --background-muted: var(--color-neutral-800);
   --background-medium: var(--color-neutral-700);
-  --background-strong: var(--color-neutral-600);
   --background-inverse: var(--color-neutral-200);
   --background-danger: var(--color-red-100);
-  --background-success: var(--color-green-100);
   --background-info: var(--color-blue-100);
-  --background-warning: var(--color-yellow-100);
 
   --border-default: var(--color-neutral-800);
-  --border-input: var(--color-neutral-700);
   --border-strong: var(--color-neutral-600);
   --border-danger: var(--color-red-100);
-  --border-success: var(--color-green-100);
-  --border-warning: var(--color-yellow-100);
   --border-info: var(--color-blue-100);
 
   --text-default: var(--color-white);
-  --text-muted: var(--color-neutral-400);
+  --text-muted: var(--color-neutral-300);
   --text-inverse: var(--color-black);
   --text-danger: var(--color-red-100);
   --text-success: var(--color-green-100);
   --text-warning: var(--color-yellow-100);
   --text-info: var(--color-blue-100);
 
+  --placeholder: var(--color-neutral-400);
+
   --ring: var(--border-strong);
+
+  /* Search highlighting */
+  --highlight-color: rgba(255, 213, 0, 0.5);
+  --highlight-current: rgba(252, 213, 3, 0.6);
 
   --sidebar: var(--background-muted);
   --sidebar-foreground: var(--text-default);
@@ -162,13 +161,9 @@
   --color-background-default: var(--background-default);
   --color-background-muted: var(--background-muted);
   --color-background-medium: var(--background-medium);
-  --color-background-strong: var(--background-strong);
   --color-background-inverse: var(--background-inverse);
   --color-background-danger: var(--background-danger);
-  --color-background-success: var(--background-success);
   --color-background-info: var(--background-info);
-  --color-background-warning: var(--background-warning);
-  --color-background-card: var(--background-card);
 
   --color-background-accent: var(--background-accent);
   --color-border-accent: var(--border-accent);
@@ -176,18 +171,14 @@
   --color-text-on-accent: var(--text-on-accent);
 
   --color-border-default: var(--border-default);
-  --color-border-input: var(--border-input);
   --color-border-strong: var(--border-strong);
   --color-border-danger: var(--border-danger);
-  --color-border-success: var(--border-success);
-  --color-border-warning: var(--border-warning);
   --color-border-info: var(--border-info);
 
   --color-text-default: var(--text-default);
   --color-text-muted: var(--text-muted);
   --color-text-inverse: var(--text-inverse);
   --color-text-danger: var(--text-danger);
-  --color-text-success: var(--text-success);
   --color-text-warning: var(--text-warning);
   --color-text-info: var(--text-info);
 
@@ -197,10 +188,7 @@
 
   --color-ring: var(--ring);
 
-  --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
@@ -385,11 +373,16 @@
   [class*='animate-[wind'] {
     animation: none !important;
   }
+
+  /* Elements that use opacity-0 with appear animation need to be visible when animations are disabled */
+  .opacity-0[class*='animate-'] {
+    opacity: 1 !important;
+  }
 }
 
 /* Toast close button styling */
 .Toastify__close-button {
-  color: var(--text-prominent-inverse) !important;
+  color: var(--text-inverse) !important;
   opacity: 0.7;
   align-self: center;
   margin-top: 0;
@@ -417,17 +410,21 @@
 .Toastify__toast--info .Toastify__close-button,
 .Toastify__toast--warning .Toastify__close-button,
 .Toastify__toast--default .Toastify__close-button {
-  color: var(--text-prominent-inverse) !important;
+  color: var(--text-inverse) !important;
 }
 
 .animate-fade-slide-up {
   animation: fade-slide-up 0.15s ease-out forwards;
 }
 
-/* Force scrollbars to be visible */
+/* Hide native scrollbars in Radix ScrollArea (custom scrollbar will show instead) */
 [data-radix-scroll-area-viewport] {
-  scrollbar-width: auto !important;
-  -ms-overflow-style: auto !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-radix-scroll-area-viewport]::-webkit-scrollbar {
+  display: none;
 }
 
 /* Override Radix UI ScrollArea styles */
@@ -512,7 +509,7 @@
 }
 
 body {
-  background-color: var(--background-app);
+  background-color: var(--background-default);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -675,38 +672,6 @@ p > code.bg-inline-code {
   transform-origin: bottom left;
 }
 
-/* Session list optimizations */
-.session-grid {
-  /* Use CSS Grid for better performance */
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
-  /* Optimize for large lists */
-  contain: layout style paint;
-}
-
-.session-item {
-  /* Default state - visible and positioned */
-  opacity: 1;
-  transform: translateY(0) translateZ(0);
-
-  /* Optimize individual session cards */
-  contain: layout style;
-  /* Use hardware acceleration */
-  backface-visibility: hidden;
-  /* Ensure smooth interactions */
-  will-change: auto;
-}
-
-.session-item:hover {
-  /* Only use will-change during hover */
-  will-change: transform, box-shadow;
-}
-
-.session-item:not(:hover) {
-  will-change: auto;
-}
-
 /* Optimize session skeleton loading */
 .session-skeleton {
   contain: layout style paint;
@@ -855,4 +820,58 @@ p > code.bg-inline-code {
 
 .katex-error {
   color: var(--text-danger);
+}
+
+/* Search Highlighting Styles */
+.search-highlight {
+  background-color: var(--highlight-color);
+  color: var(--text-default);
+  padding: 0;
+  border-radius: 2px;
+}
+
+.search-highlight.current {
+  background-color: var(--highlight-current);
+  box-shadow: inset 0 0 0 1px var(--text-default);
+  z-index: 2;
+}
+
+/* Search Bar Animations */
+@keyframes expandDown {
+  from {
+    max-height: 0;
+  }
+  to {
+    max-height: var(--search-bar-height);
+  }
+}
+
+@keyframes collapseUp {
+  from {
+    max-height: var(--search-bar-height);
+  }
+  to {
+    max-height: 0;
+  }
+}
+
+.search-bar-enter {
+  --search-bar-height: 72px;
+  animation: expandDown 0.15s ease-out forwards;
+  overflow: hidden;
+}
+
+.search-bar-exit {
+  --search-bar-height: 72px;
+  animation: collapseUp 0.15s ease-out forwards;
+  overflow: hidden;
+}
+
+/* Reduced motion support for search animations */
+@media (prefers-reduced-motion: reduce) {
+  .search-bar-enter,
+  .search-bar-exit {
+    animation: none;
+    max-height: var(--search-bar-height);
+  }
 }

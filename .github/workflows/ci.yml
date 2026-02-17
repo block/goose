@@ -95,7 +95,10 @@ jobs:
           # play nicely with hermit-managed rust
           hermit uninstall rustup
           export CARGO_INCREMENTAL=0
-          ./scripts/clippy-lint.sh
+          cargo clippy --all-targets -- -D warnings
+
+      - name: Check for banned TLS crates
+        run: ./scripts/check-no-native-tls.sh
 
   openapi-schema-check:
     name: Check OpenAPI Schema is Up-to-Date

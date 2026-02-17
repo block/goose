@@ -32,7 +32,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, Recipe, stripEmptyExtensions } from '../../recipe';
+import { generateDeepLink, encodeRecipe, Recipe, stripEmptyExtensions } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -58,6 +58,7 @@ import {
 } from '../ui/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
+import { AppEvents } from '../../constants/events';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -149,6 +150,9 @@ export default function RecipesView() {
       });
       const session = newAgent.data;
       trackRecipeStarted(true, undefined, false);
+
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
+
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
@@ -161,15 +165,16 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChatInNewWindow = (recipeId: string) => {
+  const handleStartRecipeChatInNewWindow = async (recipe: Recipe) => {
     try {
+      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe) as Recipe);
       window.electron.createChatWindow(
         undefined,
         getInitialWorkingDir(),
         undefined,
         undefined,
         'pair',
-        recipeId
+        encodedRecipe
       );
       trackRecipeStarted(true, undefined, true);
     } catch (error) {
@@ -517,7 +522,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+              handleStartRecipeChatInNewWindow(recipe);
             }}
             variant="outline"
             size="sm"

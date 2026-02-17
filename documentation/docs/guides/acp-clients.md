@@ -18,6 +18,7 @@ The client manages the goose lifecycle automatically, including:
 - **Initialization**: The client runs the `goose acp` command to initialize the connection
 - **Communication**: The client communicates with goose over stdio using JSON-RPC
 - **Multiple Sessions**: The client manages multiple concurrent goose conversations simultaneously
+- **Session Isolation**: Each session maintains its own isolated state, including conversation history, agent context, and extension configurations, allowing concurrent sessions to run without interference
 
 :::info Session Persistence
 ACP sessions are saved to goose's session history where you can access and manage them using goose. Access to session history in ACP clients might vary.

@@ -4,6 +4,7 @@ import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { AlertCircle } from 'lucide-react';
 import { ExternalGoosedConfig } from '../../../utils/settings';
+import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';
 
 const DEFAULT_CONFIG: ExternalGoosedConfig = {
   enabled: false,
@@ -40,7 +41,7 @@ export default function ExternalBackendSection() {
     }
     try {
       const parsed = new URL(value);
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
+      if (!WEB_PROTOCOLS.includes(parsed.protocol)) {
         setUrlError('URL must use http or https protocol');
         return false;
       }

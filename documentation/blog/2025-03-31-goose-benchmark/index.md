@@ -251,7 +251,7 @@ Ensure your model has enough context length to avoid running out of space in the
 OLLAMA_CONTEXT_LENGTH=28672 ollama serve
 ```
 
-You can also set the context length as a parameter in Ollama by updating the Modlfile with your desired context length and running `ollama create`.
+You can also set the context length as a parameter in Ollama by updating the Modelfile with your desired context length and running `ollama create`.
 
 ### Be Aware of Quantization Levels
 

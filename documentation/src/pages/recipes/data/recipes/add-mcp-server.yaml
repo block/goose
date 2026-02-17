@@ -188,7 +188,7 @@ instructions: |
   - servers.json is used from /src/pages/extensions and /documentation/src/components/server-card.tsx
   
   **Tutorial and components:**
-  - Tutorial filename: If id ends with "-mcp", use `{id}.md`. Otherwise use `{id}-mcp.md` 
+  - Tutorial filename: If id ends with "-mcp", use `{id}.md`. Otherwise, use `{id}-mcp.md` 
     - For existing content: .mdx file type is acceptable
   - GooseDesktopInstaller: Desktop UI install (generates goose:// URL) - source is /src/components/GooseDesktopInstaller.tsx
   - CLIExtensionInstructions: CLI install (shows `goose configure` flow)  - source is /src/components/CLIExtensionInstructions.tsx

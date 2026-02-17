@@ -187,7 +187,7 @@ export default function PromptsSettingsSection() {
             </div>
           </CardHeader>
           <CardContent className="px-4 space-y-4 flex flex-col h-full">
-            <div className="text-sm text-text-muted bg-background-subtle p-3 rounded-lg">
+            <div className="text-sm text-text-muted bg-background-muted p-3 rounded-lg">
               <p>
                 <strong>Tip:</strong> Template variables like{' '}
                 <code className="bg-background-default px-1 rounded">{'{{ extensions }}'}</code> or{' '}
@@ -215,7 +215,7 @@ export default function PromptsSettingsSection() {
               </div>
               <textarea
                 value={content}
-                className="w-full flex-1 min-h-[500px] border rounded-md p-3 text-sm font-mono resize-y bg-background-default text-textStandard border-borderStandard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full flex-1 min-h-[500px] border rounded-md p-3 text-sm font-mono resize-y bg-background-default text-text-default border-border-default focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Enter prompt content..."
                 spellCheck={false}
@@ -266,7 +266,7 @@ export default function PromptsSettingsSection() {
             {prompts.map((prompt) => (
               <div
                 key={prompt.name}
-                className="flex items-center justify-between p-3 rounded-lg border border-border-default hover:bg-background-subtle transition-colors"
+                className="flex items-center justify-between p-3 rounded-lg border border-border-default hover:bg-background-muted transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">

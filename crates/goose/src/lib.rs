@@ -1,8 +1,10 @@
 pub mod action_required_manager;
 pub mod agents;
+pub mod builtin_extension;
 pub mod config;
 pub mod context_mgmt;
 pub mod conversation;
+pub mod dictation;
 pub mod execution;
 pub mod goose_apps;
 pub mod hints;
@@ -10,6 +12,7 @@ pub mod logging;
 pub mod mcp_utils;
 pub mod model;
 pub mod oauth;
+pub mod otel;
 pub mod permission;
 pub mod posthog;
 pub mod prompt_template;

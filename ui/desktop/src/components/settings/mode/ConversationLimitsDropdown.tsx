@@ -38,7 +38,7 @@ export const ConversationLimitsDropdown = ({
         }`}
       >
         <div className="space-y-3 pb-2">
-          <div className="flex items-center justify-between py-2 px-2 bg-background-subtle rounded-lg transform transition-all duration-200 ease-in-out">
+          <div className="flex items-center justify-between py-2 px-2 bg-background-muted rounded-lg transform transition-all duration-200 ease-in-out">
             <div>
               <h4 className="text-text-default text-sm">Max Turns</h4>
               <p className="text-xs text-text-muted mt-[2px]">

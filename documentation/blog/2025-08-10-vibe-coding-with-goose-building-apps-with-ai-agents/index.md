@@ -290,7 +290,7 @@ The Architect agent established the technical foundation:
 - **File Structure**: Organized project with clear separation of concerns
 - **Dependencies**: Express, CORS, and child_process for calling Headless Goose
 
-The Architect also defined the API contract, which made it possible for the the next step where the frontend and backend developer agents can work in parallel.
+The Architect also defined the API contract, which made it possible for the next step where the frontend and backend developer agents can work in parallel.
 
 ### Step 4: Parallel Development
 This is where things got really interesting. We spun up two developer agents simultaneously:

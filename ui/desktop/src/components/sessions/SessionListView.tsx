@@ -33,6 +33,7 @@ import {
   forkSession,
   importSession,
   listSessions,
+  searchSessions,
   Session,
   updateSessionName,
   ExtensionConfig,
@@ -134,8 +135,8 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-        <div className="bg-background-default border border-border-subtle rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-standard mb-4">Edit Session Description</h3>
+        <div className="bg-background-default border border-border-default rounded-lg p-6 w-[500px] max-w-[90vw]">
+          <h3 className="text-lg font-medium text-text-default mb-4">Edit Session Description</h3>
 
           <div className="space-y-4">
             <div>
@@ -144,7 +145,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
                 type="text"
                 value={description}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter session description"
                 autoFocus
                 maxLength={200}
@@ -342,7 +343,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       }
     }, [selectedSessionId, sessions]);
 
-    // Debounced search effect - performs actual filtering
+    // Debounced search effect - performs content search via API
     useEffect(() => {
       if (!debouncedSearchTerm) {
         startTransition(() => {
@@ -352,32 +353,27 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         return;
       }
 
-      // Use startTransition to make search non-blocking
-      startTransition(() => {
-        const searchTerm = caseSensitive ? debouncedSearchTerm : debouncedSearchTerm.toLowerCase();
-        const filtered = sessions.filter((session) => {
-          const description = session.name;
-          const workingDir = session.working_dir;
-          const sessionId = session.id;
-
-          if (caseSensitive) {
-            return (
-              description.includes(searchTerm) ||
-              sessionId.includes(searchTerm) ||
-              workingDir.includes(searchTerm)
-            );
-          } else {
-            return (
-              description.toLowerCase().includes(searchTerm) ||
-              sessionId.toLowerCase().includes(searchTerm) ||
-              workingDir.toLowerCase().includes(searchTerm)
-            );
-          }
+      // Call the backend search API for content search
+      const performSearch = async () => {
+        const resp = await searchSessions({
+          query: { query: debouncedSearchTerm },
         });
 
-        setFilteredSessions(filtered);
-        setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
-      });
+        if (resp.data) {
+          // Response is Vec<Session> - sessions that match the search
+          const matchedSessionIds = new Set(resp.data.map((s: { id: string }) => s.id));
+          const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
+
+          startTransition(() => {
+            setFilteredSessions(filtered);
+            setSearchResults(
+              filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null
+            );
+          });
+        }
+      };
+
+      performSearch();
     }, [debouncedSearchTerm, caseSensitive, sessions]);
 
     // Handle immediate search input (updates search term for debouncing)
@@ -617,62 +613,23 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       return (
         <Card
           onClick={handleCardClick}
-          className="session-item h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
+          className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
           ref={(el) => setSessionRefs(session.id, el)}
         >
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <h3 className="text-base break-words line-clamp-2 flex-1 min-w-0">{displayName}</h3>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-              <button
-                onClick={handleOpenInNewWindowClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Open in new window"
-              >
-                <ExternalLink className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
-              <button
-                onClick={handleEditClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Edit session name"
-              >
-                <Edit2 className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
-              <button
-                onClick={handleDuplicateClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Duplicate session"
-              >
-                <Copy className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
-              <button
-                onClick={handleDeleteClick}
-                className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
-                title="Delete session"
-              >
-                <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
-              </button>
-              <button
-                onClick={handleExportClick}
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title="Export session"
-              >
-                <Download className="w-3 h-3 text-textSubtle hover:text-textStandard" />
-              </button>
+          <div>
+            <h3 className="text-base break-words line-clamp-2 w-full mb-1">{displayName}</h3>
+            <div className="flex-1 mt-2">
+              <div className="flex items-center text-text-muted text-xs">
+                <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
+              </div>
+              <div className="flex items-center text-text-muted text-xs">
+                <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
+                <span className="truncate">{session.working_dir}</span>
+              </div>
             </div>
           </div>
-
-          <div className="flex-1">
-            <div className="flex items-center text-text-muted text-xs mb-1">
-              <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-              <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
-            </div>
-            <div className="flex items-center text-text-muted text-xs mb-1">
-              <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
-              <span className="truncate">{session.working_dir}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between mt-1 pt-2">
+          <div className="flex items-center justify-between mt-1">
             <div className="flex items-center space-x-3 text-xs text-text-muted">
               <div className="flex items-center">
                 <MessageSquareText className="w-3 h-3 mr-1" />
@@ -707,6 +664,43 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 </TooltipProvider>
               )}
             </div>
+          </div>
+          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={handleOpenInNewWindowClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Open in new window"
+            >
+              <ExternalLink className="w-3 h-3 text-text-muted hover:text-text-default" />
+            </button>
+            <button
+              onClick={handleEditClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Edit session name"
+            >
+              <Edit2 className="w-3 h-3 text-text-muted hover:text-text-default" />
+            </button>
+            <button
+              onClick={handleDuplicateClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Duplicate session"
+            >
+              <Copy className="w-3 h-3 text-text-muted hover:text-text-default" />
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
+              title="Delete session"
+            >
+              <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
+            </button>
+            <button
+              onClick={handleExportClick}
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              title="Export session"
+            >
+              <Download className="w-3 h-3 text-text-muted hover:text-text-default" />
+            </button>
           </div>
         </Card>
       );
@@ -809,7 +803,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           {visibleGroupsCount < dateGroups.length && (
             <div className="flex justify-center py-8">
               <div className="flex items-center space-x-2 text-text-muted">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-text-muted"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>
                 <span>Loading more sessions...</span>
               </div>
             </div>

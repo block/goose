@@ -34,7 +34,7 @@ describe('interruptionDetector', () => {
         expect(result?.shouldInterrupt).toBe(true);
       });
 
-      it('is case insensitive', () => {
+      it('is case-insensitive', () => {
         expect(detectInterruption('STOP')?.confidence).toBe(1.0);
         expect(detectInterruption('Stop')?.confidence).toBe(1.0);
         expect(detectInterruption('sToP')?.confidence).toBe(1.0);

@@ -3,34 +3,15 @@ use goose_cli::cli::cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if let Err(e) = goose_cli::logging::setup_logging(None, None) {
+    if let Err(e) = goose_cli::logging::setup_logging(None) {
         eprintln!("Warning: Failed to initialize logging: {}", e);
     }
 
     let result = cli().await;
 
-    // Only wait for telemetry flush if OTLP is configured
-    let should_wait = goose::config::Config::global()
-        .get_param::<String>("otel_exporter_otlp_endpoint")
-        .is_ok();
-
-    if should_wait {
-        // Use a shorter, dynamic wait with max timeout
-        let max_wait = tokio::time::Duration::from_millis(500);
-        let start = tokio::time::Instant::now();
-
-        // Give telemetry a chance to flush, but don't wait too long
-        while start.elapsed() < max_wait {
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-
-            // In future, we could check if there are pending spans/metrics here
-            // For now, we just do a quick wait to allow batch exports to complete
-            if start.elapsed() >= tokio::time::Duration::from_millis(200) {
-                break; // Most exports should complete within 200ms
-            }
-        }
-
-        goose::tracing::shutdown_otlp();
+    if goose::otel::otlp::is_otlp_initialized() {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        goose::otel::otlp::shutdown_otlp();
     }
 
     result

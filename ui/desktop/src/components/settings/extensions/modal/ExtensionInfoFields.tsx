@@ -25,13 +25,13 @@ export default function ExtensionInfoFields({
       {/* Top row with Name and Type side by side */}
       <div className="flex justify-between gap-4">
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block text-textStandard">Extension Name</label>
+          <label className="text-sm font-medium mb-2 block text-text-default">Extension Name</label>
           <div className="relative">
             <Input
               value={name}
               onChange={(e) => onChange('name', e.target.value)}
               placeholder="Enter extension name..."
-              className={`${!submitAttempted || isNameValid() ? 'border-borderSubtle' : 'border-red-500'} text-textStandard focus:border-borderStandard`}
+              className={`${!submitAttempted || isNameValid() ? 'border-border-default' : 'border-red-500'} text-text-default focus:border-border-default`}
             />
             {submitAttempted && !isNameValid() && (
               <div className="absolute text-xs text-red-500 mt-1">Name is required</div>
@@ -41,7 +41,7 @@ export default function ExtensionInfoFields({
 
         {/* Type Dropdown */}
         <div className="w-[200px]">
-          <label className="text-sm font-medium mb-2 block text-textStandard">Type</label>
+          <label className="text-sm font-medium mb-2 block text-text-default">Type</label>
           <Select
             value={{
               value: type,
@@ -71,13 +71,13 @@ export default function ExtensionInfoFields({
 
       {/* Bottom row with Description spanning full width */}
       <div className="w-full">
-        <label className="text-sm font-medium mb-2 block text-textStandard">Description</label>
+        <label className="text-sm font-medium mb-2 block text-text-default">Description</label>
         <div className="relative">
           <Input
             value={description}
             onChange={(e) => onChange('description', e.target.value)}
             placeholder="Optional description..."
-            className={`text-textStandard focus:border-borderStandard`}
+            className={`text-text-default focus:border-border-default`}
           />
         </div>
       </div>

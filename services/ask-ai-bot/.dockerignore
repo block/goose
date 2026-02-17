@@ -1,0 +1,21 @@
+# Include only what's needed from the monorepo root context
+# This file is used when building from the repo root
+
+# Exclude everything by default
+*
+
+# Include the bot source
+!services/ask-ai-bot/
+
+# Include documentation (only docs subfolder needed)
+!documentation/docs/
+
+# Exclude unnecessary files from included directories
+services/ask-ai-bot/node_modules
+services/ask-ai-bot/dist
+services/ask-ai-bot/.env
+services/ask-ai-bot/.discraft
+**/*.tsbuildinfo
+
+# Exclude large assets from docs that aren't needed for search
+documentation/docs/assets

@@ -1,7 +1,7 @@
 use rmcp::model::{ErrorCode, ErrorData};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tree_sitter::{Language, Parser, Tree};
+use tree_sitter::{Language, Parser, StreamingIterator, Tree};
 
 use super::lock_or_recover;
 use crate::developer::analyze::types::{
@@ -33,14 +33,14 @@ impl ParserManager {
         tracing::debug!("Creating new parser for {}", language);
         let mut parser = Parser::new();
         let language_config: Language = match language {
-            "python" => tree_sitter_python::language(),
-            "rust" => tree_sitter_rust::language(),
-            "javascript" | "typescript" => tree_sitter_javascript::language(),
-            "go" => tree_sitter_go::language(),
-            "java" => tree_sitter_java::language(),
-            "kotlin" => tree_sitter_kotlin::language(),
-            "swift" => devgen_tree_sitter_swift::language(),
-            "ruby" => tree_sitter_ruby::language(),
+            "python" => tree_sitter_python::LANGUAGE.into(),
+            "rust" => tree_sitter_rust::LANGUAGE.into(),
+            "javascript" | "typescript" => tree_sitter_javascript::LANGUAGE.into(),
+            "go" => tree_sitter_go::LANGUAGE.into(),
+            "java" => tree_sitter_java::LANGUAGE.into(),
+            "kotlin" => tree_sitter_kotlin_ng::LANGUAGE.into(),
+            "swift" => tree_sitter_swift::LANGUAGE.into(),
+            "ruby" => tree_sitter_ruby::LANGUAGE.into(),
             _ => {
                 tracing::warn!("Unsupported language: {}", language);
                 return Err(ErrorData::new(
@@ -93,7 +93,7 @@ impl ElementExtractor {
         node: &'a tree_sitter::Node,
         kinds: &[&str],
     ) -> Option<tree_sitter::Node<'a>> {
-        (0..node.child_count())
+        (0..node.child_count() as u32)
             .filter_map(|i| node.child(i))
             .find(|child| kinds.contains(&child.kind()))
     }
@@ -214,7 +214,7 @@ impl ElementExtractor {
         let mut cursor = QueryCursor::new();
         let mut matches = cursor.matches(&query, tree.root_node(), source.as_bytes());
 
-        for match_ in matches.by_ref() {
+        while let Some(match_) = matches.next() {
             for capture in match_.captures {
                 let node = capture.node;
                 let Some(text) = source.get(node.byte_range()) else {
@@ -222,7 +222,7 @@ impl ElementExtractor {
                 };
                 let line = source
                     .get(..node.start_byte())
-                    .map(|s| s.lines().count() + 1)
+                    .map(|s: &str| s.lines().count() + 1)
                     .unwrap_or(1);
 
                 match query.capture_names()[capture.index as usize] {
@@ -287,7 +287,7 @@ impl ElementExtractor {
         let mut cursor = QueryCursor::new();
         let mut matches = cursor.matches(&query, tree.root_node(), source.as_bytes());
 
-        for match_ in matches.by_ref() {
+        while let Some(match_) = matches.next() {
             for capture in match_.captures {
                 let node = capture.node;
                 let Some(text) = source.get(node.byte_range()) else {
@@ -297,17 +297,17 @@ impl ElementExtractor {
 
                 let line_start = source
                     .get(..node.start_byte())
-                    .and_then(|s| s.rfind('\n'))
+                    .and_then(|s: &str| s.rfind('\n'))
                     .map(|i| i + 1)
                     .unwrap_or(0);
                 let line_end = source
                     .get(node.end_byte()..)
-                    .and_then(|s| s.find('\n'))
+                    .and_then(|s: &str| s.find('\n'))
                     .map(|i| node.end_byte() + i)
                     .unwrap_or(source.len());
                 let context = source
                     .get(line_start..line_end)
-                    .map(|s| s.trim().to_string())
+                    .map(|s: &str| s.trim().to_string())
                     .unwrap_or_default();
 
                 let caller_name = Self::find_containing_function(&node, source, language);
@@ -366,7 +366,7 @@ impl ElementExtractor {
         let mut cursor = QueryCursor::new();
         let mut matches = cursor.matches(&query, tree.root_node(), source.as_bytes());
 
-        for match_ in matches.by_ref() {
+        while let Some(match_) = matches.next() {
             for capture in match_.captures {
                 let node = capture.node;
                 let Some(text) = source.get(node.byte_range()) else {
@@ -376,17 +376,17 @@ impl ElementExtractor {
 
                 let line_start = source
                     .get(..node.start_byte())
-                    .and_then(|s| s.rfind('\n'))
+                    .and_then(|s: &str| s.rfind('\n'))
                     .map(|i| i + 1)
                     .unwrap_or(0);
                 let line_end = source
                     .get(node.end_byte()..)
-                    .and_then(|s| s.find('\n'))
+                    .and_then(|s: &str| s.find('\n'))
                     .map(|i| node.end_byte() + i)
                     .unwrap_or(source.len());
                 let context = source
                     .get(line_start..line_end)
-                    .map(|s| s.trim().to_string())
+                    .map(|s: &str| s.trim().to_string())
                     .unwrap_or_default();
 
                 let capture_name = query.capture_names()[capture.index as usize];

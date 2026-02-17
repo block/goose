@@ -23,7 +23,7 @@ export function RecipeNameField({
 }: RecipeNameFieldProps) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-text-standard mb-2">
+      <label htmlFor={id} className="block text-sm font-medium text-text-default mb-2">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
@@ -50,8 +50,8 @@ export function RecipeNameField({
           onBlur();
         }}
         disabled={disabled}
-        className={`w-full p-3 border rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-          errors.length > 0 ? 'border-red-500' : 'border-border-subtle'
+        className={`w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          errors.length > 0 ? 'border-red-500' : 'border-border-default'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         placeholder={RECIPE_NAME_PLACEHOLDER}
         data-testid="recipe-name-input"

@@ -1,24 +1,24 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
-use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::formats::databricks::{create_request, response_to_message};
+use super::formats::databricks::create_request;
 use super::oauth;
-use super::retry::ProviderRetry;
-use super::utils::{
-    get_model, handle_response_openai_compat, map_http_error_to_provider_error,
-    stream_openai_compat, ImageFormat, RequestLog,
+use super::openai_compatible::{
+    handle_response_openai_compat, map_http_error_to_provider_error, stream_openai_compat,
 };
+use super::retry::ProviderRetry;
+use super::utils::{ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::get_usage;
 use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
@@ -31,8 +31,9 @@ const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 
+const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
-const DATABRICKS_DEFAULT_FAST_MODEL: &str = "gemini-2-5-flash";
+const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-claude-sonnet-4-5",
     "databricks-claude-3-7-sonnet",
@@ -100,6 +101,8 @@ pub struct DatabricksProvider {
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
+    fast_retry_config: RetryConfig,
+    #[serde(skip)]
     name: String,
 }
 
@@ -121,6 +124,7 @@ impl DatabricksProvider {
 
         let host = host?;
         let retry_config = Self::load_retry_config(config);
+        let fast_retry_config = Self::load_fast_retry_config(config);
 
         let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
             DatabricksAuth::token(api_key)
@@ -140,9 +144,11 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
-            name: Self::metadata().name,
+            fast_retry_config,
+            name: DATABRICKS_PROVIDER_NAME.to_string(),
         };
-        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
+        provider.model =
+            model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
         Ok(provider)
     }
 
@@ -179,6 +185,11 @@ impl DatabricksProvider {
         }
     }
 
+    fn load_fast_retry_config(_config: &crate::config::Config) -> RetryConfig {
+        // Fast models are hardcoded to 0 retries for quick failure on Databricks
+        RetryConfig::new(0, 0, 1.0, 0)
+    }
+
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
         let auth = DatabricksAuth::token(api_key);
         let auth_method =
@@ -192,7 +203,8 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
-            name: Self::metadata().name,
+            fast_retry_config: RetryConfig::new(0, 0, 1.0, 0),
+            name: DATABRICKS_PROVIDER_NAME.to_string(),
         })
     }
 
@@ -222,11 +234,12 @@ impl DatabricksProvider {
     }
 }
 
-#[async_trait]
-impl Provider for DatabricksProvider {
+impl ProviderDef for DatabricksProvider {
+    type Provider = Self;
+
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
-            "databricks",
+            DATABRICKS_PROVIDER_NAME,
             "Databricks",
             "Models on Databricks AI Gateway",
             DATABRICKS_DEFAULT_MODEL,
@@ -239,6 +252,16 @@ impl Provider for DatabricksProvider {
         )
     }
 
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(Self::from_env(model))
+    }
+}
+
+#[async_trait]
+impl Provider for DatabricksProvider {
     fn get_name(&self) -> &str {
         &self.name
     }
@@ -251,53 +274,16 @@ impl Provider for DatabricksProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut payload =
-            create_request(model_config, system, messages, tools, &self.image_format)?;
-        payload
-            .as_object_mut()
-            .expect("payload should have model key")
-            .remove("model");
-
-        let mut log = RequestLog::start(&self.model, &payload)?;
-
-        let response = self
-            .with_retry(|| self.post(session_id, payload.clone(), Some(&model_config.model_name)))
-            .await?;
-
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let model_config = self.model.clone();
-
         let mut payload =
-            create_request(&model_config, system, messages, tools, &self.image_format)?;
+            create_request(model_config, system, messages, tools, &self.image_format)?;
         payload
             .as_object_mut()
             .expect("payload should have model key")
@@ -309,7 +295,7 @@ impl Provider for DatabricksProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let path = self.get_endpoint_path(&model_config.model_name, false);
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
         let response = self
             .with_retry(|| async {
                 let resp = self
@@ -334,10 +320,6 @@ impl Provider for DatabricksProvider {
         stream_openai_compat(response, log)
     }
 
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
     fn supports_embeddings(&self) -> bool {
         true
     }
@@ -352,51 +334,38 @@ impl Provider for DatabricksProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        let response = match self
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self
             .api_client
             .request(None, "api/2.0/serving-endpoints")
             .response_get()
             .await
-        {
-            Ok(resp) => resp,
-            Err(e) => {
-                tracing::warn!("Failed to fetch Databricks models: {}", e);
-                return Ok(None);
-            }
-        };
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to fetch Databricks models: {}", e))
+            })?;
 
         if !response.status().is_success() {
             let status = response.status();
-            if let Ok(error_text) = response.text().await {
-                tracing::warn!(
-                    "Failed to fetch Databricks models: {} - {}",
-                    status,
-                    error_text
-                );
-            } else {
-                tracing::warn!("Failed to fetch Databricks models: {}", status);
-            }
-            return Ok(None);
+            let detail = response.text().await.unwrap_or_default();
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch Databricks models: {} {}",
+                status, detail
+            )));
         }
 
-        let json: Value = match response.json().await {
-            Ok(json) => json,
-            Err(e) => {
-                tracing::warn!("Failed to parse Databricks API response: {}", e);
-                return Ok(None);
-            }
-        };
+        let json: Value = response.json().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse Databricks API response: {}", e))
+        })?;
 
-        let endpoints = match json.get("endpoints").and_then(|v| v.as_array()) {
-            Some(endpoints) => endpoints,
-            None => {
-                tracing::warn!(
+        let endpoints = json
+            .get("endpoints")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed(
                     "Unexpected response format from Databricks API: missing 'endpoints' array"
-                );
-                return Ok(None);
-            }
-        };
+                        .to_string(),
+                )
+            })?;
 
         let models: Vec<String> = endpoints
             .iter()
@@ -408,11 +377,7 @@ impl Provider for DatabricksProvider {
             })
             .collect();
 
-        if models.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(models))
-        }
+        Ok(models)
     }
 }
 
@@ -432,7 +397,10 @@ impl EmbeddingCapable for DatabricksProvider {
         });
 
         let response = self
-            .with_retry(|| self.post(Some(session_id), request.clone(), None))
+            .with_retry_config(
+                || self.post(Some(session_id), request.clone(), None),
+                self.fast_retry_config.clone(),
+            )
             .await?;
 
         let embeddings = response["data"]

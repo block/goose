@@ -117,10 +117,6 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
 
 ## Example Usage
 
-:::info LLM
-Claude Sonnet 3.7 was used for this task. A similarly capable model is recommended to ensure the tool is used correctly.
-:::
-
 :::tip Memory Extension
 Use the built-in memory extension to save your contacts. e.g. "My friend Rene's lightning address is reneaaron@getalby.com. Please save it to your memory."
 :::

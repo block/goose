@@ -2,7 +2,6 @@ import React, { useState, useEffect, PropsWithChildren, useCallback, useRef } fr
 import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import debounce from 'lodash/debounce';
-import '../../styles/search.css';
 
 /**
  * Props for the SearchView component

@@ -38,7 +38,9 @@ const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
     return false;
   }
-  return !message.content.every((c) => c.type === 'toolConfirmationRequest');
+  return !message.content.every(
+    (c) => c.type === 'actionRequired' && c.data.actionType === 'toolConfirmation'
+  );
 };
 
 const filterMessagesForDisplay = (messages: Message[]): Message[] => {
@@ -87,10 +89,10 @@ const SessionMessages: React.FC<{
         <div className="flex flex-col space-y-6">
           {isLoading ? (
             <div className="flex justify-center items-center py-12">
-              <LoaderCircle className="animate-spin h-8 w-8 text-textStandard" />
+              <LoaderCircle className="animate-spin h-8 w-8 text-text-default" />
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
+            <div className="flex flex-col items-center justify-center py-8 text-text-muted">
               <div className="text-red-500 mb-4">
                 <AlertCircle size={32} />
               </div>
@@ -118,7 +120,7 @@ const SessionMessages: React.FC<{
               </SearchView>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-textSubtle">
+            <div className="flex flex-col items-center justify-center py-8 text-text-muted">
               <MessageSquareText className="w-12 h-12 mb-4" />
               <p className="text-lg mb-2">No messages found</p>
               <p className="text-sm">This session doesn't contain any messages</p>
@@ -313,7 +315,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex justify-center items-center gap-2">
-              <Share2 className="w-6 h-6 text-textStandard" />
+              <Share2 className="w-6 h-6 text-text-default" />
               Share Session (beta)
             </DialogTitle>
             <DialogDescription>
@@ -322,8 +324,8 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </DialogHeader>
 
           <div className="py-4">
-            <div className="relative rounded-full border border-borderSubtle px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
-              <code className="text-sm text-textStandard dark:text-textStandardInverse overflow-x-hidden break-all pr-8 w-full">
+            <div className="relative rounded-full border border-border-default px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
+              <code className="text-sm text-text-default dark:text-text-inverse overflow-x-hidden break-all pr-8 w-full">
                 {shareLink}
               </code>
               <Button
