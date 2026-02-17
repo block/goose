@@ -11,11 +11,13 @@ use tokio_stream::Stream;
 
 use crate::error::A2AError;
 use crate::types::agent_card::AgentCard;
-use crate::types::config::TaskPushNotificationConfig;
+use crate::types::config::{PushNotificationConfig, TaskPushNotificationConfig};
 use crate::types::core::{Message, Task, TaskState, TaskStatus};
 use crate::types::events::{AgentExecutionEvent, StreamResponse};
 use crate::types::requests::{
-    CancelTaskRequest, GetTaskRequest, ListTasksRequest, SendMessageRequest,
+    CancelTaskRequest, CreateTaskPushNotificationConfigRequest,
+    DeleteTaskPushNotificationConfigRequest, GetTaskPushNotificationConfigRequest, GetTaskRequest,
+    ListTaskPushNotificationConfigRequest, ListTasksRequest, SendMessageRequest,
 };
 use crate::types::responses::{
     ListTaskPushNotificationConfigResponse, ListTasksResponse, SendMessageResponse,
@@ -24,15 +26,24 @@ use crate::types::responses::{
 use super::context::RequestContext;
 use super::event_bus::EventBusManager;
 use super::executor::AgentExecutor;
+use super::push_notification::{
+    InMemoryPushNotificationStore, PushNotificationSender, PushNotificationStore,
+};
 use super::result_manager::ResultManager;
 use super::store::TaskStore;
 
 /// Default request handler that orchestrates A2A protocol operations.
-pub struct DefaultRequestHandler<S: TaskStore, E: AgentExecutor> {
+pub struct DefaultRequestHandler<
+    S: TaskStore,
+    E: AgentExecutor,
+    P: PushNotificationStore = InMemoryPushNotificationStore,
+> {
     agent_card: AgentCard,
     store: S,
     executor: Arc<E>,
     event_bus_manager: EventBusManager,
+    push_store: Option<P>,
+    push_sender: Option<PushNotificationSender>,
 }
 
 impl<S: TaskStore + Clone + 'static, E: AgentExecutor + 'static> DefaultRequestHandler<S, E> {
@@ -42,6 +53,31 @@ impl<S: TaskStore + Clone + 'static, E: AgentExecutor + 'static> DefaultRequestH
             store,
             executor: Arc::new(executor),
             event_bus_manager: EventBusManager::new(),
+            push_store: None,
+            push_sender: None,
+        }
+    }
+}
+
+impl<
+        S: TaskStore + Clone + 'static,
+        E: AgentExecutor + 'static,
+        P: PushNotificationStore + Clone + 'static,
+    > DefaultRequestHandler<S, E, P>
+{
+    pub fn with_push_notifications(
+        agent_card: AgentCard,
+        store: S,
+        executor: E,
+        push_store: P,
+    ) -> Self {
+        Self {
+            agent_card,
+            store,
+            executor: Arc::new(executor),
+            event_bus_manager: EventBusManager::new(),
+            push_store: Some(push_store),
+            push_sender: Some(PushNotificationSender::new()),
         }
     }
 
@@ -228,36 +264,61 @@ impl<S: TaskStore + Clone + 'static, E: AgentExecutor + 'static> DefaultRequestH
         self.agent_card.clone()
     }
 
-    /// Push notification stubs — not yet supported.
+    /// Push notification config management.
     pub async fn set_push_notification_config(
         &self,
-        _task_id: &str,
-        _config: &crate::types::config::PushNotificationConfig,
+        request: &CreateTaskPushNotificationConfigRequest,
     ) -> Result<TaskPushNotificationConfig, A2AError> {
-        Err(A2AError::PushNotificationNotSupported)
+        let push_store = self
+            .push_store
+            .as_ref()
+            .ok_or(A2AError::PushNotificationNotSupported)?;
+        push_store
+            .save(&request.task_id, request.config.clone())
+            .await
     }
 
     pub async fn get_push_notification_config(
         &self,
-        _task_id: &str,
-        _config_id: &str,
+        request: &GetTaskPushNotificationConfigRequest,
     ) -> Result<TaskPushNotificationConfig, A2AError> {
-        Err(A2AError::PushNotificationNotSupported)
+        let push_store = self
+            .push_store
+            .as_ref()
+            .ok_or(A2AError::PushNotificationNotSupported)?;
+        push_store
+            .load(&request.task_id, &request.id)
+            .await?
+            .ok_or_else(|| {
+                A2AError::task_not_found(&format!("push config {} not found", request.id))
+            })
     }
 
     pub async fn list_push_notification_configs(
         &self,
-        _task_id: &str,
+        request: &ListTaskPushNotificationConfigRequest,
     ) -> Result<ListTaskPushNotificationConfigResponse, A2AError> {
-        Err(A2AError::PushNotificationNotSupported)
+        let push_store = self
+            .push_store
+            .as_ref()
+            .ok_or(A2AError::PushNotificationNotSupported)?;
+        let configs = push_store.list(&request.task_id).await?;
+        Ok(ListTaskPushNotificationConfigResponse {
+            configs,
+            next_page_token: None,
+        })
     }
 
     pub async fn delete_push_notification_config(
         &self,
-        _task_id: &str,
-        _config_id: &str,
+        request: &DeleteTaskPushNotificationConfigRequest,
     ) -> Result<(), A2AError> {
-        Err(A2AError::PushNotificationNotSupported)
+        let push_store = self
+            .push_store
+            .as_ref()
+            .ok_or(A2AError::PushNotificationNotSupported)?;
+        push_store.delete(&request.task_id, &request.id).await?;
+        Ok(())
     }
 
     async fn get_or_create_task(&self, message: &Message) -> Result<Task, A2AError> {
@@ -449,5 +510,100 @@ mod tests {
         let cancel_request = CancelTaskRequest { id: task_id };
         let result = handler.cancel_task(&cancel_request).await;
         assert!(result.is_err());
+    }
+
+    // Push notification tests
+
+    #[tokio::test]
+    async fn test_push_notification_not_supported_without_store() {
+        let handler =
+            DefaultRequestHandler::new(test_agent_card(), InMemoryTaskStore::new(), EchoExecutor);
+
+        let request = CreateTaskPushNotificationConfigRequest {
+            task_id: "t1".to_string(),
+            config_id: "pn-1".to_string(),
+            config: crate::types::config::PushNotificationConfig {
+                id: Some("pn-1".to_string()),
+                url: "https://example.com/hook".to_string(),
+                token: None,
+                authentication: None,
+            },
+        };
+        let result = handler.set_push_notification_config(&request).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_push_notification_crud_with_store() {
+        use crate::server::push_notification::InMemoryPushNotificationStore;
+
+        let handler: DefaultRequestHandler<
+            InMemoryTaskStore,
+            EchoExecutor,
+            InMemoryPushNotificationStore,
+        > = DefaultRequestHandler::with_push_notifications(
+            test_agent_card(),
+            InMemoryTaskStore::new(),
+            EchoExecutor,
+            InMemoryPushNotificationStore::default(),
+        );
+
+        // Create
+        let create_req = CreateTaskPushNotificationConfigRequest {
+            task_id: "t1".to_string(),
+            config_id: "pn-1".to_string(),
+            config: crate::types::config::PushNotificationConfig {
+                id: Some("pn-1".to_string()),
+                url: "https://example.com/hook".to_string(),
+                token: Some("my-token".to_string()),
+                authentication: None,
+            },
+        };
+        let created = handler
+            .set_push_notification_config(&create_req)
+            .await
+            .unwrap();
+        assert_eq!(created.task_id, "t1");
+        assert_eq!(created.config.url, "https://example.com/hook");
+
+        // Get
+        let get_req = GetTaskPushNotificationConfigRequest {
+            task_id: "t1".to_string(),
+            id: "pn-1".to_string(),
+        };
+        let got = handler
+            .get_push_notification_config(&get_req)
+            .await
+            .unwrap();
+        assert_eq!(got.config.token, Some("my-token".to_string()));
+
+        // List
+        let list_req = ListTaskPushNotificationConfigRequest {
+            task_id: "t1".to_string(),
+            page_size: None,
+            page_token: None,
+        };
+        let listed = handler
+            .list_push_notification_configs(&list_req)
+            .await
+            .unwrap();
+        assert_eq!(listed.configs.len(), 1);
+
+        // Delete
+        let delete_req = DeleteTaskPushNotificationConfigRequest {
+            task_id: "t1".to_string(),
+            id: "pn-1".to_string(),
+        };
+        handler
+            .delete_push_notification_config(&delete_req)
+            .await
+            .unwrap();
+
+        // Verify deleted
+        let listed_after = handler
+            .list_push_notification_configs(&list_req)
+            .await
+            .unwrap();
+        assert!(listed_after.configs.is_empty());
     }
 }

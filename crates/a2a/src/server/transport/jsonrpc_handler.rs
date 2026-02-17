@@ -13,7 +13,9 @@ use crate::server::executor::AgentExecutor;
 use crate::server::request_handler::DefaultRequestHandler;
 use crate::server::store::TaskStore;
 use crate::types::requests::{
-    CancelTaskRequest, GetTaskRequest, ListTasksRequest, SendMessageRequest,
+    CancelTaskRequest, CreateTaskPushNotificationConfigRequest,
+    DeleteTaskPushNotificationConfigRequest, GetTaskPushNotificationConfigRequest, GetTaskRequest,
+    ListTaskPushNotificationConfigRequest, ListTasksRequest, SendMessageRequest,
 };
 
 /// JSON-RPC transport handler that dispatches to a `DefaultRequestHandler`.
@@ -47,6 +49,10 @@ impl<S: TaskStore + Clone + 'static, E: AgentExecutor + 'static> JsonRpcHandler<
             methods::LIST_TASKS => self.handle_list_tasks(&id, &params).await,
             methods::CANCEL_TASK => self.handle_cancel_task(&id, &params).await,
             methods::GET_EXTENDED_CARD => self.handle_get_agent_card(&id),
+            methods::SET_PUSH_CONFIG => self.handle_set_push_config(&id, &params).await,
+            methods::GET_PUSH_CONFIG => self.handle_get_push_config(&id, &params).await,
+            methods::LIST_PUSH_CONFIG => self.handle_list_push_configs(&id, &params).await,
+            methods::DELETE_PUSH_CONFIG => self.handle_delete_push_config(&id, &params).await,
             _ => JsonRpcResponse::error(
                 id,
                 A2AError::method_not_found(request.method.clone()).to_jsonrpc_error(),
@@ -191,6 +197,87 @@ impl<S: TaskStore + Clone + 'static, E: AgentExecutor + 'static> JsonRpcHandler<
     fn handle_get_agent_card(&self, id: &Value) -> JsonRpcResponse {
         let card = self.handler.get_agent_card();
         JsonRpcResponse::success(id.clone(), serde_json::to_value(&card).unwrap_or_default())
+    }
+
+    async fn handle_set_push_config(&self, id: &Value, params: &Value) -> JsonRpcResponse {
+        let request: CreateTaskPushNotificationConfigRequest =
+            match serde_json::from_value(params.clone()) {
+                Ok(r) => r,
+                Err(e) => {
+                    return JsonRpcResponse::error(
+                        id.clone(),
+                        A2AError::invalid_params(e.to_string()).to_jsonrpc_error(),
+                    );
+                }
+            };
+
+        match self.handler.set_push_notification_config(&request).await {
+            Ok(config) => JsonRpcResponse::success(
+                id.clone(),
+                serde_json::to_value(&config).unwrap_or_default(),
+            ),
+            Err(e) => JsonRpcResponse::error(id.clone(), e.to_jsonrpc_error()),
+        }
+    }
+
+    async fn handle_get_push_config(&self, id: &Value, params: &Value) -> JsonRpcResponse {
+        let request: GetTaskPushNotificationConfigRequest =
+            match serde_json::from_value(params.clone()) {
+                Ok(r) => r,
+                Err(e) => {
+                    return JsonRpcResponse::error(
+                        id.clone(),
+                        A2AError::invalid_params(e.to_string()).to_jsonrpc_error(),
+                    );
+                }
+            };
+
+        match self.handler.get_push_notification_config(&request).await {
+            Ok(config) => JsonRpcResponse::success(
+                id.clone(),
+                serde_json::to_value(&config).unwrap_or_default(),
+            ),
+            Err(e) => JsonRpcResponse::error(id.clone(), e.to_jsonrpc_error()),
+        }
+    }
+
+    async fn handle_list_push_configs(&self, id: &Value, params: &Value) -> JsonRpcResponse {
+        let request: ListTaskPushNotificationConfigRequest =
+            match serde_json::from_value(params.clone()) {
+                Ok(r) => r,
+                Err(e) => {
+                    return JsonRpcResponse::error(
+                        id.clone(),
+                        A2AError::invalid_params(e.to_string()).to_jsonrpc_error(),
+                    );
+                }
+            };
+
+        match self.handler.list_push_notification_configs(&request).await {
+            Ok(response) => JsonRpcResponse::success(
+                id.clone(),
+                serde_json::to_value(&response).unwrap_or_default(),
+            ),
+            Err(e) => JsonRpcResponse::error(id.clone(), e.to_jsonrpc_error()),
+        }
+    }
+
+    async fn handle_delete_push_config(&self, id: &Value, params: &Value) -> JsonRpcResponse {
+        let request: DeleteTaskPushNotificationConfigRequest =
+            match serde_json::from_value(params.clone()) {
+                Ok(r) => r,
+                Err(e) => {
+                    return JsonRpcResponse::error(
+                        id.clone(),
+                        A2AError::invalid_params(e.to_string()).to_jsonrpc_error(),
+                    );
+                }
+            };
+
+        match self.handler.delete_push_notification_config(&request).await {
+            Ok(()) => JsonRpcResponse::success(id.clone(), serde_json::json!({})),
+            Err(e) => JsonRpcResponse::error(id.clone(), e.to_jsonrpc_error()),
+        }
     }
 }
 
