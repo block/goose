@@ -64,10 +64,10 @@ export const RecipeExtensionSelector = ({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-md text-textProminent mb-2 font-bold">
+        <label className="block text-md text-text-default font-semibold mb-2 font-bold">
           Extensions (Optional)
         </label>
-        <p className="text-textSubtle text-sm mb-4">
+        <p className="text-text-muted text-sm mb-4">
           Select which extensions should be available when running this recipe. Leave empty to use
           default extensions.
         </p>
@@ -80,14 +80,14 @@ export const RecipeExtensionSelector = ({
           className="mb-3"
         />
 
-        <p className="text-xs text-textSubtle mb-3 text-right">
+        <p className="text-xs text-text-muted mb-3 text-right">
           {activeCount} extension{activeCount !== 1 ? 's' : ''} selected
         </p>
       </div>
 
-      <div className="max-h-[300px] overflow-y-auto border border-borderSubtle rounded-lg">
+      <div className="max-h-[300px] overflow-y-auto border border-border-default rounded-lg">
         {sortedExtensions.length === 0 ? (
-          <div className="px-4 py-6 text-center text-sm text-textSubtle">
+          <div className="px-4 py-6 text-center text-sm text-text-muted">
             {searchQuery ? 'No extensions found' : 'No extensions available'}
           </div>
         ) : (
@@ -96,7 +96,7 @@ export const RecipeExtensionSelector = ({
             return (
               <div
                 key={ext.name}
-                className="flex items-center justify-between px-4 py-3 hover:bg-bgSubtle transition-colors cursor-pointer border-b border-borderSubtle last:border-b-0"
+                className="flex items-center justify-between px-4 py-3 hover:bg-background-subtle transition-colors cursor-pointer border-b border-border-default last:border-b-0"
                 role="button"
                 tabIndex={0}
                 aria-pressed={isSelected}
@@ -110,11 +110,11 @@ export const RecipeExtensionSelector = ({
                 title={ext.description || ext.name}
               >
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-textStandard">
+                  <div className="text-sm font-medium text-text-default">
                     {formatExtensionName(ext.name)}
                   </div>
                   {ext.description && (
-                    <div className="text-xs text-textSubtle truncate mt-1">{ext.description}</div>
+                    <div className="text-xs text-text-muted truncate mt-1">{ext.description}</div>
                   )}
                 </div>
                 <div onClick={(e) => e.stopPropagation()} className="ml-4">

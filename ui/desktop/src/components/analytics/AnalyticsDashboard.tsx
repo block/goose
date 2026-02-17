@@ -83,8 +83,8 @@ function KpiCard({
 }) {
   const sparkMax = sparkline ? Math.max(...sparkline, 1) : 0;
   return (
-    <div className="bg-surface rounded-lg border border-borderSubtle p-4 flex flex-col gap-1 relative overflow-hidden">
-      <span className="text-xs font-medium text-textSubtle uppercase tracking-wider">
+    <div className="bg-background-default rounded-lg border border-border-default p-4 flex flex-col gap-1 relative overflow-hidden">
+      <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
         {label}
       </span>
       <div className="flex items-baseline gap-2">
@@ -101,7 +101,7 @@ function KpiCard({
         )}
       </div>
       {subtitle && (
-        <span className="text-[11px] text-textSubtle">{subtitle}</span>
+        <span className="text-[11px] text-text-muted">{subtitle}</span>
       )}
       {/* Inline sparkline */}
       {sparkline && sparkline.length > 1 && (
@@ -144,13 +144,13 @@ function RegressionCard({
     >
       <span className="text-lg mt-0.5">{isError ? "🔴" : "🟡"}</span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-textStandard">{description}</p>
+        <p className="text-sm text-text-default">{description}</p>
         <div className="flex items-center gap-3 mt-1">
-          <span className="text-xs text-textSubtle">
+          <span className="text-xs text-text-muted">
             Δ {delta > 0 ? "+" : ""}{delta.toFixed(1)}%
           </span>
           {versionTag && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-surfaceHover text-textSubtle">
+            <span className="text-xs px-1.5 py-0.5 rounded bg-background-defaultHover text-text-muted">
               {versionTag}
             </span>
           )}
@@ -163,21 +163,21 @@ function RegressionCard({
 function RecentRunRow({ run }: { run: EvalRunSummary }) {
   const accColor = accuracyColor(run.overallAccuracy);
   return (
-    <div className="flex items-center gap-3 py-2.5 px-3 rounded-md hover:bg-surfaceHover transition-colors cursor-pointer">
+    <div className="flex items-center gap-3 py-2.5 px-3 rounded-md hover:bg-background-defaultHover transition-colors cursor-pointer">
       <div
         className="w-2 h-2 rounded-full shrink-0"
         style={{ backgroundColor: accColor }}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-textStandard truncate">
+          <span className="text-sm font-medium text-text-default truncate">
             {run.datasetName}
           </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-surfaceHover text-textSubtle shrink-0">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-background-defaultHover text-text-muted shrink-0">
             v{run.gooseVersion}
           </span>
         </div>
-        <span className="text-xs text-textSubtle">
+        <span className="text-xs text-text-muted">
           {formatDate(run.startedAt)} · {run.correct}/{run.correct + (Math.round(run.correct / Math.max(run.overallAccuracy, 1) * 100) - run.correct)} cases
         </span>
       </div>
@@ -194,48 +194,48 @@ function EmptyDashboard() {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 text-center max-w-lg mx-auto">
       <div className="text-5xl mb-4">🚀</div>
-      <h2 className="text-xl font-semibold text-textStandard mb-2">
+      <h2 className="text-xl font-semibold text-text-default mb-2">
         Welcome to Goose Analytics
       </h2>
-      <p className="text-sm text-textSubtle mb-8 leading-relaxed">
+      <p className="text-sm text-text-muted mb-8 leading-relaxed">
         Track how well your orchestrator routes messages, monitor agent
         performance, and catch regressions before they impact users.
       </p>
 
       <div className="w-full space-y-3">
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-borderSubtle bg-surface hover:bg-surfaceHover transition-colors cursor-pointer text-left">
+        <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
           <span className="text-2xl">💬</span>
           <div>
-            <h3 className="text-sm font-semibold text-textStandard">
+            <h3 className="text-sm font-semibold text-text-default">
               Start using Goose
             </h3>
-            <p className="text-xs text-textSubtle mt-0.5">
+            <p className="text-xs text-text-muted mt-0.5">
               Have conversations — we&apos;ll automatically track routing
               decisions and build your usage dashboard.
             </p>
           </div>
         </div>
 
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-borderSubtle bg-surface hover:bg-surfaceHover transition-colors cursor-pointer text-left">
+        <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
           <span className="text-2xl">🧪</span>
           <div>
-            <h3 className="text-sm font-semibold text-textStandard">
+            <h3 className="text-sm font-semibold text-text-default">
               Create an eval dataset
             </h3>
-            <p className="text-xs text-textSubtle mt-0.5">
+            <p className="text-xs text-text-muted mt-0.5">
               Define test prompts with expected agent routing to start
               measuring accuracy.
             </p>
           </div>
         </div>
 
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-borderSubtle bg-surface hover:bg-surfaceHover transition-colors cursor-pointer text-left">
+        <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
           <span className="text-2xl">📦</span>
           <div>
-            <h3 className="text-sm font-semibold text-textStandard">
+            <h3 className="text-sm font-semibold text-text-default">
               Import a YAML dataset
             </h3>
-            <p className="text-xs text-textSubtle mt-0.5">
+            <p className="text-xs text-text-muted mt-0.5">
               Already have test cases? Upload a YAML file and run your first
               evaluation in seconds.
             </p>
@@ -251,13 +251,13 @@ function LoadingSkeleton() {
     <div className="p-6 space-y-6 animate-pulse">
       <div className="grid grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 bg-surfaceHover rounded-lg" />
+          <div key={i} className="h-24 bg-background-defaultHover rounded-lg" />
         ))}
       </div>
-      <div className="h-64 bg-surfaceHover rounded-lg" />
+      <div className="h-64 bg-background-defaultHover rounded-lg" />
       <div className="grid grid-cols-2 gap-4">
-        <div className="h-48 bg-surfaceHover rounded-lg" />
-        <div className="h-48 bg-surfaceHover rounded-lg" />
+        <div className="h-48 bg-background-defaultHover rounded-lg" />
+        <div className="h-48 bg-background-defaultHover rounded-lg" />
       </div>
     </div>
   );
@@ -381,12 +381,12 @@ export default function AnalyticsDashboard() {
       {(hasEval && (evalOverview.regressions.length > 0 || recentRuns.length > 0)) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Regression alerts */}
-          <div className="bg-surface rounded-lg border border-borderSubtle p-4">
-            <h3 className="text-sm font-semibold text-textStandard mb-3">
+          <div className="bg-background-default rounded-lg border border-border-default p-4">
+            <h3 className="text-sm font-semibold text-text-default mb-3">
               🚨 Regression Alerts
             </h3>
             {evalOverview.regressions.length === 0 ? (
-              <div className="flex items-center gap-2 text-sm text-textSubtle py-4">
+              <div className="flex items-center gap-2 text-sm text-text-muted py-4">
                 <span className="text-lg">✅</span>
                 No regressions detected. All metrics stable.
               </div>
@@ -406,12 +406,12 @@ export default function AnalyticsDashboard() {
           </div>
 
           {/* Recent runs */}
-          <div className="bg-surface rounded-lg border border-borderSubtle p-4">
-            <h3 className="text-sm font-semibold text-textStandard mb-3">
+          <div className="bg-background-default rounded-lg border border-border-default p-4">
+            <h3 className="text-sm font-semibold text-text-default mb-3">
               📈 Recent Eval Runs
             </h3>
             {recentRuns.length === 0 ? (
-              <div className="text-sm text-textSubtle py-4 text-center">
+              <div className="text-sm text-text-muted py-4 text-center">
                 No eval runs yet. Create a dataset and run your first eval.
               </div>
             ) : (
@@ -429,8 +429,8 @@ export default function AnalyticsDashboard() {
       {hasEval && evalOverview.accuracyTrend.length > 1 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Accuracy trend chart (2/3 width) */}
-          <div className="lg:col-span-2 bg-surface rounded-lg border border-borderSubtle p-4">
-            <h3 className="text-sm font-semibold text-textStandard mb-4">
+          <div className="lg:col-span-2 bg-background-default rounded-lg border border-border-default p-4">
+            <h3 className="text-sm font-semibold text-text-default mb-4">
               Accuracy Over Time
             </h3>
             <ResponsiveContainer width="100%" height={240}>
@@ -506,8 +506,8 @@ export default function AnalyticsDashboard() {
           </div>
 
           {/* Per-agent accuracy (1/3 width) */}
-          <div className="bg-surface rounded-lg border border-borderSubtle p-4">
-            <h3 className="text-sm font-semibold text-textStandard mb-4">
+          <div className="bg-background-default rounded-lg border border-border-default p-4">
+            <h3 className="text-sm font-semibold text-text-default mb-4">
               Per-Agent Accuracy
             </h3>
             <div className="space-y-3">
@@ -517,7 +517,7 @@ export default function AnalyticsDashboard() {
                 return (
                   <div key={agent.agent}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-textStandard truncate">
+                      <span className="text-xs font-medium text-text-default truncate">
                         {agent.agent}
                       </span>
                       <span
@@ -527,7 +527,7 @@ export default function AnalyticsDashboard() {
                         {pct.toFixed(0)}%
                       </span>
                     </div>
-                    <div className="h-1.5 bg-surfaceHover rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-background-defaultHover rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
@@ -536,14 +536,14 @@ export default function AnalyticsDashboard() {
                         }}
                       />
                     </div>
-                    <span className="text-[10px] text-textSubtle">
+                    <span className="text-[10px] text-text-muted">
                       {agent.pass}/{agent.pass + agent.fail} correct
                     </span>
                   </div>
                 );
               })}
               {evalOverview.perAgentAccuracy.length === 0 && (
-                <p className="text-xs text-textSubtle text-center py-4">
+                <p className="text-xs text-text-muted text-center py-4">
                   No agent data yet
                 </p>
               )}
@@ -557,8 +557,8 @@ export default function AnalyticsDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Daily activity (2/3) */}
           {usage.dailyActivity.length > 0 && (
-            <div className="lg:col-span-2 bg-surface rounded-lg border border-borderSubtle p-4">
-              <h3 className="text-sm font-semibold text-textStandard mb-4">
+            <div className="lg:col-span-2 bg-background-default rounded-lg border border-border-default p-4">
+              <h3 className="text-sm font-semibold text-text-default mb-4">
                 Daily Activity
               </h3>
               <ResponsiveContainer width="100%" height={200}>
@@ -605,8 +605,8 @@ export default function AnalyticsDashboard() {
 
           {/* Provider breakdown (1/3) */}
           {usage.providerUsage.length > 0 && (
-            <div className="bg-surface rounded-lg border border-borderSubtle p-4">
-              <h3 className="text-sm font-semibold text-textStandard mb-4">
+            <div className="bg-background-default rounded-lg border border-border-default p-4">
+              <h3 className="text-sm font-semibold text-text-default mb-4">
                 Provider Usage
               </h3>
               <ResponsiveContainer width="100%" height={200}>
@@ -641,7 +641,7 @@ export default function AnalyticsDashboard() {
                   />
                   <Legend
                     formatter={(value) => (
-                      <span className="text-xs text-textSubtle">{String(value)}</span>
+                      <span className="text-xs text-text-muted">{String(value)}</span>
                     )}
                   />
                 </PieChart>
@@ -653,8 +653,8 @@ export default function AnalyticsDashboard() {
 
       {/* --- Row 5: Token trend --- */}
       {hasUsage && usage.dailyActivity.length > 0 && (
-        <div className="bg-surface rounded-lg border border-borderSubtle p-4">
-          <h3 className="text-sm font-semibold text-textStandard mb-4">
+        <div className="bg-background-default rounded-lg border border-border-default p-4">
+          <h3 className="text-sm font-semibold text-text-default mb-4">
             Token Usage Trend
           </h3>
           <ResponsiveContainer width="100%" height={180}>

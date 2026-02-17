@@ -546,7 +546,7 @@ const MentionPopover = forwardRef<
               )}
               <div
                 ref={listRef}
-                className="space-y-1 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-borderStandard scrollbar-track-transparent"
+                className="space-y-1 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-border-accent scrollbar-track-transparent"
                 style={{ maxHeight: '280px' }}
               >
                 {displayItems.map((item, index) => (

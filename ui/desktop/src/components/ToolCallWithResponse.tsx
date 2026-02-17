@@ -861,7 +861,7 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
   return (
     <div className="px-4 py-2">
       {toolGraph && (
-        <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
+        <pre className="font-mono text-xs text-text-muted whitespace-pre-wrap">{renderGraph()}</pre>
       )}
       {code && (
         <div className="border-t border-border-default -mx-4 mt-2">
@@ -992,7 +992,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-textSubtle">
+          <span key={i} className="font-sans text-sm text-text-muted">
             {log}
           </span>
         ))}
@@ -1007,7 +1007,7 @@ const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken
 
   return (
     <div className="w-full space-y-2">
-      {message && <div className="font-sans text-sm text-textSubtle">{message}</div>}
+      {message && <div className="font-sans text-sm text-text-muted">{message}</div>}
 
       <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (

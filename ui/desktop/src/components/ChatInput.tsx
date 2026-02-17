@@ -1467,7 +1467,7 @@ export default function ChatInput({
                 </div>
               ) : (
                 // File box preview
-                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-border-default rounded-lg min-w-[120px] max-w-[200px]">
+                <div className="flex items-center gap-2 px-3 py-2 bg-background-subtle border border-border-default rounded-lg min-w-[120px] max-w-[200px]">
                   <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-border-default rounded flex items-center justify-center text-xs font-mono text-text-muted">
                     {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
                   </div>

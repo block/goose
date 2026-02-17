@@ -41,11 +41,11 @@ function LoadingSkeleton() {
     <div className="space-y-6 animate-pulse">
       <div className="grid grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-24 bg-bgApp rounded-lg" />
+          <div key={i} className="h-24 bg-background-default rounded-lg" />
         ))}
       </div>
-      <div className="h-64 bg-bgApp rounded-lg" />
-      <div className="h-96 bg-bgApp rounded-lg" />
+      <div className="h-64 bg-background-default rounded-lg" />
+      <div className="h-96 bg-background-default rounded-lg" />
     </div>
   );
 }
@@ -60,22 +60,22 @@ function ToolRow({ tool, maxCalls }: { tool: ToolUsageStat; maxCalls: number }) 
     : ['—', tool.tool_name];
 
   return (
-    <tr className="border-b border-borderSubtle hover:bg-bgApp/50 transition-colors">
+    <tr className="border-b border-border-default hover:bg-background-default/50 transition-colors">
       <td className="py-3 px-4">
         <div className="flex flex-col">
-          <span className="font-medium text-textProminent text-sm">{toolName}</span>
-          <span className="text-xs text-textSubtle">{extensionName}</span>
+          <span className="font-medium text-text-default font-semibold text-sm">{toolName}</span>
+          <span className="text-xs text-text-muted">{extensionName}</span>
         </div>
       </td>
       <td className="py-3 px-4">
         <div className="flex items-center gap-2">
-          <div className="flex-1 h-2 bg-bgApp rounded-full overflow-hidden">
+          <div className="flex-1 h-2 bg-background-default rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all"
               style={{ width: `${barWidth}%`, backgroundColor: COLORS.accent }}
             />
           </div>
-          <span className="text-sm text-textSubtle w-12 text-right">
+          <span className="text-sm text-text-muted w-12 text-right">
             {formatNumber(tool.call_count)}
           </span>
         </div>
@@ -92,7 +92,7 @@ function ToolRow({ tool, maxCalls }: { tool: ToolUsageStat; maxCalls: number }) 
         </div>
       </td>
       <td className="py-3 px-4">
-        <span className="text-sm text-textSubtle">
+        <span className="text-sm text-text-muted">
           {tool.error_count > 0 ? (
             <span style={{ color: COLORS.error }}>{tool.error_count}</span>
           ) : (
@@ -138,7 +138,7 @@ export default function ToolsHealthView() {
 
   if (loading) return <div className="p-6"><LoadingSkeleton /></div>;
   if (error) return <div className="p-6 text-red-400">{error}</div>;
-  if (!analytics) return <div className="p-6 text-textSubtle">No data</div>;
+  if (!analytics) return <div className="p-6 text-text-muted">No data</div>;
 
   const successRate = analytics.success_rate;
   const extensionCount = analytics.extension_usage.length;
@@ -166,8 +166,8 @@ export default function ToolsHealthView() {
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-textProminent">Tools Health</h1>
-          <p className="text-sm text-textSubtle mt-1">
+          <h1 className="text-2xl font-bold text-text-default font-semibold">Tools Health</h1>
+          <p className="text-sm text-text-muted mt-1">
             Monitor tool execution health, success rates, and failure patterns across all
             extensions.
           </p>
@@ -175,15 +175,15 @@ export default function ToolsHealthView() {
 
         {/* KPI Cards */}
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-bgApp rounded-xl p-4 border border-borderSubtle">
-            <div className="text-xs text-textSubtle uppercase tracking-wider mb-1">Total Calls</div>
-            <div className="text-2xl font-bold text-textProminent">
+          <div className="bg-background-default rounded-xl p-4 border border-border-default">
+            <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Total Calls</div>
+            <div className="text-2xl font-bold text-text-default font-semibold">
               {formatNumber(analytics.total_tool_calls)}
             </div>
-            <div className="text-xs text-textSubtle mt-1">Last 30 days</div>
+            <div className="text-xs text-text-muted mt-1">Last 30 days</div>
           </div>
-          <div className="bg-bgApp rounded-xl p-4 border border-borderSubtle">
-            <div className="text-xs text-textSubtle uppercase tracking-wider mb-1">
+          <div className="bg-background-default rounded-xl p-4 border border-border-default">
+            <div className="text-xs text-text-muted uppercase tracking-wider mb-1">
               Success Rate
             </div>
             <div
@@ -196,19 +196,19 @@ export default function ToolsHealthView() {
               {getHealthLabel(successRate)}
             </div>
           </div>
-          <div className="bg-bgApp rounded-xl p-4 border border-borderSubtle">
-            <div className="text-xs text-textSubtle uppercase tracking-wider mb-1">Extensions</div>
-            <div className="text-2xl font-bold text-textProminent">{extensionCount}</div>
-            <div className="text-xs text-textSubtle mt-1">Active</div>
+          <div className="bg-background-default rounded-xl p-4 border border-border-default">
+            <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Extensions</div>
+            <div className="text-2xl font-bold text-text-default font-semibold">{extensionCount}</div>
+            <div className="text-xs text-text-muted mt-1">Active</div>
           </div>
-          <div className="bg-bgApp rounded-xl p-4 border border-borderSubtle">
-            <div className="text-xs text-textSubtle uppercase tracking-wider mb-1">
+          <div className="bg-background-default rounded-xl p-4 border border-border-default">
+            <div className="text-xs text-text-muted uppercase tracking-wider mb-1">
               Avg Tools/Session
             </div>
-            <div className="text-2xl font-bold text-textProminent">
+            <div className="text-2xl font-bold text-text-default font-semibold">
               {avgToolsPerSession.toFixed(1)}
             </div>
-            <div className="text-xs text-textSubtle mt-1">Per session</div>
+            <div className="text-xs text-text-muted mt-1">Per session</div>
           </div>
         </div>
 
@@ -239,8 +239,8 @@ export default function ToolsHealthView() {
 
         {/* Daily Activity Chart */}
         {analytics.daily_tool_activity.length > 0 && (
-          <div className="bg-bgApp rounded-xl p-4 border border-borderSubtle">
-            <h3 className="text-sm font-medium text-textProminent mb-4">Daily Tool Activity</h3>
+          <div className="bg-background-default rounded-xl p-4 border border-border-default">
+            <h3 className="text-sm font-medium text-text-default font-semibold mb-4">Daily Tool Activity</h3>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={analytics.daily_tool_activity}>
                 <defs>
@@ -288,9 +288,9 @@ export default function ToolsHealthView() {
         )}
 
         {/* Tools Table */}
-        <div className="bg-bgApp rounded-xl border border-borderSubtle">
-          <div className="flex items-center justify-between p-4 border-b border-borderSubtle">
-            <h3 className="text-sm font-medium text-textProminent">
+        <div className="bg-background-default rounded-xl border border-border-default">
+          <div className="flex items-center justify-between p-4 border-b border-border-default">
+            <h3 className="text-sm font-medium text-text-default font-semibold">
               All Tools ({filteredTools.length})
             </h3>
             <div className="flex items-center gap-3">
@@ -299,7 +299,7 @@ export default function ToolsHealthView() {
                 placeholder="Filter tools..."
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
-                className="text-sm px-3 py-1.5 bg-transparent border border-borderSubtle rounded-md text-textProminent placeholder-textSubtle focus:outline-none focus:border-blue-500"
+                className="text-sm px-3 py-1.5 bg-transparent border border-border-default rounded-md text-text-default font-semibold placeholder-text-muted focus:outline-none focus:border-blue-500"
               />
               <div className="flex gap-1 text-xs">
                 {(['calls', 'errors', 'rate'] as const).map((s) => (
@@ -309,7 +309,7 @@ export default function ToolsHealthView() {
                     className={`px-2 py-1 rounded-md transition-colors ${
                       sortBy === s
                         ? 'bg-blue-500/20 text-blue-400'
-                        : 'text-textSubtle hover:text-textProminent hover:bg-bgApp'
+                        : 'text-text-muted hover:text-text-default font-semibold hover:bg-background-default'
                     }`}
                   >
                     {s === 'calls' ? 'By Calls' : s === 'errors' ? 'By Errors' : 'By Rate'}
@@ -321,7 +321,7 @@ export default function ToolsHealthView() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="text-xs text-textSubtle uppercase tracking-wider">
+                <tr className="text-xs text-text-muted uppercase tracking-wider">
                   <th className="text-left py-2 px-4 font-medium">Tool</th>
                   <th className="text-left py-2 px-4 font-medium">Calls</th>
                   <th className="text-left py-2 px-4 font-medium">Success Rate</th>
@@ -336,7 +336,7 @@ export default function ToolsHealthView() {
               </tbody>
             </table>
             {filteredTools.length === 0 && (
-              <div className="text-center py-8 text-textSubtle text-sm">
+              <div className="text-center py-8 text-text-muted text-sm">
                 {filterText ? 'No tools match your filter' : 'No tool usage data yet'}
               </div>
             )}
@@ -345,8 +345,8 @@ export default function ToolsHealthView() {
 
         {/* Extension Breakdown */}
         {analytics.extension_usage.length > 0 && (
-          <div className="bg-bgApp rounded-xl p-4 border border-borderSubtle">
-            <h3 className="text-sm font-medium text-textProminent mb-3">Extension Breakdown</h3>
+          <div className="bg-background-default rounded-xl p-4 border border-border-default">
+            <h3 className="text-sm font-medium text-text-default font-semibold mb-3">Extension Breakdown</h3>
             <div className="space-y-2">
               {analytics.extension_usage.map((ext) => {
                 const maxExtCalls = Math.max(
@@ -356,7 +356,7 @@ export default function ToolsHealthView() {
                 const barWidth = (ext.total_calls / maxExtCalls) * 100;
                 return (
                   <div key={ext.extension} className="flex items-center gap-3">
-                    <span className="text-sm text-textSubtle w-32 truncate">{ext.extension}</span>
+                    <span className="text-sm text-text-muted w-32 truncate">{ext.extension}</span>
                     <div className="flex-1 h-2 bg-black/20 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full"
@@ -366,7 +366,7 @@ export default function ToolsHealthView() {
                         }}
                       />
                     </div>
-                    <span className="text-xs text-textSubtle w-16 text-right">
+                    <span className="text-xs text-text-muted w-16 text-right">
                       {formatNumber(ext.total_calls)}
                     </span>
                     <span

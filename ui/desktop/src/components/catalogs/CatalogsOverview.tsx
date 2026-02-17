@@ -48,7 +48,7 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
 
   return (
     <div
-      className="group relative bg-bgApp border border-borderSubtle rounded-xl p-6 hover:border-borderStandard hover:shadow-lg transition-all cursor-pointer"
+      className="group relative bg-background-default border border-border-default rounded-xl p-6 hover:border-border-accent hover:shadow-lg transition-all cursor-pointer"
       onClick={() => navigate(category.route)}
     >
       <div className="flex items-start justify-between mb-4">
@@ -60,30 +60,30 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
             {category.icon}
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-textStandard">{category.label}</h3>
-            <p className="text-sm text-textSubtle">{category.description}</p>
+            <h3 className="text-lg font-semibold text-text-default">{category.label}</h3>
+            <p className="text-sm text-text-muted">{category.description}</p>
           </div>
         </div>
-        <ChevronRight className="w-5 h-5 text-textSubtle opacity-0 group-hover:opacity-100 transition-opacity" />
+        <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
 
       <div className="flex items-center gap-4 mb-4">
         <div className="flex items-center gap-1.5 text-sm">
           <CheckCircle2 className="w-4 h-4 text-green-500" />
-          <span className="text-textStandard font-medium">{installed}</span>
-          <span className="text-textSubtle">installed</span>
+          <span className="text-text-default font-medium">{installed}</span>
+          <span className="text-text-muted">installed</span>
         </div>
         {errors > 0 && (
           <div className="flex items-center gap-1.5 text-sm">
             <AlertCircle className="w-4 h-4 text-red-500" />
             <span className="text-red-400 font-medium">{errors}</span>
-            <span className="text-textSubtle">issues</span>
+            <span className="text-text-muted">issues</span>
           </div>
         )}
         <div className="flex items-center gap-1.5 text-sm">
-          <Package className="w-4 h-4 text-textSubtle" />
-          <span className="text-textStandard font-medium">{category.items.length}</span>
-          <span className="text-textSubtle">total</span>
+          <Package className="w-4 h-4 text-text-muted" />
+          <span className="text-text-default font-medium">{category.items.length}</span>
+          <span className="text-text-muted">total</span>
         </div>
       </div>
 
@@ -91,7 +91,7 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
         {visibleItems.map((item) => (
           <div
             key={item.id}
-            className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-bgSubtle"
+            className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-background-subtle"
           >
             <div className="flex items-center gap-2 min-w-0">
               <div
@@ -103,10 +103,10 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
                       : 'bg-gray-400'
                 }`}
               />
-              <span className="text-textStandard truncate">{item.name}</span>
+              <span className="text-text-default truncate">{item.name}</span>
             </div>
             {item.type && (
-              <span className="text-xs text-textSubtle px-1.5 py-0.5 rounded bg-bgApp flex-shrink-0">
+              <span className="text-xs text-text-muted px-1.5 py-0.5 rounded bg-background-default flex-shrink-0">
                 {item.type}
               </span>
             )}
@@ -114,7 +114,7 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
         ))}
         {hasMore && (
           <button
-            className="w-full text-xs text-textSubtle hover:text-textStandard text-center py-1 rounded-md hover:bg-bgSubtle transition-colors"
+            className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               setExpanded(!expanded);
@@ -126,25 +126,25 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
           </button>
         )}
         {category.items.length === 0 && !category.loading && (
-          <div className="text-sm text-textSubtle text-center py-3">
+          <div className="text-sm text-text-muted text-center py-3">
             No items yet — click to browse
           </div>
         )}
         {category.loading && (
           <div className="space-y-1.5">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-8 bg-bgSubtle rounded-md animate-pulse" />
+              <div key={i} className="h-8 bg-background-subtle rounded-md animate-pulse" />
             ))}
           </div>
         )}
       </div>
 
       {category.actions.length > 0 && (
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-borderSubtle">
+        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
           {category.actions.map((action, i) => (
             <button
               key={i}
-              className="flex items-center gap-1.5 text-xs text-textSubtle hover:text-textStandard px-2 py-1 rounded-md hover:bg-bgSubtle transition-colors"
+              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 action.onClick();
@@ -352,26 +352,26 @@ export default function CatalogsOverview() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-textStandard">Catalogs</h1>
-            <p className="text-sm text-textSubtle mt-1">
+            <h1 className="text-2xl font-bold text-text-default">Catalogs</h1>
+            <p className="text-sm text-text-muted mt-1">
               {totalInstalled} installed across {categories.length} catalogs • {totalItems} total
               packages
             </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textSubtle" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
               <input
                 type="text"
                 placeholder="Search all catalogs..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-bgSubtle border border-borderSubtle rounded-lg text-sm text-textStandard placeholder-textSubtle focus:outline-none focus:border-borderStandard w-64"
+                className="pl-9 pr-4 py-2 bg-background-subtle border border-border-default rounded-lg text-sm text-text-default placeholder-text-muted focus:outline-none focus:border-border-accent w-64"
               />
             </div>
             <button
               onClick={loadCatalogs}
-              className="p-2 text-textSubtle hover:text-textStandard rounded-lg hover:bg-bgSubtle transition-colors"
+              className="p-2 text-text-muted hover:text-text-default rounded-lg hover:bg-background-subtle transition-colors"
               title="Refresh"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -388,8 +388,8 @@ export default function CatalogsOverview() {
 
         {/* Search results flat view */}
         {searchTerm && (
-          <div className="bg-bgApp border border-borderSubtle rounded-xl p-6">
-            <h3 className="text-sm font-semibold text-textSubtle uppercase tracking-wider mb-4">
+          <div className="bg-background-default border border-border-default rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">
               Search Results
             </h3>
             <div className="space-y-2">
@@ -397,7 +397,7 @@ export default function CatalogsOverview() {
                 c.items.map((item) => (
                   <div
                     key={`${c.id}-${item.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg hover:bg-bgSubtle cursor-pointer"
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-background-subtle cursor-pointer"
                     onClick={() => navigate(c.route)}
                   >
                     <div className="flex items-center gap-3">
@@ -411,12 +411,12 @@ export default function CatalogsOverview() {
                         {c.icon}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-textStandard">{item.name}</div>
-                        <div className="text-xs text-textSubtle">{item.description}</div>
+                        <div className="text-sm font-medium text-text-default">{item.name}</div>
+                        <div className="text-xs text-text-muted">{item.description}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs px-2 py-0.5 rounded bg-bgSubtle text-textSubtle">
+                      <span className="text-xs px-2 py-0.5 rounded bg-background-subtle text-text-muted">
                         {c.label}
                       </span>
                       <div
@@ -433,7 +433,7 @@ export default function CatalogsOverview() {
                 ))
               )}
               {filteredCategories.every((c) => c.items.length === 0) && (
-                <div className="text-sm text-textSubtle text-center py-6">
+                <div className="text-sm text-text-muted text-center py-6">
                   No results for &quot;{searchTerm}&quot;
                 </div>
               )}

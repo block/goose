@@ -64,13 +64,13 @@ export default function AnalyticsView() {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex-shrink-0 px-6 pt-4 pb-0">
-        <h1 className="text-xl font-semibold text-textProminent mb-4">Analytics</h1>
+        <h1 className="text-xl font-semibold text-text-default font-semibold mb-4">Analytics</h1>
 
         {/* Tab groups */}
-        <div className="flex items-center gap-6 border-b border-borderSubtle">
+        <div className="flex items-center gap-6 border-b border-border-default">
           {(["observe", "evaluate", "configure"] as const).map((group) => (
             <div key={group} className="flex items-center gap-0.5">
-              <span className="text-[10px] uppercase tracking-wider text-textSubtle mr-2 select-none">
+              <span className="text-[10px] uppercase tracking-wider text-text-muted mr-2 select-none">
                 {GROUP_LABELS[group]}
               </span>
               {TABS.filter((t) => t.group === group).map((tab) => (
@@ -79,8 +79,8 @@ export default function AnalyticsView() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`px-3 py-2 text-sm font-medium transition-colors relative ${
                     activeTab === tab.id
-                      ? "text-textProminent"
-                      : "text-textSubtle hover:text-textStandard"
+                      ? "text-text-default font-semibold"
+                      : "text-text-muted hover:text-text-default"
                   }`}
                 >
                   {tab.label}

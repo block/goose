@@ -332,8 +332,8 @@ export function RecipeFormFields({
               advancedOpen ? 'rotate-0' : '-rotate-90'
             }`}
           />
-          <span className="text-sm font-medium text-textStandard">Advanced Options</span>
-          <span className="text-xs text-textSubtle">
+          <span className="text-sm font-medium text-text-default">Advanced Options</span>
+          <span className="text-xs text-text-muted">
             Activities, parameters, model, extensions, response schema
           </span>
         </CollapsibleTrigger>

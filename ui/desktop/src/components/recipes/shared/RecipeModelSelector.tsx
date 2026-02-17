@@ -132,10 +132,10 @@ export const RecipeModelSelector = ({
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium text-textStandard mb-2">
+        <label className="block text-sm font-medium text-text-default mb-2">
           Provider (Optional)
         </label>
-        <p className="text-xs text-textSubtle mb-2">
+        <p className="text-xs text-text-muted mb-2">
           Leave empty to use the default provider configured in settings
         </p>
         <Select
@@ -153,21 +153,21 @@ export const RecipeModelSelector = ({
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium text-textStandard">Model (Optional)</label>
+          <label className="block text-sm font-medium text-text-default">Model (Optional)</label>
           {isCustomModel && (
             <button
               onClick={() => {
                 setIsCustomModel(false);
                 onModelChange(undefined);
               }}
-              className="text-xs text-textSubtle hover:underline"
+              className="text-xs text-text-muted hover:underline"
               type="button"
             >
               Back to model list
             </button>
           )}
         </div>
-        <p className="text-xs text-textSubtle mb-2">
+        <p className="text-xs text-text-muted mb-2">
           Leave empty to use the default model for the selected provider
         </p>
         {isCustomModel ? (

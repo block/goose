@@ -1,19 +1,20 @@
 import { useState } from "react";
+import { PageHeader } from "../ui/design-system/PageHeader";
+import { TabBar } from "../ui/design-system/TabBar";
 import AnalyticsDashboard from "./AnalyticsDashboard";
 import ToolAnalyticsTab from "./ToolAnalyticsTab";
 import LiveMonitoringTab from "./LiveMonitoringTab";
 import ResponseQualityTab from "./ResponseQualityTab";
 
-interface TabDef {
-  id: string;
-  label: string;
-}
-
-const TABS: TabDef[] = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "tools", label: "Tool Analytics" },
-  { id: "live", label: "Live" },
-  { id: "quality", label: "Quality" },
+const TAB_GROUPS = [
+  {
+    tabs: [
+      { id: "dashboard", label: "Dashboard" },
+      { id: "tools", label: "Tool Analytics" },
+      { id: "live", label: "Live" },
+      { id: "quality", label: "Quality" },
+    ],
+  },
 ];
 
 const COMPONENTS: Record<string, React.FC> = {
@@ -30,25 +31,14 @@ export default function MonitoringView() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-shrink-0 px-6 pt-4 pb-0">
-        <h1 className="text-xl font-semibold text-textProminent mb-4">Monitoring</h1>
-        <div className="flex items-center gap-0.5 border-b border-borderSubtle">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 text-sm font-medium transition-colors relative ${
-                activeTab === tab.id
-                  ? "text-textProminent"
-                  : "text-textSubtle hover:text-textStandard"
-              }`}
-            >
-              {tab.label}
-              {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" />
-              )}
-            </button>
-          ))}
-        </div>
+        <PageHeader title="Monitoring" />
+        <TabBar
+          groups={TAB_GROUPS}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          variant="underline"
+          className="mt-4"
+        />
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {ActiveComponent && <ActiveComponent />}

@@ -438,7 +438,7 @@ export const SwitchModelModal = ({
 
               {isGemini3Model && (
                 <div className="mt-2">
-                  <label className="text-sm text-textSubtle mb-1 block">
+                  <label className="text-sm text-text-muted mb-1 block">
                     Thinking Level
                     <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
                   </label>
@@ -554,7 +554,7 @@ export const SwitchModelModal = ({
 
                   {isGemini3Model && (
                     <div className="mt-2">
-                      <label className="text-sm text-textSubtle mb-1 block">
+                      <label className="text-sm text-text-muted mb-1 block">
                         Thinking Level
                         <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
                       </label>

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { PageHeader } from "../ui/design-system/PageHeader";
+import { TabBar } from "../ui/design-system/TabBar";
 import EvalOverviewTab from "./EvalOverviewTab";
 import DatasetsTab from "./DatasetsTab";
 import RunHistoryTab from "./RunHistoryTab";
@@ -6,18 +8,17 @@ import TopicsTab from "./TopicsTab";
 import RoutingInspector from "./RoutingInspector";
 import EvalRunner from "./EvalRunner";
 
-interface TabDef {
-  id: string;
-  label: string;
-}
-
-const TABS: TabDef[] = [
-  { id: "overview", label: "Overview" },
-  { id: "datasets", label: "Datasets" },
-  { id: "runs", label: "Run History" },
-  { id: "topics", label: "Topics" },
-  { id: "inspector", label: "Routing Inspector" },
-  { id: "eval-runner", label: "Eval Runner" },
+const TAB_GROUPS = [
+  {
+    tabs: [
+      { id: "overview", label: "Overview" },
+      { id: "datasets", label: "Datasets" },
+      { id: "runs", label: "Run History" },
+      { id: "topics", label: "Topics" },
+      { id: "inspector", label: "Routing Inspector" },
+      { id: "eval-runner", label: "Eval Runner" },
+    ],
+  },
 ];
 
 const COMPONENTS: Record<string, React.FC> = {
@@ -36,25 +37,14 @@ export default function EvaluateView() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex-shrink-0 px-6 pt-4 pb-0">
-        <h1 className="text-xl font-semibold text-textProminent mb-4">Evaluate</h1>
-        <div className="flex items-center gap-0.5 border-b border-borderSubtle">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2 text-sm font-medium transition-colors relative ${
-                activeTab === tab.id
-                  ? "text-textProminent"
-                  : "text-textSubtle hover:text-textStandard"
-              }`}
-            >
-              {tab.label}
-              {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" />
-              )}
-            </button>
-          ))}
-        </div>
+        <PageHeader title="Evaluate" />
+        <TabBar
+          groups={TAB_GROUPS}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          variant="underline"
+          className="mt-4"
+        />
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {ActiveComponent && <ActiveComponent />}
