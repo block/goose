@@ -1,5 +1,5 @@
 import { AppEvents } from '../../constants/events';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Activity,
   AppWindow,
@@ -10,10 +10,14 @@ import {
   FileText,
   FlaskConical,
   FolderOpen,
+  FolderPlus,
   History,
   Home,
   MessageSquarePlus,
+  Pin,
+  PinOff,
   Puzzle,
+  Search,
   Workflow,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -39,6 +43,7 @@ import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 import { useConfig } from '../ConfigContext';
 import { InlineEditText } from '../common/InlineEditText';
+import { useProjectPreferences } from '../../hooks/useProjectPreferences';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -178,7 +183,12 @@ interface ProjectGroup {
   sessions: Session[];
 }
 
-const groupSessionsByProject = (sessions: Session[]): ProjectGroup[] => {
+const MAX_VISIBLE_PROJECTS = 10;
+
+const groupSessionsByProject = (
+  sessions: Session[],
+  pinnedProjects: string[] = []
+): ProjectGroup[] => {
   const groups = new Map<string, Session[]>();
 
   for (const session of sessions) {
@@ -188,10 +198,13 @@ const groupSessionsByProject = (sessions: Session[]): ProjectGroup[] => {
     groups.set(project, existing);
   }
 
-  // Sort: "General" always last, others by most recent session
   return Array.from(groups.entries())
     .map(([project, projectSessions]) => ({ project, sessions: projectSessions }))
     .sort((a, b) => {
+      const aPinned = pinnedProjects.includes(a.project);
+      const bPinned = pinnedProjects.includes(b.project);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
       if (a.project === 'General') return 1;
       if (b.project === 'General') return -1;
       return 0;
@@ -271,6 +284,10 @@ const SessionList = React.memo<{
   onSessionClick: (session: Session) => void;
 }>(
   ({ sessions, activeSessionId, getSessionStatus, onSessionClick }) => {
+    const { pinnedProjects, togglePin, isPinned, toggleCollapsed, isCollapsed } =
+      useProjectPreferences();
+    const [projectSearch, setProjectSearch] = useState('');
+
     const sortedSessions = React.useMemo(() => {
       return [...sessions].sort((a, b) => {
         const aIsEmptyNew = shouldShowNewChatTitle(a);
@@ -282,14 +299,21 @@ const SessionList = React.memo<{
     }, [sessions]);
 
     const projectGroups = React.useMemo(
-      () => groupSessionsByProject(sortedSessions),
-      [sortedSessions]
+      () => groupSessionsByProject(sortedSessions, pinnedProjects),
+      [sortedSessions, pinnedProjects]
     );
 
-    const hasMultipleProjects = projectGroups.length > 1;
+    const shouldGroup = projectGroups.length > 1 || sessions.length >= 5;
 
-    if (!hasMultipleProjects) {
-      // Single project or no sessions — flat list (no grouping header)
+    const filteredGroups = React.useMemo(() => {
+      if (!projectSearch.trim()) return projectGroups.slice(0, MAX_VISIBLE_PROJECTS);
+      const q = projectSearch.toLowerCase();
+      return projectGroups.filter((g) => g.project.toLowerCase().includes(q));
+    }, [projectGroups, projectSearch]);
+
+    const hasOverflow = projectGroups.length > MAX_VISIBLE_PROJECTS && !projectSearch;
+
+    if (!shouldGroup) {
       return (
         <div className="relative ml-3">
           {sortedSessions.map((session, index) => (
@@ -306,27 +330,60 @@ const SessionList = React.memo<{
       );
     }
 
-    // Multiple projects — group with collapsible project headers
     return (
       <div className="space-y-1">
-        {projectGroups.map((group) => {
-          const hasActiveSession = group.sessions.some((s) => s.id === activeSessionId);
+        {(hasOverflow || projectSearch) && (
+          <div className="px-2 pb-1">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-text-subtle" />
+              <input
+                type="text"
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                placeholder="Find project..."
+                className="w-full pl-6 pr-2 py-1 text-xs bg-background-muted border border-border-muted rounded text-text-default placeholder-text-subtle focus:outline-none focus:border-border-default"
+              />
+            </div>
+          </div>
+        )}
+        {filteredGroups.map((group) => {
+          const collapsed = isCollapsed(group.project);
+          const pinned = isPinned(group.project);
+          const isGeneral = group.project === 'General';
+          const ProjectIcon = isGeneral ? Home : FolderOpen;
+
           return (
-            <Collapsible
-              key={group.project}
-              defaultOpen={hasActiveSession || group.project !== 'General'}
-            >
-              <CollapsibleTrigger asChild>
-                <button className="flex items-center gap-1.5 w-full px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30">
-                  <FolderOpen className="w-3 h-3 flex-shrink-0" />
+            <div key={group.project}>
+              <div className="flex items-center group/project">
+                <button
+                  onClick={() => toggleCollapsed(group.project)}
+                  className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30"
+                >
+                  <ProjectIcon className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{group.project}</span>
+                  {pinned && <Pin className="w-2.5 h-2.5 flex-shrink-0 text-text-accent" />}
                   <span className="text-[10px] opacity-60 ml-auto flex-shrink-0">
                     {group.sessions.length}
                   </span>
-                  <ChevronRight className="w-3 h-3 flex-shrink-0 transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                  <ChevronRight
+                    className={`w-3 h-3 flex-shrink-0 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
+                  />
                 </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                {!isGeneral && (
+                  <button
+                    onClick={() => togglePin(group.project)}
+                    className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-medium/50 rounded transition-all"
+                    title={pinned ? 'Unpin project' : 'Pin project'}
+                  >
+                    {pinned ? (
+                      <PinOff className="w-3 h-3 text-text-muted" />
+                    ) : (
+                      <Pin className="w-3 h-3 text-text-muted" />
+                    )}
+                  </button>
+                )}
+              </div>
+              {!collapsed && (
                 <div className="relative ml-3">
                   {group.sessions.map((session, index) => (
                     <SessionItem
@@ -339,10 +396,15 @@ const SessionList = React.memo<{
                     />
                   ))}
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
+              )}
+            </div>
           );
         })}
+        {hasOverflow && (
+          <div className="px-2 text-[10px] text-text-subtle">
+            {projectGroups.length - MAX_VISIBLE_PROJECTS} more projects — use search to find them
+          </div>
+        )}
       </div>
     );
   },
@@ -618,6 +680,44 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     navigate('/sessions');
   }, [navigate]);
 
+  // Open Project: recent dirs dropdown + OS directory picker
+  const { addRecentDir, recentDirs } = useProjectPreferences();
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!projectDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setProjectDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [projectDropdownOpen]);
+
+  const handleOpenProjectFromDir = React.useCallback(
+    async (dir: string) => {
+      setProjectDropdownOpen(false);
+      addRecentDir(dir);
+      await startNewSession('', setView, dir, {
+        allExtensions: configContext.extensionsList,
+      });
+    },
+    [setView, addRecentDir, configContext.extensionsList]
+  );
+
+  const handleBrowseForProject = React.useCallback(async () => {
+    setProjectDropdownOpen(false);
+    const result = await window.electron.directoryChooser();
+    if (result.canceled || !result.filePaths.length) return;
+    const dir = result.filePaths[0];
+    addRecentDir(dir);
+    await startNewSession('', setView, dir, {
+      allExtensions: configContext.extensionsList,
+    });
+  }, [setView, addRecentDir, configContext.extensionsList]);
+
   // Check if any item in a zone is currently active
   const isZoneActive = (zone: NavigationZone) => {
     return zone.items.some((item) => isActivePath(item.path));
@@ -668,6 +768,45 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         <MessageSquarePlus className="w-4 h-4" />
                         <span>Chat</span>
                       </SidebarMenuButton>
+                      <div className="relative" ref={projectDropdownRef}>
+                        <button
+                          onClick={() => setProjectDropdownOpen((prev) => !prev)}
+                          className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
+                          aria-label="Open project"
+                          title="Open project in new session"
+                        >
+                          <FolderPlus className="w-3.5 h-3.5 text-text-muted" />
+                        </button>
+                        {projectDropdownOpen && (
+                          <div className="absolute left-0 top-full mt-1 w-56 z-50 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden">
+                            <button
+                              onClick={handleBrowseForProject}
+                              className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
+                            >
+                              <FolderPlus className="w-4 h-4 text-text-accent" />
+                              <span>Browse...</span>
+                            </button>
+                            {recentDirs.length > 0 && (
+                              <div className="max-h-48 overflow-y-auto">
+                                <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
+                                  Recent Projects
+                                </div>
+                                {recentDirs.map((dir) => (
+                                  <button
+                                    key={dir}
+                                    onClick={() => handleOpenProjectFromDir(dir)}
+                                    className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
+                                    title={dir}
+                                  >
+                                    <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span className="truncate">{dir.split('/').pop() || dir}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {recentSessions.length > 0 && (
                         <CollapsibleTrigger asChild>
                           <button
