@@ -55,6 +55,7 @@ pub mod security_agent;
 pub(crate) mod specialist_config;
 pub(crate) mod specialist_handler;
 pub mod subagent_execution_tool;
+pub mod summon;
 pub(crate) mod summon_extension;
 pub(crate) mod todo_extension;
 pub(crate) mod tom_extension;

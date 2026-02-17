@@ -32,238 +32,24 @@ use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ProtocolVersion, ServerCapabilities, Tool, ToolsCapability,
 };
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
-
-use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 pub static EXTENSION_NAME: &str = "summon";
 
-#[derive(Debug, Clone)]
-pub struct Source {
-    pub name: String,
-    pub kind: SourceKind,
-    pub description: String,
-    pub path: PathBuf,
-    pub content: String,
-    pub distribution: Option<crate::registry::manifest::AgentDistribution>,
-    pub a2a_url: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SourceKind {
-    Subrecipe,
-    Recipe,
-    Skill,
-    Agent,
-    BuiltinSkill,
-}
-
-impl std::fmt::Display for SourceKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SourceKind::Subrecipe => write!(f, "subrecipe"),
-            SourceKind::Recipe => write!(f, "recipe"),
-            SourceKind::Skill => write!(f, "skill"),
-            SourceKind::Agent => write!(f, "agent"),
-            SourceKind::BuiltinSkill => write!(f, "builtin skill"),
-        }
-    }
-}
-
-impl Source {
-    /// Format the source content for loading into context
-    pub fn to_load_text(&self) -> String {
-        format!(
-            "## {} ({})\n\n{}\n\n### Content\n\n{}",
-            self.name, self.kind, self.description, self.content
-        )
-    }
-}
-
-fn kind_plural(kind: SourceKind) -> &'static str {
-    match kind {
-        SourceKind::Subrecipe => "Subrecipes",
-        SourceKind::Recipe => "Recipes",
-        SourceKind::Skill => "Skills",
-        SourceKind::Agent => "Agents",
-        SourceKind::BuiltinSkill => "Builtin Skills",
-    }
-}
-
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.chars().count() <= max_len {
-        s.to_string()
-    } else if max_len <= 3 {
-        "...".to_string()
-    } else {
-        let truncated: String = s.chars().take(max_len - 3).collect();
-        format!("{}...", truncated)
-    }
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct DelegateParams {
-    pub instructions: Option<String>,
-    pub source: Option<String>,
-    pub parameters: Option<HashMap<String, serde_json::Value>>,
-    pub extensions: Option<Vec<String>>,
-    pub provider: Option<String>,
-    pub model: Option<String>,
-    pub temperature: Option<f32>,
-    /// Agent mode to use (e.g., "code", "review", "architect")
-    pub mode: Option<String>,
-    #[serde(default)]
-    pub r#async: bool,
-}
-
-pub struct BackgroundTask {
-    pub id: String,
-    pub description: String,
-    pub started_at: Instant,
-    pub turns: Arc<AtomicU32>,
-    pub last_activity: Arc<AtomicU64>,
-    pub handle: JoinHandle<Result<String>>,
-    pub cancellation_token: CancellationToken,
-}
-
-pub struct CompletedTask {
-    pub id: String,
-    pub description: String,
-    pub result: Result<String, String>,
-    pub turns_taken: u32,
-    pub duration: Duration,
-}
-
-#[derive(Debug, Deserialize)]
-struct SkillMetadata {
-    name: String,
-    description: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct AgentMetadata {
-    name: String,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    model: Option<String>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    default_mode: Option<String>,
-    #[serde(default)]
-    modes: Vec<AgentModeEntry>,
-    #[serde(default)]
-    #[allow(dead_code)]
-    required_extensions: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct AgentModeEntry {
-    slug: String,
-    name: String,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    instructions: Option<String>,
-    #[serde(default)]
-    instructions_file: Option<String>,
-    #[serde(default)]
-    tool_groups: Vec<String>,
-}
-
-fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, String)> {
-    let parts: Vec<&str> = content.split("---").collect();
-    if parts.len() < 3 {
-        return None;
-    }
-
-    let yaml_content = parts[1].trim();
-    let metadata: T = match serde_yaml::from_str(yaml_content) {
-        Ok(m) => m,
-        Err(e) => {
-            warn!("Failed to parse frontmatter: {}", e);
-            return None;
-        }
-    };
-
-    let body = parts[2..].join("---").trim().to_string();
-    Some((metadata, body))
-}
-
-fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
-    let (metadata, body): (SkillMetadata, String) = parse_frontmatter(content)?;
-
-    Some(Source {
-        name: metadata.name,
-        kind: SourceKind::Skill,
-        description: metadata.description,
-        path,
-        content: body,
-        distribution: None,
-        a2a_url: None,
-    })
-}
-
-fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
-    let (metadata, body): (AgentMetadata, String) = parse_frontmatter(content)?;
-
-    let description = metadata.description.unwrap_or_else(|| {
-        let model_info = metadata
-            .model
-            .as_ref()
-            .map(|m| format!(" ({})", m))
-            .unwrap_or_default();
-        format!("Agent{}", model_info)
-    });
-
-    Some(Source {
-        name: metadata.name,
-        kind: SourceKind::Agent,
-        description,
-        path,
-        content: body,
-        distribution: None,
-        a2a_url: None,
-    })
-}
-
-fn round_duration(d: Duration) -> String {
-    let secs = d.as_secs();
-    if secs < 60 {
-        format!("{}s", (secs / 10) * 10)
-    } else {
-        format!("{}m", secs / 60)
-    }
-}
-
-fn current_epoch_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
-/// Get maximum number of concurrent background tasks
-fn max_background_tasks() -> usize {
-    std::env::var("GOOSE_MAX_BACKGROUND_TASKS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(5)
-}
-
-fn is_session_id(s: &str) -> bool {
-    let parts: Vec<&str> = s.split('_').collect();
-    parts.len() == 2 && parts[0].len() == 8 && parts[0].chars().all(|c| c.is_ascii_digit())
-}
+// Types and utilities extracted to `agents/summon/` sub-modules
+use super::summon::types::AgentMetadata;
+use super::summon::{
+    current_epoch_millis, is_session_id, kind_plural, max_background_tasks, parse_agent_content,
+    parse_frontmatter, parse_skill_content, round_duration, truncate, BackgroundTask,
+    CompletedTask, DelegateParams, Source, SourceKind,
+};
 
 pub struct SummonClient {
     info: InitializeResult,
