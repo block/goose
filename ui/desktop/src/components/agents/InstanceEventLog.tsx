@@ -66,10 +66,10 @@ export function InstanceEventLog({
   };
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+    <div className="rounded-lg border border-border-default overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <div className="flex items-center justify-between px-3 py-2 bg-background-muted border-b border-border-default">
+        <div className="flex items-center gap-2 text-xs text-text-muted">
           <Terminal size={12} />
           <span>Event Stream</span>
           {connected && (

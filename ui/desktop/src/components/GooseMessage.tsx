@@ -24,6 +24,13 @@ import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 import { AppEvents } from '../constants/events';
 import { useReasoningDetail } from '../contexts/ReasoningDetailContext';
+import {
+  extractGenerativeSpec,
+  hasPartialGenerativeSpec,
+  stripPartialGenerativeSpec,
+} from '../utils/generativeSpec';
+import { GooseGenerativeUI } from './ui/design-system/goose-renderer';
+import { useNavigate } from 'react-router-dom';
 
 function ThinkingSection({
   cotText,
@@ -34,10 +41,19 @@ function ThinkingSection({
   isStreaming: boolean;
   messageId?: string;
 }) {
-  const { toggleDetail, openDetail, updateContent, isOpen: isPanelOpen, detail } =
-    useReasoningDetail();
+  const {
+    toggleDetail,
+    openDetail,
+    updateContent,
+    isOpen: isPanelOpen,
+    detail,
+  } = useReasoningDetail();
   const hasAutoOpened = useRef(false);
-  const preview = cotText.split('\n').find((l) => l.trim())?.slice(0, 80) || 'Reasoning...';
+  const preview =
+    cotText
+      .split('\n')
+      .find((l) => l.trim())
+      ?.slice(0, 80) || 'Reasoning...';
   const isThisMessageOpen = isPanelOpen && detail?.messageId === messageId;
 
   // Auto-open reasoning panel during streaming and live-update content
@@ -80,10 +96,7 @@ function ThinkingSection({
       >
         <Brain
           size={16}
-          className={cn(
-            'text-text-muted shrink-0',
-            isStreaming && 'animate-pulse text-amber-400'
-          )}
+          className={cn('text-text-muted shrink-0', isStreaming && 'animate-pulse text-amber-400')}
         />
         <span className="text-sm font-medium text-text-muted">
           {isStreaming ? 'Thinking...' : 'Thought process'}
@@ -157,9 +170,7 @@ export default function GooseMessage({
 
     if (streaming) {
       // During streaming, also strip incomplete/partial tool call tags that haven't closed yet
-      cleaned = cleaned
-        .replace(/<tool_call>[\s\S]*$/gi, '')
-        .replace(/<tool_result>[\s\S]*$/gi, '');
+      cleaned = cleaned.replace(/<tool_call>[\s\S]*$/gi, '').replace(/<tool_result>[\s\S]*$/gi, '');
 
       // Strip partial JSON tool call fragments that appear during streaming
       // e.g., 'developer.shell", "arguments": {"command": "cd ...'
@@ -193,12 +204,63 @@ export default function GooseMessage({
 
   const { displayText, cotText } = splitChainOfThought(textContent, isStreaming);
 
+  const navigate = useNavigate();
+
+  // Generative UI: detect and extract json-render specs from message text
+  const generativeResult = useMemo(() => {
+    if (!displayText.trim()) return null;
+
+    // During streaming, if a partial spec is detected, strip it and don't render
+    if (isStreaming && hasPartialGenerativeSpec(displayText)) {
+      return { partial: true as const, cleanText: stripPartialGenerativeSpec(displayText) };
+    }
+
+    const extracted = extractGenerativeSpec(displayText);
+    if (extracted) {
+      return { partial: false as const, ...extracted };
+    }
+    return null;
+  }, [displayText, isStreaming]);
+
+  const handleGenerativeAction = useMemo(() => {
+    return (actionName: string, params?: Record<string, unknown>) => {
+      switch (actionName) {
+        case 'navigate':
+          if (params?.path) navigate(params.path as string);
+          break;
+        case 'create_session':
+          window.dispatchEvent(new CustomEvent('create-new-session', { detail: params }));
+          break;
+        case 'open_session':
+          if (params?.sessionId) navigate(`/sessions/${params.sessionId}`);
+          break;
+        case 'run_recipe':
+          if (params?.recipeId) navigate(`/recipes/${params.recipeId}`);
+          break;
+        case 'run_eval':
+          if (params?.datasetId) navigate(`/evaluate?dataset=${params.datasetId}`);
+          break;
+        case 'install_extension':
+          if (params?.name) {
+            window.dispatchEvent(new CustomEvent('install-extension', { detail: params }));
+          }
+          break;
+      }
+    };
+  }, [navigate]);
+
+  // Determine the text to actually render as markdown
+  const renderedText = useMemo(() => {
+    if (!generativeResult) return displayText;
+    if (generativeResult.partial) return generativeResult.cleanText;
+    return generativeResult.beforeText;
+  }, [displayText, generativeResult]);
+
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const modelInfo = (message as MessageWithAttribution)._modelInfo;
   const routingInfo = (message as MessageWithAttribution)._routingInfo;
   const toolRequests = getToolRequests(message);
   const messageIndex = messages.findIndex((msg) => msg.id === message.id);
-
 
   const toolConfirmationContent = getToolConfirmationContent(message);
   const elicitationContent = getElicitationContent(message);
@@ -312,11 +374,29 @@ export default function GooseMessage({
           </div>
         )}
 
-        {(displayText.trim() || imagePaths.length > 0) && (
+        {(renderedText.trim() ||
+          imagePaths.length > 0 ||
+          (generativeResult && !generativeResult.partial)) && (
           <div className="flex flex-col group">
-            {displayText.trim() && (
+            {renderedText.trim() && (
               <div ref={contentRef} className="w-full">
-                <MarkdownContent content={displayText} />
+                <MarkdownContent content={renderedText} />
+              </div>
+            )}
+
+            {generativeResult && !generativeResult.partial && (
+              <div className="mt-3 rounded-xl border border-border-default bg-background-default overflow-hidden">
+                <GooseGenerativeUI
+                  spec={generativeResult.spec}
+                  onAction={handleGenerativeAction}
+                  loading={isStreaming}
+                />
+              </div>
+            )}
+
+            {generativeResult && !generativeResult.partial && generativeResult.afterText && (
+              <div className="mt-3 w-full">
+                <MarkdownContent content={generativeResult.afterText} />
               </div>
             )}
 
@@ -359,48 +439,51 @@ export default function GooseMessage({
           </div>
         )}
 
-        {toolRequests.length > 0 && (() => {
-          // When suppressToolCalls is set (work block final answer), hide all non-pending tool calls
-          // In hidden response style mode, also hide completed tool calls
-          const shouldHideCompleted = hideToolCalls || suppressToolCalls;
-          const visibleToolRequests = shouldHideCompleted
-            ? toolRequests.filter((req) => pendingConfirmationIds.has(req.id))
-            : toolRequests;
-          if (visibleToolRequests.length === 0) return null;
-          return (
-            <div className={cn(displayText && 'mt-2')}>
-              <div className="relative flex flex-col w-full">
-                <div className="flex flex-col gap-3">
-                  {visibleToolRequests.map((toolRequest) => {
-                    const hasResponse = toolResponsesMap.has(toolRequest.id);
-                    const isPending = pendingConfirmationIds.has(toolRequest.id);
-                    const confirmationContent = findConfirmationForToolAcrossMessages(toolRequest.id);
-                    const isApprovalClicked = confirmationContent && !isPending && hasResponse;
-                    return (
-                      <div className="goose-message-tool" key={toolRequest.id}>
-                        <ToolCallWithResponse
-                          sessionId={sessionId}
-                          isCancelledMessage={false}
-                          toolRequest={toolRequest}
-                          toolResponse={toolResponsesMap.get(toolRequest.id)}
-                          notifications={toolCallNotifications.get(toolRequest.id)}
-                          isStreamingMessage={isStreaming}
-                          isPendingApproval={isPending}
-                          append={append}
-                          confirmationContent={confirmationContent}
-                          isApprovalClicked={isApprovalClicked}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="text-xs text-text-muted transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
-                  {!isStreaming && !hideTimestamp && timestamp}
+        {toolRequests.length > 0 &&
+          (() => {
+            // When suppressToolCalls is set (work block final answer), hide all non-pending tool calls
+            // In hidden response style mode, also hide completed tool calls
+            const shouldHideCompleted = hideToolCalls || suppressToolCalls;
+            const visibleToolRequests = shouldHideCompleted
+              ? toolRequests.filter((req) => pendingConfirmationIds.has(req.id))
+              : toolRequests;
+            if (visibleToolRequests.length === 0) return null;
+            return (
+              <div className={cn(displayText && 'mt-2')}>
+                <div className="relative flex flex-col w-full">
+                  <div className="flex flex-col gap-3">
+                    {visibleToolRequests.map((toolRequest) => {
+                      const hasResponse = toolResponsesMap.has(toolRequest.id);
+                      const isPending = pendingConfirmationIds.has(toolRequest.id);
+                      const confirmationContent = findConfirmationForToolAcrossMessages(
+                        toolRequest.id
+                      );
+                      const isApprovalClicked = confirmationContent && !isPending && hasResponse;
+                      return (
+                        <div className="goose-message-tool" key={toolRequest.id}>
+                          <ToolCallWithResponse
+                            sessionId={sessionId}
+                            isCancelledMessage={false}
+                            toolRequest={toolRequest}
+                            toolResponse={toolResponsesMap.get(toolRequest.id)}
+                            notifications={toolCallNotifications.get(toolRequest.id)}
+                            isStreamingMessage={isStreaming}
+                            isPendingApproval={isPending}
+                            append={append}
+                            confirmationContent={confirmationContent}
+                            isApprovalClicked={isApprovalClicked}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-xs text-text-muted transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0 pt-1">
+                    {!isStreaming && !hideTimestamp && timestamp}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         {hasToolConfirmation && !toolConfirmationShownInline && (
           <ToolCallConfirmation
