@@ -1,0 +1,318 @@
+---
+title: "UI Gap Analysis: Design Docs vs Implementation"
+date: 2026-02-17
+type: research
+phase: research
+epic: goose4-x1dl
+task: goose4-a9yz
+confidence: 0.9
+---
+
+# UI Gap Analysis: Design Docs vs Implementation
+
+## Executive Summary
+
+The Goose Desktop UI is **~70% complete** relative to the design specifications in `ux-redesign-proposal.md` and `navigation-architecture.md`. The core architecture is solid — routing, sidebar zones, layout, and the design system are all in place. Key gaps exist in **generative UI integration with chat**, **catalog view data wiring**, **prompt bar slash command polish**, and **analytics live monitoring**.
+
+| Area | Completion | Priority |
+|------|-----------|----------|
+| Navigation & Routing | 95% | Low |
+| Sidebar (4 Zones) | 90% | Low |
+| PromptBar + Zone Awareness | 75% | Medium |
+| Generative UI | 50% | High |
+| Agent Multi-Instance Views | 70% | High |
+| Catalog Views | 60% | Medium |
+| Analytics Dashboard | 80% | Medium |
+| Design System | 85% | Low |
+
+---
+
+## 1. Navigation & Routing
+
+### Designed (navigation-architecture.md)
+12 routes: `/`, `/pair`, `/sessions`, `/recipes`, `/apps`, `/schedules`, `/analytics`, `/tools`, `/agents`, `/catalogs`, `/extensions`, `/settings`
+
+### Implemented (App.tsx ~736 lines)
+All 12 routes exist plus extras: `/monitoring`, `/evaluate`, `/shared-session`, `/permission`, `/welcome`, `/configure-providers`, `/launcher`, `/standalone-app`
+
+### Gap: ✅ COMPLETE (exceeds spec)
+- All designed routes present
+- Extra routes for standalone/launcher modes, monitoring split from analytics, evaluate separate view
+- Route wrappers properly handle session creation, deep links, recipe deep links
+
+### Notes
+- `/analytics` and `/monitoring` are both mapped to `MonitoringView` — potential confusion
+- `/evaluate` is a separate `EvaluateView` component — good separation but not in original routing map
+- Consider consolidating: analytics → MonitoringView with tabs already handles this
+
+---
+
+## 2. Sidebar (4 Zones)
+
+### Designed
+```
+💬 Chat        — Sessions grouped by working_dir project
+⚡ Workflows    — Workflows, Apps, Scheduler  
+👁 Observatory  — Analytics, Tools, Agents
+🧩 Catalogs    — Agents, Extensions, Workflows, Settings
+```
+
+### Implemented (AppSidebar.tsx ~750 lines)
+Zone structure in `NAVIGATION_ZONES`:
+- **chat** — Sessions with project grouping (✅ `groupSessionsByProject()` implemented)
+- **workflows** — Workflows (`/recipes`), Apps (`/apps`), Scheduler (`/schedules`) ✅
+- **observatory** — Split into "Monitoring" (`/monitoring`) and "Evaluate" (`/evaluate`) zones ⚠️
+- **catalog** — Agents (`/agents`), Extensions (`/extensions`), Workflows (`/recipes`) ✅
+- **settings** — Settings (`/settings`) ✅
+
+### Gap: ⚠️ MINOR DIVERGENCE
+1. **Observatory zone split** — Design says single "Observatory" with Analytics/Tools/Agents. Implementation splits into "Monitoring" and "Evaluate" as separate zones. This is arguably better but diverges from spec.
+2. **Tools route** — `/tools` route exists in App.tsx but not visible in sidebar navigation zones. Design spec includes "Tools" under Observatory.
+3. **Session grouping** — ✅ Fully implemented with `getProjectName()`, `groupSessionsByProject()`, "General" group sorts last.
+4. **Zone headers clickable** — ✅ Catalog zone has `route: '/catalogs'` for clickable header.
+
+### Action Items
+- [ ] Add `/tools` (ToolsHealthView) to Observatory/Monitoring zone in sidebar
+- [ ] Consider reconciling Observatory split vs single zone
+
+---
+
+## 3. PromptBar + Zone Awareness
+
+### Designed
+- Persistent bottom bar on all pages except `/pair`
+- Zone-adaptive placeholder, hints, slash commands
+- Global commands: `/new`, `/recipe`, `/settings`, `/model`, `/project`, `/help`
+- Zone commands vary per zone (workflows: `/recipe`, observatory: `/eval`, `/tools`, platform: `/install`, `/schedule`)
+- Cmd+K global shortcut
+- File attach, voice input
+- Autocomplete dropdown for slash commands
+
+### Implemented
+**UnifiedInputContext.tsx (~375 lines)** — ✅ Zone detection, config per zone, slash command routing
+- Zone detection from pathname: ✅
+- Per-zone placeholder/hints: ✅
+- Slash commands defined with actions: ✅
+- `submitPrompt()` handles slash commands, session delegates, new session creation: ✅
+
+**PromptBar.tsx (~328 lines)** — Good but gaps:
+- File attach (Paperclip): ✅
+- Voice recording (Mic): ✅
+- Cmd+K shortcut hint: ✅ (visual hint shown)
+- Send button with loading: ✅
+- File drag & drop: ✅
+- Auto-hide on `/pair`: ✅
+- Slash command autocomplete dropdown: ⚠️ Partially implemented (`showSlashCommands` state exists, `filteredCommands` computed)
+- Streaming indicator: ⚠️ Not visible in PromptBar (only in GenerativePanel)
+
+### Gap: ⚠️ MEDIUM
+1. **Slash command autocomplete UI** — State logic exists but need to verify the dropdown renders properly with selection
+2. **Cmd+K actual handler** — Visual hint shown but need to verify global keyboard listener is wired
+3. **`/model` command** — Listed in design but may not be in implementation
+4. **`/project` command** — Listed in design but may not be in implementation
+5. **`/help` command** — Need to verify
+
+### Action Items
+- [ ] Verify slash command autocomplete dropdown renders and is keyboard-navigable
+- [ ] Audit all designed slash commands vs implemented ones
+- [ ] Ensure Cmd+K opens prompt bar focus from anywhere
+- [ ] Add missing `/model`, `/project` commands if absent
+
+---
+
+## 4. Generative UI
+
+### Designed (ux-redesign-proposal.md)
+- `@json-render/react` integration with component catalog
+- Zod schemas for: MetricCard, Chart, DataTable, RecipeCard, ActionButton, AlertCard
+- Action types: navigate, run_recipe, run_eval, open_session, install_extension, dismiss
+- AI generates JSON specs → rendered inline in chat as native React components
+- Three modes: panel, inline, fullscreen
+
+### Implemented
+**GenerativePanel.tsx (~140 lines)** — ✅ Well-implemented:
+- Uses `@json-render/react` Renderer, StateProvider, VisibilityProvider, ActionProvider
+- Action handlers for: navigate, create_session, run_eval, open_session, install_extension, run_recipe, dismiss ✅
+- Three modes: panel, inline, fullscreen ✅
+- Streaming indicator ✅
+- Expand/collapse ✅
+
+**Design System component-map.tsx** — ✅ Registered components:
+- Layout: Stack, Grid, Text, Separator, Badge ✅
+- Design system: PageHeader, DataCard, StatCard, ListItem, TreeItem, EmptyState, LoadingState, ErrorState, SearchInput, TabBar ✅
+
+### Gap: ⚠️ HIGH PRIORITY
+1. **Chat inline integration** — GenerativePanel exists but **not wired into the chat message stream**. GooseMessage/BaseChat don't appear to render GenerativePanel for AI-generated specs inline.
+2. **Missing components from spec** — Design calls for MetricCard, Chart, DataTable, RecipeCard, ActionButton, AlertCard. Implementation has DataCard, StatCard but NOT Chart, RecipeCard, ActionButton, AlertCard specifically.
+3. **PromptBar → Generative** — No visible integration where PromptBar triggers generative UI responses.
+4. **Streaming JSON parsing** — Need to verify that streaming chat can detect and parse JSON specs mid-stream.
+
+### Action Items
+- [ ] Wire GenerativePanel into GooseMessage for inline rendering
+- [ ] Add missing component types: Chart, RecipeCard, ActionButton, AlertCard
+- [ ] Add JSON spec detection in chat stream (content_type or marker-based)
+- [ ] Create PromptBar → Generative UI flow for observatory/analytics queries
+
+---
+
+## 5. Agent Multi-Instance Views
+
+### Designed (multi-agent-architecture.md, goose4-sxqu)
+- Catalog view for persona definitions with modes, tool groups, recommended extensions
+- Deploy dialog: provider/model/instructions config
+- Running instances list: status, turns, elapsed time
+- Cancel/join controls
+- Instance event log
+- Status badges
+
+### Implemented (AgentsView.tsx ~738 lines + 5 sub-components)
+**AgentsView.tsx** — Two tabs: "Catalog" and "Instances"
+- **Catalog tab**: ✅ Persona cards with modes, tool groups, recommended extensions, default badge
+- **Instances tab**: ✅ Split view with InstanceList and InstanceDetail panel
+- **SpawnInstanceModal**: ✅ Deploy dialog with persona selection and spawn action
+- **InstanceDetail**: ✅ Status, created time, event log
+- **InstanceStatusBadge**: ✅ Color-coded status badges
+- **InstanceEventLog**: ✅ Event timeline
+
+### Gap: ⚠️ MEDIUM
+1. **Deploy dialog completeness** — SpawnInstanceModal exists but need to verify it has provider/model/instructions config (not just persona selection)
+2. **Live status updates** — Instances may not auto-refresh; need polling or SSE
+3. **Cancel/Join controls** — InstanceDetail has cancel but "join" (attach to instance session) may be missing
+4. **Elapsed time** — Need to verify running duration is calculated and displayed
+5. **Type casting fix** — ✅ Already in unstaged changes (InstanceStatus cast)
+6. **Backend dependency** — AgentPool server routes must be wired (backend team in-flight with A2A/server changes)
+
+### Action Items
+- [ ] Add provider/model selection to SpawnInstanceModal
+- [ ] Add "Join Session" button to InstanceDetail
+- [ ] Implement polling or SSE for live instance status
+- [ ] Add elapsed time calculation from created_at
+- [ ] Coordinate with backend team on AgentPool routes in openapi.json
+
+---
+
+## 6. Catalog Views
+
+### Designed
+Three catalogs: Tools (MCP extensions), Agents (builtin + A2A), Workflows (recipes + DAG)
+Lifecycle: browse → install → configure → version → share
+
+### Implemented
+**CatalogsOverview.tsx (~446 lines)** — ✅ Well-built:
+- Three catalog categories with counts, search, refresh
+- Catalog cards with icon, color, item count, installed count
+- Cross-catalog search with flat results view
+- Status indicators (installed/error/available)
+- Navigation to category-specific views
+
+### Gap: ⚠️ MEDIUM
+1. **Data source** — CatalogsOverview appears to use static/mock data for catalog items. Need to verify it's wired to real API endpoints (extensions list, agent personas, recipe list).
+2. **Install/Configure flow** — Browse exists but install → configure → version lifecycle may not be fully wired.
+3. **Versioning** — No visible version display or update mechanism.
+4. **Share** — No sharing mechanism visible.
+5. **A2A remote agents** — Catalog should show remote A2A agents when available (backend dependent).
+
+### Action Items
+- [ ] Wire CatalogsOverview to real data sources (API hooks)
+- [ ] Implement install/uninstall flows from catalog cards
+- [ ] Add version display to catalog items
+- [ ] Design share/export mechanism (future phase)
+
+---
+
+## 7. Analytics Dashboard
+
+### Designed (Analytics V2)
+- Live monitoring (WebSocket/SSE)
+- Version comparison (side-by-side diffs)
+- Response quality metrics
+- Sankey diagram (flow visualization)
+- 7 sub-tabs
+
+### Implemented (~13 files in analytics/)
+- **MonitoringView** — Main dashboard ✅
+- **AnalyticsDashboard** — Overview ✅
+- **LiveMonitoringTab** — ✅ Exists
+- **RunHistoryTab** — ✅
+- **RunComparisonView** — ✅
+- **ResponseQualityTab** — ✅
+- **SankeyDiagram** — ✅
+- **ToolAnalyticsTab** — ✅
+- **TopicsTab** — ✅
+- **EvalOverviewTab** — ✅
+- **DatasetsTab** — ✅
+- **EvalRunner** — ✅
+- **RoutingInspector** — ✅
+- **AgentCatalog** — ✅ (analytics-specific agent view)
+
+### Gap: ✅ MOSTLY COMPLETE
+1. **Live monitoring data source** — Need to verify LiveMonitoringTab is connected to real SSE/WebSocket
+2. **Sankey rendering** — SankeyDiagram.tsx exists but need to verify d3-sankey or equivalent is wired
+3. **Version comparison** — RunComparisonView exists but may need polish
+
+### Action Items
+- [ ] Verify LiveMonitoringTab has real data connection (not mock)
+- [ ] Verify SankeyDiagram renders with real data
+- [ ] Polish RunComparisonView layout
+
+---
+
+## 8. Design System
+
+### Designed
+- Semantic design tokens (text-text-default, bg-background-muted, etc.)
+- json-render component registry
+- Consistent component patterns
+
+### Implemented
+**component-map.tsx** — ✅ Comprehensive registry:
+- Layout primitives: Stack, Grid, Text, Separator, Badge
+- Design system: PageHeader, DataCard, StatCard, ListItem, TreeItem, EmptyState, LoadingState, ErrorState, SearchInput, TabBar
+- All use semantic tokens (text-text-default, bg-background-muted, etc.)
+
+### Gap: ✅ MOSTLY COMPLETE
+1. **Some components use hardcoded colors** — AgentsView has `dark:bg-emerald-800/50`, `text-gray-500 dark:text-gray-400` instead of semantic tokens
+2. **@ts-ignore comments** — GenerativePanel has 2 `@ts-ignore` for json-render type mismatches (zod 3/4 issue)
+3. **Missing Chart component** — Design system lacks a chart/visualization component for json-render
+
+### Action Items
+- [ ] Migrate remaining hardcoded colors in AgentsView to semantic tokens
+- [ ] Resolve json-render type mismatches (upgrade zod or add proper types)
+- [ ] Add Chart component to design system registry
+
+---
+
+## Priority Gaps (ordered by impact)
+
+### 🔴 HIGH PRIORITY
+1. **Generative UI ↔ Chat Integration** (goose4-ff6j) — GenerativePanel exists but is NOT rendered inline in chat messages. This is the key differentiating feature.
+2. **Agent Deploy Dialog Completeness** (goose4-mncu) — SpawnInstanceModal needs provider/model config and "Join Session" capability.
+3. **Catalog Data Wiring** (goose4-wdri) — CatalogsOverview UI is polished but may use mock data instead of real API hooks.
+
+### 🟡 MEDIUM PRIORITY
+4. **PromptBar Slash Commands** (goose4-inyh) — Zone-aware context exists but need to verify autocomplete dropdown, keyboard nav, and all designed commands are present.
+5. **Agent Live Status** (goose4-mncu) — Instances need auto-refresh/polling for status updates.
+6. **Design Token Consistency** — Some components still use hardcoded Tailwind colors instead of semantic tokens.
+
+### 🟢 LOW PRIORITY
+7. **Analytics Live Data** (goose4-hmzj) — Components exist, need to verify real data connections.
+8. **Observatory Zone Consolidation** — Monitoring/Evaluate split vs single Observatory zone.
+9. **json-render Type Fixes** — @ts-ignore workarounds should be resolved.
+
+---
+
+## File Map (key files for implementation)
+
+| File | Lines | Status | Notes |
+|------|-------|--------|-------|
+| `App.tsx` | 736 | ✅ Stable | All routes defined |
+| `AppLayout.tsx` | 156 | ✅ Stable | Layout with sidebar, promptbar, reasoning |
+| `AppSidebar.tsx` | ~750 | ⚠️ Minor | Missing /tools in zone |
+| `UnifiedInputContext.tsx` | 375 | ⚠️ Audit | Verify all slash commands present |
+| `PromptBar.tsx` | 328 | ⚠️ Audit | Verify autocomplete dropdown |
+| `GenerativePanel.tsx` | 140 | 🔴 Needs wiring | Not connected to chat stream |
+| `component-map.tsx` | ~200 | ⚠️ Extend | Add Chart, RecipeCard, ActionButton |
+| `AgentsView.tsx` | 738 | ⚠️ Polish | Deploy dialog, join session, live status |
+| `SpawnInstanceModal.tsx` | ~150 | ⚠️ Enhance | Add provider/model config |
+| `CatalogsOverview.tsx` | 446 | ⚠️ Wire | Connect to real API data |
+| `MonitoringView.tsx` | ~300 | ✅ Review | Verify live data source |

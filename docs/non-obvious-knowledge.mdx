@@ -1,103 +1,210 @@
 ---
-title: "Non-Obvious Knowledge: Goose Multi-Agent Architecture"
-type: knowledge
-date: 2026-02-17
-updated: 2026-02-17T21:54:00Z
-confidence: 0.95
-tags: [a2a, architecture, gotchas, non-obvious]
+title: Non-Obvious Knowledge — Goose Desktop UI
+updated: 2026-02-17
+session: "feature/cli-via-goosed"
+commits: "665fd046..ca2f3383"
 ---
 
-# Non-Obvious Knowledge: Goose Multi-Agent Architecture
+# Non-Obvious Knowledge
 
-## A2A Spec Compliance
+Hard-won insights from building the Goose Desktop UI that aren't documented elsewhere.
 
-### 1. ProtoJSON is Normative, JSON Schema is NOT
-- The `a2a.proto` file is the **single source of truth** (spec §1.4)
-- The JSON Schema artifact (`a2a.json`) is a **non-normative build artifact**
-- The official JS SDK (`a2a-js v0.3.10`) generates types from the JSON Schema and is **non-compliant** with ADR-001
-- Our Rust implementation is **more spec-compliant** than the official JS SDK
-- **Evidence**: `a2a-js/package.json` has `generate` script that curls `a2a.json` from GitHub
+## Architecture
 
-### 2. Enum Serialization: SCREAMING_SNAKE_CASE Required
-- Per ADR-001 and spec §5.5: enums MUST serialize as `TASK_STATE_WORKING`, `ROLE_USER`
-- The JS SDK uses `"working"`, `"user"` — this is **spec-non-compliant**
-- We implement **lenient deserialization**: accept both formats, always serialize to spec format
-- **Migration timeline** (spec Appendix A): 0.3.x new names alongside legacy, 0.4.x deprecated, ≥0.5.0 removed
+### OpenAPI Generation Pipeline
 
-### 3. JSON-RPC Method Names: PascalCase Required
-- Spec §9.4 mandates: `SendMessage`, `GetTask`, `CancelTask` (PascalCase)
-- JS SDK uses: `"message/send"`, `"tasks/get"` (slash-style) — also **non-compliant**
-- We accept both PascalCase and legacy slash-style in our handler
+The OpenAPI spec generation has a **3-step pipeline** that's easy to break:
 
-### 4. A2A Error Codes Range: -32001 to -32009
-- Spec defines 9 A2A-specific error codes (separate from standard JSON-RPC -327xx codes)
-- Our implementation has all 9; the JS SDK only has 7 (missing -32008 and -32009)
+1. `cargo run -p goose-server --bin generate_schema` → writes `ui/desktop/openapi.json`
+2. `npx @hey-api/openapi-ts` → reads `openapi.json`, generates `sdk.gen.ts`, `types.gen.ts`, `index.ts`
+3. **DANGER:** Step 2 **deletes** `src/api/instances.ts` — this is a hand-written file that must be restored via `git checkout HEAD -- ui/desktop/src/api/instances.ts` after every `just generate-openapi`
 
-## Architecture Gotchas
+To register new routes in the OpenAPI spec, you must edit **3 files**:
+- `crates/goose/src/lib.rs` — `pub mod <module>;`
+- `crates/goose-server/src/routes/mod.rs` — `pub mod <module>;` + `.merge(<module>::routes(state.clone()))`
+- `crates/goose-server/src/openapi.rs` — add path handlers to `paths()` + types to `schemas()`
 
-### 5. AgentPool Uses session_id as instance_id
-- `AgentPool::spawn()` creates a session and uses the session ID as the pool instance ID
-- This means agent "instances" are really sessions — there's no persistent agent identity
-- Relevant for the dual identity proposal: agent IDs need a separate lifecycle from sessions
+All three must be consistent or the types won't appear in the frontend SDK.
 
-### 6. OrchestratorAgent Needs a Provider But Often Doesn't Use It
-- `OrchestratorAgent::new(provider)` takes `Arc<Mutex<Option<Provider>>>`
-- For slot enumeration and routing, the provider is never called
-- In observatory.rs, we pass `Arc::new(Mutex::new(None))` as a dummy provider
-- Consider splitting OrchestratorAgent into RoutingCatalog (no provider) + PlanExecutor (needs provider)
+### React Flow v12 Type Compatibility
 
-### 7. Per-Agent Extension Scoping is Already Fully Wired
-- The chain: `AgentSlotRegistry.bind_extension()` → `reply.rs` syncs to OrchestratorAgent slots → `apply_routing()` reads `slot.bound_extensions` → `agent.set_allowed_extensions()` → `prepare_tools_and_prompt()` filters tools (reply_parts.rs:204-213)
-- **No additional code needed** — just use `bind_extension`/`unbind_extension` endpoints
-- The reply.rs sync loop was hardcoded to `["Goose Agent", "Developer Agent"]` — now uses dynamic `all_agent_names()`
+`@xyflow/react` v12 requires node data types to satisfy `Record<string, unknown>`. Custom interfaces like `DagNodeData` need an **index signature**:
 
-### 8. Pipeline Module is Frontend Agent WIP — DO NOT Enable
-- `crates/goose-server/src/routes/pipeline.rs` and `crates/goose/src/pipeline.rs` are untracked
-- They reference `goose::pipeline` which doesn't exist in `lib.rs` yet
-- The module declarations and OpenAPI refs in `mod.rs` and `openapi.rs` are **commented out**
-- The frontend agent keeps re-enabling them — this breaks the build
-- **Fix**: The frontend agent needs to add `pub mod pipeline;` to `goose/src/lib.rs` AND add utoipa annotations to pipeline route handlers before uncommenting
+```typescript
+export interface DagNodeData {
+  kind: NodeKind;
+  label: string;
+  // ... other fields
+  [key: string]: unknown;  // REQUIRED for React Flow v12 compat
+}
+```
 
-### 9. Provider::complete() Signature is Not What You Expect
-- `provider.complete(session_id, system, messages, tools)` takes `Option<&str>` for session_id
-- The `Message` type is `crate::conversation::message::Message`, NOT `a2a::types::core::Message`
-- The `Tool` type is `mcp_core::tool::Tool` from the MCP protocol
-- When building a Dispatcher, you must convert between A2A Messages and conversation Messages
+Without this, `Node<DagNodeData>[]` won't assign to `Node[]`.
 
-### 10. The generate_schema Binary Must Be Rebuilt After openapi.rs Changes
-- `just generate-openapi` runs `cargo run -p goose-server --bin generate_schema`
-- If you only edit `openapi.rs` without rebuilding, the binary uses the **old** compiled schema
-- Always do `cargo build -p goose-server` first, THEN `just generate-openapi`
-- The TypeScript types won't appear in `types.gen.ts` until both steps complete
+### Lucide Icons Don't Accept `style` Prop
 
-### 11. AgentSlotRegistry vs IntentRouter Slot Binding
-- `AgentSlotRegistry` (server-side, in `goose-server`) stores enabled/disabled + bound extensions + delegation strategy
-- `IntentRouter` (core, in `goose`) has its own `AgentSlot` with `bound_extensions`
-- These are **separate data stores** — `reply.rs` syncs from registry → router on each request
-- Changes to the registry don't take effect until the next reply request syncs them
+Lucide React icons (v0.400+) don't accept a `style` prop. To apply inline colors, wrap in a `<span>`:
 
-### 12. Compound Execution is Sequential, Not Parallel
-- When `OrchestratorPlan.is_compound == true` with multiple tasks, they execute **sequentially** in `reply.rs`
-- Each sub-task gets its own `apply_routing()` call, creating a separate agent config
-- Results are aggregated via `aggregate_results()` into a single response
-- **Phase 2 TODO**: Wire `CompositeDispatcher` for parallel AgentPool-based fan-out
+```tsx
+// ❌ Won't compile
+<Icon size={16} style={{ color }} />
 
-### 13. SlotDelegation Enum is Allow(dead_code) — By Design
-- `SlotDelegation::RemoteA2A { url }` and `ExternalAcp` are defined but not yet wired into production dispatch
-- The `#[allow(dead_code)]` annotations are intentional — the types are tested and ready
-- The compound execution in reply.rs currently only does InProcess dispatch
-- Wiring A2A dispatch requires creating `A2AClient` from the slot's URL and using `A2ADispatcher`
+// ✅ Correct
+<span style={{ color }}><Icon size={16} /></span>
+```
 
-## A2A Spec Reference Quick-Hits
+## Session Management
 
-### 14. REST Binding Exists But We Only Implement JSON-RPC
-- Spec §11 defines a full HTTP+JSON/REST binding: `POST /message:send`, `GET /tasks/{id}`
-- We only implement the JSON-RPC binding (§9)
-- The REST binding uses RFC 9457 Problem Details for errors, SSE for streaming
-- **Low priority**: JSON-RPC is sufficient for all current use cases
+### Session Working Directory Grouping
 
-### 15. A2A Spec Migration Timeline (Appendix A)
-- **0.3.x**: New names introduced alongside legacy names (WE ARE HERE)
-- **0.4.x**: Legacy names deprecated
-- **≥0.5.0**: Legacy names eligible for removal
-- Our lenient deserialization handles both — safe through 0.5.x
+Sessions are grouped by `working_dir` field in the SQLite database. Key gotchas:
+
+- **72 sessions** had `/tmp/.tmpXXXXXX` as working_dir — each created its own one-session "project" group
+- **Fix:** Detect temp dirs via regex (`/^\/tmp\/\.?tmp/`) and group as "General"
+- **Empty `working_dir`** (`""`) → groups as "General" (empty string is falsy)
+- **Nested subdirs** (e.g., `/home/user/goose4/crates/goose`) showed as "goose" — confusing alongside "goose4"
+- **Fix:** When a dir is a subdirectory of another session's dir, show relative path: `goose4 › crates/goose`
+
+### Home Directory Detection
+
+`window.appConfig` only stores Goose-specific config (`GOOSE_WORKING_DIR`, `GOOSE_DEFAULT_PROVIDER`, etc.), **not** general env vars like `HOME`. To detect the home directory:
+
+```typescript
+// ❌ Won't work — HOME is not in appConfig
+const home = window.appConfig?.get('HOME');
+
+// ✅ Use regex pattern matching
+const isHome = /^\/home\/[^/]+$/.test(dir) || /^\/Users\/[^/]+$/.test(dir);
+```
+
+### Session Deletion API
+
+`DELETE /sessions/{session_id}` exists in the backend (`SessionStorage::delete_session`) but was **never exposed in any UI** until this session. It performs a transactional delete: messages first, then session record.
+
+## Design System
+
+### Semantic Design Tokens
+
+The Goose design system uses semantic Tailwind tokens defined in CSS variables. The full token set:
+
+| Category | Tokens |
+|----------|--------|
+| **Text** | `text-text-default`, `text-text-muted`, `text-text-subtle`, `text-text-accent`, `text-text-success`, `text-text-danger`, `text-text-warning`, `text-text-on-accent` |
+| **Background** | `bg-background-default`, `bg-background-muted`, `bg-background-app`, `bg-background-elevated`, `bg-background-accent`, `bg-background-success-muted`, `bg-background-danger-muted`, `bg-background-warning-muted` |
+| **Border** | `border-border-default`, `border-border-muted`, `border-border-accent`, `border-border-subtle` |
+
+**Never use** hardcoded `dark:` prefixed Tailwind colors — the design system handles light/dark via CSS variables.
+
+### StatCard Variants
+
+The `StatCard` component accepts `variant: 'default' | 'success' | 'warning' | 'danger'` — there is **no `'error'` variant**. Use `'danger'` instead.
+
+## Generative UI
+
+### Spec Detection in Chat Messages
+
+The LLM can embed generative UI specs in messages using two formats:
+
+1. XML tags: `<goose-ui>{"type":"Stack",...}</goose-ui>`
+2. Fenced code blocks: `` ```goose-ui\n{"type":"Stack",...}\n``` ``
+
+The `extractGenerativeSpec()` utility handles both, plus partial spec detection during streaming.
+
+### Two Generative UI Systems
+
+There are **two** generative UI systems in the codebase:
+
+1. **Old:** `lib/generative-catalog.ts` + `lib/generative-registry.tsx` — uses `@json-render/core` `defineCatalog`
+2. **New:** `components/ui/design-system/goose-renderer.tsx` — uses `@json-render/react` `JSONUIProvider`
+
+The **new** system (`GooseGenerativeUI` + `isGooseUISpec`) is what's wired into `GooseMessage.tsx`. The old system is used by `GenerativePanel.tsx` (standalone panel mode).
+
+### CSP Warning
+
+`@json-render/react` triggers a Content-Security-Policy warning about `eval()` in the Electron dev console. Investigation shows the library uses `evaluateVisibility`/`evaluateCondition` functions that are **safe** (not actual `eval()`). The CSP warning is a false positive — `unsafe-eval` is NOT needed.
+
+## Navigation
+
+### Sidebar Zone Behavior
+
+Multi-item sidebar zones (Workflows, Catalog) need a `route` property to navigate when the zone label is clicked. Without it, clicking the label only toggles the collapsible submenu.
+
+```typescript
+// ✅ Label click navigates, chevron toggles collapse
+{ id: 'workflows', label: 'Workflows', route: '/recipes', items: [...] }
+
+// ❌ Label click only toggles — confusing UX
+{ id: 'workflows', label: 'Workflows', items: [...] }
+```
+
+### Route Configuration
+
+The app has 13 routes in `App.tsx` (HashRouter):
+- `/` → Hub (index)
+- `/pair` → Chat (pair mode, SSE connection kept alive)
+- `/settings`, `/extensions`, `/apps`, `/sessions`, `/schedules`, `/recipes`
+- `/agents`, `/analytics`, `/monitoring`, `/evaluate`, `/tools`, `/catalogs`
+- **`/pipelines`** — New DAG workflow builder (PipelineManager)
+
+## Pipeline System
+
+### File-Based Storage Pattern
+
+Pipelines follow the same storage pattern as recipes:
+- Directory: `~/.config/goose/pipelines/`
+- Format: YAML files with `.yaml` extension
+- ID: filename stem (e.g., `code-review.yaml` → ID `code-review`)
+- Manifest: in-memory directory scan (no separate manifest file)
+
+### Validation
+
+Pipeline validation includes **cycle detection via DFS**. The algorithm:
+1. Build adjacency list from edges
+2. Three-color DFS: White (unvisited), Gray (in current path), Black (fully explored)
+3. Gray→Gray edge = cycle detected → validation error
+
+### API Version
+
+Pipelines use `apiVersion: "goose/v1"` and `kind: "Pipeline"` — following Kubernetes-style resource manifests. This is part of the type definition, not enforced at the API level yet.
+
+## Multi-Agent System
+
+### A2A Instance Type Casting
+
+The `InstanceStatus` type from the API sometimes arrives as a plain string from the server. Components must cast explicitly:
+
+```typescript
+<InstanceStatusBadge status={instance.status as InstanceStatus} />
+```
+
+### Provider/Model API
+
+- `providers()` returns `Array<ProviderDetails>` with `name`, `is_configured`, `metadata`, `provider_type`
+- `getProviderModels({ path: { name: providerName } })` returns `Array<string>` (just model name strings)
+- Only configured providers should be shown in dropdowns — filter by `is_configured: true`
+
+## React DevTools in Electron 40
+
+`electron-devtools-installer` v4.0.0 **silently fails** with Electron 40+. The fallback strategy:
+
+1. Try `installExtension(REACT_DEVELOPER_TOOLS)` — may silently fail
+2. Fall back to loading from local Chromium installation:
+   - Linux: `~/.config/chromium/Default/Extensions/fmkadmapgofadopljbjfkapdkoienihi/`
+   - macOS: `~/Library/Application Support/Google/Chrome/Default/Extensions/fmkadmapgofadopljbjfkapdkoienihi/`
+3. Find the latest version directory, load via `session.defaultSession.loadExtension()`
+4. Log warning if neither approach works — dev tools still open via Alt+Cmd+I, just without React tab
+
+## Testing
+
+### No UI Tests Exist
+
+There are **zero** frontend unit tests for the components modified in this session. The `utils.test.ts` (316 lines) in `settings/extensions/` is the only component-level test file. E2E tests via Playwright exist but are infrastructure-focused.
+
+### Backend Pipeline Tests
+
+`crates/goose/src/pipeline.rs` includes 3 unit tests:
+- `test_yaml_roundtrip` — serialize/deserialize preserves all fields
+- `test_validate_pipeline` — rejects pipelines with no trigger node
+- `test_cycle_detection` — detects A→B→C→A cycles
+
+Run with: `cargo test -p goose -- pipeline`

@@ -15991,5 +15991,304 @@
       "Must be fixed by frontend agent before merge",
       "Confidence: 1.0 \u2014 repeatedly observed during session"
     ]
+  },
+  {
+    "name": "PipelineModule",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Rust module at crates/goose/src/pipeline.rs \u2014 475 lines",
+      "Defines Pipeline, PipelineNode, PipelineEdge, NodeKind, PipelineLayout, Viewport, NodePosition, PipelineManifest types",
+      "YAML/JSON serialization via serde, file-based CRUD in ~/.config/goose/pipelines/",
+      "Validation with DFS cycle detection, topological sort",
+      "Unit tests: YAML roundtrip, validation, cycle detection"
+    ]
+  },
+  {
+    "name": "PipelineRoutes",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Rust module at crates/goose-server/src/routes/pipeline.rs \u2014 207 lines",
+      "6 REST endpoints: list/get/save/update/delete/validate",
+      "utoipa OpenAPI annotations for auto schema generation",
+      "SavePipelineRequest, SavePipelineResponse, ValidatePipelineResponse types",
+      "Registered in routes/mod.rs and openapi.rs"
+    ]
+  },
+  {
+    "name": "NodeKind",
+    "entityType": "Interface",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Enum with 7 variants: trigger, agent, tool, condition, transform, human, a2a",
+      "Defined in crates/goose/src/pipeline.rs",
+      "Maps to React Flow custom node types in ui/desktop/src/components/workflows/nodes/index.tsx",
+      "Each kind has: icon, color, description, configurable properties"
+    ]
+  },
+  {
+    "name": "DagEditor",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] React component at ui/desktop/src/components/workflows/DagEditor.tsx \u2014 ~280 lines",
+      "Uses @xyflow/react (React Flow v12) for the visual canvas",
+      "Features: drag-drop from NodePalette, properties panel, undo/redo, YAML/JSON export",
+      "7 custom node types with color-coded headers, status indicators, input/output handles",
+      "MiniMap with per-node-kind colors, Background grid, Controls"
+    ]
+  },
+  {
+    "name": "PipelineManager",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] React component at ui/desktop/src/components/workflows/PipelineManager.tsx \u2014 286 lines",
+      "Pipeline list view: grid of pipeline cards with name, description, node count, last updated",
+      "CRUD wired to real API: listPipelines, savePipeline, getPipeline, deletePipeline",
+      "Wraps DagEditor \u2014 opens editor when a pipeline is selected or created",
+      "Converts between API Pipeline type and React Flow nodes/edges via serialization utils"
+    ]
+  },
+  {
+    "name": "NodePalette",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] React component at ui/desktop/src/components/workflows/panels/NodePalette.tsx",
+      "Draggable sidebar listing 7 node types with icons and descriptions",
+      "Drag-and-drop to React Flow canvas via onDragStart with application/json transfer"
+    ]
+  },
+  {
+    "name": "PropertiesPanel",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] React component at ui/desktop/src/components/workflows/panels/PropertiesPanel.tsx",
+      "Side panel for editing selected node properties",
+      "Type-specific forms: trigger (type/schedule/webhook), agent (persona/instructions/model), tool (name/args), condition (expression), etc.",
+      "Label editor, optional run condition, delete button"
+    ]
+  },
+  {
+    "name": "PipelineSerialization",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] TypeScript module at ui/desktop/src/components/workflows/serialization.ts",
+      "pipelineToFlow: Pipeline YAML \u2192 React Flow nodes/edges with auto-layout",
+      "flowToPipeline: React Flow \u2192 Pipeline model for API save",
+      "createNode: factory from palette drop events",
+      "pipelineToYaml/pipelineToJson: export formatters",
+      "Topological sort for layered DAG positioning"
+    ]
+  },
+  {
+    "name": "SessionDeletion",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Feature: delete individual sessions via hover trash icon on SessionItem",
+      "Uses existing DELETE /sessions/{{session_id}} API endpoint",
+      "Confirmation dialog, state sync, SESSION_DELETED event, navigate home if active",
+      "Added in AppSidebar.tsx \u2014 handleDeleteSession callback"
+    ]
+  },
+  {
+    "name": "CloseProject",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Feature: X button on project group headers to bulk-delete all sessions in a project",
+      "Confirmation shows project name + session count",
+      "Parallel deletion via Promise.all(sessions.map(deleteSession))",
+      "Removes from state, dispatches events, navigates home if active session deleted"
+    ]
+  },
+  {
+    "name": "ProjectGroupedSessions",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Enhanced SessionList in AppSidebar.tsx",
+      "Groups by working_dir with getProjectName() helper",
+      "Temp dirs (/tmp/.tmp*) \u2192 General, empty \u2192 General",
+      "Nested subdirs show parent context: 'goose4 \u203a crates/goose'",
+      "General always first, always present (even with 0 sessions)",
+      "Pinnable projects (persisted in localStorage via useProjectPreferences)",
+      "Collapsible groups with persistence, 10-project cap with search"
+    ]
+  },
+  {
+    "name": "OpenProjectDropdown",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] FolderPlus button next to Chat in sidebar",
+      "Dropdown shows recent dirs (up to 10, persisted in localStorage) + Browse...",
+      "Browse uses window.electron.directoryChooser() IPC \u2192 OS directory picker",
+      "Selecting a dir \u2192 addRecentDir + startNewSession in that dir"
+    ]
+  },
+  {
+    "name": "useProjectPreferences",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] React hook at ui/desktop/src/hooks/useProjectPreferences.ts \u2014 102 lines",
+      "localStorage-backed preferences: pinned projects, collapsed state, recent dirs",
+      "API: pinnedProjects, togglePin, isCollapsed, toggleCollapse, recentDirs, addRecentDir"
+    ]
+  },
+  {
+    "name": "GenerativeUIIntegration",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Inline generative UI rendering in GooseMessage.tsx",
+      "Detects <goose-ui> or ```goose-ui fenced blocks in message text",
+      "Extracts JSON spec via extractGenerativeSpec() from utils/generativeSpec.ts",
+      "Renders GooseGenerativeUI component inline alongside remaining markdown",
+      "Action handlers: navigate, create_session, run_recipe, run_eval, install_extension",
+      "Handles partial specs during streaming (strips incomplete spec markup)"
+    ]
+  },
+  {
+    "name": "generativeSpec",
+    "entityType": "Component",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Utility at ui/desktop/src/utils/generativeSpec.ts",
+      "extractGenerativeSpec: parse complete specs, return with surrounding text",
+      "hasPartialGenerativeSpec: detect incomplete/streaming specs",
+      "stripPartialGenerativeSpec: remove incomplete markup during streaming",
+      "Supports both <goose-ui>JSON</goose-ui> and ```goose-ui fenced code blocks"
+    ]
+  },
+  {
+    "name": "Decision_SidebarZoneNavigation",
+    "entityType": "Decision",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Multi-item zones (Workflows, Catalog) have route prop for label click navigation",
+      "Single-item zones render as direct links",
+      "Chevron button toggles collapse, label navigates to zone overview",
+      "Workflows \u2192 /recipes, Catalog \u2192 /catalogs",
+      "Apps moved from Workflows to Catalog zone"
+    ]
+  },
+  {
+    "name": "Decision_PipelineStorage",
+    "entityType": "Decision",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] File-based YAML storage in ~/.config/goose/pipelines/",
+      "Same pattern as recipes (~/.config/goose/recipes/)",
+      "ID = filename stem (kebab-case), manifest = in-memory scan",
+      "No database needed \u2014 filesystem is the source of truth",
+      "Validation: cycle detection via DFS before save"
+    ]
+  },
+  {
+    "name": "Decision_SessionCleanup",
+    "entityType": "Decision",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] No automatic session retention/cleanup \u2014 user-initiated only",
+      "DELETE /sessions/{{id}} backend route already existed",
+      "Frontend: hover trash icon (individual), X button (bulk project close)",
+      "Confirmation dialogs required for all deletions",
+      "No retention policy (age/count) implemented \u2014 future work"
+    ]
+  },
+  {
+    "name": "Decision_ReactFlowIntegration",
+    "entityType": "Decision",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] @xyflow/react v12 chosen for DAG editor canvas",
+      "Custom node types via nodeTypes map (not default nodes)",
+      "DagNodeData interface requires [key: string]: unknown index signature for React Flow compat",
+      "Node colors: trigger=emerald, agent=blue, tool=purple, condition=amber, transform=cyan, human=orange, a2a=indigo"
+    ]
+  },
+  {
+    "name": "Finding_NoSessionCleanupExisted",
+    "entityType": "Finding",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] Zero session cleanup logic existed in the entire codebase",
+      "278 sessions totaling 157MB in sessions.db \u2014 only grows",
+      "DELETE /sessions/{{id}} route existed but no UI exposed it",
+      "72 temp sessions from /tmp/.tmpXXX dirs each created their own group",
+      "Confidence: 1.0 \u2014 verified via SQL + ripgrep across entire codebase"
+    ]
+  },
+  {
+    "name": "Finding_AnalyticsHardcodedColors",
+    "entityType": "Finding",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] All 16 analytics component files used hardcoded Tailwind colors (text-gray-400, bg-zinc-800, etc.)",
+      "Only AnalyticsDashboard.tsx (1/16) had semantic design tokens",
+      "Total: ~400+ hardcoded color classes migrated to semantic tokens",
+      "No dark: prefix pattern used \u2014 all components hardcoded dark theme only",
+      "Confidence: 1.0 \u2014 verified via rg, all 16 files now have 0 hardcoded colors"
+    ]
+  },
+  {
+    "name": "Finding_CatalogAlreadyWired",
+    "entityType": "Finding",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] CatalogsOverview was already fully wired to real API endpoints",
+      "Uses getExtensions(), listBuiltinAgents(), listAgents(), listSavedRecipes()",
+      "Has search, refresh, error handling, semantic design tokens",
+      "No changes needed \u2014 design docs overstated the gap",
+      "Confidence: 1.0 \u2014 verified by reading all 446 lines of component"
+    ]
+  },
+  {
+    "name": "Finding_PromptBarAlreadyComplete",
+    "entityType": "Finding",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] PromptBar + UnifiedInputContext already implement zone-awareness fully",
+      "Zone detection, zone-specific placeholders/hints, slash commands with descriptions",
+      "Keyboard navigation (arrows, enter, escape), Cmd+K shortcut, auto-resize",
+      "File drop/attach, voice dictation via useAudioRecorder",
+      "10 slash commands across 5 zones \u2014 all with descriptions and actions",
+      "Confidence: 1.0 \u2014 no changes needed"
+    ]
+  },
+  {
+    "name": "Source_UXRedesignProposal",
+    "entityType": "Source",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] docs/design/ux-redesign-proposal.md \u2014 489 lines",
+      "Defines 4 implementation phases, 3-tier architecture, design decisions",
+      "Pipeline format spec, React Flow visual editor, generative UI with json-render"
+    ]
+  },
+  {
+    "name": "Source_NavigationArchitecture",
+    "entityType": "Source",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] docs/design/navigation-architecture.md",
+      "4-zone sidebar, 12 routes, persistent prompt bar, session grouping",
+      "Key component files listed with responsibilities"
+    ]
+  },
+  {
+    "name": "RepoPath_PipelineBackend",
+    "entityType": "RepoPath",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] crates/goose/src/pipeline.rs \u2014 Pipeline model, storage, validation (475 lines)",
+      "[2026-02-17T22:05:49.369490] crates/goose-server/src/routes/pipeline.rs \u2014 REST API handlers (207 lines)"
+    ]
+  },
+  {
+    "name": "RepoPath_DagEditor",
+    "entityType": "RepoPath",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] ui/desktop/src/components/workflows/ \u2014 8 files, ~1,635 lines",
+      "DagEditor.tsx, PipelineManager.tsx, types.ts, serialization.ts, index.ts",
+      "nodes/index.tsx, panels/NodePalette.tsx, panels/PropertiesPanel.tsx"
+    ]
+  },
+  {
+    "name": "RepoPath_SessionManagement",
+    "entityType": "RepoPath",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] ui/desktop/src/components/GooseSidebar/AppSidebar.tsx \u2014 948 lines (enhanced)",
+      "[2026-02-17T22:05:49.369490] ui/desktop/src/hooks/useProjectPreferences.ts \u2014 102 lines (new)"
+    ]
+  },
+  {
+    "name": "RepoPath_GenerativeUI",
+    "entityType": "RepoPath",
+    "observations": [
+      "[2026-02-17T22:05:49.369490] ui/desktop/src/components/GooseMessage.tsx \u2014 495 lines (enhanced)",
+      "[2026-02-17T22:05:49.369490] ui/desktop/src/utils/generativeSpec.ts \u2014 new utility"
+    ]
   }
 ]

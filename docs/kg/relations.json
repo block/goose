@@ -11108,5 +11108,185 @@
     "from": "A2AJsSdkNonCompliance",
     "to": "ProtoJSON_ADR001",
     "relationType": "violates"
+  },
+  {
+    "from": "PipelineModule",
+    "to": "PipelineRoutes",
+    "relationType": "implements"
+  },
+  {
+    "from": "PipelineRoutes",
+    "to": "PipelineModule",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "DagEditor",
+    "to": "PipelineModule",
+    "relationType": "implements"
+  },
+  {
+    "from": "PipelineManager",
+    "to": "DagEditor",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "PipelineManager",
+    "to": "PipelineRoutes",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "NodePalette",
+    "to": "DagEditor",
+    "relationType": "related_to"
+  },
+  {
+    "from": "PropertiesPanel",
+    "to": "DagEditor",
+    "relationType": "related_to"
+  },
+  {
+    "from": "PipelineSerialization",
+    "to": "PipelineModule",
+    "relationType": "implements"
+  },
+  {
+    "from": "PipelineSerialization",
+    "to": "DagEditor",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "NodeKind",
+    "to": "PipelineModule",
+    "relationType": "defines"
+  },
+  {
+    "from": "NodeKind",
+    "to": "DagEditor",
+    "relationType": "implements"
+  },
+  {
+    "from": "PipelineModule",
+    "to": "RepoPath_PipelineBackend",
+    "relationType": "located_at"
+  },
+  {
+    "from": "PipelineRoutes",
+    "to": "RepoPath_PipelineBackend",
+    "relationType": "located_at"
+  },
+  {
+    "from": "DagEditor",
+    "to": "RepoPath_DagEditor",
+    "relationType": "located_at"
+  },
+  {
+    "from": "PipelineManager",
+    "to": "RepoPath_DagEditor",
+    "relationType": "located_at"
+  },
+  {
+    "from": "SessionDeletion",
+    "to": "RepoPath_SessionManagement",
+    "relationType": "located_at"
+  },
+  {
+    "from": "CloseProject",
+    "to": "RepoPath_SessionManagement",
+    "relationType": "located_at"
+  },
+  {
+    "from": "ProjectGroupedSessions",
+    "to": "RepoPath_SessionManagement",
+    "relationType": "located_at"
+  },
+  {
+    "from": "OpenProjectDropdown",
+    "to": "RepoPath_SessionManagement",
+    "relationType": "located_at"
+  },
+  {
+    "from": "useProjectPreferences",
+    "to": "RepoPath_SessionManagement",
+    "relationType": "located_at"
+  },
+  {
+    "from": "CloseProject",
+    "to": "SessionDeletion",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "ProjectGroupedSessions",
+    "to": "useProjectPreferences",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "OpenProjectDropdown",
+    "to": "useProjectPreferences",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "GenerativeUIIntegration",
+    "to": "RepoPath_GenerativeUI",
+    "relationType": "located_at"
+  },
+  {
+    "from": "generativeSpec",
+    "to": "RepoPath_GenerativeUI",
+    "relationType": "located_at"
+  },
+  {
+    "from": "GenerativeUIIntegration",
+    "to": "generativeSpec",
+    "relationType": "depends_on"
+  },
+  {
+    "from": "Decision_SidebarZoneNavigation",
+    "to": "ProjectGroupedSessions",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision_PipelineStorage",
+    "to": "PipelineModule",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision_SessionCleanup",
+    "to": "SessionDeletion",
+    "relationType": "affects"
+  },
+  {
+    "from": "Decision_ReactFlowIntegration",
+    "to": "DagEditor",
+    "relationType": "affects"
+  },
+  {
+    "from": "Finding_NoSessionCleanupExisted",
+    "to": "Source_UXRedesignProposal",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "Finding_AnalyticsHardcodedColors",
+    "to": "Source_UXRedesignProposal",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "Finding_CatalogAlreadyWired",
+    "to": "Source_NavigationArchitecture",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "Finding_PromptBarAlreadyComplete",
+    "to": "Source_NavigationArchitecture",
+    "relationType": "derived_from"
+  },
+  {
+    "from": "Source_UXRedesignProposal",
+    "to": "Decision_PipelineStorage",
+    "relationType": "documents"
+  },
+  {
+    "from": "Source_NavigationArchitecture",
+    "to": "Decision_SidebarZoneNavigation",
+    "relationType": "documents"
   }
 ]

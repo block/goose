@@ -1,0 +1,161 @@
+---
+title: "UI Implementation Plan"
+date: 2026-02-17
+type: plan
+phase: plan
+epic: goose4-x1dl
+task: goose4-l4j3
+confidence: 0.85
+---
+
+# UI Implementation Plan
+
+## Phase 1: Agent Multi-Instance Polish (goose4-mncu)
+**Priority: HIGH** | **Assignee: Frontend Engineer subagent**
+**Dependencies: Backend AgentPool routes (in-flight)**
+
+### 1.1 SpawnInstanceModal Enhancement
+**File: `src/components/agents/SpawnInstanceModal.tsx`**
+- [x] Basic persona selection + instructions → already exists
+- [x] Advanced options (provider, model, max_turns) → already exists
+- [ ] **Provider dropdown** — Replace text input with `useProviders()` hook dropdown
+- [ ] **Model dropdown** — Replace text input with `useModels(provider)` hook filtered list
+- [ ] **Migrate hardcoded colors** to semantic tokens (`text-text-default`, `bg-background-muted`)
+- [ ] **Validation** — Show inline errors for invalid provider/model combos
+
+**Success criteria:** `tsc --noEmit` passes, SpawnInstanceModal renders provider/model dropdowns from real API data
+
+### 1.2 InstanceDetail: Join Session & Elapsed Time
+**File: `src/components/agents/InstanceDetail.tsx`**
+- [ ] **Join Session button** — "Attach" to running instance, navigate to `/pair?instanceId=X`
+- [ ] **Elapsed time** — Compute and display `formatDuration(Date.now() - instance.created_at)`
+- [ ] **Auto-refresh** — Poll `getInstance(id)` every 5s while status is `running`
+- [ ] **Result display** — When status is `completed`, fetch `getInstanceResult(id)` and show summary
+
+**Success criteria:** Instance detail shows live elapsed time, Join navigates to pair view, completed instances show results
+
+### 1.3 InstanceList: Live Status
+**File: `src/components/agents/InstanceList.tsx`**
+- [ ] **Polling** — Refresh `listInstances()` every 10s
+- [ ] **Status transitions** — Animate status badge changes
+- [ ] **Sort** — Running instances first, then by recency
+
+**Success criteria:** InstanceList auto-refreshes, running instances sort to top
+
+---
+
+## Phase 2: Generative UI Chat Integration (goose4-ff6j)
+**Priority: HIGH** | **Assignee: UI Designer + Frontend Engineer subagents**
+
+### 2.1 Chat Stream JSON Spec Detection
+**File: `src/hooks/useChatStream.ts` or `src/hooks/chatStream/`**
+- [ ] **Detect generative specs** — When AI response contains `{"$type": "generative", ...}` JSON block, extract and parse
+- [ ] **Content type marker** — Look for `content_type: "application/json+render"` in message metadata
+- [ ] **Streaming accumulator** — Buffer partial JSON during streaming, parse on completion
+
+**Success criteria:** Chat stream correctly identifies and extracts json-render specs from AI responses
+
+### 2.2 Inline GenerativePanel in Chat Messages
+**File: `src/components/GooseMessage.tsx` or `src/components/conversation/`**
+- [ ] **Conditional render** — When message contains a generative spec, render `<GenerativePanel mode="inline" spec={parsedSpec} />` below the text
+- [ ] **Mixed content** — Support messages with both text and generative UI blocks
+- [ ] **Streaming mode** — Pass `streaming={true}` while message is still being generated
+
+**Success criteria:** AI messages containing json-render specs display interactive components inline
+
+### 2.3 Missing Design System Components
+**File: `src/components/ui/design-system/component-map.tsx`**
+- [ ] **Chart** — Add wrapper around a lightweight chart lib (recharts already likely in deps)
+- [ ] **RecipeCard** — Card with name, description, run button, parameter preview
+- [ ] **ActionButton** — Button with action handler (navigate, run_recipe, etc.)
+- [ ] **AlertCard** — Status-colored card for warnings/info/errors
+
+**Success criteria:** All 4 new components render in json-render Renderer, covered by component-map registry
+
+---
+
+## Phase 3: Catalog Views Data Wiring (goose4-wdri)
+**Priority: MEDIUM** | **Assignee: Frontend Engineer subagent**
+
+### 3.1 Wire Catalog to Real APIs
+**File: `src/components/catalogs/CatalogsOverview.tsx`**
+- [ ] **Extensions catalog** — Wire to `getExtensions()` / `listLiveExtensions()` API
+- [ ] **Agents catalog** — Wire to `listPersonas()` + `listBuiltinAgents()` + `listAgents2()` (A2A remote)
+- [ ] **Workflows catalog** — Wire to `listRecipes()` API
+- [ ] **Loading states** — Use design system `LoadingState` while fetching
+- [ ] **Error states** — Use design system `ErrorState` on API failures
+
+**Success criteria:** CatalogsOverview fetches and displays real data from all 3 API sources
+
+### 3.2 Install/Uninstall Flow
+**File: `src/components/catalogs/CatalogsOverview.tsx` (or new `CatalogItemActions.tsx`)**
+- [ ] **Install extension** — Call `addExtension()` from catalog card
+- [ ] **Remove extension** — Call `removeExtension()` with confirmation dialog
+- [ ] **Connect agent** — Call `connectAgent()` for A2A remote agents
+- [ ] **Status refresh** — Re-fetch catalog after install/uninstall
+
+**Success criteria:** User can install/uninstall extensions and connect agents from catalog UI
+
+---
+
+## Phase 4: PromptBar Slash Commands Polish (goose4-inyh)
+**Priority: MEDIUM** | **Assignee: UX subagent**
+
+### 4.1 Slash Command Audit & Completeness
+**File: `src/contexts/UnifiedInputContext.tsx`**
+- [ ] **Audit commands** — Verify all designed commands exist: `/new`, `/recipe`, `/settings`, `/model`, `/project`, `/help`, `/eval`, `/tools`, `/install`, `/schedule`, `/search`
+- [ ] **Add missing** — Implement `/model` (open model picker), `/project` (switch working dir), `/help` (show help panel)
+- [ ] **Server-side slash commands** — Wire `getSlashCommands()` API to merge server-defined commands
+
+**Success criteria:** All 11 designed slash commands functional
+
+### 4.2 Autocomplete Dropdown Polish
+**File: `src/components/prompt_bar/PromptBar.tsx`**
+- [ ] **Keyboard navigation** — Arrow up/down to select, Enter to execute, Escape to dismiss
+- [ ] **Visual polish** — Dropdown with icons, descriptions, keyboard hint
+- [ ] **Fuzzy match** — Filter commands by partial text (not just prefix)
+
+**Success criteria:** Slash command autocomplete is fully keyboard-navigable with fuzzy search
+
+### 4.3 Cmd+K Global Shortcut
+**File: `src/components/prompt_bar/PromptBar.tsx` or `src/App.tsx`**
+- [ ] **Global listener** — `useEffect` with `Cmd+K` / `Ctrl+K` handler
+- [ ] **Focus prompt** — Scroll to and focus PromptBar textarea from anywhere
+- [ ] **Visual feedback** — Brief highlight animation on focus
+
+**Success criteria:** Cmd+K focuses PromptBar from any view
+
+---
+
+## Phase 5: Analytics Dashboard V2 (goose4-hmzj)
+**Priority: LOW** | **Assignee: Frontend Engineer subagent**
+
+### 5.1 Verify Live Data Connections
+- [ ] **LiveMonitoringTab** — Verify SSE/polling connected to `getLiveMonitoring()` API
+- [ ] **SankeyDiagram** — Verify d3-sankey or equivalent is rendering
+- [ ] **RunComparisonView** — Polish layout, verify `compareEvalRuns()` data
+
+### 5.2 Missing Widgets
+- [ ] **Version comparison** — Side-by-side model version diffs
+- [ ] **Quality trend charts** — Wire `getResponseQuality()` to trend visualization
+
+**Success criteria:** All analytics tabs render real data, no mock data remaining
+
+---
+
+## Execution Order
+
+```
+Phase 1 (Agents)   ──┐
+Phase 2 (Generative) ─┼── Parallel implementation
+Phase 3 (Catalogs)  ──┘
+Phase 4 (PromptBar) ── After Phase 1-3 (uses same design tokens)
+Phase 5 (Analytics)  ── Last (lowest priority)
+```
+
+## Verification Criteria
+- `tsc --noEmit` passes (zero type errors)
+- `npm run lint` clean
+- All views render without console errors
+- No hardcoded colors remaining in modified files (semantic tokens only)
+- Generative UI renders in chat with sample spec

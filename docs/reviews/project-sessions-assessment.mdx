@@ -1,0 +1,219 @@
+---
+title: "Team Assessment: Project-Grouped Chat Sessions"
+date: 2026-02-17
+type: design-review
+status: assessment
+participants: [UX Researcher, UI Designer, Frontend Engineer]
+---
+
+# Team Assessment: Project-Grouped Chat Sessions
+
+## Proposal Summary
+
+Regroup chat sessions in the sidebar by project directory (foldable), with:
+1. **Project folders** — sessions grouped by `working_dir`, collapsible
+2. **Generic project** — catch-all for sessions in `$HOME` (no specific project)
+3. **"Open Project" button** — opens a new session targeting a specific directory
+
+---
+
+## Current State (Already Implemented ✅)
+
+The codebase **already has** project grouping in two places:
+
+### Sidebar (`AppSidebar.tsx`)
+- `groupSessionsByProject()` groups sessions by `working_dir`
+- `getProjectName()` extracts folder name, maps `$HOME` → "General"
+- `SessionList` renders collapsible `<Collapsible>` groups with `FolderOpen` icons
+- **BUT**: grouping only activates when `hasMultipleProjects` — if all sessions share the same dir, it shows a flat list
+
+### Sessions View (`SessionListView.tsx`)
+- Full project-group view with `projectGroups` + `collapsedProjects` state
+- Shows `working_dir` per session
+- Toggle collapse per project
+
+### What's Missing
+- ❌ **"Open Project" button** — no way to start a session targeting a specific directory
+- ❌ **Always-on grouping** — sidebar falls back to flat list for single-project users
+- ❌ **Project persistence** — no concept of "known projects" or project registry
+
+---
+
+## 🧪 UX Researcher Assessment
+
+### Evidence For (Strong Signal)
+- **Mental model alignment**: Developers think in projects, not sessions. VS Code, JetBrains, and terminal multiplexers all organize by project/directory.
+- **Design docs confirm**: `navigation-architecture.md` explicitly states "project-bound sessions" as a resolved design decision.
+- **Existing usage**: `working_dir` is already tracked per session — data is available.
+
+### Evidence Against (Mild Concerns)
+- **Discovery**: Users who only ever use `$HOME` would see a single "General" group forever — the feature is invisible to them.
+- **Cognitive load**: For users with 2-3 sessions, grouping adds hierarchy with no benefit.
+
+### Recommendation
+**Proceed, but with smart activation:**
+- Show flat list when ≤5 sessions across ≤1 project (current behavior)
+- Show grouped list when ≥2 projects detected
+- Always show "Open Project" button (this is the key missing affordance)
+
+### Key Question
+> Should "Open Project" create a session immediately, or show a project hub/overview first?
+
+**Recommendation**: Create session immediately with directory picker → lower friction, matches `code .` muscle memory.
+
+---
+
+## 🎨 UI Designer Assessment
+
+### Layout Proposal
+
+```
+┌─ Sidebar ──────────────────┐
+│ 🏠 Home                    │
+│ 💬 Chat          [+] [📁]  │  ← [📁] = Open Project
+│  ├─ 📂 my-app              │
+│  │  ├─ Fix login bug       │
+│  │  └─ Add auth middleware  │
+│  ├─ 📂 goose               │
+│  │  └─ Refactor agents     │
+│  ├─ 📂 General       ──┐   │  ← $HOME sessions
+│  │  └─ Quick question   │   │
+│  └─ View All            │   │
+│─────────────────────────│───│
+│ Workflows              ▸│   │
+│ Monitoring              │   │
+│ ...                     │   │
+└─────────────────────────────┘
+```
+
+### Design Tokens & Patterns
+- **Project header**: `FolderOpen` icon (already used) + project name + session count badge
+- **General group**: Always last, uses `Home` icon instead of `FolderOpen` to differentiate
+- **"Open Project" button**: Small `FolderPlus` icon button next to the Chat `[+]` button
+- **Collapse state**: Per-project, persisted in localStorage
+- **Active session highlight**: Current behavior is good — `bg-background-medium`
+
+### Interaction Design
+| Action | Result |
+|--------|--------|
+| Click project header | Toggle collapse |
+| Click session | Resume session (current) |
+| Click [📁] Open Project | OS directory picker → create session in that dir |
+| Click [+] New Chat | New session in current/last project dir |
+| Drag session to project | (Future) Move session between projects |
+
+### Accessibility
+- `aria-expanded` on project headers ✅ (already via `Collapsible`)
+- `aria-label` on Open Project button needed
+- Keyboard nav: Tab through projects, Enter to expand, Tab into sessions
+
+### Verdict
+**👍 Strong yes.** This aligns with the design system's zone-based navigation and adds the missing "project context" affordance. The "Open Project" button is the key new UI element.
+
+---
+
+## 🛠 Frontend Engineer Assessment
+
+### Implementation Complexity: Low-Medium
+
+#### What's already done (reuse):
+- `groupSessionsByProject()` — works ✓
+- `getProjectName()` — works ✓
+- `SessionList` with `Collapsible` — works ✓
+- `SessionItem` with rename, status indicators — works ✓
+
+#### What needs building:
+
+**1. Always-on project grouping (Small change)**
+```tsx
+// Current: only groups when multiple projects
+const hasMultipleProjects = projectGroups.length > 1;
+
+// Proposed: always group, but collapse "General" if it's the only one
+const shouldGroup = projectGroups.length > 1 || sessions.length > 5;
+```
+
+**2. "Open Project" button (Medium)**
+```tsx
+// In AppSidebar, next to the Chat button:
+const handleOpenProject = async () => {
+  const result = await window.electron.showOpenDialog({
+    properties: ['openDirectory'],
+    title: 'Open Project Directory',
+  });
+  if (!result.canceled && result.filePaths[0]) {
+    await startNewSession('', setView, result.filePaths[0], {
+      allExtensions: configContext.extensionsList,
+    });
+  }
+};
+```
+**Note**: `showOpenDialog` is already used in `main.ts` for file picking. Need to expose a directory-picker IPC handler (or reuse existing one).
+
+**3. Collapse state persistence (Small)**
+```tsx
+// localStorage-backed per-project collapse state
+const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => {
+  const saved = localStorage.getItem('sidebar-collapsed-projects');
+  return saved ? new Set(JSON.parse(saved)) : new Set();
+});
+```
+
+**4. "General" group styling (Trivial)**
+```tsx
+// Use Home icon for General, FolderOpen for named projects
+const ProjectIcon = group.project === 'General' ? Home : FolderOpen;
+```
+
+### IPC Requirement
+The directory picker needs an IPC channel. Check if one exists:
+
+```
+main.ts: ipcMain.handle('select-directory', ...)
+```
+
+If not, add one — ~10 lines in `main.ts`, ~5 lines in `preload.ts`.
+
+### Risk Assessment
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| Directory picker not exposed via IPC | Low | Easy to add, pattern exists for file picker |
+| Too many projects cluttering sidebar | Low | Cap at 10 recent projects, "View All" link |
+| Session without `working_dir` | None | Already handled → "General" |
+| Performance with many sessions | None | Already using `React.memo` + `useMemo` |
+
+### Estimated Effort
+| Task | Lines | Time |
+|------|-------|------|
+| Always-on grouping threshold | ~10 | 15min |
+| Open Project button + IPC | ~50 | 1hr |
+| Collapse persistence | ~20 | 20min |
+| General group icon | ~5 | 5min |
+| Tests | ~30 | 30min |
+| **Total** | **~115** | **~2hr** |
+
+---
+
+## 🏁 Unified Verdict
+
+| Role | Vote | Confidence |
+|------|------|------------|
+| UX Researcher | ✅ Proceed | 0.85 — strong mental model fit, low risk |
+| UI Designer | ✅ Proceed | 0.90 — clean integration with existing design |
+| Frontend Engineer | ✅ Proceed | 0.95 — 80% already built, low effort |
+
+### Consensus Recommendation
+
+**Build it.** The feature is 80% implemented. The key missing piece is the **"Open Project" button** (directory picker → new session). Everything else is polish on existing code.
+
+### Suggested Implementation Order
+1. Add "Open Project" (`FolderPlus`) button next to Chat `[+]` 
+2. Wire to OS directory picker IPC
+3. Adjust grouping threshold (always group when ≥2 projects OR ≥5 sessions)
+4. Persist collapse state in localStorage
+5. Use `Home` icon for "General" group
+
+### Open Questions for Product Owner
+1. Should "Open Project" remember recently-opened directories? (Adds ~30min)
+2. Should projects be pinnable/reorderable? (Future scope)
+3. Should the "Open Project" picker show a recent-dirs dropdown before falling back to OS picker? (Nice-to-have)
