@@ -159,6 +159,8 @@ pub struct Agent {
     pub allowed_extensions: tokio::sync::RwLock<Vec<String>>,
     pub is_orchestrator_context: tokio::sync::RwLock<bool>,
     container: Mutex<Option<Container>>,
+    /// Dual identity: user + agent, threaded through all execution.
+    pub execution_identity: tokio::sync::RwLock<Option<crate::identity::ExecutionIdentity>>,
 }
 
 #[derive(Clone, Debug)]
@@ -281,6 +283,7 @@ impl Agent {
             allowed_extensions: tokio::sync::RwLock::new(Vec::new()),
             is_orchestrator_context: tokio::sync::RwLock::new(false),
             container: Mutex::new(None),
+            execution_identity: tokio::sync::RwLock::new(None),
         }
     }
 
@@ -500,6 +503,14 @@ impl Agent {
 
     pub async fn set_orchestrator_context(&self, is_orchestrator: bool) {
         *self.is_orchestrator_context.write().await = is_orchestrator;
+    }
+
+    pub async fn set_execution_identity(&self, identity: crate::identity::ExecutionIdentity) {
+        *self.execution_identity.write().await = Some(identity);
+    }
+
+    pub async fn get_execution_identity(&self) -> Option<crate::identity::ExecutionIdentity> {
+        self.execution_identity.read().await.clone()
     }
 
     pub async fn set_container(&self, container: Option<Container>) {

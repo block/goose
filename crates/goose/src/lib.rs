@@ -11,6 +11,7 @@ pub mod dictation;
 pub mod execution;
 pub mod goose_apps;
 pub mod hints;
+pub mod identity;
 pub mod logging;
 pub mod mcp_utils;
 pub mod model;
