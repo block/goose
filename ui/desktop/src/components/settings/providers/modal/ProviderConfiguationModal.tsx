@@ -41,7 +41,10 @@ export default function ProviderConfigurationModal({
   const [error, setError] = useState<string | null>(null);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
 
-  const primaryParameters = provider.metadata.config_keys.filter((param) => param.primary);
+  let primaryParameters = provider.metadata.config_keys.filter((param) => param.primary);
+  if (primaryParameters.length === 0) {
+    primaryParameters = provider.metadata.config_keys;
+  }
 
   // Check if this provider uses OAuth for configuration
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
