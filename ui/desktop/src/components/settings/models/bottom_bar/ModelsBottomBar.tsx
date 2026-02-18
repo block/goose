@@ -30,7 +30,11 @@ export default function ModelsBottomBar({
   setView,
   alerts,
 }: ModelsBottomBarProps) {
-  const { currentModel, currentProvider } = useModelAndProvider();
+  const {
+    currentModel,
+    currentProvider,
+    currentVariant,
+  } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
@@ -145,6 +149,9 @@ export default function ModelsBottomBar({
             <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
             <span className="truncate text-xs">
               {displayModel}
+              {currentVariant && (
+                <span className="ml-1 text-[10px] opacity-60">({currentVariant})</span>
+              )}
               {isLeadWorkerActive && modelMode && (
                 <span className="ml-1 text-[10px] opacity-60">({modelMode})</span>
               )}
