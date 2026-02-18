@@ -116,7 +116,7 @@ interface WelcomeStateProps {
 
 export function WelcomeState({ onSubmit }: WelcomeStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-8 py-12 max-w-3xl mx-auto">
+    <div className="flex flex-col items-center px-8 py-12 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex flex-col items-center mb-12">
         <div className="w-16 h-16 mb-5">

@@ -85,13 +85,12 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         />
       </Sidebar>
       <SidebarInset>
-        {/* Bottom padding reserves space for the fixed PromptBar overlay */}
-        <div className="flex-1 overflow-auto pb-20">
+        {/* Non-pair routes: standard page content */}
+        <div className={isOnPairRoute ? 'hidden' : 'flex-1 overflow-auto pb-20'}>
           <Outlet />
         </div>
-        {/* Always render ChatSessionsContainer to keep SSE connections alive.
-            When navigating away from /pair */}
-        <div className={isOnPairRoute ? 'contents' : 'hidden'}>
+        {/* Pair route: chat sessions or WelcomeState */}
+        <div className={isOnPairRoute ? 'flex-1 overflow-auto pb-20' : 'hidden'}>
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
         <PromptBar />

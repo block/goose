@@ -31,13 +31,11 @@ export default function ChatSessionsContainer({
   // No active sessions — show WelcomeState with capability cards
   if (!currentSessionId && activeSessions.length === 0) {
     return (
-      <div className="relative w-full h-full">
-        <WelcomeState
-          onSubmit={(text) => {
-            startNewSession(text, setView, getInitialWorkingDir());
-          }}
-        />
-      </div>
+      <WelcomeState
+        onSubmit={(text) => {
+          startNewSession(text, setView, getInitialWorkingDir());
+        }}
+      />
     );
   }
 
