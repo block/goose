@@ -1088,20 +1088,29 @@ impl JrMessageHandler for GooseAcpHandler {
     }
 }
 
-pub async fn serve<R, W>(agent: Arc<GooseAcpAgent>, read: R, write: W) -> Result<()>
+/// Serve an ACP agent over byte streams.
+///
+/// We `Box::pin` it so that callers (especially `tokio::spawn`) never place that future on the stack
+pub fn serve<R, W>(
+    agent: Arc<GooseAcpAgent>,
+    read: R,
+    write: W,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>>
 where
     R: futures::AsyncRead + Unpin + Send + 'static,
     W: futures::AsyncWrite + Unpin + Send + 'static,
 {
-    let handler = GooseAcpHandler { agent };
+    Box::pin(async move {
+        let handler = GooseAcpHandler { agent };
 
-    AgentToClient::builder()
-        .name("goose-acp")
-        .with_handler(handler)
-        .serve(ByteStreams::new(write, read))
-        .await?;
+        AgentToClient::builder()
+            .name("goose-acp")
+            .with_handler(handler)
+            .serve(ByteStreams::new(write, read))
+            .await?;
 
-    Ok(())
+        Ok(())
+    })
 }
 
 pub async fn run(builtins: Vec<String>) -> Result<()> {

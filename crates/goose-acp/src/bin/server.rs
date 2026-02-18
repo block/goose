@@ -22,8 +22,19 @@ struct Cli {
     builtins: Vec<String>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    // The ACP handler chain in sacp produces an ~85 KB async state machine.
+    // The default tokio worker-thread stack (2 MiB) can overflow when this
+    // future is combined with deep call stacks from the agent/provider code.
+    // 8 MiB gives comfortable headroom.
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(8 * 1024 * 1024)
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> Result<()> {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::registry()
         .with(filter)
