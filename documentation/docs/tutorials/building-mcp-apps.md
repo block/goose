@@ -530,13 +530,13 @@ Try:
 └──────────────────────────────────────┘
 ```
 
-Your server returns a `ui://` resource URI, goose fetches the HTML and renders it in an iframe. The app communicates back via `postMessage`—requesting theme info, sending messages to chat, or resizing itself.
+Your server returns a `ui://` resource URI, goose fetches the HTML and renders it in an iframe. The app communicates back via `postMessage` to request theme info, send messages to chat, or resize itself.
 
 MCP Apps run in a sandboxed iframe with strict Content Security Policy restrictions.
 
 ### Content Security Policy Configuration
 
-By default, apps can only load resources from their own origin. If your app needs to interact with external domains—such as loading resources from a CDN or making API calls—you can configure which domains are allowed through the `csp` object in the resource's `_meta.ui` section.
+By default, apps can only load resources from their own origin. If your app needs to interact with external domains (such as loading resources from a CDN or making API calls), you can configure which domains are allowed through the `csp` object in the resource's `_meta.ui` section.
 
 ```javascript
 _meta: {
