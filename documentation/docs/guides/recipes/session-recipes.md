@@ -201,28 +201,6 @@ You can customize how goose generates recipes by editing the `recipe.md` [prompt
   :::tip Edit In-Use Recipe
   You can also access the edit dialog while using a recipe in a session: Just click the <ChefHat className="inline" size={16} /> button at the bottom of the app. The button shows up after you've sent your first message.
   :::
-
-  ### Advanced Options
-
-  Click **Advanced Options** in the recipe editor to access additional settings:
-
-  #### Model and Provider
-  
-  Select which AI provider and model the recipe should use:
-  - **Provider**: Choose from your configured providers (e.g., Anthropic, OpenAI). Leave empty to use your default provider.
-  - **Model**: Select a specific model from the chosen provider. Leave empty to use the default model for that provider.
-
-  When you run a recipe with model/provider settings, goose automatically switches to the specified configuration and the model selector in the UI updates to reflect the recipe's settings.
-
-  #### Extensions
-  
-  Control which extensions (tools) are available when running the recipe:
-  - Toggle extensions on/off using the switches
-  - Search for specific extensions using the search box
-  - Selected extensions appear at the top of the list
-  - Leave empty to use your default enabled extensions
-
-  This allows you to create focused recipes that only have access to the tools they need.
    
   </TabItem>
 
