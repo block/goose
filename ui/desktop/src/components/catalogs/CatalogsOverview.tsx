@@ -14,7 +14,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
-import { ScrollArea } from '../ui/scroll-area';
+import { PageShell } from '../Layout/PageShell';
 import { getExtensions, listBuiltinAgents, listAgents } from '../../api';
 import { listSavedRecipes } from '../../recipe/recipe_management';
 
@@ -347,37 +347,31 @@ export default function CatalogsOverview() {
     : categories;
 
   return (
-    <ScrollArea className="h-full">
-      <div className="max-w-5xl mx-auto p-8 space-y-8">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-text-default">Catalogs</h1>
-            <p className="text-sm text-text-muted mt-1">
-              {totalInstalled} installed across {categories.length} catalogs • {totalItems} total
-              packages
-            </p>
+    <PageShell
+      title="Catalogs"
+      subtitle={`${totalInstalled} installed across ${categories.length} catalogs • ${totalItems} total packages`}
+      actions={
+        <>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Search all catalogs..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-background-subtle border border-border-default rounded-lg text-sm text-text-default placeholder-text-muted focus:outline-none focus:border-border-accent w-64"
+            />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input
-                type="text"
-                placeholder="Search all catalogs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-background-subtle border border-border-default rounded-lg text-sm text-text-default placeholder-text-muted focus:outline-none focus:border-border-accent w-64"
-              />
-            </div>
-            <button
-              onClick={loadCatalogs}
-              className="p-2 text-text-muted hover:text-text-default rounded-lg hover:bg-background-subtle transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
+          <button
+            onClick={loadCatalogs}
+            className="p-2 text-text-muted hover:text-text-default rounded-lg hover:bg-background-subtle transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </>
+      }
+    >
 
         {/* Catalog cards grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -440,7 +434,6 @@ export default function CatalogsOverview() {
             </div>
           </div>
         )}
-      </div>
-    </ScrollArea>
+    </PageShell>
   );
 }

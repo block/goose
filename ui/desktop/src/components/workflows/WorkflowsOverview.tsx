@@ -14,7 +14,7 @@ import {
   Pause,
   Calendar,
 } from 'lucide-react';
-import { ScrollArea } from '../ui/scroll-area';
+import { PageShell } from '../Layout/PageShell';
 import { listPipelines, listSchedules } from '../../api';
 import type { RecipeManifest } from '../../api';
 import { listSavedRecipes } from '../../recipe/recipe_management';
@@ -353,43 +353,37 @@ export default function WorkflowsOverview() {
     cat.items.map((item) => ({ ...item, categoryLabel: cat.label }))
   );
 
+  const subtitle = [
+    totalActive > 0 ? `${totalActive} active` : null,
+    `${totalItems} total across ${categories.length} types`,
+  ].filter(Boolean).join(' · ');
+
   return (
-    <ScrollArea className="h-full">
-      <div className="max-w-5xl mx-auto p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-text-default">Workflows</h1>
-            <p className="text-text-muted mt-1">
-              {totalActive > 0 ? (
-                <>
-                  <span className="text-text-success font-medium">{totalActive} active</span>
-                  {' · '}
-                </>
-              ) : null}
-              {totalItems} total across {categories.length} types
-            </p>
+    <PageShell
+      title="Workflows"
+      subtitle={subtitle}
+      actions={
+        <>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Search workflows..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 text-sm bg-background-default border border-border-default rounded-lg text-text-default placeholder-text-subtle focus:outline-none focus:border-border-accent w-64"
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-              <input
-                type="text"
-                placeholder="Search workflows..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm bg-background-default border border-border-default rounded-lg text-text-default placeholder-text-subtle focus:outline-none focus:border-border-accent w-64"
-              />
-            </div>
-            <button
-              onClick={() => loadWorkflows()}
-              className="p-2 text-text-muted hover:text-text-default hover:bg-background-muted rounded-lg transition-colors"
-              title="Refresh"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
+          <button
+            onClick={() => loadWorkflows()}
+            className="p-2 text-text-muted hover:text-text-default hover:bg-background-muted rounded-lg transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </>
+      }
+    >
 
         {/* Category cards */}
         {!searchTerm && (
@@ -468,7 +462,6 @@ export default function WorkflowsOverview() {
             </div>
           </div>
         )}
-      </div>
-    </ScrollArea>
+    </PageShell>
   );
 }
