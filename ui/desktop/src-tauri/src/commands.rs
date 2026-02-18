@@ -252,7 +252,7 @@ pub fn create_launcher_window(app: tauri::AppHandle) -> Result<(), String> {
     open_launcher_window(&app)
 }
 
-fn urlencoding(s: &str) -> String {
+pub(crate) fn urlencoding(s: &str) -> String {
     s.replace('%', "%25")
         .replace(' ', "%20")
         .replace('&', "%26")
@@ -457,7 +457,7 @@ pub fn record_recipe_hash(recipe: serde_json::Value) -> Result<bool, String> {
     Ok(true)
 }
 
-fn recipe_hash(recipe: &serde_json::Value) -> String {
+pub(crate) fn recipe_hash(recipe: &serde_json::Value) -> String {
     use sha2::{Digest, Sha256};
     let json = serde_json::to_string(recipe).unwrap_or_default();
     let mut hasher = Sha256::new();
@@ -636,5 +636,225 @@ pub fn handle_deep_link(app: &tauri::AppHandle, url: &str) {
         let _ = app.emit("open-shared-session", url);
     } else {
         let _ = app.emit("deep-link", url);
+    }
+}
+
+/// Classify a deep link URL into its event category (testable without Tauri app handle).
+pub(crate) fn classify_deep_link(url: &str) -> &'static str {
+    if url.starts_with("goose://bot/") || url.starts_with("goose://recipe/") {
+        "deep-link-recipe"
+    } else if url.starts_with("goose://extension/") {
+        "add-extension"
+    } else if url.starts_with("goose://sessions/") {
+        "open-shared-session"
+    } else {
+        "deep-link"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    // ── URL encoding ─────────────────────────────────────────────────
+
+    #[test]
+    fn urlencoding_spaces() {
+        assert_eq!(urlencoding("hello world"), "hello%20world");
+    }
+
+    #[test]
+    fn urlencoding_ampersand() {
+        assert_eq!(urlencoding("a&b"), "a%26b");
+    }
+
+    #[test]
+    fn urlencoding_equals() {
+        assert_eq!(urlencoding("key=value"), "key%3Dvalue");
+    }
+
+    #[test]
+    fn urlencoding_hash() {
+        assert_eq!(urlencoding("page#section"), "page%23section");
+    }
+
+    #[test]
+    fn urlencoding_percent() {
+        assert_eq!(urlencoding("100%"), "100%25");
+    }
+
+    #[test]
+    fn urlencoding_empty_string() {
+        assert_eq!(urlencoding(""), "");
+    }
+
+    #[test]
+    fn urlencoding_no_special_chars() {
+        assert_eq!(urlencoding("hello"), "hello");
+    }
+
+    #[test]
+    fn urlencoding_multiple_special_chars() {
+        assert_eq!(urlencoding("a & b = c # d"), "a%20%26%20b%20%3D%20c%20%23%20d");
+    }
+
+    // ── Recipe hashing ───────────────────────────────────────────────
+
+    #[test]
+    fn recipe_hash_deterministic() {
+        let recipe = serde_json::json!({"name": "test", "version": "1.0"});
+        let hash1 = recipe_hash(&recipe);
+        let hash2 = recipe_hash(&recipe);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn recipe_hash_is_hex_sha256() {
+        let recipe = serde_json::json!({"name": "test"});
+        let hash = recipe_hash(&recipe);
+        assert_eq!(hash.len(), 64); // SHA-256 produces 64 hex chars
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn recipe_hash_differs_for_different_input() {
+        let recipe_a = serde_json::json!({"name": "alpha"});
+        let recipe_b = serde_json::json!({"name": "beta"});
+        assert_ne!(recipe_hash(&recipe_a), recipe_hash(&recipe_b));
+    }
+
+    #[test]
+    fn recipe_hash_null_value() {
+        let recipe = serde_json::Value::Null;
+        let hash = recipe_hash(&recipe);
+        assert_eq!(hash.len(), 64);
+    }
+
+    // ── Deep link classification ─────────────────────────────────────
+
+    #[test]
+    fn deep_link_recipe_bot() {
+        assert_eq!(classify_deep_link("goose://bot/some-bot"), "deep-link-recipe");
+    }
+
+    #[test]
+    fn deep_link_recipe_recipe() {
+        assert_eq!(classify_deep_link("goose://recipe/my-recipe"), "deep-link-recipe");
+    }
+
+    #[test]
+    fn deep_link_extension() {
+        assert_eq!(classify_deep_link("goose://extension/developer"), "add-extension");
+    }
+
+    #[test]
+    fn deep_link_session() {
+        assert_eq!(classify_deep_link("goose://sessions/abc-123"), "open-shared-session");
+    }
+
+    #[test]
+    fn deep_link_unknown() {
+        assert_eq!(classify_deep_link("goose://unknown/path"), "deep-link");
+    }
+
+    #[test]
+    fn deep_link_empty() {
+        assert_eq!(classify_deep_link(""), "deep-link");
+    }
+
+    // ── File operations ──────────────────────────────────────────────
+
+    #[test]
+    fn read_file_found() {
+        let tmp = std::env::temp_dir().join("goose-test-read-file.txt");
+        fs::write(&tmp, "hello").unwrap();
+        let resp = read_file(tmp.to_string_lossy().to_string());
+        assert!(resp.found);
+        assert_eq!(resp.file, "hello");
+        assert!(resp.error.is_none());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn read_file_not_found() {
+        let resp = read_file("/tmp/goose-nonexistent-file-12345.txt".to_string());
+        assert!(!resp.found);
+        assert!(resp.file.is_empty());
+        assert!(resp.error.is_none()); // NotFound returns no error, just found=false
+    }
+
+    #[test]
+    fn write_file_creates_parent_dirs() {
+        let tmp = std::env::temp_dir()
+            .join("goose-test-write")
+            .join("nested")
+            .join("file.txt");
+        let _ = fs::remove_dir_all(tmp.parent().unwrap().parent().unwrap());
+        let result = write_file(tmp.to_string_lossy().to_string(), "content".to_string());
+        assert!(result.is_ok());
+        assert_eq!(fs::read_to_string(&tmp).unwrap(), "content");
+        let _ = fs::remove_dir_all(std::env::temp_dir().join("goose-test-write"));
+    }
+
+    #[test]
+    fn list_files_with_extension_filter() {
+        let tmp = std::env::temp_dir().join("goose-test-list-files");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("a.txt"), "").unwrap();
+        fs::write(tmp.join("b.json"), "").unwrap();
+        fs::write(tmp.join("c.txt"), "").unwrap();
+
+        let files = list_files(tmp.to_string_lossy().to_string(), Some("txt".to_string())).unwrap();
+        assert_eq!(files, vec!["a.txt", "c.txt"]);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn list_files_without_filter() {
+        let tmp = std::env::temp_dir().join("goose-test-list-all");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("x.rs"), "").unwrap();
+        fs::write(tmp.join("y.toml"), "").unwrap();
+
+        let files = list_files(tmp.to_string_lossy().to_string(), None).unwrap();
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&"x.rs".to_string()));
+        assert!(files.contains(&"y.toml".to_string()));
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn list_files_sorted() {
+        let tmp = std::env::temp_dir().join("goose-test-list-sorted");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("c.txt"), "").unwrap();
+        fs::write(tmp.join("a.txt"), "").unwrap();
+        fs::write(tmp.join("b.txt"), "").unwrap();
+
+        let files = list_files(tmp.to_string_lossy().to_string(), None).unwrap();
+        assert_eq!(files, vec!["a.txt", "b.txt", "c.txt"]);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    // ── FileResponse serialization ───────────────────────────────────
+
+    #[test]
+    fn file_response_serializes_camel_case() {
+        let resp = FileResponse {
+            file: "content".to_string(),
+            file_path: "/path/to/file".to_string(),
+            error: None,
+            found: true,
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("filePath"));
+        assert!(!json.contains("file_path"));
     }
 }
