@@ -15,9 +15,7 @@ import {
 import React from 'react';
 
 import { Goose } from './icons/Goose';
-import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
-import { BottomMenuAgentSelection } from './bottom_menu/BottomMenuAgentSelection';
-import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
+
 
 interface Capability {
   icon: React.ElementType;
@@ -169,23 +167,8 @@ export default function WelcomeState({ onSubmit }: WelcomeStateProps) {
         ))}
       </div>
 
-      {/* Status bar — mode, agents, extensions */}
-      <div className="w-full mt-8">
-        <div
-          className="flex items-center justify-center gap-0 px-4 py-2
-            bg-background-default border border-border-default rounded-xl
-            text-xs text-text-muted"
-        >
-          <BottomMenuModeSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
-          <BottomMenuAgentSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
-          <BottomMenuExtensionSelection sessionId={null} />
-        </div>
-      </div>
-
       {/* Footer hint */}
-      <p className="text-xs text-text-subtle mt-6 text-center">
+      <p className="text-xs text-text-subtle mt-8 text-center">
         Type <kbd className="px-1.5 py-0.5 rounded bg-background-muted text-[11px] text-text-default font-mono">/</kbd> for
         slash commands · Drag files into the chat
       </p>
