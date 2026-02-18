@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
 import { Loader2, Command, Slash, Mic, MicOff, Paperclip, X, FileIcon } from 'lucide-react';
 import { usePromptBar, type SlashCommand } from '../../contexts/UnifiedInputContext';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
@@ -7,7 +6,6 @@ import { useFileDrop, type DroppedFile } from '../../hooks/useFileDrop';
 import Send from '../icons/Send';
 
 export default function PromptBar() {
-  const location = useLocation();
   const promptBar = usePromptBar();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -16,8 +14,7 @@ export default function PromptBar() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isOnPairRoute = location.pathname === '/pair';
-  const isHidden = isOnPairRoute || !promptBar?.showPromptBar;
+  const isHidden = !promptBar?.showPromptBar;
 
   const config = promptBar?.config;
   const slashCommands = useMemo(() => promptBar?.slashCommands ?? [], [promptBar?.slashCommands]);

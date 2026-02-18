@@ -144,7 +144,8 @@ export function usePromptBar() {
     zone: ctx.zone,
     config: ctx.config,
     isChatActive: ctx.mode === 'full',
-    showPromptBar: ctx.showInput && ctx.mode === 'compact',
+    showPromptBar: ctx.showInput && ctx.mode === 'compact'
+      || (ctx.mode === 'full' && !ctx.session),
     submitPrompt: ctx.submitPrompt,
     slashCommands: ctx.slashCommands,
   };
