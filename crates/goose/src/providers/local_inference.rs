@@ -178,18 +178,33 @@ pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
     }
 }
 
-pub fn recommend_local_model(runtime: &InferenceRuntime) -> &'static str {
-    let effective_memory_mb = available_inference_memory_bytes(runtime) / (1024 * 1024);
-
-    if effective_memory_mb >= 16_000 {
-        "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M"
-    } else if effective_memory_mb >= 6_000 {
-        "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M"
-    } else if effective_memory_mb >= 3_000 {
-        "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
-    } else {
-        "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M"
+pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
+    use local_model_registry::{get_registry, is_featured_model, FEATURED_MODELS};
+    
+    let available_memory = available_inference_memory_bytes(runtime);
+    
+    // Get featured models from registry, sorted by size (largest first)
+    if let Ok(registry) = get_registry().lock() {
+        let mut models: Vec<_> = registry.list_models().iter()
+            .filter(|m| is_featured_model(&m.id) && m.size_bytes > 0)
+            .collect();
+        models.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+        
+        // Return largest that fits in available memory
+        for model in &models {
+            if available_memory >= model.size_bytes {
+                return model.id.clone();
+            }
+        }
+        
+        // If nothing fits or no memory info, return smallest
+        if let Some(smallest) = models.last() {
+            return smallest.id.clone();
+        }
     }
+    
+    // Fallback to first featured model
+    FEATURED_MODELS[0].to_string()
 }
 
 struct LoadedModel {

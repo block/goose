@@ -14,14 +14,13 @@ use goose::providers::local_inference::{
         parse_model_spec, LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus,
         ModelSettings, FEATURED_MODELS,
     },
+    recommend_local_model, InferenceRuntime,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use sysinfo::System;
 use tracing::debug;
 use utoipa::ToSchema;
 
-/// Download status for local models
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "state")]
 pub enum ModelDownloadStatus {
@@ -35,7 +34,6 @@ pub enum ModelDownloadStatus {
     Downloaded,
 }
 
-/// Response for a local model
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LocalModelResponse {
     pub id: String,
@@ -46,7 +44,7 @@ pub struct LocalModelResponse {
     pub size_bytes: u64,
     pub status: ModelDownloadStatus,
     pub recommended: bool,
-    pub context_limit: u32,
+    pub context_limit: Option<u32>,
     pub settings: ModelSettings,
 }
 
@@ -54,53 +52,6 @@ fn handle_internal_error<T: std::fmt::Display>(msg: T) -> ErrorResponse {
     ErrorResponse::internal(format!("{}", msg))
 }
 
-/// Get context limit for a model based on its repo_id
-fn get_context_limit_for_model(repo_id: &str) -> u32 {
-    // Known context limits for featured models
-    if repo_id.contains("Llama-3.2") {
-        131072 // 128K context
-    } else if repo_id.contains("Hermes-2-Pro") {
-        8192 // 8K context
-    } else if repo_id.contains("Mistral-Small") {
-        32768 // 32K context
-    } else {
-        8192 // Default 8K context
-    }
-}
-
-/// Recommend the best model based on available system memory
-fn recommend_model_id() -> Option<String> {
-    let mut sys = System::new_all();
-    sys.refresh_memory();
-    let available_memory = sys.total_memory();
-
-    // Rough model sizes based on GGUF Q4_K_M quantization
-    // Return the largest model that fits in ~80% of available memory
-    let target_memory = (available_memory as f64 * 0.8) as u64;
-
-    // Model sizes in bytes (approximate)
-    let model_sizes: &[(&str, u64)] = &[
-        ("bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M", 15_000_000_000),
-        ("bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M", 5_000_000_000),
-        ("bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M", 2_000_000_000),
-        ("bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M", 1_000_000_000),
-    ];
-
-    for (spec, size) in model_sizes {
-        if target_memory >= *size {
-            if let Some((repo_id, quant)) = parse_model_spec(spec) {
-                return Some(model_id_from_repo(repo_id, quant));
-            }
-        }
-    }
-
-    // Default to smallest
-    parse_model_spec(FEATURED_MODELS[0])
-        .map(|(repo_id, quant)| model_id_from_repo(repo_id, quant))
-}
-
-/// Ensure featured models are in the registry.
-/// Fetches metadata from HuggingFace for any missing featured models.
 async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
     let mut entries_to_add = Vec::new();
 
@@ -112,7 +63,6 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
 
         let model_id = model_id_from_repo(repo_id, quantization);
 
-        // Check if already in registry
         {
             let registry = get_registry()
                 .lock()
@@ -122,11 +72,9 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
             }
         }
 
-        // Fetch metadata from HuggingFace
         let hf_file = match resolve_model_spec(spec).await {
             Ok((_repo, file)) => file,
             Err(_) => {
-                // Create a basic entry without HF metadata
                 let filename = format!(
                     "{}-{}.gguf",
                     repo_id.split('/').last().unwrap_or("model"),
@@ -159,7 +107,6 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
         });
     }
 
-    // Add entries and sync registry
     if !entries_to_add.is_empty() {
         let mut registry = get_registry()
             .lock()
@@ -181,7 +128,10 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
     // Ensure featured models are in registry
     ensure_featured_models_in_registry().await?;
 
-    let recommended_id = recommend_model_id();
+    let recommended_id = {
+        let runtime = InferenceRuntime::get_or_init();
+        recommend_local_model(&runtime)
+    };
 
     let registry = get_registry()
         .lock()
@@ -227,8 +177,8 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
             quantization: entry.quantization.clone(),
             size_bytes,
             status,
-            recommended: recommended_id.as_deref() == Some(&entry.id),
-            context_limit: get_context_limit_for_model(&entry.repo_id),
+            recommended: recommended_id == entry.id,
+            context_limit: None,
             settings: entry.settings.clone(),
         });
     }

@@ -5249,7 +5249,6 @@
       },
       "LocalModelResponse": {
         "type": "object",
-        "description": "Response for a local model",
         "required": [
           "id",
           "display_name",
@@ -5259,13 +5258,13 @@
           "size_bytes",
           "status",
           "recommended",
-          "context_limit",
           "settings"
         ],
         "properties": {
           "context_limit": {
             "type": "integer",
             "format": "int32",
+            "nullable": true,
             "minimum": 0
           },
           "display_name": {
@@ -5887,7 +5886,6 @@
             }
           }
         ],
-        "description": "Download status for local models",
         "discriminator": {
           "propertyName": "state"
         }

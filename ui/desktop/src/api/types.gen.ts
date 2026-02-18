@@ -567,11 +567,8 @@ export type LoadedProvider = {
     is_editable: boolean;
 };
 
-/**
- * Response for a local model
- */
 export type LocalModelResponse = {
-    context_limit: number;
+    context_limit?: number | null;
     display_name: string;
     filename: string;
     id: string;
@@ -710,9 +707,6 @@ export type ModelConfig = {
     toolshim_model?: string | null;
 };
 
-/**
- * Download status for local models
- */
 export type ModelDownloadStatus = {
     state: 'NotDownloaded';
 } | {
