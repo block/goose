@@ -256,13 +256,20 @@ struct CachedJwks {
     fetched_at: Instant,
 }
 
+/// Cached discovery document with expiry.
+struct CachedDiscovery {
+    doc: OidcDiscovery,
+    fetched_at: Instant,
+}
+
 /// OIDC validator that handles discovery, JWKS caching, and JWT validation.
 pub struct OidcValidator {
     providers: RwLock<HashMap<String, OidcProviderConfig>>,
     jwks_cache: Arc<RwLock<HashMap<String, CachedJwks>>>,
-    discovery_cache: Arc<RwLock<HashMap<String, OidcDiscovery>>>,
+    discovery_cache: Arc<RwLock<HashMap<String, CachedDiscovery>>>,
     http_client: reqwest::Client,
     jwks_ttl: Duration,
+    discovery_ttl: Duration,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -310,7 +317,20 @@ impl OidcValidator {
             discovery_cache: Arc::new(RwLock::new(HashMap::new())),
             http_client: reqwest::Client::new(),
             jwks_ttl: Duration::from_secs(3600),
+            discovery_ttl: Duration::from_secs(86400), // 24h for discovery docs
         }
+    }
+
+    /// Set a custom TTL for JWKS key cache (default: 1 hour).
+    pub fn with_jwks_ttl(mut self, ttl: Duration) -> Self {
+        self.jwks_ttl = ttl;
+        self
+    }
+
+    /// Set a custom TTL for discovery document cache (default: 24 hours).
+    pub fn with_discovery_ttl(mut self, ttl: Duration) -> Self {
+        self.discovery_ttl = ttl;
+        self
     }
 
     pub async fn has_providers(&self) -> bool {
@@ -513,8 +533,22 @@ impl OidcValidator {
         // Fetch or use cached JWKS
         let jwks = self.get_jwks(&issuer).await?;
 
-        // Find the matching key
-        let key = find_key(&jwks, &kid)?;
+        // Find the matching key — on KeyNotFound, invalidate cache and retry once
+        // (handles key rotation where provider has published new keys)
+        let key = match find_key(&jwks, &kid) {
+            Ok(k) => k,
+            Err(OidcError::KeyNotFound { .. }) => {
+                tracing::info!(
+                    issuer = %issuer,
+                    kid = ?kid,
+                    "JWKS key not found, invalidating cache and retrying (possible key rotation)"
+                );
+                self.invalidate_jwks_cache(&issuer).await;
+                let refreshed_jwks = self.get_jwks(&issuer).await?;
+                find_key(&refreshed_jwks, &kid)?
+            }
+            Err(e) => return Err(e),
+        };
 
         // Build decoding key
         let decoding_key = build_decoding_key(&key)?;
@@ -615,6 +649,11 @@ impl OidcValidator {
             .ok_or_else(|| OidcError::UnknownIssuer("(missing iss claim)".into()))
     }
 
+    /// Invalidate the JWKS cache for a specific issuer (used for key rotation retry).
+    async fn invalidate_jwks_cache(&self, issuer: &str) {
+        self.jwks_cache.write().await.remove(issuer);
+    }
+
     /// Fetch JWKS keys, using cache if still fresh.
     async fn get_jwks(&self, issuer: &str) -> Result<Vec<JwkKey>, OidcError> {
         // Check cache
@@ -662,13 +701,15 @@ impl OidcValidator {
         Ok(keys)
     }
 
-    /// Fetch OIDC discovery document.
+    /// Fetch OIDC discovery document, using cache if still fresh.
     async fn discover(&self, issuer: &str) -> Result<OidcDiscovery, OidcError> {
-        // Check cache
+        // Check cache with TTL
         {
             let cache = self.discovery_cache.read().await;
-            if let Some(doc) = cache.get(issuer) {
-                return Ok(doc.clone());
+            if let Some(cached) = cache.get(issuer) {
+                if cached.fetched_at.elapsed() < self.discovery_ttl {
+                    return Ok(cached.doc.clone());
+                }
             }
         }
 
@@ -700,10 +741,16 @@ impl OidcValidator {
             });
         }
 
-        // Cache
+        // Cache with timestamp
         {
             let mut cache = self.discovery_cache.write().await;
-            cache.insert(issuer.to_string(), doc.clone());
+            cache.insert(
+                issuer.to_string(),
+                CachedDiscovery {
+                    doc: doc.clone(),
+                    fetched_at: Instant::now(),
+                },
+            );
         }
 
         Ok(doc)
@@ -1044,6 +1091,16 @@ mod tests {
 
         let err = OidcError::GroupAuthorizationFailed;
         assert!(err.to_string().contains("group authorization"));
+    }
+
+    #[tokio::test]
+    async fn test_builder_methods() {
+        let validator = OidcValidator::new(vec![])
+            .with_jwks_ttl(Duration::from_secs(300))
+            .with_discovery_ttl(Duration::from_secs(7200));
+        assert!(!validator.has_providers().await);
+        // TTLs are set but we can't read them directly — they're enforced internally
+        // The fact that the builder compiles and returns a valid validator is the test
     }
 
     #[test]
