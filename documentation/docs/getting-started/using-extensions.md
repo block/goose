@@ -41,6 +41,7 @@ Platform extensions are built-in extensions that provide global features like co
 - [Extension Manager](/docs/mcp/extension-manager-mcp): Discover, enable, and disable extensions dynamically during sessions (enabled by default)
 - [Summon](/docs/mcp/summon-mcp): Load skills and recipes, and delegate tasks to subagents (enabled by default)
 - [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions (enabled by default)
+- [Top of Mind](/docs/mcp/tom-mcp): Inject persistent instructions into goose's working memory every turn
 
 ### Toggling Built-in Extensions
 
