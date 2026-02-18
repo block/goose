@@ -10,7 +10,6 @@ import {
   Home,
   MessageSquarePlus,
   Puzzle,
-  Rocket,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -87,13 +86,6 @@ const menuItems: NavigationEntry[] = [
     tooltip: 'Manage your extensions',
   },
   { type: 'separator' },
-  {
-    type: 'item',
-    path: '/onboarding',
-    label: 'Onboarding',
-    icon: Rocket,
-    tooltip: 'New onboarding flow (testing)',
-  },
   {
     type: 'item',
     path: '/settings',

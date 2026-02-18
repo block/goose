@@ -16,7 +16,8 @@ import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
-import OnboardingPage from './components/onboarding/OnboardingPage';
+import OnboardingGuard from './components/onboarding/OnboardingGuard';
+import { USE_NEW_ONBOARDING } from './featureFlags';
 import GettingStartedPage from './components/onboarding/GettingStartedPage';
 import { createSession } from './sessions';
 
@@ -635,17 +636,24 @@ export function AppInner() {
               element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
             />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
-            <Route path="onboarding" element={<OnboardingPage />} />
             <Route path="getting-started" element={<GettingStartedPage />} />
             <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route
               path="/"
               element={
-                <ProviderGuard didSelectProvider={didSelectProvider}>
-                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                    <AppLayout activeSessions={activeSessions} />
-                  </ChatProvider>
-                </ProviderGuard>
+                USE_NEW_ONBOARDING ? (
+                  <OnboardingGuard>
+                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                      <AppLayout activeSessions={activeSessions} />
+                    </ChatProvider>
+                  </OnboardingGuard>
+                ) : (
+                  <ProviderGuard didSelectProvider={didSelectProvider}>
+                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                      <AppLayout activeSessions={activeSessions} />
+                    </ChatProvider>
+                  </ProviderGuard>
+                )
               }
             >
               <Route index element={<HubRouteWrapper />} />

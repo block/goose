@@ -1,28 +1,60 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
+import { useModelAndProvider } from '../ModelAndProviderContext';
 import { getProviderMetadata } from '../settings/models/modelInterface';
 import { Goose } from '../icons';
 import ProviderSelector from './ProviderSelector';
 
-export default function OnboardingPage({ onProviderSetup }: { onProviderSetup?: () => void }) {
-  const navigate = useNavigate();
-  const { upsert, getProviders } = useConfig();
+interface OnboardingGuardProps {
+  children: React.ReactNode;
+}
 
+export default function OnboardingGuard({ children }: OnboardingGuardProps) {
+  const navigate = useNavigate();
+  const { read, upsert, getProviders } = useConfig();
+  const { refreshCurrentModelAndProvider } = useModelAndProvider();
+
+  const [isChecking, setIsChecking] = useState(true);
+  const [hasProvider, setHasProvider] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
+
+  useEffect(() => {
+    const checkProvider = async () => {
+      try {
+        const provider = ((await read('GOOSE_PROVIDER', false)) as string) || '';
+        setHasProvider(provider.trim() !== '');
+      } catch (error) {
+        console.error('Error checking provider:', error);
+        setHasProvider(false);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    checkProvider();
+  }, [read]);
 
   const handleConfigured = async (providerName: string) => {
     const metadata = await getProviderMetadata(providerName, getProviders);
     await upsert('GOOSE_PROVIDER', providerName, false);
     await upsert('GOOSE_MODEL', metadata.default_model, false);
-    onProviderSetup?.();
+    await refreshCurrentModelAndProvider();
+    setHasProvider(true);
     navigate('/', { replace: true });
   };
 
   const handleOllamaSetup = () => {
     // TODO: integrate with existing OllamaSetup component
-    navigate('/', { replace: true });
+    setHasProvider(true);
   };
+
+  if (isChecking) {
+    return null;
+  }
+
+  if (hasProvider) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="h-screen w-full bg-background-default overflow-hidden">
