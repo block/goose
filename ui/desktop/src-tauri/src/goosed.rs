@@ -251,7 +251,7 @@ pub async fn start_goosed(
     Ok(base_url)
 }
 
-fn is_fatal_error(line: &str) -> bool {
+pub(crate) fn is_fatal_error(line: &str) -> bool {
     let patterns = ["panicked at", "RUST_BACKTRACE", "fatal error"];
     patterns.iter().any(|p| line.contains(p))
 }
@@ -269,5 +269,104 @@ pub fn stop_goosed(state: &GoosedState) {
         {
             let _ = child.start_kill();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── is_fatal_error ───────────────────────────────────────────────
+
+    #[test]
+    fn fatal_error_detects_panic() {
+        assert!(is_fatal_error("thread 'main' panicked at 'index out of bounds'"));
+    }
+
+    #[test]
+    fn fatal_error_detects_backtrace() {
+        assert!(is_fatal_error("Set RUST_BACKTRACE=1 for more info"));
+    }
+
+    #[test]
+    fn fatal_error_detects_fatal() {
+        assert!(is_fatal_error("fatal error: something went wrong"));
+    }
+
+    #[test]
+    fn fatal_error_normal_log_line() {
+        assert!(!is_fatal_error("INFO: Server started on port 3000"));
+    }
+
+    #[test]
+    fn fatal_error_empty_string() {
+        assert!(!is_fatal_error(""));
+    }
+
+    #[test]
+    fn fatal_error_warning_not_fatal() {
+        assert!(!is_fatal_error("WARN: connection timeout after 5s"));
+    }
+
+    // ── GoosedState default ──────────────────────────────────────────
+
+    #[test]
+    fn goosed_state_default_has_no_port() {
+        let state = GoosedState::default();
+        assert!(state.port.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn goosed_state_default_has_no_base_url() {
+        let state = GoosedState::default();
+        assert!(state.base_url.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn goosed_state_default_has_uuid_secret_key() {
+        let state = GoosedState::default();
+        let key = state.secret_key.lock().unwrap();
+        // UUID v4 format: 8-4-4-4-12 hex chars with hyphens
+        assert_eq!(key.len(), 36);
+        assert_eq!(key.chars().filter(|c| *c == '-').count(), 4);
+    }
+
+    #[test]
+    fn goosed_state_default_has_no_process() {
+        let state = GoosedState::default();
+        assert!(state.process.lock().unwrap().is_none());
+    }
+
+    // ── build_goosed_env ─────────────────────────────────────────────
+
+    #[test]
+    fn build_goosed_env_sets_port() {
+        let path = PathBuf::from("/usr/local/bin/goosed");
+        let env = build_goosed_env(3001, "test-secret", &path);
+        assert_eq!(env.get("GOOSE_PORT"), Some(&"3001".to_string()));
+    }
+
+    #[test]
+    fn build_goosed_env_sets_secret_key() {
+        let path = PathBuf::from("/usr/local/bin/goosed");
+        let env = build_goosed_env(3000, "my-secret", &path);
+        assert_eq!(env.get("GOOSE_SERVER__SECRET_KEY"), Some(&"my-secret".to_string()));
+    }
+
+    #[test]
+    fn build_goosed_env_sets_home() {
+        let path = PathBuf::from("/usr/local/bin/goosed");
+        let env = build_goosed_env(3000, "secret", &path);
+        assert!(env.contains_key("HOME"));
+        assert!(!env["HOME"].is_empty());
+    }
+
+    #[test]
+    fn build_goosed_env_adds_binary_dir_to_path() {
+        let path = PathBuf::from("/opt/goose/bin/goosed");
+        let env = build_goosed_env(3000, "secret", &path);
+        let path_key = if cfg!(target_os = "windows") { "Path" } else { "PATH" };
+        let path_val = env.get(path_key).expect("PATH should be set");
+        assert!(path_val.contains("/opt/goose/bin"));
     }
 }
