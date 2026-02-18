@@ -4279,6 +4279,7 @@ dependencies = [
  "fs-err",
  "futures",
  "goose",
+ "goose-acp-macros",
  "goose-mcp",
  "goose-test-support",
  "http-body-util",
@@ -4298,6 +4299,15 @@ dependencies = [
  "url",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "goose-acp-macros"
+version = "1.24.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
 ]
 
 [[package]]

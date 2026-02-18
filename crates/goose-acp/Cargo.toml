@@ -41,6 +41,7 @@ bytes = { workspace = true }
 http-body-util = "0.1.3"
 uuid = { workspace = true, features = ["v7"] }
 schemars = { workspace = true, features = ["derive"] }
+goose-acp-macros = { version = "1.24.0", path = "../goose-acp-macros" }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
