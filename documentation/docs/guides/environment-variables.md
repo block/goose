@@ -575,7 +575,8 @@ These variables are automatically set by goose during command execution.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables customizing shell behavior | "1" when set | Unset |
+| `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables [customizing shell behavior](#customizing-shell-behavior) | "1" when set | Unset |
+| `AGENT_SESSION_ID` | The current session ID for [session-isolated workflows](#using-session-ids-in-workflows), automatically available to STDIO extensions and the Developer extension shell commands | Session ID string (e.g., `20260217_5`) | Unset (only set in extension/shell contexts) |
 
 ### Customizing Shell Behavior
 
@@ -607,6 +608,24 @@ fi
 if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
 fi
+```
+
+### Using Session IDs in Workflows
+
+STDIO extensions (local extensions that communicate via standard input/output) and the Developer extension's shell commands automatically receive the `AGENT_SESSION_ID` environment variable. This enables you to create session-isolated workflows and make it easier to:
+- Coordinate work across multiple tool calls using session-isolated handoff paths
+- Isolate worktrees or temporary files by session
+- Debug correlation between artifacts and session history
+
+The following example shows how a recipe might use the session ID to hand off information between steps:
+
+```bash
+# Create session-specific handoff directory
+mkdir -p ~/Desktop/${AGENT_SESSION_ID}/handoff
+echo "Results from step 1" > ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
+
+# Later steps in the recipe can read from the same location
+cat ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
 ```
 
 ## Enterprise Environments
