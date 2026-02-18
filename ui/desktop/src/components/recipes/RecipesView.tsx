@@ -18,11 +18,10 @@ import {
   ChevronRight,
   GitBranch,
 } from 'lucide-react';
-import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
-import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { PageShell } from '../Layout/PageShell';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import {
@@ -782,34 +781,25 @@ export default function RecipesView() {
 
   return (
     <>
-      <MainPanelLayout>
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
-            <div className="flex flex-col page-transition">
-              <div className="flex justify-between items-center mb-1">
-                <h1 className="text-4xl font-light">Recipes</h1>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => setShowCreateDialog(true)}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Create Recipe
-                  </Button>
-                  <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
-                </div>
-              </div>
-              <p className="text-sm text-text-muted mb-1">
-                View and manage your saved recipes to quickly start new sessions with predefined
-                configurations. {getSearchShortcutText()} to search.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex-1 min-h-0 relative px-8">
-            <ScrollArea className="h-full">
+      <PageShell
+        stickyHeader
+        title="Recipes"
+        subtitle={`View and manage your saved recipes to quickly start new sessions with predefined configurations. ${getSearchShortcutText()} to search.`}
+        actions={
+          <>
+            <Button
+              onClick={() => setShowCreateDialog(true)}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              Create Recipe
+            </Button>
+            <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
+          </>
+        }
+      >
               <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search recipes...">
                 <div
                   className={`h-full relative transition-all duration-300 ${
@@ -819,10 +809,7 @@ export default function RecipesView() {
                   {renderContent()}
                 </div>
               </SearchView>
-            </ScrollArea>
-          </div>
-        </div>
-      </MainPanelLayout>
+      </PageShell>
 
       {showEditor && selectedRecipe && (
         <CreateEditRecipeModal

@@ -17,6 +17,7 @@ import {
   Rocket,
   Activity,
 } from 'lucide-react';
+import { PageShell } from '../Layout/PageShell';
 import {
   listAgents,
   connectAgent,
@@ -312,42 +313,29 @@ export default function AgentsView() {
   // ── Render ────────────────────────────────────────────────────
 
   return (
-    <div className="h-full overflow-hidden flex flex-col">
-      <div className="max-w-5xl mx-auto w-full p-6 flex flex-col flex-1 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2.5">
-              <Bot className="w-7 h-7 text-blue-500" />
-              Agents
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {agents.length} agent{agents.length !== 1 ? 's' : ''} available
-              {runningCount > 0 && (
-                <>
-                  {' · '}
-                  <span className="text-cyan-500 font-medium">{runningCount} running</span>
-                </>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            {activeTab === 'catalog' && (
-              <button
-                onClick={() => setShowConnect(!showConnect)}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Connect Agent
-              </button>
-            )}
-            {activeTab === 'instances' && (
-              <button
-                onClick={() => {
-                  setSpawnDefaultPersona('');
-                  setSpawnModalOpen(true);
-                }}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+    <>
+    <PageShell
+      stickyHeader
+      title="Agents"
+      subtitle={`${agents.length} agent${agents.length !== 1 ? 's' : ''} available${runningCount > 0 ? ` · ${runningCount} running` : ''}`}
+      actions={
+        <>
+          {activeTab === 'catalog' && (
+            <button
+              onClick={() => setShowConnect(!showConnect)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Connect Agent
+            </button>
+          )}
+          {activeTab === 'instances' && (
+            <button
+              onClick={() => {
+                setSpawnDefaultPersona('');
+                setSpawnModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >
                 <Rocket className="w-4 h-4" />
                 Deploy Instance
@@ -365,8 +353,9 @@ export default function AgentsView() {
                 className={`w-4 h-4 ${loading || instancesLoading ? 'animate-spin' : ''}`}
               />
             </button>
-          </div>
-        </div>
+        </>
+      }
+    >
 
         {/* Tabs */}
         <div className="mb-6">
@@ -723,9 +712,8 @@ export default function AgentsView() {
             )}
           </div>
         )}
-      </div>
+      </PageShell>
 
-      {/* Spawn modal */}
       <SpawnInstanceModal
         open={spawnModalOpen}
         onClose={() => setSpawnModalOpen(false)}
@@ -733,6 +721,6 @@ export default function AgentsView() {
         defaultPersona={spawnDefaultPersona}
         personas={personas}
       />
-    </div>
+    </>
   );
 }

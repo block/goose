@@ -22,7 +22,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
-import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { PageShell } from '../Layout/PageShell';
 import { groupSessionsByDate, groupSessionsByProjectThenDate, type DateGroup, type ProjectGroup } from '../../utils/dateUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { Skeleton } from '../ui/skeleton';
@@ -882,41 +882,33 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     return (
       <>
-        <MainPanelLayout>
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="bg-background-default px-8 pb-8 pt-16">
-              <div className="flex flex-col page-transition">
-                <div className="flex justify-between items-center mb-1">
-                  <h1 className="text-4xl font-light">Chat history</h1>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => setGroupByProject((prev) => !prev)}
-                      variant={groupByProject ? 'default' : 'outline'}
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <Folder className="w-4 h-4" />
-                      By Project
-                    </Button>
-                    <Button
-                      onClick={handleImportClick}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <Upload className="w-4 h-4" />
-                      Import Session
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose. {getSearchShortcutText()} to
-                  search.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex-1 min-h-0 relative px-8">
+        <PageShell
+          stickyHeader
+          title="Chat history"
+          subtitle={`View and search your past conversations with Goose. ${getSearchShortcutText()} to search.`}
+          actions={
+            <>
+              <Button
+                onClick={() => setGroupByProject((prev) => !prev)}
+                variant={groupByProject ? 'default' : 'outline'}
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Folder className="w-4 h-4" />
+                By Project
+              </Button>
+              <Button
+                onClick={handleImportClick}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                Import Session
+              </Button>
+            </>
+          }
+        >
               <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
                 <div ref={containerRef} className="h-full relative">
                   <SearchView
@@ -983,9 +975,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                   </SearchView>
                 </div>
               </ScrollArea>
-            </div>
-          </div>
-        </MainPanelLayout>
+        </PageShell>
 
         <input
           ref={fileInputRef}

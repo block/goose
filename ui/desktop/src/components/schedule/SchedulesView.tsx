@@ -11,7 +11,6 @@ import {
   inspectRunningJob,
   ScheduledJob,
 } from '../../schedule';
-import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
@@ -22,7 +21,7 @@ import { toastError, toastSuccess } from '../../toasts';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { errorMessage } from '../../utils/conversionUtils';
-import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { PageShell } from '../Layout/PageShell';
 import { ViewOptions } from '../../utils/navigationUtils';
 import { trackScheduleCreated, trackScheduleDeleted, getErrorType } from '../../utils/analytics';
 
@@ -440,45 +439,36 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
 
   return (
     <>
-      <MainPanelLayout>
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
-            <div className="flex flex-col page-transition">
-              <div className="flex justify-between items-center mb-1">
-                <h1 className="text-4xl font-light">Scheduler</h1>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleRefresh}
-                    disabled={isRefreshing || isLoading}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setSubmitApiError(null);
-                      setIsModalOpen(true);
-                    }}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create Schedule
-                  </Button>
-                </div>
-              </div>
-              <p className="text-sm text-text-muted mb-1">
-                Create and manage scheduled tasks to run recipes automatically at specified times.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex-1 min-h-0 relative px-8">
-            <ScrollArea className="h-full">
-              <div className="h-full relative">
+      <PageShell
+        stickyHeader
+        title="Scheduler"
+        subtitle="Create and manage scheduled tasks to run recipes automatically at specified times."
+        actions={
+          <>
+            <Button
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLoading}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            <Button
+              onClick={() => {
+                setSubmitApiError(null);
+                setIsModalOpen(true);
+              }}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Create Schedule
+            </Button>
+          </>
+        }
+      >
                 {apiError && (
                   <div className="mb-4 p-4 bg-background-danger border border-border-danger rounded-md">
                     <p className="text-text-danger text-sm">Error: {apiError}</p>
@@ -520,11 +510,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                     ))}
                   </div>
                 )}
-              </div>
-            </ScrollArea>
-          </div>
-        </div>
-      </MainPanelLayout>
+      </PageShell>
 
       <ScheduleModal
         isOpen={isModalOpen}
