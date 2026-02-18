@@ -739,7 +739,8 @@ async fn execute_job(
     let config = Config::global();
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
-    let model_config = crate::model::ModelConfig::new(&model_name)?;
+    let model_config =
+        crate::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
 
     let session = agent
         .config

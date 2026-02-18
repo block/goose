@@ -12,7 +12,7 @@ interface ProviderSetupActionsProps {
   onCancelDelete?: () => void;
   canDelete?: boolean;
   providerName?: string;
-  requiredParameters?: ConfigKey[];
+  primaryParameters?: ConfigKey[];
   isActiveProvider?: boolean; // Made optional with default false
 }
 
@@ -29,7 +29,7 @@ export default function ProviderSetupActions({
   onCancelDelete,
   canDelete,
   providerName,
-  requiredParameters,
+  primaryParameters,
   isActiveProvider = false, // Default value provided
 }: ProviderSetupActionsProps) {
   // If we're showing delete confirmation, render the delete confirmation buttons
@@ -96,7 +96,7 @@ export default function ProviderSetupActions({
           <Trash2 className="h-4 w-4 mr-2" /> Delete Provider
         </Button>
       )}
-      {requiredParameters && requiredParameters.length > 0 ? (
+      {primaryParameters && primaryParameters.length > 0 ? (
         <>
           <Button
             type="submit"

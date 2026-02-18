@@ -1,6 +1,7 @@
 name: "Bundle Desktop (Windows)"
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       version:

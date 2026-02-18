@@ -1224,53 +1224,14 @@ impl Provider for LocalInferenceProvider {
         Ok(all_models)
     }
 
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        _model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        use futures::StreamExt;
-
-        let mut stream = self
-            .stream(session_id.unwrap_or(""), system, messages, tools)
-            .await?;
-
-        let mut accumulated_message = Message::assistant();
-        let mut final_usage = None;
-
-        while let Some(result) = stream.next().await {
-            let (message_opt, usage_opt) = result?;
-
-            if let Some(msg) = message_opt {
-                accumulated_message.id = msg.id.or(accumulated_message.id);
-                for content in msg.content {
-                    accumulated_message.content.push(content);
-                }
-            }
-
-            if let Some(usage) = usage_opt {
-                final_usage = Some(usage);
-            }
-        }
-
-        let usage = final_usage.ok_or_else(|| {
-            ProviderError::ExecutionError("Stream ended without usage information".to_string())
-        })?;
-
-        Ok((accumulated_message, usage))
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let model_config = &self.model_config;
         let (_model_path, model_context_limit, model_settings) =
             resolve_model_path(&model_config.model_name).ok_or_else(|| {
                 ProviderError::ExecutionError(format!(
@@ -2086,10 +2047,6 @@ impl Provider for LocalInferenceProvider {
             }
 
         }))
-    }
-
-    fn supports_streaming(&self) -> bool {
-        true
     }
 }
 

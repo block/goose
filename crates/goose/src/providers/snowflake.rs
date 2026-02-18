@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -307,8 +309,8 @@ impl ProviderDef for SnowflakeProvider {
             SNOWFLAKE_KNOWN_MODELS.to_vec(),
             SNOWFLAKE_DOC_URL,
             vec![
-                ConfigKey::new("SNOWFLAKE_HOST", true, false, None),
-                ConfigKey::new("SNOWFLAKE_TOKEN", true, true, None),
+                ConfigKey::new("SNOWFLAKE_HOST", true, false, None, true),
+                ConfigKey::new("SNOWFLAKE_TOKEN", true, true, None, true),
             ],
         )
     }
@@ -342,14 +344,19 @@ impl Provider for SnowflakeProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let payload = create_request(model_config, system, messages, tools)?;
 
         let mut log = RequestLog::start(&self.model, &payload)?;
@@ -367,6 +374,10 @@ impl Provider for SnowflakeProvider {
 
         log.write(&response, Some(&usage))?;
 
-        Ok((message, ProviderUsage::new(response_model, usage)))
+        let provider_usage = ProviderUsage::new(response_model, usage);
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }
