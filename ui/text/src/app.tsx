@@ -3,11 +3,11 @@ import { Box, Text, useApp, useInput, useStdout } from "ink";
 import TextInput from "ink-text-input";
 import {
   ClientSideConnection,
+  createHttpStream,
   type SessionNotification,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
-} from "@agentclientprotocol/sdk";
-import { createHttpStream } from "./transport.js";
+} from "@goose/acp";
 
 // ── New England palette ─────────────────────────────────────────────
 const NAVY = "#1B3A5C";
