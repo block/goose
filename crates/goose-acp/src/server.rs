@@ -1005,103 +1005,116 @@ impl JrMessageHandler for GooseAcpHandler {
         "goose-acp"
     }
 
-    async fn handle_message(
+    fn handle_message(
         &mut self,
         message: MessageCx,
         cx: JrConnectionCx<AgentToClient>,
-    ) -> Result<Handled<MessageCx>, sacp::Error> {
+    ) -> impl std::future::Future<Output = Result<Handled<MessageCx>, sacp::Error>> + Send {
         use sacp::util::MatchMessageFrom;
         use sacp::JrRequestCx;
 
-        MatchMessageFrom::new(message, &cx)
-            .if_request(
-                |req: InitializeRequest, req_cx: JrRequestCx<InitializeResponse>| async {
-                    req_cx.respond(self.agent.on_initialize(req).await?)
-                },
-            )
-            .await
-            .if_request(
-                |_req: AuthenticateRequest, req_cx: JrRequestCx<AuthenticateResponse>| async {
-                    req_cx.respond(AuthenticateResponse::new())
-                },
-            )
-            .await
-            .if_request(
-                |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
-                    req_cx.respond(self.agent.on_new_session(req).await?)
-                },
-            )
-            .await
-            .if_request(
-                |req: LoadSessionRequest, req_cx: JrRequestCx<LoadSessionResponse>| async {
-                    req_cx.respond(self.agent.on_load_session(req, &cx).await?)
-                },
-            )
-            .await
-            .if_request(
-                |req: PromptRequest, req_cx: JrRequestCx<PromptResponse>| async {
-                    let agent = self.agent.clone();
-                    let cx_clone = cx.clone();
-                    cx.spawn(async move {
-                        match agent.on_prompt(req, &cx_clone).await {
-                            Ok(response) => {
-                                req_cx.respond(response)?;
+        let agent = self.agent.clone();
+
+        // The MatchMessageFrom chain produces an ~85KB async state machine.
+        // Box::pin moves it to the heap so it doesn't overflow the tokio worker stack.
+        Box::pin(async move {
+            MatchMessageFrom::new(message, &cx)
+                .if_request(
+                    |req: InitializeRequest, req_cx: JrRequestCx<InitializeResponse>| async {
+                        req_cx.respond(agent.on_initialize(req).await?)
+                    },
+                )
+                .await
+                .if_request(
+                    |_req: AuthenticateRequest, req_cx: JrRequestCx<AuthenticateResponse>| async {
+                        req_cx.respond(AuthenticateResponse::new())
+                    },
+                )
+                .await
+                .if_request(
+                    |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
+                        req_cx.respond(agent.on_new_session(req).await?)
+                    },
+                )
+                .await
+                .if_request(
+                    |req: LoadSessionRequest, req_cx: JrRequestCx<LoadSessionResponse>| async {
+                        req_cx.respond(agent.on_load_session(req, &cx).await?)
+                    },
+                )
+                .await
+                .if_request(
+                    |req: PromptRequest, req_cx: JrRequestCx<PromptResponse>| async {
+                        let agent = agent.clone();
+                        let cx_clone = cx.clone();
+                        cx.spawn(async move {
+                            match agent.on_prompt(req, &cx_clone).await {
+                                Ok(response) => {
+                                    req_cx.respond(response)?;
+                                }
+                                Err(e) => {
+                                    req_cx.respond_with_error(e)?;
+                                }
                             }
-                            Err(e) => {
-                                req_cx.respond_with_error(e)?;
-                            }
-                        }
-                        Ok(())
-                    })?;
-                    Ok(())
-                },
-            )
-            .await
-            .if_notification(|notif: CancelNotification| async {
-                self.agent.on_cancel(notif).await
-            })
-            .await
-            // HACK: sacp doesn't support session/set_model yet, so we handle it as untyped JSON.
-            .otherwise({
-                let agent = self.agent.clone();
-                |message: MessageCx| async move {
-                    match message {
-                        MessageCx::Request(req, request_cx)
-                            if req.method == "session/set_model" =>
-                        {
-                            let params: SetSessionModelRequest = serde_json::from_value(req.params)
-                                .map_err(|e| sacp::Error::invalid_params().data(e.to_string()))?;
-                            let resp = agent
-                                .on_set_model(&params.session_id.0, &params.model_id.0)
-                                .await?;
-                            let json = serde_json::to_value(resp)
-                                .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
-                            request_cx.respond(json)?;
                             Ok(())
+                        })?;
+                        Ok(())
+                    },
+                )
+                .await
+                .if_notification(|notif: CancelNotification| async { agent.on_cancel(notif).await })
+                .await
+                // HACK: sacp doesn't support session/set_model yet, so we handle it as untyped JSON.
+                .otherwise({
+                    let agent = agent.clone();
+                    |message: MessageCx| async move {
+                        match message {
+                            MessageCx::Request(req, request_cx)
+                                if req.method == "session/set_model" =>
+                            {
+                                let params: SetSessionModelRequest =
+                                    serde_json::from_value(req.params).map_err(|e| {
+                                        sacp::Error::invalid_params().data(e.to_string())
+                                    })?;
+                                let resp = agent
+                                    .on_set_model(&params.session_id.0, &params.model_id.0)
+                                    .await?;
+                                let json = serde_json::to_value(resp).map_err(|e| {
+                                    sacp::Error::internal_error().data(e.to_string())
+                                })?;
+                                request_cx.respond(json)?;
+                                Ok(())
+                            }
+                            _ => Err(sacp::Error::method_not_found()),
                         }
-                        _ => Err(sacp::Error::method_not_found()),
                     }
-                }
-            })
-            .await
-            .map(|()| Handled::Yes)
+                })
+                .await
+                .map(|()| Handled::Yes)
+        })
     }
 }
 
-pub async fn serve<R, W>(agent: Arc<GooseAcpAgent>, read: R, write: W) -> Result<()>
+pub fn serve<R, W>(
+    agent: Arc<GooseAcpAgent>,
+    read: R,
+    write: W,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>>
 where
     R: futures::AsyncRead + Unpin + Send + 'static,
     W: futures::AsyncWrite + Unpin + Send + 'static,
 {
-    let handler = GooseAcpHandler { agent };
+    Box::pin(async move {
+        let handler = GooseAcpHandler { agent };
 
-    AgentToClient::builder()
-        .name("goose-acp")
-        .with_handler(handler)
-        .serve(ByteStreams::new(write, read))
-        .await?;
+        AgentToClient::builder()
+            .name("goose-acp")
+            .with_handler(handler)
+            .serve(ByteStreams::new(write, read))
+            .await?;
 
-    Ok(())
+        Ok(())
+    })
 }
 
 pub async fn run(builtins: Vec<String>) -> Result<()> {
