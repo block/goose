@@ -233,6 +233,9 @@ export const LocalInferenceSettings = () => {
           <div className="space-y-2">
             {Array.from(downloads.entries()).map(([modelId, progress]) => {
               if (progress.status === 'completed') return null;
+              // Find the model to get the display name
+              const model = featuredModels.find((m) => m.id === modelId);
+              const displayName = model?.display_name || modelId;
               return (
                 <div
                   key={modelId}
@@ -240,7 +243,7 @@ export const LocalInferenceSettings = () => {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-text-default truncate">
-                      {modelId}
+                      {displayName}
                     </span>
                     {progress.status === 'downloading' && (
                       <Button
@@ -264,9 +267,12 @@ export const LocalInferenceSettings = () => {
                       <div className="flex justify-between text-xs text-text-muted">
                         <span>
                           {formatBytes(progress.bytes_downloaded)} /{' '}
-                          {formatBytes(progress.total_bytes)}
+                          {formatBytes(progress.total_bytes)} (
+                          {progress.progress_percent.toFixed(0)}%)
                         </span>
-                        <span>{progress.progress_percent.toFixed(0)}%</span>
+                        {progress.speed_bps && progress.speed_bps > 0 && (
+                          <span>{formatBytes(progress.speed_bps)}/s</span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -354,10 +360,9 @@ export const LocalInferenceSettings = () => {
             const downloaded = isDownloaded(model);
             const isDownloading =
               downloads.has(model.id) && downloads.get(model.id)?.status === 'downloading';
-            const progress = downloads.get(model.id);
 
-            // Skip if already shown in downloaded section
-            if (downloaded) return null;
+            // Skip if already shown in downloaded or downloading section
+            if (downloaded || isDownloading) return null;
 
             return (
               <div
@@ -408,28 +413,6 @@ export const LocalInferenceSettings = () => {
                     )}
                   </div>
                 </div>
-
-                {isDownloading && progress && (
-                  <div className="mt-2 space-y-1">
-                    <div className="w-full bg-background-subtle rounded-full h-1.5">
-                      <div
-                        className="bg-accent-primary h-1.5 rounded-full transition-all"
-                        style={{ width: `${progress.progress_percent}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs text-text-muted">
-                      <span>
-                        {formatBytes(progress.bytes_downloaded)} /{' '}
-                        {formatBytes(progress.total_bytes)}
-                      </span>
-                      {progress.speed_bps && <span>{formatBytes(progress.speed_bps)}/s</span>}
-                    </div>
-                  </div>
-                )}
-
-                {progress?.status === 'failed' && progress.error && (
-                  <div className="mt-2 text-xs text-destructive">{progress.error}</div>
-                )}
               </div>
             );
           })}
