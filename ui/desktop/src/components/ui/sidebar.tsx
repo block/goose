@@ -238,116 +238,25 @@ function Sidebar({
           {children}
         </div>
         {/* Side strip — thin clickable edge to fold/unfold */}
-        <SidebarDragHandle />
+        <SidebarToggleStrip />
       </div>
     </div>
   );
 }
 
-const SIDEBAR_PX = 192; // 12rem (expanded width)
-const SIDEBAR_ICON_PX = 38; // icon-only width
-const DRAG_DEADZONE = 4; // px before drag activates
 
-// Snap at 30% of the range (~84px) — short drag to fold, longer to unfold
-const SNAP_THRESHOLD = SIDEBAR_ICON_PX + (SIDEBAR_PX - SIDEBAR_ICON_PX) * 0.3;
-
-const getSidebarRoot = (el: HTMLElement) =>
-  el.closest('[data-slot="sidebar"][data-state]') as HTMLElement | null;
-
-// Rubber-band: resist movement past edges for a physical feel
-function rubberBand(value: number, min: number, max: number): number {
-  if (value < min) return min - (min - value) * 0.3;
-  if (value > max) return max + (value - max) * 0.3;
-  return value;
-}
-
-function SidebarDragHandle() {
-  const { toggleSidebar, state, setOpen } = useSidebar();
+function SidebarToggleStrip() {
+  const { toggleSidebar, state } = useSidebar();
   const isCollapsed = state === 'collapsed';
-  const dragRef = React.useRef<{
-    pointerId: number | null;
-    startX: number;
-    startWidth: number;
-    dragging: boolean;
-  }>({ pointerId: null, startX: 0, startWidth: SIDEBAR_PX, dragging: false });
-  const [isDragging, setIsDragging] = React.useState(false);
-
-  const onPointerDown = React.useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startWidth: isCollapsed ? SIDEBAR_ICON_PX : SIDEBAR_PX,
-      dragging: false,
-    };
-  }, [isCollapsed]);
-
-  const onPointerMove = React.useCallback((e: React.PointerEvent) => {
-    if (dragRef.current.pointerId !== e.pointerId) return;
-    const dx = e.clientX - dragRef.current.startX;
-
-    if (!dragRef.current.dragging && Math.abs(dx) > DRAG_DEADZONE) {
-      dragRef.current.dragging = true;
-      setIsDragging(true);
-    }
-    if (!dragRef.current.dragging) return;
-
-    const sidebar = getSidebarRoot(e.currentTarget as HTMLElement);
-    if (!sidebar) return;
-
-    const side = sidebar.getAttribute('data-side');
-    const signedDx = side === 'right' ? -dx : dx;
-    const raw = dragRef.current.startWidth + signedDx;
-    const next = rubberBand(raw, SIDEBAR_ICON_PX, SIDEBAR_PX);
-
-    // Disable CSS transition during drag for immediate feedback
-    sidebar.style.setProperty('transition', 'none');
-    sidebar.style.setProperty('--sidebar-width', `${next}px`);
-  }, []);
-
-  const endDrag = React.useCallback((e: React.PointerEvent, cancelled = false) => {
-    if (dragRef.current.pointerId !== e.pointerId) return;
-    const wasDragging = dragRef.current.dragging;
-    dragRef.current.pointerId = null;
-    dragRef.current.dragging = false;
-    setIsDragging(false);
-
-    const sidebar = getSidebarRoot(e.currentTarget as HTMLElement);
-
-    if (cancelled) {
-      if (sidebar) {
-        sidebar.style.removeProperty('--sidebar-width');
-        sidebar.style.removeProperty('transition');
-      }
-      return;
-    }
-
-    if (wasDragging && sidebar) {
-      const current = parseFloat(getComputedStyle(sidebar).getPropertyValue('--sidebar-width'));
-      const shouldOpen = current >= SNAP_THRESHOLD;
-
-      // Re-enable transition for smooth snap animation
-      sidebar.style.removeProperty('transition');
-      sidebar.style.removeProperty('--sidebar-width');
-      setOpen(shouldOpen);
-    } else {
-      if (sidebar) sidebar.style.removeProperty('transition');
-      toggleSidebar();
-    }
-  }, [toggleSidebar, setOpen]);
 
   return (
     <div
-      data-sidebar="drag-handle"
+      data-sidebar="toggle-strip"
       role="button"
       tabIndex={0}
       aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       aria-expanded={!isCollapsed}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={(e) => endDrag(e)}
-      onPointerCancel={(e) => endDrag(e, true)}
+      onClick={toggleSidebar}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -355,25 +264,24 @@ function SidebarDragHandle() {
         }
       }}
       className={cn(
-        'group/sidebar-drag absolute top-0 right-0 z-20 h-full w-[1px] select-none touch-none',
-        'transition-colors duration-150',
-        'bg-border-default hover:w-[4px] hover:bg-border-strong',
-        isDragging ? 'cursor-grabbing w-[4px] bg-border-strong' : 'cursor-col-resize',
+        'group/sidebar-strip absolute top-0 right-0 z-20 h-full',
+        'w-[6px] cursor-pointer select-none',
+        'transition-all duration-200',
+        'bg-border-default/40',
+        'hover:w-[8px] hover:bg-border-strong/70',
+        'active:bg-border-strong',
       )}
     >
-      {/* Wider invisible hit area for easier grabbing */}
-      <div className="absolute top-0 -left-[5px] -right-[5px] h-full" />
-      {/* Chevron indicator at center — appears on hover */}
+      {/* Chevron indicator — visible on hover */}
       <div
         className={cn(
           'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
           'flex items-center justify-center',
-          'w-[14px] h-[28px] rounded-full',
-          'text-[10px] leading-none select-none pointer-events-none',
-          'transition-all duration-150',
+          'w-[16px] h-[28px] rounded-full',
+          'text-[11px] leading-none select-none pointer-events-none',
+          'transition-all duration-200',
           'text-transparent',
-          'group-hover/sidebar-drag:text-text-muted group-hover/sidebar-drag:bg-background-muted',
-          isDragging && 'text-text-default bg-background-active',
+          'group-hover/sidebar-strip:text-text-muted group-hover/sidebar-strip:bg-background-muted',
         )}
       >
         {isCollapsed ? '›' : '‹'}
