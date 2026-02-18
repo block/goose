@@ -251,6 +251,10 @@ export default function McpAppRenderer({
 
   const isStandalone = displayMode === 'standalone';
 
+  // Display modes the app declared support for during ui/initialize.
+  // null = not yet known (show all controls), empty = app didn't declare any.
+  const [appDeclaredModes, setAppDeclaredModes] = useState<string[] | null>(null);
+
   // Remember the inline iframe height when leaving inline mode so we can
   // size the placeholder and landing target correctly on return.
   const inlineHeightRef = useRef(DEFAULT_IFRAME_HEIGHT);
@@ -340,40 +344,40 @@ export default function McpAppRenderer({
     pipDragRef.current = null;
   }, []);
 
-  // Intercept app-initiated ui/request-display-mode requests.
-  // The SDK's default handler responds with hostContext.displayMode before we can update React
-  // state, so we listen for the raw postMessage, update our mode, and the subsequent
-  // hostContext change sends host-context-changed with the correct mode to the app.
+  // Intercept app postMessages for:
+  // 1. ui/initialize — extract appCapabilities.availableDisplayModes
+  // 2. ui/request-display-mode — change display mode on behalf of the app
   // We filter by event.source to only handle messages from iframes within our container.
   useEffect(() => {
     if (isStandalone) return;
 
     const handleMessage = (e: MessageEvent) => {
       const data = e.data;
-      if (
-        !data ||
-        typeof data !== 'object' ||
-        data.method !== 'ui/request-display-mode' ||
-        !data.params?.mode
-      ) {
-        return;
-      }
+      if (!data || typeof data !== 'object') return;
 
       // Only respond to messages from iframes owned by this instance.
-      // The SDK creates a sandbox proxy iframe inside our containerRef; messages
-      // may also be forwarded from a nested inner iframe, so we check all iframes.
       const container = containerRef.current;
       if (!container || !e.source) return;
-
       const iframes = container.querySelectorAll('iframe');
       const fromOurIframe = Array.from(iframes).some(
         (iframe) => iframe.contentWindow === e.source
       );
       if (!fromOurIframe) return;
 
-      const requested = data.params.mode as McpUiDisplayMode;
-      if (AVAILABLE_DISPLAY_MODES.includes(requested)) {
-        changeDisplayMode(requested);
+      // Extract app's declared display modes from ui/initialize
+      if (data.method === 'ui/initialize' && data.params) {
+        const caps = data.params.appCapabilities || data.params.capabilities;
+        if (caps?.availableDisplayModes && Array.isArray(caps.availableDisplayModes)) {
+          setAppDeclaredModes(caps.availableDisplayModes);
+        }
+      }
+
+      // Handle app-initiated display mode requests
+      if (data.method === 'ui/request-display-mode' && data.params?.mode) {
+        const requested = data.params.mode as McpUiDisplayMode;
+        if (AVAILABLE_DISPLAY_MODES.includes(requested)) {
+          changeDisplayMode(requested);
+        }
       }
     };
 
@@ -758,8 +762,14 @@ export default function McpAppRenderer({
     );
   };
 
-  // Host-side display mode control buttons (not shown in standalone or error/loading states)
-  const showControls = !isStandalone && !isError;
+  // Host-side display mode control buttons.
+  // Only show controls for modes the app declared support for (via appCapabilities.availableDisplayModes).
+  // If the app hasn't initialized yet (appDeclaredModes === null), don't show controls.
+  // Never show controls in standalone mode or error state.
+  const appSupportsFullscreen =
+    appDeclaredModes !== null && appDeclaredModes.includes('fullscreen');
+  const appSupportsPip = appDeclaredModes !== null && appDeclaredModes.includes('pip');
+  const showControls = !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip);
 
   const renderDisplayModeControls = () => {
     if (!showControls) return null;
@@ -767,13 +777,15 @@ export default function McpAppRenderer({
     if (activeDisplayMode === 'fullscreen') {
       return (
         <div className="no-drag absolute top-3 right-3 z-[60] flex gap-1">
-          <button
-            onClick={() => changeDisplayMode('pip')}
-            className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
-            title="Picture-in-Picture"
-          >
-            <PictureInPicture2 size={16} />
-          </button>
+          {appSupportsPip && (
+            <button
+              onClick={() => changeDisplayMode('pip')}
+              className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+              title="Picture-in-Picture"
+            >
+              <PictureInPicture2 size={16} />
+            </button>
+          )}
           <button
             onClick={() => changeDisplayMode('inline')}
             className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
@@ -788,13 +800,15 @@ export default function McpAppRenderer({
     if (activeDisplayMode === 'pip') {
       return (
         <div className="absolute top-2 right-2 z-10 flex gap-1">
-          <button
-            onClick={() => changeDisplayMode('fullscreen')}
-            className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
-            title="Fullscreen"
-          >
-            <Maximize2 size={14} />
-          </button>
+          {appSupportsFullscreen && (
+            <button
+              onClick={() => changeDisplayMode('fullscreen')}
+              className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+              title="Fullscreen"
+            >
+              <Maximize2 size={14} />
+            </button>
+          )}
           <button
             onClick={() => changeDisplayMode('inline')}
             className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
@@ -809,20 +823,24 @@ export default function McpAppRenderer({
     // Inline mode — show controls on hover
     return (
       <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover/mcp-app:opacity-100">
-        <button
-          onClick={() => changeDisplayMode('fullscreen')}
-          className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
-          title="Fullscreen"
-        >
-          <Maximize2 size={14} />
-        </button>
-        <button
-          onClick={() => changeDisplayMode('pip')}
-          className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
-          title="Picture-in-Picture"
-        >
-          <PictureInPicture2 size={14} />
-        </button>
+        {appSupportsFullscreen && (
+          <button
+            onClick={() => changeDisplayMode('fullscreen')}
+            className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+            title="Fullscreen"
+          >
+            <Maximize2 size={14} />
+          </button>
+        )}
+        {appSupportsPip && (
+          <button
+            onClick={() => changeDisplayMode('pip')}
+            className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+            title="Picture-in-Picture"
+          >
+            <PictureInPicture2 size={14} />
+          </button>
+        )}
       </div>
     );
   };
