@@ -589,7 +589,7 @@ Only add domains you trust. Each domain you add expands what external content ca
 
 ### Requesting Browser Permissions
 
-MCP Apps can request specific browser permissions using Permission Policy. This is useful for apps that need access to device capabilities like camera, microphone, or location services.
+MCP Apps can request specific browser permissions using Permission Policy. This is useful for apps that need access to device capabilities like camera, microphone, or location services. These are requests only - the host may not grant them, and apps should use feature detection to handle cases where permissions are unavailable.
 
 To declare permissions for your MCP App, include the `permissions` object in the resource's `_meta.ui` section:
 
