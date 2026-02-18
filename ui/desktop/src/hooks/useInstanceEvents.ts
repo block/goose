@@ -1,6 +1,6 @@
 /* global EventSource */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { createInstanceEventSourceUrl, InstanceEvent } from '../api/instances';
+import { createInstanceEventSourceUrl, InstanceEvent } from '../lib/instances';
 
 const MAX_EVENTS = 500;
 const RECONNECT_BASE_MS = 1000;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Activity, CheckCircle, XCircle, Ban } from 'lucide-react';
-import type { InstanceStatus } from '../../api/instances';
+import type { InstanceStatus } from '../../lib/instances';
 
 const statusConfig: Record<
   InstanceStatus,

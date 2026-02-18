@@ -6,7 +6,7 @@
  * 2. SSE/utility helpers that cannot be expressed in OpenAPI
  */
 
-import { client } from './client.gen';
+import { client } from '../api/client.gen';
 import {
   listInstances as sdkListInstances,
   spawnInstance as sdkSpawnInstance,
@@ -14,7 +14,7 @@ import {
   cancelInstance as sdkCancelInstance,
   getInstanceResult as sdkGetInstanceResult,
   listPersonas as sdkListPersonas,
-} from './sdk.gen';
+} from '../api/sdk.gen';
 
 // Re-export generated types so existing component imports keep working
 export type {
@@ -22,14 +22,14 @@ export type {
   InstanceResultResponse,
   SpawnInstanceRequest,
   PersonaSummary,
-} from './types.gen';
+} from '../api/types.gen';
 
 import type {
   InstanceResponse,
   InstanceResultResponse,
   PersonaSummary,
   SpawnInstanceRequest,
-} from './types.gen';
+} from '../api/types.gen';
 
 // --- Types that are NOT in the OpenAPI spec ---
 

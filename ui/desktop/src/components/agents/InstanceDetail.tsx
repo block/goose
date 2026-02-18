@@ -12,8 +12,8 @@ import {
   AlertTriangle,
   ExternalLink,
 } from 'lucide-react';
-import type { InstanceResponse, InstanceResultResponse, InstanceStatus } from '../../api/instances';
-import { getInstanceResult } from '../../api/instances';
+import type { InstanceResponse, InstanceResultResponse, InstanceStatus } from '../../lib/instances';
+import { getInstanceResult } from '../../lib/instances';
 import { InstanceStatusBadge } from './InstanceStatusBadge';
 import { InstanceEventLog } from './InstanceEventLog';
 import { useInstanceEvents } from '../../hooks/useInstanceEvents';

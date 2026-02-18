@@ -205,8 +205,6 @@ generate-openapi:
     cargo run -p goose-server --bin generate_schema
     @echo "Generating frontend API..."
     cd ui/desktop && npx @hey-api/openapi-ts
-    @echo "Restoring hand-written API files..."
-    git checkout HEAD -- ui/desktop/src/api/instances.ts 2>/dev/null || true
 
 # Generate manpages for the CLI
 generate-manpages:

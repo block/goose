@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Terminal, ArrowDownToLine, Pause } from 'lucide-react';
-import type { InstanceEvent } from '../../api/instances';
+import type { InstanceEvent } from '../../lib/instances';
 
 const eventTypeColors: Record<string, string> = {
   turn_start: 'text-blue-400',

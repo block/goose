@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Activity, Clock, Cpu, Rocket, Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
-import type { InstanceResponse, InstanceStatus } from '../../api/instances';
+import type { InstanceResponse, InstanceStatus } from '../../lib/instances';
 import { InstanceStatusBadge } from './InstanceStatusBadge';
 import { StatCard } from '../ui/design-system';
 

@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogClose,
 } from '../ui/dialog';
-import type { SpawnInstanceRequest } from '../../api/instances';
+import type { SpawnInstanceRequest } from '../../lib/instances';
 import { providers as fetchProviders, getProviderModels } from '../../api';
 import type { ProviderDetails } from '../../api';
 
