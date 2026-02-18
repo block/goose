@@ -4,6 +4,7 @@ use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::goose_apps::McpAppResource;
 use crate::goose_apps::{GooseApp, WindowProps};
+use crate::model::ModelConfig;
 use crate::prompt_template::render_template;
 use crate::providers::base::Provider;
 use async_trait::async_trait;
@@ -28,11 +29,76 @@ const DEFAULT_WINDOW_PROPS: WindowProps = WindowProps {
     height: 600,
     resizable: true,
 };
+const APP_LLM_MAX_TOKENS: i32 = 8000;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct CreateAppParams {
     /// What the app should do - a description or PRD that will be used to generate the app
     prd: String,
+}
+
+fn app_generation_model_config(provider: &dyn Provider) -> ModelConfig {
+    provider
+        .get_model_config()
+        .with_max_tokens(Some(APP_LLM_MAX_TOKENS))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::base::{ProviderUsage, Usage};
+    use crate::providers::errors::ProviderError;
+    use async_trait::async_trait;
+    use rmcp::model::Tool;
+
+    struct MockProvider {
+        config: ModelConfig,
+    }
+
+    #[async_trait]
+    impl Provider for MockProvider {
+        fn get_name(&self) -> &str {
+            "mock"
+        }
+
+        async fn complete_with_model(
+            &self,
+            _session_id: Option<&str>,
+            _model_config: &ModelConfig,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                Message::assistant().with_text(""),
+                ProviderUsage::new("mock".to_string(), Usage::default()),
+            ))
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.config.clone()
+        }
+    }
+
+    #[test]
+    fn app_generation_model_config_sets_max_tokens() {
+        let provider = MockProvider {
+            config: ModelConfig {
+                model_name: "mock".to_string(),
+                context_limit: None,
+                temperature: None,
+                max_tokens: None,
+                toolshim: false,
+                toolshim_model: None,
+                fast_model: None,
+                request_params: None,
+            },
+        };
+
+        let config = app_generation_model_config(&provider);
+
+        assert_eq!(config.max_tokens, Some(APP_LLM_MAX_TOKENS));
+    }
 }
 
 /// Parameters for iterate_app tool
@@ -273,6 +339,7 @@ impl AppsManagerClient {
         prd: &str,
     ) -> Result<CreateAppContentResponse, String> {
         let provider = self.get_provider().await?;
+        let model_config = app_generation_model_config(provider.as_ref());
 
         let existing_apps = self.list_stored_apps().unwrap_or_default();
         let existing_names = existing_apps.join(", ");
@@ -291,7 +358,13 @@ impl AppsManagerClient {
         let tools = vec![Self::create_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete(session_id, &system_prompt, &messages, &tools)
+            .complete_with_model(
+                Some(session_id),
+                &model_config,
+                &system_prompt,
+                &messages,
+                &tools,
+            )
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
@@ -306,6 +379,7 @@ impl AppsManagerClient {
         feedback: &str,
     ) -> Result<UpdateAppContentResponse, String> {
         let provider = self.get_provider().await?;
+        let model_config = app_generation_model_config(provider.as_ref());
 
         let context: HashMap<&str, &str> = HashMap::new();
         let system_prompt = render_template("apps_iterate.md", &context)
@@ -322,7 +396,13 @@ impl AppsManagerClient {
         let tools = vec![Self::update_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete(session_id, &system_prompt, &messages, &tools)
+            .complete_with_model(
+                Some(session_id),
+                &model_config,
+                &system_prompt,
+                &messages,
+                &tools,
+            )
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
