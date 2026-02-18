@@ -86,7 +86,7 @@
   --text-warning: var(--color-yellow-600);
   --text-info: var(--color-blue-600);
 
-  --placeholder: var(--color-neutral-400);
+  --placeholder: var(--color-text-muted);
 
   --ring: var(--border-strong);
 
@@ -138,7 +138,7 @@
   --text-warning: var(--color-yellow-100);
   --text-info: var(--color-blue-100);
 
-  --placeholder: var(--color-neutral-400);
+  --placeholder: var(--color-text-muted);
 
   --ring: var(--border-strong);
 
