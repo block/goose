@@ -118,6 +118,10 @@ impl PolicyEngine {
         Self { rules }
     }
 
+    pub fn rules(&self) -> &[PolicyRule] {
+        &self.rules
+    }
+
     pub fn evaluate(&self, user: &UserIdentity, action: &str, resource: &str) -> PolicyDecision {
         for rule in &self.rules {
             if rule.applies_to(user, action, resource) {

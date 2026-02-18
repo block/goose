@@ -116,6 +116,10 @@ impl QuotaManager {
     }
 
     /// Add a quota limit
+    pub async fn list_limits(&self) -> Vec<QuotaLimit> {
+        self.limits.read().await.clone()
+    }
+
     pub async fn add_limit(&self, limit: QuotaLimit) {
         self.limits.write().await.push(limit);
     }
@@ -251,11 +255,6 @@ impl QuotaManager {
                 true // No window-based limit, keep it
             }
         });
-    }
-
-    /// List all active limits
-    pub async fn list_limits(&self) -> Vec<QuotaLimit> {
-        self.limits.read().await.clone()
     }
 }
 

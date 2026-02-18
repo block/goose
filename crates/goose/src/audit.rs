@@ -193,11 +193,22 @@ impl AuditSink for InMemorySink {
 /// Multi-sink audit logger.
 pub struct AuditLogger {
     sinks: Vec<Arc<dyn AuditSink>>,
+    memory_sink: Arc<InMemorySink>,
 }
 
 impl AuditLogger {
     pub fn new() -> Self {
-        Self { sinks: vec![] }
+        let memory_sink = Arc::new(InMemorySink::new());
+        Self {
+            sinks: vec![Arc::new(TracingSink), memory_sink.clone()],
+            memory_sink,
+        }
+    }
+
+    pub async fn recent_events(&self, max: usize) -> Vec<AuditEvent> {
+        let all = self.memory_sink.events().await;
+        let start = all.len().saturating_sub(max);
+        all[start..].to_vec()
     }
 
     pub fn with_sink(mut self, sink: Arc<dyn AuditSink>) -> Self {

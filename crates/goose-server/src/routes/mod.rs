@@ -8,6 +8,7 @@ pub mod agent_management;
 pub mod analytics;
 pub mod auth_config;
 pub mod config_management;
+pub mod control_plane;
 pub mod dictation;
 pub mod errors;
 pub mod extension_routes;
@@ -71,6 +72,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(agent::routes(state.clone()))
         .merge(dictation::routes(state.clone()))
         .merge(config_management::routes(state.clone()))
+        .merge(control_plane::routes(state.clone()))
         .merge(prompts::routes())
         .merge(registry::routes())
         .merge(agent_card::routes(state.clone()))
