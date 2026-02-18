@@ -168,6 +168,8 @@ pub enum ResponsesStreamEvent {
     },
     #[serde(rename = "error")]
     Error { error: Value },
+    #[serde(rename = "keepalive")]
+    Keepalive { sequence_number: i32 },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -605,8 +607,16 @@ where
                 break 'outer;
             }
 
-            let event: ResponsesStreamEvent = serde_json::from_str(data_line)
-                .map_err(|e| anyhow!("Failed to parse Responses stream event: {}: {:?}", e, data_line))?;
+            let v: serde_json::Value = serde_json::from_str(data_line)
+                .map_err(|e| anyhow!("Failed to parse Responses stream event json: {}: {:?}", e, data_line))?;
+
+            let event: ResponsesStreamEvent = match serde_json::from_value(v) {
+                Ok(e) => e,
+                Err(e) => {
+                    tracing::warn!("Skipping unknown Responses stream event: {}: {:?}", e, data_line);
+                    continue;
+                }
+            };
 
             match event {
                 ResponsesStreamEvent::ResponseCreated { response, .. } |
