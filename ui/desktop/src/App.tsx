@@ -21,6 +21,11 @@ import { AuthProvider } from './hooks/useAuth';
 import { AuthGuard } from './components/AuthGuard';
 import LoginView from './components/LoginView';
 import { createSession } from './sessions';
+import { setupAuthInterceptor } from './api/authInterceptor';
+
+// Initialize auth interceptor before any API calls — attaches
+// the Bearer token from localStorage to every outgoing request
+setupAuthInterceptor();
 
 import type { ChatType } from './types/chat';
 import type { UserInput } from './types/message';
