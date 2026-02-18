@@ -1,9 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
 import WelcomeState from './WelcomeState';
-import ChatInput from './ChatInput';
 import { ChatType } from '../types/chat';
-import { ChatState } from '../types/chatState';
 import { UserInput } from '../types/message';
 import { startNewSession } from '../sessions';
 import { useNavigation } from '../hooks/useNavigation';
@@ -20,7 +18,8 @@ interface ChatSessionsContainerProps {
 /**
  * Container that mounts ALL active chat sessions to keep them alive.
  * Uses CSS to show/hide sessions based on the current URL parameter.
- * When no sessions exist, shows the WelcomeState landing page with ChatInput.
+ * When no sessions exist, shows the WelcomeState landing page.
+ * ChatInput is rendered globally in AppLayout.
  */
 export default function ChatSessionsContainer({
   setChat,
@@ -30,28 +29,14 @@ export default function ChatSessionsContainer({
   const setView = useNavigation();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  // No active sessions — show WelcomeState with ChatInput
+  // No active sessions — show WelcomeState (ChatInput is in AppLayout)
   if (!currentSessionId && activeSessions.length === 0) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="flex-1 overflow-auto">
-          <WelcomeState
-            onSubmit={(text: string) => {
-              startNewSession(text, setView, getInitialWorkingDir());
-            }}
-          />
-        </div>
-        <ChatInput
-          sessionId={null}
-          handleSubmit={(input: UserInput) => {
-            const text = typeof input.msg === 'string' ? input.msg : '';
-            if (text.trim()) {
-              startNewSession(text, setView, getInitialWorkingDir());
-            }
+      <div className="flex-1 overflow-auto">
+        <WelcomeState
+          onSubmit={(text: string) => {
+            startNewSession(text, setView, getInitialWorkingDir());
           }}
-          chatState={ChatState.Idle}
-          setView={setView}
-          toolCount={0}
         />
       </div>
     );

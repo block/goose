@@ -23,9 +23,9 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ChatState } from '../types/chatState';
 import type { UserInput } from '../types/message';
+import type { DroppedFile } from '../hooks/useFileDrop';
 import type { View, ViewOptions } from '../utils/navigationUtils';
-import type { Message } from '../api';
-import type { Recipe } from '../api';
+import type { Message, Recipe } from '../api';
 
 // ─── Zone & Slash Command Types ───────────────────────────────────
 
@@ -54,7 +54,7 @@ export interface SessionInputState {
   onStop?: () => void;
   commandHistory?: string[];
   initialValue?: string;
-  droppedFiles?: Array<{ name: string; path: string; type: string }>;
+  droppedFiles?: DroppedFile[];
   onFilesProcessed?: () => void;
   setView: (view: View, options?: ViewOptions) => void;
   totalTokens?: number;
@@ -97,39 +97,50 @@ export function useUnifiedInput() {
 
 // Hook for session components (BaseChat) to register their session into the unified context.
 // Uses a ref for the context setter to avoid re-running the effect when the context value changes.
-export function useRegisterSession(
-  sessionId: string | null,
-  chatState: ChatState,
-  handleSubmit: ((input: UserInput) => void) | null,
-) {
+export function useRegisterSession(state: Partial<SessionInputState> & { sessionId: string | null }) {
   const ctx = useContext(UnifiedInputContext);
-  const handleSubmitRef = useRef(handleSubmit);
-  handleSubmitRef.current = handleSubmit;
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
-  // Capture setSessionState in a ref so the effect doesn't depend on ctx identity
   const setSessionStateRef = useRef(ctx?.setSessionState);
   setSessionStateRef.current = ctx?.setSessionState;
 
   const stableSubmit = useCallback((input: UserInput) => {
-    handleSubmitRef.current?.(input);
+    stateRef.current.handleSubmit?.(input);
   }, []);
 
   useEffect(() => {
     const setter = setSessionStateRef.current;
-    if (setter && sessionId) {
+    if (setter && state.sessionId) {
       setter({
-        sessionId,
-        chatState,
+        sessionId: state.sessionId,
+        chatState: state.chatState ?? ChatState.Idle,
         handleSubmit: stableSubmit,
-        setView: () => {},
-        toolCount: 0,
+        setView: state.setView ?? (() => {}),
+        toolCount: state.toolCount ?? 0,
+        setChatState: state.setChatState,
+        onStop: state.onStop,
+        commandHistory: state.commandHistory,
+        droppedFiles: state.droppedFiles,
+        onFilesProcessed: state.onFilesProcessed,
+        totalTokens: state.totalTokens,
+        accumulatedInputTokens: state.accumulatedInputTokens,
+        accumulatedOutputTokens: state.accumulatedOutputTokens,
+        messages: state.messages,
+        sessionCosts: state.sessionCosts,
+        recipe: state.recipe,
+        recipeId: state.recipeId,
+        recipeAccepted: state.recipeAccepted,
+        initialPrompt: state.initialPrompt,
+        append: state.append,
+        onWorkingDirChange: state.onWorkingDirChange,
+        inputRef: state.inputRef,
       });
       return () => { setter(null); };
     }
     return undefined;
-  // Only re-register when sessionId or chatState actually change
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, chatState]);
+  }, [state.sessionId, state.chatState, state.toolCount, state.totalTokens, state.messages?.length]);
 }
 
 // ─── Zone Detection ───────────────────────────────────────────────

@@ -14,7 +14,7 @@ import { SearchView } from './conversation/SearchView';
 import WelcomeState from './WelcomeState';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
-import ChatInput from './ChatInput';
+// ChatInput is now rendered in AppLayout via UnifiedInputContext
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
 import { Message } from '../api';
@@ -51,7 +51,6 @@ interface BaseChatProps {
   setChat: (chat: ChatType) => void;
   onMessageSubmit?: (message: string) => void;
   renderHeader?: () => React.ReactNode;
-  customChatInputProps?: Record<string, unknown>;
   customMainLayoutProps?: Record<string, unknown>;
   contentClassName?: string;
   disableSearch?: boolean;
@@ -63,7 +62,6 @@ interface BaseChatProps {
 export default function BaseChat({
   setChat,
   renderHeader,
-  customChatInputProps = {},
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
@@ -74,7 +72,6 @@ export default function BaseChat({
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
-  const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
@@ -227,9 +224,10 @@ export default function BaseChat({
 
   const toolCount = useToolCount(sessionId);
 
-  // Register this session into the unified input context so the PromptBar can
-  // delegate to the active chat session if needed (Phase 2b)
-  useRegisterSession(sessionId, chatState, chatInputSubmit);
+  const append = useCallback(
+    (message: Message) => handleSubmit({ msg: getTextAndImageContent(message).textContent, images: [] }),
+    [handleSubmit]
+  );
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
@@ -345,6 +343,29 @@ export default function BaseChat({
 
   const initialPrompt = recipePrompt;
 
+  useRegisterSession({
+    sessionId,
+    chatState,
+    handleSubmit: chatInputSubmit,
+    setChatState,
+    onStop: stopStreaming,
+    commandHistory,
+    droppedFiles,
+    onFilesProcessed: () => setDroppedFiles([]),
+    setView,
+    totalTokens: tokenState?.totalTokens ?? session?.total_tokens ?? undefined,
+    accumulatedInputTokens: tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined,
+    accumulatedOutputTokens: tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined,
+    messages,
+    sessionCosts,
+    recipe: recipe ?? undefined,
+    recipeAccepted: !hasNotAcceptedRecipe,
+    initialPrompt,
+    toolCount: toolCount || 0,
+    append,
+    inputRef: chatInputRef,
+  });
+
   if (sessionLoadError) {
     return (
       <div className="h-full flex flex-col min-h-0">
@@ -455,38 +476,7 @@ export default function BaseChat({
           {/* WorkBlockIndicator in ProgressiveMessageList handles streaming state */}
         </div>
 
-        <div
-          className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
-        >
-          <ChatInput
-            inputRef={chatInputRef}
-            sessionId={sessionId}
-            handleSubmit={chatInputSubmit}
-            chatState={chatState}
-            setChatState={setChatState}
-            onStop={stopStreaming}
-            commandHistory={commandHistory}
-            initialValue={initialPrompt}
-            setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
-            accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
-            }
-            accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
-            }
-            droppedFiles={droppedFiles}
-            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
-            disableAnimation={disableAnimation}
-            sessionCosts={sessionCosts}
-            recipe={recipe}
-            recipeAccepted={!hasNotAcceptedRecipe}
-            initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
-            {...customChatInputProps}
-          />
-        </div>
+        {/* ChatInput is now rendered in AppLayout, connected via UnifiedInputContext */}
       </MainPanelLayout>
 
       {recipe && (
