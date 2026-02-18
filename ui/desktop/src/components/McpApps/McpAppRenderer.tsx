@@ -26,6 +26,7 @@ import type {
 import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
 import { GripHorizontal, Maximize2, Minimize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -262,8 +263,10 @@ export default function McpAppRenderer({
     (mode: GooseDisplayMode) => {
       if (document.startViewTransition) {
         document.startViewTransition(() => {
-          setActiveDisplayMode(mode);
-          onDisplayModeChange?.(mode);
+          flushSync(() => {
+            setActiveDisplayMode(mode);
+            onDisplayModeChange?.(mode);
+          });
         });
       } else {
         setActiveDisplayMode(mode);
@@ -728,17 +731,17 @@ export default function McpAppRenderer({
 
     if (activeDisplayMode === 'fullscreen') {
       return (
-        <div className="absolute top-3 right-3 z-10 flex gap-1">
+        <div className="no-drag absolute top-3 right-3 z-[60] flex gap-1">
           <button
             onClick={() => changeDisplayMode('pip')}
-            className="rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
             title="Picture-in-Picture"
           >
             <PictureInPicture2 size={16} />
           </button>
           <button
             onClick={() => changeDisplayMode('inline')}
-            className="rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
             title="Exit fullscreen (Esc)"
           >
             <Minimize2 size={16} />
@@ -752,14 +755,14 @@ export default function McpAppRenderer({
         <div className="absolute top-2 right-2 z-10 flex gap-1">
           <button
             onClick={() => changeDisplayMode('fullscreen')}
-            className="rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
             title="Fullscreen"
           >
             <Maximize2 size={14} />
           </button>
           <button
             onClick={() => changeDisplayMode('inline')}
-            className="rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
             title="Close"
           >
             <X size={14} />
@@ -773,14 +776,14 @@ export default function McpAppRenderer({
       <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover/mcp-app:opacity-100">
         <button
           onClick={() => changeDisplayMode('fullscreen')}
-          className="rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+          className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
           title="Fullscreen"
         >
           <Maximize2 size={14} />
         </button>
         <button
           onClick={() => changeDisplayMode('pip')}
-          className="rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+          className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
           title="Picture-in-Picture"
         >
           <PictureInPicture2 size={14} />
