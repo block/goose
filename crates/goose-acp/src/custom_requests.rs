@@ -2,6 +2,19 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
+// Schema metadata for custom methods
+// ---------------------------------------------------------------------------
+
+/// Schema descriptor for a single custom method, produced by the
+/// `#[custom_methods]` macro's generated `custom_method_schemas()` function.
+#[derive(Debug, Serialize)]
+pub struct CustomMethodSchema {
+    pub method: String,
+    pub params_schema: Option<schemars::Schema>,
+    pub response_schema: Option<schemars::Schema>,
+}
+
+// ---------------------------------------------------------------------------
 // Agent: extensions
 // ---------------------------------------------------------------------------
 

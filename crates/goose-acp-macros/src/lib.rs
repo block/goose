@@ -1,13 +1,23 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, FnArg, ImplItem, ItemImpl, Lit, Pat, ReturnType, Type};
+use syn::{
+    parse_macro_input, FnArg, GenericArgument, ImplItem, ItemImpl, Lit, Pat, PathArguments,
+    ReturnType, Type,
+};
 
 /// Marks an impl block as containing `#[custom_method("...")]`-annotated handlers.
 ///
-/// Generates a `handle_custom_request` dispatcher that:
-/// - Prefixes each method name with `_goose/`
-/// - Parses JSON params into the handler's typed parameter (if any)
-/// - Serializes the handler's return value to JSON
+/// Generates two methods on the impl:
+///
+/// 1. `handle_custom_request` — a dispatcher that:
+///    - Prefixes each method name with `_goose/`
+///    - Parses JSON params into the handler's typed parameter (if any)
+///    - Serializes the handler's return value to JSON
+///
+/// 2. `custom_method_schemas` — returns a `Vec<CustomMethodSchema>` with
+///    JSON Schema for each method's params and response types. Types that
+///    implement `schemars::JsonSchema` get a full schema; `serde_json::Value`
+///    params/responses produce `None`.
 ///
 /// # Handler signatures
 ///
@@ -50,15 +60,16 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
             if let Some(name) = route_name {
                 let fn_ident = method.sig.ident.clone();
 
-                // Determine if the method takes a typed parameter (beyond &self).
                 let param_type = extract_param_type(&method.sig);
                 let return_type = extract_return_type(&method.sig);
+                let ok_type = extract_result_ok_type(&method.sig);
 
                 routes.push(Route {
                     method_name: name,
                     fn_ident,
                     param_type,
                     return_type,
+                    ok_type,
                 });
             }
         }
@@ -73,7 +84,6 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
             match &route.param_type {
                 Some(_) => {
-                    // Handler takes a typed param: parse from JSON, call, serialize result.
                     quote! {
                         #full_method => {
                             let req = serde_json::from_value(params)
@@ -85,7 +95,6 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
                 None => {
-                    // Handler takes no params: call directly, serialize result.
                     quote! {
                         #full_method => {
                             let result = self.#fn_ident().await?;
@@ -93,6 +102,42 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                 .map_err(|e| sacp::Error::internal_error().data(e.to_string()))
                         }
                     }
+                }
+            }
+        })
+        .collect();
+
+    // Generate schema entries for each route.
+    let schema_entries: Vec<_> = routes
+        .iter()
+        .map(|route| {
+            let full_method = format!("_goose/{}", route.method_name);
+
+            let params_expr = if let Some(pt) = &route.param_type {
+                if is_json_value(pt) {
+                    quote! { None }
+                } else {
+                    quote! { Some(schemars::schema_for!(#pt)) }
+                }
+            } else {
+                quote! { None }
+            };
+
+            let response_expr = if let Some(ok_ty) = &route.ok_type {
+                if is_json_value(ok_ty) {
+                    quote! { None }
+                } else {
+                    quote! { Some(schemars::schema_for!(#ok_ty)) }
+                }
+            } else {
+                quote! { None }
+            };
+
+            quote! {
+                crate::custom_requests::CustomMethodSchema {
+                    method: #full_method.to_string(),
+                    params_schema: #params_expr,
+                    response_schema: #response_expr,
                 }
             }
         })
@@ -112,10 +157,22 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    // Append the generated dispatcher to the impl block.
+    // Generate the custom_method_schemas method.
+    let schemas_fn = quote! {
+        pub fn custom_method_schemas() -> Vec<crate::custom_requests::CustomMethodSchema> {
+            vec![
+                #(#schema_entries),*
+            ]
+        }
+    };
+
+    // Append the generated methods to the impl block.
     let dispatcher_item: ImplItem =
         syn::parse2(dispatcher).expect("generated dispatcher must parse");
     impl_block.items.push(dispatcher_item);
+
+    let schemas_item: ImplItem = syn::parse2(schemas_fn).expect("generated schemas fn must parse");
+    impl_block.items.push(schemas_item);
 
     TokenStream::from(quote! { #impl_block })
 }
@@ -126,13 +183,13 @@ struct Route {
     param_type: Option<Type>,
     #[allow(dead_code)]
     return_type: Option<Type>,
+    ok_type: Option<Type>,
 }
 
 /// Extract the type of the first non-self parameter, if any.
 fn extract_param_type(sig: &syn::Signature) -> Option<Type> {
     for input in &sig.inputs {
         if let FnArg::Typed(pat_type) = input {
-            // Skip if it's self
             if let Pat::Ident(pat_ident) = &*pat_type.pat {
                 if pat_ident.ident == "self" {
                     continue;
@@ -144,11 +201,49 @@ fn extract_param_type(sig: &syn::Signature) -> Option<Type> {
     None
 }
 
-/// Extract the Ok type from Result<T, E>, if the return type is a Result.
+/// Extract the full return type (e.g. `Result<T, E>`).
 fn extract_return_type(sig: &syn::Signature) -> Option<Type> {
     if let ReturnType::Type(_, ty) = &sig.output {
         Some((**ty).clone())
     } else {
         None
+    }
+}
+
+/// Extract `T` from `Result<T, E>` in the return type.
+fn extract_result_ok_type(sig: &syn::Signature) -> Option<Type> {
+    let ty = match &sig.output {
+        ReturnType::Type(_, ty) => ty,
+        _ => return None,
+    };
+
+    // Peel through the type to find a path ending in `Result`.
+    if let Type::Path(type_path) = ty.as_ref() {
+        let last_seg = type_path.path.segments.last()?;
+        if last_seg.ident == "Result" {
+            if let PathArguments::AngleBracketed(args) = &last_seg.arguments {
+                // First generic argument is the Ok type.
+                if let Some(GenericArgument::Type(ok_ty)) = args.args.first() {
+                    return Some(ok_ty.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Check if a type is `serde_json::Value` (matches `Value` or `serde_json::Value`).
+fn is_json_value(ty: &Type) -> bool {
+    if let Type::Path(type_path) = ty {
+        let segments: Vec<_> = type_path
+            .path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect();
+        let strs: Vec<&str> = segments.iter().map(|s| s.as_str()).collect();
+        matches!(strs.as_slice(), ["serde_json", "Value"] | ["Value"])
+    } else {
+        false
     }
 }

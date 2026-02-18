@@ -11,6 +11,10 @@ description.workspace = true
 name = "goose-acp-server"
 path = "src/bin/server.rs"
 
+[[bin]]
+name = "generate-acp-schema"
+path = "src/bin/generate_acp_schema.rs"
+
 [lints]
 workspace = true
 
