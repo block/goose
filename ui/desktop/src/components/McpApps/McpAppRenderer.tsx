@@ -906,7 +906,7 @@ export default function McpAppRenderer({
       <div ref={containerRef} className={containerClasses} style={containerStyle}>
         {isPip && (
           <div
-            className="absolute top-0 left-1/2 z-20 flex h-6 w-12 -translate-x-1/2 cursor-grab items-center justify-center rounded-b-md bg-black/30 backdrop-blur-sm active:cursor-grabbing"
+            className="sticky top-0 z-20 mx-auto flex h-6 w-12 cursor-grab items-center justify-center rounded-b-md bg-black/30 backdrop-blur-sm active:cursor-grabbing"
             onPointerDown={handlePipPointerDown}
             onPointerMove={handlePipPointerMove}
             onPointerUp={handlePipPointerUp}
