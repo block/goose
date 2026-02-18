@@ -195,8 +195,6 @@ export default function McpAppRenderer({
 
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
-  // null = fluid (100% width), number = explicit width from app
-  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
@@ -383,18 +381,10 @@ export default function McpAppRenderer({
     []
   );
 
-  /**
-   * Height: non-positive values are ignored (keeps previous height).
-   * Width: if provided, container uses that width (capped at 100%);
-   * if omitted or non-positive, container is fluid (100%).
-   */
   const handleSizeChanged = useCallback(
-    ({ height, width }: McpUiSizeChangedNotification['params']) => {
+    ({ height }: McpUiSizeChangedNotification['params']) => {
       if (height !== undefined && height > 0) {
         setIframeHeight(height);
-      }
-      if (width !== undefined) {
-        setIframeWidth(width > 0 ? width : null);
       }
     },
     []
@@ -537,8 +527,7 @@ export default function McpAppRenderer({
   };
 
   const containerClasses = cn(
-    'bg-background-default overflow-hidden',
-    iframeWidth === null && '[&_iframe]:!w-full',
+    'bg-background-default overflow-hidden [&_iframe]:!w-full',
     isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
     !isError && !isExpandedView && 'mt-6 mb-2',
     !isError && !isExpandedView && meta.prefersBorder && 'border border-border-default rounded-lg'
@@ -547,8 +536,7 @@ export default function McpAppRenderer({
   const containerStyle = isExpandedView
     ? { width: '100%', height: '100%' }
     : {
-        width: iframeWidth !== null ? `${iframeWidth}px` : '100%',
-        maxWidth: '100%',
+        width: '100%',
         height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
       };
 
