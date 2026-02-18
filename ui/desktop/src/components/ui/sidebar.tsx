@@ -254,11 +254,14 @@ function SidebarEdgeStrip() {
       aria-label="Toggle Sidebar"
       onClick={toggleSidebar}
       className={cn(
-        'absolute top-0 right-0 h-full w-[6px] z-20 cursor-col-resize',
-        'bg-transparent hover:bg-border-strong/40 active:bg-border-strong/60',
-        'transition-colors duration-150',
-        isCollapsed && 'right-0 cursor-e-resize',
-        !isCollapsed && 'cursor-w-resize'
+        'absolute top-0 right-0 h-full w-2 z-20',
+        // Always visible: thin border line
+        'border-r border-border-default',
+        // Hover: accent highlight strip
+        'hover:border-r-[3px] hover:border-border-strong',
+        'active:border-r-[3px] active:border-border-accent',
+        'transition-all duration-150',
+        isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize'
       )}
       title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
     />
