@@ -905,7 +905,7 @@ export default function McpAppRenderer({
       {/* Stable app container — never unmounted, only repositioned via CSS */}
       <div ref={containerRef} className={cn(containerClasses, isPip && 'group/pip')} style={containerStyle}>
         {isPip && (
-          <div className="pointer-events-none sticky top-0 z-20 flex h-0 items-start justify-between px-2 pt-1 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100">
+          <div className="pointer-events-none sticky top-0 z-20 flex h-0 items-start justify-between px-2 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100">
             <div className="flex-1" />
             <div
               className="pointer-events-auto flex h-5 w-10 cursor-grab items-center justify-center rounded-b-md bg-black/50 backdrop-blur-sm active:cursor-grabbing"
