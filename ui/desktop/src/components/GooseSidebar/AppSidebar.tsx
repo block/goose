@@ -443,11 +443,13 @@ const SessionList = React.memo<{
                 {onNewSessionInProject && (
                   <button
                     onClick={() => {
-                      const dir = group.sessions[0]?.working_dir || '';
-                      if (dir) onNewSessionInProject(dir);
+                      const dir = isGeneral
+                        ? ''
+                        : group.sessions[0]?.working_dir || '';
+                      onNewSessionInProject(dir);
                     }}
                     className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-muted rounded transition-all"
-                    title={`New session in ${group.project}`}
+                    title={isGeneral ? 'New session' : `New session in ${group.project}`}
                   >
                     <Plus className="w-3 h-3 text-text-muted hover:text-text-default" />
                   </button>
@@ -465,18 +467,20 @@ const SessionList = React.memo<{
                     )}
                   </button>
                 )}
-                <button
-                  onClick={() =>
-                    onCloseProject(
-                      group.project,
-                      group.sessions.map((s) => s.id)
-                    )
-                  }
-                  className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
-                  title={`Close project "${group.project}" and delete ${group.sessions.length} session${group.sessions.length !== 1 ? 's' : ''}`}
-                >
-                  <X className="w-3 h-3 text-text-muted hover:text-text-danger" />
-                </button>
+                {!isGeneral && (
+                  <button
+                    onClick={() =>
+                      onCloseProject(
+                        group.project,
+                        group.sessions.map((s) => s.id)
+                      )
+                    }
+                    className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
+                    title={`Close project "${group.project}" and delete ${group.sessions.length} session${group.sessions.length !== 1 ? 's' : ''}`}
+                  >
+                    <X className="w-3 h-3 text-text-muted hover:text-text-danger" />
+                  </button>
+                )}
               </div>
               {!collapsed && (
                 <div className="relative ml-3">
@@ -819,8 +823,8 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   const handleNewSessionInProject = React.useCallback(
     async (dir: string) => {
-      addRecentDir(dir);
-      await startNewSession('', setView, dir, {
+      if (dir) addRecentDir(dir);
+      await startNewSession('', setView, dir || getInitialWorkingDir(), {
         allExtensions: configContext.extensionsList,
       });
     },
