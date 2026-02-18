@@ -71,7 +71,7 @@ function PageViewTracker() {
 }
 
 // Route Components
-// Hub merged into Chat — "/" redirects to "/pair" with WelcomeState shown for 0-message sessions
+// "/" redirects to "/pair" — WelcomeState shows for 0-message sessions
 const HomeRedirectWrapper = () => {
   return <Navigate to="/pair" replace />;
 };

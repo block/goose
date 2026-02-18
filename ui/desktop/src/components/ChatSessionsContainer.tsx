@@ -5,6 +5,7 @@ import { ChatType } from '../types/chat';
 import { UserInput } from '../types/message';
 import { startNewSession } from '../sessions';
 import { useNavigation } from '../hooks/useNavigation';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
@@ -33,7 +34,7 @@ export default function ChatSessionsContainer({
       <div className="relative w-full h-full">
         <WelcomeState
           onSubmit={(text) => {
-            startNewSession(setView, { content: text, source: 'user' });
+            startNewSession(text, setView, getInitialWorkingDir());
           }}
         />
       </div>
