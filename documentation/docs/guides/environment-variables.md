@@ -543,24 +543,6 @@ export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
 export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
 ```
 
-## Experimental Features
-
-These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|---------|
-| `ALPHA_FEATURES` | Enables experimental alpha features&mdash;check the feature docs to see if this flag is required | "true", "1" (case-insensitive) to enable | false |
-
-**Examples**
-
-```bash
-# Enable alpha features
-export ALPHA_FEATURES=true
-
-# Or enable for a single session
-ALPHA_FEATURES=true goose session
-```
-
 ## Development & Testing
 
 These variables are primarily used for development, testing, and debugging goose itself.
