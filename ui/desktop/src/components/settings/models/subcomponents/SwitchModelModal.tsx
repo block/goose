@@ -115,6 +115,14 @@ export const SwitchModelModal = ({
 
   const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;
+  const isOpusModel = modelName?.toLowerCase().includes('opus') ?? false;
+
+  // Clear "max" variant if the selected model is not Opus
+  useEffect(() => {
+    if (!isOpusModel && variant === 'max') {
+      setVariant('');
+    }
+  }, [isOpusModel, variant]);
 
   // Check if the selected model supports reasoning
   const isReasoningModel = (() => {
@@ -619,7 +627,7 @@ export const SwitchModelModal = ({
                         Reasoning Effort
                       </label>
                       <Select
-                        options={VARIANT_OPTIONS}
+                        options={isOpusModel ? VARIANT_OPTIONS : VARIANT_OPTIONS.filter((o) => o.value !== 'max')}
                         value={VARIANT_OPTIONS.find((o) => o.value === variant) || VARIANT_OPTIONS[0]}
                         onChange={(newValue: unknown) => {
                           const option = newValue as { value: string; label: string } | null;
