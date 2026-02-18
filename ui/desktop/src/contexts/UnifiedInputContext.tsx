@@ -106,7 +106,7 @@ export function useUnifiedInput() {
 }
 
 // Hook for session components (BaseChat) to register their session into the unified context.
-// Pass individual stable values rather than an object to avoid infinite re-renders.
+// Uses a ref for the context setter to avoid re-running the effect when the context value changes.
 export function useRegisterSession(
   sessionId: string | null,
   chatState: ChatState,
@@ -116,25 +116,30 @@ export function useRegisterSession(
   const handleSubmitRef = useRef(handleSubmit);
   handleSubmitRef.current = handleSubmit;
 
+  // Capture setSessionState in a ref so the effect doesn't depend on ctx identity
+  const setSessionStateRef = useRef(ctx?.setSessionState);
+  setSessionStateRef.current = ctx?.setSessionState;
+
   const stableSubmit = useCallback((input: UserInput) => {
     handleSubmitRef.current?.(input);
   }, []);
 
   useEffect(() => {
-    if (ctx && sessionId) {
-      ctx.setSessionState({
+    const setter = setSessionStateRef.current;
+    if (setter && sessionId) {
+      setter({
         sessionId,
         chatState,
         handleSubmit: stableSubmit,
         setView: () => {},
         toolCount: 0,
       });
-      return () => { ctx.setSessionState(null); };
+      return () => { setter(null); };
     }
     return undefined;
-  // Only re-register when sessionId or chatState change
+  // Only re-register when sessionId or chatState actually change
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx, sessionId, chatState]);
+  }, [sessionId, chatState]);
 }
 
 // Also re-export the old hook name for backward compatibility during migration
@@ -322,6 +327,14 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
     }
   }, [zone, slashCommands]);
 
+  // Use refs for values that change frequently to keep submitPrompt stable
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const slashCommandsRef = useRef(slashCommands);
+  slashCommandsRef.current = slashCommands;
+  const onCreateSessionRef = useRef(onCreateSession);
+  onCreateSessionRef.current = onCreateSession;
+
   const submitPrompt = useCallback((text: string) => {
     const trimmed = text.trim();
 
@@ -331,7 +344,7 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
       const cmd = parts[0].toLowerCase();
       const args = parts.slice(1).join(' ');
 
-      const command = slashCommands.find((c) => c.command === cmd);
+      const command = slashCommandsRef.current.find((c) => c.command === cmd);
       if (command) {
         command.action(args);
         return;
@@ -339,20 +352,20 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
     }
 
     // If we have a session submit handler (full mode), delegate to it
-    if (session?.handleSubmit) {
-      session.handleSubmit({ msg: trimmed, images: [] });
+    if (sessionRef.current?.handleSubmit) {
+      sessionRef.current.handleSubmit({ msg: trimmed, images: [] });
       return;
     }
 
     // Default: create a new session with this message
-    if (onCreateSession) {
-      onCreateSession(trimmed);
+    if (onCreateSessionRef.current) {
+      onCreateSessionRef.current(trimmed);
     } else {
       window.dispatchEvent(
         new CustomEvent('PROMPT_BAR_SUBMIT', { detail: { message: trimmed } })
       );
     }
-  }, [slashCommands, session, onCreateSession]);
+  }, []); // stable — reads everything from refs
 
   // Show input everywhere except on /pair (where ChatInput handles it for now)
   const showInput = !isOnPairRoute;
@@ -366,7 +379,8 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
     session,
     submitPrompt,
     setSessionState,
-  }), [mode, zone, config, slashCommands, showInput, session, submitPrompt]);
+  // submitPrompt is now stable (empty deps), won't cause value identity to change
+  }), [mode, zone, config, slashCommands, showInput, session]);
 
   return (
     <UnifiedInputContext.Provider value={value}>
