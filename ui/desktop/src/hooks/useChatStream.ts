@@ -433,6 +433,7 @@ export function useChatStream({
           },
         },
       });
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
       onSessionLoaded?.();
       return;
     }

@@ -91,6 +91,11 @@ export type ConfigKey = {
      */
     oauth_flow: boolean;
     /**
+     * Whether this key should be shown prominently during provider setup
+     * (onboarding, settings modal, CLI configure)
+     */
+    primary?: boolean;
+    /**
      * Whether this key is required for the provider to function
      */
     required: boolean;
@@ -620,7 +625,6 @@ export type MessageMetadata = {
 
 export type ModelConfig = {
     context_limit?: number | null;
-    fast_model?: string | null;
     max_tokens?: number | null;
     model_name: string;
     /**
@@ -664,6 +668,28 @@ export type ModelInfo = {
     supports_cache_control?: boolean | null;
 };
 
+export type ModelInfoData = {
+    cache_read_token_cost?: number | null;
+    cache_write_token_cost?: number | null;
+    context_limit: number;
+    currency: string;
+    input_token_cost?: number | null;
+    max_output_tokens?: number | null;
+    model: string;
+    output_token_cost?: number | null;
+    provider: string;
+};
+
+export type ModelInfoQuery = {
+    model: string;
+    provider: string;
+};
+
+export type ModelInfoResponse = {
+    model_info?: ModelInfoData | null;
+    source: string;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -703,29 +729,6 @@ export type PermissionsMetadata = {
     microphone?: boolean;
 };
 
-export type PlanPromptResponse = {
-    prompt: string;
-};
-
-export type PricingData = {
-    context_length?: number | null;
-    currency: string;
-    input_token_cost: number;
-    model: string;
-    output_token_cost: number;
-    provider: string;
-};
-
-export type PricingQuery = {
-    model: string;
-    provider: string;
-};
-
-export type PricingResponse = {
-    pricing: Array<PricingData>;
-    source: string;
-};
-
 export type PrincipalType = 'Extension' | 'Tool';
 
 export type PromptContentResponse = {
@@ -747,15 +750,6 @@ export type ProviderDetails = {
 };
 
 export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
-
-export type ProviderInfoResponse = {
-    contextLimit: number;
-    inputTokens?: number | null;
-    modelName: string;
-    outputTokens?: number | null;
-    providerName: string;
-    totalTokens?: number | null;
-};
 
 /**
  * Metadata about a provider's configuration requirements and capabilities
@@ -1072,10 +1066,6 @@ export type SessionDisplayInfo = {
 
 export type SessionExtensionsResponse = {
     extensions: Array<ExtensionConfig>;
-};
-
-export type SessionIdQuery = {
-    session_id: string;
 };
 
 export type SessionInsights = {
@@ -1627,82 +1617,6 @@ export type ListAppsResponses = {
 
 export type ListAppsResponse2 = ListAppsResponses[keyof ListAppsResponses];
 
-export type GetPlanPromptData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Required session ID to build a plan prompt
-         */
-        session_id: string;
-    };
-    url: '/agent/plan_prompt';
-};
-
-export type GetPlanPromptErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type GetPlanPromptError = GetPlanPromptErrors[keyof GetPlanPromptErrors];
-
-export type GetPlanPromptResponses = {
-    /**
-     * Plan prompt retrieved successfully
-     */
-    200: PlanPromptResponse;
-};
-
-export type GetPlanPromptResponse = GetPlanPromptResponses[keyof GetPlanPromptResponses];
-
-export type GetProviderInfoData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Required session ID to scope provider info to a specific session
-         */
-        session_id: string;
-    };
-    url: '/agent/provider_info';
-};
-
-export type GetProviderInfoErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type GetProviderInfoError = GetProviderInfoErrors[keyof GetProviderInfoErrors];
-
-export type GetProviderInfoResponses = {
-    /**
-     * Provider info retrieved successfully
-     */
-    200: ProviderInfoResponse;
-};
-
-export type GetProviderInfoResponse = GetProviderInfoResponses[keyof GetProviderInfoResponses];
-
 export type ReadResourceData = {
     body: ReadResourceRequest;
     path?: never;
@@ -2065,6 +1979,22 @@ export type BackupConfigResponses = {
 
 export type BackupConfigResponse = BackupConfigResponses[keyof BackupConfigResponses];
 
+export type GetCanonicalModelInfoData = {
+    body: ModelInfoQuery;
+    path?: never;
+    query?: never;
+    url: '/config/canonical-model-info';
+};
+
+export type GetCanonicalModelInfoResponses = {
+    /**
+     * Model information retrieved successfully
+     */
+    200: ModelInfoResponse;
+};
+
+export type GetCanonicalModelInfoResponse = GetCanonicalModelInfoResponses[keyof GetCanonicalModelInfoResponses];
+
 export type CheckProviderData = {
     body: CheckProviderRequest;
     path?: never;
@@ -2337,22 +2267,6 @@ export type UpsertPermissionsResponses = {
 };
 
 export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
-
-export type GetPricingData = {
-    body: PricingQuery;
-    path?: never;
-    query?: never;
-    url: '/config/pricing';
-};
-
-export type GetPricingResponses = {
-    /**
-     * Model pricing data retrieved successfully
-     */
-    200: PricingResponse;
-};
-
-export type GetPricingResponse = GetPricingResponses[keyof GetPricingResponses];
 
 export type GetPromptsData = {
     body?: never;
@@ -3765,42 +3679,6 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
-
-export type ClearSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/clear';
-};
-
-export type ClearSessionErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type ClearSessionError = ClearSessionErrors[keyof ClearSessionErrors];
-
-export type ClearSessionResponses = {
-    /**
-     * Session cleared successfully
-     */
-    200: unknown;
-};
 
 export type ExportSessionData = {
     body?: never;

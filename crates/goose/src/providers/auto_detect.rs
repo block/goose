@@ -21,7 +21,7 @@ pub async fn detect_provider_from_api_key(api_key: &str) -> Option<(String, Vec<
 
                 let result = match crate::providers::create(
                     provider_name,
-                    ModelConfig::new_or_fail("default"),
+                    ModelConfig::new_or_fail("default").with_canonical_limits(provider_name),
                     Vec::new(),
                 )
                 .await

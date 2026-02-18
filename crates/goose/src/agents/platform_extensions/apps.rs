@@ -29,7 +29,7 @@ const DEFAULT_WINDOW_PROPS: WindowProps = WindowProps {
     height: 600,
     resizable: true,
 };
-const APP_LLM_MAX_TOKENS: i32 = 8000;
+const APP_LLM_MAX_TOKENS: i32 = 16384;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct CreateAppParams {
@@ -46,7 +46,7 @@ fn app_generation_model_config(provider: &dyn Provider) -> ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::providers::base::{ProviderUsage, Usage};
+    use crate::providers::base::{stream_from_single_message, MessageStream, ProviderUsage, Usage};
     use crate::providers::errors::ProviderError;
     use async_trait::async_trait;
     use rmcp::model::Tool;
@@ -60,16 +60,15 @@ mod tests {
         fn get_name(&self) -> &str {
             "mock"
         }
-
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &ModelConfig,
+            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
+        ) -> Result<MessageStream, ProviderError> {
+            Ok(stream_from_single_message(
                 Message::assistant().with_text(""),
                 ProviderUsage::new("mock".to_string(), Usage::default()),
             ))
@@ -358,13 +357,7 @@ impl AppsManagerClient {
         let tools = vec![Self::create_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete_with_model(
-                Some(session_id),
-                &model_config,
-                &system_prompt,
-                &messages,
-                &tools,
-            )
+            .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
@@ -396,13 +389,7 @@ impl AppsManagerClient {
         let tools = vec![Self::update_app_content_tool()];
 
         let (response, _usage) = provider
-            .complete_with_model(
-                Some(session_id),
-                &model_config,
-                &system_prompt,
-                &messages,
-                &tools,
-            )
+            .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
