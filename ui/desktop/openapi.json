@@ -7374,6 +7374,11 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "variant": {
+            "type": "string",
+            "description": "Reasoning variant level (e.g., \"low\", \"medium\", \"high\", \"max\").\nOnly applicable to models that support reasoning.",
+            "nullable": true
           }
         }
       },
