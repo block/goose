@@ -440,20 +440,15 @@ Beyond goose's built-in [logging system](/docs/guides/logs), you can export tele
 
 ### OpenTelemetry Protocol (OTLP)
 
-Configure goose to export traces, metrics, and logs to any
-[OpenTelemetry](https://opentelemetry.io/docs/) compatible platform.
-When configured, goose exports telemetry asynchronously and flushes on exit.
+Configure goose to export telemetry to any [OpenTelemetry](https://opentelemetry.io/docs/) compatible platform.
 
-goose respects standard [OTel SDK environment variables][otel-env]. The
-simplest way to enable export is to set a collector endpoint:
+To enable export, set a collector endpoint:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
 ```
 
-This enables OTLP export for all signals (traces, metrics, logs). You can
-control each signal independently with `OTEL_{SIGNAL}_EXPORTER` where signal
-is `TRACES`, `METRICS`, or `LOGS`:
+You can control each signal (traces, metrics, logs) independently with `OTEL_{SIGNAL}_EXPORTER`:
 
 | Variable pattern | Purpose | Values |
 |---|---|---|
