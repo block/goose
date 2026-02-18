@@ -242,10 +242,11 @@ impl ClientHandler for GooseClient {
             .as_deref()
             .unwrap_or("You are a general-purpose AI agent called goose");
 
+        let model_config = provider.get_model_config();
         let (response, usage) = provider
-            .complete_with_model(
-                session_id.as_deref(),
-                &provider.get_model_config(),
+            .complete(
+                &model_config,
+                session_id.as_deref().unwrap_or(""),
                 system_prompt,
                 &provider_ready_messages,
                 &[],

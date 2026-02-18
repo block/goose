@@ -4,18 +4,14 @@ use futures::future::BoxFuture;
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
-use super::openai_compatible::{
-    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
-};
+use super::openai_compatible::{handle_status_openai_compat, stream_openai_compat};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, get_usage};
+use crate::providers::formats::openai::create_request;
 use crate::providers::formats::openrouter as openrouter_format;
 use rmcp::model::Tool;
 
@@ -51,7 +47,7 @@ pub struct OpenRouterProvider {
 
 impl OpenRouterProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL, OPENROUTER_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
@@ -70,50 +66,6 @@ impl OpenRouterProvider {
             supports_streaming: true,
             name: OPENROUTER_PROVIDER_NAME.to_string(),
         })
-    }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, "api/v1/chat/completions", payload)
-            .await?;
-
-        let response_body = handle_response_openai_compat(response)
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {e}")))?;
-
-        if let Some(error_obj) = response_body.get("error") {
-            let error_message = error_obj
-                .get("message")
-                .and_then(|m| m.as_str())
-                .unwrap_or("Unknown OpenRouter error");
-
-            let error_code = error_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
-
-            if error_code == 400 && error_message.contains("maximum context length") {
-                return Err(ProviderError::ContextLengthExceeded(
-                    error_message.to_string(),
-                ));
-            }
-
-            match error_code {
-                401 | 403 => return Err(ProviderError::Authentication(error_message.to_string())),
-                429 => {
-                    return Err(ProviderError::RateLimitExceeded {
-                        details: error_message.to_string(),
-                        retry_delay: None,
-                    })
-                }
-                500 | 503 => return Err(ProviderError::ServerError(error_message.to_string())),
-                _ => return Err(ProviderError::RequestFailed(error_message.to_string())),
-            }
-        }
-
-        Ok(response_body)
     }
 }
 
@@ -194,43 +146,6 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/")
 }
 
-async fn create_request_based_on_model(
-    provider: &OpenRouterProvider,
-    session_id: Option<&str>,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> Result<Value> {
-    let mut payload = create_request(
-        &provider.model,
-        system,
-        messages,
-        tools,
-        &ImageFormat::OpenAi,
-        false,
-    )?;
-
-    if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
-        if let Some(obj) = payload.as_object_mut() {
-            obj.insert("user".to_string(), Value::String(session_id.to_string()));
-        }
-    }
-
-    if provider.supports_cache_control().await {
-        payload = update_request_for_anthropic(&payload);
-    }
-
-    if is_gemini_model(&provider.model.model_name) {
-        openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
-    }
-
-    if let Some(obj) = payload.as_object_mut() {
-        obj.insert("transforms".to_string(), json!(["middle-out"]));
-    }
-
-    Ok(payload)
-}
-
 impl ProviderDef for OpenRouterProvider {
     type Provider = Self;
 
@@ -243,12 +158,13 @@ impl ProviderDef for OpenRouterProvider {
             OPENROUTER_KNOWN_MODELS.to_vec(),
             OPENROUTER_DOC_URL,
             vec![
-                ConfigKey::new("OPENROUTER_API_KEY", true, true, None),
+                ConfigKey::new("OPENROUTER_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "OPENROUTER_HOST",
                     false,
                     false,
                     Some("https://openrouter.ai"),
+                    false,
                 ),
             ],
         )
@@ -273,44 +189,7 @@ impl Provider for OpenRouterProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload =
-            create_request_based_on_model(self, session_id, system, messages, tools).await?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
-            })
-            .await?;
-
-        let response_model = get_model(&response);
-        let message = if is_gemini_model(&self.model.model_name) {
-            openrouter_format::response_to_message(&response)?
-        } else {
-            crate::providers::formats::openai::response_to_message(&response)?
-        };
-
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
+    /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
@@ -364,19 +243,16 @@ impl Provider for OpenRouterProvider {
             .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
     }
 
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            &self.model,
+            model_config,
             system,
             messages,
             tools,
@@ -384,11 +260,18 @@ impl Provider for OpenRouterProvider {
             true,
         )?;
 
+        // Add user field for OpenRouter attribution/rate-limiting
+        if !session_id.is_empty() {
+            if let Some(obj) = payload.as_object_mut() {
+                obj.insert("user".to_string(), Value::String(session_id.to_string()));
+            }
+        }
+
         if self.supports_cache_control().await {
             payload = update_request_for_anthropic(&payload);
         }
 
-        if is_gemini_model(&self.model.model_name) {
+        if is_gemini_model(&model_config.model_name) {
             openrouter_format::add_reasoning_details_to_request(&mut payload, messages);
         }
 
@@ -396,7 +279,7 @@ impl Provider for OpenRouterProvider {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
         }
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {

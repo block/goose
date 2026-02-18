@@ -16,7 +16,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use super::streaming_buffer::MarkdownBuffer;
@@ -238,16 +238,9 @@ pub fn render_message(message: &Message, debug: bool) {
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
-            MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
-                    && std::io::stdout().is_terminal()
-                {
-                    println!("\n{}", style("Thinking:").dim().italic());
-                    print_markdown(&thinking.thinking, theme);
-                }
-            }
+            MessageContent::Thinking(t) => render_thinking(&t.thinking, theme),
+            MessageContent::Reasoning(r) => render_thinking(&r.text, theme),
             MessageContent::RedactedThinking(_) => {
-                // For redacted thinking, print thinking was redacted
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
@@ -276,10 +269,22 @@ pub fn render_message(message: &Message, debug: bool) {
 
 /// Render a streaming message, using a buffer to accumulate text content
 /// and only render when markdown constructs are complete.
-pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, debug: bool) {
+pub fn render_message_streaming(
+    message: &Message,
+    buffer: &mut MarkdownBuffer,
+    thinking_header_shown: &mut bool,
+    debug: bool,
+) {
     let theme = get_theme();
 
     for content in &message.content {
+        if !matches!(
+            content,
+            MessageContent::Thinking(_) | MessageContent::Reasoning(_)
+        ) {
+            *thinking_header_shown = false;
+        }
+
         match content {
             MessageContent::Text(text) => {
                 if let Some(safe_content) = buffer.push(&text.text) {
@@ -312,14 +317,11 @@ pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, 
                 flush_markdown_buffer(buffer, theme);
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
-            MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
-                    && std::io::stdout().is_terminal()
-                {
-                    flush_markdown_buffer(buffer, theme);
-                    println!("\n{}", style("Thinking:").dim().italic());
-                    print_markdown(&thinking.thinking, theme);
-                }
+            MessageContent::Thinking(t) => {
+                render_thinking_streaming(&t.thinking, buffer, thinking_header_shown, theme);
+            }
+            MessageContent::Reasoning(r) => {
+                render_thinking_streaming(&r.text, buffer, thinking_header_shown, theme);
             }
             MessageContent::RedactedThinking(_) => {
                 flush_markdown_buffer(buffer, theme);
@@ -410,6 +412,38 @@ pub fn goose_mode_message(text: &str) {
     println!("\n{}", style(text).yellow(),);
 }
 
+static SHOW_THINKING: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() && std::io::stdout().is_terminal()
+});
+
+fn should_show_thinking() -> bool {
+    *SHOW_THINKING
+}
+
+fn render_thinking(text: &str, theme: Theme) {
+    if should_show_thinking() {
+        println!("\n{}", style("Thinking:").dim().italic());
+        print_markdown(text, theme);
+    }
+}
+
+fn render_thinking_streaming(
+    text: &str,
+    buffer: &mut MarkdownBuffer,
+    header_shown: &mut bool,
+    theme: Theme,
+) {
+    if should_show_thinking() {
+        flush_markdown_buffer(buffer, theme);
+        if !*header_shown {
+            println!("\n{}", style("Thinking:").dim().italic());
+            *header_shown = true;
+        }
+        print!("{}", style(text).dim());
+        let _ = std::io::stdout().flush();
+    }
+}
+
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.to_string().as_str() {
@@ -419,6 +453,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
+            "load" => {}
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),
