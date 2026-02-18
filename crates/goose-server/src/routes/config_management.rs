@@ -500,23 +500,62 @@ pub struct ModelInfoQuery {
 pub async fn get_canonical_model_info(
     Json(query): Json<ModelInfoQuery>,
 ) -> Json<ModelInfoResponse> {
-    let canonical_model = maybe_get_canonical_model(&query.provider, &query.model);
+    // Try canonical registry first
+    if let Some(canonical_model) = maybe_get_canonical_model(&query.provider, &query.model) {
+        return Json(ModelInfoResponse {
+            model_info: Some(ModelInfoData {
+                provider: query.provider.clone(),
+                model: query.model.clone(),
+                context_limit: canonical_model.limit.context,
+                max_output_tokens: canonical_model.limit.output,
+                input_token_cost: canonical_model.cost.input,
+                output_token_cost: canonical_model.cost.output,
+                cache_read_token_cost: canonical_model.cost.cache_read,
+                cache_write_token_cost: canonical_model.cost.cache_write,
+                currency: "$".to_string(),
+            }),
+            source: "canonical".to_string(),
+        });
+    }
 
-    let model_info = canonical_model.map(|canonical_model| ModelInfoData {
-        provider: query.provider.clone(),
-        model: query.model.clone(),
-        context_limit: canonical_model.limit.context,
-        max_output_tokens: canonical_model.limit.output,
-        // Costs are per million tokens - client handles division for display
-        input_token_cost: canonical_model.cost.input,
-        output_token_cost: canonical_model.cost.output,
-        cache_read_token_cost: canonical_model.cost.cache_read,
-        cache_write_token_cost: canonical_model.cost.cache_write,
-        currency: "$".to_string(),
-    });
+    // Fall back to provider-supplied info (e.g., LiteLLM proxy)
+    let all = get_providers().await.into_iter().collect::<Vec<_>>();
+    if let Some((metadata, provider_type)) =
+        all.into_iter().find(|(m, _)| m.name == query.provider)
+    {
+        if check_provider_configured(&metadata, provider_type) {
+            if let Ok(model_config) = ModelConfig::new(&metadata.default_model) {
+                if let Ok(provider) =
+                    goose::providers::create(&query.provider, model_config, Vec::new()).await
+                {
+                    if let Ok(model_infos) = provider.fetch_model_info().await {
+                        if let Some(info) = model_infos.iter().find(|m| m.name == query.model) {
+                            return Json(ModelInfoResponse {
+                                model_info: Some(ModelInfoData {
+                                    provider: query.provider.clone(),
+                                    model: query.model.clone(),
+                                    context_limit: info.context_limit,
+                                    max_output_tokens: None,
+                                    input_token_cost: info.input_token_cost,
+                                    output_token_cost: info.output_token_cost,
+                                    cache_read_token_cost: None,
+                                    cache_write_token_cost: None,
+                                    currency: info
+                                        .currency
+                                        .clone()
+                                        .unwrap_or_else(|| "$".to_string()),
+                                }),
+                                source: "provider".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Json(ModelInfoResponse {
-        model_info,
+        model_info: None,
         source: "canonical".to_string(),
     })
 }
