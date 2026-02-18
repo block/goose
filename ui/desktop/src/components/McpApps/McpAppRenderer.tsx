@@ -905,17 +905,23 @@ export default function McpAppRenderer({
       {/* Stable app container — never unmounted, only repositioned via CSS */}
       <div ref={containerRef} className={containerClasses} style={containerStyle}>
         {isPip && (
-          <div
-            className="sticky top-0 z-20 mx-auto flex h-6 w-12 cursor-grab items-center justify-center rounded-b-md bg-black/30 backdrop-blur-sm active:cursor-grabbing"
-            onPointerDown={handlePipPointerDown}
-            onPointerMove={handlePipPointerMove}
-            onPointerUp={handlePipPointerUp}
-          >
-            <GripHorizontal size={12} className="text-white/70" />
+          <div className="sticky top-0 z-20 flex h-6 items-center justify-between px-2">
+            <div className="flex-1" />
+            <div
+              className="flex h-full w-12 cursor-grab items-center justify-center rounded-b-md bg-black/30 backdrop-blur-sm active:cursor-grabbing"
+              onPointerDown={handlePipPointerDown}
+              onPointerMove={handlePipPointerMove}
+              onPointerUp={handlePipPointerUp}
+            >
+              <GripHorizontal size={12} className="text-white/70" />
+            </div>
+            <div className="flex flex-1 justify-end gap-1">
+              {renderDisplayModeControls()}
+            </div>
           </div>
         )}
         <div className={cn('relative w-full', !isPip && 'h-full')}>
-          {renderDisplayModeControls()}
+          {!isPip && renderDisplayModeControls()}
           {renderContent()}
         </div>
       </div>
