@@ -293,7 +293,7 @@ The following models are recognized and passed to the Claude CLI via the `--mode
 |------|------------------|----------|
 | `auto` | `--dangerously-skip-permissions` | Bypasses all permission prompts |
 | `smart-approve` | `--permission-mode acceptEdits` | Auto-accepts edits, prompts for other actions |
-| `approve` | Not supported | Returns an error |
+| `approve` | `--permission-prompt-tool stdio` | Routes permission checks through the control protocol |
 | `chat` | (none) | Default Claude Code behavior |
 
 ### Cursor Agent Configuration
