@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use goose::builtin_extension::{register_builtin_extension, register_builtin_extensions};
 use goose::config::paths::Paths;
+use goose::download_manager::DownloadManager;
 use goose::execution::manager::AgentManager;
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
@@ -26,6 +27,7 @@ pub struct AppState {
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
+    pub download_manager: Arc<DownloadManager>,
 }
 
 fn spawn_developer(r: tokio::io::DuplexStream, w: tokio::io::DuplexStream) {
@@ -50,6 +52,7 @@ impl AppState {
 
         let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
+        let download_manager = Arc::new(DownloadManager::new()?);
 
         Ok(Arc::new(Self {
             agent_manager,
@@ -57,6 +60,7 @@ impl AppState {
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
+            download_manager,
         }))
     }
 

@@ -7,13 +7,16 @@ use axum::{
     Json, Router,
 };
 use goose::config::paths::Paths;
-use goose::dictation::download_manager::get_download_manager;
 use goose::providers::local_inference::hf_models::{self, HfModelInfo};
 use goose::providers::local_inference::local_model_registry::{
     display_name_from_repo, get_recommended_by_id, get_registry, is_recommended_model,
     model_id_from_repo, LocalModelEntry, ModelSettings, ModelTier, RecommendedModel,
     RECOMMENDED_MODELS,
 };
+use goose::providers::local_inference::{available_inference_memory_bytes, InferenceRuntime};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use utoipa::ToSchema;
 
 /// Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)
 #[derive(Debug, Clone, Serialize, ToSchema)]
@@ -28,10 +31,6 @@ pub enum ModelDownloadStatus {
     },
     Downloaded,
 }
-use goose::providers::local_inference::{available_inference_memory_bytes, InferenceRuntime};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use utoipa::ToSchema;
 
 /// Response for a single local model
 #[derive(Debug, Serialize, ToSchema)]
@@ -407,21 +406,22 @@ pub async fn download_hf_model(
             .lock()
             .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
         registry
-            .add_model(entry)
+            .add_model(entry.clone())
             .map_err(|e| ErrorResponse::internal(format!("{}", e)))?;
     }
 
-    let manager = get_download_manager();
-    manager
-        .download_model(
-            format!("{}-model", model_id),
-            download_url,
-            local_path,
-            None,
-            None,
-        )
-        .await
-        .map_err(convert_error)?;
+    // Use the dictation download manager for now (it handles direct URL downloads)
+    // The model_id format for the download manager is "{model_id}-model"
+    let dm = goose::dictation::download_manager::get_download_manager();
+    dm.download_model(
+        format!("{}-model", model_id),
+        download_url,
+        local_path,
+        None,
+        None,
+    )
+    .await
+    .map_err(convert_error)?;
 
     Ok((StatusCode::ACCEPTED, Json(HfDownloadResponse { model_id })))
 }
@@ -451,10 +451,10 @@ pub async fn get_local_model_download_progress(
         .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
         .into_owned();
 
-    let manager = get_download_manager();
+    let dm = goose::dictation::download_manager::get_download_manager();
     let download_id = format!("{}-model", model_id);
 
-    let progress = manager
+    let progress = dm
         .get_progress(&download_id)
         .ok_or_else(|| ErrorResponse::not_found("Download not found"))?;
 
@@ -483,11 +483,10 @@ pub async fn cancel_local_model_download(
         .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
         .into_owned();
 
-    let manager = get_download_manager();
+    let dm = goose::dictation::download_manager::get_download_manager();
     let download_id = format!("{}-model", model_id);
 
-    manager
-        .cancel_download(&download_id)
+    dm.cancel_download(&download_id)
         .map_err(convert_error)?;
 
     Ok(StatusCode::OK)
