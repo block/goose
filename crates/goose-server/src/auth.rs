@@ -61,6 +61,7 @@ impl RateLimiter {
     }
 
     /// Number of tracked IPs (for monitoring).
+    #[cfg(test)]
     pub async fn tracked_ips(&self) -> usize {
         self.requests.read().await.len()
     }
@@ -264,6 +265,143 @@ fn extract_user_from_headers(headers: &HeaderMap) -> UserIdentity {
     UserIdentity::guest()
 }
 
+/// Maps an HTTP method + URI path to a policy (action, resource) pair.
+///
+/// Actions follow the pattern `domain:operation`:
+/// - `execute:*` — agent execution (reply, completions)
+/// - `session:*` — session CRUD
+/// - `manage:*` — administrative operations (agents, extensions, config)
+/// - `read:*` — read-only queries (status, health, catalog)
+/// - `auth:*` — authentication endpoints
+#[allow(dead_code)]
+pub fn route_to_policy(method: &str, path: &str) -> (String, String) {
+    let path = path.split('?').next().unwrap_or(path);
+
+    // Strip path parameters (UUIDs, IDs) for resource matching
+    let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+
+    let (action, resource) = match segments.as_slice() {
+        // Agent execution
+        ["reply", ..] => ("execute:reply", "agent:session"),
+        ["v1", "completions", ..] => ("execute:completions", "agent:session"),
+
+        // Sessions
+        ["sessions", ..] if method == "GET" => ("session:read", "session:list"),
+        ["sessions", _, ..] if method == "DELETE" => ("session:delete", "session:instance"),
+        ["sessions", ..] => ("session:write", "session:instance"),
+
+        // Agent management
+        ["agents", "catalog", ..] => ("read:catalog", "agent:catalog"),
+        ["agents", ..] if method == "GET" => ("read:agents", "agent:registry"),
+        ["agents", ..] => ("manage:agents", "agent:registry"),
+
+        // Extensions
+        ["extensions", ..] if method == "GET" => ("read:extensions", "extension:registry"),
+        ["extensions", ..] => ("manage:extensions", "extension:registry"),
+
+        // Config
+        ["config", ..] if method == "GET" => ("read:config", "system:config"),
+        ["config", ..] => ("manage:config", "system:config"),
+
+        // Auth — always allowed (handled by rate limiter)
+        ["auth", ..] => ("auth:access", "auth:endpoint"),
+
+        // Observatory / health
+        ["observatory", ..] | ["status", ..] | ["health", ..] => ("read:health", "system:health"),
+
+        // Pipeline
+        ["pipeline", ..] if method == "GET" => ("read:pipeline", "pipeline:state"),
+        ["pipeline", ..] => ("manage:pipeline", "pipeline:state"),
+
+        // A2A / ACP
+        ["a2a", ..] | ["acp", ..] => ("execute:a2a", "agent:a2a"),
+
+        // Recipes
+        ["recipes", ..] if method == "GET" => ("read:recipes", "recipe:library"),
+        ["recipes", ..] => ("manage:recipes", "recipe:library"),
+
+        // MCP proxies
+        ["mcp-app-proxy", ..] | ["mcp-ui-proxy", ..] => ("execute:mcp", "mcp:proxy"),
+
+        // Default: read for GET, manage for everything else
+        _ if method == "GET" || method == "HEAD" || method == "OPTIONS" => {
+            ("read:other", "system:other")
+        }
+        _ => ("manage:other", "system:other"),
+    };
+
+    (action.to_string(), resource.to_string())
+}
+
+/// Authorization middleware that evaluates the policy engine for each request.
+///
+/// Runs after `check_token` (which validates server secret) and identity extraction.
+/// Extracts the user identity from headers, maps the route to an action/resource,
+/// evaluates the policy, and emits an audit event.
+///
+/// Returns 403 Forbidden if the policy denies the request.
+/// Allows the request on Allow or Abstain (open by default).
+#[allow(dead_code)]
+pub async fn authorize_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
+    let method = request.method().as_str().to_string();
+    let path = request.uri().path().to_string();
+    let (action, resource) = route_to_policy(&method, &path);
+
+    let identity = extract_user_from_headers(request.headers());
+
+    let policy_store = request
+        .extensions()
+        .get::<Arc<goose::policy::PolicyStore>>()
+        .cloned();
+    let audit_logger = request
+        .extensions()
+        .get::<Arc<goose::audit::AuditLogger>>()
+        .cloned();
+
+    let decision = if let Some(store) = &policy_store {
+        store
+            .engine_for(identity.tenant.as_deref())
+            .await
+            .evaluate(&identity, &action, &resource)
+    } else {
+        goose::policy::PolicyDecision::Allow
+    };
+
+    let actor = goose::audit::AuditActor::User {
+        id: identity.id.clone(),
+        name: identity.name.clone(),
+    };
+
+    if let Some(logger) = &audit_logger {
+        let event = goose::audit::AuditEvent::from_policy_decision(
+            actor,
+            action.clone(),
+            resource.clone(),
+            &decision,
+        );
+        let event = if let Some(tenant) = &identity.tenant {
+            event.with_tenant(tenant.clone())
+        } else {
+            event
+        };
+        logger.log(&event).await;
+    }
+
+    match decision {
+        goose::policy::PolicyDecision::Deny { reason } => {
+            tracing::warn!(
+                user_id = %identity.id,
+                action = %action,
+                resource = %resource,
+                reason = %reason,
+                "request denied by policy"
+            );
+            Err(StatusCode::FORBIDDEN)
+        }
+        _ => Ok(next.run(request).await),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -440,7 +578,7 @@ mod tests {
 
     #[test]
     fn test_extract_client_ip_forwarded_for() {
-        let mut request = Request::builder()
+        let request = Request::builder()
             .header("x-forwarded-for", "203.0.113.50, 70.41.3.18")
             .body(axum::body::Body::empty())
             .unwrap();

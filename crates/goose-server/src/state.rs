@@ -15,7 +15,9 @@ use crate::routes::runs::RunStore;
 use crate::tunnel::TunnelManager;
 use goose::agents::extension_registry::ExtensionRegistry;
 use goose::agents::ExtensionLoadResult;
+use goose::audit::AuditLogger;
 use goose::oidc::OidcValidator;
+use goose::policy::PolicyStore;
 use goose::session_token::SessionTokenStore;
 
 type ExtensionLoadingTasks =
@@ -36,6 +38,8 @@ pub struct AppState {
     pub agent_pool: Arc<AgentPool>,
     pub oidc_validator: Arc<OidcValidator>,
     pub session_token_store: Arc<SessionTokenStore>,
+    pub policy_store: Arc<PolicyStore>,
+    pub audit_logger: Arc<AuditLogger>,
 }
 
 impl AppState {
@@ -61,6 +65,8 @@ impl AppState {
                 uuid::Uuid::new_v4().to_string(),
                 &goose::config::paths::Paths::data_dir(),
             )),
+            policy_store: Arc::new(PolicyStore::new()),
+            audit_logger: Arc::new(AuditLogger::new()),
         }))
     }
 

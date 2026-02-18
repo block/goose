@@ -1,8 +1,8 @@
 use crate::configuration;
 use crate::state;
 use anyhow::Result;
-use axum::middleware;
-use goose_server::auth::check_token;
+use axum::{middleware, Extension};
+use goose_server::auth::{authorize_middleware, check_token};
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
@@ -41,6 +41,9 @@ pub async fn run() -> Result<()> {
         .allow_headers(Any);
 
     let app = crate::routes::configure(app_state.clone(), secret_key.clone())
+        .layer(middleware::from_fn(authorize_middleware))
+        .layer(Extension(app_state.policy_store.clone()))
+        .layer(Extension(app_state.audit_logger.clone()))
         .layer(middleware::from_fn_with_state(
             secret_key.clone(),
             check_token,
