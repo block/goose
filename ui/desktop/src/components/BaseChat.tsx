@@ -181,9 +181,9 @@ export default function BaseChat({
 
   useEffect(() => {
     if (session?.provider_name && session?.model_config?.model_name) {
-      setProviderAndModel(session.provider_name, session.model_config.model_name);
+      setProviderAndModel(session.provider_name, session.model_config.model_name, session.model_config.variant);
     }
-  }, [session?.provider_name, session?.model_config?.model_name, setProviderAndModel]);
+  }, [session?.provider_name, session?.model_config?.model_name, session?.model_config?.variant, setProviderAndModel]);
 
   useEffect(() => {
     if (!recipe) return;

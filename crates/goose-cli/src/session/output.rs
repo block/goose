@@ -1335,11 +1335,20 @@ fn estimate_cost_usd(
     model: &str,
     input_tokens: usize,
     output_tokens: usize,
+    provider_pricing: Option<(f64, f64)>,
 ) -> Option<f64> {
-    let canonical_model = maybe_get_canonical_model(provider, model)?;
-
-    let input_cost_per_token = canonical_model.cost.input? / 1_000_000.0;
-    let output_cost_per_token = canonical_model.cost.output? / 1_000_000.0;
+    // Try canonical registry first
+    let (input_cost_per_token, output_cost_per_token) =
+        if let Some(canonical_model) = maybe_get_canonical_model(provider, model) {
+            let input = canonical_model.cost.input? / 1_000_000.0;
+            let output = canonical_model.cost.output? / 1_000_000.0;
+            (input, output)
+        } else if let Some((input, output)) = provider_pricing {
+            // Fall back to provider-supplied pricing (e.g., from LiteLLM proxy)
+            (input, output)
+        } else {
+            return None;
+        };
 
     let input_cost = input_cost_per_token * input_tokens as f64;
     let output_cost = output_cost_per_token * output_tokens as f64;
@@ -1347,8 +1356,22 @@ fn estimate_cost_usd(
 }
 
 /// Display cost information, if price data is available.
-pub fn display_cost_usage(provider: &str, model: &str, input_tokens: usize, output_tokens: usize) {
-    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens) {
+/// `provider_pricing` is an optional per-token cost from the provider itself
+/// (used when the canonical registry has no pricing for custom model aliases).
+pub fn display_cost_usage(
+    provider: &str,
+    model: &str,
+    input_tokens: usize,
+    output_tokens: usize,
+    provider_pricing: Option<(f64, f64)>,
+) {
+    if let Some(cost) = estimate_cost_usd(
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        provider_pricing,
+    ) {
         use console::style;
         eprintln!(
             "Cost: {} USD ({} tokens: in {}, out {})",
@@ -1493,5 +1516,27 @@ mod tests {
             ),
             "/v/l/p/w/m/components/file.txt"
         );
+    }
+
+    #[test]
+    fn test_estimate_cost_with_provider_pricing_fallback() {
+        // Unknown model alias that won't be in canonical registry
+        let cost = estimate_cost_usd(
+            "litellm",
+            "my-custom-alias",
+            1000,
+            500,
+            Some((0.000003, 0.000015)), // $3/$15 per million tokens
+        );
+        assert!(cost.is_some());
+        let cost = cost.unwrap();
+        // input: 1000 * 0.000003 = 0.003, output: 500 * 0.000015 = 0.0075
+        assert!((cost - 0.0105).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_estimate_cost_no_pricing_available() {
+        let cost = estimate_cost_usd("litellm", "unknown-model", 1000, 500, None);
+        assert!(cost.is_none());
     }
 }

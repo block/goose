@@ -100,6 +100,8 @@ pub struct SessionBuilderConfig {
     pub provider: Option<String>,
     /// Model override from CLI arguments
     pub model: Option<String>,
+    /// Reasoning variant level override from CLI arguments
+    pub variant: Option<String>,
     /// Enable debug printing
     pub debug: bool,
     /// Maximum number of consecutive identical tool calls allowed
@@ -135,6 +137,7 @@ impl Default for SessionBuilderConfig {
             additional_system_prompt: None,
             provider: None,
             model: None,
+            variant: None,
             debug: false,
             max_tool_repetitions: None,
             max_turns: None,
@@ -369,7 +372,7 @@ fn resolve_provider_and_model(
         .or_else(|| config.get_goose_model().ok())
         .expect("No model configured. Run 'goose configure' first");
 
-    let model_config = if session_config.resume
+    let mut model_config = if session_config.resume
         && saved_model_config
             .as_ref()
             .is_some_and(|mc| mc.model_name == model_name)
@@ -389,6 +392,11 @@ fn resolve_provider_and_model(
             .with_canonical_limits(&provider_name)
             .with_temperature(temperature)
     };
+
+    // CLI --variant overrides GOOSE_VARIANT env var
+    if let Some(ref variant) = session_config.variant {
+        model_config = model_config.with_variant(Some(variant.clone()));
+    }
 
     ResolvedProviderConfig {
         provider_name,
@@ -744,6 +752,7 @@ mod tests {
             additional_system_prompt: Some("Test prompt".to_string()),
             provider: None,
             model: None,
+            variant: None,
             debug: true,
             max_tool_repetitions: Some(5),
             max_turns: None,

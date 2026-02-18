@@ -53,6 +53,8 @@ pub struct ModelInfo {
     pub currency: Option<String>,
     /// Whether this model supports cache control
     pub supports_cache_control: Option<bool>,
+    /// Whether this model supports reasoning/extended thinking
+    pub supports_reasoning: Option<bool>,
 }
 
 impl ModelInfo {
@@ -65,7 +67,37 @@ impl ModelInfo {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            supports_reasoning: None,
         }
+    }
+
+    /// Enrich this ModelInfo with data from the canonical registry.
+    /// Fills in missing fields (pricing, reasoning, context limit) if a canonical match exists.
+    pub fn enriched_from_canonical(mut self, provider: &str) -> Self {
+        use crate::providers::canonical::maybe_get_canonical_model;
+
+        if let Some(canonical) = maybe_get_canonical_model(provider, &self.name) {
+            if self.supports_reasoning.is_none() {
+                self.supports_reasoning = canonical.reasoning;
+            }
+            if self.input_token_cost.is_none() {
+                if let Some(input) = canonical.cost.input {
+                    self.input_token_cost = Some(input / 1_000_000.0);
+                }
+            }
+            if self.output_token_cost.is_none() {
+                if let Some(output) = canonical.cost.output {
+                    self.output_token_cost = Some(output / 1_000_000.0);
+                }
+            }
+            if self.input_token_cost.is_some() || self.output_token_cost.is_some() {
+                self.currency.get_or_insert_with(|| "$".to_string());
+            }
+            if canonical.limit.context > 0 {
+                self.context_limit = canonical.limit.context;
+            }
+        }
+        self
     }
 
     /// Create a new ModelInfo with cost information (per token)
@@ -82,6 +114,7 @@ impl ModelInfo {
             output_token_cost: Some(output_cost),
             currency: Some("$".to_string()),
             supports_cache_control: None,
+            supports_reasoning: None,
         }
     }
 }
@@ -133,15 +166,14 @@ impl ProviderMetadata {
             default_model: default_model.to_string(),
             known_models: model_names
                 .iter()
-                .map(|&model_name| ModelInfo {
-                    name: model_name.to_string(),
-                    context_limit: ModelConfig::new_or_fail(model_name)
-                        .with_canonical_limits(name)
-                        .context_limit(),
-                    input_token_cost: None,
-                    output_token_cost: None,
-                    currency: None,
-                    supports_cache_control: None,
+                .map(|&model_name| {
+                    ModelInfo::new(
+                        model_name,
+                        ModelConfig::new_or_fail(model_name)
+                            .with_canonical_limits(name)
+                            .context_limit(),
+                    )
+                    .enriched_from_canonical(name)
                 })
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
@@ -468,6 +500,13 @@ pub trait Provider: Send + Sync {
         Ok(vec![])
     }
 
+    /// Fetch models with enriched capability information (pricing, reasoning, etc.).
+    /// Providers that can supply model details should override this.
+    /// Returns an empty vec by default, signaling the caller to fall back to name-only lists.
+    async fn fetch_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+        Ok(vec![])
+    }
+
     /// Fetch models filtered by canonical registry and usability
     async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
@@ -546,6 +585,13 @@ pub trait Provider: Send + Sync {
 
     async fn supports_cache_control(&self) -> bool {
         false
+    }
+
+    /// Get per-token pricing for the current model from the provider.
+    /// Returns (input_cost_per_token, output_cost_per_token) in USD.
+    /// Used as a fallback when the canonical model registry has no pricing data.
+    async fn get_model_pricing(&self) -> Option<(f64, f64)> {
+        None
     }
 
     /// Create embeddings if supported. Default implementation returns an error.
@@ -884,6 +930,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            supports_reasoning: None,
         };
         assert_eq!(info.context_limit, 1000);
 
@@ -895,6 +942,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            supports_reasoning: None,
         };
         assert_eq!(info, info2);
 
@@ -906,6 +954,7 @@ mod tests {
             output_token_cost: None,
             currency: None,
             supports_cache_control: None,
+            supports_reasoning: None,
         };
         assert_ne!(info, info3);
     }

@@ -16,7 +16,7 @@ import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
-import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
+import Model, { getProviderMetadata, fetchModelsForProviders, formatModelHint } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
@@ -24,6 +24,14 @@ import { trackModelChanged } from '../../../../utils/analytics';
 const THINKING_LEVEL_OPTIONS = [
   { value: 'low', label: 'Low - Better latency, lighter reasoning' },
   { value: 'high', label: 'High - Deeper reasoning, higher latency' },
+];
+
+const VARIANT_OPTIONS = [
+  { value: '', label: 'None - No extended thinking' },
+  { value: 'low', label: 'Low - Lighter reasoning' },
+  { value: 'medium', label: 'Medium - Balanced reasoning' },
+  { value: 'high', label: 'High - Deeper reasoning' },
+  { value: 'max', label: 'Max - Maximum reasoning depth' },
 ];
 
 const PREFERRED_MODEL_PATTERNS = [
@@ -81,9 +89,9 @@ export const SwitchModelModal = ({
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, read } = useConfig();
-  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
+  const { changeModel, currentModel, currentProvider, currentVariant } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
-  type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
+  type ModelOption = { value: string; label: string; provider: string; hint?: string; supportsReasoning?: boolean; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
@@ -103,9 +111,26 @@ export const SwitchModelModal = ({
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
   const [thinkingLevel, setThinkingLevel] = useState<string>('low');
+  const [variant, setVariant] = useState<string>(currentVariant || '');
 
   const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;
+  const isOpusModel = modelName?.toLowerCase().includes('opus') ?? false;
+
+  // Clear "max" variant if the selected model is not Opus
+  useEffect(() => {
+    if (!isOpusModel && variant === 'max') {
+      setVariant('');
+    }
+  }, [isOpusModel, variant]);
+
+  // Check if the selected model supports reasoning
+  const isReasoningModel = (() => {
+    if (!model) return false;
+    const allOptions = modelOptions.flatMap((g) => g.options);
+    const selected = allOptions.find((o) => o.value === model);
+    return selected?.supportsReasoning ?? false;
+  })();
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -167,6 +192,10 @@ export const SwitchModelModal = ({
         };
       }
 
+      if (isReasoningModel && variant) {
+        modelObj = { ...modelObj, variant };
+      }
+
       await changeModel(sessionId, modelObj);
       onModelSelected?.(modelObj.name);
 
@@ -226,29 +255,38 @@ export const SwitchModelModal = ({
 
         // Process results and build grouped options
         const groupedOptions: {
-          options: { value: string; label: string; provider: string; providerType: ProviderType }[];
+          options: { value: string; label: string; provider: string; hint?: string; providerType: ProviderType }[];
         }[] = [];
         const errorMap: Record<string, string> = {};
 
-        results.forEach(({ provider: p, models, error }) => {
+        results.forEach(({ provider: p, models, modelInfo, error }) => {
           if (error) {
             errorMap[p.name] = error;
             return;
           }
 
           const modelList = models || [];
+          const infoMap = new Map((modelInfo || []).map((info) => [info.name, info]));
 
           const options: {
             value: string;
             label: string;
             provider: string;
+            hint?: string;
+            supportsReasoning?: boolean;
             providerType: ProviderType;
-          }[] = modelList.map((m) => ({
-            value: m,
-            label: m,
-            provider: p.name,
-            providerType: p.provider_type,
-          }));
+          }[] = modelList.map((m) => {
+            const info = infoMap.get(m);
+            const hint = info ? formatModelHint(info) : undefined;
+            return {
+              value: m,
+              label: m,
+              provider: p.name,
+              hint: hint || undefined,
+              supportsReasoning: info?.supports_reasoning ?? false,
+              providerType: p.provider_type,
+            };
+          });
 
           if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
             options.push({
@@ -315,6 +353,7 @@ export const SwitchModelModal = ({
       setModel(selectedOption?.value || '');
       setProvider(selectedOption?.provider || '');
       setUserClearedModel(false);
+      setVariant('');
     }
   };
 
@@ -525,6 +564,16 @@ export const SwitchModelModal = ({
                         placeholder="Select a model, type to search"
                         isClearable
                         isDisabled={loadingModels}
+                        formatOptionLabel={(option: unknown) => {
+                          const opt = option as ModelOption;
+                          if (!opt.hint) return opt.label;
+                          return (
+                            <div className="flex justify-between items-center w-full">
+                              <span>{opt.label}</span>
+                              <span className="text-xs text-text-muted ml-2">{opt.hint}</span>
+                            </div>
+                          );
+                        }}
                       />
 
                       {attemptedSubmit && validationErrors.model && (
@@ -568,6 +617,23 @@ export const SwitchModelModal = ({
                           setThinkingLevel(option?.value || 'low');
                         }}
                         placeholder="Select thinking level"
+                      />
+                    </div>
+                  )}
+
+                  {isReasoningModel && !isGemini3Model && (
+                    <div className="mt-2">
+                      <label className="text-sm text-text-muted mb-1 block">
+                        Reasoning Effort
+                      </label>
+                      <Select
+                        options={isOpusModel ? VARIANT_OPTIONS : VARIANT_OPTIONS.filter((o) => o.value !== 'max')}
+                        value={VARIANT_OPTIONS.find((o) => o.value === variant) || VARIANT_OPTIONS[0]}
+                        onChange={(newValue: unknown) => {
+                          const option = newValue as { value: string; label: string } | null;
+                          setVariant(option?.value || '');
+                        }}
+                        placeholder="Select reasoning effort"
                       />
                     </div>
                   )}

@@ -99,6 +99,7 @@ impl ProviderRegistry {
                 output_token_cost: m.output_token_cost,
                 currency: m.currency.clone(),
                 supports_cache_control: Some(m.supports_cache_control.unwrap_or(false)),
+                supports_reasoning: None,
             })
             .collect();
 

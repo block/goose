@@ -19,6 +19,7 @@ const SWITCH_MODEL_SUCCESS_MSG = 'Successfully switched models';
 interface ModelAndProviderContextType {
   currentModel: string | null;
   currentProvider: string | null;
+  currentVariant: string | null;
   changeModel: (sessionId: string | null, model: Model) => Promise<void>;
   getCurrentModelAndProvider: () => Promise<{ model: string; provider: string }>;
   getFallbackModelAndProvider: () => Promise<{ model: string; provider: string }>;
@@ -26,7 +27,7 @@ interface ModelAndProviderContextType {
   getCurrentModelDisplayName: () => Promise<string>;
   getCurrentProviderDisplayName: () => Promise<string>; // Gets provider display name from subtext
   refreshCurrentModelAndProvider: () => Promise<void>;
-  setProviderAndModel: (provider: string, model: string) => void;
+  setProviderAndModel: (provider: string, model: string, variant?: string | null) => void;
 }
 
 interface ModelAndProviderProviderProps {
@@ -38,6 +39,7 @@ const ModelAndProviderContext = createContext<ModelAndProviderContextType | unde
 export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> = ({ children }) => {
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
+  const [currentVariant, setCurrentVariant] = useState<string | null>(null);
   const { read, getProviders } = useConfig();
 
   const changeModel = useCallback(async (sessionId: string | null, model: Model) => {
@@ -54,6 +56,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
             model: modelName,
             context_limit: model.context_limit,
             request_params: model.request_params,
+            variant: model.variant || null,
           },
         });
       }
@@ -63,12 +66,14 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
         body: {
           provider: providerName,
           model: modelName,
+          variant: model.variant || null,
         },
         throwOnError: true,
       });
 
       setCurrentProvider(providerName);
       setCurrentModel(modelName);
+      setCurrentVariant(model.variant || null);
 
       toastSuccess({
         title: CHANGE_MODEL_TOAST_TITLE,
@@ -169,14 +174,23 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       const { model, provider } = await getCurrentModelAndProvider();
       setCurrentModel(model);
       setCurrentProvider(provider);
+
+      // Load variant from config (may not be set)
+      try {
+        const variant = (await read('GOOSE_VARIANT', false)) as string;
+        setCurrentVariant(variant || null);
+      } catch {
+        setCurrentVariant(null);
+      }
     } catch (_error) {
       console.error('Failed to refresh current model and provider:', _error);
     }
-  }, [getCurrentModelAndProvider]);
+  }, [getCurrentModelAndProvider, read]);
 
-  const setProviderAndModel = useCallback((provider: string, model: string) => {
+  const setProviderAndModel = useCallback((provider: string, model: string, variant?: string | null) => {
     setCurrentProvider(provider);
     setCurrentModel(model);
+    setCurrentVariant(variant ?? null);
   }, []);
 
   // Load initial model and provider on mount
@@ -188,6 +202,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     () => ({
       currentModel,
       currentProvider,
+      currentVariant,
       changeModel,
       getCurrentModelAndProvider,
       getFallbackModelAndProvider,
@@ -200,6 +215,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     [
       currentModel,
       currentProvider,
+      currentVariant,
       changeModel,
       getCurrentModelAndProvider,
       getFallbackModelAndProvider,

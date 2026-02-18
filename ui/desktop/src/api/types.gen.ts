@@ -636,6 +636,12 @@ export type ModelConfig = {
     temperature?: number | null;
     toolshim: boolean;
     toolshim_model?: string | null;
+    /**
+     * Reasoning variant level (e.g., "low", "medium", "high", "max").
+     * Controls reasoning effort/budget for models that support extended thinking.
+     * The provider translates this into the appropriate API parameters.
+     */
+    variant?: string | null;
 };
 
 /**
@@ -666,6 +672,10 @@ export type ModelInfo = {
      * Whether this model supports cache control
      */
     supports_cache_control?: boolean | null;
+    /**
+     * Whether this model supports reasoning/extended thinking
+     */
+    supports_reasoning?: boolean | null;
 };
 
 export type ModelInfoData = {
@@ -1089,6 +1099,10 @@ export type SessionsQuery = {
 export type SetProviderRequest = {
     model: string;
     provider: string;
+    /**
+     * Reasoning effort variant (e.g., "low", "medium", "high", "max")
+     */
+    variant?: string | null;
 };
 
 export type SetSlashCommandRequest = {
@@ -1363,6 +1377,11 @@ export type UpdateProviderRequest = {
         [key: string]: unknown;
     } | null;
     session_id: string;
+    /**
+     * Reasoning variant level (e.g., "low", "medium", "high", "max").
+     * Only applicable to models that support reasoning.
+     */
+    variant?: string | null;
 };
 
 export type UpdateScheduleRequest = {
@@ -2391,6 +2410,38 @@ export type ProvidersResponses = {
 };
 
 export type ProvidersResponse2 = ProvidersResponses[keyof ProvidersResponses];
+
+export type GetProviderModelInfoData = {
+    body?: never;
+    path: {
+        /**
+         * Provider name (e.g., litellm)
+         */
+        name: string;
+    };
+    query?: never;
+    url: '/config/providers/{name}/model-info';
+};
+
+export type GetProviderModelInfoErrors = {
+    /**
+     * Unknown provider or provider not configured
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type GetProviderModelInfoResponses = {
+    /**
+     * Model info fetched successfully
+     */
+    200: Array<ModelInfo>;
+};
+
+export type GetProviderModelInfoResponse = GetProviderModelInfoResponses[keyof GetProviderModelInfoResponses];
 
 export type GetProviderModelsData = {
     body?: never;

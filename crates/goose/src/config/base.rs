@@ -973,6 +973,7 @@ config_value!(GOOSE_SEARCH_PATHS, Vec<String>);
 config_value!(GOOSE_MODE, GooseMode);
 config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
+config_value!(GOOSE_VARIANT, String);
 config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);

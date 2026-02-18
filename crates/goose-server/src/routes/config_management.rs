@@ -13,7 +13,7 @@ use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
 use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
-use goose::providers::base::{ProviderMetadata, ProviderType};
+use goose::providers::base::{ModelInfo, ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
@@ -109,6 +109,9 @@ pub struct CheckProviderRequest {
 pub struct SetProviderRequest {
     pub provider: String,
     pub model: String,
+    /// Reasoning effort variant (e.g., "low", "medium", "high", "max")
+    #[serde(default)]
+    pub variant: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -392,6 +395,53 @@ pub async fn get_provider_models(
 
 #[utoipa::path(
     get,
+    path = "/config/providers/{name}/model-info",
+    params(
+        ("name" = String, Path, description = "Provider name (e.g., litellm)")
+    ),
+    responses(
+        (status = 200, description = "Model info fetched successfully", body = [ModelInfo]),
+        (status = 400, description = "Unknown provider or provider not configured"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+pub async fn get_provider_model_info(
+    Path(name): Path<String>,
+) -> Result<Json<Vec<ModelInfo>>, ErrorResponse> {
+    let all = get_providers().await.into_iter().collect::<Vec<_>>();
+    let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == name) else {
+        return Err(ErrorResponse::bad_request(format!(
+            "Unknown provider: {}",
+            name
+        )));
+    };
+    if !check_provider_configured(&metadata, provider_type) {
+        return Err(ErrorResponse::bad_request(format!(
+            "Provider '{}' is not configured",
+            name
+        )));
+    }
+
+    let model_config = ModelConfig::new(&metadata.default_model)?;
+    let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
+
+    match provider.fetch_model_info().await {
+        Ok(info) if !info.is_empty() => Ok(Json(info)),
+        _ => {
+            // Fall back: wrap recommended model names as basic ModelInfo,
+            // enriched with canonical registry data (pricing, reasoning, etc.)
+            let models = provider.fetch_recommended_models().await?;
+            let info: Vec<ModelInfo> = models
+                .into_iter()
+                .map(|model_name| ModelInfo::new(model_name, 128000).enriched_from_canonical(&name))
+                .collect();
+            Ok(Json(info))
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
     path = "/config/slash_commands",
     responses(
         (status = 200, description = "Slash commands retrieved successfully", body = SlashCommandsResponse)
@@ -454,23 +504,61 @@ pub struct ModelInfoQuery {
 pub async fn get_canonical_model_info(
     Json(query): Json<ModelInfoQuery>,
 ) -> Json<ModelInfoResponse> {
-    let canonical_model = maybe_get_canonical_model(&query.provider, &query.model);
+    // Try canonical registry first
+    if let Some(canonical_model) = maybe_get_canonical_model(&query.provider, &query.model) {
+        return Json(ModelInfoResponse {
+            model_info: Some(ModelInfoData {
+                provider: query.provider.clone(),
+                model: query.model.clone(),
+                context_limit: canonical_model.limit.context,
+                max_output_tokens: canonical_model.limit.output,
+                input_token_cost: canonical_model.cost.input,
+                output_token_cost: canonical_model.cost.output,
+                cache_read_token_cost: canonical_model.cost.cache_read,
+                cache_write_token_cost: canonical_model.cost.cache_write,
+                currency: "$".to_string(),
+            }),
+            source: "canonical".to_string(),
+        });
+    }
 
-    let model_info = canonical_model.map(|canonical_model| ModelInfoData {
-        provider: query.provider.clone(),
-        model: query.model.clone(),
-        context_limit: canonical_model.limit.context,
-        max_output_tokens: canonical_model.limit.output,
-        // Costs are per million tokens - client handles division for display
-        input_token_cost: canonical_model.cost.input,
-        output_token_cost: canonical_model.cost.output,
-        cache_read_token_cost: canonical_model.cost.cache_read,
-        cache_write_token_cost: canonical_model.cost.cache_write,
-        currency: "$".to_string(),
-    });
+    // Fall back to provider-supplied info (e.g., LiteLLM proxy)
+    let all = get_providers().await.into_iter().collect::<Vec<_>>();
+    if let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == query.provider)
+    {
+        if check_provider_configured(&metadata, provider_type) {
+            if let Ok(model_config) = ModelConfig::new(&metadata.default_model) {
+                if let Ok(provider) =
+                    goose::providers::create(&query.provider, model_config, Vec::new()).await
+                {
+                    if let Ok(model_infos) = provider.fetch_model_info().await {
+                        if let Some(info) = model_infos.iter().find(|m| m.name == query.model) {
+                            return Json(ModelInfoResponse {
+                                model_info: Some(ModelInfoData {
+                                    provider: query.provider.clone(),
+                                    model: query.model.clone(),
+                                    context_limit: info.context_limit,
+                                    max_output_tokens: None,
+                                    input_token_cost: info.input_token_cost,
+                                    output_token_cost: info.output_token_cost,
+                                    cache_read_token_cost: None,
+                                    cache_write_token_cost: None,
+                                    currency: info
+                                        .currency
+                                        .clone()
+                                        .unwrap_or_else(|| "$".to_string()),
+                                }),
+                                source: "provider".to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Json(ModelInfoResponse {
-        model_info,
+        model_info: None,
         source: "canonical".to_string(),
     })
 }
@@ -749,7 +837,11 @@ pub async fn check_provider(
     request_body = SetProviderRequest,
 )]
 pub async fn set_config_provider(
-    Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
+    Json(SetProviderRequest {
+        provider,
+        model,
+        variant,
+    }): Json<SetProviderRequest>,
 ) -> Result<(), ErrorResponse> {
     // Provider validation does not use extensions.
     create_with_default_model(&provider, Vec::new())
@@ -759,6 +851,10 @@ pub async fn set_config_provider(
             config
                 .set_goose_provider(provider.clone())
                 .and_then(|_| config.set_goose_model(model.clone()))
+                .and_then(|_| {
+                    // Save variant (empty string clears it)
+                    config.set_goose_variant(variant.unwrap_or_default())
+                })
                 .map_err(|e| anyhow::anyhow!(e))
         })
         .map_err(|err| {
@@ -836,6 +932,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route(
+            "/config/providers/{name}/model-info",
+            get(get_provider_model_info),
+        )
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route(

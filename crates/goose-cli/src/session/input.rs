@@ -25,6 +25,7 @@ pub enum InputResult {
     Recipe(Option<String>),
     Compact,
     ToggleFullToolOutput,
+    Variant(Option<String>),
 }
 
 #[derive(Debug)]
@@ -308,6 +309,28 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Compact)
         }
         "/r" => Some(InputResult::ToggleFullToolOutput),
+        "/variant" => {
+            println!("Usage: /variant <low|medium|high|max|off>");
+            Some(InputResult::Retry)
+        }
+        s if s.starts_with("/variant ") => {
+            let level = s
+                .strip_prefix("/variant ")
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
+            match level.as_str() {
+                "low" | "medium" | "high" | "max" => Some(InputResult::Variant(Some(level))),
+                "off" | "none" | "reset" => Some(InputResult::Variant(None)),
+                _ => {
+                    println!(
+                        "Invalid variant level: {}. Use: low, medium, high, max, or off",
+                        level
+                    );
+                    Some(InputResult::Retry)
+                }
+            }
+        }
         _ => None,
     }
 }
@@ -429,6 +452,7 @@ fn print_help() {
 /recipe [filepath] - Generate a recipe from the current conversation and save it to the specified filepath (must end with .yaml).
                        If no filepath is provided, it will be saved to ./recipe.yaml.
 /compact - Compact the current conversation to reduce context length while preserving key information.
+/variant [level] - Show current reasoning variant or set level (low, medium, high, max, off). Takes effect on next session start.
 /? or /help - Display this help message
 /clear - Clears the current chat history
 

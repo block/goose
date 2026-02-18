@@ -36,7 +36,10 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
 }
 
 fn is_meta_provider(provider: &str) -> bool {
-    matches!(provider, "databricks" | "tetrate" | "bedrock" | "azure")
+    matches!(
+        provider,
+        "databricks" | "tetrate" | "bedrock" | "azure" | "litellm"
+    )
 }
 
 fn map_provider_name(provider: &str) -> &str {
@@ -521,6 +524,25 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-haiku-4-5@20251001", r),
             Some("anthropic/claude-haiku-4.5".to_string())
+        );
+
+        // === LiteLLM (meta-provider with custom aliases) ===
+        assert_eq!(
+            map_to_canonical_model("litellm", "claude-sonnet-4-5", r),
+            Some("anthropic/claude-sonnet-4.5".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("litellm", "gpt-4o", r),
+            Some("openai/gpt-4o".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("litellm", "gemini-2-5-flash", r),
+            Some("google/gemini-2.5-flash".to_string())
+        );
+        // Custom aliases that don't match any known model pattern → None
+        assert_eq!(
+            map_to_canonical_model("litellm", "my-custom-model", r),
+            None
         );
     }
 }
