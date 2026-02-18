@@ -7,8 +7,8 @@ import { z } from 'zod';
  * Method: `_agent/extensions/add`
  */
 export const zAddExtensionRequest = z.object({
-  session_id: z.string(),
-  config: z.unknown(),
+    session_id: z.string(),
+    config: z.unknown()
 });
 
 /**
@@ -21,8 +21,8 @@ export const zEmptyResponse = z.record(z.unknown());
  * Method: `_agent/extensions/remove`
  */
 export const zRemoveExtensionRequest = z.object({
-  session_id: z.string(),
-  name: z.string(),
+    session_id: z.string(),
+    name: z.string()
 });
 
 /**
@@ -30,11 +30,11 @@ export const zRemoveExtensionRequest = z.object({
  * Method: `_agent/tools`
  */
 export const zGetToolsRequest = z.object({
-  session_id: z.string(),
+    session_id: z.string()
 });
 
 export const zGetToolsResponse = z.object({
-  tools: z.array(z.unknown()),
+    tools: z.array(z.unknown())
 });
 
 /**
@@ -42,13 +42,13 @@ export const zGetToolsResponse = z.object({
  * Method: `_agent/resource/read`
  */
 export const zReadResourceRequest = z.object({
-  session_id: z.string(),
-  uri: z.string(),
-  extension_name: z.string(),
+    session_id: z.string(),
+    uri: z.string(),
+    extension_name: z.string()
 });
 
 export const zReadResourceResponse = z.object({
-  result: z.unknown(),
+    result: z.unknown()
 });
 
 /**
@@ -56,8 +56,8 @@ export const zReadResourceResponse = z.object({
  * Method: `_agent/working_dir/update`
  */
 export const zUpdateWorkingDirRequest = z.object({
-  session_id: z.string(),
-  working_dir: z.string(),
+    session_id: z.string(),
+    working_dir: z.string()
 });
 
 /**
@@ -65,7 +65,7 @@ export const zUpdateWorkingDirRequest = z.object({
  * Method: `_session/list`
  */
 export const zListSessionsResponse = z.object({
-  sessions: z.array(z.unknown()),
+    sessions: z.array(z.unknown())
 });
 
 /**
@@ -73,15 +73,15 @@ export const zListSessionsResponse = z.object({
  * Method: `_session/get`
  */
 export const zGetSessionRequest = z.object({
-  session_id: z.string(),
-  include_messages: z.boolean().optional().default(false),
+    session_id: z.string(),
+    include_messages: z.boolean().optional().default(false)
 });
 
 /**
  * Get a session response.
  */
 export const zGetSessionResponse = z.object({
-  session: z.unknown(),
+    session: z.unknown()
 });
 
 /**
@@ -89,7 +89,7 @@ export const zGetSessionResponse = z.object({
  * Method: `_session/delete`
  */
 export const zDeleteSessionRequest = z.object({
-  session_id: z.string(),
+    session_id: z.string()
 });
 
 /**
@@ -97,11 +97,11 @@ export const zDeleteSessionRequest = z.object({
  * Method: `_session/export`
  */
 export const zExportSessionRequest = z.object({
-  session_id: z.string(),
+    session_id: z.string()
 });
 
 export const zExportSessionResponse = z.object({
-  data: z.string(),
+    data: z.string()
 });
 
 /**
@@ -109,11 +109,11 @@ export const zExportSessionResponse = z.object({
  * Method: `_session/import`
  */
 export const zImportSessionRequest = z.object({
-  data: z.string(),
+    data: z.string()
 });
 
 export const zImportSessionResponse = z.object({
-  session: z.unknown(),
+    session: z.unknown()
 });
 
 /**
@@ -121,56 +121,55 @@ export const zImportSessionResponse = z.object({
  * Method: `_config/extensions`
  */
 export const zGetExtensionsResponse = z.object({
-  extensions: z.array(z.unknown()),
-  warnings: z.array(z.string()),
+    extensions: z.array(z.unknown()),
+    warnings: z.array(z.string())
 });
 
 export const zExtRequest = z.object({
-  id: z.string(),
-  method: z.string(),
-  params: z
-    .union([
-      z.union([
-        zAddExtensionRequest,
-        zRemoveExtensionRequest,
-        zGetToolsRequest,
-        zReadResourceRequest,
-        zUpdateWorkingDirRequest,
-        zGetSessionRequest,
-        zDeleteSessionRequest,
-        zExportSessionRequest,
-        zImportSessionRequest,
-      ]),
-      z.union([z.record(z.unknown()), z.null()]),
-    ])
-    .optional(),
+    id: z.string(),
+    method: z.string(),
+    params: z.union([
+        z.union([
+            zAddExtensionRequest,
+            zRemoveExtensionRequest,
+            zGetToolsRequest,
+            zReadResourceRequest,
+            zUpdateWorkingDirRequest,
+            zGetSessionRequest,
+            zDeleteSessionRequest,
+            zExportSessionRequest,
+            zImportSessionRequest
+        ]),
+        z.union([
+            z.record(z.unknown()),
+            z.null()
+        ])
+    ]).optional()
 });
 
 export const zExtResponse = z.union([
-  z.object({
-    id: z.string(),
-    result: z
-      .union([
-        z.union([
-          zEmptyResponse,
-          zGetToolsResponse,
-          zReadResourceResponse,
-          zListSessionsResponse,
-          zGetSessionResponse,
-          zExportSessionResponse,
-          zImportSessionResponse,
-          zGetExtensionsResponse,
-        ]),
-        z.unknown(),
-      ])
-      .optional(),
-  }),
-  z.object({
-    error: z.object({
-      code: z.number().int(),
-      message: z.string(),
-      data: z.unknown().optional(),
+    z.object({
+        id: z.string(),
+        result: z.union([
+            z.union([
+                zEmptyResponse,
+                zGetToolsResponse,
+                zReadResourceResponse,
+                zListSessionsResponse,
+                zGetSessionResponse,
+                zExportSessionResponse,
+                zImportSessionResponse,
+                zGetExtensionsResponse
+            ]),
+            z.unknown()
+        ]).optional()
     }),
-    id: z.string(),
-  }),
+    z.object({
+        error: z.object({
+            code: z.number().int(),
+            message: z.string(),
+            data: z.unknown().optional()
+        }),
+        id: z.string()
+    })
 ]);

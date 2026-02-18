@@ -3,22 +3,23 @@
  * Generates TypeScript types + Zod validators for Goose custom extension methods.
  *
  * Usage:
- *   npx tsx generate-goose-ext-schema.ts
- *   npx tsx generate-goose-ext-schema.ts --skip-build   # skip cargo build
+ *   npm run generate              # build Rust schema, then generate TS
+ *   npm run generate:skip-build   # use existing schema files
  */
 
 import { createClient } from "@hey-api/openapi-ts";
 import { execSync } from "child_process";
 import * as fs from "fs/promises";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 import * as prettier from "prettier";
 
-const SCHEMA_PATH = resolve(
-  __dirname,
-  "../../crates/goose-acp/acp-schema.json",
-);
-const META_PATH = resolve(__dirname, "../../crates/goose-acp/acp-meta.json");
-const OUTPUT_DIR = resolve(__dirname, "src/goose-ext-schema");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const ROOT = resolve(__dirname, "../..");
+const SCHEMA_PATH = resolve(ROOT, "crates/goose-acp/acp-schema.json");
+const META_PATH = resolve(ROOT, "crates/goose-acp/acp-meta.json");
+const OUTPUT_DIR = resolve(__dirname, "src/generated");
 
 main().catch((err) => {
   console.error(err);
@@ -33,14 +34,14 @@ async function main() {
       execSync(
         "source bin/activate-hermit && cargo run -p goose-acp --bin generate-acp-schema",
         {
-          cwd: resolve(__dirname, "../.."),
+          cwd: ROOT,
           stdio: "inherit",
           shell: "/bin/zsh",
         },
       );
     } catch {
       console.error(
-        "Failed to build schema. Run with --skip-build to use existing files",
+        "Failed to build schema. Run with --skip-build to use existing files.",
       );
       process.exit(1);
     }

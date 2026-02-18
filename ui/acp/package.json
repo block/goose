@@ -1,0 +1,23 @@
+{
+  "name": "@anthropic/goose-acp-types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "tsx generate-schema.ts",
+    "generate:skip-build": "tsx generate-schema.ts --skip-build",
+    "lint": "tsc --noEmit",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.92.3",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "~5.9.3"
+  }
+}
