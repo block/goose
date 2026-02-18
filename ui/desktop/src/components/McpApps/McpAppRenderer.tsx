@@ -839,7 +839,7 @@ export default function McpAppRenderer({
           </button>
         </div>
         <div
-          className="fixed z-[900] overflow-hidden rounded-xl border border-border-default bg-background-default shadow-2xl [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!max-h-full"
+          className="fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default bg-background-default shadow-2xl [&_iframe]:!w-full"
           style={{
             viewTransitionName,
             width: `${PIP_WIDTH}px`,
