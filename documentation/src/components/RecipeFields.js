@@ -8,6 +8,8 @@ const RecipeFields = () => {
       <li><strong>Initial prompt</strong> to pre-fill the chat input</li>
       <li><strong>Message</strong> to display at the top of the recipe and <strong>activity buttons</strong> for users to click</li>
       <li><strong>Parameters</strong> to accept dynamic values</li>
+      <li><strong>Model and provider</strong> to specify which AI model to use</li>
+      <li><strong>Extensions</strong> to select which tools are available</li>
       <li><strong>Response JSON schema</strong> for <a href="/goose/docs/guides/recipes/session-recipes#structured-output-for-automation">structured output in automations</a></li>
     </ul>
   );
