@@ -32,7 +32,7 @@ Code Mode support landed in goose v1.17.0 in December 2025. It ships as a platfo
 To enable it:
 
 - **Desktop app:** Click the extensions icon and toggle on "Code Execution"
-- **CLI:** Run `goose configure` and enable the Code Execution extension
+- **CLI:** Run `goose configure` and enable the Code Mode extension
 
 Since its initial implementation, we've added so many improvements!
 

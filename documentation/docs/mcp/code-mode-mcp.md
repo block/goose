@@ -1,5 +1,5 @@
 ---
-title: Code Execution Extension
+title: Code Mode Extension
 description: Execute JavaScript code to interact with multiple MCP tools
 ---
 
@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import { PlatformExtensionNote } from '@site/src/components/PlatformExtensionNote';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
-The Code Execution extension enables [Code Mode](/docs/guides/managing-tools/code-mode), a programmatic approach for interacting with MCP tools.
+The Code Mode extension enables [Code Mode](/docs/guides/managing-tools/code-mode), a programmatic approach for interacting with MCP tools.
 
 In Code Mode, the LLM discovers which tools are available from your enabled extensions and writes JavaScript code that goose runs in one execution instead of calling tools directly and one at a time. This helps manage context window usage more efficiently when multiple extensions are enabled and when performing workflows with multiple tool calls.
 
