@@ -351,7 +351,7 @@ export default function RunHistoryTab() {
           <button
             onClick={handleRunEval}
             disabled={running || !selectedDataset}
-            className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-default text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-on-accent text-sm font-medium transition-colors"
           >
             {running ? 'Running...' : '▶ Run Eval'}
           </button>

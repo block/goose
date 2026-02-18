@@ -46,6 +46,38 @@ type ProviderQuality = {
 
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+/** Read a CSS custom property value from :root for Recharts inline styles */
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function useChartColors() {
+  const [colors, setColors] = useState({
+    grid: '#27272a',
+    axis: '#3f3f46',
+    tick: '#71717a',
+    tickLabel: '#d4d4d8',
+    tooltipBg: '#18181b',
+    tooltipBorder: '#3f3f46',
+    success: '#22c55e',
+    warning: '#f59e0b',
+    danger: '#ef4444',
+  });
+  useEffect(() => {
+    setColors({
+      grid: cssVar('--border-default'),
+      axis: cssVar('--border-default'),
+      tick: cssVar('--text-muted'),
+      tickLabel: cssVar('--text-default'),
+      tooltipBg: cssVar('--background-default'),
+      tooltipBorder: cssVar('--border-default'),
+      success: cssVar('--text-success'),
+      warning: cssVar('--text-warning'),
+      danger: cssVar('--text-danger'),
+    });
+  }, []);
+  return colors;
+}
+
 function formatDuration(secs: number): string {
   if (secs < 60) return `${Math.round(secs)}s`;
   if (secs < 3600) return `${Math.round(secs / 60)}m`;
@@ -70,29 +102,29 @@ function qualityScore(m: ResponseQualityMetrics): number {
 }
 
 function ScoreGauge({ score }: { score: number }) {
-  const color = score >= 80 ? '#22c55e' : score >= 60 ? '#f59e0b' : '#ef4444';
+  const colorClass = score >= 80 ? 'text-text-success' : score >= 60 ? 'text-text-warning' : 'text-text-danger';
   const circumference = 2 * Math.PI * 45;
   const filled = (score / 100) * circumference;
 
   return (
     <div className="flex flex-col items-center">
-      <svg width="120" height="120" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r="45" fill="none" stroke="#27272a" strokeWidth="8" />
+      <svg width="120" height="120" viewBox="0 0 120 120" className={colorClass}>
+        <circle cx="60" cy="60" r="45" fill="none" className="stroke-border-default" strokeWidth="8" />
         <circle
           cx="60"
           cy="60"
           r="45"
           fill="none"
-          stroke={color}
+          stroke="currentColor"
           strokeWidth="8"
           strokeDasharray={`${filled} ${circumference - filled}`}
           strokeLinecap="round"
           transform="rotate(-90 60 60)"
         />
-        <text x="60" y="55" textAnchor="middle" fill="white" fontSize="28" fontWeight="bold">
+        <text x="60" y="55" textAnchor="middle" className="fill-text-default" fontSize="28" fontWeight="bold">
           {score}
         </text>
-        <text x="60" y="75" textAnchor="middle" fill="#a1a1aa" fontSize="12">
+        <text x="60" y="75" textAnchor="middle" className="fill-text-muted" fontSize="12">
           / 100
         </text>
       </svg>
@@ -162,6 +194,7 @@ export default function ResponseQualityTab() {
 
   const score = qualityScore(data);
   const errorRate = data.total_sessions > 0 ? data.sessions_with_errors / data.total_sessions : 0;
+  const c = useChartColors();
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-120px)]">
@@ -208,30 +241,30 @@ export default function ResponseQualityTab() {
             <AreaChart data={data.daily_quality}>
               <defs>
                 <linearGradient id="qualCompletion" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  <stop offset="5%" stopColor={c.success} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={c.success} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="qualRetry" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                  <stop offset="5%" stopColor={c.warning} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={c.warning} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+              <CartesianGrid strokeDasharray="3 3" stroke={c.grid} />
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDate}
-                tick={{ fill: '#71717a', fontSize: 11 }}
-                stroke="#3f3f46"
+                tick={{ fill: c.tick, fontSize: 11 }}
+                stroke={c.axis}
               />
               <YAxis
-                tick={{ fill: '#71717a', fontSize: 11 }}
-                stroke="#3f3f46"
+                tick={{ fill: c.tick, fontSize: 11 }}
+                stroke={c.axis}
                 tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#18181b',
-                  border: '1px solid #3f3f46',
+                  backgroundColor: c.tooltipBg,
+                  border: `1px solid ${c.tooltipBorder}`,
                   borderRadius: 8,
                 }}
                 labelFormatter={(label) => formatDate(String(label))}
@@ -241,14 +274,14 @@ export default function ResponseQualityTab() {
                 type="monotone"
                 dataKey="retry_rate"
                 name="Retry Rate"
-                stroke="#f59e0b"
+                stroke={c.warning}
                 fill="url(#qualRetry)"
               />
               <Area
                 type="monotone"
                 dataKey="error_rate"
                 name="Error Rate"
-                stroke="#ef4444"
+                stroke={c.danger}
                 fill="none"
                 strokeDasharray="5 5"
               />
@@ -265,11 +298,11 @@ export default function ResponseQualityTab() {
             {/* Bar chart */}
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={data.quality_by_provider} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+                <CartesianGrid strokeDasharray="3 3" stroke={c.grid} />
                 <XAxis
                   type="number"
-                  tick={{ fill: '#71717a', fontSize: 11 }}
-                  stroke="#3f3f46"
+                  tick={{ fill: c.tick, fontSize: 11 }}
+                  stroke={c.axis}
                   domain={[0, 1]}
                   tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
                 />
@@ -277,19 +310,19 @@ export default function ResponseQualityTab() {
                   type="category"
                   dataKey="provider"
                   width={120}
-                  tick={{ fill: '#d4d4d8', fontSize: 11 }}
-                  stroke="#3f3f46"
+                  tick={{ fill: c.tickLabel, fontSize: 11 }}
+                  stroke={c.axis}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#18181b',
-                    border: '1px solid #3f3f46',
+                    backgroundColor: c.tooltipBg,
+                    border: `1px solid ${c.tooltipBorder}`,
                     borderRadius: 8,
                   }}
                   formatter={(value) => [typeof value === 'number' ? formatPercent(value) : value]}
                 />
-                <Bar dataKey="retry_rate" name="Retry Rate" stackId="a" fill="#f59e0b" />
-                <Bar dataKey="error_rate" name="Error Rate" stackId="a" fill="#ef4444" />
+                <Bar dataKey="retry_rate" name="Retry Rate" stackId="a" fill={c.warning} />
+                <Bar dataKey="error_rate" name="Error Rate" stackId="a" fill={c.danger} />
               </BarChart>
             </ResponsiveContainer>
 
@@ -371,10 +404,10 @@ export default function ResponseQualityTab() {
                     width: `${Math.min(100, (data.avg_tool_errors_per_session / 5) * 100)}%`,
                     backgroundColor:
                       data.avg_tool_errors_per_session <= 1
-                        ? '#22c55e'
+                        ? c.success
                         : data.avg_tool_errors_per_session <= 3
-                          ? '#f59e0b'
-                          : '#ef4444',
+                          ? c.warning
+                          : c.danger,
                   }}
                 />
               </div>

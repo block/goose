@@ -71,7 +71,7 @@ export default function RoutingInspector() {
         <button
           onClick={handleSubmit}
           disabled={loading || !message.trim()}
-          className="rounded-md bg-background-accent px-4 py-2 text-sm font-medium text-text-default hover:bg-background-accent disabled:opacity-50"
+          className="rounded-md bg-background-accent px-4 py-2 text-sm font-medium text-text-on-accent hover:bg-background-accent disabled:opacity-50"
         >
           {loading ? 'Inspecting…' : 'Inspect'}
         </button>

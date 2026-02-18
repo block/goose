@@ -262,7 +262,7 @@ function DatasetEditor({
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-default text-sm font-medium transition-colors"
+          className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-on-accent text-sm font-medium transition-colors"
         >
           {saving ? 'Saving...' : dataset ? 'Update Dataset' : 'Create Dataset'}
         </button>
@@ -345,7 +345,7 @@ export default function DatasetsTab() {
         <h3 className="text-lg font-semibold text-text-default">Evaluation Datasets</h3>
         <button
           onClick={() => setEditing('new')}
-          className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent text-text-default text-sm font-medium transition-colors"
+          className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent text-text-on-accent text-sm font-medium transition-colors"
         >
           + New Dataset
         </button>
@@ -365,7 +365,7 @@ export default function DatasetsTab() {
           </p>
           <button
             onClick={() => setEditing('new')}
-            className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent text-text-default text-sm font-medium transition-colors"
+            className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent text-text-on-accent text-sm font-medium transition-colors"
           >
             Create First Dataset
           </button>

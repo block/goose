@@ -128,7 +128,7 @@ export default function EvalRunner() {
         <button
           onClick={handleRun}
           disabled={loading || !yamlInput.trim()}
-          className="rounded-md bg-background-accent px-4 py-2 text-sm font-medium text-text-default hover:bg-background-accent disabled:opacity-50"
+          className="rounded-md bg-background-accent px-4 py-2 text-sm font-medium text-text-on-accent hover:bg-background-accent disabled:opacity-50"
         >
           {loading ? 'Running eval…' : 'Run Eval'}
         </button>
