@@ -214,8 +214,14 @@ afterAll(async () => {
 });
 
 describe('ACP custom requests - session independent', () => {
-  it('_session/list returns a sessions array', async () => {
-    const response = await sendJsonRpc(ctx.baseUrl, '_session/list', {}, 10, ctx.acpSessionId);
+  it('session/list returns a sessions array', async () => {
+    const response = await sendJsonRpc(
+      ctx.baseUrl,
+      '_goose/session/list',
+      {},
+      10,
+      ctx.acpSessionId
+    );
 
     expect(response.error).toBeUndefined();
     expect(response.result).toBeDefined();
@@ -224,8 +230,14 @@ describe('ACP custom requests - session independent', () => {
     expect(Array.isArray(result.sessions)).toBe(true);
   });
 
-  it('_config/extensions returns extensions and warnings', async () => {
-    const response = await sendJsonRpc(ctx.baseUrl, '_config/extensions', {}, 11, ctx.acpSessionId);
+  it('config/extensions returns extensions and warnings', async () => {
+    const response = await sendJsonRpc(
+      ctx.baseUrl,
+      '_goose/config/extensions',
+      {},
+      11,
+      ctx.acpSessionId
+    );
 
     expect(response.error).toBeUndefined();
     const result = response.result as { extensions: unknown[]; warnings: unknown[] };
@@ -238,14 +250,6 @@ describe('ACP custom requests - session independent', () => {
 
     expect(response.error).toBeDefined();
     expect(response.error!.code).toBe(-32601);
-  });
-
-  it('stubbed _ method returns not-yet-implemented error', async () => {
-    const response = await sendJsonRpc(ctx.baseUrl, '_agent/tool/call', {}, 13, ctx.acpSessionId);
-
-    expect(response.error).toBeDefined();
-    expect(response.error!.code).toBe(-32001);
-    expect(response.error!.message).toContain('not yet implemented');
   });
 });
 
