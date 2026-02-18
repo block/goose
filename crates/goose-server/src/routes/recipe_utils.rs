@@ -10,7 +10,9 @@ use crate::state::AppState;
 use anyhow::Result;
 use axum::http::StatusCode;
 use goose::agents::Agent;
-use goose::recipe::build_recipe::{build_recipe_from_template, resolve_sub_recipe_path, RecipeError};
+use goose::recipe::build_recipe::{
+    build_recipe_from_template, resolve_sub_recipe_path, RecipeError,
+};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
