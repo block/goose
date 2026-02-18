@@ -29,10 +29,6 @@ static PROVIDER_METADATA: Lazy<HashMap<String, ProviderMetadataEntry>> = Lazy::n
         .collect()
 });
 
-/// Canonical model registry (loaded once, lazily)
-static CANONICAL_REGISTRY: Lazy<Option<CanonicalModelRegistry>> =
-    Lazy::new(|| CanonicalModelRegistry::bundled().ok().cloned());
-
 /// Engine/format compatibility
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderFormat {
@@ -177,8 +173,8 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
     let api_url = metadata.api.as_ref()?.clone();
 
     // Get all models for this provider from canonical registry (if available)
-    let models: Vec<ModelTemplate> = CANONICAL_REGISTRY
-        .as_ref()
+    let models: Vec<ModelTemplate> = CanonicalModelRegistry::bundled()
+        .ok()
         .map(|registry| {
             registry
                 .get_all_models_for_provider(provider_id)
