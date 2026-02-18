@@ -9,8 +9,7 @@ import {
 } from '../../ModelAndProviderContext';
 import { toastError } from '../../../toasts';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
-import ResetProviderSection from '../reset_provider/ResetProviderSection';
+import { Card, CardContent } from '../../ui/card';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;
@@ -100,17 +99,6 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
             </div>
           )}
           <ModelSettingsButtons setView={setView} />
-        </CardContent>
-      </Card>
-      <Card className="pb-2 rounded-lg">
-        <CardHeader className="pb-0">
-          <CardTitle className="">Reset Provider and Model</CardTitle>
-          <CardDescription>
-            Clear your selected model and provider settings to start fresh
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-2">
-          <ResetProviderSection setView={setView} />
         </CardContent>
       </Card>
     </section>
