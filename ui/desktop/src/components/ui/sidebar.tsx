@@ -246,7 +246,11 @@ function Sidebar({
 
 const SIDEBAR_PX = 192; // 12rem
 const SIDEBAR_ICON_PX = 38;
-const SNAP_THRESHOLD = 120;
+const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
+const SNAP_MID = (SIDEBAR_ICON_PX + SIDEBAR_PX) / 2;
+
+const getSidebarRoot = (el: HTMLElement) =>
+  el.closest('[data-slot="sidebar"][data-state]') as HTMLElement | null;
 
 function SidebarDragHandle() {
   const { toggleSidebar, state, setOpen } = useSidebar();
@@ -277,29 +281,31 @@ function SidebarDragHandle() {
       setIsDragging(true);
     }
     if (!dragRef.current.dragging) return;
-    const sidebar = (e.currentTarget as HTMLElement).closest('[data-slot="sidebar"]');
+
+    const sidebar = getSidebarRoot(e.currentTarget as HTMLElement);
     if (!sidebar) return;
-    const next = Math.max(SIDEBAR_ICON_PX, Math.min(SIDEBAR_PX, dragRef.current.startWidth + dx));
-    (sidebar as HTMLElement).style.setProperty('--sidebar-width', `${next}px`);
+
+    // Invert drag direction for right-side sidebars
+    const side = sidebar.getAttribute('data-side');
+    const signedDx = side === 'right' ? -dx : dx;
+    const next = clamp(dragRef.current.startWidth + signedDx, SIDEBAR_ICON_PX, SIDEBAR_PX);
+    sidebar.style.setProperty('--sidebar-width', `${next}px`);
   }, []);
 
-  const onPointerUp = React.useCallback((e: React.PointerEvent) => {
+  const endDrag = React.useCallback((e: React.PointerEvent, cancelled = false) => {
     if (dragRef.current.pointerId !== e.pointerId) return;
     const wasDragging = dragRef.current.dragging;
     dragRef.current.pointerId = null;
     setIsDragging(false);
 
-    if (wasDragging) {
-      const sidebar = (e.currentTarget as HTMLElement).closest('[data-slot="sidebar"]');
-      if (sidebar) {
-        // Read current width from the style we set during drag
-        const current = parseFloat(getComputedStyle(sidebar).getPropertyValue('--sidebar-width'));
-        const shouldOpen = current >= SNAP_THRESHOLD;
-        // Reset inline style so CSS takes over
-        (sidebar as HTMLElement).style.removeProperty('--sidebar-width');
-        setOpen(shouldOpen);
-      }
-    } else {
+    const sidebar = getSidebarRoot(e.currentTarget as HTMLElement);
+
+    if (wasDragging && sidebar) {
+      const current = parseFloat(getComputedStyle(sidebar).getPropertyValue('--sidebar-width'));
+      const shouldOpen = current >= SNAP_MID;
+      sidebar.style.removeProperty('--sidebar-width');
+      setOpen(shouldOpen);
+    } else if (!cancelled) {
       toggleSidebar();
     }
   }, [toggleSidebar, setOpen]);
@@ -310,23 +316,25 @@ function SidebarDragHandle() {
       className="absolute top-0 right-0 h-full z-20"
       style={{ width: 0 }}
     >
-      {/* Invisible full-height drag zone */}
+      {/* Full-height drag zone — touch-none prevents browser scroll/gesture interference */}
       <div
         role="button"
         tabIndex={0}
         aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!isCollapsed}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onPointerUp={(e) => endDrag(e)}
+        onPointerCancel={(e) => endDrag(e, true)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') toggleSidebar();
         }}
         className={cn(
-          'absolute top-0 -right-[10px] h-full w-5 select-none',
+          'group/sidebar-drag absolute top-0 -right-[10px] h-full w-5 select-none touch-none',
           isDragging ? 'cursor-grabbing' : isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize'
         )}
       >
-        {/* Small protruding tab — visible on hover */}
+        {/* Protruding tab — subtle at rest, visible on hover/parent hover */}
         <div
           className={cn(
             'absolute top-1/2 -translate-y-1/2 right-0',
@@ -334,12 +342,9 @@ function SidebarDragHandle() {
             'border border-l-0 rounded-r-md',
             'flex items-center justify-center',
             'transition-all duration-150',
-            'text-[10px] leading-none select-none',
-            // Subtle by default, visible on hover
+            'text-[10px] leading-none select-none pointer-events-none',
             'border-transparent bg-transparent text-transparent',
-            'hover:border-border-default hover:bg-background-muted hover:text-text-muted',
-            'active:bg-background-active active:text-text-default',
-            isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize',
+            'group-hover/sidebar-drag:border-border-default group-hover/sidebar-drag:bg-background-muted group-hover/sidebar-drag:text-text-muted',
           )}
         >
           {isCollapsed ? '›' : '‹'}
