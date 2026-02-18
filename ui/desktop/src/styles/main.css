@@ -877,24 +877,10 @@ p > code.bg-inline-code {
 }
 
 /* ==========================================================================
-   MCP App Display Mode Transitions
+   MCP App Display Mode Transitions (FLIP animation)
    ========================================================================== */
 
-.mcp-app-container {
-  transition:
-    top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    right 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .mcp-app-container {
-    transition: none;
-  }
+.mcp-app-container.is-flipping {
+  /* During FLIP animation, disable pointer events to prevent interaction glitches */
+  pointer-events: none;
 }

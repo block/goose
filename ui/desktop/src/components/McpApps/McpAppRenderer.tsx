@@ -253,8 +253,51 @@ export default function McpAppRenderer({
 
   const changeDisplayMode = useCallback(
     (mode: GooseDisplayMode) => {
+      const el = containerRef.current;
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // FLIP: capture First rect before state change
+      const first = el?.getBoundingClientRect();
+
       setActiveDisplayMode(mode);
       onDisplayModeChange?.(mode);
+
+      // FLIP: after React re-renders, compute Invert and Play
+      if (el && first && !prefersReducedMotion) {
+        requestAnimationFrame(() => {
+          const last = el.getBoundingClientRect();
+
+          const dx = first.left - last.left;
+          const dy = first.top - last.top;
+          const sw = first.width / last.width;
+          const sh = first.height / last.height;
+
+          if (dx === 0 && dy === 0 && sw === 1 && sh === 1) return;
+
+          el.classList.add('is-flipping');
+          el.animate(
+            [
+              {
+                transformOrigin: 'top left',
+                transform: `translate(${dx}px, ${dy}px) scale(${sw}, ${sh})`,
+                borderRadius: '12px',
+              },
+              {
+                transformOrigin: 'top left',
+                transform: 'none',
+                borderRadius: mode === 'pip' ? '12px' : mode === 'inline' ? '8px' : '0px',
+              },
+            ],
+            {
+              duration: 300,
+              easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+              fill: 'none',
+            }
+          ).onfinish = () => {
+            el.classList.remove('is-flipping');
+          };
+        });
+      }
     },
     [onDisplayModeChange]
   );
