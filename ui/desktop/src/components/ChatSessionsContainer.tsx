@@ -1,7 +1,10 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
+import { WelcomeState } from './WelcomeState';
 import { ChatType } from '../types/chat';
 import { UserInput } from '../types/message';
+import { startNewSession } from '../sessions';
+import { useNavigation } from '../hooks/useNavigation';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
@@ -14,18 +17,27 @@ interface ChatSessionsContainerProps {
 /**
  * Container that mounts ALL active chat sessions to keep them alive.
  * Uses CSS to show/hide sessions based on the current URL parameter.
- * This allows multiple sessions to stream simultaneously in the background.
+ * When no sessions exist, shows the WelcomeState landing page.
  */
 export default function ChatSessionsContainer({
   setChat,
   activeSessions,
 }: ChatSessionsContainerProps) {
   const [searchParams] = useSearchParams();
+  const setView = useNavigation();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  // Always render active sessions to keep SSE connections alive, even when not on /pair route
+  // No active sessions — show WelcomeState with capability cards
   if (!currentSessionId && activeSessions.length === 0) {
-    return null;
+    return (
+      <div className="relative w-full h-full">
+        <WelcomeState
+          onSubmit={(text) => {
+            startNewSession(setView, { content: text, source: 'user' });
+          }}
+        />
+      </div>
+    );
   }
 
   // Build the list of sessions to render
