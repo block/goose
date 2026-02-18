@@ -72,4 +72,5 @@ path = "src/bin/generate_schema.rs"
 
 [dev-dependencies]
 env-lock = { workspace = true }
+tempfile.workspace = true
 wiremock = { workspace = true }

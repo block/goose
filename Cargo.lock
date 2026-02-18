@@ -4392,6 +4392,7 @@ dependencies = [
  "serde_yaml",
  "socket2 0.6.2",
  "sqlx",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
