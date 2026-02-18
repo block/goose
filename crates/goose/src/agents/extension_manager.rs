@@ -30,6 +30,7 @@ use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
 };
+use super::moim::MOIM_PREFIX;
 use super::tool_execution::ToolCallResult;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
@@ -1587,7 +1588,8 @@ impl ExtensionManager {
         // Use minute-level granularity to prevent conversation changes every second
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00").to_string();
         let mut content = format!(
-            "<info-msg>\nIt is currently {}\nWorking directory: {}\n",
+            "{}\nIt is currently {}\nWorking directory: {}\n",
+            MOIM_PREFIX,
             timestamp,
             working_dir.display()
         );

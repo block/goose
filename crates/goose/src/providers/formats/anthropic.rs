@@ -19,9 +19,11 @@ const USER_ROLE: &str = "user";
 const ASSISTANT_ROLE: &str = "assistant";
 const TOOL_USE_TYPE: &str = "tool_use";
 const TOOL_RESULT_TYPE: &str = "tool_result";
+const IMAGE_TYPE: &str = "image";
 const THINKING_TYPE: &str = "thinking";
 const REDACTED_THINKING_TYPE: &str = "redacted_thinking";
 const CACHE_CONTROL_FIELD: &str = "cache_control";
+const EPHEMERAL_FIELD: &str = "ephemeral";
 const ID_FIELD: &str = "id";
 const NAME_FIELD: &str = "name";
 const INPUT_FIELD: &str = "input";
@@ -151,30 +153,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         }));
     }
 
-    // Add "cache_control" to the last and second-to-last "user" messages.
-    // During each turn, we mark the final message with cache_control so the conversation can be
-    // incrementally cached. The second-to-last user message is also marked for caching with the
-    // cache_control parameter, so that this checkpoint can read from the previous cache.
-    let mut user_count = 0;
-    for message in anthropic_messages.iter_mut().rev() {
-        if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
-            if let Some(content) = message.get_mut(CONTENT_FIELD) {
-                if let Some(content_array) = content.as_array_mut() {
-                    if let Some(last_content) = content_array.last_mut() {
-                        last_content.as_object_mut().unwrap().insert(
-                            CACHE_CONTROL_FIELD.to_string(),
-                            json!({ TYPE_FIELD: "ephemeral" }),
-                        );
-                    }
-                }
-            }
-            user_count += 1;
-            if user_count >= 2 {
-                break;
-            }
-        }
-    }
-
     anthropic_messages
 }
 
@@ -202,15 +180,6 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
         }
     }
 
-    // Add "cache_control" to the last tool spec, if any. This means that all tool definitions,
-    // will be cached as a single prefix.
-    if let Some(last_tool) = tool_specs.last_mut() {
-        last_tool.as_object_mut().unwrap().insert(
-            CACHE_CONTROL_FIELD.to_string(),
-            json!({ TYPE_FIELD: "ephemeral" }),
-        );
-    }
-
     tool_specs
 }
 
@@ -218,9 +187,80 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
 pub fn format_system(system: &str) -> Value {
     json!([{
         TYPE_FIELD: TEXT_TYPE,
-        TEXT_TYPE: system,
-        CACHE_CONTROL_FIELD: { TYPE_FIELD: "ephemeral" }
+        TEXT_TYPE: system
     }])
+}
+
+/// Apply Anthropic prompt caching to the request payload.
+///
+/// Per Anthropic docs (https://platform.claude.com/docs/en/build-with-claude/prompt-caching):
+/// - Cache prefixes follow hierarchy: tools → system → messages
+/// - Cache breakpoint should be on the last content block
+/// - For multi-turn conversations, cache the last message to enable incremental caching
+///
+/// Our strategy:
+/// - Cache system prompt (stable across turns)
+/// - Cache last tool definition (stable across turns)
+/// - Cache last cacheable message content block
+pub fn add_cache_markers(payload: Value) -> Value {
+    let payload = add_system_cache_marker(payload);
+    let payload = add_tools_cache_marker(payload);
+    add_messages_cache_marker(payload)
+}
+
+fn insert_cache_control(block: &mut Value) {
+    if let Some(object) = block.as_object_mut() {
+        object.insert(
+            CACHE_CONTROL_FIELD.to_string(),
+            json!({ TYPE_FIELD: EPHEMERAL_FIELD }),
+        );
+    }
+}
+
+fn add_system_cache_marker(mut payload: Value) -> Value {
+    if let Some(last) = payload
+        .get_mut("system")
+        .and_then(|system| system.as_array_mut())
+        .and_then(|array| array.last_mut())
+    {
+        insert_cache_control(last);
+    }
+    payload
+}
+
+fn add_tools_cache_marker(mut payload: Value) -> Value {
+    if let Some(last) = payload
+        .get_mut("tools")
+        .and_then(|tools| tools.as_array_mut())
+        .and_then(|array| array.last_mut())
+    {
+        insert_cache_control(last);
+    }
+    payload
+}
+
+fn add_messages_cache_marker(mut payload: Value) -> Value {
+    let is_cacheable = |block: &Value| {
+        matches!(
+            block.get(TYPE_FIELD).and_then(|value| value.as_str()),
+            Some(TEXT_TYPE | IMAGE_TYPE | TOOL_USE_TYPE | TOOL_RESULT_TYPE)
+        )
+    };
+
+    if let Some(messages) = payload
+        .get_mut("messages")
+        .and_then(|messages| messages.as_array_mut())
+    {
+        if let Some(block) = messages
+            .iter_mut()
+            .rev()
+            .filter_map(|message| message.get_mut(CONTENT_FIELD)?.as_array_mut())
+            .find_map(|content| content.iter_mut().rev().find(|block| is_cacheable(block)))
+        {
+            insert_cache_control(block);
+        }
+    }
+    payload
 }
 
 /// Convert Anthropic's API response to internal Message format
@@ -447,6 +487,10 @@ pub fn create_request(
             }),
         );
     }
+
+    // Apply caching as LAST step after payload is fully built
+    let payload = add_cache_markers(payload);
+
     Ok(payload)
 }
 
@@ -911,9 +955,6 @@ mod tests {
         assert_eq!(spec[0]["description"], "Calculate mathematical expressions");
         assert_eq!(spec[1]["name"], "weather");
         assert_eq!(spec[1]["description"], "Get weather information");
-
-        // Verify cache control is added to last tool
-        assert!(spec[1].get("cache_control").is_some());
     }
 
     #[test]
@@ -926,7 +967,6 @@ mod tests {
         assert_eq!(spec_array.len(), 1);
         assert_eq!(spec_array[0]["type"], "text");
         assert_eq!(spec_array[0]["text"], system);
-        assert!(spec_array[0].get("cache_control").is_some());
     }
 
     #[test]
@@ -1004,5 +1044,46 @@ mod tests {
             "Error: -32603: Tool failed"
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
+    }
+
+    #[test]
+    fn test_add_cache_markers_adds_cache_control() {
+        // Build a payload with system, tools, and messages
+        let payload = json!({
+            "model": "claude-sonnet-4-20250514",
+            "system": [{"type": "text", "text": "You are helpful."}],
+            "tools": [
+                {"name": "tool1", "description": "First tool"},
+                {"name": "tool2", "description": "Second tool"}
+            ],
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+                {"role": "assistant", "content": [{"type": "text", "text": "Hi there"}]}
+            ],
+            "max_tokens": 1000
+        });
+
+        let result = add_cache_markers(payload);
+
+        // Verify cache_control added to system prompt
+        assert!(result["system"][0].get("cache_control").is_some());
+        assert_eq!(result["system"][0]["cache_control"]["type"], "ephemeral");
+
+        // Verify cache_control added to last tool
+        assert!(result["tools"][0].get("cache_control").is_none());
+        assert!(result["tools"][1].get("cache_control").is_some());
+        assert_eq!(result["tools"][1]["cache_control"]["type"], "ephemeral");
+
+        // Verify cache_control added to last message content block
+        assert!(result["messages"][0]["content"][0]
+            .get("cache_control")
+            .is_none());
+        assert!(result["messages"][1]["content"][0]
+            .get("cache_control")
+            .is_some());
+        assert_eq!(
+            result["messages"][1]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
     }
 }

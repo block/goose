@@ -4,6 +4,8 @@ use crate::conversation::{fix_conversation, Conversation};
 use rmcp::model::Role;
 use std::path::Path;
 
+pub const MOIM_PREFIX: &str = "<info-msg>";
+
 // Test-only utility. Do not use in production code. No `test` directive due to call outside crate.
 thread_local! {
     pub static SKIP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -24,11 +26,11 @@ pub async fn inject_moim(
         .await
     {
         let mut messages = conversation.messages().clone();
-        let idx = messages
+        let index = messages
             .iter()
             .rposition(|m| m.role == Role::Assistant)
-            .unwrap_or(0);
-        messages.insert(idx, Message::user().with_text(moim));
+            .map_or(0, |index| index + 1);
+        messages.insert(index, Message::user().with_text(moim));
 
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
 
@@ -54,7 +56,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[tokio::test]
-    async fn test_moim_injection_before_assistant() {
+    async fn test_moim_injection_after_assistant() {
         let temp_dir = tempfile::tempdir().unwrap();
         let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
         let working_dir = PathBuf::from("/test/dir");
@@ -71,14 +73,14 @@ mod tests {
         assert_eq!(msgs[0].content[0].as_text().unwrap(), "Hello");
         assert_eq!(msgs[1].content[0].as_text().unwrap(), "Hi");
 
-        let merged_content = msgs[0]
+        let merged_content = msgs[2]
             .content
             .iter()
             .filter_map(|c| c.as_text())
             .collect::<Vec<_>>()
             .join("");
-        assert!(merged_content.contains("Hello"));
-        assert!(merged_content.contains("<info-msg>"));
+        assert!(merged_content.contains("Bye"));
+        assert!(merged_content.contains(MOIM_PREFIX));
         assert!(merged_content.contains("Working directory: /test/dir"));
     }
 
@@ -100,7 +102,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("");
         assert!(merged_content.contains("Hello"));
-        assert!(merged_content.contains("<info-msg>"));
+        assert!(merged_content.contains(MOIM_PREFIX));
         assert!(merged_content.contains("Working directory: /test/dir"));
     }
 
@@ -159,15 +161,15 @@ mod tests {
 
         assert_eq!(msgs.len(), 6);
 
-        let moim_msg = &msgs[3];
+        let moim_msg = &msgs[4];
         let has_moim = moim_msg
             .content
             .iter()
-            .any(|c| c.as_text().is_some_and(|t| t.contains("<info-msg>")));
+            .any(|c| c.as_text().is_some_and(|t| t.contains(MOIM_PREFIX)));
 
         assert!(
             has_moim,
-            "MOIM should be in message before latest assistant message"
+            "MOIM should be in message after latest assistant message"
         );
     }
 }
