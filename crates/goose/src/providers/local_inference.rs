@@ -1,8 +1,10 @@
+mod emulator;
 pub mod hf_models;
 mod inference_context;
 pub mod local_model_registry;
 mod tool_parsing;
 
+use emulator::{load_tiny_model_prompt, run_emulator_path};
 use inference_context::{
     create_and_prefill_context, estimate_max_context_for_memory, generation_loop,
     validate_and_compute_context, LoadedModel, TokenAction,
@@ -31,10 +33,9 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
-use rmcp::model::{CallToolRequestParams, RawContent, Role, Tool};
+use rmcp::model::{RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex, Weak};
@@ -108,38 +109,6 @@ const PROVIDER_NAME: &str = "local";
 const DEFAULT_MODEL: &str = "llama-3.2-1b";
 
 pub const LOCAL_LLM_MODEL_CONFIG_KEY: &str = "LOCAL_LLM_MODEL";
-
-fn load_tiny_model_prompt() -> String {
-    use std::env;
-
-    let os = if cfg!(target_os = "macos") {
-        "macos"
-    } else if cfg!(target_os = "linux") {
-        "linux"
-    } else if cfg!(target_os = "windows") {
-        "windows"
-    } else {
-        "unknown"
-    };
-
-    let working_directory = env::current_dir()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
-
-    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-
-    let context = json!({
-        "os": os,
-        "working_directory": working_directory,
-        "shell": shell,
-    });
-
-    crate::prompt_template::render_template("tiny_model_system.md", &context).unwrap_or_else(|e| {
-        eprintln!("WARNING: Failed to load tiny_model_system.md: {:?}", e);
-        "You are Goose, an AI assistant. You can execute shell commands by starting lines with $."
-            .to_string()
-    })
-}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -288,164 +257,6 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> &'static str {
         "llama-3.2-3b"
     } else {
         "llama-3.2-1b"
-    }
-}
-
-enum EmulatorAction {
-    Text(String),
-    ShellCommand(String),
-    ExecuteCode(String),
-}
-
-enum ParserState {
-    Normal,
-    InCommand,
-    InExecuteBlock,
-}
-
-struct StreamingEmulatorParser {
-    buffer: String,
-    state: ParserState,
-    code_mode_enabled: bool,
-}
-
-impl StreamingEmulatorParser {
-    fn new(code_mode_enabled: bool) -> Self {
-        Self {
-            buffer: String::new(),
-            state: ParserState::Normal,
-            code_mode_enabled,
-        }
-    }
-
-    fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
-        self.buffer.push_str(chunk);
-        let mut results = Vec::new();
-
-        loop {
-            match self.state {
-                ParserState::InCommand => {
-                    if let Some((command_line, rest)) = self.buffer.split_once('\n') {
-                        if let Some(command) = command_line.strip_prefix('$') {
-                            let command = command.trim();
-                            if !command.is_empty() {
-                                results.push(EmulatorAction::ShellCommand(command.to_string()));
-                            }
-                        }
-                        self.buffer = rest.to_string();
-                        self.state = ParserState::Normal;
-                    } else {
-                        break;
-                    }
-                }
-                ParserState::InExecuteBlock => {
-                    // Look for closing ``` to end the execute block
-                    if let Some(end_idx) = self.buffer.find("\n```") {
-                        #[allow(clippy::string_slice)]
-                        let code = self.buffer[..end_idx].to_string();
-                        // Skip past the closing ``` and any trailing newline
-                        #[allow(clippy::string_slice)]
-                        let rest = &self.buffer[end_idx + 4..];
-                        let rest = rest.strip_prefix('\n').unwrap_or(rest);
-                        self.buffer = rest.to_string();
-                        self.state = ParserState::Normal;
-                        if !code.trim().is_empty() {
-                            results.push(EmulatorAction::ExecuteCode(code));
-                        }
-                    } else {
-                        // Still accumulating code — wait for closing fence
-                        break;
-                    }
-                }
-                ParserState::Normal => {
-                    // Check for ```execute block (code mode)
-                    if self.code_mode_enabled {
-                        if let Some((before, after)) = self.buffer.split_once("```execute\n") {
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
-                            }
-                            self.buffer = after.to_string();
-                            self.state = ParserState::InExecuteBlock;
-                            continue;
-                        }
-                        // Also handle without newline after tag (accumulating)
-                        if self.buffer.ends_with("```execute") {
-                            let before = self.buffer.trim_end_matches("```execute");
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
-                            }
-                            self.buffer.clear();
-                            self.state = ParserState::InExecuteBlock;
-                            continue;
-                        }
-                    }
-
-                    // Check for $ command
-                    if let Some((before_dollar, from_dollar)) = self.buffer.split_once("\n$") {
-                        let text = format!("{}\n", before_dollar);
-                        if !text.trim().is_empty() {
-                            results.push(EmulatorAction::Text(text));
-                        }
-                        self.buffer = format!("${}", from_dollar);
-                        self.state = ParserState::InCommand;
-                    } else if self.buffer.starts_with('$') && self.buffer.len() == chunk.len() {
-                        self.state = ParserState::InCommand;
-                    } else {
-                        // Hold back a small tail in case it's the start of
-                        // a ``` fence or a \n$ command prefix.
-                        let hold_back = if self.code_mode_enabled { 12 } else { 2 };
-                        let char_count = self.buffer.chars().count();
-                        if char_count > hold_back && !self.buffer.ends_with('\n') {
-                            let mut chars = self.buffer.chars();
-                            let emit_count = char_count - hold_back;
-                            let emit_text: String = chars.by_ref().take(emit_count).collect();
-                            let keep_text: String = chars.collect();
-                            if !emit_text.is_empty() {
-                                results.push(EmulatorAction::Text(emit_text));
-                            }
-                            self.buffer = keep_text;
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        results
-    }
-
-    fn flush(&mut self) -> Vec<EmulatorAction> {
-        let mut results = Vec::new();
-
-        if !self.buffer.is_empty() {
-            match self.state {
-                ParserState::InCommand => {
-                    let command_line = self.buffer.trim();
-                    if let Some(command) = command_line.strip_prefix('$') {
-                        let command = command.trim();
-                        if !command.is_empty() {
-                            results.push(EmulatorAction::ShellCommand(command.to_string()));
-                        }
-                    } else if !command_line.is_empty() {
-                        results.push(EmulatorAction::Text(self.buffer.clone()));
-                    }
-                }
-                ParserState::InExecuteBlock => {
-                    // Unterminated code block — execute what we have
-                    let code = self.buffer.trim();
-                    if !code.is_empty() {
-                        results.push(EmulatorAction::ExecuteCode(code.to_string()));
-                    }
-                }
-                ParserState::Normal => {
-                    results.push(EmulatorAction::Text(self.buffer.clone()));
-                }
-            }
-            self.buffer.clear();
-            self.state = ParserState::Normal;
-        }
-
-        results
     }
 }
 
@@ -622,152 +433,8 @@ fn finalize_usage(
     ProviderUsage::new(model_name, usage)
 }
 
-/// Convert an `EmulatorAction` into a `Message` and send it through the
-/// channel. Returns `Ok(true)` if it was a tool call, `Ok(false)` for text,
-/// or `Err(())` if the channel is closed.
 type StreamSender =
     tokio::sync::mpsc::Sender<Result<(Option<Message>, Option<ProviderUsage>), ProviderError>>;
-
-fn send_emulator_action(
-    action: &EmulatorAction,
-    message_id: &str,
-    tx: &StreamSender,
-) -> Result<bool, ()> {
-    match action {
-        EmulatorAction::Text(text) => {
-            let mut message = Message::assistant().with_text(text);
-            message.id = Some(message_id.to_string());
-            tx.blocking_send(Ok((Some(message), None)))
-                .map_err(|_| ())?;
-            Ok(false)
-        }
-        EmulatorAction::ShellCommand(command) => {
-            let tool_id = Uuid::new_v4().to_string();
-            let mut args = serde_json::Map::new();
-            args.insert("command".to_string(), json!(command));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Owned(SHELL_TOOL.to_string()),
-                arguments: Some(args),
-            };
-            let mut message = Message::assistant();
-            message
-                .content
-                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-            message.id = Some(message_id.to_string());
-            tx.blocking_send(Ok((Some(message), None)))
-                .map_err(|_| ())?;
-            Ok(true)
-        }
-        EmulatorAction::ExecuteCode(code) => {
-            let tool_id = Uuid::new_v4().to_string();
-            let wrapped = if code.contains("async function run()") {
-                code.clone()
-            } else {
-                format!("async function run() {{\n{}\n}}", code)
-            };
-            let mut args = serde_json::Map::new();
-            args.insert("code".to_string(), json!(wrapped));
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: Cow::Owned(CODE_EXECUTION_TOOL.to_string()),
-                arguments: Some(args),
-            };
-            let mut message = Message::assistant();
-            message
-                .content
-                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-            message.id = Some(message_id.to_string());
-            tx.blocking_send(Ok((Some(message), None)))
-                .map_err(|_| ())?;
-            Ok(true)
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_emulator_path(
-    loaded: &LoadedModel,
-    runtime: &InferenceRuntime,
-    chat_messages: &[LlamaChatMessage],
-    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
-    context_limit: usize,
-    code_mode_enabled: bool,
-    model_name: String,
-    message_id: &str,
-    tx: &StreamSender,
-    log: &mut RequestLog,
-) -> Result<(), ProviderError> {
-    let prompt = loaded
-        .model
-        .apply_chat_template(&loaded.template, chat_messages, true)
-        .map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to apply chat template: {}", e))
-        })?;
-
-    let tokens = loaded
-        .model
-        .str_to_token(&prompt, AddBos::Never)
-        .map_err(|e| ProviderError::ExecutionError(format!("Failed to tokenize prompt: {}", e)))?;
-
-    let (prompt_token_count, effective_ctx) =
-        validate_and_compute_context(loaded, runtime, tokens.len(), context_limit, settings)?;
-    let mut ctx = create_and_prefill_context(loaded, runtime, &tokens, effective_ctx, settings)?;
-
-    let mut emulator_parser = StreamingEmulatorParser::new(code_mode_enabled);
-    let mut tool_call_emitted = false;
-    let mut send_failed = false;
-
-    let output_token_count = generation_loop(
-        &loaded.model,
-        &mut ctx,
-        settings,
-        prompt_token_count,
-        effective_ctx,
-        |piece| {
-            let actions = emulator_parser.process_chunk(piece);
-            for action in actions {
-                match send_emulator_action(&action, message_id, tx) {
-                    Ok(is_tool) => {
-                        if is_tool {
-                            tool_call_emitted = true;
-                        }
-                    }
-                    Err(_) => {
-                        send_failed = true;
-                        return Ok(TokenAction::Stop);
-                    }
-                }
-            }
-            if tool_call_emitted {
-                Ok(TokenAction::Stop)
-            } else {
-                Ok(TokenAction::Continue)
-            }
-        },
-    )?;
-
-    if !send_failed {
-        for action in emulator_parser.flush() {
-            if send_emulator_action(&action, message_id, tx).is_err() {
-                break;
-            }
-        }
-    }
-
-    let provider_usage = finalize_usage(
-        log,
-        model_name,
-        "emulator",
-        prompt_token_count,
-        output_token_count,
-        None,
-    );
-    let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
-    Ok(())
-}
 
 #[allow(clippy::too_many_arguments)]
 fn run_native_tool_path(
