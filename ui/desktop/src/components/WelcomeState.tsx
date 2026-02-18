@@ -116,23 +116,23 @@ interface WelcomeStateProps {
 
 export function WelcomeState({ onSubmit }: WelcomeStateProps) {
   return (
-    <div className="flex flex-col items-center h-full px-6 py-8 max-w-4xl mx-auto overflow-y-auto">
+    <div className="flex flex-col items-center justify-center min-h-full px-8 py-12 max-w-3xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col items-center mb-10">
-        <div className="w-14 h-14 mb-4 opacity-80">
+      <div className="flex flex-col items-center mb-12">
+        <div className="w-16 h-16 mb-5">
           <Goose />
         </div>
         <Greeting />
-        <h2 className="text-lg font-semibold text-text-default mt-4">
+        <h2 className="text-2xl font-semibold text-text-default mt-5 tracking-tight">
           What can be achieved?
         </h2>
-        <p className="text-text-muted text-sm mt-1 text-center max-w-md">
+        <p className="text-text-muted text-sm mt-2 text-center max-w-lg leading-relaxed">
           Goose is your AI-powered development partner. Pick a starting point or just type what you need.
         </p>
       </div>
 
       {/* Capability grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full mb-10">
         {CAPABILITIES.map((cap) => (
           <button
             key={cap.label}
@@ -140,13 +140,15 @@ export function WelcomeState({ onSubmit }: WelcomeStateProps) {
               if (cap.prompt) {
                 onSubmit(cap.prompt);
               }
-              // "Anything else" focuses the input — no auto-submit
             }}
-            className="flex flex-col items-start gap-2 px-4 py-3.5 rounded-xl
+            disabled={!cap.prompt}
+            className="flex flex-col items-start gap-2.5 px-5 py-4 rounded-xl
               border border-border-muted bg-background-default
               hover:bg-background-muted hover:border-border-default
-              hover:shadow-sm
-              transition-all duration-200 text-left group"
+              hover:shadow-md
+              active:scale-[0.98]
+              transition-all duration-200 text-left group
+              disabled:opacity-50 disabled:cursor-default disabled:hover:shadow-none"
           >
             <cap.icon
               className={`w-5 h-5 ${cap.color} flex-shrink-0
@@ -156,7 +158,7 @@ export function WelcomeState({ onSubmit }: WelcomeStateProps) {
               <div className="text-sm font-medium text-text-default leading-tight">
                 {cap.label}
               </div>
-              <div className="text-xs text-text-subtle leading-snug mt-0.5">
+              <div className="text-sm text-text-muted leading-snug mt-1">
                 {cap.description}
               </div>
             </div>
@@ -165,10 +167,12 @@ export function WelcomeState({ onSubmit }: WelcomeStateProps) {
       </div>
 
       {/* Footer hint */}
-      <p className="text-text-subtle text-xs text-center">
-        Type <kbd className="px-1.5 py-0.5 rounded border border-border-muted bg-background-muted text-text-muted font-mono text-[10px]">/</kbd> for slash commands
-        {' · '}
-        Drag files onto the chat to share them
+      <p className="text-text-muted text-xs text-center">
+        Type{' '}
+        <kbd className="px-1.5 py-0.5 rounded border border-border-muted bg-background-muted text-text-default font-mono text-[11px]">
+          /
+        </kbd>{' '}
+        for slash commands · Drag files to share them
       </p>
     </div>
   );
