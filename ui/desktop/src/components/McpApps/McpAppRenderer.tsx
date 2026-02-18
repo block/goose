@@ -905,7 +905,7 @@ export default function McpAppRenderer({
       {/* Stable app container — never unmounted, only repositioned via CSS */}
       <div ref={containerRef} className={cn(containerClasses, isPip && 'group/pip')} style={containerStyle}>
         {isPip && (
-          <div className="pointer-events-none sticky top-0 z-20 flex h-0 items-start justify-end gap-1 px-2 pt-1.5 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100">
+          <div className="pointer-events-none sticky top-0 z-20 flex h-0 items-start justify-between px-2 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100">
             <div
               className="pointer-events-auto cursor-grab rounded-md bg-black/50 p-1 text-white backdrop-blur-sm hover:bg-black/70 active:cursor-grabbing"
               onPointerDown={handlePipPointerDown}
@@ -914,7 +914,9 @@ export default function McpAppRenderer({
             >
               <GripHorizontal size={14} />
             </div>
-            {renderDisplayModeControls()}
+            <div className="flex gap-1">
+              {renderDisplayModeControls()}
+            </div>
           </div>
         )}
         <div className={cn('relative w-full', !isPip && 'h-full')}>
