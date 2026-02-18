@@ -11,7 +11,6 @@ import { UserInput } from '../types/message';
  * 1. New session with initial message from Hub (message_count === 0, has initialMessage)
  * 2. Forked session with edited message (shouldStartAgent + initialMessage)
  * 3. Resume with shouldStartAgent (continue existing conversation)
- * 4. Recipe with prompt (recipe.prompt exists, no messages, parameters filled or no parameters)
  */
 
 interface UseAutoSubmitProps {
@@ -21,8 +20,6 @@ interface UseAutoSubmitProps {
   chatState: ChatState;
   initialMessage: UserInput | undefined;
   handleSubmit: (input: UserInput) => void;
-  recipeAccepted?: boolean;
-  recipePrompt?: string;
 }
 
 interface UseAutoSubmitReturn {
@@ -36,8 +33,6 @@ export function useAutoSubmit({
   chatState,
   initialMessage,
   handleSubmit,
-  recipeAccepted = true,
-  recipePrompt = '',
 }: UseAutoSubmitProps): UseAutoSubmitReturn {
   const [searchParams] = useSearchParams();
   const hasAutoSubmittedRef = useRef(false);
@@ -72,9 +67,15 @@ export function useAutoSubmit({
     // Scenario 1: New session with initial message from Hub
     // Hub always creates new sessions, so message_count will be 0
     if (initialMessage && session.message_count === 0 && messages.length === 0) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      clearInitialMessage();
+      const recipe = session.recipe;
+      const hasUnfilledParameters =
+        recipe?.parameters && recipe.parameters.length > 0 && !session.user_recipe_values;
+
+      if (!hasUnfilledParameters) {
+        hasAutoSubmittedRef.current = true;
+        handleSubmit(initialMessage);
+        clearInitialMessage();
+      }
       return;
     }
 
@@ -101,21 +102,6 @@ export function useAutoSubmit({
       }
       return;
     }
-
-    // Scenario 4: Recipe started from RecipesView
-    const recipe = session.recipe;
-    const hasMessages = (session.conversation?.length ?? 0) > 0;
-
-    if (recipe && recipe.prompt && recipeAccepted && !hasMessages && !initialMessage) {
-      const hasParameters = recipe.parameters && recipe.parameters.length > 0;
-      const parametersAreFilled =
-        session.user_recipe_values && Object.keys(session.user_recipe_values).length > 0;
-
-      if (!hasParameters || parametersAreFilled) {
-        hasAutoSubmittedRef.current = true;
-        handleSubmit({ msg: recipePrompt, images: [] });
-      }
-    }
   }, [
     session,
     initialMessage,
@@ -125,8 +111,6 @@ export function useAutoSubmit({
     messages.length,
     chatState,
     clearInitialMessage,
-    recipeAccepted,
-    recipePrompt,
   ]);
 
   return {

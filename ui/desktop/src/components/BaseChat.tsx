@@ -114,16 +114,6 @@ export default function BaseChat({
 
   const recipe = session?.recipe;
 
-  // If we have a recipe prompt and user recipe values, substitute parameters
-  const recipePrompt = useMemo(() => {
-    if (messages.length === 0 && recipe?.prompt) {
-      return session?.user_recipe_values
-        ? substituteParameters(recipe.prompt, session.user_recipe_values)
-        : recipe.prompt;
-    }
-    return '';
-  }, [messages.length, recipe, session?.user_recipe_values]);
-
   useAutoSubmit({
     sessionId,
     session,
@@ -131,8 +121,6 @@ export default function BaseChat({
     chatState,
     initialMessage,
     handleSubmit,
-    recipeAccepted: hasNotAcceptedRecipe === false,
-    recipePrompt,
   });
 
   useEffect(() => {
@@ -344,6 +332,14 @@ export default function BaseChat({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.name, setChat]);
+
+  // If we have a recipe prompt and user recipe values, substitute parameters
+  let recipePrompt = '';
+  if (messages.length === 0 && recipe?.prompt) {
+    recipePrompt = session?.user_recipe_values
+      ? substituteParameters(recipe.prompt, session.user_recipe_values)
+      : recipe.prompt;
+  }
 
   const initialPrompt = recipePrompt;
 
