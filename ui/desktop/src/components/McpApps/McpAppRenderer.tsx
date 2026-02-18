@@ -802,15 +802,22 @@ export default function McpAppRenderer({
   // --- Fullscreen overlay ---
   if (activeDisplayMode === 'fullscreen') {
     return (
-      <div className="fixed inset-0 z-[1000] bg-background-default">
+      <>
+        {/* Invisible placeholder preserves chat scroll position while fullscreen overlay is shown */}
         <div
-          ref={containerRef}
-          className="h-full w-full overflow-hidden [&_iframe]:!w-full"
-          style={{ viewTransitionName }}
-        >
-          {appContent}
+          className="invisible mt-6 mb-2"
+          style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
+        />
+        <div className="fixed inset-0 z-[1000] bg-background-default">
+          <div
+            ref={containerRef}
+            className="h-full w-full overflow-hidden [&_iframe]:!w-full"
+            style={{ viewTransitionName }}
+          >
+            {appContent}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
