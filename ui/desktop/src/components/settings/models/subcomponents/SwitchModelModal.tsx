@@ -26,6 +26,14 @@ const THINKING_LEVEL_OPTIONS = [
   { value: 'high', label: 'High - Deeper reasoning, higher latency' },
 ];
 
+const VARIANT_OPTIONS = [
+  { value: '', label: 'None - No extended thinking' },
+  { value: 'low', label: 'Low - Lighter reasoning' },
+  { value: 'medium', label: 'Medium - Balanced reasoning' },
+  { value: 'high', label: 'High - Deeper reasoning' },
+  { value: 'max', label: 'Max - Maximum reasoning depth' },
+];
+
 const PREFERRED_MODEL_PATTERNS = [
   /claude-sonnet-4/i,
   /claude-4/i,
@@ -83,7 +91,7 @@ export const SwitchModelModal = ({
   const { getProviders, read } = useConfig();
   const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
-  type ModelOption = { value: string; label: string; provider: string; hint?: string; isDisabled?: boolean };
+  type ModelOption = { value: string; label: string; provider: string; hint?: string; supportsReasoning?: boolean; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
@@ -103,9 +111,18 @@ export const SwitchModelModal = ({
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
   const [thinkingLevel, setThinkingLevel] = useState<string>('low');
+  const [variant, setVariant] = useState<string>('');
 
   const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;
+
+  // Check if the selected model supports reasoning
+  const isReasoningModel = (() => {
+    if (!model) return false;
+    const allOptions = modelOptions.flatMap((g) => g.options);
+    const selected = allOptions.find((o) => o.value === model);
+    return selected?.supportsReasoning ?? false;
+  })();
 
   // Validate form data
   const validateForm = useCallback(() => {
@@ -165,6 +182,10 @@ export const SwitchModelModal = ({
           ...modelObj,
           request_params: { ...modelObj.request_params, thinking_level: thinkingLevel },
         };
+      }
+
+      if (isReasoningModel && variant) {
+        modelObj = { ...modelObj, variant };
       }
 
       await changeModel(sessionId, modelObj);
@@ -244,6 +265,7 @@ export const SwitchModelModal = ({
             label: string;
             provider: string;
             hint?: string;
+            supportsReasoning?: boolean;
             providerType: ProviderType;
           }[] = modelList.map((m) => {
             const info = infoMap.get(m);
@@ -253,6 +275,7 @@ export const SwitchModelModal = ({
               label: m,
               provider: p.name,
               hint: hint || undefined,
+              supportsReasoning: info?.supports_reasoning ?? false,
               providerType: p.provider_type,
             };
           });
@@ -322,6 +345,7 @@ export const SwitchModelModal = ({
       setModel(selectedOption?.value || '');
       setProvider(selectedOption?.provider || '');
       setUserClearedModel(false);
+      setVariant('');
     }
   };
 
@@ -585,6 +609,23 @@ export const SwitchModelModal = ({
                           setThinkingLevel(option?.value || 'low');
                         }}
                         placeholder="Select thinking level"
+                      />
+                    </div>
+                  )}
+
+                  {isReasoningModel && !isGemini3Model && (
+                    <div className="mt-2">
+                      <label className="text-sm text-text-muted mb-1 block">
+                        Reasoning Effort
+                      </label>
+                      <Select
+                        options={VARIANT_OPTIONS}
+                        value={VARIANT_OPTIONS.find((o) => o.value === variant) || VARIANT_OPTIONS[0]}
+                        onChange={(newValue: unknown) => {
+                          const option = newValue as { value: string; label: string } | null;
+                          setVariant(option?.value || '');
+                        }}
+                        placeholder="Select reasoning effort"
                       />
                     </div>
                   )}

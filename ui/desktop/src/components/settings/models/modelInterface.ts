@@ -10,6 +10,7 @@ export default interface Model {
   subtext?: string; // goes below model name if not the provider
   context_limit?: number; // optional context limit override
   request_params?: Record<string, unknown>; // provider-specific request parameters
+  variant?: string; // reasoning effort variant (low, medium, high, max)
 }
 
 export function createModelStruct(
