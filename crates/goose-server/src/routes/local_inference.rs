@@ -453,6 +453,7 @@ pub async fn get_local_model_download_progress(
 
     let dm = goose::dictation::download_manager::get_download_manager();
     let download_id = format!("{}-model", model_id);
+    tracing::debug!("Getting download progress for model_id: {}, download_id: {}", model_id, download_id);
 
     let progress = dm
         .get_progress(&download_id)
