@@ -24,6 +24,9 @@ pub struct UserIdentity {
     /// Optional tenant/organization for multi-tenant deployments
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant: Option<String>,
+    /// RBAC roles assigned to this user (e.g., "admin", "developer", "viewer")
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub roles: Vec<String>,
 }
 
 /// How the user authenticated.
@@ -74,6 +77,7 @@ impl UserIdentity {
             name: "Guest".to_string(),
             auth_method: AuthMethod::Guest,
             tenant: None,
+            roles: vec![],
         }
     }
 
@@ -84,6 +88,7 @@ impl UserIdentity {
             name: "Guest".to_string(),
             auth_method: AuthMethod::Guest,
             tenant: None,
+            roles: vec![],
         }
     }
 
@@ -100,7 +105,13 @@ impl UserIdentity {
             name: name.into(),
             auth_method: AuthMethod::Oidc { provider, subject },
             tenant: None,
+            roles: vec![],
         }
+    }
+
+    pub fn with_roles(mut self, roles: Vec<String>) -> Self {
+        self.roles = roles;
+        self
     }
 
     pub fn with_tenant(mut self, tenant: impl Into<String>) -> Self {
@@ -120,6 +131,7 @@ impl UserIdentity {
             name: format!("API Key {}", key_id),
             auth_method: AuthMethod::ApiKey,
             tenant: None,
+            roles: vec![],
         }
     }
 
@@ -286,6 +298,7 @@ impl ExecutionIdentity {
                 )
                 .unwrap_or(AuthMethod::Guest),
                 tenant: None,
+                roles: vec![],
             },
             agent: AgentIdentity {
                 id: agent_id.to_string(),

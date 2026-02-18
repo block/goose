@@ -37,6 +37,9 @@ pub struct PolicyRule {
     pub tenant: Option<String>,
     /// Deny reason (for Deny rules)
     pub reason: Option<String>,
+    /// If set, user must have at least one of these roles
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub required_roles: Vec<String>,
 }
 
 impl PolicyRule {
@@ -68,6 +71,13 @@ impl PolicyRule {
         }
     }
 
+    fn roles_match(&self, user: &UserIdentity) -> bool {
+        if self.required_roles.is_empty() {
+            return true;
+        }
+        user.roles.iter().any(|r| self.required_roles.contains(r))
+    }
+
     fn tenant_matches(&self, user: &UserIdentity) -> bool {
         match (&self.tenant, &user.tenant) {
             (None, _) => true,
@@ -80,6 +90,7 @@ impl PolicyRule {
         self.action_matches(action)
             && self.resource_matches(resource)
             && self.auth_method_matches(user)
+            && self.roles_match(user)
             && self.tenant_matches(user)
     }
 }
@@ -143,6 +154,7 @@ impl PolicyRuleBuilder {
                 auth_methods: None,
                 tenant: None,
                 reason: None,
+                required_roles: vec![],
             },
         }
     }
@@ -184,6 +196,11 @@ impl PolicyRuleBuilder {
 
     pub fn tenant(mut self, t: impl Into<String>) -> Self {
         self.rule.tenant = Some(t.into());
+        self
+    }
+
+    pub fn required_roles(mut self, roles: Vec<String>) -> Self {
+        self.rule.required_roles = roles;
         self
     }
 
@@ -284,6 +301,7 @@ mod tests {
             id: "guest-1".to_string(),
             name: "Guest".to_string(),
             auth_method: AuthMethod::Guest,
+            roles: vec![],
             tenant: None,
         }
     }
@@ -297,6 +315,7 @@ mod tests {
                 subject: "alice@example.com".to_string(),
             },
             tenant: tenant.map(|s| s.to_string()),
+            roles: vec![],
         }
     }
 
@@ -397,6 +416,7 @@ mod tests {
             id: "api-1".to_string(),
             name: "Bot".to_string(),
             auth_method: AuthMethod::ApiKey,
+            roles: vec![],
             tenant: None,
         };
         assert_eq!(
@@ -507,6 +527,123 @@ mod tests {
         assert_eq!(
             engine.evaluate(&guest, "execute:agent", "agent:x"),
             PolicyDecision::Allow
+        );
+    }
+}
+
+#[cfg(test)]
+mod rbac_tests {
+    use super::*;
+    use crate::identity::UserIdentity;
+
+    fn admin_user() -> UserIdentity {
+        UserIdentity::oidc("admin-1", "Admin User", "https://accounts.google.com")
+            .with_roles(vec!["admin".to_string(), "user".to_string()])
+    }
+
+    fn regular_user() -> UserIdentity {
+        UserIdentity::oidc("user-1", "Regular User", "https://accounts.google.com")
+            .with_roles(vec!["user".to_string()])
+    }
+
+    fn no_role_user() -> UserIdentity {
+        UserIdentity::oidc("norole-1", "No Role User", "https://accounts.google.com")
+    }
+
+    #[test]
+    fn test_role_based_admin_only() {
+        let rules = vec![PolicyRuleBuilder::new("admin-only-manage")
+            .description("Only admins can manage")
+            .deny()
+            .actions(vec!["manage:*".to_string()])
+            .required_roles(vec!["admin".to_string()])
+            .reason("Admin role required".to_string())
+            .priority(100)
+            .build()];
+        // Wait - the deny rule with required_roles means: deny users WITH admin role from manage:*
+        // That's backwards. The correct pattern is: allow users WITH admin role, deny everyone else.
+        // Let me fix the test logic.
+        let _ = rules;
+
+        // Correct pattern: allow admin role for manage, deny everyone else
+        let rules = vec![
+            PolicyRuleBuilder::new("allow-admin-manage")
+                .description("Admins can manage")
+                .allow()
+                .actions(vec!["manage:*".to_string()])
+                .required_roles(vec!["admin".to_string()])
+                .priority(100)
+                .build(),
+            PolicyRuleBuilder::new("deny-manage-default")
+                .description("Deny manage for non-admins")
+                .deny()
+                .actions(vec!["manage:*".to_string()])
+                .reason("Admin role required".to_string())
+                .priority(50)
+                .build(),
+        ];
+
+        let engine = PolicyEngine::new(rules);
+
+        // Admin can manage
+        assert_eq!(
+            engine.evaluate(&admin_user(), "manage:agents", "agent:x"),
+            PolicyDecision::Allow
+        );
+
+        // Regular user denied
+        assert!(matches!(
+            engine.evaluate(&regular_user(), "manage:agents", "agent:x"),
+            PolicyDecision::Deny { .. }
+        ));
+
+        // No role user denied
+        assert!(matches!(
+            engine.evaluate(&no_role_user(), "manage:agents", "agent:x"),
+            PolicyDecision::Deny { .. }
+        ));
+    }
+
+    #[test]
+    fn test_role_empty_means_any() {
+        // Rule with no required_roles matches everyone
+        let rules = vec![PolicyRuleBuilder::new("allow-all")
+            .allow()
+            .actions(vec!["read:*".to_string()])
+            .build()];
+
+        let engine = PolicyEngine::new(rules);
+        assert_eq!(
+            engine.evaluate(&regular_user(), "read:status", "status"),
+            PolicyDecision::Allow
+        );
+        assert_eq!(
+            engine.evaluate(&no_role_user(), "read:status", "status"),
+            PolicyDecision::Allow
+        );
+    }
+
+    #[test]
+    fn test_multiple_roles_any_match() {
+        let rules = vec![PolicyRuleBuilder::new("ops-or-admin")
+            .allow()
+            .actions(vec!["deploy:*".to_string()])
+            .required_roles(vec!["admin".to_string(), "ops".to_string()])
+            .priority(100)
+            .build()];
+
+        let engine = PolicyEngine::new(rules);
+
+        // admin_user has "admin" role -> matches
+        assert_eq!(
+            engine.evaluate(&admin_user(), "deploy:app", "app:web"),
+            PolicyDecision::Allow
+        );
+
+        // regular_user has only "user" role -> no match, abstain
+        assert_eq!(
+            engine.evaluate(&regular_user(), "deploy:app", "app:web"),
+            PolicyDecision::Abstain
         );
     }
 }

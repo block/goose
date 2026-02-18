@@ -232,6 +232,7 @@ mod tests {
                 subject: "alice@example.com".to_string(),
             },
             tenant: Some("acme".to_string()),
+            roles: vec![],
         }
     }
 

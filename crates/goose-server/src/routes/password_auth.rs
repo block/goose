@@ -188,6 +188,7 @@ pub async fn password_login(
         name: display_name.clone(),
         auth_method: AuthMethod::Password,
         tenant: tenant_id.clone(),
+        roles: vec![],
     };
 
     let token = state
