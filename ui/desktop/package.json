@@ -39,7 +39,8 @@
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:integration:debug": "DEBUG=1 vitest run --config vitest.integration.config.ts",
     "prepare": "husky",
-    "start-alpha-gui": "ALPHA=true npm run start-gui"
+    "start-alpha-gui": "ALPHA=true npm run start-gui",
+    "generate-goose-ext-schema": "tsx generate-goose-ext-schema.ts"
   },
   "dependencies": {
     "@mcp-ui/client": "^6.1.0",

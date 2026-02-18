@@ -107,7 +107,7 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
-    // Generate schema entries for each route.
+    // Generate schema entries for each route using SchemaGenerator for $ref dedup.
     let schema_entries: Vec<_> = routes
         .iter()
         .map(|route| {
@@ -117,7 +117,7 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 if is_json_value(pt) {
                     quote! { None }
                 } else {
-                    quote! { Some(schemars::schema_for!(#pt)) }
+                    quote! { Some(generator.subschema_for::<#pt>()) }
                 }
             } else {
                 quote! { None }
@@ -127,7 +127,29 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 if is_json_value(ok_ty) {
                     quote! { None }
                 } else {
-                    quote! { Some(schemars::schema_for!(#ok_ty)) }
+                    quote! { Some(generator.subschema_for::<#ok_ty>()) }
+                }
+            } else {
+                quote! { None }
+            };
+
+            let params_name_expr = if let Some(pt) = &route.param_type {
+                if is_json_value(pt) {
+                    quote! { None }
+                } else {
+                    let name = type_name(pt);
+                    quote! { Some(#name.to_string()) }
+                }
+            } else {
+                quote! { None }
+            };
+
+            let response_name_expr = if let Some(ok_ty) = &route.ok_type {
+                if is_json_value(ok_ty) {
+                    quote! { None }
+                } else {
+                    let name = type_name(ok_ty);
+                    quote! { Some(#name.to_string()) }
                 }
             } else {
                 quote! { None }
@@ -137,7 +159,9 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 crate::custom_requests::CustomMethodSchema {
                     method: #full_method.to_string(),
                     params_schema: #params_expr,
+                    params_type_name: #params_name_expr,
                     response_schema: #response_expr,
+                    response_type_name: #response_name_expr,
                 }
             }
         })
@@ -159,7 +183,7 @@ pub fn custom_methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Generate the custom_method_schemas method.
     let schemas_fn = quote! {
-        pub fn custom_method_schemas() -> Vec<crate::custom_requests::CustomMethodSchema> {
+        pub fn custom_method_schemas(generator: &mut schemars::SchemaGenerator) -> Vec<crate::custom_requests::CustomMethodSchema> {
             vec![
                 #(#schema_entries),*
             ]
@@ -230,6 +254,17 @@ fn extract_result_ok_type(sig: &syn::Signature) -> Option<Type> {
         }
     }
     None
+}
+
+/// Extract the last segment name from a type path (e.g. `GetSessionRequest` from
+/// `crate::custom_requests::GetSessionRequest` or just `GetSessionRequest`).
+fn type_name(ty: &Type) -> String {
+    if let Type::Path(type_path) = ty {
+        if let Some(seg) = type_path.path.segments.last() {
+            return seg.ident.to_string();
+        }
+    }
+    quote::quote!(#ty).to_string()
 }
 
 /// Check if a type is `serde_json::Value` (matches `Value` or `serde_json::Value`).
