@@ -123,67 +123,23 @@ pub fn is_featured_model(model_id: &str) -> bool {
 
 /// Get the spec for a featured model by model_id
 pub fn get_featured_spec(model_id: &str) -> Option<&'static str> {
-    FEATURED_MODELS.iter().find(|spec| {
-        if let Some((repo_id, quant)) = parse_model_spec(spec) {
-            model_id_from_repo(repo_id, quant) == model_id
-        } else {
-            false
-        }
-    }).copied()
+    FEATURED_MODELS
+        .iter()
+        .find(|spec| {
+            if let Some((repo_id, quant)) = parse_model_spec(spec) {
+                model_id_from_repo(repo_id, quant) == model_id
+            } else {
+                false
+            }
+        })
+        .copied()
 }
-
-/// Legacy model definitions for backwards compatibility.
-pub struct LegacyModel {
-    pub id: &'static str,
-    pub display_name: &'static str,
-    pub repo_id: &'static str,
-    pub filename: &'static str,
-    pub quantization: &'static str,
-    pub source_url: &'static str,
-}
-
-pub const LEGACY_MODELS: &[LegacyModel] = &[
-    LegacyModel {
-        id: "llama-3.2-1b",
-        display_name: "Llama 3.2 1B",
-        repo_id: "bartowski/Llama-3.2-1B-Instruct-GGUF",
-        filename: "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-    },
-    LegacyModel {
-        id: "llama-3.2-3b",
-        display_name: "Llama 3.2 3B",
-        repo_id: "bartowski/Llama-3.2-3B-Instruct-GGUF",
-        filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    },
-    LegacyModel {
-        id: "hermes-2-pro-7b",
-        display_name: "Hermes 2 Pro 7B",
-        repo_id: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF",
-        filename: "Hermes-2-Pro-Mistral-7B-Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Hermes-2-Pro-Mistral-7B-GGUF/resolve/main/Hermes-2-Pro-Mistral-7B-Q4_K_M.gguf",
-    },
-    LegacyModel {
-        id: "mistral-small-22b",
-        display_name: "Mistral Small 24B",
-        repo_id: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF",
-        filename: "Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Mistral-Small-24B-Instruct-2501-GGUF/resolve/main/Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
-    },
-];
 
 static REGISTRY: OnceLock<Mutex<LocalModelRegistry>> = OnceLock::new();
 
 pub fn get_registry() -> &'static Mutex<LocalModelRegistry> {
     REGISTRY.get_or_init(|| {
-        let mut registry = LocalModelRegistry::load().unwrap_or_default();
-        registry.migrate_legacy_models();
-        registry.migrate_model_ids();
+        let registry = LocalModelRegistry::load().unwrap_or_default();
         Mutex::new(registry)
     })
 }
@@ -206,7 +162,7 @@ pub struct LocalModelEntry {
 }
 
 fn default_context_limit() -> u32 {
-    8192 // Default context limit for most models
+    8192
 }
 
 impl LocalModelEntry {
@@ -256,71 +212,33 @@ pub enum ModelDownloadStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LocalModelRegistry {
-    #[serde(default)]
     pub models: Vec<LocalModelEntry>,
 }
 
 impl LocalModelRegistry {
+    fn registry_path() -> PathBuf {
+        Paths::in_data_dir("models/registry.json")
+    }
+
     pub fn load() -> Result<Self> {
-        let path = Paths::in_data_dir("models/registry.json");
+        let path = Self::registry_path();
         if path.exists() {
-            let content = std::fs::read_to_string(&path)?;
-            Ok(serde_json::from_str(&content)?)
+            let contents = std::fs::read_to_string(&path)?;
+            let registry: LocalModelRegistry = serde_json::from_str(&contents)?;
+            Ok(registry)
         } else {
             Ok(Self::default())
         }
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = Paths::in_data_dir("models/registry.json");
+        let path = Self::registry_path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content = serde_json::to_string_pretty(&self)?;
-        std::fs::write(&path, content)?;
+        let contents = serde_json::to_string_pretty(self)?;
+        std::fs::write(&path, contents)?;
         Ok(())
-    }
-
-    /// Migrate model IDs from old format to new HuggingFace-style format.
-    pub fn migrate_model_ids(&mut self) {
-        let mut changed = false;
-        for entry in &mut self.models {
-            // Check if this is an old-style ID (no colons)
-            if !entry.id.contains(':') && !entry.repo_id.is_empty() {
-                let new_id = model_id_from_repo(&entry.repo_id, &entry.quantization);
-                entry.id = new_id;
-                changed = true;
-            }
-        }
-        if changed {
-            let _ = self.save();
-        }
-    }
-
-    /// Scan for legacy model files and add them to the registry if not already present.
-    pub fn migrate_legacy_models(&mut self) {
-        let mut changed = false;
-        for legacy in LEGACY_MODELS {
-            let legacy_path = Paths::in_data_dir("models").join(format!("{}.gguf", legacy.id));
-            if legacy_path.exists() && !self.models.iter().any(|m| m.id == legacy.id) {
-                self.models.push(LocalModelEntry {
-                    id: legacy.id.to_string(),
-                    display_name: legacy.display_name.to_string(),
-                    repo_id: legacy.repo_id.to_string(),
-                    filename: legacy.filename.to_string(),
-                    quantization: legacy.quantization.to_string(),
-                    local_path: legacy_path,
-                    source_url: legacy.source_url.to_string(),
-                    settings: ModelSettings::default(),
-                    size_bytes: 0,
-                    context_limit: 8192, // Default for legacy models
-                });
-                changed = true;
-            }
-        }
-        if changed {
-            let _ = self.save();
-        }
     }
 
     /// Sync registry with featured models:
@@ -339,9 +257,8 @@ impl LocalModelRegistry {
 
         // Remove non-downloaded, non-featured models
         let before_len = self.models.len();
-        self.models.retain(|m| {
-            m.is_downloaded() || is_featured_model(&m.id)
-        });
+        self.models
+            .retain(|m| m.is_downloaded() || is_featured_model(&m.id));
         if self.models.len() != before_len {
             changed = true;
         }
@@ -400,15 +317,6 @@ impl LocalModelRegistry {
 /// Uses the HuggingFace convention: `author/model:variant`.
 pub fn model_id_from_repo(repo_id: &str, quantization: &str) -> String {
     format!("{}:{}", repo_id, quantization)
-}
-
-/// Resolve a legacy short model ID (e.g., "llama-3.2-1b") to the full HuggingFace-style ID.
-/// Returns None if the ID is not a known legacy ID.
-pub fn resolve_legacy_model_id(legacy_id: &str) -> Option<String> {
-    LEGACY_MODELS
-        .iter()
-        .find(|m| m.id == legacy_id)
-        .map(|m| model_id_from_repo(m.repo_id, m.quantization))
 }
 
 /// Generate a display name from repo_id and quantization.
