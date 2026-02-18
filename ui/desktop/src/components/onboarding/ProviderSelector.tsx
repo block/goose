@@ -1,9 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
-import { providers as fetchProviders, ProviderDetails } from '../../api';
+import {
+  providers as fetchProviders,
+  createCustomProvider,
+  ProviderDetails,
+  UpdateCustomProviderRequest,
+} from '../../api';
 import { Select } from '../ui/Select';
 import ProviderConfigForm from './ProviderConfigForm';
 import FreeCreditCards from './FreeCreditCards';
-import { Gift, Key } from 'lucide-react';
+import CustomProviderForm from '../settings/providers/modal/subcomponents/forms/CustomProviderForm';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Gift, Key, Plus } from 'lucide-react';
 
 type SelectedPath = 'free-credits' | 'own-provider' | null;
 
@@ -27,6 +34,7 @@ export default function ProviderSelector({
   const [providerList, setProviderList] = useState<ProviderDetails[]>([]);
   const [selectedOption, setSelectedOption] = useState<ProviderOption | null>(null);
   const [selectedPath, setSelectedPath] = useState<SelectedPath>(null);
+  const [showCustomModal, setShowCustomModal] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -78,6 +86,17 @@ export default function ProviderSelector({
     if (option) onFirstSelection?.();
   };
 
+  const handleCreateCustomProvider = async (data: UpdateCustomProviderRequest) => {
+    const result = await createCustomProvider({ body: data, throwOnError: true });
+    setShowCustomModal(false);
+    // API returns "Custom provider added - ID: <id>", extract the ID
+    const message = result.data as string;
+    const providerId = message.split('ID: ').pop() || '';
+    if (providerId) {
+      onConfigured(providerId);
+    }
+  };
+
   const selectedProvider = selectedOption?.provider ?? null;
 
   return (
@@ -127,7 +146,7 @@ export default function ProviderSelector({
 
       {selectedPath === 'own-provider' && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="mb-6">
+          <div className="mb-4">
             <Select
               options={options}
               value={selectedOption}
@@ -140,6 +159,14 @@ export default function ProviderSelector({
             />
           </div>
 
+          <button
+            onClick={() => setShowCustomModal(true)}
+            className="flex items-center gap-1 text-sm text-text-muted hover:text-text-default transition-colors mb-6"
+          >
+            <Plus size={14} />
+            <span>Add a custom provider</span>
+          </button>
+
           {selectedProvider && (
             <ProviderConfigForm
               key={selectedProvider.name}
@@ -150,6 +177,20 @@ export default function ProviderSelector({
           )}
         </div>
       )}
+
+      <Dialog open={showCustomModal} onOpenChange={setShowCustomModal}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Custom Provider</DialogTitle>
+          </DialogHeader>
+          <CustomProviderForm
+            initialData={null}
+            isEditable={true}
+            onSubmit={handleCreateCustomProvider}
+            onCancel={() => setShowCustomModal(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

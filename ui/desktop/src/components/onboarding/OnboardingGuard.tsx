@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
-import { getProviderMetadata } from '../settings/models/modelInterface';
 import { Goose } from '../icons';
 import ProviderSelector from './ProviderSelector';
 
@@ -35,9 +34,12 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   }, [read]);
 
   const handleConfigured = async (providerName: string) => {
-    const metadata = await getProviderMetadata(providerName, getProviders);
+    const providers = await getProviders(true);
+    const match = providers.find((p) => p.name === providerName);
     await upsert('GOOSE_PROVIDER', providerName, false);
-    await upsert('GOOSE_MODEL', metadata.default_model, false);
+    if (match) {
+      await upsert('GOOSE_MODEL', match.metadata.default_model, false);
+    }
     await refreshCurrentModelAndProvider();
     setHasProvider(true);
     navigate('/', { replace: true });
