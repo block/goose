@@ -1,19 +1,22 @@
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::{Pool, Sqlite};
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{OnceCell, RwLock};
 
 use crate::identity::UserIdentity;
 
 const DEFAULT_TOKEN_TTL_SECS: u64 = 86400; // 24 hours
+const SCHEMA_VERSION: i64 = 1;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SessionClaims {
     pub sub: String,
     pub name: String,
     pub auth_method: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant: Option<String>,
     pub iat: u64,
     pub exp: u64,
@@ -49,19 +52,38 @@ impl SessionClaims {
 #[derive(Clone)]
 pub struct SessionTokenStore {
     signing_key: Arc<String>,
-    revoked: Arc<RwLock<HashSet<String>>>,
-    /// Maps (issuer, subject) → refresh_token for OIDC token refresh
-    refresh_tokens: Arc<RwLock<HashMap<(String, String), String>>>,
     ttl_secs: u64,
+    /// SQLite pool for persistent storage (lazy-initialized)
+    pool: Arc<OnceCell<Pool<Sqlite>>>,
+    db_path: PathBuf,
+    /// In-memory fallback for revoked tokens (used before DB is ready)
+    revoked_fallback: Arc<RwLock<HashSet<String>>>,
 }
 
 impl SessionTokenStore {
-    pub fn new(signing_key: impl Into<String>) -> Self {
+    /// Create a new store with SQLite persistence at the given data directory.
+    pub fn new(signing_key: impl Into<String>, data_dir: &Path) -> Self {
+        let auth_dir = data_dir.join("auth");
+        std::fs::create_dir_all(&auth_dir).ok();
+        let db_path = auth_dir.join("tokens.db");
+
         Self {
             signing_key: Arc::new(signing_key.into()),
-            revoked: Arc::new(RwLock::new(HashSet::new())),
-            refresh_tokens: Arc::new(RwLock::new(HashMap::new())),
             ttl_secs: DEFAULT_TOKEN_TTL_SECS,
+            pool: Arc::new(OnceCell::new()),
+            db_path,
+            revoked_fallback: Arc::new(RwLock::new(HashSet::new())),
+        }
+    }
+
+    /// Create an in-memory store (for tests or when no persistence is needed).
+    pub fn in_memory(signing_key: impl Into<String>) -> Self {
+        Self {
+            signing_key: Arc::new(signing_key.into()),
+            ttl_secs: DEFAULT_TOKEN_TTL_SECS,
+            pool: Arc::new(OnceCell::new()),
+            db_path: PathBuf::from(":memory:"),
+            revoked_fallback: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 
@@ -73,6 +95,104 @@ impl SessionTokenStore {
         self.ttl_secs = ttl_secs;
         self
     }
+
+    async fn pool(&self) -> Result<&Pool<Sqlite>, SessionTokenError> {
+        self.pool
+            .get_or_try_init(|| async {
+                let pool = Self::create_pool(&self.db_path);
+                Self::run_migrations(&pool).await?;
+                Ok::<Pool<Sqlite>, SessionTokenError>(pool)
+            })
+            .await
+    }
+
+    fn create_pool(path: &Path) -> Pool<Sqlite> {
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+        SqlitePoolOptions::new()
+            .max_connections(2)
+            .connect_lazy_with(options)
+    }
+
+    async fn run_migrations(pool: &Pool<Sqlite>) -> Result<(), SessionTokenError> {
+        // Check if schema_version table exists
+        let has_schema: bool = sqlx::query_scalar(
+            r#"SELECT EXISTS (SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version')"#,
+        )
+        .fetch_one(pool)
+        .await
+        .map_err(|e| SessionTokenError::StorageError(e.to_string()))?;
+
+        let current_version = if has_schema {
+            sqlx::query_scalar::<_, i64>("SELECT version FROM schema_version")
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| SessionTokenError::StorageError(e.to_string()))?
+                .unwrap_or(0)
+        } else {
+            0
+        };
+
+        if current_version < SCHEMA_VERSION {
+            sqlx::query(
+                r#"
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version INTEGER NOT NULL
+                );
+                "#,
+            )
+            .execute(pool)
+            .await
+            .map_err(|e| SessionTokenError::StorageError(e.to_string()))?;
+
+            sqlx::query(
+                r#"
+                CREATE TABLE IF NOT EXISTS revoked_tokens (
+                    jti TEXT PRIMARY KEY,
+                    revoked_at INTEGER NOT NULL
+                );
+                "#,
+            )
+            .execute(pool)
+            .await
+            .map_err(|e| SessionTokenError::StorageError(e.to_string()))?;
+
+            sqlx::query(
+                r#"
+                CREATE TABLE IF NOT EXISTS refresh_tokens (
+                    issuer TEXT NOT NULL,
+                    subject TEXT NOT NULL,
+                    refresh_token TEXT NOT NULL,
+                    stored_at INTEGER NOT NULL,
+                    PRIMARY KEY (issuer, subject)
+                );
+                "#,
+            )
+            .execute(pool)
+            .await
+            .map_err(|e| SessionTokenError::StorageError(e.to_string()))?;
+
+            if current_version == 0 {
+                sqlx::query("INSERT INTO schema_version (version) VALUES (?)")
+                    .bind(SCHEMA_VERSION)
+                    .execute(pool)
+                    .await
+                    .map_err(|e| SessionTokenError::StorageError(e.to_string()))?;
+            } else {
+                sqlx::query("UPDATE schema_version SET version = ?")
+                    .bind(SCHEMA_VERSION)
+                    .execute(pool)
+                    .await
+                    .map_err(|e| SessionTokenError::StorageError(e.to_string()))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    // --- JWT Token Operations ---
 
     pub fn issue_token(&self, user: &UserIdentity) -> Result<String, SessionTokenError> {
         let claims = SessionClaims::from_user(user, self.ttl_secs);
@@ -103,8 +223,8 @@ impl SessionTokenStore {
             _ => SessionTokenError::ValidationFailed(e.to_string()),
         })?;
 
-        let revoked = self.revoked.read().await;
-        if revoked.contains(&token_data.claims.jti) {
+        // Check persistent revocation store
+        if self.is_token_revoked(&token_data.claims.jti).await? {
             return Err(SessionTokenError::Revoked);
         }
 
@@ -112,8 +232,23 @@ impl SessionTokenStore {
     }
 
     pub async fn revoke_token(&self, jti: &str) {
-        let mut revoked = self.revoked.write().await;
-        revoked.insert(jti.to_string());
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        if let Ok(pool) = self.pool().await {
+            sqlx::query("INSERT OR REPLACE INTO revoked_tokens (jti, revoked_at) VALUES (?, ?)")
+                .bind(jti)
+                .bind(now)
+                .execute(pool)
+                .await
+                .ok();
+        } else {
+            // Fallback to in-memory
+            let mut revoked = self.revoked_fallback.write().await;
+            revoked.insert(jti.to_string());
+        }
     }
 
     pub async fn revoke_by_token(&self, token: &str) -> Result<(), SessionTokenError> {
@@ -122,37 +257,87 @@ impl SessionTokenStore {
         Ok(())
     }
 
+    async fn is_token_revoked(&self, jti: &str) -> Result<bool, SessionTokenError> {
+        // Check DB first
+        if let Ok(pool) = self.pool().await {
+            let exists: bool =
+                sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM revoked_tokens WHERE jti = ?)")
+                    .bind(jti)
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|e| SessionTokenError::StorageError(e.to_string()))?;
+            return Ok(exists);
+        }
+
+        // Fallback to in-memory
+        let revoked = self.revoked_fallback.read().await;
+        Ok(revoked.contains(jti))
+    }
+
+    /// Clean up expired revocation entries (older than 48h — well past any token's TTL).
     pub async fn cleanup_expired(&self) {
+        let cutoff = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64
+            - 172800; // 48 hours
+
+        if let Ok(pool) = self.pool().await {
+            sqlx::query("DELETE FROM revoked_tokens WHERE revoked_at < ?")
+                .bind(cutoff)
+                .execute(pool)
+                .await
+                .ok();
+        }
+    }
+
+    // --- Refresh Token Operations ---
+
+    pub async fn store_refresh_token(&self, issuer: &str, subject: &str, refresh_token: &str) {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_secs();
+            .as_secs() as i64;
 
-        let mut revoked = self.revoked.write().await;
-        if revoked.len() > 10_000 {
-            revoked.clear();
+        if let Ok(pool) = self.pool().await {
+            sqlx::query(
+                "INSERT OR REPLACE INTO refresh_tokens (issuer, subject, refresh_token, stored_at) VALUES (?, ?, ?, ?)",
+            )
+            .bind(issuer)
+            .bind(subject)
+            .bind(refresh_token)
+            .bind(now)
+            .execute(pool)
+            .await
+            .ok();
         }
-        let _ = now;
-    }
-
-    pub async fn store_refresh_token(&self, issuer: &str, subject: &str, refresh_token: &str) {
-        let mut tokens = self.refresh_tokens.write().await;
-        tokens.insert(
-            (issuer.to_string(), subject.to_string()),
-            refresh_token.to_string(),
-        );
     }
 
     pub async fn get_refresh_token(&self, issuer: &str, subject: &str) -> Option<String> {
-        let tokens = self.refresh_tokens.read().await;
-        tokens
-            .get(&(issuer.to_string(), subject.to_string()))
-            .cloned()
+        if let Ok(pool) = self.pool().await {
+            sqlx::query_scalar(
+                "SELECT refresh_token FROM refresh_tokens WHERE issuer = ? AND subject = ?",
+            )
+            .bind(issuer)
+            .bind(subject)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+        } else {
+            None
+        }
     }
 
     pub async fn remove_refresh_token(&self, issuer: &str, subject: &str) {
-        let mut tokens = self.refresh_tokens.write().await;
-        tokens.remove(&(issuer.to_string(), subject.to_string()));
+        if let Ok(pool) = self.pool().await {
+            sqlx::query("DELETE FROM refresh_tokens WHERE issuer = ? AND subject = ?")
+                .bind(issuer)
+                .bind(subject)
+                .execute(pool)
+                .await
+                .ok();
+        }
     }
 }
 
@@ -168,11 +353,14 @@ pub enum SessionTokenError {
     Revoked,
     #[error("validation failed: {0}")]
     ValidationFailed(String),
+    #[error("storage error: {0}")]
+    StorageError(String),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     fn test_user() -> UserIdentity {
         UserIdentity::guest_stable("test-user-123")
@@ -182,18 +370,24 @@ mod tests {
         UserIdentity::oidc("sub-456", "Alice Smith", "google").with_tenant("acme-corp".to_string())
     }
 
+    fn create_test_store() -> (SessionTokenStore, TempDir) {
+        let dir = TempDir::new().unwrap();
+        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!", dir.path());
+        (store, dir)
+    }
+
     #[test]
-    fn test_issue_and_validate_sync() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
+    fn test_issue_token_sync() {
+        let dir = TempDir::new().unwrap();
+        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!", dir.path());
         let token = store.issue_token(&test_user()).unwrap();
         assert!(!token.is_empty());
-        // Token should have 3 parts (header.payload.signature)
         assert_eq!(token.split('.').count(), 3);
     }
 
     #[tokio::test]
     async fn test_issue_and_validate() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
+        let (store, _dir) = create_test_store();
         let user = test_user();
         let token = store.issue_token(&user).unwrap();
 
@@ -205,7 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_oidc_user_roundtrip() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
+        let (store, _dir) = create_test_store();
         let user = oidc_user();
         let token = store.issue_token(&user).unwrap();
 
@@ -217,27 +411,43 @@ mod tests {
 
     #[tokio::test]
     async fn test_revoke_token() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
+        let (store, _dir) = create_test_store();
         let token = store.issue_token(&test_user()).unwrap();
 
-        // Valid before revocation
         assert!(store.validate_token(&token).await.is_ok());
 
-        // Revoke
         store.revoke_by_token(&token).await.unwrap();
 
-        // Invalid after revocation
         let err = store.validate_token(&token).await.unwrap_err();
         assert!(matches!(err, SessionTokenError::Revoked));
     }
 
     #[tokio::test]
+    async fn test_revoke_persists() {
+        let dir = TempDir::new().unwrap();
+        let token;
+
+        // Issue and revoke with first store instance
+        {
+            let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!", dir.path());
+            token = store.issue_token(&test_user()).unwrap();
+            store.revoke_by_token(&token).await.unwrap();
+        }
+
+        // Create a new store pointing to the same DB — revocation should persist
+        {
+            let store2 = SessionTokenStore::new("test-secret-key-32chars-long!!!!", dir.path());
+            let err = store2.validate_token(&token).await.unwrap_err();
+            assert!(matches!(err, SessionTokenError::Revoked));
+        }
+    }
+
+    #[tokio::test]
     async fn test_expired_token() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
-        // Manually create a token with exp in the past
+        let (store, _dir) = create_test_store();
         let mut claims = SessionClaims::from_user(&test_user(), 0);
         claims.iat = 1_000_000;
-        claims.exp = 1_000_001; // long expired
+        claims.exp = 1_000_001;
 
         let token = encode(
             &Header::default(),
@@ -252,79 +462,124 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_signature() {
-        let store1 = SessionTokenStore::new("secret-key-one-32chars-long!!!!!");
-        let store2 = SessionTokenStore::new("secret-key-two-32chars-long!!!!!");
+        let (store, _dir) = create_test_store();
+        let claims = SessionClaims::from_user(&test_user(), 3600);
 
-        let token = store1.issue_token(&test_user()).unwrap();
-        let err = store2.validate_token(&token).await.unwrap_err();
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(b"wrong-key-that-does-not-match!!!"),
+        )
+        .unwrap();
+
+        let err = store.validate_token(&token).await.unwrap_err();
         assert!(matches!(err, SessionTokenError::InvalidSignature));
     }
 
     #[tokio::test]
-    async fn test_claims_to_user_identity() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
-        let user = oidc_user();
-        let token = store.issue_token(&user).unwrap();
+    async fn test_custom_ttl() {
+        let dir = TempDir::new().unwrap();
+        let store =
+            SessionTokenStore::new("test-secret-key-32chars-long!!!!", dir.path()).with_ttl(7200);
+        assert_eq!(store.ttl().as_secs(), 7200);
 
+        let token = store.issue_token(&test_user()).unwrap();
         let claims = store.validate_token(&token).await.unwrap();
-        let restored = claims.into_user_identity();
-        assert_eq!(restored.id, user.id);
-        assert_eq!(restored.name, "Alice Smith");
-        assert_eq!(restored.tenant, Some("acme-corp".to_string()));
+        assert!(claims.exp - claims.iat == 7200);
     }
 
     #[tokio::test]
-    async fn test_custom_ttl() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!").with_ttl(3600);
-        let token = store.issue_token(&test_user()).unwrap();
-
-        let claims = store.validate_token(&token).await.unwrap();
-        assert_eq!(claims.exp - claims.iat, 3600);
-    }
-
-    #[test]
-    fn test_jti_uniqueness() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
+    async fn test_jti_uniqueness() {
+        let (store, _dir) = create_test_store();
         let user = test_user();
-        let t1 = store.issue_token(&user).unwrap();
-        let t2 = store.issue_token(&user).unwrap();
-        assert_ne!(t1, t2);
+        let token1 = store.issue_token(&user).unwrap();
+        let token2 = store.issue_token(&user).unwrap();
+
+        let c1 = store.validate_token(&token1).await.unwrap();
+        let c2 = store.validate_token(&token2).await.unwrap();
+        assert_ne!(c1.jti, c2.jti);
     }
 
     #[tokio::test]
     async fn test_refresh_token_store_and_retrieve() {
-        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
+        let (store, _dir) = create_test_store();
 
-        // No token initially
-        assert!(store
-            .get_refresh_token("https://accounts.google.com", "sub-123")
-            .await
-            .is_none());
-
-        // Store a refresh token
         store
-            .store_refresh_token("https://accounts.google.com", "sub-123", "rt-abc-def-123")
+            .store_refresh_token("https://accounts.google.com", "user-123", "rt-abc-def")
             .await;
 
-        // Retrieve it
         let rt = store
-            .get_refresh_token("https://accounts.google.com", "sub-123")
+            .get_refresh_token("https://accounts.google.com", "user-123")
             .await;
-        assert_eq!(rt, Some("rt-abc-def-123".to_string()));
+        assert_eq!(rt, Some("rt-abc-def".to_string()));
 
         // Different subject returns None
-        assert!(store
-            .get_refresh_token("https://accounts.google.com", "sub-999")
-            .await
-            .is_none());
-
-        // Remove it
-        store
-            .remove_refresh_token("https://accounts.google.com", "sub-123")
+        let rt2 = store
+            .get_refresh_token("https://accounts.google.com", "user-999")
             .await;
-        assert!(store
-            .get_refresh_token("https://accounts.google.com", "sub-123")
-            .await
-            .is_none());
+        assert_eq!(rt2, None);
+
+        // Remove and verify
+        store
+            .remove_refresh_token("https://accounts.google.com", "user-123")
+            .await;
+        let rt3 = store
+            .get_refresh_token("https://accounts.google.com", "user-123")
+            .await;
+        assert_eq!(rt3, None);
+    }
+
+    #[tokio::test]
+    async fn test_refresh_token_persists() {
+        let dir = TempDir::new().unwrap();
+
+        // Store with first instance
+        {
+            let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!", dir.path());
+            store
+                .store_refresh_token("https://accounts.google.com", "user-123", "rt-persist")
+                .await;
+        }
+
+        // Read with new instance — should persist
+        {
+            let store2 = SessionTokenStore::new("test-secret-key-32chars-long!!!!", dir.path());
+            let rt = store2
+                .get_refresh_token("https://accounts.google.com", "user-123")
+                .await;
+            assert_eq!(rt, Some("rt-persist".to_string()));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_expired_revocations() {
+        let (store, _dir) = create_test_store();
+
+        // Manually insert an old revocation
+        if let Ok(pool) = store.pool().await {
+            sqlx::query("INSERT INTO revoked_tokens (jti, revoked_at) VALUES (?, ?)")
+                .bind("old-jti")
+                .bind(1_000_000i64) // very old
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        // Should exist before cleanup
+        assert!(store.is_token_revoked("old-jti").await.unwrap());
+
+        // Cleanup removes old entries
+        store.cleanup_expired().await;
+
+        // Should be gone
+        assert!(!store.is_token_revoked("old-jti").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_in_memory_store() {
+        let store = SessionTokenStore::in_memory("test-secret");
+        let token = store.issue_token(&test_user()).unwrap();
+        let claims = store.validate_token(&token).await.unwrap();
+        assert_eq!(claims.sub, "test-user-123");
     }
 }

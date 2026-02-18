@@ -57,7 +57,10 @@ impl AppState {
             run_store: RunStore::new(),
             agent_pool: Arc::new(AgentPool::new(10)),
             oidc_validator: Arc::new(OidcValidator::new(vec![])),
-            session_token_store: Arc::new(SessionTokenStore::new(uuid::Uuid::new_v4().to_string())),
+            session_token_store: Arc::new(SessionTokenStore::new(
+                uuid::Uuid::new_v4().to_string(),
+                &goose::config::paths::Paths::data_dir(),
+            )),
         }))
     }
 
