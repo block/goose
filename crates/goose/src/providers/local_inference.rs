@@ -92,7 +92,7 @@ impl InferenceRuntime {
 }
 
 const PROVIDER_NAME: &str = "local";
-const DEFAULT_MODEL: &str = "llama-3.2-1b";
+const DEFAULT_MODEL: &str = "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M";
 
 pub const LOCAL_LLM_MODEL_CONFIG_KEY: &str = "LOCAL_LLM_MODEL";
 
@@ -195,13 +195,13 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> &'static str {
     let effective_memory_mb = available_inference_memory_bytes(runtime) / (1024 * 1024);
 
     if effective_memory_mb >= 16_000 {
-        "mistral-small-22b"
+        "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M"
     } else if effective_memory_mb >= 6_000 {
-        "hermes-2-pro-7b"
+        "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M"
     } else if effective_memory_mb >= 3_000 {
-        "llama-3.2-3b"
+        "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
     } else {
-        "llama-3.2-1b"
+        "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M"
     }
 }
 
@@ -1079,10 +1079,10 @@ impl ProviderDef for LocalInferenceProvider {
         use crate::providers::local_inference::local_model_registry::get_registry;
 
         let mut known_models: Vec<&str> = vec![
-            "llama-3.2-1b",
-            "llama-3.2-3b",
-            "hermes-2-pro-7b",
-            "mistral-small-22b",
+            "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
+            "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
+            "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
+            "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
         ];
 
         // Add any registry models not already in the featured list
