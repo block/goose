@@ -60,8 +60,15 @@ export function useAutoSubmit({
       return;
     }
 
-    // Don't submit if already streaming or loading
     if (chatState !== ChatState.Idle) {
+      return;
+    }
+
+    const recipe = session.recipe;
+    const hasUnfilledParameters =
+      recipe?.parameters && recipe.parameters.length > 0 && !session.user_recipe_values;
+
+    if (hasUnfilledParameters && !initialMessage) {
       return;
     }
 

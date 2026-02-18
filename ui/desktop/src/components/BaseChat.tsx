@@ -77,7 +77,7 @@ export default function BaseChat({
 
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
-  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>(true);
+  const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
 
   const isMobile = useIsMobile();
@@ -161,63 +161,10 @@ export default function BaseChat({
       .reverse();
   }, [messages]);
 
-<<<<<<< HEAD
-  const chatInputSubmit = (input: UserInput) => {
-    if (recipe && input.msg.trim()) {
-=======
   const recipe = session?.recipe;
 
-  const autoSubmit = useMemo(() => {
-    if (!session || initialMessage) return false;
-    const hasMessages = (session.conversation?.length ?? 0) > 0;
-    return !!(recipe?.prompt && !hasMessages && hasNotAcceptedRecipe === false);
-  }, [session, recipe, hasNotAcceptedRecipe, initialMessage]);
-
-  useEffect(() => {
->>>>>>> d906c78a9f (fix: addressed copilot suggestions)
-    if (!session || hasAutoSubmittedRef.current) {
-      return;
-    }
-
-    const shouldStartAgent = searchParams.get('shouldStartAgent') === 'true';
-
-    if (initialMessage) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit(initialMessage);
-      // Clear initialMessage from navigation state to prevent re-sending on refresh
-      navigate(location.pathname + location.search, {
-        replace: true,
-        state: { ...location.state, initialMessage: undefined },
-      });
-    } else if (shouldStartAgent) {
-      hasAutoSubmittedRef.current = true;
-      handleSubmit('');
-    }
-  }, [session, initialMessage, searchParams, handleSubmit, navigate, location]);
-
-  const handleFormSubmit = async (e: React.FormEvent) => {
-    const customEvent = e as unknown as CustomEvent;
-    const textValue = customEvent.detail?.value || '';
-
-    // If no session exists, create one and navigate with the initial message
-    if (!session && !sessionId && textValue.trim() && !isCreatingSession) {
-      setIsCreatingSession(true);
-      try {
-        const newSession = await createSession(getInitialWorkingDir(), {
-          allExtensions: extensionsList,
-        });
-        navigate(`/pair?resumeSessionId=${newSession.id}`, {
-          replace: true,
-          state: { resumeSessionId: newSession.id, initialMessage: textValue },
-        });
-      } catch {
-        setIsCreatingSession(false);
-      }
-      return;
-    }
-
-    if (recipe && textValue.trim()) {
->>>>>>> 8455243b38 (fix: addressed copilot suggestions)
+  const chatInputSubmit = (input: UserInput) => {
+    if (recipe && input.msg.trim()) {
       setHasStartedUsingRecipe(true);
     }
     handleSubmit(input);
@@ -231,7 +178,6 @@ export default function BaseChat({
     session,
   });
 
-  const recipe = session?.recipe;
   const { setProviderAndModel } = useModelAndProvider();
 
   useEffect(() => {
@@ -239,7 +185,6 @@ export default function BaseChat({
       setProviderAndModel(session.provider_name, session.model_config.model_name);
     }
   }, [session?.provider_name, session?.model_config?.model_name, setProviderAndModel]);
-
 
   useEffect(() => {
     if (!recipe) return;

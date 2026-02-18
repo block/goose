@@ -329,12 +329,6 @@ export default function ChatInput({
   const [isInGlobalHistory, setIsInGlobalHistory] = useState(false);
   const [hasUserTyped, setHasUserTyped] = useState(false);
 
-
-  // Reset auto-submit state when the active session changes so recipes can auto-submit again
-  useEffect(() => {
-    setDidAutoSubmit(false);
-  }, [sessionId]);
-
   // Use shared file drop hook for ChatInput
   const {
     droppedFiles: localDroppedFiles,
@@ -1093,8 +1087,7 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
-    chatState === ChatState.RestartingAgent ||
-    _isExtensionsLoading;
+    chatState === ChatState.RestartingAgent;
 
   const getSubmitButtonTooltip = (): string => {
     if (isAnyImageLoading) return 'Waiting for images to save...';
