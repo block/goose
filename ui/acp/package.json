@@ -14,7 +14,11 @@
   "dependencies": {
     "zod": "^3.25.76"
   },
+  "peerDependencies": {
+    "@agentclientprotocol/sdk": "*"
+  },
   "devDependencies": {
+    "@agentclientprotocol/sdk": "^0.14.1",
     "@hey-api/openapi-ts": "^0.92.3",
     "prettier": "^3.8.1",
     "tsx": "^4.21.0",
