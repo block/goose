@@ -7,6 +7,7 @@ import { AlertType } from './types';
 import type { Alert } from './types';
 import { upsertConfig } from '../../api';
 import { useConfig } from '../ConfigContext';
+import { Button } from '../ui/button';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
   [AlertType.Error]: <IoIosCloseCircle className="h-5 w-5" />,
@@ -290,17 +291,17 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
             <div className="flex flex-col gap-2 flex-1">
               <span className="text-[11px] break-words whitespace-pre-line">{alert.message}</span>
               {alert.action && (
-                <a
-                  role="button"
+                <Button
+                  variant="link"
+                  size="xs"
+                  className="text-[11px] text-left underline p-0 h-auto"
                   onClick={(e) => {
-                    e.preventDefault();
                     e.stopPropagation();
                     alert.action?.onClick();
                   }}
-                  className="text-[11px] text-left underline hover:opacity-80 cursor-pointer outline-none"
                 >
                   {alert.action.text}
-                </a>
+                </Button>
               )}
             </div>
           </div>

@@ -94,19 +94,12 @@ export const RecipeExtensionSelector = ({
           sortedExtensions.map((ext) => {
             const isSelected = selectedExtensionNames.has(ext.name);
             return (
-              <div
+              <button
                 key={ext.name}
-                className="flex items-center justify-between px-4 py-3 hover:bg-background-subtle transition-colors cursor-pointer border-b border-border-default last:border-b-0"
-                role="button"
-                tabIndex={0}
+                type="button"
+                className="flex items-center justify-between px-4 py-3 hover:bg-background-subtle transition-colors cursor-pointer border-b border-border-default last:border-b-0 w-full text-left"
                 aria-pressed={isSelected}
                 onClick={() => handleToggle(ext)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    handleToggle(ext);
-                  }
-                }}
                 title={ext.description || ext.name}
               >
                 <div className="flex-1 min-w-0">
@@ -124,7 +117,7 @@ export const RecipeExtensionSelector = ({
                     variant="mono"
                   />
                 </div>
-              </div>
+              </button>
             );
           })
         )}

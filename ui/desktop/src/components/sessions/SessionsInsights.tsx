@@ -318,18 +318,13 @@ export function SessionInsights() {
                   </>
                 ) : recentSessions.length > 0 ? (
                   recentSessions.map((session, index) => (
-                    <div
+                    <Button
                       key={session.id}
-                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-between text-sm py-1 px-2 h-auto"
                       onClick={() => handleSessionClick(session)}
-                      role="button"
-                      tabIndex={0}
                       style={{ animationDelay: `${index * 0.1}s` }}
-                      onKeyDown={async (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          await handleSessionClick(session);
-                        }
-                      }}
                     >
                       <div className="flex items-center space-x-2">
                         <ChatSmart className="h-4 w-4 text-text-muted" />
@@ -338,7 +333,7 @@ export function SessionInsights() {
                       <span className="text-text-muted font-mono font-light">
                         {formatDateOnly(session.updated_at)}
                       </span>
-                    </div>
+                    </Button>
                   ))
                 ) : (
                   <div className="text-text-muted text-sm py-2">No recent chat sessions found.</div>
