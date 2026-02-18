@@ -18,6 +18,10 @@ pub trait SystemAutomation: Send + Sync {
     fn execute_system_script(&self, script: &str) -> std::io::Result<String>;
     fn get_shell_command(&self) -> (&'static str, &'static str); // (shell, arg)
     fn get_temp_path(&self) -> std::path::PathBuf;
+    /// Check if Peekaboo CLI is available (macOS only, always false on other platforms)
+    fn has_peekaboo(&self) -> bool {
+        false
+    }
 }
 
 pub fn create_system_automation() -> Box<dyn SystemAutomation + Send + Sync> {

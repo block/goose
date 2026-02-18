@@ -1,3 +1,4 @@
+use base64::Engine;
 use crate::subprocess::SubprocessExt;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
@@ -7,7 +8,7 @@ use rmcp::{
     model::{
         AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
         ListResourcesResult, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        ReadResourceResult, Resource, ResourceContents, Role, ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -276,6 +277,79 @@ pub struct XlsxToolParams {
     pub value: Option<String>,
 }
 
+// ============================================================================
+// Peekaboo CLI integration tools (macOS only, requires `brew install steipete/tap/peekaboo`)
+// ============================================================================
+
+/// Parameters for the peekaboo_see tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PeekabooSeeParams {
+    /// Optional: target a specific app by name (e.g., "Safari", "Terminal")
+    pub app: Option<String>,
+    /// Optional: target a specific window by title
+    pub window_title: Option<String>,
+    /// Whether to capture the entire screen instead of a window (default: false)
+    #[serde(default)]
+    pub screen_mode: bool,
+}
+
+/// Parameters for the peekaboo_click tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PeekabooClickParams {
+    /// Element ID from peekaboo_see output (e.g., "B1", "T2", "L3")
+    pub on: Option<String>,
+    /// Click at specific coordinates as "x,y" (e.g., "100,200")
+    pub coords: Option<String>,
+    /// Whether to double-click instead of single click
+    #[serde(default)]
+    pub double: bool,
+    /// Whether to right-click instead of left-click
+    #[serde(default)]
+    pub right: bool,
+}
+
+/// Parameters for the peekaboo_type tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PeekabooTypeParams {
+    /// The text to type
+    pub text: String,
+    /// Whether to clear the field before typing
+    #[serde(default)]
+    pub clear: bool,
+}
+
+/// Enum for peekaboo_app subcommands
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum PeekabooAppAction {
+    /// Launch an application
+    Launch,
+    /// Quit an application
+    Quit,
+    /// Switch to an application
+    Switch,
+    /// List running applications
+    List,
+}
+
+/// Parameters for the peekaboo_app tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PeekabooAppParams {
+    /// The action to perform
+    pub action: PeekabooAppAction,
+    /// The app name or bundle identifier (not required for 'list')
+    pub app: Option<String>,
+    /// Optional: URL to open when launching (e.g., "https://google.com")
+    pub open_url: Option<String>,
+}
+
+/// Parameters for the peekaboo_hotkey tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PeekabooHotkeyParams {
+    /// Comma-separated key combo (e.g., "cmd,shift,t" or "cmd,c")
+    pub combo: String,
+}
+
 /// ComputerController MCP Server using official RMCP SDK
 #[derive(Clone)]
 pub struct ComputerControllerServer {
@@ -353,6 +427,22 @@ impl ComputerControllerServer {
               - Extract content
               - Handle web-based workflows
             This is often more reliable than web scraping for modern web applications.
+
+            Peekaboo UI Automation (requires: brew install steipete/tap/peekaboo):
+              When peekaboo tools are available, use them for visual UI interaction:
+
+              The core workflow is see → click → type:
+              1. peekaboo_see: Capture annotated screenshot with element IDs (B1=button, T2=text field, L3=link)
+              2. peekaboo_click: Click on an element by its ID from peekaboo_see output
+              3. peekaboo_type: Type text into the focused field
+
+              Additional tools:
+              - peekaboo_hotkey: Press keyboard shortcuts (e.g., "cmd,c" for copy)
+              - peekaboo_app: Launch, quit, switch apps, or list running apps
+
+              Prefer peekaboo tools over AppleScript UI scripting for visual interaction tasks.
+              Keep using computer_control (AppleScript) for application scripting, system settings,
+              and tasks that don't involve clicking/typing in the UI.
             "#},
             _ => indoc! {r#"
             Here are some extra tools:
@@ -1293,6 +1383,303 @@ impl ComputerControllerServer {
                 )]))
             }
         }
+    }
+
+    // ========================================================================
+    // Peekaboo CLI integration tools (macOS only)
+    // These tools shell out to the `peekaboo` CLI binary for UI automation.
+    // They are always registered but return install instructions if Peekaboo
+    // is not found on PATH.
+    // ========================================================================
+
+    /// Helper: check if Peekaboo is available and return an install-prompt error if not
+    fn require_peekaboo(&self) -> Result<(), ErrorData> {
+        if !self.system_automation.has_peekaboo() {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Peekaboo is not installed. Install it with: brew install steipete/tap/peekaboo\n\
+                 Peekaboo requires macOS 15+ (Sequoia) with Screen Recording and Accessibility permissions."
+                    .to_string(),
+                None,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Helper: run a peekaboo CLI command synchronously (blocking)
+    fn run_peekaboo_cmd(&self, args: &[&str]) -> Result<String, ErrorData> {
+        let output = std::process::Command::new("peekaboo")
+            .args(args)
+            .output()
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to run peekaboo: {}", e),
+                    None,
+                )
+            })?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+
+        if !output.status.success() {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "Peekaboo command failed (exit code {}):\n{}\n{}",
+                    output.status, stderr, stdout
+                ),
+                None,
+            ));
+        }
+
+        Ok(stdout)
+    }
+
+    /// Capture an annotated screenshot showing UI elements with IDs.
+    /// This is the first step in the see → click → type workflow.
+    /// Returns an annotated screenshot image and a list of UI elements with IDs
+    /// (B1=button, T2=text field, L3=link, etc.) that can be used with
+    /// peekaboo_click and peekaboo_type.
+    #[tool(
+        name = "peekaboo_see",
+        description = "Capture an annotated screenshot of the macOS UI showing clickable elements with IDs. Returns an annotated image with overlaid element labels (B1=button, T2=text field, L3=link) plus a JSON element list. Use this first, then peekaboo_click/peekaboo_type to interact with elements by ID. Requires Peekaboo CLI (brew install steipete/tap/peekaboo)."
+    )]
+    pub async fn peekaboo_see(
+        &self,
+        params: Parameters<PeekabooSeeParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.require_peekaboo()?;
+        let params = params.0;
+
+        // Build the output path for the annotated screenshot
+        let screenshot_path = self.get_cache_path("peekaboo_see", "png");
+
+        let mut args: Vec<&str> = vec!["see", "--annotate", "--json-output"];
+
+        let path_str = screenshot_path.to_string_lossy().to_string();
+        args.push("--path");
+        args.push(&path_str);
+
+        let app_str;
+        if let Some(ref app) = params.app {
+            app_str = app.clone();
+            args.push("--app");
+            args.push(&app_str);
+        }
+
+        let window_title_str;
+        if let Some(ref title) = params.window_title {
+            window_title_str = title.clone();
+            args.push("--window-title");
+            args.push(&window_title_str);
+        }
+
+        if params.screen_mode {
+            args.push("--mode");
+            args.push("screen");
+        }
+
+        // Run peekaboo see
+        let json_output = self.run_peekaboo_cmd(&args)?;
+
+        // Build the response: annotated image + element list text
+        let mut contents = Vec::new();
+
+        // Try to read the annotated screenshot and return it as base64 image
+        // Look for the annotated version first (Peekaboo saves *_annotated.png)
+        let annotated_path_str = path_str.replace(".png", "_annotated.png");
+        let image_path = if std::path::Path::new(&annotated_path_str).exists() {
+            PathBuf::from(&annotated_path_str)
+        } else {
+            screenshot_path.clone()
+        };
+
+        if image_path.exists() {
+            if let Ok(image_bytes) = fs::read(&image_path) {
+                let data = base64::prelude::BASE64_STANDARD.encode(&image_bytes);
+                contents.push(
+                    Content::image(data, "image/png").with_priority(0.0),
+                );
+            }
+        }
+
+        // Add the JSON output as text (contains element IDs, labels, bounds)
+        // Truncate if very long to avoid context overflow
+        let text_output = if json_output.len() > 8000 {
+            format!(
+                "Annotated screenshot captured. UI elements (truncated):\n{}...\n\n[Output truncated. {} total chars. Use element IDs (B1, T2, etc.) with peekaboo_click.]",
+                &json_output[..8000],
+                json_output.len()
+            )
+        } else {
+            format!(
+                "Annotated screenshot captured. UI elements:\n{}\n\nUse element IDs (B1, T2, L3, etc.) with peekaboo_click to interact.",
+                json_output
+            )
+        };
+
+        contents.insert(0,
+            Content::text(&text_output).with_audience(vec![Role::Assistant]),
+        );
+
+        Ok(CallToolResult::success(contents))
+    }
+
+    /// Click on a UI element identified by peekaboo_see, or at specific coordinates.
+    #[tool(
+        name = "peekaboo_click",
+        description = "Click on a UI element by its ID from peekaboo_see output (e.g., 'B1' for button 1, 'T2' for text field 2), or at specific x,y coordinates. Supports double-click and right-click. Uses the most recent peekaboo_see snapshot automatically."
+    )]
+    pub async fn peekaboo_click(
+        &self,
+        params: Parameters<PeekabooClickParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.require_peekaboo()?;
+        let params = params.0;
+
+        let mut args: Vec<String> = vec!["click".to_string()];
+
+        if let Some(ref on) = params.on {
+            args.push("--on".to_string());
+            args.push(on.clone());
+        } else if let Some(ref coords) = params.coords {
+            args.push("--coords".to_string());
+            args.push(coords.clone());
+        } else {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Either 'on' (element ID) or 'coords' (x,y) must be provided".to_string(),
+                None,
+            ));
+        }
+
+        if params.double {
+            args.push("--double".to_string());
+        }
+
+        if params.right {
+            args.push("--right".to_string());
+        }
+
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = self.run_peekaboo_cmd(&args_refs)?;
+
+        let target = params
+            .on
+            .as_deref()
+            .or(params.coords.as_deref())
+            .unwrap_or("unknown");
+        let click_type = if params.double {
+            "Double-clicked"
+        } else if params.right {
+            "Right-clicked"
+        } else {
+            "Clicked"
+        };
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "{} on '{}'. Output: {}",
+            click_type, target, output.trim()
+        ))]))
+    }
+
+    /// Type text into the currently focused UI element.
+    #[tool(
+        name = "peekaboo_type",
+        description = "Type text into the currently focused UI element. First use peekaboo_see to identify elements, then peekaboo_click to focus a text field, then peekaboo_type to enter text. Set 'clear' to true to clear the field before typing."
+    )]
+    pub async fn peekaboo_type(
+        &self,
+        params: Parameters<PeekabooTypeParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.require_peekaboo()?;
+        let params = params.0;
+
+        let mut args: Vec<String> = vec!["type".to_string()];
+        args.push("--text".to_string());
+        args.push(params.text.clone());
+
+        if params.clear {
+            args.push("--clear".to_string());
+        }
+
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = self.run_peekaboo_cmd(&args_refs)?;
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "Typed '{}'. Output: {}",
+            params.text,
+            output.trim()
+        ))]))
+    }
+
+    /// Manage applications: launch, quit, switch, or list running apps.
+    #[tool(
+        name = "peekaboo_app",
+        description = "Manage macOS applications: launch (with optional URL), quit, switch to, or list running apps. Requires Peekaboo CLI."
+    )]
+    pub async fn peekaboo_app(
+        &self,
+        params: Parameters<PeekabooAppParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.require_peekaboo()?;
+        let params = params.0;
+
+        let action_str = match params.action {
+            PeekabooAppAction::Launch => "launch",
+            PeekabooAppAction::Quit => "quit",
+            PeekabooAppAction::Switch => "switch",
+            PeekabooAppAction::List => "list",
+        };
+
+        let mut args: Vec<String> = vec!["app".to_string(), action_str.to_string()];
+
+        if let Some(ref app) = params.app {
+            args.push(app.clone());
+        } else if !matches!(params.action, PeekabooAppAction::List) {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "App name is required for launch/quit/switch actions".to_string(),
+                None,
+            ));
+        }
+
+        if let Some(ref url) = params.open_url {
+            args.push("--open".to_string());
+            args.push(url.clone());
+        }
+
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = self.run_peekaboo_cmd(&args_refs)?;
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "App {} completed. Output: {}",
+            action_str,
+            output.trim()
+        ))]))
+    }
+
+    /// Press a keyboard shortcut / hotkey combination.
+    #[tool(
+        name = "peekaboo_hotkey",
+        description = "Press a keyboard shortcut combination on macOS. Provide comma-separated keys like 'cmd,c' for copy, 'cmd,shift,t' for reopen tab, 'cmd,space' for Spotlight. Requires Peekaboo CLI."
+    )]
+    pub async fn peekaboo_hotkey(
+        &self,
+        params: Parameters<PeekabooHotkeyParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.require_peekaboo()?;
+        let params = params.0;
+
+        let args = vec!["hotkey", &params.combo];
+        let output = self.run_peekaboo_cmd(&args)?;
+
+        Ok(CallToolResult::success(vec![Content::text(format!(
+            "Pressed hotkey '{}'. Output: {}",
+            params.combo,
+            output.trim()
+        ))]))
     }
 }
 
