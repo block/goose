@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Search, Download, ChevronDown, ChevronUp, Loader2, Star } from 'lucide-react';
 import { Button } from '../../ui/button';
 import {
@@ -21,65 +21,6 @@ const formatDownloads = (n: number): string => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return `${n}`;
-};
-
-// Fetch author avatar from HuggingFace API
-const fetchAuthorAvatar = async (author: string): Promise<string | null> => {
-  try {
-    const response = await fetch(`https://huggingface.co/api/users/${author}/avatar`);
-    if (response.ok) {
-      const data = await response.json();
-      return data.avatarUrl || null;
-    }
-  } catch {
-    // Silently fail - avatar is optional
-  }
-  return null;
-};
-
-// Avatar component with fallback to initials
-export const AuthorAvatar = ({ author, size = 24 }: { author: string; size?: number }) => {
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchAuthorAvatar(author).then((url) => {
-      if (!cancelled && url) {
-        setAvatarUrl(url);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [author]);
-
-  // Generate initials from author name
-  const initials = author.slice(0, 2).toUpperCase();
-  
-  // Generate a consistent color based on author name
-  const hue = author.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
-  const bgColor = `hsl(${hue}, 65%, 45%)`;
-
-  if (avatarUrl && !failed) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={author}
-        width={size}
-        height={size}
-        className="rounded-full object-cover flex-shrink-0"
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-
-  return (
-    <div
-      className="rounded-full flex items-center justify-center text-white font-medium flex-shrink-0"
-      style={{ width: size, height: size, backgroundColor: bgColor, fontSize: size * 0.4 }}
-    >
-      {initials}
-    </div>
-  );
 };
 
 interface RepoData {
@@ -264,21 +205,16 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                   onClick={() => toggleRepo(model.repo_id)}
                   className="w-full flex items-center justify-between p-3 text-left hover:bg-background-subtle rounded-lg"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <AuthorAvatar author={model.author} size={32} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-text-default truncate">
-                          {model.model_name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-text-muted">{model.author}</span>
-                        <span className="text-xs text-text-muted">•</span>
-                        <span className="text-xs text-text-muted">
-                          ↓ {formatDownloads(model.downloads)}
-                        </span>
-                      </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-text-default truncate">
+                        {model.repo_id}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      <span className="text-xs text-text-muted">
+                        ↓ {formatDownloads(model.downloads)}
+                      </span>
                     </div>
                   </div>
                   {isExpanded ? (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Download, Trash2, X, Check, Settings2 } from 'lucide-react';
+import { Download, Trash2, X, Check, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
 import {
@@ -13,32 +13,8 @@ import {
   type RegistryModelResponse,
   type ModelListItem,
 } from '../../../api';
-import { HuggingFaceModelSearch, AuthorAvatar } from './HuggingFaceModelSearch';
+import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
-
-// Original provider avatar URLs from HuggingFace organizations
-const PROVIDER_AVATARS: Record<string, string> = {
-  'meta-llama': 'https://cdn-avatars.huggingface.co/v1/production/uploads/646cf8084eefb026fb8fd8bc/oCTqufkdTkjyGodsx1vo1.png',
-  'mistralai': 'https://cdn-avatars.huggingface.co/v1/production/uploads/634c17653d11eaedd88b314d/9OgyfKstSZtbmsmuG8MbU.png',
-};
-
-// Get the original provider for a model based on its name
-const getOriginalProvider = (modelName: string): string | null => {
-  const lowerName = modelName.toLowerCase();
-  if (lowerName.includes('llama') || lowerName.includes('hermes')) {
-    return 'meta-llama';
-  }
-  if (lowerName.includes('mistral')) {
-    return 'mistralai';
-  }
-  return null;
-};
-
-// Extract author from HuggingFace URL like "https://huggingface.co/bartowski/..."
-const extractAuthorFromUrl = (url: string): string | null => {
-  const match = url.match(/huggingface\.co\/([^/]+)\//);
-  return match ? match[1] : null;
-};
 
 const LOCAL_LLM_MODEL_CONFIG_KEY = 'LOCAL_LLM_MODEL';
 
@@ -62,6 +38,7 @@ export const LocalInferenceSettings = () => {
   const [registryModels, setRegistryModels] = useState<RegistryModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
   const { read, upsert } = useConfig();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
@@ -191,8 +168,15 @@ export const LocalInferenceSettings = () => {
     scrollToDownloads();
   };
 
-  // Featured models display logic - show all models
-  const displayedFeatured = featuredModels;
+  // Featured models display logic
+  const hasDownloadedNonRecommended = featuredModels.some(
+    (model) => model.downloaded && !model.recommended
+  );
+  const displayedFeatured = showAllFeatured || hasDownloadedNonRecommended
+    ? featuredModels
+    : featuredModels.filter((m) => m.recommended);
+  const hasNonRecommendedFeatured = featuredModels.some((m) => !m.recommended);
+  const showFeaturedToggle = hasNonRecommendedFeatured && !hasDownloadedNonRecommended;
 
   // Downloaded models from both featured and registry
   const downloadedFeatured = featuredModels.filter((m) => m.downloaded);
@@ -365,109 +349,106 @@ export const LocalInferenceSettings = () => {
       {/* Featured Models */}
       <div>
         <h4 className="text-sm font-medium text-text-default mb-2">Featured Models</h4>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
           {displayedFeatured.map((model) => {
             const progress = downloads.get(model.id);
             const isDownloading = progress?.status === 'downloading';
-            const author = extractAuthorFromUrl(model.url);
-            // Use original provider avatar for Llama/Mistral/Hermes models
-            const originalProvider = getOriginalProvider(model.name);
-            const providerAvatarUrl = originalProvider ? PROVIDER_AVATARS[originalProvider] : null;
 
             return (
-              <div key={model.id} className="relative">
-                {/* Recommended badge - positioned on edge of card */}
-                {model.recommended && (
-                  <div className="absolute -top-2 -right-2 z-20">
-                    <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                      Recommended
-                    </span>
+              <div
+                key={model.id}
+                className="border rounded-lg p-3 border-border-subtle bg-background-default hover:border-border-default"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm font-medium text-text-default">{model.name}</h4>
+                      <span className="text-xs text-text-muted">{model.size_mb}MB</span>
+                      <span className="text-xs text-text-muted">
+                        {model.context_limit.toLocaleString()} tokens
+                      </span>
+                      {model.recommended && (
+                        <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
+                          Recommended
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-text-muted mt-1">{model.description}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {model.downloaded ? (
+                      <div className="flex items-center gap-1 text-xs text-green-600">
+                        <Check className="w-4 h-4" />
+                        <span>Downloaded</span>
+                      </div>
+                    ) : isDownloading ? (
+                      <>
+                        <div className="text-xs text-text-muted min-w-[60px]">
+                          {progress.progress_percent.toFixed(0)}%
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => cancelDownload(model.id)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => startFeaturedDownload(model.id)}
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        Download
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {isDownloading && progress && (
+                  <div className="mt-2 space-y-1">
+                    <div className="w-full bg-background-subtle rounded-full h-1.5">
+                      <div
+                        className="bg-accent-primary h-1.5 rounded-full transition-all"
+                        style={{ width: `${progress.progress_percent}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-text-muted">
+                      <span>
+                        {formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}
+                      </span>
+                      {progress.speed_bps && <span>{formatBytes(progress.speed_bps)}/s</span>}
+                    </div>
                   </div>
                 )}
 
-                <div className="border rounded-lg p-4 border-border-subtle bg-background-default hover:border-border-default flex flex-col h-full">
-                  {/* Row 1: Avatar left, Download button right */}
-                  <div className="flex items-center justify-between mb-3">
-                    {providerAvatarUrl ? (
-                      <img
-                        src={providerAvatarUrl}
-                        alt={originalProvider || 'Provider'}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                    ) : author ? (
-                      <AuthorAvatar author={author} size={40} />
-                    ) : (
-                      <div className="w-10 h-10" />
-                    )}
-                    <div className="flex items-center gap-1">
-                      {model.downloaded ? (
-                        <div className="flex items-center text-green-600">
-                          <Check className="w-5 h-5" />
-                        </div>
-                      ) : isDownloading ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => cancelDownload(model.id)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => startFeaturedDownload(model.id)}
-                          className="h-8 w-8 p-0"
-                          title="Download model"
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Row 2: Title */}
-                  <h4 className="text-sm font-medium text-text-default">{model.name}</h4>
-
-                  {/* Row 3: Author (show original provider name if available) */}
-                  <p className="text-xs text-text-muted mt-0.5">
-                    {originalProvider || author || 'Unknown'}
-                  </p>
-
-                  {/* Row 4: Size & Context */}
-                  <p className="text-xs text-text-muted mt-0.5">
-                    {model.size_mb}MB • {model.context_limit.toLocaleString()} ctx
-                  </p>
-
-                  {/* Row 5: Description */}
-                  <p className="text-xs text-text-muted mt-2 flex-1">{model.description}</p>
-
-                  {/* Download progress */}
-                  {isDownloading && progress && (
-                    <div className="mt-3 space-y-1">
-                      <div className="w-full bg-background-subtle rounded-full h-1.5">
-                        <div
-                          className="bg-accent-primary h-1.5 rounded-full transition-all"
-                          style={{ width: `${progress.progress_percent}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-text-muted">
-                        <span>{progress.progress_percent.toFixed(0)}%</span>
-                        {progress.speed_bps && <span>{formatBytes(progress.speed_bps)}/s</span>}
-                      </div>
-                    </div>
-                  )}
-
-                  {progress?.status === 'failed' && progress.error && (
-                    <div className="mt-2 text-xs text-destructive">{progress.error}</div>
-                  )}
-                </div>
+                {progress?.status === 'failed' && progress.error && (
+                  <div className="mt-2 text-xs text-destructive">{progress.error}</div>
+                )}
               </div>
             );
           })}
         </div>
 
+        {showFeaturedToggle && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAllFeatured(!showAllFeatured)}
+            className="w-full text-text-muted hover:text-text-default mt-2"
+          >
+            {showAllFeatured ? (
+              <>
+                <ChevronUp className="w-4 h-4 mr-1" />
+                Show recommended only
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4 mr-1" />
+                Show all featured ({featuredModels.length - displayedFeatured.length} more)
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Non-downloaded registry models being downloaded */}
