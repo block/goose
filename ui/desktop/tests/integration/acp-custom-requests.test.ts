@@ -173,14 +173,10 @@ beforeAll(async () => {
   const port = 30000 + Math.floor(Math.random() * 10000);
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  const serverProcess = spawn(
-    ACP_SERVER_BINARY,
-    ['--host', '127.0.0.1', '--port', String(port)],
-    {
-      env: { ...process.env, GOOSE_PATH_ROOT: tempDir },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }
-  );
+  const serverProcess = spawn(ACP_SERVER_BINARY, ['--host', '127.0.0.1', '--port', String(port)], {
+    env: { ...process.env, GOOSE_PATH_ROOT: tempDir },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
   serverProcess.stderr?.on('data', (data: Buffer) => {
     if (process.env.DEBUG) console.error('[acp]', data.toString().trim());
@@ -219,13 +215,7 @@ afterAll(async () => {
 
 describe('ACP custom requests - session independent', () => {
   it('_session/list returns a sessions array', async () => {
-    const response = await sendJsonRpc(
-      ctx.baseUrl,
-      '_session/list',
-      {},
-      10,
-      ctx.acpSessionId
-    );
+    const response = await sendJsonRpc(ctx.baseUrl, '_session/list', {}, 10, ctx.acpSessionId);
 
     expect(response.error).toBeUndefined();
     expect(response.result).toBeDefined();
@@ -235,13 +225,7 @@ describe('ACP custom requests - session independent', () => {
   });
 
   it('_config/extensions returns extensions and warnings', async () => {
-    const response = await sendJsonRpc(
-      ctx.baseUrl,
-      '_config/extensions',
-      {},
-      11,
-      ctx.acpSessionId
-    );
+    const response = await sendJsonRpc(ctx.baseUrl, '_config/extensions', {}, 11, ctx.acpSessionId);
 
     expect(response.error).toBeUndefined();
     const result = response.result as { extensions: unknown[]; warnings: unknown[] };
@@ -250,26 +234,14 @@ describe('ACP custom requests - session independent', () => {
   });
 
   it('unknown _ method returns method_not_found error', async () => {
-    const response = await sendJsonRpc(
-      ctx.baseUrl,
-      '_unknown/method',
-      {},
-      12,
-      ctx.acpSessionId
-    );
+    const response = await sendJsonRpc(ctx.baseUrl, '_unknown/method', {}, 12, ctx.acpSessionId);
 
     expect(response.error).toBeDefined();
     expect(response.error!.code).toBe(-32601);
   });
 
   it('stubbed _ method returns not-yet-implemented error', async () => {
-    const response = await sendJsonRpc(
-      ctx.baseUrl,
-      '_agent/tool/call',
-      {},
-      13,
-      ctx.acpSessionId
-    );
+    const response = await sendJsonRpc(ctx.baseUrl, '_agent/tool/call', {}, 13, ctx.acpSessionId);
 
     expect(response.error).toBeDefined();
     expect(response.error!.code).toBe(-32001);
