@@ -35,6 +35,9 @@ use tokio::sync::Mutex;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
+const SHELL_TOOL: &str = "developer__shell";
+const CODE_EXECUTION_TOOL: &str = "code_execution__execute";
+
 type ModelSlot = Arc<Mutex<Option<LoadedModel>>>;
 
 /// Owns the llama backend and all cached models. Field order matters:
@@ -1251,7 +1254,7 @@ fn send_emulator_action(
             let tool_call = CallToolRequestParams {
                 meta: None,
                 task: None,
-                name: Cow::Owned("developer__shell".to_string()),
+                name: Cow::Owned(SHELL_TOOL.to_string()),
                 arguments: Some(args),
             };
             let mut message = Message::assistant();
@@ -1275,7 +1278,7 @@ fn send_emulator_action(
             let tool_call = CallToolRequestParams {
                 meta: None,
                 task: None,
-                name: Cow::Owned("code_execution__execute".to_string()),
+                name: Cow::Owned(CODE_EXECUTION_TOOL.to_string()),
                 arguments: Some(args),
             };
             let mut message = Message::assistant();
@@ -1502,7 +1505,7 @@ impl Provider for LocalInferenceProvider {
             ];
 
         // Check if Code Mode extension is available
-        let code_mode_enabled = tools.iter().any(|t| t.name == "code_execution__execute");
+        let code_mode_enabled = tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
 
         // Append tool descriptions to system prompt
         if use_emulator && !tools.is_empty() {
@@ -2035,7 +2038,7 @@ mod tests {
         let (content, calls) = result.unwrap();
         assert!(content.is_empty());
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].0, "developer__shell");
+        assert_eq!(calls[0].0, SHELL_TOOL);
         assert_eq!(calls[0].1.get("command").unwrap(), "ls -la");
         // 30 should be parsed as a number
         assert_eq!(calls[0].1.get("timeout").unwrap(), &json!(30));
@@ -2095,7 +2098,7 @@ mod tests {
         let (content, calls) = result.unwrap();
         assert!(content.is_empty());
         assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].0, "developer__shell");
+        assert_eq!(calls[0].0, SHELL_TOOL);
         assert_eq!(calls[0].1.get("command").unwrap(), "ls -la");
     }
 
@@ -2131,7 +2134,7 @@ mod tests {
     #[test]
     fn test_extract_xml_tool_call_messages() {
         let calls = vec![(
-            "developer__shell".to_string(),
+            SHELL_TOOL.to_string(),
             serde_json::Map::from_iter(vec![("command".to_string(), json!("ls"))]),
         )];
         let msgs = extract_xml_tool_call_messages(calls, "test-id");
@@ -2140,7 +2143,7 @@ mod tests {
         match &msgs[0].content[0] {
             MessageContent::ToolRequest(req) => {
                 let call = req.tool_call.as_ref().unwrap();
-                assert_eq!(&*call.name, "developer__shell");
+                assert_eq!(&*call.name, SHELL_TOOL);
                 assert_eq!(
                     call.arguments.as_ref().unwrap().get("command").unwrap(),
                     "ls"
