@@ -1,5 +1,5 @@
-use base64::Engine;
 use crate::subprocess::SubprocessExt;
+use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
@@ -95,7 +95,7 @@ pub struct AutomationScriptParams {
 /// Parameters for the computer_control tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ComputerControlParams {
-    /// The automation script content (PowerShell for Windows, AppleScript for macOS)
+    /// The automation script content (PowerShell for Windows, AppleScript for macOS, shell for Linux)
     pub script: String,
     /// Whether to save the script output to a file
     #[serde(default)]
@@ -412,24 +412,11 @@ impl ComputerControllerServer {
               - Shell (bash) is recommended for most tasks
               - Scripts can save their output to files
               - macOS-specific features:
-                - AppleScript for system and UI control
+                - Use shell scripting or AppleScript (via osascript) for app scripting and system settings
                 - Integration with macOS apps and services
-              - Use the screenshot tool if needed to help with tasks
-
-            computer_control
-              - System automation using AppleScript
-              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
-
-            When you need to interact with websites or web applications, consider using the computer_control tool with AppleScript, which can automate Safari or other browsers to:
-              - Open specific URLs
-              - Fill in forms
-              - Click buttons
-              - Extract content
-              - Handle web-based workflows
-            This is often more reliable than web scraping for modern web applications.
 
             Peekaboo UI Automation (requires: brew install steipete/tap/peekaboo):
-              When peekaboo tools are available, use them for visual UI interaction:
+              Use peekaboo tools for all visual UI interaction on macOS.
 
               The core workflow is see → click → type:
               1. peekaboo_see: Capture annotated screenshot with element IDs (B1=button, T2=text field, L3=link)
@@ -440,9 +427,8 @@ impl ComputerControllerServer {
               - peekaboo_hotkey: Press keyboard shortcuts (e.g., "cmd,c" for copy)
               - peekaboo_app: Launch, quit, switch apps, or list running apps
 
-              Prefer peekaboo tools over AppleScript UI scripting for visual interaction tasks.
-              Keep using computer_control (AppleScript) for application scripting, system settings,
-              and tasks that don't involve clicking/typing in the UI.
+              For non-visual tasks (app scripting, system settings, file operations),
+              use automation_script with shell or AppleScript via osascript.
             "#},
             _ => indoc! {r#"
             Here are some extra tools:
@@ -855,50 +841,13 @@ impl ComputerControllerServer {
         Ok(CallToolResult::success(vec![Content::text(result)]))
     }
 
-    /// Control the computer using system automation
-    #[cfg(target_os = "windows")]
-    #[tool(
-        name = "computer_control",
-        description = "
-            Control the computer using Windows system automation.
-
-            Features available:
-            - PowerShell automation for system control
-            - UI automation through PowerShell
-            - File and system management
-            - Windows-specific features and settings
-
-            Can be combined with screenshot tool for visual task assistance.
-        "
-    )]
-    pub async fn computer_control(
-        &self,
-        params: Parameters<ComputerControlParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.computer_control_impl(params).await
-    }
-
-    /// Control the computer using system automation
+    /// On macOS, Peekaboo tools replace computer_control for UI automation.
+    /// This is kept only for running AppleScript for non-UI tasks (app scripting, system settings).
+    /// Prefer peekaboo_see/peekaboo_click/peekaboo_type for anything visual.
     #[cfg(target_os = "macos")]
     #[tool(
         name = "computer_control",
-        description = "
-            Control the computer using AppleScript (macOS only). Automate applications and system features.
-
-            Key capabilities:
-            - Control Applications: Launch, quit, manage apps (Mail, Safari, iTunes, etc)
-                - Interact with app-specific feature: (e.g, edit documents, process photos)
-                - Perform tasks in third-party apps that support AppleScript
-            - UI Automation: Simulate user interactions like, clicking buttons, select menus, type text, filling out forms
-            - System Control: Manage settings (volume, brightness, wifi), shutdown/restart, monitor events
-            - Web & Email: Open URLs, web automation, send/organize emails, handle attachments
-            - Media: Manage music libraries, photo collections, playlists
-            - File Operations: Organize files/folders
-            - Integration: Calendar, reminders, messages
-            - Data: Interact with spreadsheets and documents
-
-            Can be combined with screenshot tool for visual task assistance.
-        "
+        description = "Run an AppleScript snippet via osascript for non-UI tasks like app scripting, system settings, or querying application state. Do NOT use this for clicking, typing, or visual UI interaction — use the peekaboo_see/peekaboo_click/peekaboo_type tools instead."
     )]
     pub async fn computer_control(
         &self,
@@ -907,37 +856,11 @@ impl ComputerControllerServer {
         self.computer_control_impl(params).await
     }
 
-    /// Control the computer using system automation
-    #[cfg(target_os = "linux")]
+    /// Control the computer using system automation (Windows, Linux, other)
+    #[cfg(not(target_os = "macos"))]
     #[tool(
         name = "computer_control",
-        description = "
-            Control the computer using Linux system automation.
-
-            Features available:
-            - Shell scripting for system control
-            - X11/Wayland window management
-            - D-Bus for system services
-            - File and system management
-            - Desktop environment control (GNOME, KDE, etc.)
-            - Process management and monitoring
-            - System settings and configurations
-
-            Can be combined with screenshot tool for visual task assistance.
-        "
-    )]
-    pub async fn computer_control(
-        &self,
-        params: Parameters<ComputerControlParams>,
-    ) -> Result<CallToolResult, ErrorData> {
-        self.computer_control_impl(params).await
-    }
-
-    /// Control the computer using system automation (fallback for other OS)
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    #[tool(
-        name = "computer_control",
-        description = "Control the computer using system automation. Features available depend on your operating system. Can be combined with screenshot tool for visual task assistance."
+        description = "Control the computer using system automation. On Windows uses PowerShell, on Linux uses shell commands and system tools. Can be combined with screenshot tool for visual task assistance."
     )]
     pub async fn computer_control(
         &self,
@@ -1498,18 +1421,17 @@ impl ComputerControllerServer {
         if image_path.exists() {
             if let Ok(image_bytes) = fs::read(&image_path) {
                 let data = base64::prelude::BASE64_STANDARD.encode(&image_bytes);
-                contents.push(
-                    Content::image(data, "image/png").with_priority(0.0),
-                );
+                contents.push(Content::image(data, "image/png").with_priority(0.0));
             }
         }
 
         // Add the JSON output as text (contains element IDs, labels, bounds)
         // Truncate if very long to avoid context overflow
         let text_output = if json_output.len() > 8000 {
+            let truncated: String = json_output.chars().take(8000).collect();
             format!(
                 "Annotated screenshot captured. UI elements (truncated):\n{}...\n\n[Output truncated. {} total chars. Use element IDs (B1, T2, etc.) with peekaboo_click.]",
-                &json_output[..8000],
+                truncated,
                 json_output.len()
             )
         } else {
@@ -1519,7 +1441,8 @@ impl ComputerControllerServer {
             )
         };
 
-        contents.insert(0,
+        contents.insert(
+            0,
             Content::text(&text_output).with_audience(vec![Role::Assistant]),
         );
 
@@ -1580,7 +1503,9 @@ impl ComputerControllerServer {
 
         Ok(CallToolResult::success(vec![Content::text(format!(
             "{} on '{}'. Output: {}",
-            click_type, target, output.trim()
+            click_type,
+            target,
+            output.trim()
         ))]))
     }
 

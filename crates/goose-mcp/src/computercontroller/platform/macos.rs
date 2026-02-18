@@ -13,16 +13,6 @@ impl MacOSAutomation {
             .map(|o| o.status.success())
             .unwrap_or(false)
     }
-
-    /// Run a Peekaboo CLI command with the given arguments.
-    /// Returns (stdout, stderr, success).
-    pub fn run_peekaboo(args: &[&str]) -> std::io::Result<(String, String, bool)> {
-        let output = Command::new("peekaboo").args(args).output()?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-        Ok((stdout, stderr, output.status.success()))
-    }
 }
 
 impl SystemAutomation for MacOSAutomation {
