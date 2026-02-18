@@ -169,6 +169,12 @@ impl ProviderDef for OpenRouterProvider {
             ],
         )
         .with_unlisted_models()
+        .with_setup_steps(vec![
+            "Go to openrouter.ai and sign up or log in",
+            "Navigate to Keys in the menu",
+            "Click 'Create Key'",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(

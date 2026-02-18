@@ -5605,6 +5605,13 @@
           "name": {
             "type": "string",
             "description": "The unique identifier for this provider"
+          },
+          "setup_steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "step-by-step instructions for set up providers eg: api key"
           }
         }
       },

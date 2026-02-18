@@ -8,7 +8,7 @@ import { providerConfigSubmitHandler } from '../settings/providers/modal/subcomp
 import ProviderLogo from '../settings/providers/modal/subcomponents/ProviderLogo';
 import { SecureStorageNotice } from '../settings/providers/modal/subcomponents/SecureStorageNotice';
 import { Button } from '../ui/button';
-import { LogIn } from 'lucide-react';
+import { LogIn, ChevronRight } from 'lucide-react';
 
 function OllamaForm({ onSetup }: { onSetup: () => void }) {
   return (
@@ -76,6 +76,8 @@ function ApiKeyForm({
   const [configValues, setConfigValues] = useState<Record<string, ConfigInput>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSetupHelp, setShowSetupHelp] = useState(false);
+  const setupSteps = provider.metadata.setup_steps;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,6 +128,28 @@ function ApiKeyForm({
         showOptions={false}
       />
       {provider.metadata.config_keys.some((k) => k.required && k.secret) && <SecureStorageNotice />}
+      {setupSteps && setupSteps.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowSetupHelp(!showSetupHelp)}
+            className="flex items-center gap-1 text-sm text-text-muted hover:text-text-default transition-colors"
+          >
+            <ChevronRight
+              size={14}
+              className={`transition-transform duration-200 ${showSetupHelp ? 'rotate-90' : ''}`}
+            />
+            Don't have an API key?
+          </button>
+          {showSetupHelp && (
+            <ol className="mt-2 ml-5 list-decimal text-sm text-text-muted space-y-1">
+              {setupSteps.map((step, i) => (
+                <li key={i}>{step}</li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
       <div className="mt-4">
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? 'Configuring...' : 'Continue'}

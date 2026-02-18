@@ -787,6 +787,10 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+    /**
+     * step-by-step instructions for set up providers eg: api key
+     */
+    setup_steps?: Array<string>;
 };
 
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
