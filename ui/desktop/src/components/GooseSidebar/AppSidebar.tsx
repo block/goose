@@ -13,7 +13,6 @@ import {
   FolderPlus,
   History,
   Home,
-  MoreVertical,
   Pin,
   PinOff,
   Plus,
@@ -23,13 +22,6 @@ import {
   X,
   Workflow,
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
@@ -436,7 +428,7 @@ const SessionList = React.memo<{
 
           return (
             <div key={group.project}>
-              <div className="flex items-center group/project">
+              <div className="flex items-center group/project relative">
                 <button
                   onClick={() => toggleCollapsed(group.project)}
                   className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30"
@@ -451,61 +443,50 @@ const SessionList = React.memo<{
                     className={`w-3 h-3 flex-shrink-0 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
                   />
                 </button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                {/* Hover action strip — appears vertically outside the sidebar */}
+                <div className="absolute right-0 top-0 translate-x-full opacity-0 group-hover/project:opacity-100 transition-opacity duration-150 flex flex-col bg-background-default border border-border-default rounded-r-md shadow-sm z-50">
+                  {onNewSessionInProject && (
                     <button
-                      className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-medium/50 rounded transition-all"
-                      aria-label={`Actions for ${group.project}`}
+                      onClick={() => {
+                        const dir = isGeneral
+                          ? ''
+                          : group.sessions[0]?.working_dir || '';
+                        onNewSessionInProject(dir);
+                      }}
+                      className="p-1 hover:bg-background-muted transition-colors rounded-tr-md"
+                      title={isGeneral ? 'New session' : 'New session in project'}
                     >
-                      <MoreVertical className="w-3 h-3 text-text-muted" />
+                      <Plus className="w-3 h-3 text-text-muted" />
                     </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="right" align="start" className="w-48">
-                    {onNewSessionInProject && (
-                      <DropdownMenuItem
-                        onClick={() => {
-                          const dir = isGeneral
-                            ? ''
-                            : group.sessions[0]?.working_dir || '';
-                          onNewSessionInProject(dir);
-                        }}
+                  )}
+                  {!isGeneral && (
+                    <>
+                      <button
+                        onClick={() => togglePin(group.project)}
+                        className="p-1 hover:bg-background-muted transition-colors"
+                        title={pinned ? 'Unpin project' : 'Pin project'}
                       >
-                        <Plus className="w-4 h-4 mr-2" />
-                        {isGeneral ? 'New session' : 'New session in project'}
-                      </DropdownMenuItem>
-                    )}
-                    {!isGeneral && (
-                      <>
-                        <DropdownMenuItem onClick={() => togglePin(group.project)}>
-                          {pinned ? (
-                            <>
-                              <PinOff className="w-4 h-4 mr-2" />
-                              Unpin project
-                            </>
-                          ) : (
-                            <>
-                              <Pin className="w-4 h-4 mr-2" />
-                              Pin project
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-text-danger focus:text-text-danger"
-                          onClick={() =>
-                            onCloseProject(
-                              group.project,
-                              group.sessions.map((s) => s.id)
-                            )
-                          }
-                        >
-                          <X className="w-4 h-4 mr-2" />
-                          Close project ({group.sessions.length} session{group.sessions.length !== 1 ? 's' : ''})
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                        {pinned ? (
+                          <PinOff className="w-3 h-3 text-text-muted" />
+                        ) : (
+                          <Pin className="w-3 h-3 text-text-muted" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() =>
+                          onCloseProject(
+                            group.project,
+                            group.sessions.map((s) => s.id)
+                          )
+                        }
+                        className="p-1 hover:bg-background-danger/10 transition-colors rounded-br-md"
+                        title={`Close project (${group.sessions.length} session${group.sessions.length !== 1 ? 's' : ''})`}
+                      >
+                        <X className="w-3 h-3 text-text-danger" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
               {!collapsed && (
                 <div className="relative ml-3">
