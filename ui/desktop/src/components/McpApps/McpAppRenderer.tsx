@@ -51,8 +51,7 @@ const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   fullscreen: { width: 'fixed', height: 'fixed' },
   standalone: { width: 'fixed', height: 'fixed' },
   pip: { width: 'fixed', height: 'fixed' },
-  // Example: a sidebar where the app controls its height up to the visible area.
-  // sidecar: { width: 'fixed', height: 'flexible' },
+  // sidecar: { width: 'fixed', height: 'flexible' }, // example on how to use flexible layout
 };
 
 function getContainerDimensions(
@@ -63,8 +62,11 @@ function getContainerDimensions(
   const layout = DISPLAY_MODE_LAYOUTS[displayMode] ?? DISPLAY_MODE_LAYOUTS.inline;
 
   // Only require a measurement for axes that are fixed or flexible (unbounded axes are omitted).
-  if (layout.width !== 'unbounded' && measuredWidth <= 0) return undefined;
-  if (layout.height !== 'unbounded' && measuredHeight <= 0) return undefined;
+  if (
+    (layout.width !== 'unbounded' && measuredWidth <= 0) ||
+    (layout.height !== 'unbounded' && measuredHeight <= 0)
+  )
+    return undefined;
 
   const widthDimension = (() => {
     switch (layout.width) {
@@ -431,14 +433,11 @@ export default function McpAppRenderer({
     []
   );
 
-  const handleSizeChanged = useCallback(
-    ({ height }: McpUiSizeChangedNotification['params']) => {
-      if (height !== undefined && height > 0) {
-        setIframeHeight(height);
-      }
-    },
-    []
-  );
+  const handleSizeChanged = useCallback(({ height }: McpUiSizeChangedNotification['params']) => {
+    if (height !== undefined && height > 0) {
+      setIframeHeight(height);
+    }
+  }, []);
 
   // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
   useEffect(() => {
@@ -447,10 +446,9 @@ export default function McpAppRenderer({
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const width = Math.round(entry.contentBoxSize[0]?.inlineSize ?? entry.contentRect.width);
-        const height = Math.round(entry.contentBoxSize[0]?.blockSize ?? entry.contentRect.height);
-        setContainerWidth((prev) => (prev !== width ? width : prev));
-        setContainerHeight((prev) => (prev !== height ? height : prev));
+        const { width, height } = entry.contentRect;
+        setContainerWidth((prev) => (prev !== Math.round(width) ? Math.round(width) : prev));
+        setContainerHeight((prev) => (prev !== Math.round(height) ? Math.round(height) : prev));
       }
     });
 
