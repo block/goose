@@ -16,6 +16,7 @@ use futures::future::BoxFuture;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use rmcp::model::Tool;
+use serde_json::Value;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
@@ -75,37 +76,15 @@ impl TetrateProvider {
         }
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, "v1/chat/completions", payload)
-            .await?;
-
-        if is_google_model(payload) {
-            return handle_response_google_compat(response)
-                .await
-                .map_err(Self::enrich_credits_error);
-        }
-
-        let response_body = handle_response_openai_compat(response)
-            .await
-            .map_err(Self::enrich_credits_error)?;
-
-        // Tetrate can return errors in 200 OK responses, so check explicitly
-        if let Some(err_obj) = response_body.get("error") {
-            let code = err_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(500) as u16;
-            let status = reqwest::StatusCode::from_u16(code)
-                .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
-            return Err(Self::enrich_credits_error(
-                map_http_error_to_provider_error(status, Some(response_body)),
-            ));
-        }
-
-        Ok(response_body)
+    fn error_from_tetrate_error_payload(payload: Value) -> ProviderError {
+        let code = payload
+            .get("error")
+            .and_then(|e| e.get("code"))
+            .and_then(|c| c.as_u64())
+            .unwrap_or(500) as u16;
+        let status = reqwest::StatusCode::from_u16(code)
+            .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+        Self::enrich_credits_error(map_http_error_to_provider_error(status, Some(payload)))
     }
 }
 
@@ -176,10 +155,34 @@ impl Provider for TetrateProvider {
                     .api_client
                     .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
-
-                handle_status_openai_compat(resp)
+                let resp = handle_status_openai_compat(resp)
                     .await
-                    .map_err(Self::enrich_credits_error)
+                    .map_err(Self::enrich_credits_error)?;
+
+                let is_json = resp
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v.to_ascii_lowercase())
+                    .is_some_and(|v| v.contains("json"));
+
+                if is_json {
+                    // Streaming responses should be SSE; when we get JSON instead, parse it to map
+                    // explicit error payloads and otherwise fail as a protocol mismatch.
+                    let body = handle_response_openai_compat(resp)
+                        .await
+                        .map_err(Self::enrich_credits_error)?;
+                    if body.get("error").is_some() {
+                        return Err(Self::error_from_tetrate_error_payload(body));
+                    }
+
+                    return Err(ProviderError::ExecutionError(
+                        "Expected streaming response but received non-streaming payload"
+                            .to_string(),
+                    ));
+                }
+
+                Ok(resp)
             })
             .await
             .inspect_err(|e| {
@@ -199,11 +202,8 @@ impl Provider for TetrateProvider {
         let json = handle_response_openai_compat(response).await?;
 
         // Tetrate can return errors in 200 OK responses, so check explicitly
-        if let Some(err_obj) = json.get("error") {
-            let code = err_obj.get("code").and_then(|c| c.as_u64()).unwrap_or(500) as u16;
-            let status = reqwest::StatusCode::from_u16(code)
-                .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
-            return Err(map_http_error_to_provider_error(status, Some(json)));
+        if json.get("error").is_some() {
+            return Err(Self::error_from_tetrate_error_payload(json));
         }
 
         let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
@@ -221,6 +221,7 @@ impl Provider for TetrateProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn enrich_adds_dashboard_url() {
@@ -246,5 +247,41 @@ mod tests {
             TetrateProvider::enrich_credits_error(err),
             ProviderError::ServerError(_)
         ));
+    }
+
+    #[test]
+    fn error_payload_maps_credits_and_adds_billing_url() {
+        let payload = json!({
+            "error": {
+                "code": 402,
+                "message": "Insufficient credits"
+            }
+        });
+        match TetrateProvider::error_from_tetrate_error_payload(payload) {
+            ProviderError::CreditsExhausted {
+                details,
+                top_up_url,
+            } => {
+                assert!(details.contains("Insufficient credits"));
+                assert_eq!(top_up_url.as_deref(), Some(TETRATE_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn error_payload_maps_authentication() {
+        let payload = json!({
+            "error": {
+                "code": 401,
+                "message": "Invalid API key"
+            }
+        });
+        match TetrateProvider::error_from_tetrate_error_payload(payload) {
+            ProviderError::Authentication(msg) => {
+                assert!(msg.contains("Invalid API key"));
+            }
+            other => panic!("Expected Authentication, got {other:?}"),
+        }
     }
 }
