@@ -39,7 +39,7 @@ Platform extensions are built-in extensions that provide global features like co
 - [Chat Recall](/docs/mcp/chatrecall-mcp): Search conversation content across all your session history
 - [Code Execution](/docs/mcp/code-execution-mcp): Execute JavaScript code for tool discovery and tool calling
 - [Extension Manager](/docs/mcp/extension-manager-mcp): Discover, enable, and disable extensions dynamically during sessions (enabled by default)
-- [Skills](/docs/mcp/skills-mcp): Load and use agent skills from various project and global skill directories (enabled by default)
+- [Summon](/docs/mcp/summon-mcp): Load skills and recipes, and delegate tasks to subagents (enabled by default)
 - [Todo](/docs/mcp/todo-mcp): Manage task lists and track progress across sessions (enabled by default)
 
 ### Toggling Built-in Extensions

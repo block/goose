@@ -967,6 +967,7 @@ impl CliSession {
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
+        let mut thinking_header_shown = false;
 
         use futures::StreamExt;
         loop {
@@ -1039,7 +1040,7 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message_streaming(&message, &mut markdown_buffer, self.debug);
+                                    output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
                                 }
                             }
                         }

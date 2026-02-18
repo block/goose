@@ -456,32 +456,55 @@ export HTTPS_PROXY="http://username:password@proxy.company.com:8080"
 export NO_PROXY="localhost,127.0.0.1,.internal"
 ```
 
+Alternatively, proxy settings can be configured through your operating system's network settings. If you encounter connection issues, see [Corporate Proxy or Firewall Issues](/docs/troubleshooting/known-issues#corporate-proxy-or-firewall-issues) for troubleshooting steps.
+
 ## Observability
 
 Beyond goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
 
-### OpenTelemetry Protocol (OTLP)
+### Observability Configuration
 
-Configure goose to export traces and metrics to any OTLP-compatible observability platform. 
-OTLP is the standard protocol for sending telemetry collected by [OpenTelemetry](https://opentelemetry.io/docs/). When configured, goose exports telemetry asynchronously and flushes on exit.
+Configure goose to export telemetry to any [OpenTelemetry](https://opentelemetry.io/docs/) compatible platform.
 
-| Variable | Purpose | Values | Default |
-|----------|---------|--------|---------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | URL (e.g., `http://localhost:4318`) | None |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds | Integer (ms) | `10000` |
+To enable export, set a collector endpoint:
 
-**When to use OTLP:**
-- Diagnosing slow tool execution or LLM response times
-- Understanding intermittent failures across multiple sessions
-- Monitoring goose performance in production or CI/CD environments
-- Tracking usage patterns, costs, and resource consumption over time
-- Setting up alerts for performance degradation or high error rates
-
-**Example:**
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
-export OTEL_EXPORTER_OTLP_TIMEOUT=10000
 ```
+
+You can control each signal (traces, metrics, logs) independently with `OTEL_{SIGNAL}_EXPORTER`:
+
+| Variable pattern | Purpose | Values |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP endpoint (applies `/v1/traces`, etc.) | URL |
+| `OTEL_EXPORTER_OTLP_{SIGNAL}_ENDPOINT` | Override endpoint for a specific signal | URL |
+| `OTEL_{SIGNAL}_EXPORTER` | Exporter type per signal | `otlp`, `console`, `none` |
+| `OTEL_SDK_DISABLED` | Disable all OTel export | `true` |
+
+Additional variables like `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`,
+and `OTEL_EXPORTER_OTLP_TIMEOUT` are also supported.
+See the [OTel environment variable spec][otel-env] for the full list.
+
+**Examples:**
+```bash
+# Export everything to a local collector
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+
+# Export only traces, disable metrics and logs
+export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_METRICS_EXPORTER="none"
+export OTEL_LOGS_EXPORTER="none"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+
+# Debug traces to console (no collector needed)
+export OTEL_TRACES_EXPORTER="console"
+
+# Sample 10% of traces (reduce volume in production)
+export OTEL_TRACES_SAMPLER="parentbased_traceidratio"
+export OTEL_TRACES_SAMPLER_ARG="0.1"
+```
+
+[otel-env]: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
 
 ### Langfuse Integration
 
@@ -518,24 +541,6 @@ export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
 # Set global recipe timeouts
 export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
 export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
-```
-
-## Experimental Features
-
-These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|---------|
-| `ALPHA_FEATURES` | Enables experimental alpha features&mdash;check the feature docs to see if this flag is required | "true", "1" (case-insensitive) to enable | false |
-
-**Examples**
-
-```bash
-# Enable alpha features
-export ALPHA_FEATURES=true
-
-# Or enable for a single session
-ALPHA_FEATURES=true goose session
 ```
 
 ## Development & Testing
@@ -575,7 +580,8 @@ These variables are automatically set by goose during command execution.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables customizing shell behavior | "1" when set | Unset |
+| `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables [customizing shell behavior](#customizing-shell-behavior) | "1" when set | Unset |
+| `AGENT_SESSION_ID` | The current session ID for [session-isolated workflows](#using-session-ids-in-workflows), automatically available to STDIO extensions and the Developer extension shell commands | Session ID string (e.g., `20260217_5`) | Unset (only set in extension/shell contexts) |
 
 ### Customizing Shell Behavior
 
@@ -607,6 +613,24 @@ fi
 if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
 fi
+```
+
+### Using Session IDs in Workflows
+
+STDIO extensions (local extensions that communicate via standard input/output) and the Developer extension's shell commands automatically receive the `AGENT_SESSION_ID` environment variable. This enables you to create session-isolated workflows and make it easier to:
+- Coordinate work across multiple tool calls using session-isolated handoff paths
+- Isolate worktrees or temporary files by session
+- Debug correlation between artifacts and session history
+
+The following example shows how a recipe might use the session ID to hand off information between steps:
+
+```bash
+# Create session-specific handoff directory
+mkdir -p ~/Desktop/${AGENT_SESSION_ID}/handoff
+echo "Results from step 1" > ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
+
+# Later steps in the recipe can read from the same location
+cat ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
 ```
 
 ## Enterprise Environments
