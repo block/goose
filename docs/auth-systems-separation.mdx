@@ -1,0 +1,285 @@
+# Two Auth Systems in Goose — Independent by Design
+
+> **Key Insight**: Goose has two completely separate authentication systems that serve
+> different purposes, use different transports, and should not be confused with each other.
+
+## Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    User Identity Auth                                │
+│  "Who is using Goose?"                                              │
+│                                                                     │
+│  Transport: HTTP headers on requests TO the Goose server            │
+│  Tokens:    Session JWT, OIDC token, X-Api-Key                      │
+│  Storage:   SessionTokenStore (SQLite), localStorage (frontend)     │
+│  Purpose:   Identify the human, scope sessions, audit, RBAC         │
+│  Files:     auth.rs, identity.rs, oidc.rs, session_token.rs         │
+│             user_auth.rs, auth_config.rs                            │
+└─────────────────────────────────────────────────────────────────────┘
+                              ↕ INDEPENDENT — NO SHARED STATE ↕
+┌─────────────────────────────────────────────────────────────────────┐
+│                   LLM Provider Auth                                  │
+│  "How does Goose call the AI model?"                                │
+│                                                                     │
+│  Transport: Server-side config, env vars, credential files          │
+│  Tokens:    Provider API keys, OAuth tokens, service accounts       │
+│  Storage:   Env vars, Goose config (~/.config/goose/), OS keychain  │
+│  Purpose:   Authenticate API calls to OpenAI, Azure, GCP, etc.     │
+│  Files:     providers/*.rs, oauth.rs, gcpauth.rs, azureauth.rs     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## User Identity Auth (New)
+
+### What It Does
+Identifies **who** is making requests to the Goose server. Every API request carries
+identity information that flows through the entire execution chain.
+
+### Auth Priority Chain
+When a request arrives, the server checks headers in this order:
+
+```
+1. Authorization: Bearer <token>
+   ├─ a) Session JWT (issued by /auth/login)     → validated by SessionTokenStore
+   ├─ b) OIDC JWT (from Google, Azure AD, etc.)  → validated by OidcValidator (JWKS)
+   └─ c) Lightweight JWT decode (no sig check)   → fallback, extracts claims only
+
+2. X-Api-Key: <key>
+   └─ Creates an ApiKey identity
+
+3. X-Goose-User-Id: <stable-id>
+   └─ Creates a stable guest identity
+
+4. (nothing)
+   └─ Creates an anonymous guest with random UUID
+```
+
+### Identity Propagation
+```
+HTTP Request → RequestIdentity → ExecutionIdentity
+  → agent.set_execution_identity()
+  → session.set_session_identity(tenant_id, user_id)
+  → compound dispatch: for_sub_agent() → A2A metadata
+  → SpawnConfig.identity → pool agents
+```
+
+### Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/auth/me` | Current user identity |
+| `POST` | `/auth/login` | Login with API key → session JWT |
+| `POST` | `/auth/logout` | Revoke session token |
+| `POST` | `/auth/refresh` | Rotate session token |
+| `POST` | `/auth/login/oidc` | Login with OIDC id_token |
+| `POST` | `/auth/login/oidc/url` | Get OIDC authorization URL |
+| `POST` | `/auth/login/oidc/code` | Exchange auth code → session JWT |
+| `POST` | `/auth/refresh/oidc` | Refresh via OIDC provider |
+| `GET` | `/auth/oidc/providers` | List configured OIDC providers |
+| `POST` | `/auth/oidc/providers` | Add OIDC provider |
+| `DELETE` | `/auth/oidc/providers` | Remove OIDC provider |
+| `GET` | `/auth/status` | Auth system status |
+
+### Supported OIDC Providers
+Google, Azure AD, GitHub, GitLab, AWS Cognito, Auth0, Okta, or any custom issuer.
+
+---
+
+## LLM Provider Auth (Pre-existing)
+
+### What It Does
+Authenticates Goose's outbound calls to AI model APIs. Each LLM provider has its own
+credential mechanism managed entirely server-side.
+
+### Auth Mechanisms by Provider
+
+| Provider | Primary Auth | Secondary Auth | Config |
+|----------|-------------|----------------|--------|
+| **OpenAI** | API key | — | `OPENAI_API_KEY` env var |
+| **Anthropic** | API key | — | `ANTHROPIC_API_KEY` env var |
+| **Google AI** | API key | — | `GOOGLE_API_KEY` env var |
+| **Azure OpenAI** | API key | Azure Entra ID (AAD) | `AZURE_OPENAI_API_KEY` or `AzureAuth` chain |
+| **GCP Vertex AI** | API key | Service Account JWT | `GOOGLE_API_KEY` or `gcpauth.rs` SA token |
+| **Databricks** | PAT token | OAuth2 U2M flow | `DATABRICKS_TOKEN` or `oauth.rs` flow |
+| **GitHub Copilot** | — | OAuth device code | `configure_oauth()` flow |
+| **ChatGPT Codex** | — | OAuth device code | `configure_oauth()` flow |
+| **AWS Bedrock** | AWS credentials | — | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` |
+| **Ollama** | None (local) | — | No auth needed |
+| **OpenRouter** | API key | — | `OPENROUTER_API_KEY` env var |
+
+### Configuration
+Provider credentials are set through:
+1. **Environment variables**: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
+2. **Goose config**: `~/.config/goose/profiles.json`
+3. **OAuth flow**: `POST /configure/provider-oauth` triggers provider-specific OAuth
+4. **Config endpoint**: `POST /configure/provider` for manual key entry
+
+---
+
+## Why They're Separate
+
+### Design Rationale
+
+1. **Different trust boundaries**: User auth identifies the _person_; provider auth
+   authenticates with an _external service_. Mixing them creates confused deputy problems.
+
+2. **Different lifecycles**: User tokens expire/refresh independently of provider tokens.
+   A user might log in with Google but use an OpenAI API key for the model.
+
+3. **Different scoping**: User identity scopes sessions and permissions within Goose.
+   Provider auth scopes which models/resources are accessible from the provider.
+
+4. **Multi-provider**: A single user might use multiple LLM providers simultaneously
+   (e.g., OpenAI for chat, Anthropic for code review). Each has its own auth.
+
+### Data Flow Diagram
+
+```
+                    User's Browser / CLI
+                           │
+                           │ Authorization: Bearer <session-jwt>
+                           │ X-Secret-Key: <server-key>
+                           ▼
+                    ┌──────────────┐
+                    │  Goose Server │
+                    │              │
+                    │  auth.rs     │◄── User Identity Auth
+                    │  identity.rs │    (who is this person?)
+                    │              │
+                    │  reply.rs    │
+                    │  agent.rs    │
+                    │              │
+                    │  providers/  │◄── LLM Provider Auth
+                    │  oauth.rs   │    (how to call the model?)
+                    │  gcpauth.rs │
+                    └──────┬───────┘
+                           │
+                           │ Authorization: Bearer <provider-token>
+                           │ (or X-Api-Key: <provider-key>)
+                           ▼
+                    ┌──────────────┐
+                    │  LLM Provider │
+                    │  (OpenAI,    │
+                    │   Azure,     │
+                    │   GCP, etc.) │
+                    └──────────────┘
+```
+
+---
+
+## Overlap Zones — Where Confusion Can Arise
+
+### 1. `X-Api-Key` Header Ambiguity
+
+The `X-Api-Key` header is used for **user identity auth**, not provider authentication.
+
+```
+# This identifies the USER, not the LLM provider:
+curl -H "X-Api-Key: my-key-123" https://goose-server/reply
+
+# This configures the LLM PROVIDER (server-side, different endpoint):
+curl -X POST https://goose-server/configure/provider \
+  -d '{"provider": "openai", "key": "sk-..."}'
+```
+
+**Don't confuse**: Sending an OpenAI API key as `X-Api-Key` will create a user identity
+hashed from that key — it will NOT configure the OpenAI provider.
+
+### 2. Azure AD — Used in Both Systems
+
+Azure AD tokens appear in both auth systems for different purposes:
+
+| Context | Token Source | Token Purpose | Token Audience |
+|---------|-------------|---------------|----------------|
+| **User login** | Azure AD OIDC | Identify the human | Goose application |
+| **Provider auth** | Azure Entra ID | Call Azure OpenAI API | Azure OpenAI resource |
+
+These are **different tokens** even if they come from the **same Azure AD tenant**.
+The user's OIDC `id_token` has `aud: goose-app-client-id`.
+The provider's access token has `aud: https://cognitiveservices.azure.com`.
+
+### 3. Databricks — Dual OAuth
+
+Databricks supports OAuth in both systems:
+
+| Context | OAuth Flow | Purpose |
+|---------|-----------|---------|
+| **User login** | OIDC code flow via `/auth/login/oidc` | Identify the human |
+| **Provider auth** | U2M OAuth via `oauth.rs` | Call Databricks model serving |
+
+These use **different OAuth clients** and **different scopes**.
+
+### 4. GCP — Service Account vs User
+
+| Context | Auth Method | Purpose |
+|---------|------------|---------|
+| **User login** | Google OIDC | Identify the human |
+| **Provider auth** | Service Account JWT (`gcpauth.rs`) | Call Vertex AI API |
+
+A user logging in with Google gets a `UserIdentity` with `auth_method: Oidc`.
+The Vertex AI provider uses a service account private key — completely separate.
+
+---
+
+## Tenant Scoping Implications
+
+When a user logs in with OIDC, their `tenant_id` is extracted from the token claims:
+
+```rust
+// User identity (from OIDC token)
+UserIdentity {
+    tenant: Some("contoso.onmicrosoft.com"),  // Azure AD tenant
+    auth_method: Oidc { provider: "azure", subject: "user@contoso.com" }
+}
+```
+
+This tenant scopes **sessions** — the user only sees their own sessions.
+
+However, the LLM provider might be configured with a **different** Azure tenant:
+```
+AZURE_OPENAI_ENDPOINT=https://my-openai.openai.azure.com/  # Could be any Azure subscription
+```
+
+**This is by design**: The user's organizational identity is separate from which
+Azure resources Goose can access. A Contoso user might use a shared Goose instance
+that calls OpenAI resources in a different Azure subscription.
+
+---
+
+## Future: Credential Delegation (Not Yet Implemented)
+
+A potential future feature is **credential delegation** — where the user's OIDC token
+is reused to authenticate provider API calls:
+
+```
+User logs in with Azure AD (contoso.com)
+  → ExecutionIdentity has Azure AD token
+  → Azure OpenAI provider: "User has Azure auth, let me use their credential"
+  → No separate AZURE_OPENAI_API_KEY needed
+  → User's permissions determine model access
+```
+
+This would unify the two auth systems for providers that share the same identity
+provider (Azure AD, GCP IAM, Databricks SSO). It requires:
+
+1. Token audience exchange (user token → provider-scoped token)
+2. On-behalf-of (OBO) flow support
+3. Provider-specific consent/permission checks
+4. Fallback to provider API key when delegation isn't available
+
+**Status**: Not implemented. Currently the two systems remain fully independent.
+
+---
+
+## Quick Reference
+
+| Question | User Identity Auth | LLM Provider Auth |
+|----------|-------------------|-------------------|
+| **What does it authenticate?** | The human/agent using Goose | Outbound AI model API calls |
+| **Where are credentials?** | HTTP headers on inbound requests | Server-side env vars/config |
+| **Token format?** | Session JWT, OIDC JWT | Provider-specific (API key, OAuth, SA) |
+| **Managed by?** | `auth.rs`, `identity.rs`, `oidc.rs` | `providers/*.rs`, `oauth.rs` |
+| **Configured via?** | `/auth/*` endpoints | `/configure/*` endpoints |
+| **Scopes?** | Sessions, tenant isolation | Model access, usage limits |
+| **Persisted in?** | SQLite (`tokens.db`) | Env vars, `~/.config/goose/` |
+| **Rate limited?** | Yes (30 req/min on `/auth/*`) | No (provider's own limits apply) |
