@@ -460,17 +460,17 @@ const SessionList = React.memo<{
                   />
                 </button>
                 {/* Hover action strip — inline icons that appear on hover */}
-                <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover/project:opacity-100 transition-opacity duration-150 pr-1">
+                <div className="flex-shrink-0 flex items-center gap-0 opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto transition-opacity duration-150">
                   {onNewSessionInProject && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         onNewSessionInProject(group.sessions[0]?.working_dir || '');
                       }}
-                      className="p-0.5 hover:bg-background-muted rounded transition-colors"
+                      className="p-1 hover:bg-background-muted rounded transition-colors"
                       title="New session in project"
                     >
-                      <Plus className="w-3 h-3 text-text-muted hover:text-text-default" />
+                      <Plus className="w-3.5 h-3.5 text-text-muted hover:text-text-default" />
                     </button>
                   )}
                   <button
@@ -478,13 +478,13 @@ const SessionList = React.memo<{
                       e.stopPropagation();
                       togglePin(group.project);
                     }}
-                    className="p-0.5 hover:bg-background-muted rounded transition-colors"
+                    className="p-1 hover:bg-background-muted rounded transition-colors"
                     title={pinned ? 'Unpin project' : 'Pin project'}
                   >
                     {pinned ? (
-                      <PinOff className="w-3 h-3 text-text-muted hover:text-text-default" />
+                      <PinOff className="w-3.5 h-3.5 text-text-muted hover:text-text-default" />
                     ) : (
-                      <Pin className="w-3 h-3 text-text-muted hover:text-text-default" />
+                      <Pin className="w-3.5 h-3.5 text-text-muted hover:text-text-default" />
                     )}
                   </button>
                   <button
@@ -495,10 +495,10 @@ const SessionList = React.memo<{
                         group.sessions.map((s) => s.id)
                       );
                     }}
-                    className="p-0.5 hover:bg-background-danger/10 rounded transition-colors"
+                    className="p-1 hover:bg-background-danger/10 rounded transition-colors"
                     title="Close project"
                   >
-                    <X className="w-3 h-3 text-text-danger" />
+                    <X className="w-3.5 h-3.5 text-text-danger" />
                   </button>
                 </div>
               </div>
@@ -922,11 +922,14 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   <span>New Chat</span>
                 </SidebarMenuButton>
                 <SidebarMenuAction
-                  className="group-data-[collapsible=icon]:hidden"
                   ref={projectDropdownRef}
-                  onClick={() => setProjectDropdownOpen((prev) => !prev)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setProjectDropdownOpen((prev) => !prev);
+                  }}
                   aria-label="Open project"
                   title="Open project in new session"
+                  className="cursor-pointer text-text-muted hover:text-text-default"
                 >
                   <FolderPlus className="w-3.5 h-3.5" />
                 </SidebarMenuAction>
