@@ -459,9 +459,11 @@ pub async fn get_local_model_download_progress(
         .get_progress(&download_id)
         .ok_or_else(|| ErrorResponse::not_found("Download not found"))?;
 
+    // Status enum has serde(rename_all = "lowercase"), but format!("{:?}") uses Debug
+    // which gives "Downloading" instead of "downloading". Use lowercase for consistency.
     Ok(Json(DownloadProgressResponse {
         model_id,
-        status: format!("{:?}", progress.status),
+        status: format!("{:?}", progress.status).to_lowercase(),
         bytes_downloaded: progress.bytes_downloaded,
         total_bytes: progress.total_bytes,
         speed_bps: progress.speed_bps,
