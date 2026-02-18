@@ -157,12 +157,6 @@ pub struct LocalModelEntry {
     pub settings: ModelSettings,
     #[serde(default)]
     pub size_bytes: u64,
-    #[serde(default = "default_context_limit")]
-    pub context_limit: u32,
-}
-
-fn default_context_limit() -> u32 {
-    8192
 }
 
 impl LocalModelEntry {
