@@ -11,7 +11,9 @@ use super::base::{
 };
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::openai_compatible::handle_response_openai_compat;
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
+};
 use super::retry::ProviderRetry;
 use super::utils::{get_model, ImageFormat, RequestLog};
 use crate::conversation::message::Message;
@@ -400,6 +402,60 @@ impl Provider for LiteLLMProvider {
             message,
             provider_usage,
         ))
+    }
+
+    fn supports_streaming(&self) -> bool {
+        true
+    }
+
+    async fn stream(
+        &self,
+        session_id: &str,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        let mut payload = super::formats::openai::create_request(
+            &self.model,
+            system,
+            messages,
+            tools,
+            &ImageFormat::OpenAi,
+            true,
+        )?;
+
+        let supports_reasoning = self
+            .model_supports_reasoning(&self.model.model_name)
+            .await;
+
+        if supports_reasoning {
+            if let Some(ref variant) = self.model.variant {
+                Self::apply_variant(&mut payload, variant);
+            }
+        } else {
+            Self::strip_reasoning_params(&mut payload);
+        }
+
+        if self.supports_cache_control().await {
+            payload = update_request_for_cache_control(&payload);
+        }
+
+        let mut log = RequestLog::start(&self.model, &payload)?;
+
+        let response = self
+            .with_retry(|| async {
+                let resp = self
+                    .api_client
+                    .response_post(Some(session_id), &self.base_path, &payload)
+                    .await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
+
+        stream_openai_compat(response, log)
     }
 
     fn supports_embeddings(&self) -> bool {
