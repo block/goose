@@ -237,7 +237,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
 
                       return (
                         <div
-                          key={variant.quantization}
+                          key={variant.filename}
                           className={`flex items-center justify-between py-2 px-2 rounded ${
                             isRecommended
                               ? 'bg-blue-500/5 border border-blue-500/20'

@@ -117,7 +117,8 @@ async fn ensure_recommended_models_in_registry() -> Result<(), ErrorResponse> {
                         "https://huggingface.co/{}/resolve/main/{}",
                         repo_id, estimated_filename
                     );
-                    (estimated_filename, download_url, 0)
+                    // Use the size from RECOMMENDED_MODELS as fallback
+                    (estimated_filename, download_url, rec.size_bytes)
                 }
             };
 
@@ -246,8 +247,12 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
             quantization: entry.quantization.clone(),
             size_bytes: if entry.size_bytes > 0 {
                 entry.size_bytes
-            } else {
+            } else if entry.local_path.exists() {
                 entry.file_size()
+            } else if let Some(rec) = rec_info {
+                rec.size_bytes
+            } else {
+                0
             },
             status,
             recommended: recommended_id.as_deref() == Some(&entry.id),

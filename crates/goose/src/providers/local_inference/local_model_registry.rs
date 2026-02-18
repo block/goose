@@ -98,6 +98,7 @@ pub struct RecommendedModel {
     pub display_name: &'static str,
     pub context_limit: u32,
     pub tier: ModelTier,
+    pub size_bytes: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
@@ -114,24 +115,28 @@ pub const RECOMMENDED_MODELS: &[RecommendedModel] = &[
         display_name: "Llama 3.2 1B",
         context_limit: 131072,
         tier: ModelTier::Tiny,
+        size_bytes: 771_221_824, // ~771 MB
     },
     RecommendedModel {
         spec: "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
         display_name: "Llama 3.2 3B",
         context_limit: 131072,
         tier: ModelTier::Small,
+        size_bytes: 2_019_377_696, // ~2.0 GB
     },
     RecommendedModel {
         spec: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
         display_name: "Hermes 2 Pro 7B",
         context_limit: 4096,
         tier: ModelTier::Medium,
+        size_bytes: 4_368_439_584, // ~4.4 GB
     },
     RecommendedModel {
         spec: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
         display_name: "Mistral Small 24B",
         context_limit: 32768,
         tier: ModelTier::Large,
+        size_bytes: 14_315_823_264, // ~14.3 GB
     },
 ];
 
