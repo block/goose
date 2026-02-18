@@ -44,6 +44,7 @@ pub async fn run() -> Result<()> {
         .layer(middleware::from_fn(authorize_middleware))
         .layer(Extension(app_state.policy_store.clone()))
         .layer(Extension(app_state.audit_logger.clone()))
+        .layer(Extension(app_state.quota_manager.clone()))
         .layer(middleware::from_fn_with_state(
             secret_key.clone(),
             check_token,

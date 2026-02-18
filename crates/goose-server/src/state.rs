@@ -18,6 +18,7 @@ use goose::agents::ExtensionLoadResult;
 use goose::audit::AuditLogger;
 use goose::oidc::OidcValidator;
 use goose::policy::PolicyStore;
+use goose::quotas::QuotaManager;
 use goose::session_token::SessionTokenStore;
 
 type ExtensionLoadingTasks =
@@ -40,6 +41,7 @@ pub struct AppState {
     pub session_token_store: Arc<SessionTokenStore>,
     pub policy_store: Arc<PolicyStore>,
     pub audit_logger: Arc<AuditLogger>,
+    pub quota_manager: Arc<QuotaManager>,
 }
 
 impl AppState {
@@ -67,6 +69,7 @@ impl AppState {
             )),
             policy_store: Arc::new(PolicyStore::new()),
             audit_logger: Arc::new(AuditLogger::new()),
+            quota_manager: Arc::new(QuotaManager::new()),
         }))
     }
 

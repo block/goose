@@ -387,19 +387,57 @@ pub async fn authorize_middleware(request: Request, next: Next) -> Result<Respon
         logger.log(&event).await;
     }
 
-    match decision {
-        goose::policy::PolicyDecision::Deny { reason } => {
+    if let goose::policy::PolicyDecision::Deny { reason } = decision {
+        tracing::warn!(
+            user_id = %identity.id,
+            action = %action,
+            resource = %resource,
+            reason = %reason,
+            "request denied by policy"
+        );
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Check quotas (only for execution actions)
+    let quota_manager = request
+        .extensions()
+        .get::<Arc<goose::quotas::QuotaManager>>()
+        .cloned();
+
+    if let Some(qm) = &quota_manager {
+        let quota_scope = match &identity.tenant {
+            Some(tenant) => goose::quotas::QuotaScope::TenantUser {
+                tenant: tenant.clone(),
+                user: identity.id.clone(),
+            },
+            None => goose::quotas::QuotaScope::User(identity.id.clone()),
+        };
+
+        let quota_resource = match action.as_str() {
+            a if a.starts_with("execute:") => goose::quotas::QuotaResource::Executions,
+            a if a.starts_with("session:") => goose::quotas::QuotaResource::Sessions,
+            _ => goose::quotas::QuotaResource::Executions,
+        };
+
+        let quota_decision = qm.check(&quota_scope, &quota_resource).await;
+        if let goose::quotas::QuotaDecision::Exceeded { limit, used, .. } = quota_decision {
             tracing::warn!(
                 user_id = %identity.id,
                 action = %action,
-                resource = %resource,
-                reason = %reason,
-                "request denied by policy"
+                limit = limit,
+                used = used,
+                "request denied by quota"
             );
-            Err(StatusCode::FORBIDDEN)
+            return Err(StatusCode::TOO_MANY_REQUESTS);
         }
-        _ => Ok(next.run(request).await),
+
+        // Record usage for execution actions
+        if action.starts_with("execute:") {
+            qm.record_usage(&quota_scope, &quota_resource, 1).await;
+        }
     }
+
+    Ok(next.run(request).await)
 }
 
 #[cfg(test)]

@@ -24,6 +24,7 @@ pub mod policy;
 pub mod posthog;
 pub mod prompt_template;
 pub mod providers;
+pub mod quotas;
 pub mod recipe;
 pub mod recipe_deeplink;
 pub mod registry;
