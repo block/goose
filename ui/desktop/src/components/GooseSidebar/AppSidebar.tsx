@@ -421,7 +421,25 @@ const SessionList = React.memo<{
           const collapsed = isCollapsed(group.project);
           const pinned = isPinned(group.project);
           const isGeneral = group.project === 'General';
-          const ProjectIcon = isGeneral ? Home : FolderOpen;
+
+          // General sessions render directly (no header) — they belong to the "New Chat" section above
+          if (isGeneral) {
+            return (
+              <div key={group.project} className="relative ml-1">
+                {group.sessions.map((session, index) => (
+                  <SessionItem
+                    key={session.id}
+                    session={session}
+                    isLast={index === group.sessions.length - 1}
+                    activeSessionId={activeSessionId}
+                    getSessionStatus={getSessionStatus}
+                    onSessionClick={onSessionClick}
+                    onDeleteSession={onDeleteSession}
+                  />
+                ))}
+              </div>
+            );
+          }
 
           return (
             <div key={group.project}>
@@ -430,7 +448,7 @@ const SessionList = React.memo<{
                   onClick={() => toggleCollapsed(group.project)}
                   className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30"
                 >
-                  <ProjectIcon className="w-3 h-3 flex-shrink-0" />
+                  <FolderOpen className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{group.project}</span>
                   {pinned && <Pin className="w-2.5 h-2.5 flex-shrink-0 text-text-accent" />}
                   <span className="text-[10px] opacity-60 ml-auto flex-shrink-0">
@@ -446,48 +464,41 @@ const SessionList = React.memo<{
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const dir = isGeneral
-                          ? ''
-                          : group.sessions[0]?.working_dir || '';
-                        onNewSessionInProject(dir);
+                        onNewSessionInProject(group.sessions[0]?.working_dir || '');
                       }}
                       className="p-0.5 hover:bg-background-muted rounded transition-colors"
-                      title={isGeneral ? 'New session' : 'New session in project'}
+                      title="New session in project"
                     >
                       <Plus className="w-3 h-3 text-text-muted hover:text-text-default" />
                     </button>
                   )}
-                  {!isGeneral && (
-                    <>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          togglePin(group.project);
-                        }}
-                        className="p-0.5 hover:bg-background-muted rounded transition-colors"
-                        title={pinned ? 'Unpin project' : 'Pin project'}
-                      >
-                        {pinned ? (
-                          <PinOff className="w-3 h-3 text-text-muted hover:text-text-default" />
-                        ) : (
-                          <Pin className="w-3 h-3 text-text-muted hover:text-text-default" />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCloseProject(
-                            group.project,
-                            group.sessions.map((s) => s.id)
-                          );
-                        }}
-                        className="p-0.5 hover:bg-background-danger/10 rounded transition-colors"
-                        title={`Close project`}
-                      >
-                        <X className="w-3 h-3 text-text-danger" />
-                      </button>
-                    </>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePin(group.project);
+                    }}
+                    className="p-0.5 hover:bg-background-muted rounded transition-colors"
+                    title={pinned ? 'Unpin project' : 'Pin project'}
+                  >
+                    {pinned ? (
+                      <PinOff className="w-3 h-3 text-text-muted hover:text-text-default" />
+                    ) : (
+                      <Pin className="w-3 h-3 text-text-muted hover:text-text-default" />
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseProject(
+                        group.project,
+                        group.sessions.map((s) => s.id)
+                      );
+                    }}
+                    className="p-0.5 hover:bg-background-danger/10 rounded transition-colors"
+                    title="Close project"
+                  >
+                    <X className="w-3 h-3 text-text-danger" />
+                  </button>
                 </div>
               </div>
               {!collapsed && (
