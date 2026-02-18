@@ -10,12 +10,13 @@ type BundledExtension = {
   display_name?: string;
   description?: string;
   enabled: boolean;
-  type: 'builtin' | 'stdio' | 'sse';
+  type: 'builtin' | 'stdio' | 'sse' | 'streamable_http';
   cmd?: string;
   args?: string[];
   uri?: string;
   envs?: { [key: string]: string };
   env_keys?: Array<string>;
+  headers?: { [key: string]: string };
   timeout?: number;
   allow_configure?: boolean;
 };
@@ -79,6 +80,19 @@ export async function syncBundledExtensions(
             uri: bundledExt.uri || '',
             bundled: true,
           };
+          break;
+        case 'streamable_http':
+          extConfig = {
+            name: bundledExt.name,
+            description: bundledExt.description,
+            type: bundledExt.type,
+            timeout: bundledExt.timeout,
+            uri: bundledExt.uri || '',
+            env_keys: bundledExt.env_keys || [],
+            headers: bundledExt.headers || {},
+            bundled: true,
+          };
+          break;
       }
 
       // Add or update the extension, preserving enabled state if it exists
