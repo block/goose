@@ -26,7 +26,7 @@ const EnvironmentBadge: React.FC<EnvironmentBadgeProps> = ({ className = '' }) =
           aria-label={tooltipText}
         />
       </TooltipTrigger>
-      <TooltipContent side="right">{tooltipText}</TooltipContent>
+      <TooltipContent side="right" portal={false}>{tooltipText}</TooltipContent>
     </Tooltip>
   );
 };
