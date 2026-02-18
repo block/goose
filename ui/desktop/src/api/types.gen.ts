@@ -2049,8 +2049,10 @@ export type Session = {
     recipe?: Recipe | null;
     schedule_id?: string | null;
     session_type?: SessionType;
+    tenant_id?: string | null;
     total_tokens?: number | null;
     updated_at: string;
+    user_id?: string | null;
     user_recipe_values?: {
         [key: string]: string;
     } | null;

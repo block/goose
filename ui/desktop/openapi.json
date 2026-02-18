@@ -11746,6 +11746,10 @@
           "session_type": {
             "$ref": "#/components/schemas/SessionType"
           },
+          "tenant_id": {
+            "type": "string",
+            "nullable": true
+          },
           "total_tokens": {
             "type": "integer",
             "format": "int32",
@@ -11754,6 +11758,10 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "user_id": {
+            "type": "string",
+            "nullable": true
           },
           "user_recipe_values": {
             "type": "object",

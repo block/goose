@@ -56,6 +56,8 @@ a2a = { version = "1.23.0", path = "../a2a", features = ["server", "axum", "clie
 async-trait.workspace = true
 async-stream.workspace = true
 urlencoding.workspace = true
+argon2 = "0.5.3"
+sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }

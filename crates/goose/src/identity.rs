@@ -36,6 +36,8 @@ pub enum AuthMethod {
     Oidc { provider: String, subject: String },
     /// API key authentication
     ApiKey,
+    /// Local username/password authentication
+    Password,
     /// Service-to-service (internal agent spawning another agent)
     ServiceAccount { service_name: String },
 }
@@ -302,6 +304,7 @@ impl fmt::Display for UserIdentity {
             AuthMethod::Guest => write!(f, "guest:{}", self.id),
             AuthMethod::Oidc { provider, .. } => write!(f, "oidc:{}:{}", provider, self.name),
             AuthMethod::ApiKey => write!(f, "apikey:{}", self.id),
+            AuthMethod::Password => write!(f, "password:{}", self.id),
             AuthMethod::ServiceAccount { service_name } => {
                 write!(f, "service:{}", service_name)
             }

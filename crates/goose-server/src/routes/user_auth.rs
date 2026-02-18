@@ -31,6 +31,7 @@ impl From<&UserIdentity> for UserInfoResponse {
             AuthMethod::Oidc { provider, .. } => format!("oidc:{provider}"),
             AuthMethod::ApiKey => "api_key".to_string(),
             AuthMethod::ServiceAccount { .. } => "service_account".to_string(),
+            AuthMethod::Password => "password".to_string(),
         };
         Self {
             id: user.id.clone(),

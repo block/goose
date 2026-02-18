@@ -14,6 +14,7 @@ pub mod extension_routes;
 pub mod mcp_app_proxy;
 pub mod mcp_ui_proxy;
 pub mod observatory;
+pub mod password_auth;
 pub mod pipeline;
 pub mod prompts;
 pub mod recipe;
@@ -61,6 +62,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(observatory::routes(state.clone()))
         .merge(auth_config::routes(state.clone()))
         .merge(user_auth::routes(state.clone()))
+        .merge(password_auth::routes(state.clone()))
         .merge(extension_routes::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
