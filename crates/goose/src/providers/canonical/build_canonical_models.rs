@@ -36,29 +36,11 @@ const SEPARATOR: &str =
 const SUBSEPARATOR: &str =
     "--------------------------------------------------------------------------------";
 
-// Providers to include in canonical models (for model data)
-const ALLOWED_PROVIDERS: &[&str] = &[
-    "anthropic",
-    "google",
-    "openai",
-    "openrouter",
-    "llama",
-    "mistral",
-    "xai",
-    "deepseek",
-    "cohere",
-    "azure",
-    "amazon-bedrock",
-    "venice",
-    "google-vertex",
-];
-
-/// Detect if a provider is OpenAI/Anthropic compatible from npm package
 fn is_compatible_provider(npm: &str) -> bool {
     npm.contains("openai") || npm.contains("anthropic") || npm.contains("ollama")
 }
 
-// Normalize provider names from models.dev to our canonical format
+/// Normalize provider names from models.dev to match goose provider names
 fn normalize_provider_name(provider: &str) -> &str {
     match provider {
         "llama" => "meta-llama",
@@ -380,164 +362,109 @@ fn parse_modalities(model_data: &Value, field: &str) -> Vec<Modality> {
         .unwrap_or_else(|| vec![Modality::Text])
 }
 
-async fn build_canonical_models() -> Result<()> {
-    let json = fetch_models_dev().await?;
+fn process_model(
+    model_id: &str,
+    model_data: &Value,
+    normalized_provider: &str,
+) -> Result<(String, CanonicalModel)> {
+    let name = model_data["name"]
+        .as_str()
+        .with_context(|| format!("Model {} missing name", model_id))?;
 
-    let providers_obj = json
-        .as_object()
-        .context("Expected object in models.dev response")?;
+    let canonical_id = canonical_name(normalized_provider, model_id);
 
-    let mut registry = CanonicalModelRegistry::new();
-    let mut provider_metadata_list: Vec<ProviderMetadata> = Vec::new();
-    let mut total_models = 0;
+    let modalities = Modalities {
+        input: parse_modalities(model_data, "input"),
+        output: parse_modalities(model_data, "output"),
+    };
 
-    // Determine which providers to build canonical models for
-    // Include ALLOWED_PROVIDERS + any provider with compatible npm package
-    let mut providers_to_build: std::collections::HashSet<String> =
-        ALLOWED_PROVIDERS.iter().map(|s| s.to_string()).collect();
+    let cost = match model_data.get("cost") {
+        Some(c) if !c.is_null() => Pricing {
+            input: c.get("input").and_then(|v| v.as_f64()),
+            output: c.get("output").and_then(|v| v.as_f64()),
+            cache_read: c.get("cache_read").and_then(|v| v.as_f64()),
+            cache_write: c.get("cache_write").and_then(|v| v.as_f64()),
+        },
+        _ => Pricing {
+            input: None,
+            output: None,
+            cache_read: None,
+            cache_write: None,
+        },
+    };
 
-    // Add all compatible providers from models.dev
-    for (provider_id, provider_data) in providers_obj.iter() {
-        if let Some(npm) = provider_data.get("npm").and_then(|v| v.as_str()) {
-            if is_compatible_provider(npm) {
-                if let Some(api) = provider_data.get("api").and_then(|v| v.as_str()) {
-                    if !api.is_empty() {
-                        providers_to_build.insert(provider_id.clone());
-                    }
-                }
-            }
-        }
-    }
+    let limit = Limit {
+        context: model_data
+            .get("limit")
+            .and_then(|l| l.get("context"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(DEFAULT_CONTEXT_LIMIT as u64) as usize,
+        output: model_data
+            .get("limit")
+            .and_then(|l| l.get("output"))
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize),
+    };
 
-    // First pass: Build canonical models from all compatible providers
-    for provider_key in &providers_to_build {
-        if let Some(provider_data) = providers_obj.get(provider_key) {
-            let models = match provider_data.get("models").and_then(|v| v.as_object()) {
-                Some(m) => m,
-                None => continue,
-            };
+    let canonical_model = CanonicalModel {
+        id: canonical_id.clone(),
+        name: name.to_string(),
+        family: get_string(model_data, "family"),
+        attachment: model_data.get("attachment").and_then(|v| v.as_bool()),
+        reasoning: model_data.get("reasoning").and_then(|v| v.as_bool()),
+        tool_call: model_data
+            .get("tool_call")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
+        temperature: model_data.get("temperature").and_then(|v| v.as_bool()),
+        knowledge: get_string(model_data, "knowledge"),
+        release_date: get_string(model_data, "release_date"),
+        last_updated: get_string(model_data, "last_updated"),
+        modalities,
+        open_weights: model_data.get("open_weights").and_then(|v| v.as_bool()),
+        cost,
+        limit,
+    };
 
-            let is_allowed = ALLOWED_PROVIDERS.contains(&provider_key.as_str());
-            let normalized_provider = if is_allowed {
-                normalize_provider_name(provider_key).to_string()
-            } else {
-                provider_key.clone()
-            };
+    let model_name = canonical_id
+        .strip_prefix(&format!("{}/", normalized_provider))
+        .unwrap_or(model_id)
+        .to_string();
 
-            println!(
-                "\nProcessing {} ({} models)...",
-                normalized_provider,
-                models.len()
-            );
+    Ok((model_name, canonical_model))
+}
 
-            for (model_id, model_data) in models {
-                // Get cost data if available (optional for catalog providers)
-                let cost_data = model_data.get("cost");
+/// Collect provider metadata for the catalog (only SDK-compatible providers)
+fn collect_provider_metadata(
+    providers_obj: &serde_json::Map<String, Value>,
+) -> Vec<ProviderMetadata> {
+    let mut metadata_list = Vec::new();
 
-                let name = model_data["name"]
-                    .as_str()
-                    .with_context(|| format!("Model {} missing name", model_id))?;
-
-                // Use canonical_name to normalize the model ID (strips date stamps, etc.)
-                // This deduplicates different versions of the same model
-                let canonical_id = canonical_name(&normalized_provider, model_id);
-
-                let modalities = Modalities {
-                    input: parse_modalities(model_data, "input"),
-                    output: parse_modalities(model_data, "output"),
-                };
-
-                let open_weights = model_data.get("open_weights").and_then(|v| v.as_bool());
-
-                let cost = if let Some(c) = cost_data {
-                    Pricing {
-                        input: c.get("input").and_then(|v| v.as_f64()),
-                        output: c.get("output").and_then(|v| v.as_f64()),
-                        cache_read: c.get("cache_read").and_then(|v| v.as_f64()),
-                        cache_write: c.get("cache_write").and_then(|v| v.as_f64()),
-                    }
-                } else {
-                    Pricing {
-                        input: None,
-                        output: None,
-                        cache_read: None,
-                        cache_write: None,
-                    }
-                };
-
-                let limit = Limit {
-                    context: model_data
-                        .get("limit")
-                        .and_then(|l| l.get("context"))
-                        .and_then(|v| v.as_u64())
-                        .unwrap_or(DEFAULT_CONTEXT_LIMIT as u64) as usize,
-                    output: model_data
-                        .get("limit")
-                        .and_then(|l| l.get("output"))
-                        .and_then(|v| v.as_u64())
-                        .map(|v| v as usize),
-                };
-
-                let canonical_model = CanonicalModel {
-                    id: canonical_id.clone(),
-                    name: name.to_string(),
-                    family: get_string(model_data, "family"),
-                    attachment: model_data.get("attachment").and_then(|v| v.as_bool()),
-                    reasoning: model_data.get("reasoning").and_then(|v| v.as_bool()),
-                    tool_call: model_data
-                        .get("tool_call")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false),
-                    temperature: model_data.get("temperature").and_then(|v| v.as_bool()),
-                    knowledge: get_string(model_data, "knowledge"),
-                    release_date: get_string(model_data, "release_date"),
-                    last_updated: get_string(model_data, "last_updated"),
-                    modalities,
-                    open_weights,
-                    cost,
-                    limit,
-                };
-
-                // Extract the normalized model name (everything after "provider/")
-                let model_name = canonical_id
-                    .strip_prefix(&format!("{}/", normalized_provider))
-                    .unwrap_or(model_id);
-                registry.register(&normalized_provider, model_name, canonical_model);
-                total_models += 1;
-            }
-        }
-    }
-
-    // Second pass: Collect provider metadata from ALL providers with npm and api fields
-    println!("\n\nCollecting provider metadata from models.dev...");
     for (provider_id, provider_data) in providers_obj {
-        // Skip if no npm field
         let npm = match provider_data.get("npm").and_then(|v| v.as_str()) {
             Some(n) if !n.is_empty() => n,
             _ => continue,
         };
 
-        // Check if compatible (OpenAI/Anthropic/Ollama)
         if !is_compatible_provider(npm) {
             continue;
         }
 
-        // For providers outside ALLOWED_PROVIDERS, require API URL
-        let is_allowed = ALLOWED_PROVIDERS.contains(&provider_id.as_str());
-        let api = provider_data.get("api").and_then(|v| v.as_str()).map(String::from);
+        let api = provider_data
+            .get("api")
+            .and_then(|v| v.as_str())
+            .map(String::from);
 
-        // Skip if not allowed and no API URL
-        if !is_allowed && api.is_none() {
+        // Catalog providers need an API URL to be useful
+        if api.is_none() {
             continue;
         }
 
-        let normalized_provider = if is_allowed {
-            normalize_provider_name(provider_id).to_string()
-        } else {
-            provider_id.clone()
-        };
-
-        let doc = provider_data.get("doc").and_then(|v| v.as_str()).map(String::from);
+        let normalized_provider = normalize_provider_name(provider_id).to_string();
+        let doc = provider_data
+            .get("doc")
+            .and_then(|v| v.as_str())
+            .map(String::from);
         let env = provider_data
             .get("env")
             .and_then(|v| v.as_array())
@@ -553,15 +480,13 @@ async fn build_canonical_models() -> Result<()> {
             .and_then(|v| v.as_str())
             .unwrap_or(provider_id)
             .to_string();
-
-        // Count models for this provider
         let model_count = provider_data
             .get("models")
             .and_then(|v| v.as_object())
             .map(|models| models.len())
             .unwrap_or(0);
 
-        provider_metadata_list.push(ProviderMetadata {
+        metadata_list.push(ProviderMetadata {
             id: normalized_provider,
             display_name,
             npm: Some(npm.to_string()),
@@ -574,6 +499,42 @@ async fn build_canonical_models() -> Result<()> {
         println!("  Added {} ({}) - {} models", provider_id, npm, model_count);
     }
 
+    metadata_list
+}
+
+async fn build_canonical_models() -> Result<()> {
+    let json = fetch_models_dev().await?;
+
+    let providers_obj = json
+        .as_object()
+        .context("Expected object in models.dev response")?;
+
+    let mut registry = CanonicalModelRegistry::new();
+    let mut total_models = 0;
+
+    // Build canonical models from ALL providers in models.dev
+    for (provider_key, provider_data) in providers_obj {
+        let models = match provider_data.get("models").and_then(|v| v.as_object()) {
+            Some(m) => m,
+            None => continue,
+        };
+
+        let normalized_provider = normalize_provider_name(provider_key);
+
+        println!(
+            "\nProcessing {} ({} models)...",
+            normalized_provider,
+            models.len()
+        );
+
+        for (model_id, model_data) in models {
+            let (model_name, canonical_model) =
+                process_model(model_id, model_data, normalized_provider)?;
+            registry.register(normalized_provider, &model_name, canonical_model);
+            total_models += 1;
+        }
+    }
+
     let output_path = data_file_path("canonical_models.json");
     registry.to_file(&output_path)?;
     println!(
@@ -582,7 +543,10 @@ async fn build_canonical_models() -> Result<()> {
         output_path.display()
     );
 
-    // Save provider metadata
+    // Collect provider metadata for the catalog (SDK-compatible providers only)
+    println!("\n\nCollecting provider metadata from models.dev...");
+    let provider_metadata_list = collect_provider_metadata(providers_obj);
+
     let provider_metadata_path = data_file_path("provider_metadata.json");
     let provider_metadata_json = serde_json::to_string_pretty(&provider_metadata_list)?;
     std::fs::write(&provider_metadata_path, provider_metadata_json)?;
