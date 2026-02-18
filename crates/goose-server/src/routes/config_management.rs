@@ -425,11 +425,14 @@ pub async fn get_provider_model_info(
     match provider.fetch_model_info().await {
         Ok(info) if !info.is_empty() => Ok(Json(info)),
         _ => {
-            // Fall back: wrap recommended model names as basic ModelInfo
+            // Fall back: wrap recommended model names as basic ModelInfo,
+            // enriched with canonical registry data (pricing, reasoning, etc.)
             let models = provider.fetch_recommended_models().await?;
             let info: Vec<ModelInfo> = models
                 .into_iter()
-                .map(|name| ModelInfo::new(name, 128000))
+                .map(|model_name| {
+                    ModelInfo::new(model_name, 128000).enriched_from_canonical(&name)
+                })
                 .collect();
             Ok(Json(info))
         }

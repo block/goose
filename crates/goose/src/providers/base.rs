@@ -71,6 +71,35 @@ impl ModelInfo {
         }
     }
 
+    /// Enrich this ModelInfo with data from the canonical registry.
+    /// Fills in missing fields (pricing, reasoning, context limit) if a canonical match exists.
+    pub fn enriched_from_canonical(mut self, provider: &str) -> Self {
+        use crate::providers::canonical::maybe_get_canonical_model;
+
+        if let Some(canonical) = maybe_get_canonical_model(provider, &self.name) {
+            if self.supports_reasoning.is_none() {
+                self.supports_reasoning = canonical.reasoning;
+            }
+            if self.input_token_cost.is_none() {
+                if let Some(input) = canonical.cost.input {
+                    self.input_token_cost = Some(input / 1_000_000.0);
+                }
+            }
+            if self.output_token_cost.is_none() {
+                if let Some(output) = canonical.cost.output {
+                    self.output_token_cost = Some(output / 1_000_000.0);
+                }
+            }
+            if self.input_token_cost.is_some() || self.output_token_cost.is_some() {
+                self.currency.get_or_insert_with(|| "$".to_string());
+            }
+            if canonical.limit.context > 0 {
+                self.context_limit = canonical.limit.context;
+            }
+        }
+        self
+    }
+
     /// Create a new ModelInfo with cost information (per token)
     pub fn with_cost(
         name: impl Into<String>,
@@ -137,16 +166,14 @@ impl ProviderMetadata {
             default_model: default_model.to_string(),
             known_models: model_names
                 .iter()
-                .map(|&model_name| ModelInfo {
-                    name: model_name.to_string(),
-                    context_limit: ModelConfig::new_or_fail(model_name)
-                        .with_canonical_limits(name)
-                        .context_limit(),
-                    input_token_cost: None,
-                    output_token_cost: None,
-                    currency: None,
-                    supports_cache_control: None,
-                    supports_reasoning: None,
+                .map(|&model_name| {
+                    ModelInfo::new(
+                        model_name,
+                        ModelConfig::new_or_fail(model_name)
+                            .with_canonical_limits(name)
+                            .context_limit(),
+                    )
+                    .enriched_from_canonical(name)
                 })
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
