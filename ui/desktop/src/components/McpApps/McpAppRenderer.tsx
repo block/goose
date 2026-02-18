@@ -792,8 +792,8 @@ export default function McpAppRenderer({
     );
   };
 
-  const appContent = (
-    <div className="relative h-full w-full">
+  const appContent = (isCompact: boolean) => (
+    <div className={cn('relative w-full', !isCompact && 'h-full')}>
       {renderDisplayModeControls()}
       {renderContent()}
     </div>
@@ -814,7 +814,7 @@ export default function McpAppRenderer({
             className="h-full w-full overflow-hidden [&_iframe]:!w-full [&_iframe]:!h-full"
             style={{ viewTransitionName }}
           >
-            {appContent}
+            {appContent(false)}
           </div>
         </div>
       </>
@@ -857,8 +857,8 @@ export default function McpAppRenderer({
           >
             <GripHorizontal size={12} className="text-white/70" />
           </div>
-          <div ref={containerRef} className="h-full w-full">
-            {appContent}
+          <div ref={containerRef} className="w-full">
+            {appContent(true)}
           </div>
         </div>
       </>
@@ -879,7 +879,7 @@ export default function McpAppRenderer({
       className={inlineClasses}
       style={{ viewTransitionName, width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
     >
-      {appContent}
+      {appContent(false)}
     </div>
   );
 }
