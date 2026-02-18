@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   MessageSquare,
   Pencil,
-  Send,
   Server,
   ShieldCheck,
   Terminal,
@@ -16,6 +15,9 @@ import {
 import React from 'react';
 
 import { Goose } from './icons/Goose';
+import { BottomMenuModeSelection } from './bottom_menu/BottomMenuModeSelection';
+import { BottomMenuAgentSelection } from './bottom_menu/BottomMenuAgentSelection';
+import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 
 interface Capability {
   icon: React.ElementType;
@@ -30,63 +32,63 @@ const CAPABILITIES: Capability[] = [
     icon: Code,
     label: 'Write & refactor code',
     description: 'Generate, transform, or modernize code across languages',
-    prompt: 'Help me write clean, well-structured code',
+    prompt: 'Help me write or refactor some code',
     color: 'text-accent',
   },
   {
     icon: Bug,
     label: 'Debug & fix issues',
     description: 'Trace bugs, read stack traces, and apply targeted fixes',
-    prompt: 'Help me debug and fix an issue in my code',
+    prompt: 'Help me debug and fix an issue',
     color: 'text-text-danger',
   },
   {
     icon: TestTube,
     label: 'Write & run tests',
     description: 'Generate unit, integration, and e2e tests with coverage',
-    prompt: 'Help me write comprehensive tests for my code',
+    prompt: 'Help me write tests for my code',
     color: 'text-text-success',
   },
   {
     icon: FileSearch,
     label: 'Understand a codebase',
     description: 'Navigate, explain, and document unfamiliar code',
-    prompt: 'Help me understand this codebase and how it works',
+    prompt: 'Help me understand this codebase',
     color: 'text-text-warning',
   },
   {
     icon: Terminal,
     label: 'Run shell commands',
     description: 'Execute builds, scripts, git operations, and CLI tools',
-    prompt: 'Help me with shell commands and scripting',
+    prompt: 'Help me run some shell commands',
     color: 'text-text-info',
   },
   {
     icon: GitBranch,
     label: 'Manage git workflow',
     description: 'Branch, commit, rebase, resolve conflicts, open PRs',
-    prompt: 'Help me manage my git workflow',
+    prompt: 'Help me with my git workflow',
     color: 'text-text-muted',
   },
   {
     icon: Server,
     label: 'DevOps & infrastructure',
     description: 'Docker, CI/CD pipelines, deployment configs',
-    prompt: 'Help me with DevOps and infrastructure setup',
+    prompt: 'Help me with DevOps and infrastructure',
     color: 'text-text-subtle',
   },
   {
     icon: ShieldCheck,
     label: 'Security & quality audit',
     description: 'Find vulnerabilities, lint issues, and code smells',
-    prompt: 'Audit my code for security issues and quality problems',
+    prompt: 'Run a security and quality audit on my code',
     color: 'text-text-danger',
   },
   {
     icon: Pencil,
     label: 'Write documentation',
     description: 'READMEs, API docs, architecture guides, changelogs',
-    prompt: 'Help me write clear documentation for my project',
+    prompt: 'Help me write documentation',
     color: 'text-text-success',
   },
   {
@@ -94,14 +96,14 @@ const CAPABILITIES: Capability[] = [
     label: 'Build UI components',
     description: 'React, Next.js, Tailwind — from mockup to pixel-perfect',
     prompt: 'Help me build a UI component',
-    color: 'text-accent',
+    color: 'text-text-info',
   },
   {
     icon: Globe,
     label: 'Research & learn',
     description: 'Explore APIs, compare libraries, learn new tech',
-    prompt: 'Help me research and learn about a technology',
-    color: 'text-text-info',
+    prompt: 'Help me research and learn about a topic',
+    color: 'text-text-warning',
   },
   {
     icon: MessageSquare,
@@ -116,27 +118,7 @@ interface WelcomeStateProps {
   onSubmit: (text: string) => void;
 }
 
-export function WelcomeState({ onSubmit }: WelcomeStateProps) {
-  const [input, setInput] = React.useState('');
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-  const handleSubmit = React.useCallback(() => {
-    const text = input.trim();
-    if (!text) return;
-    onSubmit(text);
-    setInput('');
-  }, [input, onSubmit]);
-
-  const handleKeyDown = React.useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit();
-      }
-    },
-    [handleSubmit]
-  );
-
+export default function WelcomeState({ onSubmit }: WelcomeStateProps) {
   return (
     <div className="flex flex-col items-center px-8 py-12 max-w-3xl mx-auto">
       {/* Vertical space + Goose icon */}
@@ -187,35 +169,26 @@ export function WelcomeState({ onSubmit }: WelcomeStateProps) {
         ))}
       </div>
 
-      {/* Inline input — matches ChatInput styling */}
+      {/* Status bar — mode, agents, extensions */}
       <div className="w-full mt-8">
         <div
-          className="relative flex items-end bg-background-default border border-border-default rounded-t-2xl
-            hover:border-border-strong focus-within:border-border-strong
-            transition-all p-4 z-10"
+          className="flex items-center justify-center gap-0 px-4 py-2
+            bg-background-default border border-border-default rounded-xl
+            text-xs text-text-muted"
         >
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="What should goose do?"
-            rows={1}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-1 pb-0.5 text-sm
-              resize-none text-text-default placeholder:text-text-muted overflow-y-auto"
-            style={{ maxHeight: '150px' }}
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={!input.trim()}
-            className="ml-2 p-1.5 rounded-lg transition-all
-              disabled:opacity-30 disabled:cursor-not-allowed
-              text-text-muted hover:text-text-default hover:bg-background-muted"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          <BottomMenuModeSelection />
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <BottomMenuAgentSelection />
+          <div className="w-px h-4 bg-border-default mx-2" />
+          <BottomMenuExtensionSelection sessionId={null} />
         </div>
       </div>
+
+      {/* Footer hint */}
+      <p className="text-xs text-text-subtle mt-6 text-center">
+        Type <kbd className="px-1.5 py-0.5 rounded bg-background-muted text-[11px] text-text-default font-mono">/</kbd> for
+        slash commands · Drag files into the chat
+      </p>
     </div>
   );
 }

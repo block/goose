@@ -11,7 +11,7 @@ import React, {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
 
-import { WelcomeState } from './WelcomeState';
+import WelcomeState from './WelcomeState';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';

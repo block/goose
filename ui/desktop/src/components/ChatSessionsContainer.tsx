@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
-import { WelcomeState } from './WelcomeState';
+import WelcomeState from './WelcomeState';
 import { ChatType } from '../types/chat';
 import { UserInput } from '../types/message';
 import { startNewSession } from '../sessions';
