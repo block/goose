@@ -7,9 +7,7 @@
 use crate::agents::builtin_skills;
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::agents::subagent_handler::{
-    run_complete_subagent_task, run_subagent_task_with_callback, OnMessageCallback,
-};
+use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
@@ -24,7 +22,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, Tool, ToolsCapability,
+    ProtocolVersion, ServerCapabilities, ServerNotification, Tool, ToolsCapability,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -32,7 +30,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -122,6 +120,7 @@ pub struct BackgroundTask {
     pub last_activity: Arc<AtomicU64>,
     pub handle: JoinHandle<Result<String>>,
     pub cancellation_token: CancellationToken,
+    pub notification_buffer: Arc<Mutex<Vec<ServerNotification>>>,
 }
 
 pub struct CompletedTask {
@@ -234,6 +233,7 @@ pub struct SummonClient {
     source_cache: Mutex<Option<(Instant, PathBuf, Vec<Source>)>>,
     background_tasks: Mutex<HashMap<String, BackgroundTask>>,
     completed_tasks: Mutex<HashMap<String, CompletedTask>>,
+    notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
 }
 
 impl Drop for SummonClient {
@@ -283,7 +283,30 @@ impl SummonClient {
             source_cache: Mutex::new(None),
             background_tasks: Mutex::new(HashMap::new()),
             completed_tasks: Mutex::new(HashMap::new()),
+            notification_subscribers: Arc::new(Mutex::new(Vec::new())),
         })
+    }
+
+    fn spawn_notification_bridge(
+        mut notif_rx: tokio::sync::mpsc::UnboundedReceiver<ServerNotification>,
+        subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
+        buffer: Arc<Mutex<Vec<ServerNotification>>>,
+    ) {
+        tokio::spawn(async move {
+            while let Some(notification) = notif_rx.recv().await {
+                let mut subs = subscribers.lock().await;
+                if subs.is_empty() {
+                    drop(subs);
+                    buffer.lock().await.push(notification);
+                } else {
+                    subs.retain(|tx| match tx.try_send(notification.clone()) {
+                        Ok(()) => true,
+                        Err(mpsc::error::TrySendError::Full(_)) => true,
+                        Err(mpsc::error::TrySendError::Closed(_)) => false,
+                    });
+                }
+            }
+        });
     }
 
     fn create_load_tool(&self) -> Tool {
@@ -368,10 +391,10 @@ impl SummonClient {
              Effective Delegation:\n\
              - Delegates know only instructions + source content\n\
              - Delegates cannot coordinate. Same-file work = conflicts.\n\
-             - Parallel: async: true, sleep to poll. Single: sync.\n\n\
+             - Parallel: async: true, then load(taskId) to wait and get results. Single: sync.\n\n\
              Research (read-only): parallelize freely - delegates explore and report back.\n\
              Work (writes): partition files strictly - no two delegates touch the same file.\n\n\
-             Decompose → async delegates → sleep → synthesize."
+             Decompose → async delegates → load(taskId) for each → synthesize."
                 .to_string(),
             schema.as_object().unwrap().clone(),
         )
@@ -817,44 +840,97 @@ impl SummonClient {
 
         let mut running = self.background_tasks.lock().await;
         if running.contains_key(task_id) {
-            if !cancel {
-                return Err(format!(
-                    "Task '{}' is still running. Use load(source: \"{}\", cancel: true) to stop.",
-                    task_id, task_id
-                ));
+            if cancel {
+                let task = running.remove(task_id).unwrap();
+                drop(running);
+
+                task.cancellation_token.cancel();
+
+                let duration = task.started_at.elapsed();
+                let turns_taken = task.turns.load(Ordering::Relaxed);
+
+                let mut handle = task.handle;
+                let output = tokio::select! {
+                    result = &mut handle => {
+                        match result {
+                            Ok(Ok(s)) => s,
+                            Ok(Err(e)) => format!("Error: {}", e),
+                            Err(e) => format!("Task panicked: {}", e),
+                        }
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                        handle.abort();
+                        "Task did not stop in time (aborted)".to_string()
+                    }
+                };
+
+                return Ok(vec![Content::text(format!(
+                    "# Background Task Result: {}\n\n\
+                     **Task:** {}\n\
+                     **Status:** ⊘ Cancelled\n\
+                     **Duration:** {} ({} turns)\n\n\
+                     ## Output\n\n{}",
+                    task_id,
+                    task.description,
+                    round_duration(duration),
+                    turns_taken,
+                    output
+                ))]);
             }
 
+            // Wait for the running task to complete, keeping the tool call
+            // alive so notifications (subagent tool calls) stream in real time.
             let task = running.remove(task_id).unwrap();
             drop(running);
 
-            task.cancellation_token.cancel();
+            let buffered = {
+                let mut buf = task.notification_buffer.lock().await;
+                std::mem::take(&mut *buf)
+            };
+            if !buffered.is_empty() {
+                let subs = self.notification_subscribers.lock().await;
+                for notif in buffered {
+                    for tx in subs.iter() {
+                        let _ = tx.try_send(notif.clone());
+                    }
+                }
+            }
 
-            let duration = task.started_at.elapsed();
-            let turns_taken = task.turns.load(Ordering::Relaxed);
-
+            let description = task.description.clone();
             let mut handle = task.handle;
-            let output = tokio::select! {
+
+            let (output, timed_out) = tokio::select! {
                 result = &mut handle => {
-                    match result {
+                    let s = match result {
                         Ok(Ok(s)) => s,
                         Ok(Err(e)) => format!("Error: {}", e),
                         Err(e) => format!("Task panicked: {}", e),
-                    }
+                    };
+                    (s, false)
                 }
-                _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                _ = tokio::time::sleep(Duration::from_secs(300)) => {
                     handle.abort();
-                    "Task did not stop in time (aborted)".to_string()
+                    ("Task timed out waiting for completion (aborted after 5 min)".to_string(), true)
                 }
+            };
+
+            let duration = task.started_at.elapsed();
+            let turns_taken = task.turns.load(Ordering::Relaxed);
+            let status = if timed_out {
+                "⏱ Timed out"
+            } else {
+                "✓ Completed"
             };
 
             return Ok(vec![Content::text(format!(
                 "# Background Task Result: {}\n\n\
                  **Task:** {}\n\
-                 **Status:** ⊘ Cancelled\n\
+                 **Status:** {}\n\
                  **Duration:** {} ({} turns)\n\n\
                  ## Output\n\n{}",
                 task_id,
-                task.description,
+                description,
+                status,
                 round_duration(duration),
                 turns_taken,
                 output
@@ -1053,14 +1129,23 @@ impl SummonClient {
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
 
-        let result = run_complete_subagent_task(
-            agent_config,
+        let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
+        Self::spawn_notification_bridge(
+            notif_rx,
+            Arc::clone(&self.notification_subscribers),
+            Arc::new(Mutex::new(Vec::new())),
+        );
+
+        let result = run_subagent_task(SubagentRunParams {
+            config: agent_config,
             recipe,
             task_config,
-            true,
-            subagent_session.id,
-            Some(cancellation_token),
-        )
+            return_last_only: true,
+            session_id: subagent_session.id,
+            cancellation_token: Some(cancellation_token),
+            on_message: None,
+            notification_tx: Some(notif_tx),
+        })
         .await
         .map_err(|e| format!("Delegation failed: {}", e))?;
 
@@ -1332,11 +1417,10 @@ impl SummonClient {
             .or_else(|| session.provider_name.clone())
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
-        let mut model_config = session
-            .model_config
-            .clone()
-            .map(Ok)
-            .unwrap_or_else(|| crate::model::ModelConfig::new("default"))?;
+        let mut model_config = session.model_config.clone().map(Ok).unwrap_or_else(|| {
+            crate::model::ModelConfig::new("default")
+                .map(|c| c.with_canonical_limits(&provider_name))
+        })?;
 
         if let Some(model) = &params.model {
             model_config.model_name = model.clone();
@@ -1497,16 +1581,26 @@ impl SummonClient {
         let task_token = CancellationToken::new();
         let task_token_clone = task_token.clone();
 
+        let notification_buffer = Arc::new(Mutex::new(Vec::new()));
+
+        let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
+        Self::spawn_notification_bridge(
+            notif_rx,
+            Arc::clone(&self.notification_subscribers),
+            Arc::clone(&notification_buffer),
+        );
+
         let handle = tokio::spawn(async move {
-            run_subagent_task_with_callback(
-                agent_config,
+            run_subagent_task(SubagentRunParams {
+                config: agent_config,
                 recipe,
                 task_config,
-                true,
-                subagent_session.id,
-                Some(task_token_clone),
-                Some(on_message),
-            )
+                return_last_only: true,
+                session_id: subagent_session.id,
+                cancellation_token: Some(task_token_clone),
+                on_message: Some(on_message),
+                notification_tx: Some(notif_tx),
+            })
             .await
         });
 
@@ -1518,6 +1612,7 @@ impl SummonClient {
             last_activity,
             handle,
             cancellation_token: task_token,
+            notification_buffer,
         };
 
         self.background_tasks
@@ -1526,8 +1621,8 @@ impl SummonClient {
             .insert(task_id.clone(), task);
 
         Ok(vec![Content::text(format!(
-            "Task {} started in background: \"{}\"\nStatus will appear in context.",
-            task_id, description
+            "Task {} started in background: \"{}\"\nUse load(source: \"{}\") to wait for the result (it will block until complete).",
+            task_id, description, task_id
         ))])
     }
 }
@@ -1591,6 +1686,12 @@ impl McpClientTrait for SummonClient {
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+
+    async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
+        let (tx, rx) = mpsc::channel(16);
+        self.notification_subscribers.lock().await.push(tx);
+        rx
     }
 
     async fn get_moim(&self, _session_id: &str) -> Option<String> {
@@ -1830,6 +1931,26 @@ You review code."#;
         assert!(result.unwrap_err().contains("not found"));
 
         {
+            use crate::agents::subagent_handler::create_tool_notification;
+            use crate::conversation::message::MessageContent;
+            use rmcp::model::CallToolRequestParams;
+
+            let tool_call = CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "developer__shell".to_string().into(),
+                arguments: Some(
+                    serde_json::json!({"command": "ls"})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                ),
+            };
+            let content = MessageContent::tool_request("req1", Ok(tool_call));
+            let notif = create_tool_notification(&content, "20260204_1").unwrap();
+
+            let buffer = Arc::new(Mutex::new(vec![notif]));
+
             let mut running = client.background_tasks.lock().await;
             running.insert(
                 "20260204_1".to_string(),
@@ -1840,24 +1961,37 @@ You review code."#;
                     turns: Arc::new(AtomicU32::new(2)),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
                     handle: tokio::spawn(async {
-                        tokio::time::sleep(Duration::from_secs(1000)).await;
+                        tokio::time::sleep(Duration::from_millis(50)).await;
                         Ok("done".to_string())
                     }),
                     cancellation_token: CancellationToken::new(),
+                    notification_buffer: buffer,
                 },
             );
         }
-        let result = client.handle_load_task_result("20260204_1", false).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.contains("still running"));
-        assert!(err.contains("cancel: true"));
 
-        let moim = client.get_moim("test").await.unwrap();
-        assert!(moim.contains("20260204_1"));
-        assert!(moim.contains("running"));
-        assert!(moim.contains("sleep"));
-        assert!(moim.contains("cancel: true"));
+        let mut subscriber = client.subscribe().await;
+
+        let result = client
+            .handle_load_task_result("20260204_1", false)
+            .await
+            .expect("load should wait and return result");
+        let text = extract_text(&result[0]);
+        assert!(text.contains("Completed"));
+        assert!(text.contains("done"));
+
+        let notif = subscriber
+            .try_recv()
+            .expect("subscriber should receive buffered notification");
+        if let ServerNotification::LoggingMessageNotification(log) = notif {
+            let data = log.params.data.as_object().unwrap();
+            assert_eq!(
+                data.get("subagent_id").and_then(|v| v.as_str()),
+                Some("20260204_1")
+            );
+        } else {
+            panic!("expected logging notification");
+        }
 
         {
             let mut completed = client.completed_tasks.lock().await;
@@ -1928,11 +2062,8 @@ You review code."#;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not found"));
 
-        let moim = client.get_moim("test").await.unwrap();
-        assert!(moim.contains("20260204_1"));
-        assert!(moim.contains("sleep"));
-        assert!(!moim.contains("20260204_2"));
-        assert!(!moim.contains("20260204_3"));
+        // All tasks consumed -- moim should be empty
+        assert!(client.get_moim("test").await.is_none());
     }
 
     #[tokio::test]
@@ -1955,6 +2086,7 @@ You review code."#;
                         Ok("should not see this".to_string())
                     }),
                     cancellation_token: token.clone(),
+                    notification_buffer: Arc::new(Mutex::new(Vec::new())),
                 },
             );
         }

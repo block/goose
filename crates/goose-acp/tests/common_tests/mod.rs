@@ -25,7 +25,7 @@ pub async fn run_config_mcp<C: Connection>() {
     let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
 
     let config_yaml = format!(
-        "GOOSE_MODEL: {TEST_MODEL}\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
+        "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
         mcp.url
     );
     fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();

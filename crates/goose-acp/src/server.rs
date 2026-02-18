@@ -738,7 +738,8 @@ impl GooseAcpAgent {
                 let config_path = self.config_dir.join(CONFIG_YAML_NAME);
                 let config = Config::new(&config_path, "goose")?;
                 let model_id = config.get_goose_model()?;
-                goose::model::ModelConfig::new(&model_id)?
+                let provider_name = config.get_goose_provider()?;
+                goose::model::ModelConfig::new(&model_id)?.with_canonical_limits(&provider_name)
             }
         };
         let provider = (self.provider_factory)(model_config, Vec::new()).await?;
@@ -956,9 +957,18 @@ impl GooseAcpAgent {
         session_id: &str,
         model_id: &str,
     ) -> Result<SetSessionModelResponse, sacp::Error> {
-        let model_config = goose::model::ModelConfig::new(model_id).map_err(|e| {
-            sacp::Error::invalid_params().data(format!("Invalid model config: {}", e))
+        let config_path = self.config_dir.join(CONFIG_YAML_NAME);
+        let config = Config::new(&config_path, "goose").map_err(|e| {
+            sacp::Error::internal_error().data(format!("Failed to read config: {}", e))
         })?;
+        let provider_name = config.get_goose_provider().map_err(|_| {
+            sacp::Error::internal_error().data("No provider configured".to_string())
+        })?;
+        let model_config = goose::model::ModelConfig::new(model_id)
+            .map_err(|e| {
+                sacp::Error::invalid_params().data(format!("Invalid model config: {}", e))
+            })?
+            .with_canonical_limits(&provider_name);
         let provider = (self.provider_factory)(model_config, Vec::new())
             .await
             .map_err(|e| {
@@ -1279,20 +1289,14 @@ print(\"hello, world\")
             "mock"
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &goose::model::ModelConfig,
+            _session_id: &str,
             _system: &str,
             _messages: &[goose::conversation::message::Message],
             _tools: &[rmcp::model::Tool],
-        ) -> Result<
-            (
-                goose::conversation::message::Message,
-                goose::providers::base::ProviderUsage,
-            ),
-            ProviderError,
-        > {
+        ) -> Result<goose::providers::base::MessageStream, ProviderError> {
             unimplemented!()
         }
 

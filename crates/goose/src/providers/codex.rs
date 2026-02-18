@@ -10,7 +10,9 @@ use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::{CodexCommand, CodexReasoningEffort, CodexSkipGitCheck};
@@ -598,9 +600,9 @@ impl ProviderDef for CodexProvider {
             CODEX_KNOWN_MODELS.to_vec(),
             CODEX_DOC_URL,
             vec![
-                ConfigKey::from_value_type::<CodexCommand>(true, false),
-                ConfigKey::from_value_type::<CodexReasoningEffort>(false, false),
-                ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false),
+                ConfigKey::from_value_type::<CodexCommand>(true, false, true),
+                ConfigKey::from_value_type::<CodexReasoningEffort>(false, false, true),
+                ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false, true),
             ],
         )
         .with_unlisted_models()
@@ -671,19 +673,23 @@ impl Provider for CodexProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         model_config: &ModelConfig,
+        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         if super::cli_common::is_session_description_request(system) {
-            return super::cli_common::generate_simple_session_description(
+            let (message, provider_usage) = super::cli_common::generate_simple_session_description(
                 &model_config.model_name,
                 messages,
-            );
+            )?;
+            return Ok(super::base::stream_from_single_message(
+                message,
+                provider_usage,
+            ));
         }
 
         let lines = self.execute_command(system, messages, tools).await?;
@@ -712,9 +718,10 @@ impl Provider for CodexProvider {
             ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
         })?;
 
-        Ok((
+        let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
+        Ok(super::base::stream_from_single_message(
             message,
-            ProviderUsage::new(model_config.model_name.clone(), usage),
+            provider_usage,
         ))
     }
 

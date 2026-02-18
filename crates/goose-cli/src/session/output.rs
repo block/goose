@@ -419,6 +419,7 @@ fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
             "todo__write" => render_todo_request(call, debug),
+            "load" => {}
             _ => render_default_request(call, debug),
         },
         Err(e) => print_markdown(&e.to_string(), theme),

@@ -120,16 +120,26 @@ impl ProviderTester {
             .await
             .expect("get_prefixed_tools failed");
 
-        let info = self.extension_manager.get_extensions_info().await;
+        let info = self
+            .extension_manager
+            .get_extensions_info(std::path::Path::new("."))
+            .await;
         let system = PromptManager::new()
             .builder()
             .with_extensions(info.into_iter())
             .build();
 
         let message = Message::user().with_text(prompt);
+        let model_config = self.provider.get_model_config();
         let (response1, _) = self
             .provider
-            .complete(session_id, &system, std::slice::from_ref(&message), &tools)
+            .complete(
+                &model_config,
+                session_id,
+                &system,
+                std::slice::from_ref(&message),
+                &tools,
+            )
             .await?;
 
         // Agentic CLI providers (claude-code, codex) call tools internally and
@@ -163,6 +173,7 @@ impl ProviderTester {
         let (response2, _) = self
             .provider
             .complete(
+                &model_config,
                 session_id,
                 &system,
                 &[message, response1, tool_response],
@@ -174,10 +185,17 @@ impl ProviderTester {
 
     async fn test_basic_response(&self, session_id: &str) -> Result<()> {
         let message = Message::user().with_text("Just say hello!");
+        let model_config = self.provider.get_model_config();
 
         let (response, _) = self
             .provider
-            .complete(session_id, "You are a helpful assistant.", &[message], &[])
+            .complete(
+                &model_config,
+                session_id,
+                "You are a helpful assistant.",
+                &[message],
+                &[],
+            )
             .await?;
 
         assert!(
@@ -227,10 +245,17 @@ impl ProviderTester {
         };
 
         let messages = vec![Message::user().with_text(&large_message_content)];
+        let model_config = self.provider.get_model_config();
 
         let result = self
             .provider
-            .complete(session_id, "You are a helpful assistant.", &messages, &[])
+            .complete(
+                &model_config,
+                session_id,
+                "You are a helpful assistant.",
+                &messages,
+                &[],
+            )
             .await;
 
         println!("=== {}::context_length_exceeded_error ===", self.name);
@@ -283,14 +308,14 @@ impl ProviderTester {
             .model_switch_name
             .as_deref()
             .expect("model_switch_name required for test_model_switch");
-        let alt_config = goose::model::ModelConfig::new(alt)?;
+        let alt_config = goose::model::ModelConfig::new(alt)?.with_canonical_limits(&self.name);
 
         let message = Message::user().with_text("Just say hello!");
         let (response, _) = self
             .provider
-            .complete_with_model(
-                Some(session_id),
+            .complete(
                 &alt_config,
+                session_id,
                 "You are a helpful assistant.",
                 &[message],
                 &[],
