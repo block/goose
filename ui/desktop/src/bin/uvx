@@ -20,10 +20,11 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 
 log "Starting uvx setup script."
 
-if [ -n "${GOOSE_CONFIG_DIR:-}" ]; then
-    RESOLVED_GOOSE_CONFIG_DIR="${GOOSE_CONFIG_DIR}"
-elif [ -n "${GOOSE_PATH_ROOT:-}" ]; then
+if [ -n "${GOOSE_PATH_ROOT:-}" ]; then
     RESOLVED_GOOSE_CONFIG_DIR="${GOOSE_PATH_ROOT}/config"
+elif [ -n "${GOOSE_CONFIG_DIR:-}" ]; then
+    log "GOOSE_CONFIG_DIR is deprecated for desktop shims; prefer GOOSE_PATH_ROOT."
+    RESOLVED_GOOSE_CONFIG_DIR="${GOOSE_CONFIG_DIR}"
 else
     RESOLVED_GOOSE_CONFIG_DIR="${HOME}/.config/goose"
 fi
