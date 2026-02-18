@@ -24,7 +24,7 @@ import type {
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -39,11 +39,57 @@ import {
   McpAppToolInput,
   McpAppToolInputPartial,
   McpAppToolResult,
+  DimensionLayout,
 } from './types';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
 
 const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
+
+const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
+  inline: { width: 'fixed', height: 'unbounded' },
+  fullscreen: { width: 'fixed', height: 'fixed' },
+  standalone: { width: 'fixed', height: 'fixed' },
+  pip: { width: 'fixed', height: 'fixed' },
+  // Example: a sidebar where the app controls its height up to the visible area.
+  // sidecar: { width: 'fixed', height: 'flexible' },
+};
+
+function getContainerDimensions(
+  displayMode: GooseDisplayMode,
+  measuredWidth: number,
+  measuredHeight: number
+): McpUiHostContext['containerDimensions'] {
+  const layout = DISPLAY_MODE_LAYOUTS[displayMode] ?? DISPLAY_MODE_LAYOUTS.inline;
+
+  // Only require a measurement for axes that are fixed or flexible (unbounded axes are omitted).
+  if (layout.width !== 'unbounded' && measuredWidth <= 0) return undefined;
+  if (layout.height !== 'unbounded' && measuredHeight <= 0) return undefined;
+
+  const widthDimension = (() => {
+    switch (layout.width) {
+      case 'fixed':
+        return { width: measuredWidth };
+      case 'flexible':
+        return { maxWidth: measuredWidth };
+      case 'unbounded':
+        return {};
+    }
+  })();
+
+  const heightDimension = (() => {
+    switch (layout.height) {
+      case 'fixed':
+        return { height: measuredHeight };
+      case 'flexible':
+        return { maxHeight: measuredHeight };
+      case 'unbounded':
+        return {};
+    }
+  })();
+
+  return { ...widthDimension, ...heightDimension };
+}
 
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
@@ -195,6 +241,10 @@ export default function McpAppRenderer({
 
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
@@ -390,6 +440,24 @@ export default function McpAppRenderer({
     []
   );
 
+  // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = Math.round(entry.contentBoxSize[0]?.inlineSize ?? entry.contentRect.width);
+        const height = Math.round(entry.contentBoxSize[0]?.blockSize ?? entry.contentRect.height);
+        setContainerWidth((prev) => (prev !== width ? width : prev));
+        setContainerHeight((prev) => (prev !== height ? height : prev));
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
       // todo: handle `sampling/createMessage` per https://github.com/block/goose/pull/7039
@@ -443,7 +511,7 @@ export default function McpAppRenderer({
       displayMode: displayMode as McpUiDisplayMode,
       availableDisplayModes:
         displayMode === 'standalone' ? [displayMode as McpUiDisplayMode] : AVAILABLE_DISPLAY_MODES,
-      // todo: containerDimensions: {} (depends on displayMode)
+      containerDimensions: getContainerDimensions(displayMode, containerWidth, containerHeight),
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: navigator.userAgent,
@@ -461,7 +529,7 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, displayMode]);
+  }, [resolvedTheme, displayMode, containerWidth, containerHeight]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
@@ -541,7 +609,7 @@ export default function McpAppRenderer({
       };
 
   return (
-    <div className={containerClasses} style={containerStyle}>
+    <div ref={containerRef} className={containerClasses} style={containerStyle}>
       {renderContent()}
     </div>
   );
