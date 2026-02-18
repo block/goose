@@ -366,7 +366,10 @@ fn format_model_hint(info: &goose::providers::base::ModelInfo) -> String {
         // Display as cost per 1M tokens for readability
         let input_per_m = input * 1_000_000.0;
         let output_per_m = output * 1_000_000.0;
-        parts.push(format!("${:.2}/${:.2} per 1M tokens", input_per_m, output_per_m));
+        parts.push(format!(
+            "${:.2}/${:.2} per 1M tokens",
+            input_per_m, output_per_m
+        ));
     }
 
     parts.join(" · ")
@@ -459,12 +462,7 @@ fn select_model_from_list(
     const MAX_MODELS: usize = 10;
     const UNLISTED_MODEL_KEY: &str = "__unlisted__";
 
-    let hint_for = |name: &str| -> String {
-        model_hints
-            .get(name)
-            .cloned()
-            .unwrap_or_default()
-    };
+    let hint_for = |name: &str| -> String { model_hints.get(name).cloned().unwrap_or_default() };
 
     // Smart model selection:
     // If we have more than MAX_MODELS models, show the recommended models with additional search option.

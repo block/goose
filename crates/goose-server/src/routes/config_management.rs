@@ -433,9 +433,7 @@ pub async fn get_provider_model_info(
             let models = provider.fetch_recommended_models().await?;
             let info: Vec<ModelInfo> = models
                 .into_iter()
-                .map(|model_name| {
-                    ModelInfo::new(model_name, 128000).enriched_from_canonical(&name)
-                })
+                .map(|model_name| ModelInfo::new(model_name, 128000).enriched_from_canonical(&name))
                 .collect();
             Ok(Json(info))
         }
@@ -526,8 +524,7 @@ pub async fn get_canonical_model_info(
 
     // Fall back to provider-supplied info (e.g., LiteLLM proxy)
     let all = get_providers().await.into_iter().collect::<Vec<_>>();
-    if let Some((metadata, provider_type)) =
-        all.into_iter().find(|(m, _)| m.name == query.provider)
+    if let Some((metadata, provider_type)) = all.into_iter().find(|(m, _)| m.name == query.provider)
     {
         if check_provider_configured(&metadata, provider_type) {
             if let Ok(model_config) = ModelConfig::new(&metadata.default_model) {

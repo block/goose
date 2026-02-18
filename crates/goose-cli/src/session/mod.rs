@@ -738,10 +738,7 @@ impl CliSession {
                 );
             }
             None => {
-                let variant_str = current
-                    .variant
-                    .as_deref()
-                    .unwrap_or("not set");
+                let variant_str = current.variant.as_deref().unwrap_or("not set");
                 println!(
                     "{}",
                     console::style(format!(

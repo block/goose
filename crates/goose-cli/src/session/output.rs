@@ -1331,9 +1331,13 @@ pub fn display_cost_usage(
     output_tokens: usize,
     provider_pricing: Option<(f64, f64)>,
 ) {
-    if let Some(cost) =
-        estimate_cost_usd(provider, model, input_tokens, output_tokens, provider_pricing)
-    {
+    if let Some(cost) = estimate_cost_usd(
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        provider_pricing,
+    ) {
         use console::style;
         eprintln!(
             "Cost: {} USD ({} tokens: in {}, out {})",
