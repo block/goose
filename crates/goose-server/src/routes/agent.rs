@@ -48,6 +48,9 @@ pub struct UpdateProviderRequest {
     session_id: String,
     context_limit: Option<usize>,
     request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// Reasoning variant level (e.g., "low", "medium", "high", "max").
+    /// Only applicable to models that support reasoning.
+    variant: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -551,7 +554,8 @@ async fn update_agent_provider(
         })?
         .with_canonical_limits(&payload.provider)
         .with_context_limit(payload.context_limit)
-        .with_request_params(payload.request_params);
+        .with_request_params(payload.request_params)
+        .with_variant(payload.variant);
 
     let extensions =
         EnabledExtensionsState::for_session(state.session_manager(), &payload.session_id, config)
