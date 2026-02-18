@@ -1475,7 +1475,6 @@ fn maybe_open_credits_top_up_url(
         return;
     }
 
-    output::hide_thinking();
     let should_open = cliclack::confirm("Open the top-up URL in your browser?")
         .initial_value(false)
         .interact()
