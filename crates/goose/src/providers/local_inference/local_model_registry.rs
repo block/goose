@@ -91,53 +91,13 @@ impl Default for ModelSettings {
     }
 }
 
-/// Recommended models with their HuggingFace specs and metadata.
-/// Format: (spec, display_name, context_limit, tier)
-pub struct FeaturedModel {
-    pub spec: &'static str,
-    pub display_name: &'static str,
-    pub context_limit: u32,
-    pub tier: ModelTier,
-    pub size_bytes: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, ToSchema)]
-pub enum ModelTier {
-    Tiny,
-    Small,
-    Medium,
-    Large,
-}
-
-pub const FEATURED_MODELS: &[FeaturedModel] = &[
-    FeaturedModel {
-        spec: "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
-        display_name: "Llama 3.2 1B",
-        context_limit: 131072,
-        tier: ModelTier::Tiny,
-        size_bytes: 771_221_824, // ~771 MB
-    },
-    FeaturedModel {
-        spec: "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
-        display_name: "Llama 3.2 3B",
-        context_limit: 131072,
-        tier: ModelTier::Small,
-        size_bytes: 2_019_377_696, // ~2.0 GB
-    },
-    FeaturedModel {
-        spec: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
-        display_name: "Hermes 2 Pro 7B",
-        context_limit: 4096,
-        tier: ModelTier::Medium,
-        size_bytes: 4_368_439_584, // ~4.4 GB
-    },
-    FeaturedModel {
-        spec: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
-        display_name: "Mistral Small 24B",
-        context_limit: 32768,
-        tier: ModelTier::Large,
-        size_bytes: 14_315_823_264, // ~14.3 GB
-    },
+/// Featured models - just the HuggingFace specs.
+/// Format: "author/repo-GGUF:quantization"
+pub const FEATURED_MODELS: &[&str] = &[
+    "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
+    "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
+    "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
+    "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
 ];
 
 /// Parse a model spec like "author/repo:quantization" into (repo_id, quantization)
@@ -150,15 +110,10 @@ pub fn parse_model_spec(spec: &str) -> Option<(&str, &str)> {
     }
 }
 
-/// Get the recommended model info for a spec
-pub fn get_featured_info(spec: &str) -> Option<&'static FeaturedModel> {
-    FEATURED_MODELS.iter().find(|m| m.spec == spec)
-}
-
-/// Check if a model ID corresponds to a recommended model
+/// Check if a model ID corresponds to a featured model
 pub fn is_featured_model(model_id: &str) -> bool {
-    FEATURED_MODELS.iter().any(|m| {
-        if let Some((repo_id, quant)) = parse_model_spec(m.spec) {
+    FEATURED_MODELS.iter().any(|spec| {
+        if let Some((repo_id, quant)) = parse_model_spec(spec) {
             model_id_from_repo(repo_id, quant) == model_id
         } else {
             false
@@ -166,16 +121,61 @@ pub fn is_featured_model(model_id: &str) -> bool {
     })
 }
 
-/// Get recommended model info by model_id
-pub fn get_featured_by_id(model_id: &str) -> Option<&'static FeaturedModel> {
-    FEATURED_MODELS.iter().find(|m| {
-        if let Some((repo_id, quant)) = parse_model_spec(m.spec) {
+/// Get the spec for a featured model by model_id
+pub fn get_featured_spec(model_id: &str) -> Option<&'static str> {
+    FEATURED_MODELS.iter().find(|spec| {
+        if let Some((repo_id, quant)) = parse_model_spec(spec) {
             model_id_from_repo(repo_id, quant) == model_id
         } else {
             false
         }
-    })
+    }).copied()
 }
+
+/// Legacy model definitions for backwards compatibility.
+pub struct LegacyModel {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub repo_id: &'static str,
+    pub filename: &'static str,
+    pub quantization: &'static str,
+    pub source_url: &'static str,
+}
+
+pub const LEGACY_MODELS: &[LegacyModel] = &[
+    LegacyModel {
+        id: "llama-3.2-1b",
+        display_name: "Llama 3.2 1B",
+        repo_id: "bartowski/Llama-3.2-1B-Instruct-GGUF",
+        filename: "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+        quantization: "Q4_K_M",
+        source_url: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    },
+    LegacyModel {
+        id: "llama-3.2-3b",
+        display_name: "Llama 3.2 3B",
+        repo_id: "bartowski/Llama-3.2-3B-Instruct-GGUF",
+        filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+        quantization: "Q4_K_M",
+        source_url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+    },
+    LegacyModel {
+        id: "hermes-2-pro-7b",
+        display_name: "Hermes 2 Pro 7B",
+        repo_id: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF",
+        filename: "Hermes-2-Pro-Mistral-7B-Q4_K_M.gguf",
+        quantization: "Q4_K_M",
+        source_url: "https://huggingface.co/bartowski/Hermes-2-Pro-Mistral-7B-GGUF/resolve/main/Hermes-2-Pro-Mistral-7B-Q4_K_M.gguf",
+    },
+    LegacyModel {
+        id: "mistral-small-22b",
+        display_name: "Mistral Small 24B",
+        repo_id: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF",
+        filename: "Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
+        quantization: "Q4_K_M",
+        source_url: "https://huggingface.co/bartowski/Mistral-Small-24B-Instruct-2501-GGUF/resolve/main/Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
+    },
+];
 
 static REGISTRY: OnceLock<Mutex<LocalModelRegistry>> = OnceLock::new();
 
@@ -199,164 +199,91 @@ pub struct LocalModelEntry {
     pub source_url: String,
     #[serde(default)]
     pub settings: ModelSettings,
-    /// Size in bytes (from HuggingFace metadata, may be 0 if unknown)
     #[serde(default)]
     pub size_bytes: u64,
 }
 
-/// Download status computed at runtime
-#[derive(Debug, Clone, Serialize, ToSchema)]
-#[serde(tag = "state")]
+impl LocalModelEntry {
+    /// Check if the model file is downloaded
+    pub fn is_downloaded(&self) -> bool {
+        self.local_path.exists()
+    }
+
+    /// Get the download status of this model
+    pub fn download_status(&self) -> ModelDownloadStatus {
+        if self.local_path.exists() {
+            return ModelDownloadStatus::Downloaded;
+        }
+
+        // Check if there's an active download
+        let download_id = format!("{}-model", self.id);
+        let manager = get_download_manager();
+        if let Some(progress) = manager.get_progress(&download_id) {
+            return match progress.status {
+                DownloadStatus::Downloading => ModelDownloadStatus::Downloading {
+                    progress_percent: progress.progress_percent,
+                    bytes_downloaded: progress.bytes_downloaded,
+                    total_bytes: progress.total_bytes,
+                    speed_bps: progress.speed_bps.unwrap_or(0),
+                },
+                DownloadStatus::Completed => ModelDownloadStatus::Downloaded,
+                DownloadStatus::Failed => ModelDownloadStatus::NotDownloaded,
+                DownloadStatus::Cancelled => ModelDownloadStatus::NotDownloaded,
+            };
+        }
+
+        ModelDownloadStatus::NotDownloaded
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ModelDownloadStatus {
     NotDownloaded,
     Downloading {
         progress_percent: f32,
         bytes_downloaded: u64,
         total_bytes: u64,
-        speed_bps: Option<u64>,
+        speed_bps: u64,
     },
     Downloaded,
 }
 
-impl LocalModelEntry {
-    pub fn is_downloaded(&self) -> bool {
-        self.local_path.exists()
-    }
-
-    pub fn file_size(&self) -> u64 {
-        std::fs::metadata(&self.local_path)
-            .map(|m| m.len())
-            .unwrap_or(0)
-    }
-
-    /// Get the current download status by checking filesystem and download manager
-    pub fn download_status(&self) -> ModelDownloadStatus {
-        // Check if file exists on disk
-        if self.local_path.exists() {
-            return ModelDownloadStatus::Downloaded;
-        }
-
-        // Check download manager for in-progress download
-        let download_id = format!("{}-model", self.id);
-        let manager = get_download_manager();
-        if let Some(progress) = manager.get_progress(&download_id) {
-            match progress.status {
-                DownloadStatus::Downloading => {
-                    let progress_percent = if progress.total_bytes > 0 {
-                        (progress.bytes_downloaded as f32 / progress.total_bytes as f32) * 100.0
-                    } else {
-                        0.0
-                    };
-                    return ModelDownloadStatus::Downloading {
-                        progress_percent,
-                        bytes_downloaded: progress.bytes_downloaded,
-                        total_bytes: progress.total_bytes,
-                        speed_bps: progress.speed_bps,
-                    };
-                }
-                DownloadStatus::Completed => {
-                    return ModelDownloadStatus::Downloaded;
-                }
-                _ => {}
-            }
-        }
-
-        ModelDownloadStatus::NotDownloaded
-    }
-
-    /// Get the model spec in format "repo_id:quantization"
-    pub fn spec(&self) -> String {
-        format!("{}:{}", self.repo_id, self.quantization)
-    }
-}
-
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LocalModelRegistry {
+    #[serde(default)]
     pub models: Vec<LocalModelEntry>,
 }
 
-fn registry_path() -> PathBuf {
-    Paths::in_data_dir("models/registry.json")
-}
-
-/// The 4 legacy hardcoded model definitions for migration.
-struct LegacyModel {
-    id: &'static str,
-    display_name: &'static str,
-    repo_id: &'static str,
-    filename: &'static str,
-    quantization: &'static str,
-    source_url: &'static str,
-}
-
-const LEGACY_MODELS: &[LegacyModel] = &[
-    LegacyModel {
-        id: "llama-3.2-1b",
-        display_name: "Llama 3.2 1B",
-        repo_id: "bartowski/Llama-3.2-1B-Instruct-GGUF",
-        filename: "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-    },
-    LegacyModel {
-        id: "llama-3.2-3b",
-        display_name: "Llama 3.2 3B",
-        repo_id: "bartowski/Llama-3.2-3B-Instruct-GGUF",
-        filename: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-    },
-    LegacyModel {
-        id: "hermes-2-pro-7b",
-        display_name: "Hermes 2 Pro 7B",
-        repo_id: "NousResearch/Hermes-2-Pro-Mistral-7B-GGUF",
-        filename: "Hermes-2-Pro-Mistral-7B.Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Mistral-7B-GGUF/resolve/main/Hermes-2-Pro-Mistral-7B.Q4_K_M.gguf",
-    },
-    LegacyModel {
-        id: "mistral-small-22b",
-        display_name: "Mistral Small 22B",
-        repo_id: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF",
-        filename: "Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
-        quantization: "Q4_K_M",
-        source_url: "https://huggingface.co/bartowski/Mistral-Small-24B-Instruct-2501-GGUF/resolve/main/Mistral-Small-24B-Instruct-2501-Q4_K_M.gguf",
-    },
-];
-
 impl LocalModelRegistry {
     pub fn load() -> Result<Self> {
-        let path = registry_path();
+        let path = Paths::in_data_dir("models/registry.json");
         if path.exists() {
-            let data = std::fs::read_to_string(&path)?;
-            let registry: LocalModelRegistry = serde_json::from_str(&data)?;
-            Ok(registry)
+            let content = std::fs::read_to_string(&path)?;
+            Ok(serde_json::from_str(&content)?)
         } else {
-            Ok(LocalModelRegistry::default())
+            Ok(Self::default())
         }
     }
 
     pub fn save(&self) -> Result<()> {
-        let path = registry_path();
+        let path = Paths::in_data_dir("models/registry.json");
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let data = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, data)?;
+        let content = serde_json::to_string_pretty(&self)?;
+        std::fs::write(&path, content)?;
         Ok(())
     }
 
-    /// Migrate model IDs from the old `author--repo--variant` format to the
-    /// HuggingFace-style `author/repo:variant` format.
+    /// Migrate model IDs from old format to new HuggingFace-style format.
     pub fn migrate_model_ids(&mut self) {
         let mut changed = false;
         for entry in &mut self.models {
-            if entry.id.contains("--") {
+            // Check if this is an old-style ID (no colons)
+            if !entry.id.contains(':') && !entry.repo_id.is_empty() {
                 let new_id = model_id_from_repo(&entry.repo_id, &entry.quantization);
-                if entry.id != new_id {
-                    entry.id = new_id;
-                    changed = true;
-                }
+                entry.id = new_id;
+                changed = true;
             }
         }
         if changed {
@@ -384,6 +311,34 @@ impl LocalModelRegistry {
                 changed = true;
             }
         }
+        if changed {
+            let _ = self.save();
+        }
+    }
+
+    /// Sync registry with featured models:
+    /// - Add any featured models that are missing
+    /// - Remove any non-downloaded, non-featured models
+    pub fn sync_with_featured(&mut self, featured_entries: Vec<LocalModelEntry>) {
+        let mut changed = false;
+
+        // Add missing featured models
+        for entry in featured_entries {
+            if !self.models.iter().any(|m| m.id == entry.id) {
+                self.models.push(entry);
+                changed = true;
+            }
+        }
+
+        // Remove non-downloaded, non-featured models
+        let before_len = self.models.len();
+        self.models.retain(|m| {
+            m.is_downloaded() || is_featured_model(&m.id)
+        });
+        if self.models.len() != before_len {
+            changed = true;
+        }
+
         if changed {
             let _ = self.save();
         }

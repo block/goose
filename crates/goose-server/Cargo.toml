@@ -52,6 +52,7 @@ uuid = { workspace = true }
 once_cell = { workspace = true }
 dirs = { workspace = true }
 urlencoding.workspace = true
+sysinfo = "0.38.2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
