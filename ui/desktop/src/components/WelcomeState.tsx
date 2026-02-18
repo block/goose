@@ -12,7 +12,6 @@ import {
   Terminal,
   TestTube,
 } from 'lucide-react';
-import { Greeting } from './common/Greeting';
 import { Goose } from './icons/Goose';
 
 interface Capability {
@@ -28,78 +27,78 @@ const CAPABILITIES: Capability[] = [
     icon: Code,
     label: 'Write & refactor code',
     description: 'Generate, transform, or modernize code across languages',
-    prompt: 'Help me write code for a new feature',
-    color: 'text-text-accent',
+    prompt: 'Help me write clean, well-structured code',
+    color: 'text-accent',
   },
   {
     icon: Bug,
     label: 'Debug & fix issues',
     description: 'Trace bugs, read stack traces, and apply targeted fixes',
     prompt: 'Help me debug and fix an issue in my code',
-    color: 'text-status-error',
+    color: 'text-text-danger',
   },
   {
     icon: TestTube,
     label: 'Write & run tests',
     description: 'Generate unit, integration, and e2e tests with coverage',
-    prompt: 'Help me write comprehensive tests for my project',
-    color: 'text-status-success',
+    prompt: 'Help me write comprehensive tests for my code',
+    color: 'text-text-success',
   },
   {
     icon: FileSearch,
     label: 'Understand a codebase',
     description: 'Navigate, explain, and document unfamiliar code',
-    prompt: 'Help me understand how this codebase is structured',
-    color: 'text-status-warning',
+    prompt: 'Help me understand and navigate this codebase',
+    color: 'text-text-warning',
   },
   {
     icon: Terminal,
     label: 'Run shell commands',
     description: 'Execute builds, scripts, git operations, and CLI tools',
-    prompt: 'Help me set up and run my development environment',
-    color: 'text-text-muted',
+    prompt: 'Help me run shell commands to accomplish a task',
+    color: 'text-text-info',
   },
   {
     icon: GitBranch,
     label: 'Manage git workflow',
     description: 'Branch, commit, rebase, resolve conflicts, open PRs',
-    prompt: 'Help me manage my git branches and prepare a clean PR',
-    color: 'text-status-info',
+    prompt: 'Help me manage my git workflow',
+    color: 'text-text-muted',
   },
   {
     icon: Server,
     label: 'DevOps & infrastructure',
     description: 'Docker, CI/CD pipelines, deployment configs',
-    prompt: 'Help me set up CI/CD and deployment for my project',
+    prompt: 'Help me with DevOps and infrastructure setup',
     color: 'text-text-subtle',
   },
   {
     icon: ShieldCheck,
     label: 'Security & quality audit',
     description: 'Find vulnerabilities, lint issues, and code smells',
-    prompt: 'Run a security and quality audit on my codebase',
-    color: 'text-status-error',
+    prompt: 'Audit my code for security issues and quality problems',
+    color: 'text-text-danger',
   },
   {
     icon: Pencil,
     label: 'Write documentation',
     description: 'READMEs, API docs, architecture guides, changelogs',
-    prompt: 'Help me write documentation for my project',
-    color: 'text-text-accent',
+    prompt: 'Help me write clear documentation for my project',
+    color: 'text-text-success',
   },
   {
     icon: LayoutDashboard,
     label: 'Build UI components',
     description: 'React, Next.js, Tailwind — from mockup to pixel-perfect',
-    prompt: 'Help me build a responsive UI component',
-    color: 'text-status-success',
+    prompt: 'Help me build a UI component',
+    color: 'text-accent',
   },
   {
     icon: Globe,
     label: 'Research & learn',
     description: 'Explore APIs, compare libraries, learn new tech',
-    prompt: 'Help me research the best approach for my use case',
-    color: 'text-status-warning',
+    prompt: 'Help me research and learn about a technology',
+    color: 'text-text-info',
   },
   {
     icon: MessageSquare,
@@ -117,63 +116,51 @@ interface WelcomeStateProps {
 export function WelcomeState({ onSubmit }: WelcomeStateProps) {
   return (
     <div className="flex flex-col items-center px-8 py-12 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col items-center mb-12">
-        <div className="w-16 h-16 mb-5">
-          <Goose />
-        </div>
-        <Greeting />
-        <h2 className="text-2xl font-semibold text-text-default mt-5 tracking-tight">
-          What can be achieved?
-        </h2>
-        <p className="text-text-muted text-sm mt-2 text-center max-w-lg leading-relaxed">
-          Goose is your AI-powered development partner. Pick a starting point or just type what you need.
-        </p>
-      </div>
+      {/* Vertical space + Goose icon */}
+      <div className="pt-8" />
+      <Goose className="size-12" />
+      <div className="pt-8" />
 
-      {/* Capability grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 w-full mb-10">
+      {/* Big title */}
+      <h1 className="text-3xl font-bold tracking-tight text-text-default text-center">
+        Ready to create something great?
+      </h1>
+
+      {/* Subtitle */}
+      <h2 className="text-lg font-medium text-text-muted mt-2 text-center">
+        What can be achieved?
+      </h2>
+
+      {/* Paragraph */}
+      <p className="text-sm text-text-subtle mt-3 text-center max-w-lg leading-relaxed">
+        Goose is your AI-powered development partner. Pick a starting point or just type what you
+        need.
+      </p>
+
+      {/* Small vertical space + grid */}
+      <div className="pt-8" />
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full">
         {CAPABILITIES.map((cap) => (
           <button
             key={cap.label}
-            onClick={() => {
-              if (cap.prompt) {
-                onSubmit(cap.prompt);
-              }
-            }}
+            onClick={() => cap.prompt && onSubmit(cap.prompt)}
             disabled={!cap.prompt}
-            className="flex flex-col items-start gap-2.5 px-5 py-4 rounded-xl
-              border border-border-muted bg-background-default
-              hover:bg-background-muted hover:border-border-default
-              hover:shadow-md
+            className="group flex flex-col items-start gap-2 px-4 py-3.5 rounded-xl
+              border border-border-default bg-background-default
+              hover:bg-background-muted hover:border-border-strong hover:shadow-md
               active:scale-[0.98]
-              transition-all duration-200 text-left group
-              disabled:opacity-50 disabled:cursor-default disabled:hover:shadow-none"
+              disabled:opacity-40 disabled:cursor-default disabled:hover:bg-background-default disabled:hover:border-border-default disabled:hover:shadow-none
+              transition-all duration-150 text-left cursor-pointer"
           >
-            <cap.icon
-              className={`w-5 h-5 ${cap.color} flex-shrink-0
-                group-hover:scale-110 transition-transform duration-200`}
-            />
-            <div className="min-w-0 w-full">
-              <div className="text-sm font-medium text-text-default leading-tight">
-                {cap.label}
-              </div>
-              <div className="text-sm text-text-muted leading-snug mt-1">
-                {cap.description}
-              </div>
+            <cap.icon className={`size-5 ${cap.color} transition-transform group-hover:scale-110`} />
+            <div>
+              <div className="text-sm font-medium text-text-default">{cap.label}</div>
+              <div className="text-sm text-text-muted leading-snug mt-0.5">{cap.description}</div>
             </div>
           </button>
         ))}
       </div>
-
-      {/* Footer hint */}
-      <p className="text-text-muted text-xs text-center">
-        Type{' '}
-        <kbd className="px-1.5 py-0.5 rounded border border-border-muted bg-background-muted text-text-default font-mono text-[11px]">
-          /
-        </kbd>{' '}
-        for slash commands · Drag files to share them
-      </p>
     </div>
   );
 }
