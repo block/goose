@@ -132,6 +132,17 @@
     "model_count": 46
   },
   {
+    "id": "qiniu-ai",
+    "display_name": "Qiniu",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.qnaigc.com.com/v1",
+    "doc": "https://developer.qiniu.com/aitokenapi",
+    "env": [
+      "Qiniu_API_KEY"
+    ],
+    "model_count": 76
+  },
+  {
     "id": "ollama-cloud",
     "display_name": "Ollama Cloud",
     "npm": "@ai-sdk/openai-compatible",
@@ -239,7 +250,7 @@
     "env": [
       "POE_API_KEY"
     ],
-    "model_count": 113
+    "model_count": 114
   },
   {
     "id": "minimax-cn",
@@ -306,7 +317,7 @@
     "env": [
       "AIHUBMIX_API_KEY"
     ],
-    "model_count": 37
+    "model_count": 43
   },
   {
     "id": "minimax-coding-plan",
@@ -350,7 +361,7 @@
     "env": [
       "FIREWORKS_API_KEY"
     ],
-    "model_count": 19
+    "model_count": 13
   },
   {
     "id": "stepfun",
@@ -460,7 +471,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 20
+    "model_count": 21
   },
   {
     "id": "moonshotai",
@@ -549,7 +560,7 @@
     "env": [
       "FIRMWARE_API_KEY"
     ],
-    "model_count": 15
+    "model_count": 16
   },
   {
     "id": "ovhcloud",
@@ -574,6 +585,17 @@
     "model_count": 8
   },
   {
+    "id": "cloudferro-sherlock",
+    "display_name": "CloudFerro Sherlock",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api-sherlock.cloudferro.com/openai/v1/",
+    "doc": "https://docs.sherlock.cloudferro.com/",
+    "env": [
+      "CLOUDFERRO_SHERLOCK_API_KEY"
+    ],
+    "model_count": 4
+  },
+  {
     "id": "requesty",
     "display_name": "Requesty",
     "npm": "@ai-sdk/openai-compatible",
@@ -583,6 +605,17 @@
       "REQUESTY_API_KEY"
     ],
     "model_count": 20
+  },
+  {
+    "id": "qihang-ai",
+    "display_name": "QiHang",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.qhaigc.net/v1",
+    "doc": "https://www.qhaigc.net/docs",
+    "env": [
+      "QIHANG_API_KEY"
+    ],
+    "model_count": 9
   },
   {
     "id": "siliconflow-cn",
@@ -605,17 +638,6 @@
       "HELICONE_API_KEY"
     ],
     "model_count": 91
-  },
-  {
-    "id": "openai",
-    "display_name": "OpenAI",
-    "npm": "@ai-sdk/openai",
-    "api": null,
-    "doc": "https://platform.openai.com/docs/models",
-    "env": [
-      "OPENAI_API_KEY"
-    ],
-    "model_count": 42
   },
   {
     "id": "moark",
@@ -695,17 +717,6 @@
     "model_count": 20
   },
   {
-    "id": "anthropic",
-    "display_name": "Anthropic",
-    "npm": "@ai-sdk/anthropic",
-    "api": null,
-    "doc": "https://docs.anthropic.com/en/docs/about-claude/models",
-    "env": [
-      "ANTHROPIC_API_KEY"
-    ],
-    "model_count": 23
-  },
-  {
     "id": "friendli",
     "display_name": "Friendli",
     "npm": "@ai-sdk/openai-compatible",
@@ -769,6 +780,6 @@
     "env": [
       "CHUTES_API_KEY"
     ],
-    "model_count": 66
+    "model_count": 67
   }
 ]
