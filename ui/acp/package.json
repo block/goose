@@ -1,5 +1,5 @@
 {
-  "name": "@anthropic/goose-acp-types",
+  "name": "goose-acp-types",
   "version": "0.1.0",
   "private": true,
   "type": "module",
