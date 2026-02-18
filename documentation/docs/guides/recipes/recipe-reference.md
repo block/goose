@@ -549,8 +549,6 @@ settings:
 
 :::note
 Settings specified in a recipe will override your default goose configuration when that recipe is executed. If no settings are specified, goose will use your configured defaults.
-
-In the Desktop app, the model selector in the UI will automatically update to show the recipe's configured provider and model when you start a session with a recipe.
 :::
 
 ### Subrecipes
