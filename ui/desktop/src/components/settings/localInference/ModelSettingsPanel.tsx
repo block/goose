@@ -191,11 +191,9 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   }
 
   return (
-    <div className="space-y-4 border-t border-border-subtle pt-3 pb-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
-          Model Settings {saving && '(saving...)'}
-        </span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        {saving && <span className="text-xs text-text-muted mr-auto">Saving...</span>}
         <Button variant="ghost" size="sm" onClick={resetDefaults} title="Reset to defaults">
           <RotateCcw className="w-3.5 h-3.5 mr-1" />
           <span className="text-xs">Reset</span>

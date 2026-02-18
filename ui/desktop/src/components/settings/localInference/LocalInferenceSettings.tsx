@@ -15,6 +15,12 @@ import {
 } from '../../../api';
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../../ui/dialog';
 
 const LOCAL_LLM_MODEL_CONFIG_KEY = 'LOCAL_LLM_MODEL';
 
@@ -248,7 +254,6 @@ export const LocalInferenceSettings = () => {
           <div className="space-y-2">
             {downloadedFeatured.map((model) => {
               const isSelected = selectedModelId === model.id;
-              const showSettings = settingsOpenFor === model.id;
               return (
                 <div
                   key={model.id}
@@ -276,7 +281,7 @@ export const LocalInferenceSettings = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setSettingsOpenFor(showSettings ? null : model.id)}
+                        onClick={() => setSettingsOpenFor(model.id)}
                         title="Model settings"
                       >
                         <Settings2 className="w-4 h-4" />
@@ -291,14 +296,12 @@ export const LocalInferenceSettings = () => {
                       </Button>
                     </div>
                   </div>
-                  {showSettings && <ModelSettingsPanel modelId={model.id} />}
                 </div>
               );
             })}
 
             {downloadedRegistry.map((model) => {
               const isSelected = selectedModelId === model.id;
-              const showSettings = settingsOpenFor === model.id;
               return (
                 <div
                   key={model.id}
@@ -323,7 +326,7 @@ export const LocalInferenceSettings = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setSettingsOpenFor(showSettings ? null : model.id)}
+                        onClick={() => setSettingsOpenFor(model.id)}
                         title="Model settings"
                       >
                         <Settings2 className="w-4 h-4" />
@@ -338,7 +341,6 @@ export const LocalInferenceSettings = () => {
                       </Button>
                     </div>
                   </div>
-                  {showSettings && <ModelSettingsPanel modelId={model.id} />}
                 </div>
               );
             })}
@@ -488,6 +490,24 @@ export const LocalInferenceSettings = () => {
       {featuredModels.length === 0 && registryModels.length === 0 && (
         <div className="text-center py-6 text-text-muted text-sm">No models available</div>
       )}
+
+      <Dialog open={!!settingsOpenFor} onOpenChange={(open) => { if (!open) setSettingsOpenFor(null); }}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Model Settings</DialogTitle>
+            <p className="text-sm text-text-muted">
+              {(() => {
+                const featured = featuredModels.find((m) => m.id === settingsOpenFor);
+                if (featured) return featured.name;
+                const registry = registryModels.find((m) => m.id === settingsOpenFor);
+                if (registry) return registry.display_name;
+                return settingsOpenFor;
+              })()}
+            </p>
+          </DialogHeader>
+          {settingsOpenFor && <ModelSettingsPanel modelId={settingsOpenFor} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
