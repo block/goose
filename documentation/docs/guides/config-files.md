@@ -151,7 +151,7 @@ These paths are prepended to the system PATH when running extension commands, en
 
 ## Observability Configuration
 
-Configure goose to export telemetry to [OpenTelemetry](https://opentelemetry.io/docs/) compatible platforms. Environment variables override these settings and support additional options like per-signal configuration—see the [environment variables guide](/docs/guides/environment-variables#opentelemetry-protocol-otlp) for details.
+Configure goose to export telemetry to [OpenTelemetry](https://opentelemetry.io/docs/) compatible platforms. Environment variables override these settings and support additional options like per-signal configuration. See the [environment variables guide](/docs/guides/environment-variables#opentelemetry-protocol-otlp) for details.
 
 | Setting | Purpose | Values | Default |
 |---------|---------|--------|---------|
