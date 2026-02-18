@@ -7,11 +7,14 @@ import {
   LayoutDashboard,
   MessageSquare,
   Pencil,
+  Send,
   Server,
   ShieldCheck,
   Terminal,
   TestTube,
 } from 'lucide-react';
+import React from 'react';
+
 import { Goose } from './icons/Goose';
 
 interface Capability {
@@ -48,14 +51,14 @@ const CAPABILITIES: Capability[] = [
     icon: FileSearch,
     label: 'Understand a codebase',
     description: 'Navigate, explain, and document unfamiliar code',
-    prompt: 'Help me understand and navigate this codebase',
+    prompt: 'Help me understand this codebase and how it works',
     color: 'text-text-warning',
   },
   {
     icon: Terminal,
     label: 'Run shell commands',
     description: 'Execute builds, scripts, git operations, and CLI tools',
-    prompt: 'Help me run shell commands to accomplish a task',
+    prompt: 'Help me with shell commands and scripting',
     color: 'text-text-info',
   },
   {
@@ -114,6 +117,26 @@ interface WelcomeStateProps {
 }
 
 export function WelcomeState({ onSubmit }: WelcomeStateProps) {
+  const [input, setInput] = React.useState('');
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const handleSubmit = React.useCallback(() => {
+    const text = input.trim();
+    if (!text) return;
+    onSubmit(text);
+    setInput('');
+  }, [input, onSubmit]);
+
+  const handleKeyDown = React.useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit]
+  );
+
   return (
     <div className="flex flex-col items-center px-8 py-12 max-w-3xl mx-auto">
       {/* Vertical space + Goose icon */}
@@ -153,13 +176,45 @@ export function WelcomeState({ onSubmit }: WelcomeStateProps) {
               disabled:opacity-40 disabled:cursor-default disabled:hover:bg-background-default disabled:hover:border-border-default disabled:hover:shadow-none
               transition-all duration-150 text-left cursor-pointer"
           >
-            <cap.icon className={`size-5 ${cap.color} transition-transform group-hover:scale-110`} />
+            <cap.icon
+              className={`size-5 ${cap.color} transition-transform group-hover:scale-110`}
+            />
             <div>
               <div className="text-sm font-medium text-text-default">{cap.label}</div>
               <div className="text-sm text-text-muted leading-snug mt-0.5">{cap.description}</div>
             </div>
           </button>
         ))}
+      </div>
+
+      {/* Inline input — matches ChatInput styling */}
+      <div className="w-full mt-8">
+        <div
+          className="relative flex items-end bg-background-default border border-border-default rounded-t-2xl
+            hover:border-border-strong focus-within:border-border-strong
+            transition-all p-4 z-10"
+        >
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="What should goose do?"
+            rows={1}
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-1 pb-0.5 text-sm
+              resize-none text-text-default placeholder:text-text-muted overflow-y-auto"
+            style={{ maxHeight: '150px' }}
+          />
+          <button
+            onClick={handleSubmit}
+            disabled={!input.trim()}
+            className="ml-2 p-1.5 rounded-lg transition-all
+              disabled:opacity-30 disabled:cursor-not-allowed
+              text-text-muted hover:text-text-default hover:bg-background-muted"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

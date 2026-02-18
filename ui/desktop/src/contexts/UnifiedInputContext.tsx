@@ -346,8 +346,9 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
   }, []); // stable — reads everything from refs
 
   const showInput = !isOnPairRoute;
-  const hasResumeSession = new URLSearchParams(location.search).has('resumeSessionId');
-  const showPromptBar = (showInput && mode === 'compact') || (mode === 'full' && !session && !hasResumeSession);
+  // PromptBar shows only in compact mode (non-pair routes like /settings, /workflows)
+  // On /pair, either WelcomeState (has its own input) or BaseChat (has ChatInput) handles input
+  const showPromptBar = showInput && mode === 'compact';
 
   const value = useMemo<UnifiedInputContextValue>(() => ({
     mode,
