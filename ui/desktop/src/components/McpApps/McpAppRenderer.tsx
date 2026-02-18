@@ -259,6 +259,14 @@ export default function McpAppRenderer({
   // size the placeholder and landing target correctly on return.
   const inlineHeightRef = useRef(DEFAULT_IFRAME_HEIGHT);
 
+  // Track in-flight FLIP animation so we can cancel it if a new mode change
+  // fires before the previous one finishes (prevents stale onfinish callbacks).
+  const flipAnimationRef = useRef<Animation | null>(null);
+
+  // Cache iframe contentWindows for O(1) message source matching instead of
+  // scanning querySelectorAll('iframe') on every postMessage event.
+  const iframeWindowsRef = useRef<Set<Window>>(new Set());
+
   const changeDisplayMode = useCallback(
     (mode: GooseDisplayMode) => {
       const el = containerRef.current;
@@ -267,6 +275,13 @@ export default function McpAppRenderer({
       // Save inline height before leaving inline (read from DOM for accuracy)
       if (activeDisplayMode === 'inline' && el) {
         inlineHeightRef.current = el.getBoundingClientRect().height || DEFAULT_IFRAME_HEIGHT;
+      }
+
+      // Cancel any in-flight FLIP animation
+      if (flipAnimationRef.current) {
+        flipAnimationRef.current.cancel();
+        flipAnimationRef.current = null;
+        el?.classList.remove('is-flipping');
       }
 
       // FLIP: capture First rect before state change
@@ -288,7 +303,7 @@ export default function McpAppRenderer({
           if (dx === 0 && dy === 0 && sw === 1 && sh === 1) return;
 
           el.classList.add('is-flipping');
-          el.animate(
+          const anim = el.animate(
             [
               {
                 transformOrigin: 'top left',
@@ -306,9 +321,16 @@ export default function McpAppRenderer({
               easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
               fill: 'none',
             }
-          ).onfinish = () => {
+          );
+          flipAnimationRef.current = anim;
+          const cleanup = () => {
             el.classList.remove('is-flipping');
+            if (flipAnimationRef.current === anim) {
+              flipAnimationRef.current = null;
+            }
           };
+          anim.onfinish = cleanup;
+          anim.oncancel = cleanup;
         });
       }
     },
@@ -344,25 +366,36 @@ export default function McpAppRenderer({
     pipDragRef.current = null;
   }, []);
 
+  // Cache iframe contentWindows for O(1) source matching via MutationObserver.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const refreshCache = () => {
+      const windows = iframeWindowsRef.current;
+      windows.clear();
+      container.querySelectorAll('iframe').forEach((iframe) => {
+        if (iframe.contentWindow) windows.add(iframe.contentWindow);
+      });
+    };
+
+    refreshCache();
+    const observer = new MutationObserver(refreshCache);
+    observer.observe(container, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   // Intercept app postMessages for:
   // 1. ui/initialize — extract appCapabilities.availableDisplayModes
   // 2. ui/request-display-mode — change display mode on behalf of the app
-  // We filter by event.source to only handle messages from iframes within our container.
+  // Uses cached iframe contentWindows for O(1) source matching.
   useEffect(() => {
     if (isStandalone) return;
 
     const handleMessage = (e: MessageEvent) => {
       const data = e.data;
       if (!data || typeof data !== 'object') return;
-
-      // Only respond to messages from iframes owned by this instance.
-      const container = containerRef.current;
-      if (!container || !e.source) return;
-      const iframes = container.querySelectorAll('iframe');
-      const fromOurIframe = Array.from(iframes).some(
-        (iframe) => iframe.contentWindow === e.source
-      );
-      if (!fromOurIframe) return;
+      if (!e.source || !iframeWindowsRef.current.has(e.source as Window)) return;
 
       // Extract app's declared display modes from ui/initialize
       if (data.method === 'ui/initialize' && data.params) {
