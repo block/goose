@@ -875,3 +875,34 @@ p > code.bg-inline-code {
     max-height: var(--search-bar-height);
   }
 }
+
+/* ==========================================================================
+   MCP App Display Mode View Transitions
+   ========================================================================== */
+
+/* Disable the default full-page crossfade — only animate named elements */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Animate MCP app containers between display modes (inline ↔ fullscreen ↔ pip) */
+::view-transition-group(*) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.01s;
+  }
+}
