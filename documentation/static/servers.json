@@ -230,9 +230,20 @@
     ]
   },
   {
+    "id": "code_mode",
+    "name": "Code Mode",
+    "description": "Execute JavaScript code to interact with MCP tools efficiently",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose/src/agents/platform_extensions/code_execution.rs",
+    "installation_notes": "This is a built-in platform extension that comes with goose. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "developer",
     "name": "Developer",
-    "description": "Built-in developer tools for file editing and shell command execution",
+    "description": "Built-in developer tools for file editing and code mode",
     "command": "",
     "link": "https://github.com/block/goose/tree/main/crates/goose-mcp/src/developer",
     "installation_notes": "This is a built-in extension that comes with goose and is enabled by default. No installation required.",
@@ -640,6 +651,17 @@
     ]
   },
   {
+    "id": "summon",
+    "name": "Summon",
+    "description": "Load skills and delegate tasks to subagents",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose/src/agents/platform_extensions/summon.rs",
+    "installation_notes": "This is a built-in platform extension that comes with goose. No installation required.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": []
+  },
+  {
     "id": "supabase",
     "name": "Supabase",
     "description": "Connect your Supabase projects to AI assistants. Manage tables, query data, deploy Edge Functions, and interact with your Supabase backend directly from your MCP client.",
@@ -688,6 +710,28 @@
         "name": "TAVILY_API_KEY",
         "description": "API key for Tavily web search service",
         "required": true
+      }
+    ]
+  },
+  {
+    "id": "tom",
+    "name": "Top of Mind",
+    "description": "Inject persistent instructions into goose's working memory every turn",
+    "command": "",
+    "link": "https://github.com/block/goose/tree/main/crates/goose/src/agents/platform_extensions/tom.rs",
+    "installation_notes": "This is a built-in platform extension that comes with goose and is enabled by default. Configure via GOOSE_MOIM_MESSAGE_TEXT or GOOSE_MOIM_MESSAGE_FILE environment variables.",
+    "is_builtin": true,
+    "endorsed": true,
+    "environmentVariables": [
+      {
+        "name": "GOOSE_MOIM_MESSAGE_TEXT",
+        "description": "Literal text injected into working memory each turn",
+        "required": false
+      },
+      {
+        "name": "GOOSE_MOIM_MESSAGE_FILE",
+        "description": "Path to a file whose contents are injected (supports ~/)",
+        "required": false
       }
     ]
   },

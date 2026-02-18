@@ -33,7 +33,7 @@ posts. Since the approach and the benefits are clearly laid out in those posts I
 
 ## In goose
 
-In v1.17.0 of goose, we've introduced an open source implementation of this idea in a new platform extension called: Code Execution.
+In v1.17.0 of goose, we've introduced an open source implementation of this idea in a new platform extension called: Code Mode.
 Our implementation generates a JavaScript interface representing the connected MCP tools and then lets the model write code to run
 against it in [boa](https://github.com/boa-dev/boa) which is an embeddable JavaScript engine. One neat feature of boa we were able
 to take advantage of was the concept of [NativeFunction](https://docs.rs/boa_engine/latest/boa_engine/native_function/struct.NativeFunction.html).
@@ -47,7 +47,7 @@ MCP server with ease!
 Our hope is that we improve tool calling performance and handling of large numbers of tools in goose, but
 also provide an open source implementation of this emerging approach.
 
-* Try out the feature by enabling the ["Code Execution" extension](https://github.com/block/goose/blob/main/crates/goose/src/agents/code_execution_extension.rs) in v1.17.0 or later of goose by clicking extensions on the left side of the desktop app or running `goose configure` on cli
+* Try out the feature by enabling the ["Code Mode" extension](https://github.com/block/goose/blob/main/crates/goose/src/agents/code_execution_extension.rs) in v1.17.0 or later of goose by clicking extensions on the left side of the desktop app or running `goose configure` on cli
 * Please give us feedback on how it works for you by joining our [discord](https://discord.gg/goose-oss).
 
 Kudos to my colleague [Mic Neale](https://github.com/michaelneale) for collaborating with me on the implementation!
