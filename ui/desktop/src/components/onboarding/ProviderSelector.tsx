@@ -89,11 +89,8 @@ export default function ProviderSelector({
   const handleCreateCustomProvider = async (data: UpdateCustomProviderRequest) => {
     const result = await createCustomProvider({ body: data, throwOnError: true });
     setShowCustomModal(false);
-    // API returns "Custom provider added - ID: <id>", extract the ID
-    const message = result.data as string;
-    const providerId = message.split('ID: ').pop() || '';
-    if (providerId) {
-      onConfigured(providerId);
+    if (result.data?.provider_name) {
+      onConfigured(result.data.provider_name);
     }
   };
 

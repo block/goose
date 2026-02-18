@@ -127,6 +127,10 @@ export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | R
 
 export type Conversation = Array<Message>;
 
+export type CreateCustomProviderResponse = {
+    provider_name: string;
+};
+
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -2028,10 +2032,10 @@ export type CreateCustomProviderResponses = {
     /**
      * Custom provider created successfully
      */
-    200: string;
+    200: CreateCustomProviderResponse;
 };
 
-export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+export type CreateCustomProviderResponse2 = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
 
 export type RemoveCustomProviderData = {
     body?: never;

@@ -441,6 +441,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::ToolPermission,
         super::routes::config_management::UpsertPermissionsQuery,
         super::routes::config_management::UpdateCustomProviderRequest,
+        super::routes::config_management::CreateCustomProviderResponse,
         super::routes::config_management::CheckProviderRequest,
         super::routes::config_management::SetProviderRequest,
         super::routes::config_management::ModelInfoQuery,

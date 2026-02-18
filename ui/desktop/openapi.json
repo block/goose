@@ -810,9 +810,9 @@
           "200": {
             "description": "Custom provider created successfully",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/CreateCustomProviderResponse"
                 }
               }
             }
@@ -3694,6 +3694,17 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "CreateCustomProviderResponse": {
+        "type": "object",
+        "required": [
+          "provider_name"
+        ],
+        "properties": {
+          "provider_name": {
+            "type": "string"
+          }
         }
       },
       "CreateRecipeRequest": {
