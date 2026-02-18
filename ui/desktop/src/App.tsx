@@ -21,7 +21,7 @@ import { AuthProvider } from './hooks/useAuth';
 import { AuthGuard } from './components/AuthGuard';
 import LoginView from './components/LoginView';
 import { createSession } from './sessions';
-import { setupAuthInterceptor } from './api/authInterceptor';
+import { setupAuthInterceptor } from './lib/authInterceptor';
 
 // Initialize auth interceptor before any API calls — attaches
 // the Bearer token from localStorage to every outgoing request
