@@ -313,8 +313,15 @@ pub fn route_to_policy(method: &str, path: &str) -> (String, String) {
         ["pipeline", ..] if method == "GET" => ("read:pipeline", "pipeline:state"),
         ["pipeline", ..] => ("manage:pipeline", "pipeline:state"),
 
-        // A2A / ACP
+        // A2A / ACP (Agent Communication Protocol)
         ["a2a", ..] | ["acp", ..] => ("execute:a2a", "agent:a2a"),
+
+        // Control Plane (Enterprise management)
+        ["control-plane", "v1", "policies", ..] => ("manage:policies", "control-plane:policies"),
+        ["control-plane", "v1", "quotas", ..] => ("manage:quotas", "control-plane:quotas"),
+        ["control-plane", "v1", "agents", ..] => ("manage:agents", "control-plane:agents"),
+        ["control-plane", "v1", "audit", ..] => ("read:audit", "control-plane:audit"),
+        ["control-plane", ..] => ("manage:control-plane", "control-plane:info"),
 
         // Recipes
         ["recipes", ..] if method == "GET" => ("read:recipes", "recipe:library"),

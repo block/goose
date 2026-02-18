@@ -46,6 +46,6 @@
     "ACP Phase 3a: RBAC roles on UserIdentity (c1be2cb3)",
     "ACP Phase 3b: Persistent agent slot registry (cb50197d)",
     "ACP Phase 4: Quota manager with tenant/user scoping (28b5e350)",
-    "ACP Phase 5: Control plane REST API /acp/v1/* (d373412f)"
+    "ACP Phase 5: Control plane REST API /control-plane/v1/* (d373412f)"
   ]
 }

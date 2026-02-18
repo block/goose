@@ -16782,9 +16782,9 @@
     "name": "goose-server: control_plane routes",
     "entityType": "Module",
     "observations": [
-      "2026-02-19T00:40:11 (confidence:0.95) REST API at /acp/v1/* for external control plane integration (~610 lines)",
+      "2026-02-19T00:40:11 (confidence:0.95) REST API at /control-plane/v1/* for external control plane integration (~610 lines)",
       "2026-02-19T00:40:11 (confidence:0.95) Endpoints: GET/POST/DELETE for policies, quotas, agents, audit",
-      "2026-02-19T00:40:11 (confidence:0.95) GET /acp/v1/info \u2014 system capabilities, version, feature flags",
+      "2026-02-19T00:40:11 (confidence:0.95) GET /control-plane/v1/info \u2014 system capabilities, version, feature flags",
       "2026-02-19T00:40:11 (confidence:0.95) Designed for Azure/GitHub/AWS enterprise AI control planes"
     ]
   },

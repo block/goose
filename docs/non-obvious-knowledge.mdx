@@ -233,18 +233,18 @@ The method builds a WHERE clause dynamically based on which filters are provided
 
 ### Control Plane API Design
 
-The `/acp/v1/*` endpoints are designed for external enterprise control planes (Azure AI Controls, GitHub Enterprise, AWS):
+The `/control-plane/v1/*` endpoints are designed for external enterprise control planes (Azure AI Controls, GitHub Enterprise, AWS):
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/acp/v1/info` | GET | System capabilities, version, features |
-| `/acp/v1/policies` | GET/POST | List/create policy rules |
-| `/acp/v1/policies/:id` | DELETE | Remove a policy rule |
-| `/acp/v1/quotas` | GET/POST | List/create quota limits |
-| `/acp/v1/quotas/check` | POST | Check if a scope is within limits |
-| `/acp/v1/audit` | GET | Recent audit events |
-| `/acp/v1/agents` | GET/POST | List/register agents |
-| `/acp/v1/agents/:name` | DELETE | Unregister an agent |
+| `/control-plane/v1/info` | GET | System capabilities, version, features |
+| `/control-plane/v1/policies` | GET/POST | List/create policy rules |
+| `/control-plane/v1/policies/:id` | DELETE | Remove a policy rule |
+| `/control-plane/v1/quotas` | GET/POST | List/create quota limits |
+| `/control-plane/v1/quotas/check` | POST | Check if a scope is within limits |
+| `/control-plane/v1/audit` | GET | Recent audit events |
+| `/control-plane/v1/agents` | GET/POST | List/register agents |
+| `/control-plane/v1/agents/:name` | DELETE | Unregister an agent |
 
 ### PolicyStore + QuotaManager + AuditLogger in AppState
 
@@ -267,7 +267,7 @@ Maps HTTP method + path to policy action/resource pairs:
 - `GET /sessions` → `session:list`
 - `POST /sessions/*/reply` → `execute:reply`
 - `GET /agents/*` → `read:agents`
-- `POST /acp/v1/policies` → `manage:policies`
+- `POST /control-plane/v1/policies` → `manage:policies`
 - `DELETE /agents/*` → `manage:agents`
 - Default: `{method}:{first_path_segment}`
 

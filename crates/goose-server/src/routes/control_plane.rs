@@ -371,52 +371,52 @@ async fn control_plane_info() -> Json<ControlPlaneInfo> {
         auth_methods: vec!["oidc".into(), "api-key".into(), "session-token".into()],
         endpoints: vec![
             EndpointInfo {
-                path: "/acp/v1/info".into(),
+                path: "/control-plane/v1/info".into(),
                 method: "GET".into(),
                 description: "Control plane capabilities and version".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/policies".into(),
+                path: "/control-plane/v1/policies".into(),
                 method: "GET".into(),
                 description: "List all policy rules".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/policies".into(),
+                path: "/control-plane/v1/policies".into(),
                 method: "POST".into(),
                 description: "Create a policy rule".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/policies/:id".into(),
+                path: "/control-plane/v1/policies/:id".into(),
                 method: "DELETE".into(),
                 description: "Delete a policy rule".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/quotas".into(),
+                path: "/control-plane/v1/quotas".into(),
                 method: "GET".into(),
                 description: "List all quota limits".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/quotas".into(),
+                path: "/control-plane/v1/quotas".into(),
                 method: "POST".into(),
                 description: "Create a quota limit".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/agents".into(),
+                path: "/control-plane/v1/agents".into(),
                 method: "GET".into(),
                 description: "List registered agents".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/agents".into(),
+                path: "/control-plane/v1/agents".into(),
                 method: "POST".into(),
                 description: "Register an external agent".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/agents/:name".into(),
+                path: "/control-plane/v1/agents/:name".into(),
                 method: "DELETE".into(),
                 description: "Unregister an agent".into(),
             },
             EndpointInfo {
-                path: "/acp/v1/audit/events".into(),
+                path: "/control-plane/v1/audit/events".into(),
                 method: "GET".into(),
                 description: "List recent audit events".into(),
             },
@@ -488,18 +488,27 @@ fn parse_window(s: &str) -> Result<goose::quotas::QuotaWindow, (StatusCode, Stri
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         // System info
-        .route("/acp/v1/info", get(control_plane_info))
+        .route("/control-plane/v1/info", get(control_plane_info))
         // Policy management
-        .route("/acp/v1/policies", get(list_policies).post(create_policy))
-        .route("/acp/v1/policies/{id}", delete(delete_policy))
+        .route(
+            "/control-plane/v1/policies",
+            get(list_policies).post(create_policy),
+        )
+        .route("/control-plane/v1/policies/{id}", delete(delete_policy))
         // Quota management
-        .route("/acp/v1/quotas", get(list_quotas).post(create_quota))
-        .route("/acp/v1/quotas/check", post(check_quota))
+        .route(
+            "/control-plane/v1/quotas",
+            get(list_quotas).post(create_quota),
+        )
+        .route("/control-plane/v1/quotas/check", post(check_quota))
         // Audit
-        .route("/acp/v1/audit/events", get(list_recent_audits))
+        .route("/control-plane/v1/audit/events", get(list_recent_audits))
         // Agent registry
-        .route("/acp/v1/agents", get(list_agents).post(register_agent))
-        .route("/acp/v1/agents/{name}", delete(unregister_agent))
+        .route(
+            "/control-plane/v1/agents",
+            get(list_agents).post(register_agent),
+        )
+        .route("/control-plane/v1/agents/{name}", delete(unregister_agent))
         .with_state(state)
 }
 
