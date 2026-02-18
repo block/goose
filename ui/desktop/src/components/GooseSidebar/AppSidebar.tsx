@@ -552,7 +552,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     ?.enabled;
   const [searchParams] = useSearchParams();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
-  const [isChatExpanded, setIsChatExpanded] = useState(true);
+
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
   const { addRecentDir, recentDirs } = useProjectPreferences();
@@ -894,105 +894,85 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       {/* No header — the sidebar edge strip in sidebar.tsx handles fold/unfold */}
       <SidebarContent>
         <SidebarMenu>
-          {/* Home + Chat Zone */}
+          {/* Sessions — General group acts as Home */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
-              {/* Home (unified — shows chat with WelcomeState when no messages) */}
-              <Collapsible open={isChatExpanded} onOpenChange={setIsChatExpanded}>
-                <div className="sidebar-item">
-                  <SidebarMenuItem>
-                    <div className="flex items-center w-full">
-                      <SidebarMenuButton
-                        data-testid="sidebar-home-button"
-                        onClick={handleNewChat}
-                        isActive={isActivePath('/pair') || isActivePath('/')}
-                        tooltip="Home — Start a new chat"
-                        className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                      >
-                        <Home className="w-4 h-4" />
-                        <span>Home</span>
-                      </SidebarMenuButton>
-                      <div className="relative group-data-[collapsible=icon]:hidden" ref={projectDropdownRef}>
+              {/* New Chat + Open Project row */}
+              <SidebarMenuItem>
+                <div className="flex items-center w-full">
+                  <SidebarMenuButton
+                    data-testid="sidebar-home-button"
+                    onClick={handleNewChat}
+                    isActive={isActivePath('/pair') || isActivePath('/')}
+                    tooltip="New chat"
+                    className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                  >
+                    <Home className="w-4 h-4" />
+                    <span>New Chat</span>
+                  </SidebarMenuButton>
+                  <div className="relative group-data-[collapsible=icon]:hidden" ref={projectDropdownRef}>
+                    <button
+                      onClick={() => setProjectDropdownOpen((prev) => !prev)}
+                      className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
+                      aria-label="Open project"
+                      title="Open project in new session"
+                    >
+                      <FolderPlus className="w-3.5 h-3.5 text-text-muted" />
+                    </button>
+                    {projectDropdownOpen && (
+                      <div className="absolute left-0 top-full mt-1 w-56 z-50 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden">
                         <button
-                          onClick={() => setProjectDropdownOpen((prev) => !prev)}
-                          className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
-                          aria-label="Open project"
-                          title="Open project in new session"
+                          onClick={handleBrowseForProject}
+                          className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
                         >
-                          <FolderPlus className="w-3.5 h-3.5 text-text-muted" />
+                          <FolderPlus className="w-4 h-4 text-text-accent" />
+                          <span>Browse...</span>
                         </button>
-                        {projectDropdownOpen && (
-                          <div className="absolute left-0 top-full mt-1 w-56 z-50 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden">
-                            <button
-                              onClick={handleBrowseForProject}
-                              className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
-                            >
-                              <FolderPlus className="w-4 h-4 text-text-accent" />
-                              <span>Browse...</span>
-                            </button>
-                            {recentDirs.length > 0 && (
-                              <div className="max-h-48 overflow-y-auto">
-                                <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
-                                  Recent Projects
-                                </div>
-                                {recentDirs.map((dir) => (
-                                  <button
-                                    key={dir}
-                                    onClick={() => handleOpenProjectFromDir(dir)}
-                                    className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
-                                    title={dir}
-                                  >
-                                    <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                                    <span className="truncate">{dir.split('/').pop() || dir}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
+                        {recentDirs.length > 0 && (
+                          <div className="max-h-48 overflow-y-auto">
+                            <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
+                              Recent Projects
+                            </div>
+                            {recentDirs.map((dir) => (
+                              <button
+                                key={dir}
+                                onClick={() => handleOpenProjectFromDir(dir)}
+                                className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
+                                title={dir}
+                              >
+                                <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span className="truncate">{dir.split('/').pop() || dir}</span>
+                              </button>
+                            ))}
                           </div>
                         )}
                       </div>
-                      {recentSessions.length > 0 && (
-                        <CollapsibleTrigger asChild>
-                          <button
-                            className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors group-data-[collapsible=icon]:hidden"
-                            aria-label={
-                              isChatExpanded ? 'Collapse chat sessions' : 'Expand chat sessions'
-                            }
-                          >
-                            <ChevronRight
-                              className={`w-4 h-4 text-text-muted transition-transform duration-200 ${
-                                isChatExpanded ? 'rotate-90' : ''
-                              }`}
-                            />
-                          </button>
-                        </CollapsibleTrigger>
-                      )}
-                    </div>
-                  </SidebarMenuItem>
+                    )}
+                  </div>
                 </div>
-                {recentSessions.length > 0 && (
-                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 group-data-[collapsible=icon]:hidden">
-                    <div className="mt-1 space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto">
-                      <SessionList
-                        sessions={recentSessions}
-                        activeSessionId={activeSessionId}
-                        getSessionStatus={getSessionStatus}
-                        onSessionClick={handleSessionClick}
-                        onDeleteSession={handleDeleteSession}
-                        onCloseProject={handleCloseProject}
-                        onNewSessionInProject={handleNewSessionInProject}
-                      />
-                      <button
-                        onClick={handleViewAllClick}
-                        className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
-                      >
-                        <History className="w-4 h-4" />
-                        <span>View All</span>
-                      </button>
-                    </div>
-                  </CollapsibleContent>
-                )}
-              </Collapsible>
+              </SidebarMenuItem>
+
+              {/* Session list with project groups (General first) */}
+              {recentSessions.length > 0 && (
+                <div className="mt-1 space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto group-data-[collapsible=icon]:hidden">
+                  <SessionList
+                    sessions={recentSessions}
+                    activeSessionId={activeSessionId}
+                    getSessionStatus={getSessionStatus}
+                    onSessionClick={handleSessionClick}
+                    onDeleteSession={handleDeleteSession}
+                    onCloseProject={handleCloseProject}
+                    onNewSessionInProject={handleNewSessionInProject}
+                  />
+                  <button
+                    onClick={handleViewAllClick}
+                    className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
+                  >
+                    <History className="w-4 h-4" />
+                    <span>View All</span>
+                  </button>
+                </div>
+              )}
             </SidebarGroupContent>
           </SidebarGroup>
 
