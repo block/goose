@@ -313,42 +313,43 @@ function SidebarDragHandle() {
   return (
     <div
       data-sidebar="drag-handle"
-      className="absolute top-0 right-0 h-full z-20"
-      style={{ width: 0 }}
+      role="button"
+      tabIndex={0}
+      aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      aria-expanded={!isCollapsed}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={(e) => endDrag(e)}
+      onPointerCancel={(e) => endDrag(e, true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleSidebar();
+        }
+      }}
+      className={cn(
+        'group/sidebar-drag absolute top-0 right-0 z-20 h-full w-[6px] select-none touch-none',
+        'transition-colors duration-150',
+        'bg-transparent hover:bg-border-default',
+        isDragging ? 'cursor-grabbing bg-border-strong' : 'cursor-col-resize',
+      )}
     >
-      {/* Full-height drag zone — touch-none prevents browser scroll/gesture interference */}
+      {/* Wider invisible hit area for easier grabbing */}
+      <div className="absolute top-0 -left-[5px] -right-[5px] h-full" />
+      {/* Chevron indicator at center — appears on hover */}
       <div
-        role="button"
-        tabIndex={0}
-        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-expanded={!isCollapsed}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={(e) => endDrag(e)}
-        onPointerCancel={(e) => endDrag(e, true)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') toggleSidebar();
-        }}
         className={cn(
-          'group/sidebar-drag absolute top-0 -right-[10px] h-full w-5 select-none touch-none',
-          isDragging ? 'cursor-grabbing' : isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize'
+          'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
+          'flex items-center justify-center',
+          'w-[14px] h-[28px] rounded-full',
+          'text-[10px] leading-none select-none pointer-events-none',
+          'transition-all duration-150',
+          'text-transparent',
+          'group-hover/sidebar-drag:text-text-muted group-hover/sidebar-drag:bg-background-muted',
+          isDragging && 'text-text-default bg-background-active',
         )}
       >
-        {/* Protruding tab — subtle at rest, visible on hover/parent hover */}
-        <div
-          className={cn(
-            'absolute top-1/2 -translate-y-1/2 right-0',
-            'w-[14px] h-[32px]',
-            'border border-l-0 rounded-r-md',
-            'flex items-center justify-center',
-            'transition-all duration-150',
-            'text-[10px] leading-none select-none pointer-events-none',
-            'border-transparent bg-transparent text-transparent',
-            'group-hover/sidebar-drag:border-border-default group-hover/sidebar-drag:bg-background-muted group-hover/sidebar-drag:text-text-muted',
-          )}
-        >
-          {isCollapsed ? '›' : '‹'}
-        </div>
+        {isCollapsed ? '›' : '‹'}
       </div>
     </div>
   );
@@ -568,7 +569,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<'li'>) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0',
+  'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2! group-data-[collapsible=icon]:[&>span]:hidden',
   {
     variants: {
       variant: {

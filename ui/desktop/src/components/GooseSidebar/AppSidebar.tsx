@@ -1035,6 +1035,22 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
             // Multi-item zones render as collapsible groups
             return (
               <SidebarGroup key={zone.id} className="px-2">
+                {/* Icon-only button visible when sidebar collapsed */}
+                <SidebarGroupContent className="hidden group-data-[collapsible=icon]:block">
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={() => zone.route ? navigate(zone.route) : navigate(visibleItems[0].path)}
+                      isActive={zoneActive}
+                      tooltip={zone.label}
+                      className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                    >
+                      <ZoneIcon className="w-4 h-4" />
+                      <span>{zone.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarGroupContent>
+                {/* Full collapsible group visible when sidebar expanded */}
+                <div className="group-data-[collapsible=icon]:hidden">
                 <Collapsible defaultOpen={zoneActive}>
                   <div className="flex items-center">
                     {zone.route ? (
@@ -1059,7 +1075,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                       </button>
                     </CollapsibleTrigger>
                   </div>
-                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 group-data-[collapsible=icon]:hidden">
                     <SidebarGroupContent className="space-y-0.5 mt-1">
                       {visibleItems.map((item) => {
                         const ItemIcon = item.icon;
@@ -1083,6 +1099,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     </SidebarGroupContent>
                   </CollapsibleContent>
                 </Collapsible>
+                </div>
               </SidebarGroup>
             );
           })}
