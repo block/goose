@@ -1,4 +1,4 @@
-import { Message } from '../api';
+import type { Message } from '../api';
 
 export interface WorkBlock {
   /** Indices of intermediate (collapsed) assistant messages */
@@ -99,7 +99,6 @@ export function identifyWorkBlocks(
   isStreamingLast: boolean
 ): Map<number, WorkBlock> {
   const result = new Map<number, WorkBlock>();
-
 
   // Find runs of consecutive assistant messages (with transparent user messages)
   let blockStart = -1;
@@ -213,7 +212,6 @@ export function identifyWorkBlocks(
       toolCallCount: totalToolCalls,
       isStreaming: isLastRunStreaming,
     };
-
 
     // Map EVERY index in the block (assistant AND user) to this block
     for (const idx of allBlockIndices) {

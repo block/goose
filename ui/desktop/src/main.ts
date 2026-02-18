@@ -1,7 +1,6 @@
 import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
-  App,
   BrowserWindow,
   dialog,
   globalShortcut,
@@ -15,6 +14,7 @@ import {
   shell,
   Tray,
 } from 'electron';
+import type { App } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -43,8 +43,9 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { Client, createClient, createConfig } from './api/client';
-import { GooseApp } from './api';
+import { createClient, createConfig } from './api/client';
+import type { Client } from './api/client';
+import type { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 

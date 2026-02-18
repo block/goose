@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { IpcRendererEvent } from 'electron';
+import type { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
   Routes,
@@ -22,14 +22,15 @@ import { AuthGuard } from './components/AuthGuard';
 import LoginView from './components/LoginView';
 import { createSession } from './sessions';
 
-import { ChatType } from './types/chat';
-import { UserInput } from './types/message';
+import type { ChatType } from './types/chat';
+import type { UserInput } from './types/message';
 
 interface PairRouteState {
   resumeSessionId?: string;
   initialMessage?: UserInput;
 }
-import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
+import SettingsView from './components/settings/SettingsView';
+import type { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
@@ -44,7 +45,8 @@ import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
-import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
+import ExtensionsView from './components/extensions/ExtensionsView';
+import type { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import AgentsView from './components/agents/AgentsView';
 import { PipelineManager } from './components/workflows';
@@ -55,7 +57,7 @@ import ToolsHealthView from './components/tools/ToolsHealthView';
 import CatalogsOverview from './components/catalogs/CatalogsOverview';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
-import { View, ViewOptions } from './utils/navigationUtils';
+import type { View, ViewOptions } from './utils/navigationUtils';
 
 import { useNavigation } from './hooks/useNavigation';
 import { errorMessage } from './utils/conversionUtils';

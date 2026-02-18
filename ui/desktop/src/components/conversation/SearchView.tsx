@@ -1,4 +1,5 @@
-import React, { useState, useEffect, PropsWithChildren, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { PropsWithChildren } from 'react';
 import SearchBar from './SearchBar';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import debounce from 'lodash/debounce';

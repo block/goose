@@ -31,7 +31,7 @@ import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
 import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import { Message, Session } from '../../api';
+import type { Message, Session } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
 
 const isUserMessage = (message: Message): boolean => {

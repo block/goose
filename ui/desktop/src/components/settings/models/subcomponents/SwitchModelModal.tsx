@@ -16,9 +16,10 @@ import { Select } from '../../../ui/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
-import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
+import type Model from '../modelInterface';
+import { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import { ProviderType } from '../../../../api';
+import type { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
 
 const THINKING_LEVEL_OPTIONS = [

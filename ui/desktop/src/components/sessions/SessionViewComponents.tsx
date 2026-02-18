@@ -6,13 +6,10 @@ import { ScrollArea } from '../ui/scroll-area';
 import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
-import {
-  getTextAndImageContent,
-  ToolRequestMessageContent,
-  ToolResponseMessageContent,
-} from '../../types/message';
+import { getTextAndImageContent } from '../../types/message';
+import type { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
-import { Message } from '../../api';
+import type { Message } from '../../api';
 
 /**
  * Get tool responses map from messages

@@ -1,6 +1,7 @@
-import React, { createContext, useContext, ReactNode } from 'react';
-import { ChatType } from '../types/chat';
-import { Recipe } from '../recipe';
+import React, { createContext, useContext } from 'react';
+import type { ReactNode } from 'react';
+import type { ChatType } from '../types/chat';
+import type { Recipe } from '../recipe';
 
 // TODO(Douwe): We should not need this anymore
 export const DEFAULT_CHAT_TITLE = 'New Chat';

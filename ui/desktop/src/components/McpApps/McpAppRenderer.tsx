@@ -9,7 +9,7 @@ import { AppEvents } from '../../constants/events';
 
 import { useState, useCallback, useEffect } from 'react';
 import { useSandboxBridge } from './useSandboxBridge';
-import {
+import type {
   ToolInput,
   ToolInputPartial,
   ToolResult,

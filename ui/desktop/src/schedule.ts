@@ -9,8 +9,8 @@ import {
   runNowHandler as apiRunScheduleNow,
   killRunningJob as apiKillRunningJob,
   inspectRunningJob as apiInspectRunningJob,
-  SessionDisplayInfo,
 } from './api';
+import type { SessionDisplayInfo } from './api';
 import type { Recipe } from './api';
 
 export interface ScheduledJob {

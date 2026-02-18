@@ -1,7 +1,7 @@
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { ExtensionConfig } from '../../../../api';
-import { FixedExtensionEntry } from '../../../ConfigContext';
+import type { ExtensionConfig } from '../../../../api';
+import type { FixedExtensionEntry } from '../../../ConfigContext';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];

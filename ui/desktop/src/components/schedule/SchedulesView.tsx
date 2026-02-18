@@ -9,20 +9,21 @@ import {
   updateSchedule,
   killRunningJob,
   inspectRunningJob,
-  ScheduledJob,
 } from '../../schedule';
+import type { ScheduledJob } from '../../schedule';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { TrashIcon } from '../icons/TrashIcon';
 import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from 'lucide-react';
-import { NewSchedulePayload, ScheduleModal } from './ScheduleModal';
+import { ScheduleModal } from './ScheduleModal';
+import type { NewSchedulePayload } from './ScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { errorMessage } from '../../utils/conversionUtils';
 import { PageShell } from '../Layout/PageShell';
-import { ViewOptions } from '../../utils/navigationUtils';
+import type { ViewOptions } from '../../utils/navigationUtils';
 import { trackScheduleCreated, trackScheduleDeleted, getErrorType } from '../../utils/analytics';
 
 interface SchedulesViewProps {

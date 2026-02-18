@@ -7,12 +7,8 @@ import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
 import { Goose } from '../icons/Goose';
 import { Skeleton } from '../ui/skeleton';
-import {
-  getSessionInsights,
-  listSessions,
-  Session,
-  SessionInsights as ApiSessionInsights,
-} from '../../api';
+import { getSessionInsights, listSessions } from '../../api';
+import type { Session, SessionInsights as ApiSessionInsights } from '../../api';
 import { resumeSession } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 

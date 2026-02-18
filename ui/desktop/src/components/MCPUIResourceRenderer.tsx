@@ -1,6 +1,6 @@
 import { AppEvents } from '../constants/events';
-import {
-  UIResourceRenderer,
+import { UIResourceRenderer } from '@mcp-ui/client';
+import type {
   UIActionResultIntent,
   UIActionResultLink,
   UIActionResultNotification,
@@ -10,7 +10,7 @@ import {
 } from '@mcp-ui/client';
 import { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { EmbeddedResource } from '../api';
+import type { EmbeddedResource } from '../api';
 import { useTheme } from '../contexts/ThemeContext';
 import { errorMessage } from '../utils/conversionUtils';
 import { isProtocolSafe, getProtocol } from '../utils/urlSecurity';

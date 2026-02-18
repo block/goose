@@ -3,7 +3,8 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
 import { isEqual } from 'lodash';
 import { cn } from '../../utils';
-import { Alert, AlertType } from '../alerts';
+import { AlertType } from '../alerts';
+import type { Alert } from '../alerts';
 import { AlertBox } from '../alerts';
 
 interface AlertPopoverProps {

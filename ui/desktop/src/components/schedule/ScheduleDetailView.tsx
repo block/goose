@@ -12,15 +12,17 @@ import {
   listSchedules,
   killRunningJob,
   inspectRunningJob,
-  ScheduledJob,
 } from '../../schedule';
+import type { ScheduledJob } from '../../schedule';
 import SessionHistoryView from '../sessions/SessionHistoryView';
-import { ScheduleModal, NewSchedulePayload } from './ScheduleModal';
+import { ScheduleModal } from './ScheduleModal';
+import type { NewSchedulePayload } from './ScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
 import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
-import { getSession, Session } from '../../api';
+import { getSession } from '../../api';
+import type { Session } from '../../api';
 import { trackScheduleRunNow, getErrorType } from '../../utils/analytics';
 import { errorMessage } from '../../utils/conversionUtils';
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import cronstrue from 'cronstrue';
-import { ScheduledJob } from '../../schedule';
+import type { ScheduledJob } from '../../schedule';
 import { errorMessage } from '../../utils/conversionUtils';
 
 type Period = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';

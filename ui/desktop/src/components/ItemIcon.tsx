@@ -16,7 +16,7 @@ import {
   BookOpen,
   Wrench,
 } from 'lucide-react';
-import { DisplayItem } from './MentionPopover';
+import type { DisplayItem } from './MentionPopover';
 
 interface FileIconProps {
   item: DisplayItem;

@@ -1,13 +1,12 @@
-import { toast, ToastOptions } from 'react-toastify';
+import { toast } from 'react-toastify';
+import type { ToastOptions } from 'react-toastify';
 import { Button } from './components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/Tooltip';
 import Copy from './components/icons/Copy';
 import { startNewSession } from './sessions';
 import { useNavigation } from './hooks/useNavigation';
-import {
-  GroupedExtensionLoadingToast,
-  ExtensionLoadingStatus,
-} from './components/GroupedExtensionLoadingToast';
+import { GroupedExtensionLoadingToast } from './components/GroupedExtensionLoadingToast';
+import type { ExtensionLoadingStatus } from './components/GroupedExtensionLoadingToast';
 import { getInitialWorkingDir } from './utils/workingDir';
 
 export interface ToastServiceOptions {

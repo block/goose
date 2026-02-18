@@ -15,13 +15,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Message } from '../api';
+import type { Message } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import { SystemNotificationInline } from './context_management/SystemNotificationInline';
-import { NotificationEvent } from '../types/message';
+import type { NotificationEvent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
-import { ChatType } from '../types/chat';
+import type { ChatType } from '../types/chat';
 import { identifyConsecutiveToolCalls, isInChain } from '../utils/toolCallChaining';
 import { identifyWorkBlocks } from '../utils/assistantWorkBlocks';
 import WorkBlockIndicator from './WorkBlockIndicator';
@@ -321,7 +321,6 @@ export default function ProgressiveMessageList({
     messages.length > 0 &&
     hasNoAssistantResponse &&
     !hasStreamingWorkBlock;
-
 
   return (
     <>

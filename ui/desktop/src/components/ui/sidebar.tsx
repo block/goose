@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
-import { VariantProps, cva } from 'class-variance-authority';
+import { cva } from 'class-variance-authority';
+import type { VariantProps } from 'class-variance-authority';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
 import { cn } from '../../utils';
@@ -243,7 +244,6 @@ function Sidebar({
     </div>
   );
 }
-
 
 function SidebarToggleButton() {
   const { toggleSidebar, state } = useSidebar();

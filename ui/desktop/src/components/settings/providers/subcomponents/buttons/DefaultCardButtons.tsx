@@ -1,5 +1,5 @@
 import { ConfigureSettingsButton, RocketButton } from './CardButtons';
-import { ProviderDetails } from '../../../../../api';
+import type { ProviderDetails } from '../../../../../api';
 
 // can define other optional callbacks as needed
 interface CardButtonsProps {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ExtensionModal from './ExtensionModal';
-import { ExtensionFormData } from '../utils';
+import type { ExtensionFormData } from '../utils';
 
 describe('ExtensionModal', () => {
   it('does not show unsaved changes dialog when closing without modifications', async () => {

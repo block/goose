@@ -5,12 +5,12 @@ import { createServer } from 'net';
 import os from 'node:os';
 import path from 'node:path';
 import log from './utils/logger';
-import { App } from 'electron';
+import type { App } from 'electron';
 import { Buffer } from 'node:buffer';
 
 import { status } from './api';
-import { Client } from './api/client';
-import { ExternalGoosedConfig } from './utils/settings';
+import type { Client } from './api/client';
+import type { ExternalGoosedConfig } from './utils/settings';
 
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, _reject) => {

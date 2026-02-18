@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { Recipe } from '../../recipe';
+import type { Recipe } from '../../recipe';
 import { Geese } from '../icons/Geese';
 import { X, Save, Play, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { RecipeFormFields } from './shared/RecipeFormFields';
-import { RecipeFormData } from './shared/recipeFormSchema';
+import type { RecipeFormData } from './shared/recipeFormSchema';
 import { createRecipe } from '../../api/sdk.gen';
-import { RecipeParameter } from './shared/recipeFormSchema';
+import type { RecipeParameter } from './shared/recipeFormSchema';
 import { toastError } from '../../toasts';
 import { saveRecipe } from '../../recipe/recipe_management';
 import { errorMessage } from '../../utils/conversionUtils';

@@ -1,4 +1,4 @@
-import Model from './modelInterface';
+import type Model from './modelInterface';
 
 // Helper functions for predefined models - shared across components
 export function getPredefinedModelsFromEnv(): Model[] {

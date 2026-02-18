@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { IpcRendererEvent } from 'electron';
+import type { IpcRendererEvent } from 'electron';
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import { Button } from './ui/button';
 import { extractExtensionName } from './settings/extensions/utils';
 import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
 import type { ExtensionConfig } from '../api/types.gen';
-import { View, ViewOptions } from '../utils/navigationUtils';
+import type { View, ViewOptions } from '../utils/navigationUtils';
 import { useConfig } from './ConfigContext';
 import { toastService } from '../toasts';
 import { errorMessage } from '../utils/conversionUtils';

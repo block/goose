@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
-import { Message } from '../api';
+import type { Message } from '../api';
 
 export interface ReasoningDetail {
   title: string;

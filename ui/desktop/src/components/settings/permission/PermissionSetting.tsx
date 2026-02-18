@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
-import { FixedExtensionEntry, useConfig } from '../../ConfigContext';
+import { useConfig } from '../../ConfigContext';
+import type { FixedExtensionEntry } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
 import { Button } from '../../ui/button';

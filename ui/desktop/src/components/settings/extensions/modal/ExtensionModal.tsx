@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../ui/dialog';
-import { ExtensionFormData } from '../utils';
+import type { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import HeadersSection from './HeadersSection';
 import ExtensionConfigFields from './ExtensionConfigFields';

@@ -3,7 +3,7 @@ import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
-import { UpdateCustomProviderRequest } from '../../../../../../api';
+import type { UpdateCustomProviderRequest } from '../../../../../../api';
 import { Trash2, AlertTriangle } from 'lucide-react';
 
 interface CustomProviderFormProps {

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Alert } from './types';
+import type { Alert } from './types';
 
 interface UseAlerts {
   alerts: Alert[];

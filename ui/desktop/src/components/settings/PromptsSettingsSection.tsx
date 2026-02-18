@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react';
-import {
-  getPrompt,
-  getPrompts,
-  PromptContentResponse,
-  Template,
-  resetPrompt,
-  savePrompt,
-} from '../../api';
+import { getPrompt, getPrompts, resetPrompt, savePrompt } from '../../api';
+import type { PromptContentResponse, Template } from '../../api';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { AlertTriangle, RotateCcw, ArrowLeft } from 'lucide-react';

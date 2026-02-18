@@ -4,22 +4,16 @@ import { ChatState } from '../types/chatState';
 
 import {
   getSession,
-  Message,
   reply,
   resumeAgent,
-  Session,
-  TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
   listApps,
 } from '../api';
+import type { Message, Session, TokenState } from '../api';
 
-import {
-  createUserMessage,
-  createElicitationResponseMessage,
-  NotificationEvent,
-  UserInput,
-} from '../types/message';
+import { createUserMessage, createElicitationResponseMessage } from '../types/message';
+import type { NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { streamReducer, initialState } from './chatStream/streamReducer';

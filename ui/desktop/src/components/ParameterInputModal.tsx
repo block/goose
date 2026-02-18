@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Parameter } from '../recipe';
+import type { Parameter } from '../recipe';
 import { Button } from './ui/button';
 import { getInitialWorkingDir } from '../utils/workingDir';
 

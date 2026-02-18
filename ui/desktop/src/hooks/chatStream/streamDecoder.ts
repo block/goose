@@ -6,17 +6,12 @@
  */
 import React from 'react';
 import { ChatState } from '../../types/chatState';
-import { Message, MessageEvent, TokenState } from '../../api';
-import {
-  getCompactingMessage,
-  getThinkingMessage,
-  MessageWithAttribution,
-  NotificationEvent,
-  RoutingInfo,
-} from '../../types/message';
+import type { Message, MessageEvent, TokenState } from '../../api';
+import { getCompactingMessage, getThinkingMessage } from '../../types/message';
+import type { MessageWithAttribution, NotificationEvent, RoutingInfo } from '../../types/message';
 import { errorMessage } from '../../utils/conversionUtils';
 import { maybeHandlePlatformEvent } from '../../utils/platform_events';
-import { StreamAction } from './streamReducer';
+import type { StreamAction } from './streamReducer';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 

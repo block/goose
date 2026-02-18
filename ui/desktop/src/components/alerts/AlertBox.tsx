@@ -3,7 +3,8 @@ import { IoIosCloseCircle, IoIosWarning, IoIosInformationCircle } from 'react-ic
 import { FaPencilAlt, FaSave } from 'react-icons/fa';
 import { cn } from '../../utils';
 import { errorMessage } from '../../utils/conversionUtils';
-import { Alert, AlertType } from './types';
+import { AlertType } from './types';
+import type { Alert } from './types';
 import { upsertConfig } from '../../api';
 import { useConfig } from '../ConfigContext';
 

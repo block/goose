@@ -5,8 +5,8 @@
  * making it independently testable.
  */
 import { ChatState } from '../../types/chatState';
-import { Message, Session, TokenState } from '../../api';
-import { NotificationEvent } from '../../types/message';
+import type { Message, Session, TokenState } from '../../api';
+import type { NotificationEvent } from '../../types/message';
 
 // ── State ────────────────────────────────────────────────────────────
 

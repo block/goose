@@ -8,7 +8,8 @@ import {
   useState,
 } from 'react';
 import { ItemIcon } from './ItemIcon';
-import { CommandType, getSlashCommands } from '../api';
+import { getSlashCommands } from '../api';
+import type { CommandType } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
 
 type DisplayItemType = CommandType | 'Directory' | 'File';

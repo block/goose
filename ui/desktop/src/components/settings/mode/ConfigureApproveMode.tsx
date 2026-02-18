@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
-import { GooseMode, ModeSelectionItem } from './ModeSelectionItem';
+import { ModeSelectionItem } from './ModeSelectionItem';
+import type { GooseMode } from './ModeSelectionItem';
 
 interface ConfigureApproveModeProps {
   onClose: () => void;

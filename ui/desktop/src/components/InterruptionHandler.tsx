@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, StopCircle, PauseCircle, RotateCcw, Zap, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
-import { InterruptionMatch } from '../utils/interruptionDetector';
+import type { InterruptionMatch } from '../utils/interruptionDetector';
 
 interface InterruptionHandlerProps {
   match: InterruptionMatch | null;

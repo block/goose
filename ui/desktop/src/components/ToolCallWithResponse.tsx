@@ -1,23 +1,25 @@
 import { AppEvents } from '../constants/events';
-import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
+import { ToolIconWithStatus } from './ToolCallStatusIndicator';
+import type { ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from './ui/button';
-import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
+import { ToolCallArguments } from './ToolCallArguments';
+import type { ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
-import {
+import type {
   ToolRequestMessageContent,
   ToolResponseMessageContent,
   NotificationEvent,
   ToolConfirmationData,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
-import { LoadingStatus } from './ui/Dot';
+import type { LoadingStatus } from './ui/Dot';
 import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import type { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 

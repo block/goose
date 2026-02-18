@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ExtensionConfig } from '../../../api';
+import type { ExtensionConfig } from '../../../api';
 import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
 import { Switch } from '../../ui/switch';

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { confirmToolAction, Permission } from '../api';
+import { confirmToolAction } from '../api';
+import type { Permission } from '../api';
 
 const globalApprovalState = new Map<
   string,

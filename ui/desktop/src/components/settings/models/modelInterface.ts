@@ -1,4 +1,5 @@
-import { ProviderDetails, getProviderModels } from '../../../api';
+import { getProviderModels } from '../../../api';
+import type { ProviderDetails } from '../../../api';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {

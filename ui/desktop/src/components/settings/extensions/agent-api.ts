@@ -1,5 +1,6 @@
 import { toastService } from '../../../toasts';
-import { agentAddExtension, ExtensionConfig, agentRemoveExtension } from '../../../api';
+import { agentAddExtension, agentRemoveExtension } from '../../../api';
+import type { ExtensionConfig } from '../../../api';
 import { errorMessage } from '../../../utils/conversionUtils';
 import {
   createExtensionRecoverHints,

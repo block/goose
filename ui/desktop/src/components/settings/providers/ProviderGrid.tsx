@@ -2,7 +2,7 @@ import React, { memo, useMemo, useCallback, useState } from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
 import CardContainer from './subcomponents/CardContainer';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
-import {
+import type {
   DeclarativeProviderConfig,
   ProviderDetails,
   UpdateCustomProviderRequest,

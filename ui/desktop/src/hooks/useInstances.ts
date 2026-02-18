@@ -4,6 +4,8 @@ import {
   spawnInstance,
   cancelInstance as cancelInstanceApi,
   getInstanceResult,
+} from '../lib/instances';
+import type {
   InstanceResponse,
   InstanceResultResponse,
   SpawnInstanceRequest,

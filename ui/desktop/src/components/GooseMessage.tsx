@@ -12,11 +12,13 @@ import {
   getElicitationContent,
   getPendingToolConfirmationIds,
   getAnyToolConfirmationData,
+} from '../types/message';
+import type {
   MessageWithAttribution,
   ToolConfirmationData,
   NotificationEvent,
 } from '../types/message';
-import { Message } from '../api';
+import type { Message } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import ElicitationRequest from './ElicitationRequest';
 import MessageCopyLink from './MessageCopyLink';

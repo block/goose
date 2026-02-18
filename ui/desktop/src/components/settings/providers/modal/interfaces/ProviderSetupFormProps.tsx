@@ -1,5 +1,5 @@
 import React from 'react';
-import ProviderState from '../../interfaces/ProviderState';
+import type ProviderState from '../../interfaces/ProviderState';
 
 export default interface ProviderSetupFormProps {
   configValues: { [key: string]: string };

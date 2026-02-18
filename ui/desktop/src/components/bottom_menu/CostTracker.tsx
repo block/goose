@@ -3,7 +3,7 @@ import { useModelAndProvider } from '../ModelAndProviderContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { fetchModelPricing } from '../../utils/pricing';
-import { PricingData } from '../../api';
+import type { PricingData } from '../../api';
 
 interface CostTrackerProps {
   inputTokens?: number;

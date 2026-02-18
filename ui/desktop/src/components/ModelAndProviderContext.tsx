@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { toastError, toastSuccess } from '../toasts';
-import Model, { getProviderMetadata } from './settings/models/modelInterface';
-import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api';
+import type Model from './settings/models/modelInterface';
+import { getProviderMetadata } from './settings/models/modelInterface';
+import { setConfigProvider, updateAgentProvider } from '../api';
+import type { ProviderMetadata } from '../api';
 import { useConfig } from './ConfigContext';
 import { errorMessage } from '../utils/conversionUtils';
 import {

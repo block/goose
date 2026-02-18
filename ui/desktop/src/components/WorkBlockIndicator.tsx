@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useRef } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useReasoningDetail, type WorkBlockDetail } from '../contexts/ReasoningDetailContext';
-import { Message } from '../api';
+import type { Message } from '../api';
 import FlyingBird from './FlyingBird';
 import GooseLogo from './GooseLogo';
 

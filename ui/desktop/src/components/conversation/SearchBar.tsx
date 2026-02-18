@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef, KeyboardEvent } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import type { KeyboardEvent } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
 import debounce from 'lodash/debounce';

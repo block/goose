@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/input';
 import { useConfig } from '../../../../../ConfigContext';
-import { ProviderDetails, ConfigKey } from '../../../../../../api';
+import type { ProviderDetails, ConfigKey } from '../../../../../../api';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
 
 type ValidationErrors = Record<string, string>;

@@ -4,7 +4,7 @@ import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
-import { ProviderDetails } from '../../../api';
+import type { ProviderDetails } from '../../../api';
 import { createNavigationHandler } from '../../../utils/navigationUtils';
 
 interface ProviderSettingsProps {

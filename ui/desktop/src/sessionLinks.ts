@@ -1,5 +1,6 @@
-import { fetchSharedSessionDetails, SharedSessionDetails } from './sharedSessions';
-import { View, ViewOptions } from './utils/navigationUtils';
+import { fetchSharedSessionDetails } from './sharedSessions';
+import type { SharedSessionDetails } from './sharedSessions';
+import type { View, ViewOptions } from './utils/navigationUtils';
 import { errorMessage } from './utils/conversionUtils';
 
 /**

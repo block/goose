@@ -7,9 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../ui/dialog';
-import DefaultProviderSetupForm, {
-  ConfigInput,
-} from './subcomponents/forms/DefaultProviderSetupForm';
+import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
+import type { ConfigInput } from './subcomponents/forms/DefaultProviderSetupForm';
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
 import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
@@ -17,7 +16,8 @@ import { providerConfigSubmitHandler } from './subcomponents/handlers/DefaultSub
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle, LogIn } from 'lucide-react';
-import { ProviderDetails, removeCustomProvider, configureProviderOauth } from '../../../../api';
+import { removeCustomProvider, configureProviderOauth } from '../../../../api';
+import type { ProviderDetails } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
 
 const formatErrorMessage = (error: unknown): string => {

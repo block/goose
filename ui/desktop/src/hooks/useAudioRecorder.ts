@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { transcribeDictation, getDictationConfig, DictationProvider } from '../api';
+import { transcribeDictation, getDictationConfig } from '../api';
+import type { DictationProvider } from '../api';
 import { useConfig } from '../components/ConfigContext';
 import { errorMessage } from '../utils/conversionUtils';
 

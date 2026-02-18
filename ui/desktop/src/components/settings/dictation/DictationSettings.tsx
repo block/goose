@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { DictationProvider, getDictationConfig, DictationProviderStatus } from '../../../api';
+import { getDictationConfig } from '../../../api';
+import type { DictationProvider, DictationProviderStatus } from '../../../api';
 import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';

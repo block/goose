@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
-import { View } from '../../../../utils/navigationUtils';
+import type { View } from '../../../../utils/navigationUtils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
-import { Alert } from '../../../alerts';
+import type { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 
 interface ModelsBottomBarProps {

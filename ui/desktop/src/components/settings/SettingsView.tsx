@@ -1,4 +1,4 @@
-import { View, ViewOptions } from '../../utils/navigationUtils';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import ModelsSection from './models/ModelsSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
@@ -6,7 +6,7 @@ import ExternalBackendSection from './app/ExternalBackendSection';
 import AppSettingsSection from './app/AppSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
 import PromptsSettingsSection from './PromptsSettingsSection';
-import { ExtensionConfig } from '../../api';
+import type { ExtensionConfig } from '../../api';
 import { PageShell } from '../Layout/PageShell';
 import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';

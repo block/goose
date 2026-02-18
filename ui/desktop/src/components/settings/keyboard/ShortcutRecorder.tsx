@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '../../ui/button';
-import { KeyboardShortcuts } from '../../../utils/settings';
+import type { KeyboardShortcuts } from '../../../utils/settings';
 import { getShortcutLabel, formatShortcut } from './KeyboardShortcutsSection';
 
 interface ShortcutRecorderProps {

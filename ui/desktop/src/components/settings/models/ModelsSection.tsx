@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { View } from '../../../utils/navigationUtils';
+import type { View } from '../../../utils/navigationUtils';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 import { useConfig } from '../../ConfigContext';
 import {

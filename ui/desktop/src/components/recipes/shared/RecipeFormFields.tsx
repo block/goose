@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Parameter } from '../../../recipe';
+import type { Parameter } from '../../../recipe';
 import { ChevronDown } from 'lucide-react';
-import { ExtensionConfig } from '../../../api';
+import type { ExtensionConfig } from '../../../api';
 
 import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
@@ -9,7 +9,7 @@ import JsonSchemaEditor from './JsonSchemaEditor';
 import InstructionsEditor from './InstructionsEditor';
 import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/collapsible';
-import { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
+import type { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
 import { RecipeModelSelector } from './RecipeModelSelector';
 import { RecipeExtensionSelector } from './RecipeExtensionSelector';
 

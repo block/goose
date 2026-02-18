@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { Recipe, scanRecipe } from '../recipe';
+import { scanRecipe } from '../recipe';
+import type { Recipe } from '../recipe';
 import { createUserMessage } from '../types/message';
-import { Message } from '../api';
+import type { Message } from '../api';
 
 import { substituteParameters } from '../utils/providerUtils';
 import { updateSessionUserRecipeValues } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
-import { ChatType } from '../types/chat';
+import type { ChatType } from '../types/chat';
 import { toastError, toastSuccess } from '../toasts';
 
 export const useRecipeManager = (chat: ChatType, recipe?: Recipe | null) => {

@@ -8,7 +8,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { getToolAnalytics, ToolAnalytics, ToolUsageStat } from '../../api';
+import { getToolAnalytics } from '../../api';
+import type { ToolAnalytics, ToolUsageStat } from '../../api';
 
 const COLORS = {
   success: '#22c55e',

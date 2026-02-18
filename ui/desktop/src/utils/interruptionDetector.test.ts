@@ -4,8 +4,8 @@ import {
   isInterruptionCommand,
   getInterruptionMessage,
   INTERRUPTION_KEYWORDS,
-  InterruptionMatch,
 } from './interruptionDetector';
+import type { InterruptionMatch } from './interruptionDetector';
 
 describe('interruptionDetector', () => {
   describe('detectInterruption', () => {

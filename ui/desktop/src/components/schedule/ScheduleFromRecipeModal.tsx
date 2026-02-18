@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Recipe, generateDeepLink } from '../../recipe';
+import { generateDeepLink } from '../../recipe';
+import type { Recipe } from '../../recipe';
 import Copy from '../icons/Copy';
 import { Check } from 'lucide-react';
 

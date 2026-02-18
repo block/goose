@@ -1,11 +1,11 @@
 import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from '../GooseSidebar/AppSidebar';
-import { View, ViewOptions } from '../../utils/navigationUtils';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
 import { Sidebar, SidebarInset, SidebarProvider } from '../ui/sidebar';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
-import { UserInput } from '../../types/message';
+import type { UserInput } from '../../types/message';
 import { ReasoningDetailProvider } from '../../contexts/ReasoningDetailContext';
 import ReasoningDetailPanel from '../ReasoningDetailPanel';
 import { UnifiedInputProvider, useUnifiedInput } from '../../contexts/UnifiedInputContext';
@@ -14,7 +14,6 @@ import { ChatState } from '../../types/chatState';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
-
 
 interface AppLayoutContentProps {
   activeSessions: Array<{

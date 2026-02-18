@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
-import { FixedExtensionEntry, useConfig } from '../../ConfigContext';
+import { useConfig } from '../../ConfigContext';
+import type { FixedExtensionEntry } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
 import { Button } from '../../ui/button';

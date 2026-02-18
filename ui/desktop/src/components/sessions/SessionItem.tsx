@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card } from '../ui/card';
 import { formatDate } from '../../utils/date';
-import { Session } from '../../api';
+import type { Session } from '../../api';
 import { shouldShowNewChatTitle } from '../../sessions';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
 

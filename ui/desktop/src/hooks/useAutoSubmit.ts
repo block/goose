@@ -1,10 +1,10 @@
 import { AppEvents } from '../constants/events';
 import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Session } from '../api';
-import { Message } from '../api';
+import type { Session } from '../api';
+import type { Message } from '../api';
 import { ChatState } from '../types/chatState';
-import { UserInput } from '../types/message';
+import type { UserInput } from '../types/message';
 
 /**
  * Auto-submit scenarios:

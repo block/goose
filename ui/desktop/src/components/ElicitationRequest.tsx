@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ActionRequired } from '../api';
+import type { ActionRequired } from '../api';
 import JsonSchemaForm from './ui/JsonSchemaForm';
 import type { JsonSchema } from './ui/JsonSchemaForm';
 

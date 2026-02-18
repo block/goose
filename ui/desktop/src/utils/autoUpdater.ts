@@ -1,4 +1,5 @@
-import { autoUpdater, UpdateInfo } from 'electron-updater';
+import { autoUpdater } from 'electron-updater';
+import type { UpdateInfo } from 'electron-updater';
 import {
   BrowserWindow,
   ipcMain,
@@ -8,9 +9,9 @@ import {
   app,
   dialog,
   Menu,
-  MenuItemConstructorOptions,
   Notification,
 } from 'electron';
+import type { MenuItemConstructorOptions } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import log from './logger';

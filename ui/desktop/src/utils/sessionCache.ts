@@ -1,4 +1,4 @@
-import { Session } from '../api';
+import type { Session } from '../api';
 import { getApiUrl } from '../config';
 import { errorMessage } from './conversionUtils';
 

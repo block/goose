@@ -1,10 +1,12 @@
-import React, { useState, useEffect, FormEvent, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { FormEvent } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { ScheduledJob } from '../../schedule';
+import type { ScheduledJob } from '../../schedule';
 import { CronPicker } from './CronPicker';
-import { Recipe, parseDeeplink, parseRecipeFromFile } from '../../recipe';
+import { parseDeeplink, parseRecipeFromFile } from '../../recipe';
+import type { Recipe } from '../../recipe';
 import { getStorageDirectory } from '../../recipe/recipe_management';
 import ClockIcon from '../../assets/clock-icon.svg';
 

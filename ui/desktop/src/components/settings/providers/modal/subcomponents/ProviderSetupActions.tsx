@@ -1,7 +1,7 @@
-import { SyntheticEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import { Button } from '../../../../ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
-import { ConfigKey } from '../../../../../api';
+import type { ConfigKey } from '../../../../../api';
 
 interface ProviderSetupActionsProps {
   onCancel: () => void;

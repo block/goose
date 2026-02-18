@@ -1,6 +1,6 @@
 import React from 'react';
-import ParameterSchema from '../interfaces/ParameterSchema';
-import ProviderSetupFormProps from '../modal/interfaces/ProviderSetupFormProps';
+import type ParameterSchema from '../interfaces/ParameterSchema';
+import type ProviderSetupFormProps from '../modal/interfaces/ProviderSetupFormProps';
 
 export default interface ProviderDetails {
   id: string;

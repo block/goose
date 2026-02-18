@@ -1,4 +1,4 @@
-import { ActionRequired } from '../api';
+import type { ActionRequired } from '../api';
 import ToolApprovalButtons from './ToolApprovalButtons';
 
 type ToolConfirmationData = Extract<ActionRequired['data'], { actionType: 'toolConfirmation' }>;

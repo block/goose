@@ -37,9 +37,10 @@ import {
 } from '../ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Gear } from '../icons';
-import { View, ViewOptions } from '../../utils/navigationUtils';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { deleteSession, listSessions, Session, updateSessionName } from '../../api';
+import { deleteSession, listSessions, updateSessionName } from '../../api';
+import type { Session } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 import { SessionIndicators } from '../SessionIndicators';

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ExtensionConfig } from '../../../api';
+import type { ExtensionConfig } from '../../../api';
 
 // Zod schema for Parameter - matching API RecipeParameter type
 const parameterSchema = z.object({

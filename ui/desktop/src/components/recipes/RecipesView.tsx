@@ -26,15 +26,16 @@ import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 import {
   deleteRecipe,
-  RecipeManifest,
   startAgent,
   scheduleRecipe,
   setRecipeSlashCommand,
   recipeToYaml,
 } from '../../api';
+import type { RecipeManifest } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, encodeRecipe, Recipe, stripEmptyExtensions } from '../../recipe';
+import { generateDeepLink, encodeRecipe, stripEmptyExtensions } from '../../recipe';
+import type { Recipe } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';

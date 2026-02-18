@@ -2,7 +2,7 @@ import GooseLogo from './GooseLogo';
 import AnimatedIcons from './AnimatedIcons';
 import FlyingBird from './FlyingBird';
 import { ChatState } from '../types/chatState';
-import { RoutingInfo } from '../types/message';
+import type { RoutingInfo } from '../types/message';
 
 interface LoadingGooseProps {
   message?: string;

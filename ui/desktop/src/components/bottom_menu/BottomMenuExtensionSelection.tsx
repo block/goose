@@ -4,10 +4,12 @@ import { Puzzle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
-import { FixedExtensionEntry, useConfig } from '../ConfigContext';
+import { useConfig } from '../ConfigContext';
+import type { FixedExtensionEntry } from '../ConfigContext';
 import { toastService } from '../../toasts';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
-import { ExtensionConfig, getSessionExtensions } from '../../api';
+import { getSessionExtensions } from '../../api';
+import type { ExtensionConfig } from '../../api';
 import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 import {
   setExtensionOverride,

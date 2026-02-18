@@ -19,15 +19,19 @@ import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
-import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
+import MentionPopover from './MentionPopover';
+import type { DisplayItemWithMatch } from './MentionPopover';
 import { COST_TRACKING_ENABLED } from '../updates';
 import { CostTracker } from './bottom_menu/CostTracker';
-import { DroppedFile, useFileDrop } from '../hooks/useFileDrop';
-import { Recipe } from '../recipe';
-import { MessageQueue, QueuedMessage } from './MessageQueue';
+import { useFileDrop } from '../hooks/useFileDrop';
+import type { DroppedFile } from '../hooks/useFileDrop';
+import type { Recipe } from '../recipe';
+import { MessageQueue } from './MessageQueue';
+import type { QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
-import { getSession, Message } from '../api';
+import { getSession } from '../api';
+import type { Message } from '../api';
 import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
 import CreateEditRecipeModal from './recipes/CreateEditRecipeModal';
 import { getInitialWorkingDir } from '../utils/workingDir';
@@ -40,7 +44,7 @@ import {
   trackEditRecipeOpened,
 } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
-import { UserInput, ImageData } from '../types/message';
+import type { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
 
 interface PastedImage {

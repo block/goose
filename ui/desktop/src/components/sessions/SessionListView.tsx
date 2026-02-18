@@ -36,11 +36,9 @@ import {
   importSession,
   listSessions,
   searchSessions,
-  Session,
   updateSessionName,
-  ExtensionConfig,
-  ExtensionData,
 } from '../../api';
+import type { Session, ExtensionConfig, ExtensionData } from '../../api';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { shouldShowNewChatTitle } from '../../sessions';
