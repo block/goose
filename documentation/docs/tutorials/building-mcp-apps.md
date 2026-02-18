@@ -169,6 +169,8 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
               csp: {
                 connectDomains: [],
                 resourceDomains: [],
+                frameDomains: [],
+                baseUriDomains: [],
               },
               prefersBorder: true,
             },
@@ -530,13 +532,13 @@ Try:
 └──────────────────────────────────────┘
 ```
 
-Your server returns a `ui://` resource URI, goose fetches the HTML and renders it in an iframe. The app communicates back via `postMessage` to request theme info, send messages to chat, or resize itself.
+Your server returns a `ui://` resource URI, goose fetches the HTML and renders it in an iframe. The app communicates back via `postMessage`—requesting theme info, sending messages to chat, or resizing itself.
 
 MCP Apps run in a sandboxed iframe with strict Content Security Policy restrictions.
 
 ### Content Security Policy Configuration
 
-By default, apps can only load resources from their own origin. If your app needs to interact with external domains (such as loading resources from a CDN or making API calls), you can configure which domains are allowed through the `csp` object in the resource's `_meta.ui` section.
+By default, apps can only load resources from their own origin. If your app needs to interact with external domains—such as loading resources from a CDN, making API calls, or embedding maps—you can configure which domains are allowed through the `csp` object in the resource's `_meta.ui` section.
 
 ```javascript
 _meta: {
@@ -544,6 +546,8 @@ _meta: {
     csp: {
       connectDomains: [],      // Domains for fetch/XHR requests
       resourceDomains: [],     // Domains for scripts, styles, images, fonts, media
+      frameDomains: [],        // Origins allowed for nested iframes
+      baseUriDomains: [],      // Additional allowed base URIs
     },
   },
 }
@@ -553,9 +557,22 @@ _meta: {
 |--------|---------------|---------|---------|
 | `connectDomains` | `connect-src` | Domains your app can make network requests to | Same-origin only |
 | `resourceDomains` | `script-src`, `style-src`, `img-src`, `font-src`, `media-src` | Domains for loading external resources | Same-origin only |
+| `frameDomains` | `frame-src` | Origins allowed for nested `<iframe>` elements | `'none'` (no iframes) |
+| `baseUriDomains` | `base-uri` | Additional domains allowed for `<base>` element | `'self'` only |
 
 <details>
-<summary>Example: Loading resources from a CDN</summary>
+<summary>Examples</summary>
+
+**Embedding a map:**
+
+```javascript
+csp: {
+  frameDomains: ['https://www.openstreetmap.org'],
+  resourceDomains: ['https://tile.openstreetmap.org'],
+}
+```
+
+**Loading resources from a CDN:**
 
 ```javascript
 csp: {
