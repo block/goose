@@ -87,12 +87,12 @@ async function configureProxy() {
   const proxyUrl = httpsProxy || httpProxy;
 
   if (proxyUrl) {
-    console.log('[Main] Configuring proxy');
+    // proxy configured
     await session.defaultSession.setProxy({
       proxyRules: proxyUrl,
       proxyBypassRules: noProxy,
     });
-    console.log('[Main] Proxy configured successfully');
+    // proxy configured successfully
   }
 }
 
@@ -100,7 +100,6 @@ if (started) app.quit();
 
 if (process.env.ENABLE_PLAYWRIGHT) {
   const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
-  console.log(`[Main] Enabling Playwright remote debugging on port ${debugPort}`);
   app.commandLine.appendSwitch('remote-debugging-port', debugPort);
 }
 
@@ -108,7 +107,6 @@ if (process.env.ENABLE_PLAYWRIGHT) {
 // In production, register normally
 if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
   // Development mode - force registration
-  console.log('[Main] Development mode: Forcing protocol registration for goose://');
   app.setAsDefaultProtocolClient('goose');
 
   if (process.platform === 'darwin') {
@@ -804,9 +802,6 @@ const createChat = async (
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
       try {
         powerSaveBlocker.stop(blockerId);
-        console.log(
-          `[Main] Stopped power save blocker ${blockerId} for closing window ${windowId}`
-        );
       } catch (error) {
         console.error(
           `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
@@ -1332,7 +1327,7 @@ ipcMain.handle('open-notifications-settings', async () => {
         spawn('gnome-control-center', ['notifications']);
         return true;
       } catch {
-        console.log('GNOME control center not found, trying other options');
+        console.warn('GNOME control center not found, trying other options');
       }
 
       // KDE Plasma
@@ -1340,7 +1335,7 @@ ipcMain.handle('open-notifications-settings', async () => {
         spawn('systemsettings5', ['kcm_notifications']);
         return true;
       } catch {
-        console.log('KDE systemsettings5 not found, trying other options');
+        console.warn('KDE systemsettings5 not found, trying other options');
       }
 
       // XFCE
@@ -1348,7 +1343,7 @@ ipcMain.handle('open-notifications-settings', async () => {
         spawn('xfce4-settings-manager', ['--socket-id=notifications']);
         return true;
       } catch {
-        console.log('XFCE settings manager not found, trying other options');
+        console.warn('XFCE settings manager not found, trying other options');
       }
 
       // Fallback: Try to open general settings
@@ -1382,9 +1377,6 @@ ipcMain.handle('set-wakelock', async (_event, enable: boolean) => {
     for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
       try {
         powerSaveBlocker.stop(blockerId);
-        console.log(
-          `[Main] Stopped power save blocker ${blockerId} for window ${windowId} due to wakelock setting disabled`
-        );
       } catch (error) {
         console.error(
           `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,
@@ -1488,9 +1480,7 @@ ipcMain.handle('check-ollama', async () => {
           return resolve(false);
         }
 
-        console.log('Raw stdout from ps|grep command:', output);
         const trimmedOutput = output.trim();
-        console.log('Trimmed stdout:', trimmedOutput);
 
         const isRunning = trimmedOutput.length > 0;
         resolve(isRunning);
@@ -1666,7 +1656,6 @@ async function appMain() {
 
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    console.log('Permission requested:', permission);
     // Allow microphone and media access
     if (permission === 'media') {
       callback(true);
@@ -1968,9 +1957,6 @@ async function appMain() {
                   focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
                 }
 
-                console.log(
-                  `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
-                );
               }
             },
           })
@@ -2105,7 +2091,6 @@ async function appMain() {
       // Remove any HTML tags for security
       const sanitizeText = (text: string) => text.replace(/<[^>]*>/g, '');
 
-      console.log('NOTIFY', data);
       const notification = new Notification({
         title: sanitizeText(data.title),
         body: sanitizeText(data.body),
@@ -2319,7 +2304,7 @@ async function appMain() {
     try {
       const appWindow = appWindows.get(gooseApp.name);
       if (!appWindow || appWindow.isDestroyed()) {
-        console.log(`App window for '${gooseApp.name}' not found or destroyed, skipping refresh`);
+        console.warn(`App window for '${gooseApp.name}' not found or destroyed, skipping refresh`);
         return;
       }
 
@@ -2342,7 +2327,7 @@ async function appMain() {
     try {
       const appWindow = appWindows.get(appName);
       if (!appWindow || appWindow.isDestroyed()) {
-        console.log(`App window for '${appName}' not found or destroyed, skipping close`);
+        console.warn(`App window for '${appName}' not found or destroyed, skipping close`);
         return;
       }
 
@@ -2385,7 +2370,6 @@ async function getAllowList(): Promise<string[]> {
     const commands = parsedYaml.extensions.map(
       (ext: { id: string; command: string }) => ext.command
     );
-    console.log(`Fetched ${commands.length} allowed extension commands`);
     return commands;
   } else {
     console.error('Invalid YAML structure:', parsedYaml);
@@ -2397,9 +2381,6 @@ app.on('will-quit', async () => {
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
       powerSaveBlocker.stop(blockerId);
-      console.log(
-        `[Main] Stopped power save blocker ${blockerId} for window ${windowId} during app quit`
-      );
     } catch (error) {
       console.error(
         `[Main] Failed to stop power save blocker ${blockerId} for window ${windowId}:`,

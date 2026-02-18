@@ -118,7 +118,6 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       throw new Error('Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config');
     }
     if (!model || !provider) {
-      console.log('[getCurrentModelAndProvider] Checking app environment as fallback');
       return getFallbackModelAndProvider();
     }
     return { model: model, provider: provider };

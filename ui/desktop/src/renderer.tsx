@@ -16,13 +16,11 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
   const isLauncher = window.location.hash === '#/launcher';
 
   if (!isLauncher) {
-    console.log('window created, getting goosed connection info');
     const gooseApiHost = await window.electron.getGoosedHostPort();
     if (gooseApiHost === null) {
       window.alert('failed to start goose backend process');
       return;
     }
-    console.log('connecting at', gooseApiHost);
     client.setConfig({
       baseUrl: gooseApiHost,
       headers: {

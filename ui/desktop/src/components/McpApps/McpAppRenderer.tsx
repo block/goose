@@ -223,14 +223,8 @@ export default function McpAppRenderer({
           } satisfies McpMethodResponse['resources/read'];
         }
 
-        case 'notifications/message': {
-          const { level, logger, data } = params as McpMethodParams['notifications/message'];
-          console.log(
-            `[MCP App Notification]${logger ? ` [${logger}]` : ''} ${level || 'info'}:`,
-            data
-          );
+        case 'notifications/message':
           return {} satisfies McpMethodResponse['notifications/message'];
-        }
 
         case 'ping':
           return {} satisfies McpMethodResponse['ping'];

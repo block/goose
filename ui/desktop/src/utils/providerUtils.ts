@@ -31,14 +31,6 @@ export const initializeSystem = async (
   }
 ) => {
   try {
-    console.log(
-      'initializing agent with provider',
-      provider,
-      'model',
-      model,
-      'sessionId',
-      sessionId
-    );
     await updateAgentProvider({
       body: {
         session_id: sessionId,
@@ -49,7 +41,6 @@ export const initializeSystem = async (
     });
 
     if (!sessionId) {
-      console.log('This will not end well');
     }
     await updateFromSession({
       body: {

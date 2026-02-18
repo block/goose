@@ -111,7 +111,6 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
       if (response.error) {
         console.error('Failed to save permissions:', response.error);
       } else {
-        console.log('Permissions updated successfully');
         onClose();
       }
     } catch (err) {

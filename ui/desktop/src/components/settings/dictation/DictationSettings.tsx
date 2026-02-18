@@ -32,7 +32,6 @@ export const DictationSettings = () => {
   }, [read]);
 
   const saveProvider = async (newProvider: DictationProvider | null) => {
-    console.log('Saving dictation provider to backend config:', newProvider);
     setProvider(newProvider);
     await upsert('voice_dictation_provider', newProvider || '', false);
     trackSettingToggled('voice_dictation', newProvider !== null);

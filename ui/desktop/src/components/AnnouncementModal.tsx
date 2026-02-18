@@ -94,7 +94,7 @@ export default function AnnouncementModal() {
           }
         }
       } catch (error) {
-        console.log('No announcements found or failed to load:', error);
+        console.warn('No announcements found or failed to load:', error);
       }
     };
 

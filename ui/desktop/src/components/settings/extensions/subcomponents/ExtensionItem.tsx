@@ -40,7 +40,7 @@ export default function ExtensionItem({
       // Success case is handled by the useEffect below when extension.enabled changes
     } catch {
       // If there was an error, revert the visual state
-      console.log('Toggle failed, reverting visual state');
+      console.warn('Toggle failed, reverting visual state');
       setVisuallyEnabled(!newState);
     } finally {
       setIsToggling(false);

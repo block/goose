@@ -80,7 +80,6 @@ const CodeBlock = memo(function CodeBlock({
     const isLargeCodeBlock = children.length > 10000; // 10KB threshold
 
     if (isLargeCodeBlock) {
-      console.log(`Large code block detected (${children.length} chars), consider optimization`);
     }
 
     return (
