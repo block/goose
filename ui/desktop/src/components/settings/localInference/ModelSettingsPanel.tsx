@@ -12,7 +12,14 @@ import {
 const DEFAULT_SETTINGS: ModelSettings = {
   context_size: null,
   max_output_tokens: null,
-  sampling: { type: 'Temperature', temperature: 0.8, top_k: 40, top_p: 0.95, min_p: 0.05, seed: null },
+  sampling: {
+    type: 'Temperature',
+    temperature: 0.8,
+    top_k: 40,
+    top_p: 0.95,
+    min_p: 0.05,
+    seed: null,
+  },
   repeat_penalty: 1.0,
   repeat_last_n: 64,
   frequency_penalty: 0.0,
@@ -177,7 +184,14 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     } else if (type === 'MirostatV2') {
       sampling = { type: 'MirostatV2', tau: 5.0, eta: 0.1, seed: null };
     } else {
-      sampling = { type: 'Temperature', temperature: 0.8, top_k: 40, top_p: 0.95, min_p: 0.05, seed: null };
+      sampling = {
+        type: 'Temperature',
+        temperature: 0.8,
+        top_k: 40,
+        top_p: 0.95,
+        min_p: 0.05,
+        seed: null,
+      };
     }
     save({ ...settings, sampling });
   };
@@ -191,11 +205,9 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   }
 
   return (
-    <div className="space-y-4 border-t border-border-subtle pt-3 pb-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-text-muted uppercase tracking-wide">
-          Model Settings {saving && '(saving...)'}
-        </span>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        {saving && <span className="text-xs text-text-muted mr-auto">Saving...</span>}
         <Button variant="ghost" size="sm" onClick={resetDefaults} title="Reset to defaults">
           <RotateCcw className="w-3.5 h-3.5 mr-1" />
           <span className="text-xs">Reset</span>
@@ -393,7 +405,13 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
         <SelectField
           label="Flash attention"
           description="Enable flash attention optimization"
-          value={settings.flash_attention === null || settings.flash_attention === undefined ? 'auto' : settings.flash_attention ? 'on' : 'off'}
+          value={
+            settings.flash_attention === null || settings.flash_attention === undefined
+              ? 'auto'
+              : settings.flash_attention
+                ? 'on'
+                : 'off'
+          }
           options={[
             { value: 'auto', label: 'Auto' },
             { value: 'on', label: 'On' },

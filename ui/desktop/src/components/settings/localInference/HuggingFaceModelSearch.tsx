@@ -57,8 +57,40 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
         query: { q, limit: 20 },
       });
       if (response.data) {
-        setResults(response.data);
-        if (response.data.length === 0) {
+        // Pre-fetch variants for all results and filter out repos with no suitable quantizations
+        const modelsWithVariants = await Promise.all(
+          response.data.map(async (model) => {
+            try {
+              const [author, repo] = model.repo_id.split('/');
+              const filesResponse = await getRepoFiles({ path: { author, repo } });
+              if (filesResponse.data && filesResponse.data.variants.length > 0) {
+                return { model, data: filesResponse.data };
+              }
+            } catch {
+              // Skip repos we can't fetch
+            }
+            return null;
+          })
+        );
+
+        const validResults = modelsWithVariants.filter(Boolean) as {
+          model: HfModelInfo;
+          data: { variants: HfQuantVariant[]; recommended_index?: number | null };
+        }[];
+
+        setResults(validResults.map((r) => r.model));
+        setRepoData((prev) => {
+          const next = { ...prev };
+          for (const r of validResults) {
+            next[r.model.repo_id] = {
+              variants: r.data.variants,
+              recommendedIndex: r.data.recommended_index ?? null,
+            };
+          }
+          return next;
+        });
+
+        if (validResults.length === 0) {
           setError('No GGUF models found for this query.');
         }
       } else {
@@ -105,10 +137,6 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
               recommendedIndex: response.data!.recommended_index ?? null,
             },
           }));
-          if (variants.length === 0) {
-            setExpandedRepo(null);
-            setResults((prev) => prev.filter((m) => m.repo_id !== repoId));
-          }
         }
       } catch (e) {
         console.error('Failed to fetch repo files:', e);
