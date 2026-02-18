@@ -5,8 +5,7 @@ use std::collections::HashMap;
 use super::canonical::CanonicalModelRegistry;
 
 /// Provider metadata embedded in the binary (generated from models.dev)
-const PROVIDER_METADATA_JSON: &str =
-    include_str!("canonical/data/provider_metadata.json");
+const PROVIDER_METADATA_JSON: &str = include_str!("canonical/data/provider_metadata.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ProviderMetadataEntry {
@@ -32,9 +31,8 @@ static PROVIDER_METADATA: Lazy<HashMap<String, ProviderMetadataEntry>> = Lazy::n
 });
 
 /// Canonical model registry (loaded once, lazily)
-static CANONICAL_REGISTRY: Lazy<Option<CanonicalModelRegistry>> = Lazy::new(|| {
-    CanonicalModelRegistry::bundled().ok().cloned()
-});
+static CANONICAL_REGISTRY: Lazy<Option<CanonicalModelRegistry>> =
+    Lazy::new(|| CanonicalModelRegistry::bundled().ok().cloned());
 
 /// Engine/format compatibility
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -147,9 +145,9 @@ pub async fn get_providers_by_format(format: ProviderFormat) -> Vec<ProviderCata
             let api_url = metadata.api.as_ref()?.clone();
 
             // Get env var (first one or generate default)
-            let env_var = metadata.env.first()
-                .cloned()
-                .unwrap_or_else(|| format!("{}_API_KEY", metadata.id.to_uppercase().replace('-', "_")));
+            let env_var = metadata.env.first().cloned().unwrap_or_else(|| {
+                format!("{}_API_KEY", metadata.id.to_uppercase().replace('-', "_"))
+            });
 
             Some(ProviderCatalogEntry {
                 id: metadata.id.clone(),
@@ -183,11 +181,13 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
     let models: Vec<ModelTemplate> = CANONICAL_REGISTRY
         .as_ref()
         .map(|registry| {
-            registry.get_all_models_for_provider(provider_id)
+            registry
+                .get_all_models_for_provider(provider_id)
                 .into_iter()
                 .map(|model| {
                     // Extract just the model ID (without provider prefix)
-                    let model_id = model.id
+                    let model_id = model
+                        .id
                         .strip_prefix(&format!("{}/", provider_id))
                         .unwrap_or(&model.id)
                         .to_string();
@@ -210,7 +210,9 @@ pub fn get_provider_template(provider_id: &str) -> Option<ProviderTemplate> {
         .unwrap_or_default();
 
     // Get env var (first one or generate default)
-    let env_var = metadata.env.first()
+    let env_var = metadata
+        .env
+        .first()
         .cloned()
         .unwrap_or_else(|| format!("{}_API_KEY", provider_id.to_uppercase().replace('-', "_")));
 
@@ -245,8 +247,11 @@ mod tests {
             .collect();
 
         for provider in &openai_providers {
-            assert!(!native_ids.contains(&provider.id),
-                "Provider {} should not be in catalog (it's a native provider)", provider.id);
+            assert!(
+                !native_ids.contains(&provider.id),
+                "Provider {} should not be in catalog (it's a native provider)",
+                provider.id
+            );
         }
 
         let anthropic_providers = get_providers_by_format(ProviderFormat::Anthropic).await;
@@ -283,8 +288,15 @@ mod tests {
         let template = template.unwrap();
         println!("Z.AI template: {} models", template.models.len());
         for model in template.models.iter().take(3) {
-            println!("  - {} ({}K context)", model.name, model.context_limit / 1000);
+            println!(
+                "  - {} ({}K context)",
+                model.name,
+                model.context_limit / 1000
+            );
         }
-        assert!(!template.models.is_empty(), "z.ai template should have models");
+        assert!(
+            !template.models.is_empty(),
+            "z.ai template should have models"
+        );
     }
 }

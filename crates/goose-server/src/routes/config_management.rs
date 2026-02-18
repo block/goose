@@ -893,7 +893,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
         .route("/config/provider-catalog", get(get_provider_catalog))
-        .route("/config/provider-catalog/{id}", get(get_provider_catalog_template))
+        .route(
+            "/config/provider-catalog/{id}",
+            get(get_provider_catalog_template),
+        )
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route(
