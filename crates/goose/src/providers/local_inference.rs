@@ -1078,6 +1078,211 @@ fn build_sampler(
     }
 }
 
+/// Validate prompt tokens against memory limits and compute the effective
+/// context size. Returns `(prompt_token_count, effective_ctx)`.
+fn validate_and_compute_context(
+    loaded: &LoadedModel,
+    runtime: &InferenceRuntime,
+    prompt_token_count: usize,
+    context_limit: usize,
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+) -> Result<(usize, usize), ProviderError> {
+    let n_ctx_train = loaded.model.n_ctx_train() as usize;
+    let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, runtime);
+    let effective_ctx = if let Some(ctx_size) = settings.context_size {
+        ctx_size as usize
+    } else {
+        effective_context_size(
+            prompt_token_count,
+            context_limit,
+            n_ctx_train,
+            memory_max_ctx,
+        )
+    };
+    if let Some(mem_max) = memory_max_ctx {
+        if prompt_token_count > mem_max {
+            return Err(ProviderError::ContextLengthExceeded(format!(
+                "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
+                 Try a smaller model or reduce conversation length.",
+                prompt_token_count, mem_max,
+            )));
+        }
+    }
+    Ok((prompt_token_count, effective_ctx))
+}
+
+/// Create a llama context and prefill (decode) all prompt tokens.
+fn create_and_prefill_context<'model>(
+    loaded: &'model LoadedModel,
+    runtime: &InferenceRuntime,
+    tokens: &[llama_cpp_2::token::LlamaToken],
+    effective_ctx: usize,
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+) -> Result<llama_cpp_2::context::LlamaContext<'model>, ProviderError> {
+    let ctx_params = build_context_params(effective_ctx as u32, settings);
+    let mut ctx = loaded
+        .model
+        .new_context(runtime.backend(), ctx_params)
+        .map_err(|e| ProviderError::ExecutionError(format!("Failed to create context: {}", e)))?;
+
+    let n_batch = ctx.n_batch() as usize;
+    for chunk in tokens.chunks(n_batch) {
+        let mut batch = LlamaBatch::get_one(chunk)
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to create batch: {}", e)))?;
+        ctx.decode(&mut batch)
+            .map_err(|e| ProviderError::ExecutionError(format!("Prefill decode failed: {}", e)))?;
+    }
+
+    Ok(ctx)
+}
+
+/// Action to take after processing a generated token piece.
+enum TokenAction {
+    Continue,
+    Stop,
+}
+
+/// Run the autoregressive generation loop. Calls `on_piece` for each non-empty
+/// token piece. The callback returns `TokenAction::Stop` to break early.
+/// Returns the total number of generated tokens.
+fn generation_loop(
+    model: &LlamaModel,
+    ctx: &mut llama_cpp_2::context::LlamaContext<'_>,
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+    prompt_token_count: usize,
+    effective_ctx: usize,
+    mut on_piece: impl FnMut(&str) -> Result<TokenAction, ProviderError>,
+) -> Result<i32, ProviderError> {
+    let mut sampler = build_sampler(settings);
+    let max_output = if let Some(max) = settings.max_output_tokens {
+        effective_ctx.saturating_sub(prompt_token_count).min(max)
+    } else {
+        effective_ctx.saturating_sub(prompt_token_count)
+    };
+    let mut decoder = encoding_rs::UTF_8.new_decoder();
+    let mut output_token_count: i32 = 0;
+
+    for _ in 0..max_output {
+        let token = sampler.sample(ctx, -1);
+        sampler.accept(token);
+
+        if model.is_eog_token(token) {
+            break;
+        }
+
+        output_token_count += 1;
+
+        let piece = model
+            .token_to_piece(token, &mut decoder, true, None)
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to decode token: {}", e)))?;
+
+        if !piece.is_empty() && matches!(on_piece(&piece)?, TokenAction::Stop) {
+            break;
+        }
+
+        let next_tokens = [token];
+        let mut next_batch = LlamaBatch::get_one(&next_tokens)
+            .map_err(|e| ProviderError::ExecutionError(format!("Failed to create batch: {}", e)))?;
+        ctx.decode(&mut next_batch)
+            .map_err(|e| ProviderError::ExecutionError(format!("Decode failed: {}", e)))?;
+    }
+
+    Ok(output_token_count)
+}
+
+/// Build a `ProviderUsage` and write the request log entry.
+fn finalize_usage(
+    log: &mut RequestLog,
+    model_name: String,
+    path_label: &str,
+    prompt_token_count: usize,
+    output_token_count: i32,
+    extra_log_fields: Option<(&str, &str)>,
+) -> ProviderUsage {
+    let input_tokens = prompt_token_count as i32;
+    let total_tokens = input_tokens + output_token_count;
+    let usage = Usage::new(
+        Some(input_tokens),
+        Some(output_token_count),
+        Some(total_tokens),
+    );
+    let mut log_json = serde_json::json!({
+        "path": path_label,
+        "prompt_tokens": input_tokens,
+        "output_tokens": output_token_count,
+    });
+    if let Some((key, value)) = extra_log_fields {
+        log_json[key] = serde_json::json!(value);
+    }
+    let _ = log.write(&log_json, Some(&usage));
+    ProviderUsage::new(model_name, usage)
+}
+
+/// Convert an `EmulatorAction` into a `Message` and send it through the
+/// channel. Returns `Ok(true)` if it was a tool call, `Ok(false)` for text,
+/// or `Err(())` if the channel is closed.
+type StreamSender =
+    tokio::sync::mpsc::Sender<Result<(Option<Message>, Option<ProviderUsage>), ProviderError>>;
+
+fn send_emulator_action(
+    action: &EmulatorAction,
+    message_id: &str,
+    tx: &StreamSender,
+) -> Result<bool, ()> {
+    match action {
+        EmulatorAction::Text(text) => {
+            let mut message = Message::assistant().with_text(text);
+            message.id = Some(message_id.to_string());
+            tx.blocking_send(Ok((Some(message), None)))
+                .map_err(|_| ())?;
+            Ok(false)
+        }
+        EmulatorAction::ShellCommand(command) => {
+            let tool_id = Uuid::new_v4().to_string();
+            let mut args = serde_json::Map::new();
+            args.insert("command".to_string(), json!(command));
+            let tool_call = CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: Cow::Owned("developer__shell".to_string()),
+                arguments: Some(args),
+            };
+            let mut message = Message::assistant();
+            message
+                .content
+                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+            message.id = Some(message_id.to_string());
+            tx.blocking_send(Ok((Some(message), None)))
+                .map_err(|_| ())?;
+            Ok(true)
+        }
+        EmulatorAction::ExecuteCode(code) => {
+            let tool_id = Uuid::new_v4().to_string();
+            let wrapped = if code.contains("async function run()") {
+                code.clone()
+            } else {
+                format!("async function run() {{\n{}\n}}", code)
+            };
+            let mut args = serde_json::Map::new();
+            args.insert("code".to_string(), json!(wrapped));
+            let tool_call = CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: Cow::Owned("code_execution__execute".to_string()),
+                arguments: Some(args),
+            };
+            let mut message = Message::assistant();
+            message
+                .content
+                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
+            message.id = Some(message_id.to_string());
+            tx.blocking_send(Ok((Some(message), None)))
+                .map_err(|_| ())?;
+            Ok(true)
+        }
+    }
+}
+
 pub struct LocalInferenceProvider {
     runtime: Arc<InferenceRuntime>,
     model: ModelSlot,
@@ -1488,256 +1693,89 @@ impl Provider for LocalInferenceProvider {
                     }
                 };
 
-                let prompt_token_count = tokens.len();
-                let n_ctx_train = loaded.model.n_ctx_train() as usize;
-                let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, &runtime);
-                let effective_ctx = if let Some(ctx_size) = settings.context_size {
-                    ctx_size as usize
-                } else {
-                    effective_context_size(
-                        prompt_token_count,
-                        context_limit,
-                        n_ctx_train,
-                        memory_max_ctx,
-                    )
-                };
-                if let Some(mem_max) = memory_max_ctx {
-                    if prompt_token_count > mem_max {
-                        send_err!(ProviderError::ContextLengthExceeded(format!(
-                            "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
-                             Try a smaller model or reduce conversation length.",
-                            prompt_token_count, mem_max,
-                        )));
+                let (prompt_token_count, effective_ctx) = match validate_and_compute_context(
+                    loaded,
+                    &runtime,
+                    tokens.len(),
+                    context_limit,
+                    &settings,
+                ) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        send_err!(e);
                     }
-                }
-                let ctx_params = build_context_params(effective_ctx as u32, &settings);
-                let mut ctx = match loaded.model.new_context(runtime.backend(), ctx_params) {
+                };
+                let mut ctx = match create_and_prefill_context(
+                    loaded,
+                    &runtime,
+                    &tokens,
+                    effective_ctx,
+                    &settings,
+                ) {
                     Ok(c) => c,
                     Err(e) => {
-                        send_err!(ProviderError::ExecutionError(format!(
-                            "Failed to create context: {}",
-                            e
-                        )));
+                        send_err!(e);
                     }
                 };
 
-                let n_batch = ctx.n_batch() as usize;
-                for chunk in tokens.chunks(n_batch) {
-                    let mut batch = match LlamaBatch::get_one(chunk) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            send_err!(ProviderError::ExecutionError(format!(
-                                "Failed to create batch: {}",
-                                e
-                            )));
-                        }
-                    };
-                    if let Err(e) = ctx.decode(&mut batch) {
-                        send_err!(ProviderError::ExecutionError(format!(
-                            "Prefill decode failed: {}",
-                            e
-                        )));
-                    }
-                }
-
-                let mut sampler = build_sampler(&settings);
                 let mut emulator_parser = StreamingEmulatorParser::new(code_mode_enabled);
-                let mut output_token_count: i32 = 0;
                 let mut tool_call_emitted = false;
-                let max_output = if let Some(max) = settings.max_output_tokens {
-                    effective_ctx.saturating_sub(prompt_token_count).min(max)
-                } else {
-                    effective_ctx.saturating_sub(prompt_token_count)
-                };
-                let mut decoder = encoding_rs::UTF_8.new_decoder();
+                let mut send_failed = false;
 
-                for _ in 0..max_output {
-                    let token = sampler.sample(&ctx, -1);
-                    sampler.accept(token);
-
-                    if loaded.model.is_eog_token(token) {
-                        break;
-                    }
-
-                    output_token_count += 1;
-
-                    let piece = match loaded.model.token_to_piece(token, &mut decoder, true, None) {
-                        Ok(p) => p,
-                        Err(e) => {
-                            send_err!(ProviderError::ExecutionError(format!(
-                                "Failed to decode token: {}",
-                                e
-                            )));
-                        }
-                    };
-
-                    if !piece.is_empty() {
-                        let actions = emulator_parser.process_chunk(&piece);
+                let output_token_count = match generation_loop(
+                    &loaded.model,
+                    &mut ctx,
+                    &settings,
+                    prompt_token_count,
+                    effective_ctx,
+                    |piece| {
+                        let actions = emulator_parser.process_chunk(piece);
                         for action in actions {
-                            match action {
-                                EmulatorAction::Text(text) => {
-                                    let mut message = Message::assistant().with_text(&text);
-                                    message.id = Some(message_id.clone());
-                                    if tx.blocking_send(Ok((Some(message), None))).is_err() {
-                                        return;
+                            match send_emulator_action(&action, &message_id, &tx) {
+                                Ok(is_tool) => {
+                                    if is_tool {
+                                        tool_call_emitted = true;
                                     }
                                 }
-                                EmulatorAction::ShellCommand(command) => {
-                                    let tool_id = Uuid::new_v4().to_string();
-                                    let mut args = serde_json::Map::new();
-                                    args.insert("command".to_string(), json!(command));
-
-                                    let tool_call = CallToolRequestParams {
-                                        meta: None,
-                                        task: None,
-                                        name: Cow::Owned("developer__shell".to_string()),
-                                        arguments: Some(args),
-                                    };
-
-                                    let mut message = Message::assistant();
-                                    message
-                                        .content
-                                        .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-                                    message.id = Some(message_id.clone());
-                                    if tx.blocking_send(Ok((Some(message), None))).is_err() {
-                                        return;
-                                    }
-                                    tool_call_emitted = true;
-                                }
-                                EmulatorAction::ExecuteCode(code) => {
-                                    let tool_id = Uuid::new_v4().to_string();
-                                    let wrapped = if code.contains("async function run()") {
-                                        code
-                                    } else {
-                                        format!("async function run() {{\n{}\n}}", code)
-                                    };
-                                    let mut args = serde_json::Map::new();
-                                    args.insert("code".to_string(), json!(wrapped));
-
-                                    let tool_call = CallToolRequestParams {
-                                        meta: None,
-                                        task: None,
-                                        name: Cow::Owned("code_execution__execute".to_string()),
-                                        arguments: Some(args),
-                                    };
-
-                                    let mut message = Message::assistant();
-                                    message
-                                        .content
-                                        .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-                                    message.id = Some(message_id.clone());
-                                    if tx.blocking_send(Ok((Some(message), None))).is_err() {
-                                        return;
-                                    }
-                                    tool_call_emitted = true;
+                                Err(_) => {
+                                    send_failed = true;
+                                    return Ok(TokenAction::Stop);
                                 }
                             }
                         }
-                    }
-
-                    if tool_call_emitted {
-                        break;
-                    }
-
-                    let next_tokens = [token];
-                    let mut next_batch = match LlamaBatch::get_one(&next_tokens) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            send_err!(ProviderError::ExecutionError(format!(
-                                "Failed to create batch: {}",
-                                e
-                            )));
+                        if tool_call_emitted {
+                            Ok(TokenAction::Stop)
+                        } else {
+                            Ok(TokenAction::Continue)
                         }
-                    };
-                    if let Err(e) = ctx.decode(&mut next_batch) {
-                        send_err!(ProviderError::ExecutionError(format!(
-                            "Decode failed: {}",
-                            e
-                        )));
+                    },
+                ) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        send_err!(e);
                     }
-                }
+                };
 
-                let flush_results = emulator_parser.flush();
-                for action in flush_results {
-                    match action {
-                        EmulatorAction::Text(text) => {
-                            let mut message = Message::assistant().with_text(&text);
-                            message.id = Some(message_id.clone());
-                            if tx.blocking_send(Ok((Some(message), None))).is_err() {
-                                return;
-                            }
-                        }
-                        EmulatorAction::ShellCommand(command) => {
-                            let tool_id = Uuid::new_v4().to_string();
-                            let mut args = serde_json::Map::new();
-                            args.insert("command".to_string(), json!(command));
-
-                            let tool_call = CallToolRequestParams {
-                                meta: None,
-                                task: None,
-                                name: Cow::Owned("developer__shell".to_string()),
-                                arguments: Some(args),
-                            };
-
-                            let mut message = Message::assistant();
-                            message
-                                .content
-                                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-                            message.id = Some(message_id.clone());
-                            if tx.blocking_send(Ok((Some(message), None))).is_err() {
-                                return;
-                            }
-                        }
-                        EmulatorAction::ExecuteCode(code) => {
-                            let tool_id = Uuid::new_v4().to_string();
-                            let wrapped = if code.contains("async function run()") {
-                                code
-                            } else {
-                                format!("async function run() {{\n{}\n}}", code)
-                            };
-                            let mut args = serde_json::Map::new();
-                            args.insert("code".to_string(), json!(wrapped));
-
-                            let tool_call = CallToolRequestParams {
-                                meta: None,
-                                task: None,
-                                name: Cow::Owned("code_execution__execute".to_string()),
-                                arguments: Some(args),
-                            };
-
-                            let mut message = Message::assistant();
-                            message
-                                .content
-                                .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
-                            message.id = Some(message_id.clone());
-                            if tx.blocking_send(Ok((Some(message), None))).is_err() {
-                                return;
-                            }
+                if !send_failed {
+                    for action in emulator_parser.flush() {
+                        match send_emulator_action(&action, &message_id, &tx) {
+                            Ok(_) => {}
+                            Err(_) => break,
                         }
                     }
                 }
 
-                let input_tokens = prompt_token_count as i32;
-                let total_tokens = input_tokens + output_token_count;
-                let usage = Usage::new(
-                    Some(input_tokens),
-                    Some(output_token_count),
-                    Some(total_tokens),
+                let provider_usage = finalize_usage(
+                    &mut log,
+                    model_name,
+                    "emulator",
+                    prompt_token_count,
+                    output_token_count,
+                    None,
                 );
-                let _ = log.write(
-                    &serde_json::json!({
-                        "path": "emulator",
-                        "prompt_tokens": input_tokens,
-                        "output_tokens": output_token_count,
-                    }),
-                    Some(&usage),
-                );
-                let provider_usage = ProviderUsage::new(model_name, usage);
                 let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
             } else {
                 // === Native tool-calling path (Medium/Large models) ===
-                // Compute the context cap up front (before tokenizing) so the
-                // tool-budget check uses the same limit that inference will.
                 let min_generation_headroom = 512;
                 let n_ctx_train = loaded.model.n_ctx_train() as usize;
                 let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, &runtime);
@@ -1756,9 +1794,6 @@ impl Provider for LocalInferenceProvider {
                 };
                 let token_budget = context_cap.saturating_sub(min_generation_headroom);
 
-                // Try full tool schemas first; if the prompt overflows the
-                // context window, retry with compact definitions (name +
-                // description only, no parameter schemas).
                 let apply_template = |tools: Option<&str>| {
                     if let Some(ref messages_json) = oai_messages_json {
                         let params = OpenAIChatTemplateParams {
@@ -1833,104 +1868,43 @@ impl Provider for LocalInferenceProvider {
                     }
                 };
 
-                let prompt_token_count = tokens.len();
-
-                // effective_context_size may expand beyond the cap when the
-                // prompt itself already exceeds it, ensuring we at least
-                // attempt to fit the prompt plus minimal generation room.
-                let effective_ctx = if let Some(ctx_size) = settings.context_size {
-                    ctx_size as usize
-                } else {
-                    effective_context_size(
-                        prompt_token_count,
-                        context_limit,
-                        n_ctx_train,
-                        memory_max_ctx,
-                    )
-                };
-                if let Some(mem_max) = memory_max_ctx {
-                    if prompt_token_count > mem_max {
-                        send_err!(ProviderError::ContextLengthExceeded(format!(
-                            "Prompt ({} tokens) exceeds estimated memory capacity ({} tokens). \
-                             Try a smaller model or reduce conversation length.",
-                            prompt_token_count, mem_max,
-                        )));
+                let (prompt_token_count, effective_ctx) = match validate_and_compute_context(
+                    loaded,
+                    &runtime,
+                    tokens.len(),
+                    context_limit,
+                    &settings,
+                ) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        send_err!(e);
                     }
-                }
-                let ctx_params = build_context_params(effective_ctx as u32, &settings);
-                let mut ctx = match loaded.model.new_context(runtime.backend(), ctx_params) {
+                };
+                let mut ctx = match create_and_prefill_context(
+                    loaded,
+                    &runtime,
+                    &tokens,
+                    effective_ctx,
+                    &settings,
+                ) {
                     Ok(c) => c,
                     Err(e) => {
-                        send_err!(ProviderError::ExecutionError(format!(
-                            "Failed to create context: {}",
-                            e
-                        )));
+                        send_err!(e);
                     }
                 };
 
-                let n_batch = ctx.n_batch() as usize;
-                for chunk in tokens.chunks(n_batch) {
-                    let mut batch = match LlamaBatch::get_one(chunk) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            send_err!(ProviderError::ExecutionError(format!(
-                                "Failed to create batch: {}",
-                                e
-                            )));
-                        }
-                    };
-                    if let Err(e) = ctx.decode(&mut batch) {
-                        send_err!(ProviderError::ExecutionError(format!(
-                            "Prefill decode failed: {}",
-                            e
-                        )));
-                    }
-                }
-
-                let mut sampler = build_sampler(&settings);
-                let mut output_token_count: i32 = 0;
-                let max_output = if let Some(max) = settings.max_output_tokens {
-                    effective_ctx.saturating_sub(prompt_token_count).min(max)
-                } else {
-                    effective_ctx.saturating_sub(prompt_token_count)
-                };
-                let mut decoder = encoding_rs::UTF_8.new_decoder();
                 let mut generated_text = String::new();
-
-                // For streaming, we buffer text and only send content that
-                // precedes any tool-call JSON. Once we see the start of a
-                // `{"tool_calls"` block we hold back everything from that
-                // point on so the raw JSON never reaches the user.
                 let mut streamed_len: usize = 0;
 
-                for _ in 0..max_output {
-                    let token = sampler.sample(&ctx, -1);
-                    sampler.accept(token);
+                let output_token_count = match generation_loop(
+                    &loaded.model,
+                    &mut ctx,
+                    &settings,
+                    prompt_token_count,
+                    effective_ctx,
+                    |piece| {
+                        generated_text.push_str(piece);
 
-                    if loaded.model.is_eog_token(token) {
-                        break;
-                    }
-
-                    output_token_count += 1;
-
-                    let piece = match loaded.model.token_to_piece(token, &mut decoder, true, None) {
-                        Ok(p) => p,
-                        Err(e) => {
-                            send_err!(ProviderError::ExecutionError(format!(
-                                "Failed to decode token: {}",
-                                e
-                            )));
-                        }
-                    };
-
-                    if !piece.is_empty() {
-                        generated_text.push_str(&piece);
-
-                        // Determine how far we can safely stream:
-                        // - If a complete tool-call JSON block is found at
-                        //   the end, only stream the content before it.
-                        // - Otherwise, hold back any unmatched `{` that could
-                        //   be the start of a tool-call block in progress.
                         let has_xml_tc =
                             split_content_and_xml_tool_calls(&generated_text).is_some();
                         let (content, tc) = split_content_and_tool_calls(&generated_text);
@@ -1950,7 +1924,7 @@ impl Provider for LocalInferenceProvider {
                                 let mut msg = Message::assistant().with_text(new_text);
                                 msg.id = Some(message_id.clone());
                                 if tx.blocking_send(Ok((Some(msg), None))).is_err() {
-                                    return;
+                                    return Ok(TokenAction::Stop);
                                 }
                             }
                             streamed_len = stream_up_to;
@@ -1961,27 +1935,17 @@ impl Provider for LocalInferenceProvider {
                             .iter()
                             .any(|stop| generated_text.ends_with(stop));
                         if should_stop {
-                            break;
+                            Ok(TokenAction::Stop)
+                        } else {
+                            Ok(TokenAction::Continue)
                         }
+                    },
+                ) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        send_err!(e);
                     }
-
-                    let next_tokens = [token];
-                    let mut next_batch = match LlamaBatch::get_one(&next_tokens) {
-                        Ok(b) => b,
-                        Err(e) => {
-                            send_err!(ProviderError::ExecutionError(format!(
-                                "Failed to create batch: {}",
-                                e
-                            )));
-                        }
-                    };
-                    if let Err(e) = ctx.decode(&mut next_batch) {
-                        send_err!(ProviderError::ExecutionError(format!(
-                            "Decode failed: {}",
-                            e
-                        )));
-                    }
-                }
+                };
 
                 // Try XML tool call format first (e.g. qwen3-coder), then JSON
                 let (content, tool_call_msgs) = if let Some((xml_content, xml_calls)) =
@@ -1998,7 +1962,6 @@ impl Provider for LocalInferenceProvider {
                     (json_content, msgs)
                 };
 
-                // Send any remaining content text we haven't streamed yet.
                 if content.len() > streamed_len {
                     #[allow(clippy::string_slice)]
                     let remaining = &content[streamed_len..];
@@ -2019,23 +1982,14 @@ impl Provider for LocalInferenceProvider {
                     let _ = tx.blocking_send(Ok((Some(msg), None)));
                 }
 
-                let input_tokens = prompt_token_count as i32;
-                let total_tokens = input_tokens + output_token_count;
-                let usage = Usage::new(
-                    Some(input_tokens),
-                    Some(output_token_count),
-                    Some(total_tokens),
+                let provider_usage = finalize_usage(
+                    &mut log,
+                    model_name,
+                    "native",
+                    prompt_token_count,
+                    output_token_count,
+                    Some(("generated_text", &generated_text)),
                 );
-                let _ = log.write(
-                    &serde_json::json!({
-                        "path": "native",
-                        "generated_text": &generated_text,
-                        "prompt_tokens": input_tokens,
-                        "output_tokens": output_token_count,
-                    }),
-                    Some(&usage),
-                );
-                let provider_usage = ProviderUsage::new(model_name, usage);
                 let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
             }
         });
