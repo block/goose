@@ -2152,4 +2152,169 @@ mod tests {
             _ => panic!("Expected ToolRequest"),
         }
     }
+
+    // --- effective_context_size tests ---
+
+    #[test]
+    fn test_effective_context_size_basic() {
+        // prompt(100) + headroom(512) = 612, well within limits
+        assert_eq!(effective_context_size(100, 4096, 4096, None), 612);
+    }
+
+    #[test]
+    fn test_effective_context_size_capped_by_limit() {
+        assert_eq!(effective_context_size(100, 1024, 8192, None), 612);
+    }
+
+    #[test]
+    fn test_effective_context_size_capped_by_memory() {
+        // memory_max_ctx(800) < context_limit(4096), but needed(612) < 800
+        assert_eq!(effective_context_size(100, 4096, 4096, Some(800)), 612);
+    }
+
+    #[test]
+    fn test_effective_context_size_memory_smaller_than_needed() {
+        // needed = 600+512 = 1112, but memory cap is 700 → capped to 700
+        assert_eq!(effective_context_size(600, 4096, 4096, Some(700)), 700);
+    }
+
+    #[test]
+    fn test_effective_context_size_zero_limit_uses_train() {
+        assert_eq!(effective_context_size(100, 0, 2048, None), 612);
+    }
+
+    #[test]
+    fn test_effective_context_size_prompt_exceeds_all_limits() {
+        // needed = 5000+512 = 5512 > limit(4096) → capped to 4096
+        assert_eq!(effective_context_size(5000, 4096, 4096, None), 4096);
+    }
+
+    // --- split_content_and_tool_calls tests ---
+
+    #[test]
+    fn test_split_content_and_tool_calls_with_tool() {
+        let text = "Here is the result.\n{\"tool_calls\": [{\"function\": {\"name\": \"shell\", \"arguments\": \"{}\"}, \"id\": \"abc\"}]}";
+        let (content, tc) = split_content_and_tool_calls(text);
+        assert_eq!(content, "Here is the result.");
+        assert!(tc.is_some());
+        let parsed: Value = serde_json::from_str(&tc.unwrap()).unwrap();
+        assert_eq!(parsed["tool_calls"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_split_content_and_tool_calls_no_tool() {
+        let text = "Just regular text, no JSON.";
+        let (content, tc) = split_content_and_tool_calls(text);
+        assert_eq!(content, text);
+        assert!(tc.is_none());
+    }
+
+    #[test]
+    fn test_split_content_and_tool_calls_json_without_tool_calls_key() {
+        let text = "{\"key\": \"value\"}";
+        let (content, tc) = split_content_and_tool_calls(text);
+        assert_eq!(content, text);
+        assert!(tc.is_none());
+    }
+
+    // --- extract_tool_call_messages tests ---
+
+    #[test]
+    fn test_extract_tool_call_messages_openai_format() {
+        let json = r#"{"tool_calls": [{"function": {"name": "developer__shell", "arguments": "{\"command\": \"ls\"}"}, "id": "call-1"}]}"#;
+        let msgs = extract_tool_call_messages(json, "msg-1");
+        assert_eq!(msgs.len(), 1);
+        match &msgs[0].content[0] {
+            MessageContent::ToolRequest(req) => {
+                let call = req.tool_call.as_ref().unwrap();
+                assert_eq!(&*call.name, SHELL_TOOL);
+                assert_eq!(
+                    call.arguments.as_ref().unwrap().get("command").unwrap(),
+                    "ls"
+                );
+            }
+            _ => panic!("Expected ToolRequest"),
+        }
+    }
+
+    #[test]
+    fn test_extract_tool_call_messages_native_format() {
+        let json = r#"{"tool_calls": [{"name": "developer__shell", "arguments": {"command": "ls"}, "id": "call-2"}]}"#;
+        let msgs = extract_tool_call_messages(json, "msg-2");
+        assert_eq!(msgs.len(), 1);
+        match &msgs[0].content[0] {
+            MessageContent::ToolRequest(req) => {
+                let call = req.tool_call.as_ref().unwrap();
+                assert_eq!(&*call.name, SHELL_TOOL);
+            }
+            _ => panic!("Expected ToolRequest"),
+        }
+    }
+
+    #[test]
+    fn test_extract_tool_call_messages_invalid_json() {
+        assert!(extract_tool_call_messages("not json", "msg-3").is_empty());
+    }
+
+    #[test]
+    fn test_extract_tool_call_messages_empty_name_skipped() {
+        let json = r#"{"tool_calls": [{"name": "", "arguments": {}, "id": "x"}]}"#;
+        assert!(extract_tool_call_messages(json, "msg-4").is_empty());
+    }
+
+    // --- compact_tools_json tests ---
+
+    #[test]
+    fn test_compact_tools_json_produces_minimal_output() {
+        use rmcp::model::Tool;
+        use rmcp::object;
+
+        let tools = vec![Tool::new(
+            "developer__shell".to_string(),
+            "Run shell commands".to_string(),
+            object!({"type": "object", "properties": {"command": {"type": "string"}}}),
+        )];
+        let result = compact_tools_json(&tools);
+        assert!(result.is_some());
+        let parsed: Vec<Value> = serde_json::from_str(&result.unwrap()).unwrap();
+        assert_eq!(parsed.len(), 1);
+        let func = &parsed[0]["function"];
+        assert_eq!(func["name"], "developer__shell");
+        assert_eq!(func["description"], "Run shell commands");
+        // Should not contain full parameter schemas
+        assert!(func.get("parameters").is_none());
+    }
+
+    #[test]
+    fn test_compact_tools_json_empty() {
+        let result = compact_tools_json(&[]);
+        assert!(result.is_some());
+        let parsed: Vec<Value> = serde_json::from_str(&result.unwrap()).unwrap();
+        assert!(parsed.is_empty());
+    }
+
+    // --- safe_stream_end additional tests ---
+
+    #[test]
+    fn test_safe_stream_end_balanced_braces() {
+        let text = "Result: {\"key\": \"value\"} done";
+        assert_eq!(safe_stream_end(text), text.len());
+    }
+
+    #[test]
+    fn test_safe_stream_end_unbalanced_open_brace() {
+        let text = "Some text {\"tool_calls\": [";
+        assert_eq!(safe_stream_end(text), "Some text ".len());
+    }
+
+    #[test]
+    fn test_safe_stream_end_empty() {
+        assert_eq!(safe_stream_end(""), 0);
+    }
+
+    #[test]
+    fn test_safe_stream_end_no_braces() {
+        let text = "plain text here";
+        assert_eq!(safe_stream_end(text), text.len());
+    }
 }
