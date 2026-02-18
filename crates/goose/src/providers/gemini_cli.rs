@@ -3,11 +3,14 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
 use super::cli_common::{error_from_event, extract_usage_tokens};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
@@ -39,7 +42,7 @@ pub struct GeminiCliProvider {
     #[serde(skip)]
     name: String,
     #[serde(skip)]
-    cli_session_id: OnceLock<String>,
+    cli_session_id: Arc<OnceLock<String>>,
 }
 
 impl GeminiCliProvider {
@@ -52,7 +55,7 @@ impl GeminiCliProvider {
             command: resolved_command,
             model,
             name: GEMINI_CLI_PROVIDER_NAME.to_string(),
-            cli_session_id: OnceLock::new(),
+            cli_session_id: Arc::new(OnceLock::new()),
         })
     }
 
@@ -119,13 +122,18 @@ impl GeminiCliProvider {
         cmd
     }
 
-    async fn execute_command(
+    fn spawn_command(
         &self,
         system: &str,
         messages: &[Message],
-        _tools: &[Tool],
         model_name: &str,
-    ) -> Result<Vec<Value>, ProviderError> {
+    ) -> Result<
+        (
+            tokio::process::Child,
+            BufReader<tokio::process::ChildStdout>,
+        ),
+        ProviderError,
+    > {
         let prompt = self.build_prompt(system, messages);
 
         tracing::debug!(command = ?self.command, "Executing Gemini CLI command");
@@ -145,6 +153,18 @@ impl GeminiCliProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
+        Ok((child, BufReader::new(stdout)))
+    }
+
+    async fn execute_command(
+        &self,
+        system: &str,
+        messages: &[Message],
+        _tools: &[Tool],
+        model_name: &str,
+    ) -> Result<Vec<Value>, ProviderError> {
+        let (mut child, mut reader) = self.spawn_command(system, messages, model_name)?;
+
         // Drain stderr concurrently to avoid pipe deadlock
         let stderr_task = tokio::spawn(async move {
             let mut buf = String::new();
@@ -154,7 +174,6 @@ impl GeminiCliProvider {
             (child, buf)
         });
 
-        let mut reader = BufReader::new(stdout);
         let mut events = Vec::new();
         let mut line = String::new();
 
@@ -287,7 +306,9 @@ impl ProviderDef for GeminiCliProvider {
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
-            vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false)],
+            vec![ConfigKey::from_value_type::<GeminiCliCommand>(
+                true, false, true,
+            )],
         )
         .with_unlisted_models()
     }
@@ -321,19 +342,20 @@ impl Provider for GeminiCliProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>,
         model_config: &ModelConfig,
+        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
         if super::cli_common::is_session_description_request(system) {
-            return super::cli_common::generate_simple_session_description(
+            let (message, provider_usage) = super::cli_common::generate_simple_session_description(
                 &model_config.model_name,
                 messages,
-            );
+            )?;
+            return Ok(stream_from_single_message(message, provider_usage));
         }
 
         let payload = json!({
@@ -361,10 +383,8 @@ impl Provider for GeminiCliProvider {
             ProviderError::RequestFailed(format!("Failed to write request log: {e}"))
         })?;
 
-        Ok((
-            message,
-            ProviderUsage::new(model_config.model_name.clone(), usage),
-        ))
+        let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
+        Ok(stream_from_single_message(message, provider_usage))
     }
 }
 
@@ -378,7 +398,7 @@ mod tests {
             command: PathBuf::from("gemini"),
             model: ModelConfig::new("gemini-2.5-pro").unwrap(),
             name: "gemini-cli".to_string(),
-            cli_session_id: OnceLock::new(),
+            cli_session_id: Arc::new(OnceLock::new()),
         }
     }
 

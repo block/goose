@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
 
     let start = Instant::now();
     let (response, _usage) = provider
-        .complete_with_model(None, &config, "", &messages, &[])
+        .complete(&config, "test-session", "", &messages, &[])
         .await?;
     let elapsed = start.elapsed();
 
@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
 
     let start2 = Instant::now();
     let (response2, _usage2) = provider
-        .complete_with_model(None, &config, "", &messages2, &[])
+        .complete(&config, "test-session", "", &messages2, &[])
         .await?;
     let elapsed2 = start2.elapsed();
 
@@ -149,7 +149,7 @@ This handles errors gracefully and uses type hints for clarity.
 
     let start3 = Instant::now();
     let (response3, _usage3) = provider
-        .complete_with_model(None, &config, "", &messages3, &[])
+        .complete(&config, "test-session", "", &messages3, &[])
         .await?;
     let elapsed3 = start3.elapsed();
 

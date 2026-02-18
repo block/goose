@@ -2,6 +2,8 @@ use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_template;
+#[cfg(test)]
+use crate::providers::base::{stream_from_single_message, MessageStream};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
@@ -549,7 +551,7 @@ mod tests {
                     max_tokens: None,
                     toolshim: false,
                     toolshim_model: None,
-                    fast_model: None,
+                    fast_model_config: None,
                     request_params: None,
                 },
                 max_tool_responses: None,
@@ -568,14 +570,14 @@ mod tests {
             "mock"
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &ModelConfig,
+            _session_id: &str,
             _system: &str,
             messages: &[Message],
             _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), ProviderError> {
+        ) -> Result<MessageStream, ProviderError> {
             // If max_tool_responses is set, fail if we have too many
             if let Some(max) = self.max_tool_responses {
                 let tool_response_count = messages
@@ -595,10 +597,9 @@ mod tests {
                 }
             }
 
-            Ok((
-                self.message.clone(),
-                ProviderUsage::new("mock-model".to_string(), Usage::default()),
-            ))
+            let message = self.message.clone();
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
         }
 
         fn get_model_config(&self) -> ModelConfig {

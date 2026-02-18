@@ -120,9 +120,7 @@ function McpAppWrapper({
 
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
   const toolResult =
-    resultWithMeta?.status === 'success' && resultWithMeta.value
-      ? resultWithMeta.value
-      : undefined;
+    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;

@@ -25,7 +25,7 @@ pub async fn run_config_mcp<C: Connection>() {
     let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
 
     let config_yaml = format!(
-        "GOOSE_MODEL: {TEST_MODEL}\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
+        "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  mcp-fixture:\n    enabled: true\n    type: streamable_http\n    name: mcp-fixture\n    description: MCP fixture\n    uri: \"{}\"\n",
         mcp.url
     );
     fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();
@@ -142,7 +142,6 @@ pub async fn run_model_list<C: Connection>() {
             "gpt-5-codex",
             "gpt-5",
             "gpt-5-2025-08-07",
-            "gpt-5-chat-latest",
             "gpt-5-mini",
             "gpt-5-mini-2025-08-07",
             TEST_MODEL,
@@ -178,10 +177,6 @@ pub async fn run_model_list<C: Connection>() {
             "gpt-4-0613",
             "gpt-4-turbo",
             "gpt-4-turbo-2024-04-09",
-            "gpt-3.5-turbo",
-            "gpt-3.5-turbo-0125",
-            "gpt-3.5-turbo-1106",
-            "text-embedding-ada-002",
         ]
         .iter()
         .map(|id| ModelInfo::new(ModelId::new(*id), *id))

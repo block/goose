@@ -870,6 +870,16 @@ enum Command {
         #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
         bin_name: String,
     },
+
+    #[command(
+        name = "validate-extensions",
+        about = "Validate a bundled-extensions.json file",
+        hide = true
+    )]
+    ValidateExtensions {
+        #[arg(help = "Path to the bundled-extensions.json file")]
+        file: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -995,6 +1005,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Term { .. }) => "term",
         Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
+        Some(Command::ValidateExtensions { .. }) => "validate-extensions",
         None => "default_session",
     }
 }
@@ -1725,6 +1736,19 @@ pub async fn cli() -> anyhow::Result<()> {
         }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
+        Some(Command::ValidateExtensions { file }) => {
+            use goose::agents::validate_extensions::validate_bundled_extensions;
+            match validate_bundled_extensions(&file) {
+                Ok(msg) => {
+                    println!("{msg}");
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         None => handle_default_session().await,
     }
 }

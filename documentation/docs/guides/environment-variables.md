@@ -45,6 +45,7 @@ These variables are needed when using custom endpoints, enterprise deployments, 
 | `GOOSE_PROVIDER__TYPE` | The specific type/implementation of the provider | [See available providers](/docs/getting-started/providers#available-providers) | Derived from GOOSE_PROVIDER |
 | `GOOSE_PROVIDER__HOST` | Custom API endpoint for the provider | URL (e.g., "https://api.openai.com") | Provider-specific default |
 | `GOOSE_PROVIDER__API_KEY` | Authentication key for the provider | API key string | None |
+| `GEMINI3_THINKING_LEVEL` | Sets the [thinking level](/docs/getting-started/providers#gemini-3-thinking-levels) for Gemini 3 models globally | `low`, `high` | `low` |
 
 **Examples**
 
@@ -114,6 +115,15 @@ export GOOSE_PREDEFINED_MODELS='[
     "provider": "databricks",
     "alias": "Internal Model (500k)",
     "context_limit": 500000
+  }
+]'
+
+# Gemini 3 with high thinking level
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "name": "gemini-3-pro",
+    "provider": "google",
+    "request_params": {"thinking_level": "high"}
   }
 ]'
 ```
@@ -222,13 +232,16 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 |
 | `GOOSE_SUBAGENT_MAX_TURNS` | Sets the maximum turns allowed for a [subagent](/docs/guides/subagents) to complete before timeout. Can be overridden by [`settings.max_turns`](/docs/guides/recipes/recipe-reference#settings) in recipes or subagent tool calls. | Integer (e.g., 25) | 25 |
 | `CONTEXT_FILE_NAMES` | Specifies custom filenames for [hint/context files](/docs/guides/context-engineering/using-goosehints#custom-context-files) | JSON array of strings (e.g., `["CLAUDE.md", ".goosehints"]`) | `[".goosehints"]` |
+| `GOOSE_DISABLE_SESSION_NAMING` | Disables automatic AI-generated session naming; avoids the background model call and keeps the default "CLI Session" (goose CLI) or "New Chat" (goose Desktop) | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
 | `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
-| `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "true", "1" (case-insensitive) to enable | false |
+| `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
 | `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage  | Integer (e.g., 5, 10, 20) | 10 |
+| `GOOSE_MOIM_MESSAGE_TEXT` | Injects persistent text into goose's [working memory](/docs/guides/using-persistent-instructions) every turn. Useful for behavioral guardrails or persistent reminders. | Any text string | Not set |
+| `GOOSE_MOIM_MESSAGE_FILE` | Path to a file whose contents are injected into goose's [working memory](/docs/guides/using-persistent-instructions) every turn. Supports `~/`. Max 64 KB per file. | File path | Not set |
 
 **Examples**
 
@@ -255,6 +268,9 @@ export GOOSE_SUBAGENT_MAX_TURNS=50
 # Use multiple context files
 export CONTEXT_FILE_NAMES='["CLAUDE.md", ".goosehints", ".cursorrules", "project_rules.txt"]'
 
+# Disable automatic AI-generated session naming (useful for CI/headless runs)
+export GOOSE_DISABLE_SESSION_NAMING=true
+
 # Use vim for composing prompts
 export GOOSE_PROMPT_EDITOR=vim
 
@@ -275,6 +291,12 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 
 # Keep more tool calls in full detail (useful for debugging or verbose workflows)
 export GOOSE_TOOL_CALL_CUTOFF=20
+
+# Inject a persistent reminder into goose's working memory every turn
+export GOOSE_MOIM_MESSAGE_TEXT="IMPORTANT: Always run tests before committing changes."
+
+# Load persistent instructions from a file (supports ~/)
+export GOOSE_MOIM_MESSAGE_FILE="~/.goose/guardrails.md"
 ```
 
 ### Model Context Limit Overrides
