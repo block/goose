@@ -388,7 +388,10 @@ impl Provider for LiteLLMProvider {
             .await?;
 
         let message = super::formats::openai::response_to_message(&response)?;
-        let usage = super::formats::openai::get_usage(&response);
+        let usage = response
+            .get("usage")
+            .map(super::formats::openai::get_usage)
+            .unwrap_or_default();
         let response_model = get_model(&response);
         let mut log = RequestLog::start(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
