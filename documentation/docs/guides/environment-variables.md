@@ -438,7 +438,7 @@ export NO_PROXY="localhost,127.0.0.1,.internal"
 
 Beyond goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
 
-### OpenTelemetry Protocol (OTLP)
+### Observability Configuration
 
 Configure goose to export telemetry to any [OpenTelemetry](https://opentelemetry.io/docs/) compatible platform.
 
