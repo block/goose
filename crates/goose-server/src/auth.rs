@@ -60,8 +60,8 @@ impl RateLimiter {
         });
     }
 
-    #[cfg(test)]
-    async fn tracked_ips(&self) -> usize {
+    /// Number of tracked IPs (for monitoring).
+    pub async fn tracked_ips(&self) -> usize {
         self.requests.read().await.len()
     }
 }
@@ -140,7 +140,7 @@ pub async fn check_token(
 /// Extraction priority:
 /// 1. `Authorization: Bearer <jwt>` → OIDC-validated identity (if providers configured)
 /// 2. `Authorization: Bearer <jwt>` → unvalidated JWT decode (fallback when no OIDC)
-/// 3. `X-Goose-Api-Key: <key_id>` or `X-Api-Key: <key_id>` (legacy) → API key identity
+/// 3. `X-Api-Key: <key_id>` → API key identity
 /// 4. `X-Goose-User-Id: <id>` → stable guest identity (for desktop app)
 /// 5. Fallback → anonymous guest with random UUID
 ///
@@ -227,12 +227,8 @@ fn extract_bearer_token(headers: &HeaderMap) -> Option<String> {
 }
 
 fn extract_non_bearer_identity(headers: &HeaderMap) -> UserIdentity {
-    // API key — prefer x-goose-api-key, fall back to x-api-key (legacy)
-    if let Some(key) = headers
-        .get("x-goose-api-key")
-        .or_else(|| headers.get("x-api-key"))
-        .and_then(|v| v.to_str().ok())
-    {
+    // API key
+    if let Some(key) = headers.get("x-api-key").and_then(|v| v.to_str().ok()) {
         return UserIdentity::from_api_key(key);
     }
     // Stable guest ID (desktop app)
@@ -254,12 +250,8 @@ fn extract_user_from_headers(headers: &HeaderMap) -> UserIdentity {
         }
     }
 
-    // 2. API key — prefer x-goose-api-key, fall back to x-api-key (legacy)
-    if let Some(key_id) = headers
-        .get("x-goose-api-key")
-        .or_else(|| headers.get("x-api-key"))
-        .and_then(|v| v.to_str().ok())
-    {
+    // 2. API key
+    if let Some(key_id) = headers.get("x-api-key").and_then(|v| v.to_str().ok()) {
         return UserIdentity::from_api_key(key_id);
     }
 
@@ -295,30 +287,12 @@ mod tests {
     }
 
     #[test]
-    fn test_api_key_from_legacy_header() {
+    fn test_api_key_from_header() {
         let mut headers = HeaderMap::new();
         headers.insert("x-api-key", "sk-live-abc123".parse().unwrap());
         let user = extract_user_from_headers(&headers);
         assert!(!user.is_guest());
         assert_eq!(user.id, "apikey-sk-live-abc123");
-    }
-
-    #[test]
-    fn test_goose_api_key_from_header() {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-goose-api-key", "gk-my-key-456".parse().unwrap());
-        let user = extract_user_from_headers(&headers);
-        assert!(!user.is_guest());
-        assert_eq!(user.id, "apikey-gk-my-key-456");
-    }
-
-    #[test]
-    fn test_goose_api_key_takes_priority_over_legacy() {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-goose-api-key", "preferred-key".parse().unwrap());
-        headers.insert("x-api-key", "legacy-key".parse().unwrap());
-        let user = extract_non_bearer_identity(&headers);
-        assert_eq!(user.id, "apikey-preferred-key");
     }
 
     #[test]
@@ -466,7 +440,7 @@ mod tests {
 
     #[test]
     fn test_extract_client_ip_forwarded_for() {
-        let request = Request::builder()
+        let mut request = Request::builder()
             .header("x-forwarded-for", "203.0.113.50, 70.41.3.18")
             .body(axum::body::Body::empty())
             .unwrap();
@@ -486,7 +460,9 @@ mod tests {
 
     #[test]
     fn test_extract_client_ip_fallback() {
-        let request = Request::builder().body(axum::body::Body::empty()).unwrap();
+        let request = Request::builder()
+            .body(axum::body::Body::empty())
+            .unwrap();
         let ip = extract_client_ip(&request);
         assert_eq!(ip, IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
     }

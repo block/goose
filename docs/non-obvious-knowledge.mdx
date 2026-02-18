@@ -60,7 +60,7 @@ The `a2a` crate pulls in `tonic` which depends on axum 0.7. The goose-server use
 1. Session JWT (our tokens from /auth/login) → SessionTokenStore validates
 2. OIDC JWT (signature validated against JWKS) → OidcValidator validates
 3. Lightweight JWT decode (base64 payload, no sig check) → unvalidated fallback
-4. X-Goose-Api-Key header → ApiKey identity (X-Api-Key legacy fallback)
+4. X-Api-Key header → ApiKey identity
 5. X-Goose-User-Id header → stable guest (deterministic UUID from value)
 6. (nothing) → anonymous guest (random UUID per request)
 ```
