@@ -328,10 +328,10 @@ function SidebarDragHandle() {
         }
       }}
       className={cn(
-        'group/sidebar-drag absolute top-0 right-0 z-20 h-full w-[6px] select-none touch-none',
+        'group/sidebar-drag absolute top-0 right-0 z-20 h-full w-[1px] select-none touch-none',
         'transition-colors duration-150',
-        'bg-transparent hover:bg-border-default',
-        isDragging ? 'cursor-grabbing bg-border-strong' : 'cursor-col-resize',
+        'bg-border-default hover:w-[4px] hover:bg-border-strong',
+        isDragging ? 'cursor-grabbing w-[4px] bg-border-strong' : 'cursor-col-resize',
       )}
     >
       {/* Wider invisible hit area for easier grabbing */}
