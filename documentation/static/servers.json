@@ -230,7 +230,7 @@
     ]
   },
   {
-    "id": "code_mode",
+    "id": "code_execution",
     "name": "Code Mode",
     "description": "Execute JavaScript code to interact with MCP tools efficiently",
     "command": "",
