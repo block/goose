@@ -1714,7 +1714,15 @@ impl Agent {
     ) -> Result<Recipe> {
         tracing::info!("Starting recipe creation with {} messages", messages.len());
 
-        let extensions_info = self.extension_manager.get_extensions_info().await;
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await?;
+        let extensions_info = self
+            .extension_manager
+            .get_extensions_info(&session.working_dir)
+            .await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
         let (extension_count, tool_count) = self
             .extension_manager

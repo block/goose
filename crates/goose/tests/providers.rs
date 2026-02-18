@@ -119,7 +119,10 @@ impl ProviderTester {
             .await
             .expect("get_prefixed_tools failed");
 
-        let info = self.extension_manager.get_extensions_info().await;
+        let info = self
+            .extension_manager
+            .get_extensions_info(std::path::Path::new("."))
+            .await;
         let system = PromptManager::new()
             .builder()
             .with_extensions(info.into_iter())
