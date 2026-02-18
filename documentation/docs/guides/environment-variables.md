@@ -456,6 +456,8 @@ export HTTPS_PROXY="http://username:password@proxy.company.com:8080"
 export NO_PROXY="localhost,127.0.0.1,.internal"
 ```
 
+Alternatively, proxy settings can be configured through your operating system's network settings. If you encounter connection issues, see [Corporate Proxy or Firewall Issues](/docs/troubleshooting/known-issues#corporate-proxy-or-firewall-issues) for troubleshooting steps.
+
 ## Observability
 
 Beyond goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
