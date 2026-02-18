@@ -149,7 +149,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   };
 
   return (
-    <div className="space-y-4 pr-4 pb-8 mt-1">
+    <div className="space-y-4">
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Appearance</CardTitle>

@@ -85,7 +85,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   }, [currentModel, currentProvider, loadModelData]);
 
   return (
-    <section id="models" className="space-y-4 pr-4">
+    <section id="models" className="space-y-4">
       <Card className="p-2 pb-4">
         <CardContent className="px-2">
           {isLoading ? (

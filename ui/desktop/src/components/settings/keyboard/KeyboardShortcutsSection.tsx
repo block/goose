@@ -263,7 +263,7 @@ export default function KeyboardShortcutsSection() {
   }
 
   return (
-    <div className="space-y-4 pr-4 pb-8 mt-1">
+    <div className="space-y-4">
       {showRestartNotice && (
         <Card className="rounded-lg border-yellow-600/50 bg-yellow-600/10">
           <CardContent className="pt-4 px-4 pb-4">

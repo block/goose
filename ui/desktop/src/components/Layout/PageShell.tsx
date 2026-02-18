@@ -15,6 +15,8 @@ interface PageShellProps {
   title?: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  /** Content rendered between the header and the scrollable body (e.g. tab bar). */
+  headerExtra?: React.ReactNode;
   width?: PageWidth;
   className?: string;
   centerContent?: boolean;
@@ -46,6 +48,7 @@ export function PageShell({
   title,
   subtitle,
   actions,
+  headerExtra,
   width = 'default',
   className,
   centerContent = false,
@@ -57,8 +60,9 @@ export function PageShell({
   if (stickyHeader) {
     return (
       <div className={cn('h-full flex flex-col', className)}>
-        <div className={cn('mx-auto w-full px-8 pt-6 pb-2 shrink-0', widthClass)}>
+        <div className={cn('mx-auto w-full px-8 pt-6 shrink-0', widthClass)}>
           <Header title={title} subtitle={subtitle} actions={actions} />
+          {headerExtra}
         </div>
         <div
           {...bodyProps}

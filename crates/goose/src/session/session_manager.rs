@@ -382,6 +382,17 @@ impl SessionManager {
         })
     }
 
+    pub async fn set_session_identity(
+        &self,
+        session_id: &str,
+        tenant_id: Option<&str>,
+        user_id: Option<&str>,
+    ) -> Result<()> {
+        self.storage
+            .set_session_identity(session_id, tenant_id, user_id)
+            .await
+    }
+
     pub async fn delete_session(&self, id: &str) -> Result<()> {
         self.storage.delete_session(id).await
     }

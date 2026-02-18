@@ -89,7 +89,7 @@ export default function ExternalBackendSection() {
   };
 
   return (
-    <section id="external-backend" className="space-y-4 pr-4 mt-1">
+    <section id="external-backend" className="space-y-4">
       <Card className="pb-2">
         <CardHeader className="pb-0">
           <CardTitle>Goose Server</CardTitle>

@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 
 export default function ChatSettingsSection() {
   return (
-    <div className="space-y-4 pr-4 pb-8 mt-1">
+    <div className="space-y-4">
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">Mode</CardTitle>

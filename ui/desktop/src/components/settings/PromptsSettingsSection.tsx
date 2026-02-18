@@ -147,7 +147,7 @@ export default function PromptsSettingsSection() {
 
   if (selectedPrompt) {
     return (
-      <div className="space-y-4 pr-4 pb-8 mt-1">
+      <div className="space-y-4">
         <Card className="pb-2 rounded-lg">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between mb-4">
@@ -234,7 +234,7 @@ export default function PromptsSettingsSection() {
   }
 
   return (
-    <div className="space-y-4 pr-4 pb-8 mt-1">
+    <div className="space-y-4">
       <Card className="pb-2 rounded-lg border-yellow-500/50 bg-yellow-500/10">
         <CardHeader className="pb-2">
           <div className="flex items-start gap-3">
