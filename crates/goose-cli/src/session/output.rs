@@ -269,8 +269,16 @@ pub fn render_message(message: &Message, debug: bool) {
                             .and_then(|d| d.get("top_up_url"))
                             .and_then(|v| v.as_str())
                         {
-                            if let Err(e) = webbrowser::open(url) {
-                                tracing::warn!("Failed to open browser for credits top-up: {}", e);
+                            println!(
+                                "{}",
+                                style(format!("Visit this URL to top up credits: {url}")).yellow()
+                            );
+
+                            if std::io::stdout().is_terminal() && webbrowser::open(url).is_err() {
+                                println!(
+                                    "{}", 
+                                    style("Could not open browser automatically. Visit the URL above.").yellow()
+                                );
                             }
                         }
                     }
