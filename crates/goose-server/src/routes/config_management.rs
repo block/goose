@@ -109,6 +109,9 @@ pub struct CheckProviderRequest {
 pub struct SetProviderRequest {
     pub provider: String,
     pub model: String,
+    /// Reasoning effort variant (e.g., "low", "medium", "high", "max")
+    #[serde(default)]
+    pub variant: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -837,7 +840,11 @@ pub async fn check_provider(
     request_body = SetProviderRequest,
 )]
 pub async fn set_config_provider(
-    Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
+    Json(SetProviderRequest {
+        provider,
+        model,
+        variant,
+    }): Json<SetProviderRequest>,
 ) -> Result<(), ErrorResponse> {
     // Provider validation does not use extensions.
     create_with_default_model(&provider, Vec::new())
@@ -847,6 +854,10 @@ pub async fn set_config_provider(
             config
                 .set_goose_provider(provider.clone())
                 .and_then(|_| config.set_goose_model(model.clone()))
+                .and_then(|_| {
+                    // Save variant (empty string clears it)
+                    config.set_goose_variant(variant.unwrap_or_default())
+                })
                 .map_err(|e| anyhow::anyhow!(e))
         })
         .map_err(|err| {

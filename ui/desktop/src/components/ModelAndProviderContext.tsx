@@ -66,6 +66,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
         body: {
           provider: providerName,
           model: modelName,
+          variant: model.variant || null,
         },
         throwOnError: true,
       });
@@ -173,10 +174,18 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       const { model, provider } = await getCurrentModelAndProvider();
       setCurrentModel(model);
       setCurrentProvider(provider);
+
+      // Load variant from config (may not be set)
+      try {
+        const variant = (await read('GOOSE_VARIANT', false)) as string;
+        setCurrentVariant(variant || null);
+      } catch {
+        setCurrentVariant(null);
+      }
     } catch (_error) {
       console.error('Failed to refresh current model and provider:', _error);
     }
-  }, [getCurrentModelAndProvider]);
+  }, [getCurrentModelAndProvider, read]);
 
   const setProviderAndModel = useCallback((provider: string, model: string, variant?: string | null) => {
     setCurrentProvider(provider);

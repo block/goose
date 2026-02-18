@@ -89,7 +89,7 @@ export const SwitchModelModal = ({
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, read } = useConfig();
-  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
+  const { changeModel, currentModel, currentProvider, currentVariant } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; hint?: string; supportsReasoning?: boolean; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
@@ -111,7 +111,7 @@ export const SwitchModelModal = ({
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
   const [thinkingLevel, setThinkingLevel] = useState<string>('low');
-  const [variant, setVariant] = useState<string>('');
+  const [variant, setVariant] = useState<string>(currentVariant || '');
 
   const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;

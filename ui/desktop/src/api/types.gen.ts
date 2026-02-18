@@ -1099,6 +1099,10 @@ export type SessionsQuery = {
 export type SetProviderRequest = {
     model: string;
     provider: string;
+    /**
+     * Reasoning effort variant (e.g., "low", "medium", "high", "max")
+     */
+    variant?: string | null;
 };
 
 export type SetSlashCommandRequest = {
