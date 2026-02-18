@@ -862,7 +862,7 @@ export default function McpAppRenderer({
             <GripHorizontal size={12} className="text-white/70" />
           </div>
         )}
-        <div className="relative h-full w-full">
+        <div className={cn('relative w-full', !isPip && 'h-full')}>
           {renderDisplayModeControls()}
           {renderContent()}
         </div>
