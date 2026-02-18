@@ -41,3 +41,8 @@ export type McpAppToolResult = {
   content: Content[];
   structuredContent?: unknown;
 };
+
+/**
+ * Callback fired when the user changes the display mode via host-side controls.
+ */
+export type OnDisplayModeChange = (mode: GooseDisplayMode) => void;

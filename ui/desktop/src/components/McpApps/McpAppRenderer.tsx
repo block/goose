@@ -24,6 +24,7 @@ import type {
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
+import { GripHorizontal, Maximize2, Minimize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
@@ -40,11 +41,12 @@ import {
   McpAppToolInputPartial,
   McpAppToolResult,
   DimensionLayout,
+  OnDisplayModeChange,
 } from './types';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
 
-const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
+const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline', 'fullscreen', 'pip'];
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -126,6 +128,9 @@ async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string
   }
 }
 
+const PIP_WIDTH = 400;
+const PIP_HEIGHT = 300;
+
 interface McpAppRendererProps {
   resourceUri: string;
   extensionName: string;
@@ -137,6 +142,7 @@ interface McpAppRendererProps {
   append?: (text: string) => void;
   displayMode?: GooseDisplayMode;
   cachedHtml?: string;
+  onDisplayModeChange?: OnDisplayModeChange;
 }
 
 interface ResourceMeta {
@@ -232,8 +238,113 @@ export default function McpAppRenderer({
   append,
   displayMode = 'inline',
   cachedHtml,
+  onDisplayModeChange,
 }: McpAppRendererProps) {
-  const isExpandedView = displayMode === 'fullscreen' || displayMode === 'standalone';
+  // Internal display mode — starts matching the prop, but can be changed by host-side controls.
+  // Standalone mode is externally controlled (dedicated Electron window) and cannot be toggled.
+  const [activeDisplayMode, setActiveDisplayMode] = useState<GooseDisplayMode>(displayMode);
+
+  // Sync internal state when the prop changes (e.g. parent forces a mode).
+  useEffect(() => {
+    setActiveDisplayMode(displayMode);
+  }, [displayMode]);
+
+  const isStandalone = displayMode === 'standalone';
+
+  const changeDisplayMode = useCallback(
+    (mode: GooseDisplayMode) => {
+      setActiveDisplayMode(mode);
+      onDisplayModeChange?.(mode);
+    },
+    [onDisplayModeChange]
+  );
+
+  // PiP drag state
+  const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
+  const pipDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+
+  const handlePipPointerDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    pipDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: pipPosition.x,
+      originY: pipPosition.y,
+    };
+  }, [pipPosition]);
+
+  const handlePipPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!pipDragRef.current) return;
+    const dx = e.clientX - pipDragRef.current.startX;
+    const dy = e.clientY - pipDragRef.current.startY;
+    setPipPosition({
+      x: pipDragRef.current.originX + dx,
+      y: pipDragRef.current.originY + dy,
+    });
+  }, []);
+
+  const handlePipPointerUp = useCallback(() => {
+    pipDragRef.current = null;
+  }, []);
+
+  // Intercept app-initiated ui/request-display-mode requests.
+  // The SDK's default handler responds with hostContext.displayMode before we can update React
+  // state, so we listen for the raw postMessage, update our mode, and the subsequent
+  // hostContext change sends host-context-changed with the correct mode to the app.
+  // We filter by event.source to only handle messages from iframes within our container.
+  useEffect(() => {
+    if (isStandalone) return;
+
+    const handleMessage = (e: MessageEvent) => {
+      const data = e.data;
+      if (
+        !data ||
+        typeof data !== 'object' ||
+        data.method !== 'ui/request-display-mode' ||
+        !data.params?.mode
+      ) {
+        return;
+      }
+
+      // Only respond to messages from iframes owned by this instance.
+      // The SDK creates a sandbox proxy iframe inside our containerRef; messages
+      // may also be forwarded from a nested inner iframe, so we check all iframes.
+      const container = containerRef.current;
+      if (!container || !e.source) return;
+
+      const iframes = container.querySelectorAll('iframe');
+      const fromOurIframe = Array.from(iframes).some(
+        (iframe) => iframe.contentWindow === e.source
+      );
+      if (!fromOurIframe) return;
+
+      const requested = data.params.mode as McpUiDisplayMode;
+      if (AVAILABLE_DISPLAY_MODES.includes(requested)) {
+        changeDisplayMode(requested);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [isStandalone, changeDisplayMode]);
+
+  // Escape key exits fullscreen
+  useEffect(() => {
+    if (activeDisplayMode !== 'fullscreen') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') changeDisplayMode('inline');
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeDisplayMode, changeDisplayMode]);
+
+  // Reset PiP position when entering PiP mode
+  useEffect(() => {
+    if (activeDisplayMode === 'pip') {
+      setPipPosition({ x: 0, y: 0 });
+    }
+  }, [activeDisplayMode]);
 
   const { resolvedTheme } = useTheme();
 
@@ -504,12 +615,15 @@ export default function McpAppRenderer({
       // todo: toolInfo: {}
       theme: resolvedTheme,
       // todo: styles: { variables: {}, styles: {} }
-      // 'standalone' is a Goose-specific display mode (dedicated Electron window)
-      // that maps to the spec's inline | fullscreen | pip modes.
-      displayMode: displayMode as McpUiDisplayMode,
-      availableDisplayModes:
-        displayMode === 'standalone' ? [displayMode as McpUiDisplayMode] : AVAILABLE_DISPLAY_MODES,
-      containerDimensions: getContainerDimensions(displayMode, containerWidth, containerHeight),
+      displayMode: activeDisplayMode as McpUiDisplayMode,
+      availableDisplayModes: isStandalone
+        ? [activeDisplayMode as McpUiDisplayMode]
+        : AVAILABLE_DISPLAY_MODES,
+      containerDimensions: getContainerDimensions(
+        activeDisplayMode,
+        containerWidth,
+        containerHeight
+      ),
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: navigator.userAgent,
@@ -527,7 +641,7 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, displayMode, containerWidth, containerHeight]);
+  }, [resolvedTheme, activeDisplayMode, isStandalone, containerWidth, containerHeight]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
@@ -592,23 +706,151 @@ export default function McpAppRenderer({
     );
   };
 
-  const containerClasses = cn(
-    'bg-background-default overflow-hidden [&_iframe]:!w-full',
-    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
-    !isError && !isExpandedView && 'mt-6 mb-2',
-    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-default rounded-lg'
+  // Host-side display mode control buttons (not shown in standalone or error/loading states)
+  const showControls = !isStandalone && !isError;
+
+  const renderDisplayModeControls = () => {
+    if (!showControls) return null;
+
+    if (activeDisplayMode === 'fullscreen') {
+      return (
+        <div className="absolute top-3 right-3 z-10 flex gap-1">
+          <button
+            onClick={() => changeDisplayMode('pip')}
+            className="rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Picture-in-Picture"
+          >
+            <PictureInPicture2 size={16} />
+          </button>
+          <button
+            onClick={() => changeDisplayMode('inline')}
+            className="rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Exit fullscreen (Esc)"
+          >
+            <Minimize2 size={16} />
+          </button>
+        </div>
+      );
+    }
+
+    if (activeDisplayMode === 'pip') {
+      return (
+        <div className="absolute top-2 right-2 z-10 flex gap-1">
+          <button
+            onClick={() => changeDisplayMode('fullscreen')}
+            className="rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Fullscreen"
+          >
+            <Maximize2 size={14} />
+          </button>
+          <button
+            onClick={() => changeDisplayMode('inline')}
+            className="rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Close"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      );
+    }
+
+    // Inline mode — show controls on hover
+    return (
+      <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover/mcp-app:opacity-100">
+        <button
+          onClick={() => changeDisplayMode('fullscreen')}
+          className="rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+          title="Fullscreen"
+        >
+          <Maximize2 size={14} />
+        </button>
+        <button
+          onClick={() => changeDisplayMode('pip')}
+          className="rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+          title="Picture-in-Picture"
+        >
+          <PictureInPicture2 size={14} />
+        </button>
+      </div>
+    );
+  };
+
+  const appContent = (
+    <div className="relative h-full w-full">
+      {renderDisplayModeControls()}
+      {renderContent()}
+    </div>
   );
 
-  const containerStyle = isExpandedView
-    ? { width: '100%', height: '100%' }
-    : {
-        width: '100%',
-        height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
-      };
+  // --- Fullscreen overlay ---
+  if (activeDisplayMode === 'fullscreen') {
+    return (
+      <div className="fixed inset-0 z-[1000] bg-background-default">
+        <div ref={containerRef} className="h-full w-full overflow-hidden [&_iframe]:!w-full">
+          {appContent}
+        </div>
+      </div>
+    );
+  }
+
+  // --- PiP floating panel ---
+  if (activeDisplayMode === 'pip') {
+    return (
+      <>
+        {/* Inline placeholder showing the app is in PiP */}
+        <div
+          className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-default bg-black/[0.02] dark:bg-white/[0.02]"
+          style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
+        >
+          <button
+            onClick={() => changeDisplayMode('inline')}
+            className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-text-subtler transition-colors hover:bg-black/5 hover:text-text-default dark:hover:bg-white/5"
+          >
+            <PictureInPicture2 size={14} />
+            <span>Playing in Picture-in-Picture</span>
+          </button>
+        </div>
+        <div
+          className="fixed z-[900] overflow-hidden rounded-xl border border-border-default bg-background-default shadow-2xl [&_iframe]:!w-full"
+          style={{
+            width: `${PIP_WIDTH}px`,
+            height: `${PIP_HEIGHT}px`,
+            right: `${16 - pipPosition.x}px`,
+            bottom: `${16 - pipPosition.y}px`,
+          }}
+        >
+          {/* Drag handle — narrow centered strip so it doesn't block controls or app content */}
+          <div
+            className="absolute top-0 left-1/2 z-20 flex h-6 w-12 -translate-x-1/2 cursor-grab items-center justify-center rounded-b-md bg-black/30 backdrop-blur-sm active:cursor-grabbing"
+            onPointerDown={handlePipPointerDown}
+            onPointerMove={handlePipPointerMove}
+            onPointerUp={handlePipPointerUp}
+          >
+            <GripHorizontal size={12} className="text-white/70" />
+          </div>
+          <div ref={containerRef} className="h-full w-full">
+            {appContent}
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // --- Inline (default) ---
+  const inlineClasses = cn(
+    'group/mcp-app relative bg-background-default overflow-hidden [&_iframe]:!w-full',
+    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
+    !isError && 'mt-6 mb-2',
+    !isError && meta.prefersBorder && 'border border-border-default rounded-lg'
+  );
 
   return (
-    <div ref={containerRef} className={containerClasses} style={containerStyle}>
-      {renderContent()}
+    <div
+      ref={containerRef}
+      className={inlineClasses}
+      style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
+    >
+      {appContent}
     </div>
   );
 }
