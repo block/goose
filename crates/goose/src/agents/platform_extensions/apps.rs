@@ -96,7 +96,6 @@ mod tests {
 
         let config = app_generation_model_config(&provider);
         assert_eq!(config.max_tokens, Some(explicit_max_tokens));
-        assert_eq!(config.max_tokens, Some(APP_LLM_MAX_TOKENS));
     }
 }
 
