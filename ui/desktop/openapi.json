@@ -6614,6 +6614,11 @@
           },
           "provider": {
             "type": "string"
+          },
+          "variant": {
+            "type": "string",
+            "description": "Reasoning effort variant (e.g., \"low\", \"medium\", \"high\", \"max\")",
+            "nullable": true
           }
         }
       },
