@@ -29,7 +29,6 @@ const DEFAULT_WINDOW_PROPS: WindowProps = WindowProps {
     height: 600,
     resizable: true,
 };
-const APP_LLM_MAX_TOKENS: i32 = 16384;
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct CreateAppParams {
@@ -40,7 +39,7 @@ struct CreateAppParams {
 fn app_generation_model_config(provider: &dyn Provider) -> ModelConfig {
     provider
         .get_model_config()
-        .with_max_tokens(Some(APP_LLM_MAX_TOKENS))
+        .with_canonical_limits(provider.get_name())
 }
 
 #[cfg(test)]
@@ -80,13 +79,14 @@ mod tests {
     }
 
     #[test]
-    fn app_generation_model_config_sets_max_tokens() {
+    fn app_generation_model_config_preserves_max_tokens() {
+        let explicit_max_tokens = 123;
         let provider = MockProvider {
             config: ModelConfig {
                 model_name: "mock".to_string(),
                 context_limit: None,
                 temperature: None,
-                max_tokens: None,
+                max_tokens: Some(explicit_max_tokens),
                 toolshim: false,
                 toolshim_model: None,
                 fast_model_config: None,
@@ -95,7 +95,7 @@ mod tests {
         };
 
         let config = app_generation_model_config(&provider);
-
+        assert_eq!(config.max_tokens, Some(explicit_max_tokens));
         assert_eq!(config.max_tokens, Some(APP_LLM_MAX_TOKENS));
     }
 }
