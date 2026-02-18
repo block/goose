@@ -688,7 +688,14 @@ fn effective_context_size(
 
     let min_generation_headroom = 512;
     let needed = prompt_token_count + min_generation_headroom;
-    needed.max(limit)
+    if needed > limit {
+        tracing::warn!(
+            "Prompt ({} tokens) + headroom exceeds context limit ({}), capping to limit",
+            prompt_token_count,
+            limit,
+        );
+    }
+    needed.min(limit)
 }
 
 /// Split generated text into (content, tool_calls_json).
