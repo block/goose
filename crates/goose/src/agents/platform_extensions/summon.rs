@@ -15,7 +15,7 @@ use crate::config::Config;
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
-use crate::recipe::{Recipe, Settings, RECIPE_FILE_EXTENSIONS};
+use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
 use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::SessionType;
 use anyhow::Result;
@@ -45,6 +45,7 @@ pub struct Source {
     pub description: String,
     pub path: PathBuf,
     pub content: String,
+    pub parameters: Option<Vec<RecipeParameter>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -71,9 +72,37 @@ impl std::fmt::Display for SourceKind {
 impl Source {
     /// Format the source content for loading into context
     pub fn to_load_text(&self) -> String {
+        let params_section = if let Some(params) = &self.parameters {
+            if !params.is_empty() {
+                let param_lines: Vec<String> = params
+                    .iter()
+                    .map(|p| {
+                        let mut line = format!(
+                            "- **{}** (type: {}, {}): {}",
+                            p.key, p.input_type, p.requirement, p.description
+                        );
+                        if let Some(default) = &p.default {
+                            line.push_str(&format!(" [default: {}]", default));
+                        }
+                        if let Some(options) = &p.options {
+                            if !options.is_empty() {
+                                line.push_str(&format!(" [options: {}]", options.join(", ")));
+                            }
+                        }
+                        line
+                    })
+                    .collect();
+                format!("\n\n### Parameters\n\n{}", param_lines.join("\n"))
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
         format!(
-            "## {} ({})\n\n{}\n\n### Content\n\n{}",
-            self.name, self.kind, self.description, self.content
+            "## {} ({})\n\n{}{}\n\n### Content\n\n{}",
+            self.name, self.kind, self.description, params_section, self.content
         )
     }
 }
@@ -174,6 +203,7 @@ fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
         description: metadata.description,
         path,
         content: body,
+        parameters: None,
     })
 }
 
@@ -195,6 +225,7 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
         description,
         path,
         content: body,
+        parameters: None,
     })
 }
 
@@ -604,7 +635,8 @@ impl SummonClient {
             }
             seen.insert(sr.name.clone());
 
-            let description = self.build_subrecipe_description(sr).await;
+            let (description, parameters) =
+                self.build_subrecipe_description_and_params(sr).await;
 
             sources.push(Source {
                 name: sr.name.clone(),
@@ -612,13 +644,23 @@ impl SummonClient {
                 description,
                 path: PathBuf::from(&sr.path),
                 content: String::new(),
+                parameters,
             });
         }
     }
 
-    async fn build_subrecipe_description(&self, sr: &crate::recipe::SubRecipe) -> String {
+    async fn build_subrecipe_description_and_params(
+        &self,
+        sr: &crate::recipe::SubRecipe,
+    ) -> (String, Option<Vec<RecipeParameter>>) {
         if let Some(desc) = &sr.description {
-            return desc.clone();
+            // Even with an explicit description, try to load params from the recipe file
+            if let Ok(recipe_file) = load_local_recipe_file(&sr.path) {
+                if let Ok(recipe) = Recipe::from_content(&recipe_file.content) {
+                    return (desc.clone(), recipe.parameters.clone());
+                }
+            }
+            return (desc.clone(), None);
         }
 
         if let Ok(recipe_file) = load_local_recipe_file(&sr.path) {
@@ -633,11 +675,11 @@ impl SummonClient {
                     }
                 }
 
-                return desc;
+                return (desc, recipe.parameters.clone());
             }
         }
 
-        format!("Subrecipe from {}", sr.path)
+        (format!("Subrecipe from {}", sr.path), None)
     }
 
     fn scan_recipes_dir(
@@ -682,6 +724,7 @@ impl SummonClient {
                         description: recipe.description.clone(),
                         path: path.clone(),
                         content: recipe.instructions.clone().unwrap_or_default(),
+                        parameters: recipe.parameters.clone(),
                     });
                 }
                 Err(e) => {
@@ -1000,6 +1043,14 @@ impl SummonClient {
                         source.name,
                         truncate(&source.description, 60)
                     ));
+                    if let Some(params) = &source.parameters {
+                        for p in params {
+                            output.push_str(&format!(
+                                "    param: {} (type: {}, {}): {}\n",
+                                p.key, p.input_type, p.requirement, truncate(&p.description, 50)
+                            ));
+                        }
+                    }
                 }
             }
         }
