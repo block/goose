@@ -310,7 +310,7 @@ export default function BaseChat({
   };
 
   const showPopularTopics =
-    messages.length === 0 && !initialMessage && chatState === ChatState.Idle;
+    messages.length === 0 && !initialMessage && chatState !== ChatState.Streaming;
 
   const chat: ChatType = {
     messages,
