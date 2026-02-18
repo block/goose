@@ -756,5 +756,16 @@
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
+  },
+  {
+    "id": "neighborhood",
+    "name": "Neighborhoods",
+    "description": "Discover nearby restaurants, browse menus, and place takeout orders through natural conversation. Sellers are US-based.",
+    "url": "https://connect.squareup.com/v2/mcp/neighborhood",
+    "link": "https://block.github.io/goose/extensions/detail?id=neighborhood",
+    "installation_notes": "No local setup required. This extension connects to a remote service. Use the install button or run the command below.",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": []
   }
 ]
