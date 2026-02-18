@@ -11443,5 +11443,161 @@
     "from": "JsonRenderReference",
     "to": "GooseGenerativeUI",
     "relationType": "related_to"
+  },
+  {
+    "from": "OidcValidator",
+    "to": "RequestIdentity",
+    "relationType": "USED_BY",
+    "label": "validates JWT tokens for"
+  },
+  {
+    "from": "SessionTokenStore",
+    "to": "RequestIdentity",
+    "relationType": "USED_BY",
+    "label": "validates session JWTs for"
+  },
+  {
+    "from": "RequestIdentity",
+    "to": "ExecutionIdentity",
+    "relationType": "CREATES",
+    "label": "creates via into_execution()"
+  },
+  {
+    "from": "ExecutionIdentity",
+    "to": "Agent",
+    "relationType": "SET_ON",
+    "label": "set via set_execution_identity()"
+  },
+  {
+    "from": "OidcProviderPreset",
+    "to": "OidcValidator",
+    "relationType": "CONFIGURES",
+    "label": "provides well-known issuer URLs"
+  },
+  {
+    "from": "UserAuthEndpoints",
+    "to": "SessionTokenStore",
+    "relationType": "USES",
+    "label": "issues/validates/revokes tokens"
+  },
+  {
+    "from": "UserAuthEndpoints",
+    "to": "OidcValidator",
+    "relationType": "USES",
+    "label": "validates OIDC tokens"
+  },
+  {
+    "from": "AuthConfigEndpoints",
+    "to": "OidcValidator",
+    "relationType": "CONFIGURES",
+    "label": "manages OIDC providers"
+  },
+  {
+    "from": "RateLimiter",
+    "to": "UserAuthEndpoints",
+    "relationType": "PROTECTS",
+    "label": "rate limits auth requests"
+  },
+  {
+    "from": "RateLimiter",
+    "to": "AuthConfigEndpoints",
+    "relationType": "PROTECTS",
+    "label": "rate limits auth config requests"
+  },
+  {
+    "from": "AuthInterceptor",
+    "to": "RequestIdentity",
+    "relationType": "FEEDS",
+    "label": "attaches Bearer token to requests"
+  },
+  {
+    "from": "TenantScopedSessions",
+    "to": "ExecutionIdentity",
+    "relationType": "USES",
+    "label": "extracts tenant/user for filtering"
+  },
+  {
+    "from": "IdentityInSpawnConfig",
+    "to": "ExecutionIdentity",
+    "relationType": "PROPAGATES",
+    "label": "propagates identity to pool agents"
+  },
+  {
+    "from": "AgentReplyDispatcher",
+    "to": "Agent",
+    "relationType": "WRAPS",
+    "label": "delegates to agent.reply()"
+  },
+  {
+    "from": "DispatchCompoundSequential",
+    "to": "AgentReplyDispatcher",
+    "relationType": "USES",
+    "label": "for in-process sub-tasks"
+  },
+  {
+    "from": "DispatchCompoundSequential",
+    "to": "A2ADispatcher",
+    "relationType": "USES",
+    "label": "for remote A2A sub-tasks"
+  },
+  {
+    "from": "OidcTokenRefresh",
+    "to": "OidcValidator",
+    "relationType": "USES",
+    "label": "exchanges refresh tokens"
+  },
+  {
+    "from": "OidcTokenRefresh",
+    "to": "SessionTokenStore",
+    "relationType": "USES",
+    "label": "stores/retrieves refresh tokens"
+  },
+  {
+    "from": "PersistentTokenStore",
+    "to": "SessionTokenStore",
+    "relationType": "IMPLEMENTS",
+    "label": "SQLite backend for"
+  },
+  {
+    "from": "JwksKeyRotationTTL",
+    "to": "OidcValidator",
+    "relationType": "ENHANCES",
+    "label": "adds TTL caching and retry"
+  },
+  {
+    "from": "CachedDiscovery",
+    "to": "OidcValidator",
+    "relationType": "USED_BY",
+    "label": "caches discovery documents for"
+  },
+  {
+    "from": "CliOidcLogin",
+    "to": "UserAuthEndpoints",
+    "relationType": "CALLS",
+    "label": "exchanges code for session JWT"
+  },
+  {
+    "from": "CliOidcLogin",
+    "to": "OidcProviderPreset",
+    "relationType": "USES",
+    "label": "resolves --provider flag"
+  },
+  {
+    "from": "LoginView",
+    "to": "AuthInterceptor",
+    "relationType": "FEEDS",
+    "label": "stores token in localStorage"
+  },
+  {
+    "from": "OidcValidator",
+    "to": "CachedDiscovery",
+    "relationType": "CACHES",
+    "label": "caches discovery with TTL"
+  },
+  {
+    "from": "OidcValidator",
+    "to": "JwksKeyRotationTTL",
+    "relationType": "IMPLEMENTS",
+    "label": "JWKS cache with retry on KeyNotFound"
   }
 ]

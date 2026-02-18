@@ -1,0 +1,205 @@
+---
+title: Auth & Identity System Review
+updated: 2026-02-18
+session: "feature/cli-via-goosed"
+commits: "a239e6ac..fb47a58a (13 commits)"
+scope: "Dual identity, OIDC, session tokens, tenant isolation, rate limiting"
+---
+
+# Auth & Identity System Review
+
+## Overview
+
+A complete dual-identity authentication system was built across 13 commits, implementing:
+- User authentication (OIDC, API key, guest)
+- Agent identity tracking (UUID, kind, persona, parent chain)
+- Execution identity combining both
+- Session token management with SQLite persistence
+- OIDC discovery with JWKS caching and key rotation handling
+- Tenant-scoped session isolation
+- Rate limiting on auth endpoints
+- End-to-end wiring from desktop UI through server to agent execution
+
+## Architecture Diagram
+
+```
+┌─ Desktop App ────────────────────────────────────────────────────┐
+│  LoginView → useAuth → localStorage → authInterceptor            │
+│  (OIDC / API Key / Guest)                                        │
+└──────────────────────── Bearer + X-Secret-Key ──────────────────┘
+                              ↓
+┌─ Server ─────────────────────────────────────────────────────────┐
+│  RateLimiter (30 req/min per IP on /auth/*)                      │
+│    ↓                                                              │
+│  from_headers_validated():                                        │
+│    1. SessionTokenStore → session JWT validation                  │
+│    2. OidcValidator → OIDC JWT (JWKS + sig + claims)             │
+│    3. Lightweight JWT decode (no sig check)                       │
+│    4. X-Api-Key → ApiKey identity                                │
+│    5. X-Goose-User-Id → stable guest                            │
+│    6. Anonymous guest (random UUID)                              │
+│    ↓                                                              │
+│  ExecutionIdentity (user + agent)                                │
+│    → agent.set_execution_identity()                              │
+│    → session_manager.set_session_identity()                      │
+│    → for_sub_agent() → A2A metadata propagation                 │
+│    → SpawnConfig.identity → pool agents                          │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## Components
+
+### 1. Identity Types (`crates/goose/src/identity.rs` — 550 lines)
+
+| Type | Fields | Purpose |
+|------|--------|---------|
+| `UserIdentity` | id, name, auth_method, tenant | Human user |
+| `AgentIdentity` | id, kind, persona, parent_id, spawned_by | Agent instance |
+| `ExecutionIdentity` | user + agent | Combined context |
+| `AuthMethod` | Guest, Oidc, ApiKey, ServiceAccount | Auth mechanism |
+
+Key methods:
+- `guest()` / `guest_stable(seed)` — anonymous/deterministic guest
+- `oidc(subject, name, provider)` — OIDC-authenticated user
+- `from_bearer_token(jwt)` — lightweight JWT parsing (no signature check)
+- `for_sub_agent(kind, persona)` — derive child identity for delegation
+- `to_a2a_metadata()` / `from_a2a_metadata()` — A2A wire format
+
+### 2. OIDC Validator (`crates/goose/src/oidc.rs` — 1200 lines)
+
+Features:
+- OIDC discovery (`.well-known/openid-configuration`)
+- JWKS key fetching with TTL cache (default 1h, configurable)
+- Discovery document cache (default 24h, configurable)
+- Key-not-found retry (handles key rotation)
+- RSA + EC key types
+- Tenant/group claim extraction
+- Group-based authorization
+- 7 provider presets (Google, Azure, GitHub, GitLab, AWS, Auth0, Okta)
+- Runtime provider management (add/remove/list)
+- Authorization code exchange
+- Refresh token exchange
+
+### 3. Session Token Store (`crates/goose/src/session_token.rs` — 590 lines)
+
+Features:
+- JWT session token issuance with configurable TTL (default 24h)
+- Token validation (signature + expiry + revocation)
+- Token revocation (by JTI or by raw token)
+- **SQLite-backed persistence** (`data_dir/auth/tokens.db`):
+  - `revoked_tokens` table — survives server restarts
+  - `refresh_tokens` table — keyed by (issuer, subject)
+  - Schema versioning with automatic migrations
+- Expired revocation cleanup
+
+### 4. Server Auth (`crates/goose-server/src/auth.rs` — 374 lines)
+
+- `check_token` — existing secret key middleware
+- `RequestIdentity` — async identity extractor
+- `from_headers_validated(headers, oidc, session_store)` — full validation chain
+- `RateLimiter` — IP-based sliding window (30 req/min default)
+- `rate_limit_middleware` — Axum middleware layer
+- `extract_client_ip` — X-Forwarded-For > X-Real-IP > localhost
+
+### 5. Auth Endpoints (`crates/goose-server/src/routes/user_auth.rs` — 750 lines)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/auth/me` | Current user info |
+| POST | `/auth/login` | Login with API key |
+| POST | `/auth/logout` | Revoke session token |
+| POST | `/auth/refresh` | Rotate session token |
+| POST | `/auth/login/oidc` | Login with ID token |
+| POST | `/auth/login/oidc/url` | Get OIDC authorization URL |
+| POST | `/auth/login/oidc/code` | Exchange auth code for session JWT |
+| POST | `/auth/refresh/oidc` | Refresh OIDC tokens |
+
+### 6. Auth Config Endpoints (`crates/goose-server/src/routes/auth_config.rs` — 280 lines)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/auth/oidc/providers` | List configured OIDC providers |
+| POST | `/auth/oidc/providers` | Add OIDC provider |
+| DELETE | `/auth/oidc/providers` | Remove OIDC provider |
+| GET | `/auth/status` | Auth system status |
+
+### 7. CLI Auth (`crates/goose-cli/src/commands/auth.rs` — 700 lines)
+
+```bash
+goose auth login --provider google
+goose auth login --provider azure --tenant my-tenant
+goose auth login --provider github --client-id XXX
+goose auth logout
+goose auth status
+goose auth whoami
+goose auth providers
+```
+
+Features:
+- Local callback server on random port
+- Browser-based OIDC flow
+- Token persistence in `~/.config/goose/session_token.json`
+- Auto-refresh on expired tokens
+
+### 8. Frontend Auth (`ui/desktop/src/`)
+
+| File | Purpose |
+|------|---------|
+| `hooks/useAuth.tsx` | Auth context, login/logout, token refresh |
+| `components/LoginView.tsx` | OIDC provider buttons + API key form |
+| `components/AuthGuard.tsx` | Route protection |
+| `api/authInterceptor.ts` | Bearer token on all API calls |
+
+## Security Considerations
+
+### Strengths
+- ✅ JWT signatures validated against provider JWKS
+- ✅ Token revocation persisted in SQLite
+- ✅ Rate limiting on auth endpoints (429 Too Many Requests)
+- ✅ Refresh token rotation handled (new refresh token stored on rotation)
+- ✅ Tenant isolation in session listing
+- ✅ Key rotation handled transparently (retry on KeyNotFound)
+- ✅ Issuer validation on discovery documents
+
+### Known Limitations
+- ⚠️ In-memory rate limiter (not shared across server instances)
+- ⚠️ No PKCE (Proof Key for Code Exchange) in OIDC flow yet
+- ⚠️ No CSRF protection on auth callbacks beyond state parameter
+- ⚠️ Session JWT signing key is random per server start (tokens invalidated on restart)
+- ⚠️ Lightweight JWT decode (level 3) has no signature verification — fine for non-critical identity display
+- ⚠️ Guest users see all sessions (no tenant filtering for unauthenticated users)
+
+### Recommendations
+1. Add PKCE to OIDC authorization code flow
+2. Use a persistent signing key for session JWTs (stored in data_dir)
+3. Add Redis-backed rate limiting for multi-instance deployments
+4. Consider audience validation strictness (currently optional)
+5. Add session binding — tie session tokens to client fingerprint
+
+## Test Coverage
+
+| Module | Tests | Coverage Areas |
+|--------|-------|----------------|
+| identity.rs | 19 | Guest, OIDC, bearer parsing, sub-agent, A2A roundtrip, serde |
+| oidc.rs | 16 | Providers, TTL, claims, presets, builder, serde, display |
+| session_token.rs | 13 | Issue, validate, revoke, expire, refresh store, SQLite persist |
+| auth.rs (server) | 16 | Extraction priority, token types, rate limiter, IP extraction |
+| user_auth.rs | 6 | Guest info, API key, login, logout, refresh |
+| auth_config.rs | 4 | Status, list, add, remove providers |
+| **Total** | **74** | |
+
+## Commits (chronological)
+
+1. `a239e6ac` — Phase 1: Identity structs (UserIdentity, AgentIdentity, ExecutionIdentity)
+2. `f7586c5d` — Phase 2: Wire into execution, auth middleware, JWT parsing
+3. `46171f82` — Phase 3: OIDC discovery, JWT validation, tenant/group claims
+4. `4d54d42a` — User auth endpoints (/auth/me, login, logout, refresh)
+5. `0ae7a738` — OIDC CLI flow (authorization code + server code exchange)
+6. `cfeca36f` — Provider presets (Google, Azure, GitHub, GitLab, AWS, Auth0, Okta)
+7. `10678485` — Tenant-scoped session isolation
+8. `9bdefa77` — Identity propagation through SpawnConfig into pool agents
+9. `d4ea45b5` — OIDC token refresh (server + CLI auto-refresh)
+10. `16a4df7b` — Persistent token store (SQLite)
+11. `18ad7a74` — JWKS key rotation TTL + discovery cache TTL
+12. `5d6c40fc` — Rate limiting on auth endpoints
+13. `fb47a58a` — Frontend auth interceptor (Bearer token on all API calls)

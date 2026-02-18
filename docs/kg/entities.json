@@ -16558,5 +16558,158 @@
       "All semantic tokens available as Tailwind classes: text-text-default, bg-background-muted, etc.",
       "confidence: 0.99"
     ]
+  },
+  {
+    "name": "OidcValidator",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Full OIDC discovery, JWKS caching with TTL, JWT signature validation, tenant/group claims extraction, and runtime provider management. Located in crates/goose/src/oidc.rs (~1200 lines).",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/oidc.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, oidc, jwt, security"
+    ]
+  },
+  {
+    "name": "SessionTokenStore",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) JWT session token management with SQLite-backed persistence for revocations and OIDC refresh tokens. Issues, validates, revokes tokens with configurable TTL. Located in crates/goose/src/session_token.rs (~590 lines).",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/session_token.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, session, jwt, sqlite, persistence"
+    ]
+  },
+  {
+    "name": "RequestIdentity",
+    "entityType": "Struct",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Axum request identity extractor with async OIDC validation. Priority chain: session JWT \u2192 OIDC JWT \u2192 lightweight JWT decode \u2192 API key \u2192 stable guest \u2192 anonymous guest. Located in crates/goose-server/src/auth.rs.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose-server/src/auth.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, middleware, identity"
+    ]
+  },
+  {
+    "name": "UserAuthEndpoints",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) REST endpoints for user authentication: /auth/me, /auth/login, /auth/logout, /auth/refresh, /auth/login/oidc, /auth/login/oidc/url, /auth/login/oidc/code, /auth/refresh/oidc. Located in crates/goose-server/src/routes/user_auth.rs (~750 lines).",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose-server/src/routes/user_auth.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, rest, oidc, endpoints"
+    ]
+  },
+  {
+    "name": "AuthConfigEndpoints",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) REST endpoints for OIDC provider management: list/add/remove providers and auth status. Located in crates/goose-server/src/routes/auth_config.rs (~280 lines).",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose-server/src/routes/auth_config.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, config, oidc, endpoints"
+    ]
+  },
+  {
+    "name": "OidcProviderPreset",
+    "entityType": "Enum",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Well-known OIDC provider presets (Google, Azure, GitHub, GitLab, AWS Cognito, Auth0, Okta) with discovery URLs, default scopes, and aliases. GitHub uses OAuth2 instead of OIDC code flow.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/oidc.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, oidc, providers"
+    ]
+  },
+  {
+    "name": "OidcTokenRefresh",
+    "entityType": "Feature",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) OIDC token refresh flow: server exchanges refresh_token with provider, validates new id_token, handles token rotation, issues fresh session JWT. CLI auto-refreshes on expiry.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose-server/src/routes/user_auth.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, oidc, refresh, token"
+    ]
+  },
+  {
+    "name": "RateLimiter",
+    "entityType": "Struct",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) IP-based sliding window rate limiter applied to /auth/* endpoints. Default: 30 req/min per IP. Returns 429 Too Many Requests with Retry-After header. Background cleanup every 5 minutes.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose-server/src/auth.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, security, rate-limiting"
+    ]
+  },
+  {
+    "name": "AuthInterceptor",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Frontend request interceptor that attaches Bearer token and X-Secret-Key headers to every API call from the @hey-api generated client. Reads from localStorage.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: ui/desktop/src/api/authInterceptor.ts",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, frontend, interceptor"
+    ]
+  },
+  {
+    "name": "TenantScopedSessions",
+    "entityType": "Feature",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Sessions tagged with tenant_id and user_id from caller identity. list_sessions filters by tenant/user for authenticated users, falls back to all sessions for guests.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose-server/src/routes/session.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, session, tenant, isolation"
+    ]
+  },
+  {
+    "name": "IdentityInSpawnConfig",
+    "entityType": "Feature",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) SpawnConfig.identity field propagated through pool.spawn() into run_pooled_agent(), where it sets execution_identity on the Agent and tags the session with tenant/user.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/execution/pool.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, identity, pool, propagation"
+    ]
+  },
+  {
+    "name": "AgentReplyDispatcher",
+    "entityType": "Struct",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Dispatcher that uses Agent::reply() for full multi-turn tool-using execution (unlike InProcessDispatcher which uses single-turn Provider::complete()). Extracts compound execution logic from reply.rs into reusable abstraction.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/agents/dispatch.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: dispatch, agent, compound, execution"
+    ]
+  },
+  {
+    "name": "dispatch_compound_sequential",
+    "entityType": "Function",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Sequential compound task dispatcher that routes sub-tasks to AgentReplyDispatcher (in-process) or A2ADispatcher (remote), replacing ~155 lines of inline code in reply.rs.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/agents/dispatch.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: dispatch, compound, orchestration"
+    ]
+  },
+  {
+    "name": "JwksKeyRotationTTL",
+    "entityType": "Feature",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) JWKS keys cached with 1h TTL (configurable via with_jwks_ttl()). Discovery documents cached with 24h TTL. On KeyNotFound, invalidates JWKS cache and retries once to handle provider key rotation.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/oidc.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, oidc, jwks, caching, security"
+    ]
+  },
+  {
+    "name": "PersistentTokenStore",
+    "entityType": "Feature",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) SessionTokenStore migrated from in-memory to SQLite (data_dir/auth/tokens.db). Tables: revoked_tokens (jti, revoked_at, expires_at), refresh_tokens (issuer, subject, token, stored_at). Schema version 1 with migration support.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/session_token.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, sqlite, persistence, token"
+    ]
+  },
+  {
+    "name": "CliOidcLogin",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) CLI OIDC authorization code flow: starts local callback server, opens browser, waits for auth code, exchanges via server, stores session token locally. Supports --provider flag with presets (google, azure, github, etc.).",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose-cli/src/commands/auth.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, cli, oidc, login"
+    ]
+  },
+  {
+    "name": "CachedDiscovery",
+    "entityType": "Struct",
+    "observations": [
+      "2026-02-18T21:43:00 (confidence:0.95) Wrapper around OidcDiscovery with fetched_at timestamp for TTL-based cache expiration. Discovery documents cached for 24h by default.",
+      "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/oidc.rs",
+      "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, oidc, caching"
+    ]
   }
 ]

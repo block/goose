@@ -1,7 +1,7 @@
 {
-  "exported_at": "2026-02-17T23:13:38.439251",
-  "entity_count": 1620,
-  "relation_count": 2289,
+  "exported_at": "2026-02-18T21:45:00.000000",
+  "entity_count": 1637,
+  "relation_count": 2315,
   "format_version": "1.0",
   "branch": "feature/cli-via-goosed",
   "session_deliverables": [
@@ -24,6 +24,20 @@
       "commit": "c18b0f95",
       "files_changed": 8,
       "lines_added": "~800"
-    }
+    },
+    "Dual Identity Phase 1: UserIdentity + AgentIdentity + ExecutionIdentity (a239e6ac)",
+    "Dual Identity Phase 2: Wire into execution + auth middleware (f7586c5d)",
+    "Dual Identity Phase 3: OIDC discovery, JWT validation, tenant isolation (46171f82)",
+    "User Auth Endpoints: /auth/me, login, logout, refresh + session tokens (4d54d42a)",
+    "OIDC CLI Flow: authorization code + server code exchange (0ae7a738)",
+    "OIDC Provider Presets: Google, Azure, GitHub, GitLab, AWS, Auth0, Okta (cfeca36f)",
+    "Tenant-Scoped Session Isolation (10678485)",
+    "Identity in SpawnConfig propagation to pool agents (9bdefa77)",
+    "Dispatcher wiring: AgentReplyDispatcher replaces inline compound code (fd6fa15c)",
+    "OIDC Token Refresh: server + CLI auto-refresh (d4ea45b5)",
+    "Persistent Token Store: SQLite-backed revocations + refresh tokens (16a4df7b)",
+    "JWKS Key Rotation TTL + Discovery Cache TTL (18ad7a74)",
+    "Rate Limiting on Auth Endpoints (5d6c40fc)",
+    "Frontend Auth Interceptor: Bearer token on all API calls (fb47a58a)"
   ]
 }

@@ -1,13 +1,15 @@
 ---
-title: Non-Obvious Knowledge — Goose Desktop UI
-updated: 2026-02-17
+title: Non-Obvious Knowledge — Goose4
+updated: 2026-02-18
 session: "feature/cli-via-goosed"
-commits: "665fd046..ca2f3383"
+commits: "665fd046..fb47a58a"
 ---
 
 # Non-Obvious Knowledge
 
-Hard-won insights from building the Goose Desktop UI that aren't documented elsewhere.
+Hard-won insights from building Goose that aren't documented elsewhere. Each entry was discovered through debugging or design iteration — not from reading docs.
+
+---
 
 ## Architecture
 
@@ -20,11 +22,109 @@ The OpenAPI spec generation has a **3-step pipeline** that's easy to break:
 3. **DANGER:** Step 2 **deletes** `src/api/instances.ts` — this is a hand-written file that must be restored via `git checkout HEAD -- ui/desktop/src/api/instances.ts` after every `just generate-openapi`
 
 To register new routes in the OpenAPI spec, you must edit **3 files**:
-- `crates/goose/src/lib.rs` — `pub mod <module>;`
 - `crates/goose-server/src/routes/mod.rs` — `pub mod <module>;` + `.merge(<module>::routes(state.clone()))`
 - `crates/goose-server/src/openapi.rs` — add path handlers to `paths()` + types to `schemas()`
+- `crates/goose-server/src/main.rs` — `mod <module>;` (for the binary target)
 
 All three must be consistent or the types won't appear in the frontend SDK.
+
+### Binary vs Library Crate Split in goose-server
+
+`goose-server` has both a library (`lib.rs`) and a binary (`main.rs`). The binary re-declares `mod routes;`, `mod auth;`, etc. This means:
+
+- **`crate::auth` resolves differently** depending on which target is compiling
+- When adding new modules, you MUST add `mod <name>;` to BOTH `lib.rs` AND `main.rs`
+- The `check_token` function has `#[allow(dead_code)]` because it's used via the lib (`goose_server::auth::check_token` in `commands/agent.rs`) but not directly in the binary
+
+### Dual Axum Versions (0.7 + 0.8)
+
+The `a2a` crate pulls in `tonic` which depends on axum 0.7. The goose-server uses axum 0.8 directly. This causes:
+
+- **Cannot use `FromRequestParts` extractor pattern** — the trait exists in both versions and the compiler gets confused
+- **Solution:** Use `from_headers(&HeaderMap)` manual extraction instead of Axum's extractor pattern
+- The `RequestIdentity::from_headers_validated()` takes `&HeaderMap` directly for this reason
+
+### Pipeline Module Repeatedly Breaks Builds
+
+`crates/goose-server/src/routes/pipeline.rs` and `crates/goose/src/pipeline.rs` (frontend agent work) repeatedly cause build failures when module declarations in `lib.rs`, `routes/mod.rs`, and `openapi.rs` get out of sync. Pipeline handlers lack utoipa annotations, causing OpenAPI schema generation to fail.
+
+---
+
+## Auth & Identity
+
+### Auth Priority Chain (6 levels)
+
+`from_headers_validated()` resolves identity through a strict priority chain:
+
+```
+1. Session JWT (our tokens from /auth/login) → SessionTokenStore validates
+2. OIDC JWT (signature validated against JWKS) → OidcValidator validates
+3. Lightweight JWT decode (base64 payload, no sig check) → unvalidated fallback
+4. X-Api-Key header → ApiKey identity
+5. X-Goose-User-Id header → stable guest (deterministic UUID from value)
+6. (nothing) → anonymous guest (random UUID per request)
+```
+
+Steps 1-3 all parse the `Authorization: Bearer <token>` header. The system tries each in order — if session JWT validation fails, it tries OIDC, then lightweight decode.
+
+### `Provider::complete()` vs `Agent::reply()` — Different Types
+
+`Provider::complete()` takes `conversation::message::Message` (the goose message type). A2A uses `a2a::types::Message`. These are **completely different types** — you cannot pass one where the other is expected.
+
+The `InProcessDispatcher` uses `Provider::complete()` (single-turn, no tools). The `AgentReplyDispatcher` uses `Agent::reply()` (multi-turn, full tool use). The inline compound execution code in reply.rs was replaced with `dispatch_compound_sequential` which uses `AgentReplyDispatcher`.
+
+### ProtoJSON is Normative, Not JSON Schema
+
+The A2A spec uses **ProtoJSON** format (from protobuf):
+- Enums: `"TASK_STATE_WORKING"` (SCREAMING_SNAKE_CASE), NOT `"working"` (lowercase)
+- JSON-RPC methods: `"SendMessage"` (PascalCase), NOT `"message/send"` (slash-style)
+
+The JavaScript SDK (a2a-js v0.3.10) is **non-compliant** — it uses lowercase enums. Our `Deserialize` impls accept BOTH formats (lenient deserialization) for interop, but `Serialize` always produces ProtoJSON.
+
+### `OidcProviderConfig.audience` is `String`, Not `Option<String>`
+
+When looking up audience for auth URL generation, use `.map(|p| p.audience.clone())`, NOT `.and_then(|p| p.audience.clone())`. The field is non-optional.
+
+### GitHub Doesn't Support Standard OIDC Code Flow
+
+GitHub uses OAuth2 (not full OIDC) for user authentication. `github.com` doesn't have a `/.well-known/openid-configuration` endpoint. The `OidcProviderPreset::GitHub` variant has `supports_oidc_code_flow() == false` and provides separate `oauth2_authorize_url()` / `oauth2_token_url()` methods.
+
+GitHub Actions tokens DO support OIDC (via `token.actions.githubusercontent.com`), but that's for CI, not user login.
+
+### Session Token vs OIDC Token — Different Stores
+
+- **Session tokens** (from `/auth/login`): Stored in `SessionTokenStore` (SQLite), validated by checking signature + JTI revocation list
+- **OIDC tokens** (from provider): Validated by `OidcValidator` against provider's JWKS, not stored server-side
+- **Refresh tokens**: Stored in `SessionTokenStore` SQLite keyed by (issuer, subject)
+
+### JWKS Key Rotation — Retry on KeyNotFound
+
+When an OIDC provider rotates signing keys, existing cached JWKS won't contain the new `kid`. The validator handles this:
+1. Look up key by `kid` in cached JWKS
+2. If `KeyNotFound` → invalidate JWKS cache for that issuer
+3. Refetch JWKS from provider
+4. Retry key lookup once
+5. If still not found → real error
+
+This is critical for production — without it, key rotation causes auth failures until cache TTL expires.
+
+### `OidcTokenSet.id_token` is `Option<String>`
+
+In the initial code exchange, `id_token` is always present. But in refresh token responses, providers may NOT return a new `id_token`. That's why the field is `Option<String>` — the code exchange handler unwraps it with a 502 error if missing.
+
+### Rate Limiter Uses IP Extraction Priority
+
+```
+1. X-Forwarded-For header (first IP in comma-separated list) — for reverse proxies
+2. X-Real-IP header — for nginx
+3. "127.0.0.1" fallback — for direct connections
+```
+
+The rate limiter is applied ONLY to `/auth/*` routes via a nested Axum router, not to all routes.
+
+---
+
+## Frontend
 
 ### React Flow v12 Type Compatibility
 
@@ -34,12 +134,9 @@ All three must be consistent or the types won't appear in the frontend SDK.
 export interface DagNodeData {
   kind: NodeKind;
   label: string;
-  // ... other fields
   [key: string]: unknown;  // REQUIRED for React Flow v12 compat
 }
 ```
-
-Without this, `Node<DagNodeData>[]` won't assign to `Node[]`.
 
 ### Lucide Icons Don't Accept `style` Prop
 
@@ -49,255 +146,115 @@ Lucide React icons (v0.400+) don't accept a `style` prop. To apply inline colors
 // ❌ Won't compile
 <Icon size={16} style={{ color }} />
 
-// ✅ Correct
+// ✅ Works
 <span style={{ color }}><Icon size={16} /></span>
 ```
 
-## Session Management
+### `authInterceptor.ts` is NOT Auto-Generated
 
-### Session Working Directory Grouping
+`ui/desktop/src/api/authInterceptor.ts` is a **hand-written** file that survives `just generate-openapi` (unlike `sdk.gen.ts` and `types.gen.ts`). It attaches `Authorization: Bearer` and `X-Secret-Key` headers to every API call.
 
-Sessions are grouped by `working_dir` field in the SQLite database. Key gotchas:
+If the generated client changes its interceptor API (e.g., `@hey-api/openapi-ts` major version bump), this file needs manual updating.
 
-- **72 sessions** had `/tmp/.tmpXXXXXX` as working_dir — each created its own one-session "project" group
-- **Fix:** Detect temp dirs via regex (`/^\/tmp\/\.?tmp/`) and group as "General"
-- **Empty `working_dir`** (`""`) → groups as "General" (empty string is falsy)
-- **Nested subdirs** (e.g., `/home/user/goose4/crates/goose`) showed as "goose" — confusing alongside "goose4"
-- **Fix:** When a dir is a subdirectory of another session's dir, show relative path: `goose4 › crates/goose`
+### localStorage Keys for Auth
 
-### Home Directory Detection
-
-`window.appConfig` only stores Goose-specific config (`GOOSE_WORKING_DIR`, `GOOSE_DEFAULT_PROVIDER`, etc.), **not** general env vars like `HOME`. To detect the home directory:
-
-```typescript
-// ❌ Won't work — HOME is not in appConfig
-const home = window.appConfig?.get('HOME');
-
-// ✅ Use regex pattern matching
-const isHome = /^\/home\/[^/]+$/.test(dir) || /^\/Users\/[^/]+$/.test(dir);
+```
+goose_auth_token     — session JWT (from /auth/login)
+goose_auth_user      — serialized user object
+goose_auth_token_expiry — ISO timestamp of token expiration
+secretKey            — server secret key (for X-Secret-Key header)
 ```
 
-### Session Deletion API
+The `useAuth` hook manages these. The `authInterceptor` reads them. Both must stay in sync on the key names.
 
-`DELETE /sessions/{session_id}` exists in the backend (`SessionStorage::delete_session`) but was **never exposed in any UI** until this session. It performs a transactional delete: messages first, then session record.
+### OIDC Login Uses Custom Protocol Handler
 
-## Design System
+The desktop app registers `goose://auth/callback` as a deep link handler. OIDC login flow:
+1. `useAuth.loginWithOidc(issuer)` requests auth URL from server
+2. Opens system browser to provider login page with `redirect_uri=goose://auth/callback`
+3. After auth, browser redirects to `goose://auth/callback?code=XXX&state=YYY`
+4. Electron intercepts the deep link, extracts code+state
+5. Exchanges code for session token via server
 
-### Semantic Design Tokens
+---
 
-The Goose design system uses semantic Tailwind tokens defined in CSS variables. The full token set:
+## Agent & Dispatch
 
-| Category | Tokens |
-|----------|--------|
-| **Text** | `text-text-default`, `text-text-muted`, `text-text-subtle`, `text-text-accent`, `text-text-success`, `text-text-danger`, `text-text-warning`, `text-text-on-accent` |
-| **Background** | `bg-background-default`, `bg-background-muted`, `bg-background-app`, `bg-background-elevated`, `bg-background-accent`, `bg-background-success-muted`, `bg-background-danger-muted`, `bg-background-warning-muted` |
-| **Border** | `border-border-default`, `border-border-muted`, `border-border-accent`, `border-border-subtle` |
+### `SlotDelegation` Methods are `#[allow(dead_code)]`
 
-**Never use** hardcoded `dark:` prefixed Tailwind colors — the design system handles light/dark via CSS variables.
+`register_a2a_agent`, `register_acp_agent`, `unregister_agent` in `agent_slot_registry.rs` are tested but not all called from production code yet. They're kept with `#[allow(dead_code)]` for forward compatibility.
 
-### StatCard Variants
+### `for_sub_agent()` Creates Child Identity Chain
 
-The `StatCard` component accepts `variant: 'default' | 'success' | 'warning' | 'danger'` — there is **no `'error'` variant**. Use `'danger'` instead.
+When compound execution dispatches to sub-agents, `ExecutionIdentity::for_sub_agent(kind, persona)` creates a new `AgentIdentity` with:
+- New UUID
+- `parent_id` pointing to the parent agent
+- `spawned_by` recording the parent agent's display name
+- Same `UserIdentity` (the human user stays the same)
 
-## Generative UI
+This chain is preserved in A2A metadata via `to_a2a_metadata()`.
 
-### Spec Detection in Chat Messages
+### `dispatch_compound_sequential` Replaced 155 Lines
 
-The LLM can embed generative UI specs in messages using two formats:
+The inline compound execution code in `reply.rs` was extracted into `dispatch_compound_sequential` in `dispatch.rs`. The replacement:
+- Uses `AgentReplyDispatcher` for in-process (full `agent.reply()` with tools)
+- Uses `A2ADispatcher` for remote A2A
+- Routes based on `SlotDelegation` lookup per sub-task agent name
+- Sequential execution (not parallel) — same as the original inline code
 
-1. XML tags: `<goose-ui>{"type":"Stack",...}</goose-ui>`
-2. Fenced code blocks: `` ```goose-ui\n{"type":"Stack",...}\n``` ``
+### `OrchestratorAgent::new()` Takes `Arc<Mutex<Option<Provider>>>`
 
-The `extractGenerativeSpec()` utility handles both, plus partial spec detection during streaming.
+Not a direct provider — it's wrapped in `Arc<Mutex<Option<...>>>`. Easy to get wrong when constructing.
 
-### Two Generative UI Systems
+---
 
-There are **two** generative UI systems in the codebase:
+## Data & Persistence
 
-1. **Old:** `lib/generative-catalog.ts` + `lib/generative-registry.tsx` — uses `@json-render/core` `defineCatalog`
-2. **New:** `components/ui/design-system/goose-renderer.tsx` — uses `@json-render/react` `JSONUIProvider`
+### SQLite Token Store Schema
 
-The **new** system (`GooseGenerativeUI` + `isGooseUISpec`) is what's wired into `GooseMessage.tsx`. The old system is used by `GenerativePanel.tsx` (standalone panel mode).
-
-### CSP Warning
-
-`@json-render/react` triggers a Content-Security-Policy warning about `eval()` in the Electron dev console. Investigation shows the library uses `evaluateVisibility`/`evaluateCondition` functions that are **safe** (not actual `eval()`). The CSP warning is a false positive — `unsafe-eval` is NOT needed.
-
-## Navigation
-
-### Sidebar Zone Behavior
-
-Multi-item sidebar zones (Workflows, Catalog) need a `route` property to navigate when the zone label is clicked. Without it, clicking the label only toggles the collapsible submenu.
-
-```typescript
-// ✅ Label click navigates, chevron toggles collapse
-{ id: 'workflows', label: 'Workflows', route: '/recipes', items: [...] }
-
-// ❌ Label click only toggles — confusing UX
-{ id: 'workflows', label: 'Workflows', items: [...] }
+```sql
+-- data_dir/auth/tokens.db
+CREATE TABLE schema_version (version INTEGER NOT NULL);
+CREATE TABLE revoked_tokens (
+    jti TEXT PRIMARY KEY,
+    revoked_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL  -- for cleanup of old revocations
+);
+CREATE TABLE refresh_tokens (
+    issuer TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    stored_at TEXT NOT NULL,
+    PRIMARY KEY (issuer, subject)
+);
 ```
 
-### Route Configuration
+### Session Schema Version 9
 
-The app has 13 routes in `App.tsx` (HashRouter):
-- `/` → Hub (index)
-- `/pair` → Chat (pair mode, SSE connection kept alive)
-- `/settings`, `/extensions`, `/apps`, `/sessions`, `/schedules`, `/recipes`
-- `/agents`, `/analytics`, `/monitoring`, `/evaluate`, `/tools`, `/catalogs`
-- **`/pipelines`** — New DAG workflow builder (PipelineManager)
+The session storage is at schema version 9 with `tenant_id TEXT` and `user_id TEXT` columns. Migrations run automatically on startup. The `set_session_identity` method uses a raw SQL UPDATE to tag sessions.
 
-## Pipeline System
+### `list_sessions_for_tenant` Uses Dynamic SQL
 
-### File-Based Storage Pattern
+The method builds a WHERE clause dynamically based on which filters are provided:
+- Both tenant and user → `WHERE tenant_id = ? AND user_id = ?`
+- Only tenant → `WHERE tenant_id = ?`
+- Only user → `WHERE user_id = ?`
+- Neither → `WHERE session_type IN ('user', 'scheduled')` (no tenant filtering)
 
-Pipelines follow the same storage pattern as recipes:
-- Directory: `~/.config/goose/pipelines/`
-- Format: YAML files with `.yaml` extension
-- ID: filename stem (e.g., `code-review.yaml` → ID `code-review`)
-- Manifest: in-memory directory scan (no separate manifest file)
-
-### Validation
-
-Pipeline validation includes **cycle detection via DFS**. The algorithm:
-1. Build adjacency list from edges
-2. Three-color DFS: White (unvisited), Gray (in current path), Black (fully explored)
-3. Gray→Gray edge = cycle detected → validation error
-
-### API Version
-
-Pipelines use `apiVersion: "goose/v1"` and `kind: "Pipeline"` — following Kubernetes-style resource manifests. This is part of the type definition, not enforced at the API level yet.
-
-## Multi-Agent System
-
-### A2A Instance Type Casting
-
-The `InstanceStatus` type from the API sometimes arrives as a plain string from the server. Components must cast explicitly:
-
-```typescript
-<InstanceStatusBadge status={instance.status as InstanceStatus} />
-```
-
-### Provider/Model API
-
-- `providers()` returns `Array<ProviderDetails>` with `name`, `is_configured`, `metadata`, `provider_type`
-- `getProviderModels({ path: { name: providerName } })` returns `Array<string>` (just model name strings)
-- Only configured providers should be shown in dropdowns — filter by `is_configured: true`
-
-## React DevTools in Electron 40
-
-`electron-devtools-installer` v4.0.0 **silently fails** with Electron 40+. The fallback strategy:
-
-1. Try `installExtension(REACT_DEVELOPER_TOOLS)` — may silently fail
-2. Fall back to loading from local Chromium installation:
-   - Linux: `~/.config/chromium/Default/Extensions/fmkadmapgofadopljbjfkapdkoienihi/`
-   - macOS: `~/Library/Application Support/Google/Chrome/Default/Extensions/fmkadmapgofadopljbjfkapdkoienihi/`
-3. Find the latest version directory, load via `session.defaultSession.loadExtension()`
-4. Log warning if neither approach works — dev tools still open via Alt+Cmd+I, just without React tab
+---
 
 ## Testing
 
-### No UI Tests Exist
+### Flaky Test: `prepare_tools_returns_sorted_tools_including_frontend`
 
-There are **zero** frontend unit tests for the components modified in this session. The `utils.test.ts` (316 lines) in `settings/extensions/` is the only component-level test file. E2E tests via Playwright exist but are infrastructure-focused.
+This test in `agents::reply_parts` is intermittently flaky — fails in batch runs but passes individually. Root cause unknown. Not related to any recent changes.
 
-### Backend Pipeline Tests
+### `jsonwebtoken` Default Leeway is 60 Seconds
 
-`crates/goose/src/pipeline.rs` includes 3 unit tests:
-- `test_yaml_roundtrip` — serialize/deserialize preserves all fields
-- `test_validate_pipeline` — rejects pipelines with no trigger node
-- `test_cycle_detection` — detects A→B→C→A cycles
+When testing expired tokens, don't create a token with `exp = now` and expect immediate failure — `jsonwebtoken::Validation` has a 60-second default leeway. Either:
+- Set `validation.leeway = 0` explicitly
+- Create tokens with `exp` far in the past (e.g., year 1970)
 
-Run with: `cargo test -p goose -- pipeline`
+### `just generate-openapi` Deletes `instances.ts`
 
-## Session 2 Findings (2026-02-17 evening)
-
-### Radix UI Tooltip Portal Infinite Loop
-
-**Critical bug:** `@radix-ui/react-tooltip`'s `TooltipPrimitive.Portal` causes `Maximum update depth exceeded` when combined with React StrictMode.
-
-**Root cause chain:**
-1. React StrictMode double-mounts components
-2. Radix Portal uses `composeRefs` to merge multiple refs
-3. `composeRefs` calls `setRef` which triggers `setState`
-4. `setState` causes re-render → `setRef` called again → infinite loop
-
-**Error signature:**
-```
-Error: Maximum update depth exceeded
-    at setRef (chunk-EYE7376K.js:12:12)
-    at chunk-EYE7376K.js:21:23
-    at Array.map (<anonymous>)
-```
-
-**Fix:** Remove `<TooltipPrimitive.Portal>` wrapper from `TooltipContent` in `src/components/ui/Tooltip.tsx`. Tooltip positioning still works via Radix Popper's CSS transforms.
-
-**Risk:** In rare z-index stacking contexts, non-portaled tooltips might render behind overlapping elements. Monitor for visual issues.
-
-**Affected packages:** `@radix-ui/react-scroll-area@1.2.10`, `react-dialog`, `react-portal` — they share `chunk-EYE7376K.js` in Vite's dependency cache.
-
-### Ripgrep Cannot Search AppSidebar.tsx
-
-`rg` (ripgrep) returns **0 results** for any pattern in `AppSidebar.tsx`, but `grep -c` finds matches correctly. The file is 1082 lines, identified as `JavaScript source` by `file(1)`.
-
-**Workaround:** Use `grep` instead of `rg` for this specific file:
-```bash
-# rg returns nothing:
-rg "handleNewChat" src/components/GooseSidebar/AppSidebar.tsx  # → 0 results
-
-# grep works:
-grep -c "handleNewChat" src/components/GooseSidebar/AppSidebar.tsx  # → 4
-```
-
-**Likely cause:** File encoding anomaly (possible BOM, mixed line endings, or NUL bytes). Not investigated further.
-
-### Home/Chat Unification Architecture
-
-The old architecture had two separate views:
-- `/` → `HubRouteWrapper` → `Hub.tsx` (stats page, dead end)
-- `/pair` → `PairRouteWrapper` → `ChatSessionsContainer` → `BaseChat`
-
-**New architecture:**
-- `/` → `HomeRedirectWrapper` → `<Navigate to="/pair" replace />`
-- `/pair` → `PairRouteWrapper` → `ChatSessionsContainer` → `BaseChat`
-  - 0 messages → `WelcomeState` (greeting + quick prompts + stats + recent sessions)
-  - ≥1 message → `ProgressiveMessageList` (normal chat)
-
-**Key insight:** `ChatSessionsContainer` stays mounted at all times (keeps SSE connections alive). The session is created lazily when the user types their first message.
-
-### Pipeline Routes Need 3-File Registration (Reinforced)
-
-Adding pipeline routes required editing 3 Rust files simultaneously. **Critical discovery:** When working with a concurrent backend agent, these files get reverted/commented frequently. Each `just generate-openapi` can overwrite if the 3 files aren't consistent.
-
-**Pipeline registration status checklist:**
-```bash
-# Verify all 3 are active:
-grep "pub mod pipeline" crates/goose/src/lib.rs
-grep "pub mod pipeline" crates/goose-server/src/routes/mod.rs
-grep -c "pipeline" crates/goose-server/src/openapi.rs  # should be 14+
-```
-
-### WorkflowsOverview Mirrors CatalogsOverview
-
-Both zone overview pages follow identical patterns:
-- `CatalogsOverview.tsx` → `/catalogs` (Agents, Extensions, Apps)
-- `WorkflowsOverview.tsx` → `/workflows` (Recipes, Pipelines, Schedules)
-
-Both zones behave identically:
-- Label click → overview page
-- Sub-items → detail pages
-- `route` property on the zone config makes label navigable
-
-### Session Deletion Backend Pre-existed
-
-`DELETE /sessions/{session_id}` was already implemented in the backend (`SessionStorage::delete_session()` with transactional message + session delete). The frontend just needed UI controls:
-- Hover trash icon on `SessionItem` for individual delete
-- `X` button on project group header for bulk project close
-- Both require `window.confirm()` before proceeding
-
-### Project Grouping Edge Cases (278 Real Sessions)
-
-With 278 real sessions in the database:
-- **72 temp sessions** (`/tmp/.tmpXXXXXX`) each created their own project group — now grouped into "General"
-- **Nested subdirs** (`goose4/crates/goose`) showed as just "goose" — now shows `goose4 › crates/goose`
-- **Home dir detection** can't use `window.appConfig` (only has Goose-specific keys) — uses regex: `/^\/home\/[^/]+$/` and `/^\/Users\/[^/]+$/`
-- **"General" always first** — sorts before all other projects, always present even with 0 sessions
+Every time you run `just generate-openapi`, it deletes `ui/desktop/src/api/instances.ts` (a hand-written wrapper). The `just` recipe automatically restores it via `git checkout`, but if you're running the steps manually, you'll lose the file.
