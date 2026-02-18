@@ -33,13 +33,14 @@ url = { workspace = true }
 # HTTP server dependencies
 axum = { workspace = true, features = ["ws"] }
 clap = { workspace = true }
-serde = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
 tower-http = { workspace = true, features = ["cors"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 async-stream = { workspace = true }
 bytes = { workspace = true }
 http-body-util = "0.1.3"
 uuid = { workspace = true, features = ["v7"] }
+schemars = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
