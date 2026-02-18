@@ -10,7 +10,7 @@ use crate::state::AppState;
 use anyhow::Result;
 use axum::http::StatusCode;
 use goose::agents::Agent;
-use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
+use goose::recipe::build_recipe::{build_recipe_from_template, resolve_sub_recipe_path, RecipeError};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
@@ -126,10 +126,22 @@ pub async fn get_recipe_file_path_by_id(
 pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, ErrorResponse> {
     let path = get_recipe_file_path_by_id(state, id).await?;
 
-    Recipe::from_file_path(&path).map_err(|err| ErrorResponse {
+    let mut recipe = Recipe::from_file_path(&path).map_err(|err| ErrorResponse {
         message: format!("Failed to load recipe: {}", err),
         status: StatusCode::INTERNAL_SERVER_ERROR,
-    })
+    })?;
+
+    if let Some(recipe_dir) = path.parent() {
+        if let Some(ref mut sub_recipes) = recipe.sub_recipes {
+            for sr in sub_recipes.iter_mut() {
+                if let Ok(resolved) = resolve_sub_recipe_path(&sr.path, recipe_dir) {
+                    sr.path = resolved;
+                }
+            }
+        }
+    }
+
+    Ok(recipe)
 }
 
 pub async fn build_recipe_with_parameter_values(
