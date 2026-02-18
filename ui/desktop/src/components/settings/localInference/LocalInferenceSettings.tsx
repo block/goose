@@ -65,10 +65,31 @@ export const LocalInferenceSettings = () => {
         // All models are now LocalModelResponse with tier for featured
         const featured = response.data.filter((m): m is LocalModelResponse => 'tier' in m);
         setFeaturedModels(featured);
+
+        // Start polling for any models that are already downloading
+        featured.forEach((model) => {
+          if (model.status.state === 'Downloading') {
+            // Initialize with current progress from the model status
+            const status = model.status;
+            setDownloads((prev) => {
+              const next = new Map(prev);
+              next.set(model.id, {
+                bytes_downloaded: status.bytes_downloaded,
+                total_bytes: status.total_bytes,
+                progress_percent: status.progress_percent,
+                speed_bps: status.speed_bps,
+                status: 'downloading',
+              });
+              return next;
+            });
+            pollDownloadProgress(model.id);
+          }
+        });
       }
     } catch (error) {
       console.error('Failed to load models:', error);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
