@@ -39,6 +39,8 @@ struct OidcLoginResponse {
     #[allow(dead_code)]
     token_type: String,
     expires_in: u64,
+    #[serde(default)]
+    refresh_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -212,9 +214,22 @@ struct StoredToken {
     token: String,
     issuer: String,
     expires_at: u64,
+    #[serde(default)]
+    refresh_token: Option<String>,
+    #[serde(default)]
+    server_url: Option<String>,
+    #[serde(default)]
+    secret_key: Option<String>,
 }
 
-fn store_token(token: &str, issuer: &str, expires_in: u64) -> Result<()> {
+fn store_token(
+    token: &str,
+    issuer: &str,
+    expires_in: u64,
+    refresh_token: Option<&str>,
+    server_url: Option<&str>,
+    secret_key: Option<&str>,
+) -> Result<()> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
         .as_secs();
@@ -223,6 +238,9 @@ fn store_token(token: &str, issuer: &str, expires_in: u64) -> Result<()> {
         token: token.to_string(),
         issuer: issuer.to_string(),
         expires_at: now + expires_in,
+        refresh_token: refresh_token.map(|s| s.to_string()),
+        server_url: server_url.map(|s| s.to_string()),
+        secret_key: secret_key.map(|s| s.to_string()),
     };
 
     let json = serde_json::to_string_pretty(&stored)?;
@@ -230,6 +248,7 @@ fn store_token(token: &str, issuer: &str, expires_in: u64) -> Result<()> {
     Ok(())
 }
 
+/// Load the session token, auto-refreshing via OIDC if expired but a refresh_token is available.
 pub fn load_token() -> Option<String> {
     let path = token_path().ok()?;
     let json = std::fs::read_to_string(path).ok()?;
@@ -241,10 +260,70 @@ pub fn load_token() -> Option<String> {
         .as_secs();
 
     if now < stored.expires_at {
-        Some(stored.token)
-    } else {
-        None
+        return Some(stored.token);
     }
+
+    // Token expired — try auto-refresh if we have a refresh_token
+    if let (Some(refresh_token), Some(server_url), Some(secret_key)) = (
+        &stored.refresh_token,
+        &stored.server_url,
+        &stored.secret_key,
+    ) {
+        if let Some(new_token) =
+            try_refresh_token(server_url, secret_key, &stored.issuer, refresh_token)
+        {
+            return Some(new_token);
+        }
+    }
+
+    None
+}
+
+/// Attempt to refresh the session token via the server's OIDC refresh endpoint.
+fn try_refresh_token(
+    server_url: &str,
+    secret_key: &str,
+    issuer: &str,
+    refresh_token: &str,
+) -> Option<String> {
+    let client = reqwest::blocking::Client::new();
+    let resp = client
+        .post(format!("{}/auth/refresh/oidc", server_url))
+        .header("X-Secret-Key", secret_key)
+        .json(&serde_json::json!({
+            "issuer": issuer,
+            "refresh_token": refresh_token,
+        }))
+        .send()
+        .ok()?;
+
+    if !resp.status().is_success() {
+        return None;
+    }
+
+    #[derive(Deserialize)]
+    struct RefreshResp {
+        token: String,
+        expires_in: u64,
+        #[serde(default)]
+        refresh_token: Option<String>,
+    }
+
+    let data: RefreshResp = resp.json().ok()?;
+
+    // Update stored token with the new one (and rotated refresh_token if present)
+    let new_refresh = data.refresh_token.as_deref().or(Some(refresh_token));
+    store_token(
+        &data.token,
+        issuer,
+        data.expires_in,
+        new_refresh,
+        Some(server_url),
+        Some(secret_key),
+    )
+    .ok()?;
+
+    Some(data.token)
 }
 
 fn clear_token() -> Result<()> {
@@ -376,14 +455,24 @@ pub async fn handle_login(
 
     let login_data: OidcLoginResponse = login_resp.json().await?;
 
-    // Step 6: Store the session token
-    store_token(&login_data.token, &issuer, login_data.expires_in)?;
+    // Step 6: Store the session token (with refresh_token if available)
+    store_token(
+        &login_data.token,
+        &issuer,
+        login_data.expires_in,
+        login_data.refresh_token.as_deref(),
+        Some(server_url),
+        Some(secret_key),
+    )?;
 
     println!("🎉 Login successful! Session token stored.");
     println!(
         "   Token expires in {} hours.",
         login_data.expires_in / 3600
     );
+    if login_data.refresh_token.is_some() {
+        println!("   Auto-refresh enabled (refresh token stored).");
+    }
 
     Ok(())
 }
@@ -504,6 +593,9 @@ async fn handle_github_oauth2_login(
         &login_data.token,
         "https://github.com",
         login_data.expires_in,
+        None, // GitHub OAuth2 doesn't provide OIDC refresh tokens
+        Some(server_url),
+        Some(secret_key),
     )?;
 
     println!("🎉 Logged in as {} (GitHub)", gh_user.login);

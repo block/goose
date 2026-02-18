@@ -1,6 +1,6 @@
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -50,6 +50,8 @@ impl SessionClaims {
 pub struct SessionTokenStore {
     signing_key: Arc<String>,
     revoked: Arc<RwLock<HashSet<String>>>,
+    /// Maps (issuer, subject) → refresh_token for OIDC token refresh
+    refresh_tokens: Arc<RwLock<HashMap<(String, String), String>>>,
     ttl_secs: u64,
 }
 
@@ -58,6 +60,7 @@ impl SessionTokenStore {
         Self {
             signing_key: Arc::new(signing_key.into()),
             revoked: Arc::new(RwLock::new(HashSet::new())),
+            refresh_tokens: Arc::new(RwLock::new(HashMap::new())),
             ttl_secs: DEFAULT_TOKEN_TTL_SECS,
         }
     }
@@ -126,12 +129,30 @@ impl SessionTokenStore {
             .as_secs();
 
         let mut revoked = self.revoked.write().await;
-        // We can't check expiry of revoked tokens without re-decoding them,
-        // so we just cap the revocation list size
         if revoked.len() > 10_000 {
             revoked.clear();
         }
-        let _ = now; // suppress unused warning
+        let _ = now;
+    }
+
+    pub async fn store_refresh_token(&self, issuer: &str, subject: &str, refresh_token: &str) {
+        let mut tokens = self.refresh_tokens.write().await;
+        tokens.insert(
+            (issuer.to_string(), subject.to_string()),
+            refresh_token.to_string(),
+        );
+    }
+
+    pub async fn get_refresh_token(&self, issuer: &str, subject: &str) -> Option<String> {
+        let tokens = self.refresh_tokens.read().await;
+        tokens
+            .get(&(issuer.to_string(), subject.to_string()))
+            .cloned()
+    }
+
+    pub async fn remove_refresh_token(&self, issuer: &str, subject: &str) {
+        let mut tokens = self.refresh_tokens.write().await;
+        tokens.remove(&(issuer.to_string(), subject.to_string()));
     }
 }
 
@@ -267,7 +288,43 @@ mod tests {
         let user = test_user();
         let t1 = store.issue_token(&user).unwrap();
         let t2 = store.issue_token(&user).unwrap();
-        // Different tokens for same user (different jti)
         assert_ne!(t1, t2);
+    }
+
+    #[tokio::test]
+    async fn test_refresh_token_store_and_retrieve() {
+        let store = SessionTokenStore::new("test-secret-key-32chars-long!!!!");
+
+        // No token initially
+        assert!(store
+            .get_refresh_token("https://accounts.google.com", "sub-123")
+            .await
+            .is_none());
+
+        // Store a refresh token
+        store
+            .store_refresh_token("https://accounts.google.com", "sub-123", "rt-abc-def-123")
+            .await;
+
+        // Retrieve it
+        let rt = store
+            .get_refresh_token("https://accounts.google.com", "sub-123")
+            .await;
+        assert_eq!(rt, Some("rt-abc-def-123".to_string()));
+
+        // Different subject returns None
+        assert!(store
+            .get_refresh_token("https://accounts.google.com", "sub-999")
+            .await
+            .is_none());
+
+        // Remove it
+        store
+            .remove_refresh_token("https://accounts.google.com", "sub-123")
+            .await;
+        assert!(store
+            .get_refresh_token("https://accounts.google.com", "sub-123")
+            .await
+            .is_none());
     }
 }

@@ -127,6 +127,29 @@ pub struct OidcCodeExchangeResponse {
     pub token_type: String,
     pub expires_in: u64,
     pub user: UserInfoResponse,
+    /// OIDC refresh token (if the provider issued one). Store this for automatic token refresh.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
+}
+
+/// Request to refresh OIDC tokens using a stored refresh_token.
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct OidcRefreshRequest {
+    /// The OIDC provider issuer (e.g. "https://accounts.google.com")
+    pub issuer: String,
+}
+
+/// Response from OIDC token refresh.
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct OidcRefreshResponse {
+    /// New session JWT
+    pub token: String,
+    /// Token type (always "Bearer")
+    pub token_type: String,
+    /// Seconds until the session token expires
+    pub expires_in: u64,
+    /// Whether a new refresh_token was issued (provider-dependent)
+    pub refresh_token_rotated: bool,
 }
 
 // ── Route handlers ──────────────────────────────────────────────────────
@@ -397,7 +420,7 @@ pub async fn oidc_code_exchange(
     Json(request): Json<OidcCodeExchangeRequest>,
 ) -> Result<Json<OidcCodeExchangeResponse>, StatusCode> {
     // Exchange the authorization code for tokens via the OIDC provider
-    let (id_token, _access_token) = state
+    let token_set = state
         .oidc_validator
         .exchange_code(&request.issuer, &request.code, &request.redirect_uri)
         .await
@@ -406,7 +429,12 @@ pub async fn oidc_code_exchange(
             StatusCode::BAD_GATEWAY
         })?;
 
-    // Validate the ID token
+    // Validate the ID token (must be present for initial code exchange)
+    let id_token = token_set.id_token.ok_or_else(|| {
+        tracing::warn!("OIDC code exchange: provider did not return an id_token");
+        StatusCode::BAD_GATEWAY
+    })?;
+
     let claims = state
         .oidc_validator
         .validate_token(&id_token)
@@ -415,6 +443,14 @@ pub async fn oidc_code_exchange(
             tracing::warn!("OIDC token validation after code exchange failed: {}", e);
             StatusCode::UNAUTHORIZED
         })?;
+
+    // Store refresh token if provided
+    if let Some(ref refresh_token) = token_set.refresh_token {
+        state
+            .session_token_store
+            .store_refresh_token(&request.issuer, &claims.subject, refresh_token)
+            .await;
+    }
 
     let user = claims.into_user_identity();
 
@@ -429,6 +465,131 @@ pub async fn oidc_code_exchange(
         token_type: "Bearer".to_string(),
         expires_in: ttl.as_secs(),
         user: UserInfoResponse::from(&user),
+        refresh_token: token_set.refresh_token.clone(),
+    }))
+}
+
+/// Refresh OIDC tokens using a stored refresh_token.
+/// Exchanges the refresh_token with the OIDC provider for new tokens,
+/// validates the new ID token, and issues a fresh session JWT.
+#[utoipa::path(
+    post,
+    path = "/auth/refresh/oidc",
+    request_body = OidcRefreshRequest,
+    responses(
+        (status = 200, description = "OIDC token refresh successful", body = OidcRefreshResponse),
+        (status = 401, description = "Not authenticated or no refresh token available"),
+        (status = 502, description = "Failed to refresh with OIDC provider")
+    ),
+    tag = "auth"
+)]
+pub async fn oidc_refresh(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<OidcRefreshRequest>,
+) -> Result<Json<OidcRefreshResponse>, StatusCode> {
+    // Get the current user identity to find their refresh token
+    let identity = RequestIdentity::from_headers_validated(
+        &headers,
+        &state.oidc_validator,
+        &state.session_token_store,
+    )
+    .await;
+
+    if identity.user.is_guest() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Extract the subject from the user identity
+    let subject = match &identity.user.auth_method {
+        AuthMethod::Oidc { subject, .. } => subject.clone(),
+        _ => {
+            tracing::warn!("OIDC refresh requested but user is not OIDC-authenticated");
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    };
+
+    // Look up the stored refresh token
+    let refresh_token = state
+        .session_token_store
+        .get_refresh_token(&request.issuer, &subject)
+        .await
+        .ok_or_else(|| {
+            tracing::warn!(
+                "No refresh token found for issuer={} subject={}",
+                request.issuer,
+                subject
+            );
+            StatusCode::UNAUTHORIZED
+        })?;
+
+    // Exchange refresh token with the OIDC provider
+    let token_set = state
+        .oidc_validator
+        .refresh_oidc_token(&request.issuer, &refresh_token)
+        .await
+        .map_err(|e| {
+            tracing::warn!("OIDC token refresh failed: {}", e);
+            // Remove the invalid refresh token
+            let store = state.session_token_store.clone();
+            let issuer = request.issuer.clone();
+            let sub = subject.clone();
+            tokio::spawn(async move {
+                store.remove_refresh_token(&issuer, &sub).await;
+            });
+            StatusCode::BAD_GATEWAY
+        })?;
+
+    // If the provider returned a new id_token, validate it
+    let user = if let Some(ref id_token) = token_set.id_token {
+        let claims = state
+            .oidc_validator
+            .validate_token(id_token)
+            .await
+            .map_err(|e| {
+                tracing::warn!("Refreshed ID token validation failed: {}", e);
+                StatusCode::UNAUTHORIZED
+            })?;
+        claims.into_user_identity()
+    } else {
+        // No new id_token — reuse the existing identity
+        identity.user.clone()
+    };
+
+    // Update stored refresh token if the provider rotated it
+    let refresh_token_rotated = token_set.refresh_token.is_some();
+    if let Some(ref new_refresh) = token_set.refresh_token {
+        state
+            .session_token_store
+            .store_refresh_token(&request.issuer, &subject, new_refresh)
+            .await;
+    }
+
+    // Revoke the old session token (if present in Authorization header)
+    if let Some(auth) = headers.get("authorization") {
+        if let Ok(auth_str) = auth.to_str() {
+            if let Some(old_token) = auth_str.strip_prefix("Bearer ") {
+                state
+                    .session_token_store
+                    .revoke_by_token(old_token)
+                    .await
+                    .ok();
+            }
+        }
+    }
+
+    // Issue a new session JWT
+    let new_token = state.session_token_store.issue_token(&user).map_err(|e| {
+        tracing::error!("Failed to issue session token after OIDC refresh: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let ttl = state.session_token_store.ttl();
+    Ok(Json(OidcRefreshResponse {
+        token: new_token,
+        token_type: "Bearer".to_string(),
+        expires_in: ttl.as_secs(),
+        refresh_token_rotated,
     }))
 }
 
@@ -441,6 +602,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/auth/login/oidc/code", post(oidc_code_exchange))
         .route("/auth/logout", post(logout))
         .route("/auth/refresh", post(refresh_token))
+        .route("/auth/refresh/oidc", post(oidc_refresh))
         .with_state(state)
 }
 

@@ -1386,6 +1386,10 @@ export type OidcCodeExchangeRequest = {
 
 export type OidcCodeExchangeResponse = {
     expires_in: number;
+    /**
+     * OIDC refresh token (if the provider issued one). Store this for automatic token refresh.
+     */
+    refresh_token?: string | null;
     token: string;
     token_type: string;
     user: UserInfoResponse;
@@ -1415,6 +1419,38 @@ export type OidcProviderInfo = {
 
 export type OidcProvidersResponse = {
     providers: Array<OidcProviderInfo>;
+};
+
+/**
+ * Request to refresh OIDC tokens using a stored refresh_token.
+ */
+export type OidcRefreshRequest = {
+    /**
+     * The OIDC provider issuer (e.g. "https://accounts.google.com")
+     */
+    issuer: string;
+};
+
+/**
+ * Response from OIDC token refresh.
+ */
+export type OidcRefreshResponse = {
+    /**
+     * Seconds until the session token expires
+     */
+    expires_in: number;
+    /**
+     * Whether a new refresh_token was issued (provider-dependent)
+     */
+    refresh_token_rotated: boolean;
+    /**
+     * New session JWT
+     */
+    token: string;
+    /**
+     * Token type (always "Bearer")
+     */
+    token_type: string;
 };
 
 export type OrchestratorAgentInfo = {
@@ -4084,6 +4120,33 @@ export type RefreshTokenResponses = {
 };
 
 export type RefreshTokenResponse = RefreshTokenResponses[keyof RefreshTokenResponses];
+
+export type OidcRefreshData = {
+    body: OidcRefreshRequest;
+    path?: never;
+    query?: never;
+    url: '/auth/refresh/oidc';
+};
+
+export type OidcRefreshErrors = {
+    /**
+     * Not authenticated or no refresh token available
+     */
+    401: unknown;
+    /**
+     * Failed to refresh with OIDC provider
+     */
+    502: unknown;
+};
+
+export type OidcRefreshResponses = {
+    /**
+     * OIDC token refresh successful
+     */
+    200: OidcRefreshResponse;
+};
+
+export type OidcRefreshResponse2 = OidcRefreshResponses[keyof OidcRefreshResponses];
 
 export type AuthStatusData = {
     body?: never;

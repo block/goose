@@ -184,6 +184,24 @@ pub struct OidcProviderConfig {
 }
 
 /// OIDC discovery document (subset of fields we need).
+/// Result of an OIDC token exchange or refresh.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OidcTokenSet {
+    pub id_token: Option<String>,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub expires_in: Option<u64>,
+}
+
+/// Raw token response from the OIDC provider's token endpoint.
+#[derive(Deserialize)]
+struct OidcTokenResponse {
+    id_token: Option<String>,
+    access_token: Option<String>,
+    refresh_token: Option<String>,
+    expires_in: Option<u64>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct OidcDiscovery {
     issuer: String,
@@ -335,7 +353,7 @@ impl OidcValidator {
         issuer: &str,
         code: &str,
         redirect_uri: &str,
-    ) -> Result<(String, Option<String>), OidcError> {
+    ) -> Result<OidcTokenSet, OidcError> {
         let providers = self.providers.read().await;
         let config = providers
             .get(issuer)
@@ -381,13 +399,7 @@ impl OidcValidator {
             });
         }
 
-        #[derive(Deserialize)]
-        struct TokenResponse {
-            id_token: Option<String>,
-            access_token: Option<String>,
-        }
-
-        let token_resp: TokenResponse =
+        let token_resp: OidcTokenResponse =
             resp.json()
                 .await
                 .map_err(|e| OidcError::TokenExchangeFailed {
@@ -402,7 +414,80 @@ impl OidcValidator {
                 message: "provider did not return an id_token".to_string(),
             })?;
 
-        Ok((id_token, token_resp.access_token))
+        Ok(OidcTokenSet {
+            id_token: Some(id_token),
+            access_token: token_resp.access_token,
+            refresh_token: token_resp.refresh_token,
+            expires_in: token_resp.expires_in,
+        })
+    }
+
+    /// Refresh tokens using a refresh_token grant.
+    ///
+    /// Returns a new token set. The provider may or may not issue a new refresh_token.
+    pub async fn refresh_oidc_token(
+        &self,
+        issuer: &str,
+        refresh_token: &str,
+    ) -> Result<OidcTokenSet, OidcError> {
+        let providers = self.providers.read().await;
+        let config = providers
+            .get(issuer)
+            .ok_or_else(|| OidcError::UnknownIssuer(issuer.to_string()))?;
+
+        let client_id = config.audience.clone();
+        let client_secret = config.client_secret.clone();
+        drop(providers);
+
+        let discovery = self.discover(issuer).await?;
+        let token_endpoint = discovery
+            .token_endpoint
+            .as_ref()
+            .ok_or_else(|| OidcError::MissingTokenEndpoint(issuer.to_string()))?;
+
+        let mut params = vec![
+            ("grant_type", "refresh_token".to_string()),
+            ("refresh_token", refresh_token.to_string()),
+            ("client_id", client_id),
+        ];
+        if let Some(secret) = client_secret {
+            params.push(("client_secret", secret));
+        }
+
+        let resp = self
+            .http_client
+            .post(token_endpoint)
+            .form(&params)
+            .send()
+            .await
+            .map_err(|e| OidcError::TokenExchangeFailed {
+                issuer: issuer.to_string(),
+                message: format!("refresh failed: {}", e),
+            })?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(OidcError::TokenExchangeFailed {
+                issuer: issuer.to_string(),
+                message: format!("refresh HTTP {}: {}", status, body),
+            });
+        }
+
+        let token_resp: OidcTokenResponse =
+            resp.json()
+                .await
+                .map_err(|e| OidcError::TokenExchangeFailed {
+                    issuer: issuer.to_string(),
+                    message: format!("failed to parse refresh response: {}", e),
+                })?;
+
+        Ok(OidcTokenSet {
+            id_token: token_resp.id_token,
+            access_token: token_resp.access_token,
+            refresh_token: token_resp.refresh_token,
+            expires_in: token_resp.expires_in,
+        })
     }
 
     /// Validate a Bearer token and return validated claims.

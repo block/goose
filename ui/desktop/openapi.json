@@ -2167,6 +2167,44 @@
         }
       }
     },
+    "/auth/refresh/oidc": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh OIDC tokens using a stored refresh_token.",
+        "description": "Exchanges the refresh_token with the OIDC provider for new tokens,\nvalidates the new ID token, and issues a fresh session JWT.",
+        "operationId": "oidc_refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OIDC token refresh successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcRefreshResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated or no refresh token available"
+          },
+          "502": {
+            "description": "Failed to refresh with OIDC provider"
+          }
+        }
+      }
+    },
     "/auth/status": {
       "get": {
         "tags": [
@@ -9731,6 +9769,11 @@
             "format": "int64",
             "minimum": 0
           },
+          "refresh_token": {
+            "type": "string",
+            "description": "OIDC refresh token (if the provider issued one). Store this for automatic token refresh.",
+            "nullable": true
+          },
           "token": {
             "type": "string"
           },
@@ -9820,6 +9863,49 @@
             "items": {
               "$ref": "#/components/schemas/OidcProviderInfo"
             }
+          }
+        }
+      },
+      "OidcRefreshRequest": {
+        "type": "object",
+        "description": "Request to refresh OIDC tokens using a stored refresh_token.",
+        "required": [
+          "issuer"
+        ],
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "description": "The OIDC provider issuer (e.g. \"https://accounts.google.com\")"
+          }
+        }
+      },
+      "OidcRefreshResponse": {
+        "type": "object",
+        "description": "Response from OIDC token refresh.",
+        "required": [
+          "token",
+          "token_type",
+          "expires_in",
+          "refresh_token_rotated"
+        ],
+        "properties": {
+          "expires_in": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Seconds until the session token expires",
+            "minimum": 0
+          },
+          "refresh_token_rotated": {
+            "type": "boolean",
+            "description": "Whether a new refresh_token was issued (provider-dependent)"
+          },
+          "token": {
+            "type": "string",
+            "description": "New session JWT"
+          },
+          "token_type": {
+            "type": "string",
+            "description": "Token type (always \"Bearer\")"
           }
         }
       },
