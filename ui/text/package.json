@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
+    "goose-acp-types": "file:../acp",
     "ink": "^5.1.0",
     "ink-text-input": "^6.0.0",
     "meow": "^13.2.0",

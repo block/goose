@@ -8,6 +8,7 @@ import {
   type RequestPermissionResponse,
 } from "@agentclientprotocol/sdk";
 import { createHttpStream } from "./transport.js";
+import { GooseClient } from "goose-acp-types";
 
 // ── New England palette ─────────────────────────────────────────────
 const NAVY = "#1B3A5C";
@@ -85,7 +86,47 @@ interface ToolCallMessage {
   title: string;
 }
 
-type Message = TextMessage | ToolCallMessage;
+interface SessionListMessage {
+  kind: "session_list";
+  sessions: Array<{ id: string; [key: string]: unknown }>;
+}
+
+type Message = TextMessage | ToolCallMessage | SessionListMessage;
+
+// ── Session list renderer ───────────────────────────────────────────
+function SessionListBlock({
+  sessions,
+}: {
+  sessions: Array<{ id: string; [key: string]: unknown }>;
+}) {
+  if (sessions.length === 0) {
+    return (
+      <Box paddingLeft={3} marginBottom={0}>
+        <Text color={SLATE} italic>
+          No previous sessions found.
+        </Text>
+      </Box>
+    );
+  }
+  return (
+    <Box flexDirection="column" paddingLeft={3} marginBottom={0}>
+      <Text color={FOREST} bold>
+        📋 Sessions ({sessions.length})
+      </Text>
+      {sessions.map((s, i) => (
+        <Box key={s.id} paddingLeft={2}>
+          <Text color={SLATE}>
+            {i + 1}.{" "}
+          </Text>
+          <Text color={IVORY}>{s.id}</Text>
+          {s.description ? (
+            <Text color={SLATE}> — {String(s.description)}</Text>
+          ) : null}
+        </Box>
+      ))}
+    </Box>
+  );
+}
 
 // ── Thin separator ──────────────────────────────────────────────────
 function Separator({ width }: { width: number }) {
@@ -319,6 +360,19 @@ export default function App({
 
         if (cancelled) return;
         sessionIdRef.current = session.sessionId;
+
+        // Fetch existing sessions via the typed GooseClient
+        try {
+          const goose = new GooseClient(conn);
+          const { sessions } = await goose.sessionList();
+          setMessages((prev) => [
+            ...prev,
+            { kind: "session_list" as const, sessions: sessions as Array<{ id: string; [key: string]: unknown }> },
+          ]);
+        } catch {
+          // Non-fatal — server may not support this method yet
+        }
+
         setLoading(false);
         setStatus("ready");
 
@@ -391,6 +445,9 @@ export default function App({
 
       {/* ── Messages ───────────────────────────────────────────── */}
       {messages.map((msg, i) => {
+        if (msg.kind === "session_list") {
+          return <SessionListBlock key={i} sessions={msg.sessions} />;
+        }
         if (msg.kind === "tool_call") {
           return <ToolCallBlock key={i} title={msg.title} />;
         }
