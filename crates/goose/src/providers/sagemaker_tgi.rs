@@ -284,9 +284,9 @@ impl ProviderDef for SageMakerTgiProvider {
             vec![SAGEMAKER_TGI_DEFAULT_MODEL],
             SAGEMAKER_TGI_DOC_LINK,
             vec![
-                ConfigKey::new("SAGEMAKER_ENDPOINT_NAME", false, false, None),
-                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1")),
-                ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
+                ConfigKey::new("SAGEMAKER_ENDPOINT_NAME", true, false, None),
+                ConfigKey::new("AWS_REGION", false, false, Some("us-east-1")),
+                ConfigKey::new("AWS_PROFILE", false, false, Some("default")),
             ],
         )
     }
