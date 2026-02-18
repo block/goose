@@ -129,6 +129,8 @@ fn load_tiny_model_prompt() -> String {
 }
 
 /// Resolve model path, context limit, and settings for a model ID from the registry.
+/// Supports both legacy short IDs (e.g., "llama-3.2-1b") and full HuggingFace-style IDs
+/// (e.g., "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M").
 pub fn resolve_model_path(
     model_id: &str,
 ) -> Option<(
@@ -136,12 +138,23 @@ pub fn resolve_model_path(
     usize,
     crate::providers::local_inference::local_model_registry::ModelSettings,
 )> {
-    use crate::providers::local_inference::local_model_registry::get_registry;
+    use crate::providers::local_inference::local_model_registry::{
+        get_registry, resolve_legacy_model_id,
+    };
 
     if let Ok(registry) = get_registry().lock() {
+        // First try direct lookup with the provided ID
         if let Some(entry) = registry.get_model(model_id) {
             let ctx = entry.settings.context_size.unwrap_or(0) as usize;
             return Some((entry.local_path.clone(), ctx, entry.settings.clone()));
+        }
+
+        // If not found, try resolving as a legacy ID
+        if let Some(full_id) = resolve_legacy_model_id(model_id) {
+            if let Some(entry) = registry.get_model(&full_id) {
+                let ctx = entry.settings.context_size.unwrap_or(0) as usize;
+                return Some((entry.local_path.clone(), ctx, entry.settings.clone()));
+            }
         }
     }
 

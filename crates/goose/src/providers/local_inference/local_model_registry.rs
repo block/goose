@@ -435,6 +435,15 @@ pub fn model_id_from_repo(repo_id: &str, quantization: &str) -> String {
     format!("{}:{}", repo_id, quantization)
 }
 
+/// Resolve a legacy short model ID (e.g., "llama-3.2-1b") to the full HuggingFace-style ID.
+/// Returns None if the ID is not a known legacy ID.
+pub fn resolve_legacy_model_id(legacy_id: &str) -> Option<String> {
+    LEGACY_MODELS
+        .iter()
+        .find(|m| m.id == legacy_id)
+        .map(|m| model_id_from_repo(m.repo_id, m.quantization))
+}
+
 /// Generate a display name from repo_id and quantization.
 pub fn display_name_from_repo(repo_id: &str, quantization: &str) -> String {
     let model_name = repo_id
