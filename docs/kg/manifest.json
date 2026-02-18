@@ -1,7 +1,7 @@
 {
-  "exported_at": "2026-02-18T21:45:00.000000",
-  "entity_count": 1637,
-  "relation_count": 2315,
+  "exported_at": "2026-02-19T00:40:11.000000",
+  "entity_count": 1651,
+  "relation_count": 2339,
   "format_version": "1.0",
   "branch": "feature/cli-via-goosed",
   "session_deliverables": [
@@ -38,6 +38,14 @@
     "Persistent Token Store: SQLite-backed revocations + refresh tokens (16a4df7b)",
     "JWKS Key Rotation TTL + Discovery Cache TTL (18ad7a74)",
     "Rate Limiting on Auth Endpoints (5d6c40fc)",
-    "Frontend Auth Interceptor: Bearer token on all API calls (fb47a58a)"
+    "Frontend Auth Interceptor: Bearer token on all API calls (fb47a58a)",
+    "Revert X-Goose-Api-Key \u2192 back to standard X-Api-Key (a8038043)",
+    "CLI session tokens migrated to system keyring (97fa1e4a)",
+    "ACP Phase 1: Policy engine + Audit logging (a627d700)",
+    "ACP Phase 2: Wire policy + audit into server middleware (f4ad5292)",
+    "ACP Phase 3a: RBAC roles on UserIdentity (c1be2cb3)",
+    "ACP Phase 3b: Persistent agent slot registry (cb50197d)",
+    "ACP Phase 4: Quota manager with tenant/user scoping (28b5e350)",
+    "ACP Phase 5: Control plane REST API /acp/v1/* (d373412f)"
   ]
 }

@@ -11599,5 +11599,125 @@
     "to": "JwksKeyRotationTTL",
     "relationType": "IMPLEMENTS",
     "label": "JWKS cache with retry on KeyNotFound"
+  },
+  {
+    "from": "goose: PolicyStore",
+    "relationType": "contains",
+    "to": "goose: PolicyEngine"
+  },
+  {
+    "from": "goose: PolicyEngine",
+    "relationType": "evaluates",
+    "to": "goose: PolicyRule"
+  },
+  {
+    "from": "goose: PolicyEngine",
+    "relationType": "returns",
+    "to": "goose: PolicyDecision"
+  },
+  {
+    "from": "goose: PolicyRule",
+    "relationType": "checks",
+    "to": "goose: UserIdentity.roles"
+  },
+  {
+    "from": "goose: AuditLogger",
+    "relationType": "logs",
+    "to": "goose: AuditEvent"
+  },
+  {
+    "from": "goose: AuditEvent",
+    "relationType": "references",
+    "to": "goose: PolicyDecision"
+  },
+  {
+    "from": "goose: QuotaManager",
+    "relationType": "returns",
+    "to": "goose: QuotaDecision (Allowed/Exceeded)"
+  },
+  {
+    "from": "goose-server: authorize_middleware",
+    "relationType": "evaluates",
+    "to": "goose: PolicyStore"
+  },
+  {
+    "from": "goose-server: authorize_middleware",
+    "relationType": "checks",
+    "to": "goose: QuotaManager"
+  },
+  {
+    "from": "goose-server: authorize_middleware",
+    "relationType": "logs to",
+    "to": "goose: AuditLogger"
+  },
+  {
+    "from": "goose-server: authorize_middleware",
+    "relationType": "uses",
+    "to": "goose-server: route_to_policy"
+  },
+  {
+    "from": "goose-server: control_plane routes",
+    "relationType": "manages",
+    "to": "goose: PolicyStore"
+  },
+  {
+    "from": "goose-server: control_plane routes",
+    "relationType": "manages",
+    "to": "goose: QuotaManager"
+  },
+  {
+    "from": "goose-server: control_plane routes",
+    "relationType": "reads",
+    "to": "goose: AuditLogger"
+  },
+  {
+    "from": "goose-server: control_plane routes",
+    "relationType": "manages",
+    "to": "goose-server: AgentSlotRegistry SQLite persistence"
+  },
+  {
+    "from": "goose-server: AppState",
+    "relationType": "contains",
+    "to": "goose: PolicyStore"
+  },
+  {
+    "from": "goose-server: AppState",
+    "relationType": "contains",
+    "to": "goose: AuditLogger"
+  },
+  {
+    "from": "goose-server: AppState",
+    "relationType": "contains",
+    "to": "goose: QuotaManager"
+  },
+  {
+    "from": "goose-server: check_token middleware",
+    "relationType": "followed by",
+    "to": "goose-server: authorize_middleware"
+  },
+  {
+    "from": "goose-server: authorize_middleware",
+    "relationType": "followed by",
+    "to": "route handlers"
+  },
+  {
+    "from": "goose: UserIdentity",
+    "relationType": "has field",
+    "to": "goose: UserIdentity.roles"
+  },
+  {
+    "from": "goose: UserIdentity.roles",
+    "relationType": "checked by",
+    "to": "goose: PolicyEngine"
+  },
+  {
+    "from": "goose-server: AgentSlotRegistry SQLite persistence",
+    "relationType": "persists to",
+    "to": "SQLite (data_dir/agents/registry.db)"
+  },
+  {
+    "from": "goose-cli: keyring session token storage",
+    "relationType": "stores in",
+    "to": "system keyring via Config::global()"
   }
 ]

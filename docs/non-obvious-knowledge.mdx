@@ -1,8 +1,8 @@
 ---
 title: Non-Obvious Knowledge — Goose4
-updated: 2026-02-18
+updated: 2026-02-19
 session: "feature/cli-via-goosed"
-commits: "665fd046..fb47a58a"
+commits: "665fd046..d373412f"
 ---
 
 # Non-Obvious Knowledge
@@ -43,121 +43,86 @@ The `a2a` crate pulls in `tonic` which depends on axum 0.7. The goose-server use
 - **Cannot use `FromRequestParts` extractor pattern** — the trait exists in both versions and the compiler gets confused
 - **Solution:** Use `from_headers(&HeaderMap)` manual extraction instead of Axum's extractor pattern
 - The `RequestIdentity::from_headers_validated()` takes `&HeaderMap` directly for this reason
+- **`authorize_middleware` uses `Extension<Arc<T>>` not `State<Arc<T>>`** — for the same reason. `from_fn_with_state` doesn't work when the router has already been typed with a different state type (`String` for `check_token`). Extensions bypass the state system entirely.
 
 ### Pipeline Module Repeatedly Breaks Builds
 
 `crates/goose-server/src/routes/pipeline.rs` and `crates/goose/src/pipeline.rs` (frontend agent work) repeatedly cause build failures when module declarations in `lib.rs`, `routes/mod.rs`, and `openapi.rs` get out of sync. Pipeline handlers lack utoipa annotations, causing OpenAPI schema generation to fail.
 
+### `#[allow(dead_code)]` Required for Route-Handler-Only Functions
+
+Functions in the `goose-server` lib that are only used by route handlers appear as dead code to clippy. This is because clippy analyses the lib and bin targets separately — route handlers are registered dynamically through the axum Router, so clippy can't see the call chain. Affected:
+- `authorize_middleware`, `route_to_policy` in `auth.rs`
+- `AgentSlotRegistry` methods (`set_delegation`, `register_a2a_agent`, `all_agents`, etc.)
+- Solution: `#[allow(dead_code)]` on the impl block or individual methods
+
 ---
 
-## Auth & Identity
+## Authentication & Authorization
 
-### Auth Priority Chain (6 levels)
+### Auth Header Priority Chain (6 levels)
 
-`from_headers_validated()` resolves identity through a strict priority chain:
+The `RequestIdentity` extractor in `auth.rs` resolves identity via this priority chain:
 
 ```
-1. Session JWT (our tokens from /auth/login) → SessionTokenStore validates
-2. OIDC JWT (signature validated against JWKS) → OidcValidator validates
-3. Lightweight JWT decode (base64 payload, no sig check) → unvalidated fallback
-4. X-Api-Key header → ApiKey identity
-5. X-Goose-User-Id header → stable guest (deterministic UUID from value)
+1. Session JWT (our /auth/login tokens) → SessionTokenStore validates
+2. OIDC JWT (with registered providers) → OidcValidator validates (JWKS)
+3. Lightweight JWT decode (no signature check) → fallback for unknown issuers
+4. X-Api-Key header → from_api_key() with prefixed ID
+5. X-Goose-User-Id header → stable guest (deterministic ID)
 6. (nothing) → anonymous guest (random UUID per request)
 ```
 
-Steps 1-3 all parse the `Authorization: Bearer <token>` header. The system tries each in order — if session JWT validation fails, it tries OIDC, then lightweight decode.
+`X-Api-Key` is the **industry standard** header — a previous rename to `X-Goose-Api-Key` was reverted because the Anthropic collision concern was theoretical (different HTTP connections to different hosts).
 
-### `Provider::complete()` vs `Agent::reply()` — Different Types
+### Middleware Execution Order
 
-`Provider::complete()` takes `conversation::message::Message` (the goose message type). A2A uses `a2a::types::Message`. These are **completely different types** — you cannot pass one where the other is expected.
-
-The `InProcessDispatcher` uses `Provider::complete()` (single-turn, no tools). The `AgentReplyDispatcher` uses `Agent::reply()` (multi-turn, full tool use). The inline compound execution code in reply.rs was replaced with `dispatch_compound_sequential` which uses `AgentReplyDispatcher`.
-
-### ProtoJSON is Normative, Not JSON Schema
-
-The A2A spec uses **ProtoJSON** format (from protobuf):
-- Enums: `"TASK_STATE_WORKING"` (SCREAMING_SNAKE_CASE), NOT `"working"` (lowercase)
-- JSON-RPC methods: `"SendMessage"` (PascalCase), NOT `"message/send"` (slash-style)
-
-The JavaScript SDK (a2a-js v0.3.10) is **non-compliant** — it uses lowercase enums. Our `Deserialize` impls accept BOTH formats (lenient deserialization) for interop, but `Serialize` always produces ProtoJSON.
-
-### `OidcProviderConfig.audience` is `String`, Not `Option<String>`
-
-When looking up audience for auth URL generation, use `.map(|p| p.audience.clone())`, NOT `.and_then(|p| p.audience.clone())`. The field is non-optional.
-
-### GitHub Doesn't Support Standard OIDC Code Flow
-
-GitHub uses OAuth2 (not full OIDC) for user authentication. `github.com` doesn't have a `/.well-known/openid-configuration` endpoint. The `OidcProviderPreset::GitHub` variant has `supports_oidc_code_flow() == false` and provides separate `oauth2_authorize_url()` / `oauth2_token_url()` methods.
-
-GitHub Actions tokens DO support OIDC (via `token.actions.githubusercontent.com`), but that's for CI, not user login.
-
-### Session Token vs OIDC Token — Different Stores
-
-- **Session tokens** (from `/auth/login`): Stored in `SessionTokenStore` (SQLite), validated by checking signature + JTI revocation list
-- **OIDC tokens** (from provider): Validated by `OidcValidator` against provider's JWKS, not stored server-side
-- **Refresh tokens**: Stored in `SessionTokenStore` SQLite keyed by (issuer, subject)
-
-### JWKS Key Rotation — Retry on KeyNotFound
-
-When an OIDC provider rotates signing keys, existing cached JWKS won't contain the new `kid`. The validator handles this:
-1. Look up key by `kid` in cached JWKS
-2. If `KeyNotFound` → invalidate JWKS cache for that issuer
-3. Refetch JWKS from provider
-4. Retry key lookup once
-5. If still not found → real error
-
-This is critical for production — without it, key rotation causes auth failures until cache TTL expires.
-
-### `OidcTokenSet.id_token` is `Option<String>`
-
-In the initial code exchange, `id_token` is always present. But in refresh token responses, providers may NOT return a new `id_token`. That's why the field is `Option<String>` — the code exchange handler unwraps it with a 502 error if missing.
-
-### Rate Limiter Uses IP Extraction Priority
+The middleware chain in `commands/agent.rs` uses axum layers (applied in reverse order):
 
 ```
-1. X-Forwarded-For header (first IP in comma-separated list) — for reverse proxies
-2. X-Real-IP header — for nginx
-3. "127.0.0.1" fallback — for direct connections
+Request → CORS → check_token (X-Secret-Key) → Extension layers → authorize_middleware → Route Handler
 ```
 
-The rate limiter is applied ONLY to `/auth/*` routes via a nested Axum router, not to all routes.
+- `check_token`: Validates the server's shared secret (machine-to-machine auth)
+- `authorize_middleware`: Evaluates PolicyStore + QuotaManager, emits AuditEvent
+- Extension layers inject `Arc<PolicyStore>`, `Arc<AuditLogger>`, `Arc<QuotaManager>` into request extensions
+- Extensions must be layered ABOVE (after in code) `authorize_middleware` so they're available when it runs
+
+### OIDC Provider Quirks
+
+- **GitHub doesn't support standard OIDC code flow** — it needs a separate OAuth2 handler
+- **GitLab + AWS Cognito** have non-standard issuer URL formats that need special handling in `issuer_to_provider()`
+- **JWT leeway defaults to 60 seconds** — `jsonwebtoken::Validation` has this built-in. Test expired tokens with `exp` far in the past (e.g., year 1970), not with `exp = now`
+
+### CLI Session Tokens Now in System Keyring
+
+As of commit `97fa1e4a`, CLI session tokens are stored in the system keyring via `Config::global().set_secret("goose_session_token", &stored)` instead of plaintext `~/.config/goose/session_token.json`. Auto-migration: `migrate_legacy_token()` reads the old JSON file, stores in keyring, deletes the file. Fallback to `secrets.yaml` if keyring is unavailable.
+
+### Policy Engine Evaluation Semantics
+
+- **First-match wins**: Rules sorted by priority (lower number = higher priority)
+- **Abstain**: If no rule matches, returns `Abstain` — the middleware treats this as "allow" (permissive default)
+- **RBAC check**: If a rule has `required_roles`, user must have **at least one** matching role (OR logic, not AND)
+- **Wildcard matching**: `execute:*` matches `execute:reply`, `execute:tool`. `*` alone matches everything
+- **Tenant scoping**: Rules can be tenant-specific. `PolicyStore::engine_for(tenant)` merges global + tenant rules
+- **Default rules**: `deny-guest-management` (guests can't `manage:*`), `allow-execute` (all can `execute:*`), `allow-read` (all can `read:*`)
+
+### Quota Hierarchical Scope Matching
+
+`QuotaScope` has hierarchical matching where broader scopes apply to narrower ones:
+- `Global` limit applies to ALL scopes (Tenant, User, TenantUser)
+- `Tenant("acme")` limit applies to `TenantUser { tenant: "acme", user: _ }`
+- Usage is tracked per **exact scope** — a Global limit checks usage recorded at the Global scope, not summed across tenants
+
+This means: if you set a Global limit of 100 executions/hour, each tenant independently counts toward that 100 at their own scope level. A global limit doesn't aggregate across tenants.
 
 ---
 
-## Frontend
-
-### React Flow v12 Type Compatibility
-
-`@xyflow/react` v12 requires node data types to satisfy `Record<string, unknown>`. Custom interfaces like `DagNodeData` need an **index signature**:
-
-```typescript
-export interface DagNodeData {
-  kind: NodeKind;
-  label: string;
-  [key: string]: unknown;  // REQUIRED for React Flow v12 compat
-}
-```
-
-### Lucide Icons Don't Accept `style` Prop
-
-Lucide React icons (v0.400+) don't accept a `style` prop. To apply inline colors, wrap in a `<span>`:
-
-```tsx
-// ❌ Won't compile
-<Icon size={16} style={{ color }} />
-
-// ✅ Works
-<span style={{ color }}><Icon size={16} /></span>
-```
-
-### `authInterceptor.ts` is NOT Auto-Generated
-
-`ui/desktop/src/api/authInterceptor.ts` is a **hand-written** file that survives `just generate-openapi` (unlike `sdk.gen.ts` and `types.gen.ts`). It attaches `Authorization: Bearer` and `X-Secret-Key` headers to every API call.
-
-If the generated client changes its interceptor API (e.g., `@hey-api/openapi-ts` major version bump), this file needs manual updating.
+## Desktop / Frontend
 
 ### localStorage Keys for Auth
 
+The desktop app stores auth state in localStorage with these keys:
 ```
 goose_auth_token     — session JWT (from /auth/login)
 goose_auth_user      — serialized user object
@@ -182,7 +147,7 @@ The desktop app registers `goose://auth/callback` as a deep link handler. OIDC l
 
 ### `SlotDelegation` Methods are `#[allow(dead_code)]`
 
-`register_a2a_agent`, `register_acp_agent`, `unregister_agent` in `agent_slot_registry.rs` are tested but not all called from production code yet. They're kept with `#[allow(dead_code)]` for forward compatibility.
+`register_a2a_agent`, `register_acp_agent`, `unregister_agent` in `agent_slot_registry.rs` are tested but not all called from production code yet. They're kept with `#[allow(dead_code)]` for forward compatibility. The entire `impl AgentSlotRegistry` block has `#[allow(dead_code)]` since many persistence methods (e.g., `with_persistence`, `init`, `run_migrations`, `load_from_db`) are only called internally.
 
 ### `for_sub_agent()` Creates Child Identity Chain
 
@@ -229,6 +194,27 @@ CREATE TABLE refresh_tokens (
 );
 ```
 
+### AgentSlotRegistry SQLite Schema
+
+```sql
+-- data_dir/agents/registry.db
+CREATE TABLE schema_version (version INTEGER NOT NULL);
+CREATE TABLE agents (
+    name TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    delegation_type TEXT NOT NULL DEFAULT 'in_process',
+    delegation_url TEXT
+);
+CREATE TABLE agent_extensions (
+    agent_name TEXT NOT NULL,
+    extension_name TEXT NOT NULL,
+    PRIMARY KEY (agent_name, extension_name),
+    FOREIGN KEY (agent_name) REFERENCES agents(name) ON DELETE CASCADE
+);
+```
+
+Lazy pool initialization following the `SessionTokenStore` pattern. Falls back to in-memory when no `data_dir` is provided (tests).
+
 ### Session Schema Version 9
 
 The session storage is at schema version 9 with `tenant_id TEXT` and `user_id TEXT` columns. Migrations run automatically on startup. The `set_session_identity` method uses a raw SQL UPDATE to tag sessions.
@@ -240,6 +226,50 @@ The method builds a WHERE clause dynamically based on which filters are provided
 - Only tenant → `WHERE tenant_id = ?`
 - Only user → `WHERE user_id = ?`
 - Neither → `WHERE session_type IN ('user', 'scheduled')` (no tenant filtering)
+
+---
+
+## Control Plane (Enterprise ACP)
+
+### Control Plane API Design
+
+The `/acp/v1/*` endpoints are designed for external enterprise control planes (Azure AI Controls, GitHub Enterprise, AWS):
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/acp/v1/info` | GET | System capabilities, version, features |
+| `/acp/v1/policies` | GET/POST | List/create policy rules |
+| `/acp/v1/policies/:id` | DELETE | Remove a policy rule |
+| `/acp/v1/quotas` | GET/POST | List/create quota limits |
+| `/acp/v1/quotas/check` | POST | Check if a scope is within limits |
+| `/acp/v1/audit` | GET | Recent audit events |
+| `/acp/v1/agents` | GET/POST | List/register agents |
+| `/acp/v1/agents/:name` | DELETE | Unregister an agent |
+
+### PolicyStore + QuotaManager + AuditLogger in AppState
+
+All three are `Arc`-wrapped in `AppState` and injected into the middleware via `Extension` layers:
+
+```rust
+// In commands/agent.rs
+.layer(Extension(app_state.quota_manager.clone()))
+.layer(Extension(app_state.audit_logger.clone()))
+.layer(Extension(app_state.policy_store.clone()))
+.layer(middleware::from_fn(authorize_middleware))
+```
+
+The order matters: Extension layers must be ABOVE `from_fn(authorize_middleware)` so extensions are in the request when the middleware runs (axum processes layers bottom-up for requests).
+
+### `route_to_policy` Action Mapping
+
+Maps HTTP method + path to policy action/resource pairs:
+- `POST /reply` → `execute:reply`
+- `GET /sessions` → `session:list`
+- `POST /sessions/*/reply` → `execute:reply`
+- `GET /agents/*` → `read:agents`
+- `POST /acp/v1/policies` → `manage:policies`
+- `DELETE /agents/*` → `manage:agents`
+- Default: `{method}:{first_path_segment}`
 
 ---
 
@@ -258,3 +288,15 @@ When testing expired tokens, don't create a token with `exp = now` and expect im
 ### `just generate-openapi` Deletes `instances.ts`
 
 Every time you run `just generate-openapi`, it deletes `ui/desktop/src/api/instances.ts` (a hand-written wrapper). The `just` recipe automatically restores it via `git checkout`, but if you're running the steps manually, you'll lose the file.
+
+### Test Count Checkpoints
+
+| Crate | Count | Notes |
+|---|---|---|
+| goose (lib) | 987 | +35 from ACP work (13 policy, 8 audit, 11 quota, 3 RBAC) |
+| goose-server | 97 | +10 from ACP work (8 control plane, 2 agent registry) |
+| **Total** | **1,084+** | As of commit d373412f |
+
+### Files That Resist `rg` (ripgrep)
+
+Some newly created files (`policy.rs`, `audit.rs`, `quotas.rs`) intermittently fail to be found by `rg` even though they exist on disk (confirmed by `ls -la`, `stat`, `cat`). This appears to be a file indexing/caching issue. Workaround: use `grep` directly or `cat | grep`. The files compile and test correctly regardless.

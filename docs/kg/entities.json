@@ -16711,5 +16711,139 @@
       "2026-02-18T21:43:00 (confidence:0.95) File: crates/goose/src/oidc.rs",
       "2026-02-18T21:43:00 (confidence:0.95) Tags: auth, oidc, caching"
     ]
+  },
+  {
+    "name": "goose: PolicyEngine",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Priority-based rule evaluation engine in crates/goose/src/policy.rs (~522 lines)",
+      "2026-02-19T00:40:11 (confidence:0.95) Supports wildcard action/resource matching (e.g. execute:* matches execute:reply)",
+      "2026-02-19T00:40:11 (confidence:0.95) Evaluates rules in priority order, first match wins \u2192 Allow/Deny/Abstain",
+      "2026-02-19T00:40:11 (confidence:0.95) Checks auth_method filter, required_roles (RBAC), and tenant scoping per rule"
+    ]
+  },
+  {
+    "name": "goose: PolicyStore",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Thread-safe async store wrapping PolicyEngine with tokio::sync::RwLock",
+      "2026-02-19T00:40:11 (confidence:0.95) Supports per-tenant rule overrides via engine_for(tenant) method",
+      "2026-02-19T00:40:11 (confidence:0.95) Default rules: deny guests from manage:*, allow execute:* and read:* for all"
+    ]
+  },
+  {
+    "name": "goose: PolicyRule",
+    "entityType": "Struct",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Fields: id, description, priority, effect, actions, resources, auth_methods, required_roles, tenant, reason",
+      "2026-02-19T00:40:11 (confidence:0.95) Built via PolicyRuleBuilder with fluent API",
+      "2026-02-19T00:40:11 (confidence:0.95) required_roles: Vec<String> \u2014 if non-empty, user must have at least one matching role"
+    ]
+  },
+  {
+    "name": "goose: PolicyDecision",
+    "entityType": "Enum",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Allow | Deny { reason: String } | Abstain",
+      "2026-02-19T00:40:11 (confidence:0.95) Abstain means no rule matched \u2014 caller decides default behavior (currently: pass through)"
+    ]
+  },
+  {
+    "name": "goose: AuditLogger",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Multi-sink audit logger in crates/goose/src/audit.rs (~370 lines)",
+      "2026-02-19T00:40:11 (confidence:0.95) Default sinks: TracingSink (structured logs), InMemorySink (last N events for API queries)",
+      "2026-02-19T00:40:11 (confidence:0.95) Optional BroadcastSink for real-time monitoring via tokio::sync::broadcast",
+      "2026-02-19T00:40:11 (confidence:0.95) recent_events(n) returns last n events from InMemorySink"
+    ]
+  },
+  {
+    "name": "goose: AuditEvent",
+    "entityType": "Struct",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Fields: id (UUID), timestamp, actor (User/Agent/System), action, resource, outcome, tenant, parent_id, metadata",
+      "2026-02-19T00:40:11 (confidence:0.95) Builder pattern: new(actor,action,resource).with_outcome().with_tenant().with_metadata()",
+      "2026-02-19T00:40:11 (confidence:0.95) from_policy_decision() factory creates events from PolicyDecision with proper outcome mapping"
+    ]
+  },
+  {
+    "name": "goose: QuotaManager",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Per-tenant/user quota enforcement in crates/goose/src/quotas.rs (~560 lines)",
+      "2026-02-19T00:40:11 (confidence:0.95) Hierarchical scope matching: Global > Tenant > User > TenantUser",
+      "2026-02-19T00:40:11 (confidence:0.95) Time windows: PerMinute, PerHour, PerDay, Absolute",
+      "2026-02-19T00:40:11 (confidence:0.95) Resources: Executions, Sessions, Tokens, Custom(String)",
+      "2026-02-19T00:40:11 (confidence:0.95) Returns QuotaDecision::Allowed { remaining } or Exceeded { limit, used, resets_at }"
+    ]
+  },
+  {
+    "name": "goose-server: control_plane routes",
+    "entityType": "Module",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) REST API at /acp/v1/* for external control plane integration (~610 lines)",
+      "2026-02-19T00:40:11 (confidence:0.95) Endpoints: GET/POST/DELETE for policies, quotas, agents, audit",
+      "2026-02-19T00:40:11 (confidence:0.95) GET /acp/v1/info \u2014 system capabilities, version, feature flags",
+      "2026-02-19T00:40:11 (confidence:0.95) Designed for Azure/GitHub/AWS enterprise AI control planes"
+    ]
+  },
+  {
+    "name": "goose-server: authorize_middleware",
+    "entityType": "Function",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Axum middleware in auth.rs that evaluates PolicyStore + QuotaManager per request",
+      "2026-02-19T00:40:11 (confidence:0.95) Emits AuditEvent for every request (allowed and denied)",
+      "2026-02-19T00:40:11 (confidence:0.95) Returns 403 Forbidden on policy deny, 429 Too Many Requests on quota exceeded",
+      "2026-02-19T00:40:11 (confidence:0.95) Uses Extension<Arc<PolicyStore/QuotaManager/AuditLogger>> \u2014 not State<> \u2014 due to dual axum version issue"
+    ]
+  },
+  {
+    "name": "goose-server: route_to_policy",
+    "entityType": "Function",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Maps HTTP method + URI path to (action, resource) pair for policy evaluation",
+      "2026-02-19T00:40:11 (confidence:0.95) Examples: POST /reply \u2192 execute:reply, GET /sessions \u2192 session:list, DELETE /agents/:name \u2192 manage:agents",
+      "2026-02-19T00:40:11 (confidence:0.95) Strips query params and path params before matching"
+    ]
+  },
+  {
+    "name": "goose: UserIdentity.roles",
+    "entityType": "Field",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Vec<String> RBAC roles field added to UserIdentity struct",
+      "2026-02-19T00:40:11 (confidence:0.95) serde(default, skip_serializing_if=Vec::is_empty) for backward compat",
+      "2026-02-19T00:40:11 (confidence:0.95) with_roles() builder method available",
+      "2026-02-19T00:40:11 (confidence:0.95) Policy engine checks required_roles against user.roles \u2014 any match allows"
+    ]
+  },
+  {
+    "name": "goose-server: AgentSlotRegistry SQLite persistence",
+    "entityType": "Feature",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) SQLite-backed persistence added to AgentSlotRegistry for server restarts",
+      "2026-02-19T00:40:11 (confidence:0.95) Tables: agents (name, enabled, delegation_type, delegation_url), agent_extensions (agent_name, extension_name)",
+      "2026-02-19T00:40:11 (confidence:0.95) Lazy pool initialization following SessionTokenStore pattern",
+      "2026-02-19T00:40:11 (confidence:0.95) Falls back to in-memory only when no data_dir provided (tests)"
+    ]
+  },
+  {
+    "name": "goose-cli: keyring session token storage",
+    "entityType": "Feature",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) CLI session tokens migrated from plaintext ~/.config/goose/session_token.json to system keyring",
+      "2026-02-19T00:40:11 (confidence:0.95) Uses Config::global().set_secret('goose_session_token', &stored)",
+      "2026-02-19T00:40:11 (confidence:0.95) migrate_legacy_token() auto-migrates existing JSON file to keyring then deletes legacy file",
+      "2026-02-19T00:40:11 (confidence:0.95) Fallback to secrets.yaml file if keyring unavailable (same as provider API keys)"
+    ]
+  },
+  {
+    "name": "X-Api-Key header (standard)",
+    "entityType": "Decision",
+    "observations": [
+      "2026-02-19T00:40:11 (confidence:0.95) Reverted X-Goose-Api-Key rename \u2014 X-Api-Key is the industry standard",
+      "2026-02-19T00:40:11 (confidence:0.95) Used by AWS API Gateway, Swagger/OpenAPI, most REST APIs",
+      "2026-02-19T00:40:11 (confidence:0.95) Anthropic collision is theoretical \u2014 different HTTP connections to different hosts"
+    ]
   }
 ]
