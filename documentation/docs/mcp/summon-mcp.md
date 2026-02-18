@@ -71,7 +71,7 @@ description: Creates content with 90s web aesthetic
 Channel the 90s internet:
 1. Bright colors, especially neon
 2. Comic Sans or pixel fonts
-3. Animated GIF energy (use emojis as substitute)
+3. Animated GIF energy (use emojis as a substitute)
 4. "Under construction" vibes
 5. Visitor counters, guestbook mentions
 6. Marquee-style excitement
