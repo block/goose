@@ -45,7 +45,9 @@ impl OidcProviderPreset {
             }
             Self::Azure => {
                 let tid = tenant.unwrap_or("common");
-                format!("https://login.microsoftonline.com/{tid}/v2.0/.well-known/openid-configuration")
+                format!(
+                    "https://login.microsoftonline.com/{tid}/v2.0/.well-known/openid-configuration"
+                )
             }
             Self::GitHub => {
                 // GitHub OIDC (Actions tokens) — for user login, GitHub uses OAuth2 not OIDC
@@ -1054,8 +1056,16 @@ mod tests {
             OidcProviderPreset::Auth0,
             OidcProviderPreset::Okta,
         ] {
-            assert!(preset.supports_oidc_code_flow(), "{} should support OIDC", preset);
-            assert!(preset.oauth2_authorize_url().is_none(), "{} shouldn't need OAuth2 fallback", preset);
+            assert!(
+                preset.supports_oidc_code_flow(),
+                "{} should support OIDC",
+                preset
+            );
+            assert!(
+                preset.oauth2_authorize_url().is_none(),
+                "{} shouldn't need OAuth2 fallback",
+                preset
+            );
         }
     }
 
@@ -1088,8 +1098,12 @@ mod tests {
 
     #[test]
     fn test_provider_preset_scopes() {
-        assert!(OidcProviderPreset::Google.default_scopes().contains("openid"));
-        assert!(OidcProviderPreset::Google.default_scopes().contains("email"));
+        assert!(OidcProviderPreset::Google
+            .default_scopes()
+            .contains("openid"));
+        assert!(OidcProviderPreset::Google
+            .default_scopes()
+            .contains("email"));
         // GitHub only needs openid for Actions tokens
         assert_eq!(OidcProviderPreset::GitHub.default_scopes(), "openid");
     }

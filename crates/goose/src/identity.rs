@@ -538,10 +538,7 @@ mod tests {
         assert_eq!(issuer_to_provider("https://dev-123.auth0.com/"), "auth0");
         assert_eq!(issuer_to_provider("https://acme.okta.com"), "okta");
         assert_eq!(issuer_to_provider("https://gitlab.com"), "gitlab");
-        assert_eq!(
-            issuer_to_provider("https://gitlab.example.com"),
-            "gitlab"
-        );
+        assert_eq!(issuer_to_provider("https://gitlab.example.com"), "gitlab");
         assert_eq!(
             issuer_to_provider("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"),
             "aws-cognito"

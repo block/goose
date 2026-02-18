@@ -1232,7 +1232,8 @@ enum AuthCommand {
     Login {
         /// Provider name: google, azure, github, gitlab, aws, auth0, okta
         #[arg(
-            short, long,
+            short,
+            long,
             help = "Provider name (google, azure, github, gitlab, aws, auth0, okta) or raw issuer URL"
         )]
         provider: String,
@@ -1841,9 +1842,7 @@ async fn handle_auth_subcommand(command: AuthCommand) -> Result<()> {
         AuthCommand::Logout => crate::commands::auth::handle_logout(server_url, secret_key).await,
         AuthCommand::Status => crate::commands::auth::handle_status(server_url, secret_key).await,
         AuthCommand::Whoami => crate::commands::auth::handle_whoami(server_url, secret_key).await,
-        AuthCommand::Providers => {
-            crate::commands::auth::handle_providers().await
-        }
+        AuthCommand::Providers => crate::commands::auth::handle_providers().await,
     }
 }
 

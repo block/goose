@@ -259,10 +259,7 @@ fn clear_token() -> Result<()> {
 /// Accepts:
 /// - Preset names: "google", "azure", "github", "gitlab", "aws", "auth0", "okta"
 /// - Raw issuer URLs: "https://accounts.google.com"
-fn resolve_provider(
-    provider: &str,
-    tenant: Option<&str>,
-) -> (String, Option<OidcProviderPreset>) {
+fn resolve_provider(provider: &str, tenant: Option<&str>) -> (String, Option<OidcProviderPreset>) {
     if let Some(preset) = OidcProviderPreset::from_name(provider) {
         // Extract issuer from discovery URL by stripping /.well-known/openid-configuration
         let discovery = preset.discovery_url(tenant);
@@ -603,10 +600,7 @@ pub async fn handle_whoami(server_url: &str, secret_key: &str) -> Result<()> {
 /// Handle `goose auth providers` — list available OIDC provider presets.
 pub async fn handle_providers() -> Result<()> {
     println!("🔐 Supported Identity Providers\n");
-    println!(
-        "  {:<12} {:<35} {}",
-        "Name", "Provider", "Notes"
-    );
+    println!("  {:<12} {:<35} Notes", "Name", "Provider");
     println!("  {}", "─".repeat(75));
 
     for preset in OidcProviderPreset::all() {
@@ -621,12 +615,7 @@ pub async fn handle_providers() -> Result<()> {
         };
 
         let name = format!("{:?}", preset).to_lowercase();
-        println!(
-            "  {:<12} {:<35} {}",
-            name,
-            preset.to_string(),
-            notes,
-        );
+        println!("  {:<12} {:<35} {}", name, preset.to_string(), notes,);
     }
 
     println!();
