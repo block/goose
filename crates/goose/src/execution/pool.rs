@@ -472,6 +472,26 @@ async fn run_pooled_agent(
 
     let agent = Arc::new(Agent::with_config(agent_config));
 
+    if let Some(identity) = &config.identity {
+        agent.set_execution_identity(identity.clone()).await;
+
+        let tenant_id = identity.user.tenant.clone();
+        let user_id = if identity.user.is_guest() {
+            None
+        } else {
+            Some(identity.user.id.clone())
+        };
+        if tenant_id.is_some() || user_id.is_some() {
+            if let Err(e) = config
+                .session_manager
+                .set_session_identity(&session_id, tenant_id.as_deref(), user_id.as_deref())
+                .await
+            {
+                tracing::warn!("Failed to set session identity for pool agent: {}", e);
+            }
+        }
+    }
+
     agent
         .update_provider(config.provider.clone(), &session_id)
         .await

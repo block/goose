@@ -395,6 +395,7 @@ fn snapshot_to_response(snap: goose::execution::pool::InstanceSnapshot) -> Insta
 )]
 pub async fn spawn_instance(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Json(req): axum::extract::Json<SpawnInstanceRequest>,
 ) -> Result<(StatusCode, Json<InstanceResponse>), StatusCode> {
     let provider = if req.provider.is_some() || req.model.is_some() {
@@ -433,7 +434,16 @@ pub async fn spawn_instance(
         inherit_extensions: None,
         max_turns: req.max_turns,
         session_manager: state.agent_manager.session_manager_arc(),
-        identity: None,
+        identity: {
+            let req_identity = crate::auth::RequestIdentity::from_headers_validated(
+                &headers,
+                &state.oidc_validator,
+                &state.session_token_store,
+            )
+            .await;
+            let exec = req_identity.into_execution("pool-agent", &req.persona);
+            Some(exec)
+        },
     };
 
     let instance_id = state.agent_pool.spawn(config).await.map_err(|e| {
