@@ -29,6 +29,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
@@ -568,7 +569,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
   const { addRecentDir, recentDirs } = useProjectPreferences();
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
-  const projectDropdownRef = useRef<HTMLDivElement>(null);
+  const projectDropdownRef = useRef<HTMLButtonElement>(null);
   // This handles the case where a session is loaded from history that's older than the top 10
   useEffect(() => {
     if (!activeSessionId) return;
@@ -908,59 +909,56 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           {/* Sessions — General group acts as Home */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
-              {/* New Chat + Open Project row */}
+              {/* New Chat button */}
               <SidebarMenuItem>
-                <div className="flex items-center w-full">
-                  <SidebarMenuButton
-                    data-testid="sidebar-home-button"
-                    onClick={handleNewChat}
-                    isActive={isActivePath('/pair') || isActivePath('/')}
-                    tooltip="New chat"
-                    className="flex-1 justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                  >
-                    <Home className="w-4 h-4" />
-                    <span>New Chat</span>
-                  </SidebarMenuButton>
-                  <div className="relative group-data-[collapsible=icon]:hidden" ref={projectDropdownRef}>
+                <SidebarMenuButton
+                  data-testid="sidebar-home-button"
+                  onClick={handleNewChat}
+                  isActive={isActivePath('/pair') || isActivePath('/')}
+                  tooltip="New chat"
+                  className="justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                >
+                  <Home className="w-4 h-4" />
+                  <span>New Chat</span>
+                </SidebarMenuButton>
+                <SidebarMenuAction
+                  className="group-data-[collapsible=icon]:hidden"
+                  ref={projectDropdownRef}
+                  onClick={() => setProjectDropdownOpen((prev) => !prev)}
+                  aria-label="Open project"
+                  title="Open project in new session"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                </SidebarMenuAction>
+                {projectDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-56 z-50 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden group-data-[collapsible=icon]:hidden">
                     <button
-                      onClick={() => setProjectDropdownOpen((prev) => !prev)}
-                      className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
-                      aria-label="Open project"
-                      title="Open project in new session"
+                      onClick={handleBrowseForProject}
+                      className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
                     >
-                      <FolderPlus className="w-3.5 h-3.5 text-text-muted" />
+                      <FolderPlus className="w-4 h-4 text-text-accent" />
+                      <span>Browse...</span>
                     </button>
-                    {projectDropdownOpen && (
-                      <div className="absolute left-0 top-full mt-1 w-56 z-50 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden">
-                        <button
-                          onClick={handleBrowseForProject}
-                          className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
-                        >
-                          <FolderPlus className="w-4 h-4 text-text-accent" />
-                          <span>Browse...</span>
-                        </button>
-                        {recentDirs.length > 0 && (
-                          <div className="max-h-48 overflow-y-auto">
-                            <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
-                              Recent Projects
-                            </div>
-                            {recentDirs.map((dir) => (
-                              <button
-                                key={dir}
-                                onClick={() => handleOpenProjectFromDir(dir)}
-                                className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
-                                title={dir}
-                              >
-                                <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                                <span className="truncate">{dir.split('/').pop() || dir}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                    {recentDirs.length > 0 && (
+                      <div className="max-h-48 overflow-y-auto">
+                        <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
+                          Recent Projects
+                        </div>
+                        {recentDirs.map((dir) => (
+                          <button
+                            key={dir}
+                            onClick={() => handleOpenProjectFromDir(dir)}
+                            className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
+                            title={dir}
+                          >
+                            <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span className="truncate">{dir.split('/').pop() || dir}</span>
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
-                </div>
+                )}
               </SidebarMenuItem>
 
               {/* Session list with project groups (General first) */}
