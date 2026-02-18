@@ -11,7 +11,7 @@
 │  "Who is using Goose?"                                              │
 │                                                                     │
 │  Transport: HTTP headers on requests TO the Goose server            │
-│  Tokens:    Session JWT, OIDC token, X-Api-Key                      │
+│  Tokens:    Session JWT, OIDC token, X-Goose-Api-Key                      │
 │  Storage:   SessionTokenStore (SQLite), localStorage (frontend)     │
 │  Purpose:   Identify the human, scope sessions, audit, RBAC         │
 │  Files:     auth.rs, identity.rs, oidc.rs, session_token.rs         │
@@ -45,7 +45,7 @@ When a request arrives, the server checks headers in this order:
    ├─ b) OIDC JWT (from Google, Azure AD, etc.)  → validated by OidcValidator (JWKS)
    └─ c) Lightweight JWT decode (no sig check)   → fallback, extracts claims only
 
-2. X-Api-Key: <key>
+2. X-Goose-Api-Key: <key> (or X-Api-Key for backward compat)
    └─ Creates an ApiKey identity
 
 3. X-Goose-User-Id: <stable-id>
@@ -169,20 +169,20 @@ Provider credentials are set through:
 
 ## Overlap Zones — Where Confusion Can Arise
 
-### 1. `X-Api-Key` Header Ambiguity
+### 1. API Key Header (Renamed to `X-Goose-Api-Key`)
 
-The `X-Api-Key` header is used for **user identity auth**, not provider authentication.
+`X-Goose-Api-Key` is the preferred header for **user identity auth**. The legacy `X-Api-Key` is still supported for backward compatibility.
 
 ```
 # This identifies the USER, not the LLM provider:
-curl -H "X-Api-Key: my-key-123" https://goose-server/reply
+curl -H "X-Goose-Api-Key: my-key-123" https://goose-server/reply
 
 # This configures the LLM PROVIDER (server-side, different endpoint):
 curl -X POST https://goose-server/configure/provider \
   -d '{"provider": "openai", "key": "sk-..."}'
 ```
 
-**Don't confuse**: Sending an OpenAI API key as `X-Api-Key` will create a user identity
+**Don't confuse**: Sending an OpenAI API key as `X-Goose-Api-Key` will create a user identity
 hashed from that key — it will NOT configure the OpenAI provider.
 
 ### 2. Azure AD — Used in Both Systems
