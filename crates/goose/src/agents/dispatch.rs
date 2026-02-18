@@ -418,6 +418,127 @@ fn extract_message_output(msg: &a2a::types::core::Message) -> String {
         .join("\n")
 }
 
+/// Dispatcher that executes sub-tasks via `Agent::reply()` for full multi-turn
+/// tool-using execution. Unlike `InProcessDispatcher` (which uses `Provider::complete()`
+/// for single-turn LLM calls), this gives sub-tasks the complete agent experience.
+pub struct AgentReplyDispatcher {
+    agent: std::sync::Arc<crate::agents::Agent>,
+    session_id: String,
+}
+
+impl AgentReplyDispatcher {
+    pub fn new(agent: std::sync::Arc<crate::agents::Agent>, session_id: String) -> Self {
+        Self { agent, session_id }
+    }
+
+    pub async fn dispatch_sub_task(
+        &self,
+        sub_task: &SubTask,
+        task_index: usize,
+        cancel_token: Option<tokio_util::sync::CancellationToken>,
+    ) -> DispatchResult {
+        let start = std::time::Instant::now();
+        let user_message =
+            crate::conversation::message::Message::user().with_text(&sub_task.sub_task_description);
+        let sub_config = crate::agents::types::SessionConfig {
+            id: format!("{}-sub-{}", self.session_id, task_index),
+            schedule_id: None,
+            max_turns: None,
+            retry_config: None,
+        };
+
+        let output = match self
+            .agent
+            .reply(user_message, sub_config, cancel_token)
+            .await
+        {
+            Ok(mut stream) => {
+                let mut collected = String::new();
+                while let Some(event) = futures::StreamExt::next(&mut stream).await {
+                    match event {
+                        Ok(crate::agents::AgentEvent::Message(msg)) => {
+                            if msg.role == rmcp::model::Role::Assistant {
+                                for content in &msg.content {
+                                    if let crate::conversation::message::MessageContent::Text(t) =
+                                        content
+                                    {
+                                        collected.push_str(&t.text);
+                                    }
+                                }
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            tracing::warn!(task_index, error = %e, "Sub-task error");
+                            collected = format!("Error: {e}");
+                            break;
+                        }
+                    }
+                }
+                collected
+            }
+            Err(e) => {
+                return DispatchResult {
+                    task_description: sub_task.sub_task_description.clone(),
+                    agent_name: sub_task.routing.agent_name.clone(),
+                    strategy: "AgentReply".to_string(),
+                    output: format!("Failed: {e}"),
+                    status: DispatchStatus::Failed,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                };
+            }
+        };
+
+        DispatchResult {
+            task_description: sub_task.sub_task_description.clone(),
+            agent_name: sub_task.routing.agent_name.clone(),
+            strategy: "AgentReply".to_string(),
+            output,
+            status: DispatchStatus::Completed,
+            duration_ms: start.elapsed().as_millis() as u64,
+        }
+    }
+}
+
+/// Sequential compound dispatcher: `None` URL → in-process, `Some(url)` → remote A2A.
+pub async fn dispatch_compound_sequential(
+    reply_dispatcher: &AgentReplyDispatcher,
+    tasks: &[(SubTask, Option<String>)],
+    cancel_token: Option<tokio_util::sync::CancellationToken>,
+) -> Vec<DispatchResult> {
+    let a2a = A2ADispatcher::new();
+    let mut results = Vec::with_capacity(tasks.len());
+
+    for (i, (sub_task, a2a_url)) in tasks.iter().enumerate() {
+        tracing::info!(
+            task_index = i,
+            agent = %sub_task.routing.agent_name,
+            remote = a2a_url.is_some(),
+            "Dispatching compound sub-task"
+        );
+        let result = if let Some(url) = a2a_url {
+            let strategy = DelegationStrategy::RemoteA2AAgent { url: url.clone() };
+            a2a.dispatch_one(sub_task, &strategy)
+                .await
+                .unwrap_or_else(|e| DispatchResult {
+                    task_description: sub_task.sub_task_description.clone(),
+                    agent_name: sub_task.routing.agent_name.clone(),
+                    strategy: "RemoteA2A".to_string(),
+                    output: format!("A2A Error: {e}"),
+                    status: DispatchStatus::Failed,
+                    duration_ms: 0,
+                })
+        } else {
+            reply_dispatcher
+                .dispatch_sub_task(sub_task, i, cancel_token.clone())
+                .await
+        };
+        results.push(result);
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

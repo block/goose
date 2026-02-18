@@ -452,177 +452,48 @@ pub async fn reply(
                     return;
                 }
 
-                // Compound execution: fan out sub-tasks sequentially, aggregate results
+                // Compound execution: delegate to dispatch module
                 if plan.is_compound && plan.tasks.len() > 1 {
                     tracing::info!(
                         task_count = plan.tasks.len(),
-                        "Executing compound request with sequential fan-out"
+                        "Executing compound request via dispatch_compound_sequential"
                     );
 
-                    let mut sub_results: Vec<String> = Vec::new();
-
-                    for (i, sub_task) in plan.tasks.iter().enumerate() {
+                    // Build (SubTask, Option<a2a_url>) tuples from slot delegation
+                    let mut dispatch_tasks = Vec::with_capacity(plan.tasks.len());
+                    for sub_task in &plan.tasks {
                         let agent_name = &sub_task.routing.agent_name;
                         let delegation = state.agent_slot_registry.get_delegation(agent_name).await;
-
-                        tracing::info!(
-                            sub_task_index = i,
-                            agent = %agent_name,
-                            mode = %sub_task.routing.mode_slug,
-                            delegation = ?delegation,
-                            "Executing compound sub-task"
-                        );
-
-                        let result_text = match delegation {
-                            SlotDelegation::RemoteA2A { ref url } => {
-                                // Dispatch to remote A2A agent
-                                let a2a_url = url.clone();
-                                tracing::info!(
-                                    sub_task_index = i,
-                                    a2a_url = %a2a_url,
-                                    "Dispatching sub-task to remote A2A agent"
-                                );
-
-                                let client = a2a::client::A2AClient::new(&a2a_url);
-
-                                // Derive sub-agent identity for this A2A dispatch
-                                let sub_identity = exec_identity
-                                    .for_sub_agent(agent_name, &format!("{} (A2A)", agent_name));
-
-                                let a2a_message = a2a::types::core::Message {
-                                    message_id: uuid::Uuid::new_v4().to_string(),
-                                    role: a2a::types::core::Role::User,
-                                    parts: vec![a2a::types::core::Part::text(
-                                        &sub_task.sub_task_description,
-                                    )],
-                                    context_id: None,
-                                    task_id: None,
-                                    metadata: Some(sub_identity.to_a2a_metadata()),
-                                    extensions: vec![],
-                                    reference_task_ids: vec![],
-                                };
-                                let request = a2a::types::requests::SendMessageRequest {
-                                    message: a2a_message,
-                                    configuration: None,
-                                    metadata: None,
-                                };
-
-                                match client.send_message(request).await {
-                                    Ok(response) => {
-                                        // Extract text from A2A response
-                                        match response {
-                                            a2a::types::responses::SendMessageResponse::Task(
-                                                task,
-                                            ) => task
-                                                .artifacts
-                                                .iter()
-                                                .flat_map(|a| &a.parts)
-                                                .filter_map(|p| {
-                                                    if let a2a::types::core::PartContent::Text {
-                                                        text,
-                                                    } = &p.content
-                                                    {
-                                                        Some(text.as_str())
-                                                    } else {
-                                                        None
-                                                    }
-                                                })
-                                                .collect::<Vec<_>>()
-                                                .join("\n")
-                                                .to_string(),
-                                            a2a::types::responses::SendMessageResponse::Message(
-                                                msg,
-                                            ) => msg
-                                                .parts
-                                                .iter()
-                                                .filter_map(|p| {
-                                                    if let a2a::types::core::PartContent::Text {
-                                                        text,
-                                                    } = &p.content
-                                                    {
-                                                        Some(text.as_str())
-                                                    } else {
-                                                        None
-                                                    }
-                                                })
-                                                .collect::<Vec<_>>()
-                                                .join("\n")
-                                                .to_string(),
-                                        }
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(
-                                            sub_task_index = i,
-                                            error = %e,
-                                            "A2A remote dispatch failed"
-                                        );
-                                        format!("A2A Error: {}", e)
-                                    }
-                                }
-                            }
-                            SlotDelegation::InProcess | SlotDelegation::ExternalAcp => {
-                                // In-process execution via agent.reply()
+                        let a2a_url = match delegation {
+                            SlotDelegation::RemoteA2A { ref url } => Some(url.clone()),
+                            _ => {
+                                // Apply routing for in-process sub-tasks
                                 let sub_plan =
                                     goose::agents::orchestrator_agent::OrchestratorPlan::single(
                                         sub_task.routing.clone(),
                                     );
                                 router.apply_routing(&agent, &sub_plan).await;
-
-                                let sub_message =
-                                    Message::user().with_text(&sub_task.sub_task_description);
-
-                                let sub_config = SessionConfig {
-                                    id: format!("{}-sub-{}", session_id, i),
-                                    schedule_id: session.schedule_id.clone(),
-                                    max_turns: None,
-                                    retry_config: None,
-                                };
-
-                                match agent
-                                    .reply(sub_message, sub_config, Some(task_cancel.clone()))
-                                    .await
-                                {
-                                    Ok(mut stream) => {
-                                        let mut text = String::new();
-                                        while let Some(event) = stream.next().await {
-                                            match event {
-                                                Ok(AgentEvent::Message(msg)) => {
-                                                    for content in &msg.content {
-                                                        if let MessageContent::Text(t) = content {
-                                                            text.push_str(&t.text);
-                                                        }
-                                                    }
-                                                }
-                                                Ok(_) => {}
-                                                Err(e) => {
-                                                    tracing::warn!(
-                                                        sub_task_index = i,
-                                                        error = %e,
-                                                        "Sub-task execution error"
-                                                    );
-                                                    text = format!("Error: {}", e);
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        text
-                                    }
-                                    Err(e) => {
-                                        tracing::error!(
-                                            sub_task_index = i,
-                                            error = %e,
-                                            "Failed to start sub-task"
-                                        );
-                                        format!("Failed: {}", e)
-                                    }
-                                }
+                                None
                             }
                         };
-
-                        sub_results.push(result_text);
+                        dispatch_tasks.push((sub_task.clone(), a2a_url));
                     }
 
-                    // Aggregate and stream the combined result
+                    let reply_dispatcher = goose::agents::dispatch::AgentReplyDispatcher::new(
+                        agent.clone(),
+                        session_id.clone(),
+                    );
+
+                    let results = goose::agents::dispatch::dispatch_compound_sequential(
+                        &reply_dispatcher,
+                        &dispatch_tasks,
+                        Some(task_cancel.clone()),
+                    )
+                    .await;
+
+                    // Aggregate outputs from dispatch results
+                    let sub_results: Vec<String> =
+                        results.iter().map(|r| r.output.clone()).collect();
                     let aggregated = aggregate_results(&plan.tasks, &sub_results);
                     let aggregated_message = Message::assistant().with_text(&aggregated);
 
