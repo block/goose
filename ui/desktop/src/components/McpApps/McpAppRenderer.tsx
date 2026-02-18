@@ -792,63 +792,67 @@ export default function McpAppRenderer({
     );
   };
 
-  const appContent = (isCompact: boolean) => (
-    <div className={cn('relative w-full', !isCompact && 'h-full')}>
-      {renderDisplayModeControls()}
-      {renderContent()}
-    </div>
+  const isFullscreen = activeDisplayMode === 'fullscreen';
+  const isPip = activeDisplayMode === 'pip';
+  const isInline = !isFullscreen && !isPip;
+
+  // Single stable container — CSS switches between inline/fullscreen/pip positioning.
+  // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
+  const containerClasses = cn(
+    'bg-background-default [&_iframe]:!w-full',
+    isFullscreen && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
+    isPip &&
+      'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default shadow-2xl',
+    isInline && 'group/mcp-app relative overflow-hidden',
+    isInline && !isError && 'mt-6 mb-2',
+    isInline && !isError && meta.prefersBorder && 'border border-border-default rounded-lg',
+    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20'
   );
 
-  // --- Fullscreen overlay ---
-  if (activeDisplayMode === 'fullscreen') {
-    return (
-      <>
-        {/* Invisible placeholder preserves chat scroll position while fullscreen overlay is shown */}
+  const containerStyle: React.CSSProperties = {
+    viewTransitionName,
+    ...(isFullscreen
+      ? {}
+      : isPip
+        ? {
+            width: `${PIP_WIDTH}px`,
+            height: `${PIP_HEIGHT}px`,
+            right: `${16 - pipPosition.x}px`,
+            bottom: `${16 - pipPosition.y}px`,
+          }
+        : {
+            width: '100%',
+            height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
+          }),
+  };
+
+  return (
+    <>
+      {/* Placeholder in chat flow when app is detached (fullscreen or pip) */}
+      {isFullscreen && (
         <div
           className="invisible mt-6 mb-2"
           style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
         />
-        <div className="fixed inset-0 z-[1000] bg-background-default">
-          <div
-            ref={containerRef}
-            className="h-full w-full overflow-hidden [&_iframe]:!w-full [&_iframe]:!h-full"
-            style={{ viewTransitionName }}
-          >
-            {appContent(false)}
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // --- PiP floating panel ---
-  if (activeDisplayMode === 'pip') {
-    return (
-      <>
-        {/* Inline placeholder showing the app is in PiP */}
+      )}
+      {isPip && (
         <div
           className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-default bg-black/[0.02] dark:bg-white/[0.02]"
           style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
         >
           <button
             onClick={() => changeDisplayMode('inline')}
-            className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-text-subtler transition-colors hover:bg-black/5 hover:text-text-default dark:hover:bg-white/5"
+            className="cursor-pointer flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-text-subtler transition-colors hover:bg-black/5 hover:text-text-default dark:hover:bg-white/5"
           >
             <PictureInPicture2 size={14} />
             <span>Playing in Picture-in-Picture</span>
           </button>
         </div>
-        <div
-          className="fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default bg-background-default shadow-2xl [&_iframe]:!w-full"
-          style={{
-            viewTransitionName,
-            width: `${PIP_WIDTH}px`,
-            height: `${PIP_HEIGHT}px`,
-            right: `${16 - pipPosition.x}px`,
-            bottom: `${16 - pipPosition.y}px`,
-          }}
-        >
-          {/* Drag handle — narrow centered strip so it doesn't block controls or app content */}
+      )}
+
+      {/* Stable app container — never unmounted, only repositioned via CSS */}
+      <div ref={containerRef} className={containerClasses} style={containerStyle}>
+        {isPip && (
           <div
             className="absolute top-0 left-1/2 z-20 flex h-6 w-12 -translate-x-1/2 cursor-grab items-center justify-center rounded-b-md bg-black/30 backdrop-blur-sm active:cursor-grabbing"
             onPointerDown={handlePipPointerDown}
@@ -857,29 +861,12 @@ export default function McpAppRenderer({
           >
             <GripHorizontal size={12} className="text-white/70" />
           </div>
-          <div ref={containerRef} className="w-full">
-            {appContent(true)}
-          </div>
+        )}
+        <div className="relative h-full w-full">
+          {renderDisplayModeControls()}
+          {renderContent()}
         </div>
-      </>
-    );
-  }
-
-  // --- Inline (default) ---
-  const inlineClasses = cn(
-    'group/mcp-app relative bg-background-default overflow-hidden [&_iframe]:!w-full',
-    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
-    !isError && 'mt-6 mb-2',
-    !isError && meta.prefersBorder && 'border border-border-default rounded-lg'
-  );
-
-  return (
-    <div
-      ref={containerRef}
-      className={inlineClasses}
-      style={{ viewTransitionName, width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
-    >
-      {appContent(false)}
-    </div>
+      </div>
+    </>
   );
 }
