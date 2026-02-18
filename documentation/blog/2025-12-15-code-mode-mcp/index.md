@@ -47,7 +47,7 @@ MCP server with ease!
 Our hope is that we improve tool calling performance and handling of large numbers of tools in goose, but
 also provide an open source implementation of this emerging approach.
 
-* Try out the feature by enabling the ["Code Mode" extension](https://github.com/block/goose/blob/main/crates/goose/src/agents/code_execution_extension.rs) in v1.17.0 or later of goose by clicking extensions on the left side of the desktop app or running `goose configure` on cli
+* Try out the feature by enabling the ["Code Mode" extension](https://github.com/block/goose/blob/main/crates/goose/src/agents/platform_extensions/code_execution.rs) in v1.17.0 or later of goose by clicking extensions on the left side of the desktop app or running `goose configure` on cli
 * Please give us feedback on how it works for you by joining our [discord](https://discord.gg/goose-oss).
 
 Kudos to my colleague [Mic Neale](https://github.com/michaelneale) for collaborating with me on the implementation!
