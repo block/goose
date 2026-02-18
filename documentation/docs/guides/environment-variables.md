@@ -164,6 +164,30 @@ export GOOSE_LEAD_FAILURE_THRESHOLD=3
 export GOOSE_LEAD_FALLBACK_TURNS=2
 ```
 
+### Claude Extended Thinking
+
+These variables control Claude's [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) feature, which allows the model to reason through complex problems before generating a response. Supported on Anthropic and Databricks providers.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `CLAUDE_THINKING_ENABLED` | Enables extended thinking for Claude models | Set to any value to enable | Disabled |
+| `CLAUDE_THINKING_BUDGET` | Maximum tokens allocated for Claude's internal reasoning process | Positive integer (minimum 1024) | 16000 |
+
+**Examples**
+
+```bash
+# Enable extended thinking with default budget (16000 tokens)
+export CLAUDE_THINKING_ENABLED=1
+
+# Enable with a larger budget for complex tasks
+export CLAUDE_THINKING_ENABLED=1
+export CLAUDE_THINKING_BUDGET=32000
+
+# Enable with a smaller budget for faster responses
+export CLAUDE_THINKING_ENABLED=1
+export CLAUDE_THINKING_BUDGET=8000
+```
+
 ### Planning Mode Configuration
 
 These variables control goose's [planning functionality](/docs/guides/creating-plans).
