@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Loader2, Command, Slash, Mic, MicOff, Paperclip, X, FileIcon } from 'lucide-react';
-import { usePromptBar, type SlashCommand } from '../../contexts/UnifiedInputContext';
+import { useUnifiedInput, type SlashCommand } from '../../contexts/UnifiedInputContext';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { useFileDrop, type DroppedFile } from '../../hooks/useFileDrop';
 import Send from '../icons/Send';
 
 export default function PromptBar() {
-  const promptBar = usePromptBar();
+  const ctx = useUnifiedInput();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
@@ -14,11 +14,11 @@ export default function PromptBar() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isHidden = !promptBar?.showPromptBar;
+  const isHidden = !ctx.showPromptBar;
 
-  const config = promptBar?.config;
-  const slashCommands = useMemo(() => promptBar?.slashCommands ?? [], [promptBar?.slashCommands]);
-  const submitPrompt = promptBar?.submitPrompt;
+  const config = ctx.config;
+  const slashCommands = ctx.slashCommands;
+  const submitPrompt = ctx.submitPrompt;
 
   // ─── File Drop ─────────────────────────────────────────────────────
   const {

@@ -78,22 +78,14 @@ export interface SessionInputState {
 export type InputMode = 'compact' | 'full';
 
 export interface UnifiedInputContextValue {
-  // Mode
   mode: InputMode;
-
-  // Zone system (from PromptBarContext)
   zone: NavigationZone;
   config: ZoneConfig;
   slashCommands: SlashCommand[];
   showInput: boolean;
-
-  // Session state (for full mode, null in compact)
+  showPromptBar: boolean;
   session: SessionInputState | null;
-
-  // Unified submit — handles slash commands then delegates
   submitPrompt: (text: string) => void;
-
-  // Session state setter
   setSessionState: (state: SessionInputState | null) => void;
 }
 
@@ -140,20 +132,6 @@ export function useRegisterSession(
   // Only re-register when sessionId or chatState actually change
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, chatState]);
-}
-
-// Also re-export the old hook name for backward compatibility during migration
-export function usePromptBar() {
-  const ctx = useUnifiedInput();
-  return {
-    zone: ctx.zone,
-    config: ctx.config,
-    isChatActive: ctx.mode === 'full',
-    showPromptBar: ctx.showInput && ctx.mode === 'compact'
-      || (ctx.mode === 'full' && !ctx.session),
-    submitPrompt: ctx.submitPrompt,
-    slashCommands: ctx.slashCommands,
-  };
 }
 
 // ─── Zone Detection ───────────────────────────────────────────────
@@ -367,8 +345,8 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
     }
   }, []); // stable — reads everything from refs
 
-  // Show input everywhere except on /pair (where ChatInput handles it for now)
   const showInput = !isOnPairRoute;
+  const showPromptBar = (showInput && mode === 'compact') || (mode === 'full' && !session);
 
   const value = useMemo<UnifiedInputContextValue>(() => ({
     mode,
@@ -376,11 +354,11 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
     config,
     slashCommands,
     showInput,
+    showPromptBar,
     session,
     submitPrompt,
     setSessionState,
-  // submitPrompt is now stable (empty deps), won't cause value identity to change
-  }), [mode, zone, config, slashCommands, showInput, session]);
+  }), [mode, zone, config, slashCommands, showInput, showPromptBar, session]);
 
   return (
     <UnifiedInputContext.Provider value={value}>
