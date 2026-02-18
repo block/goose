@@ -65,6 +65,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const location = useLocation();
   const chatContext = useChatContext();
   const isOnPairRoute = location.pathname === '/pair';
+  const showChatInput = isOnPairRoute || location.pathname === '/' || location.pathname === '/welcome';
 
   if (!chatContext) {
     throw new Error('AppLayoutContent must be used within ChatProvider');
@@ -128,15 +129,15 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       </Sidebar>
       <SidebarInset>
         {/* Non-pair routes: standard page content */}
-        <div className={isOnPairRoute ? 'hidden' : 'flex-1 overflow-auto pb-16'}>
+        <div className={isOnPairRoute ? 'hidden' : `flex-1 overflow-auto${showChatInput ? ' pb-16' : ''}`}>
           <Outlet />
         </div>
         {/* Pair route: chat sessions */}
         <div className={isOnPairRoute ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
-        {/* Global ChatInput — always visible on all pages */}
-        <GlobalChatInput />
+        {/* Global ChatInput — visible on chat/welcome pages */}
+        {showChatInput && <GlobalChatInput />}
       </SidebarInset>
       <ReasoningDetailPanel />
     </div>
