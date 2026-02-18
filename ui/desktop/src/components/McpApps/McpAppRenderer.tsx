@@ -251,10 +251,19 @@ export default function McpAppRenderer({
 
   const isStandalone = displayMode === 'standalone';
 
+  // Remember the inline iframe height when leaving inline mode so we can
+  // size the placeholder and landing target correctly on return.
+  const inlineHeightRef = useRef(DEFAULT_IFRAME_HEIGHT);
+
   const changeDisplayMode = useCallback(
     (mode: GooseDisplayMode) => {
       const el = containerRef.current;
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // Save inline height before leaving inline (read from DOM for accuracy)
+      if (activeDisplayMode === 'inline' && el) {
+        inlineHeightRef.current = el.getBoundingClientRect().height || DEFAULT_IFRAME_HEIGHT;
+      }
 
       // FLIP: capture First rect before state change
       const first = el?.getBoundingClientRect();
@@ -299,7 +308,7 @@ export default function McpAppRenderer({
         });
       }
     },
-    [onDisplayModeChange]
+    [onDisplayModeChange, activeDisplayMode]
   );
 
   // PiP drag state
@@ -857,13 +866,13 @@ export default function McpAppRenderer({
       {isFullscreen && (
         <div
           className="invisible mt-6 mb-2"
-          style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
+          style={{ width: '100%', height: `${inlineHeightRef.current}px` }}
         />
       )}
       {isPip && (
         <div
           className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-default bg-black/[0.02] dark:bg-white/[0.02]"
-          style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
+          style={{ width: '100%', height: `${inlineHeightRef.current}px` }}
         >
           <button
             onClick={() => changeDisplayMode('inline')}
