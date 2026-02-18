@@ -238,33 +238,114 @@ function Sidebar({
           {children}
         </div>
         {/* Side strip — thin clickable edge to fold/unfold */}
-        <SidebarEdgeStrip />
+        <SidebarDragHandle />
       </div>
     </div>
   );
 }
 
-function SidebarEdgeStrip() {
-  const { toggleSidebar, state } = useSidebar();
+const SIDEBAR_PX = 192; // 12rem
+const SIDEBAR_ICON_PX = 38;
+const SNAP_THRESHOLD = 120;
+
+function SidebarDragHandle() {
+  const { toggleSidebar, state, setOpen } = useSidebar();
   const isCollapsed = state === 'collapsed';
+  const dragRef = React.useRef<{
+    pointerId: number | null;
+    startX: number;
+    startWidth: number;
+    dragging: boolean;
+  }>({ pointerId: null, startX: 0, startWidth: SIDEBAR_PX, dragging: false });
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const onPointerDown = React.useCallback((e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startWidth: isCollapsed ? SIDEBAR_ICON_PX : SIDEBAR_PX,
+      dragging: false,
+    };
+  }, [isCollapsed]);
+
+  const onPointerMove = React.useCallback((e: React.PointerEvent) => {
+    if (dragRef.current.pointerId !== e.pointerId) return;
+    const dx = e.clientX - dragRef.current.startX;
+    if (Math.abs(dx) > 4) {
+      dragRef.current.dragging = true;
+      setIsDragging(true);
+    }
+    if (!dragRef.current.dragging) return;
+    const sidebar = (e.currentTarget as HTMLElement).closest('[data-slot="sidebar"]');
+    if (!sidebar) return;
+    const next = Math.max(SIDEBAR_ICON_PX, Math.min(SIDEBAR_PX, dragRef.current.startWidth + dx));
+    (sidebar as HTMLElement).style.setProperty('--sidebar-width', `${next}px`);
+  }, []);
+
+  const onPointerUp = React.useCallback((e: React.PointerEvent) => {
+    if (dragRef.current.pointerId !== e.pointerId) return;
+    const wasDragging = dragRef.current.dragging;
+    dragRef.current.pointerId = null;
+    setIsDragging(false);
+
+    if (wasDragging) {
+      const sidebar = (e.currentTarget as HTMLElement).closest('[data-slot="sidebar"]');
+      if (sidebar) {
+        // Read current width from the style we set during drag
+        const current = parseFloat(getComputedStyle(sidebar).getPropertyValue('--sidebar-width'));
+        const shouldOpen = current >= SNAP_THRESHOLD;
+        // Reset inline style so CSS takes over
+        (sidebar as HTMLElement).style.removeProperty('--sidebar-width');
+        setOpen(shouldOpen);
+      }
+    } else {
+      toggleSidebar();
+    }
+  }, [toggleSidebar, setOpen]);
 
   return (
-    <button
-      data-sidebar="edge-strip"
-      aria-label="Toggle Sidebar"
-      onClick={toggleSidebar}
-      className={cn(
-        'absolute top-0 right-0 h-full w-2 z-20',
-        // Always visible: thin border line
-        'border-r border-border-default',
-        // Hover: accent highlight strip
-        'hover:border-r-[3px] hover:border-border-strong',
-        'active:border-r-[3px] active:border-border-accent',
-        'transition-all duration-150',
-        isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize'
-      )}
-      title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-    />
+    <div
+      data-sidebar="drag-handle"
+      className="absolute top-0 right-0 h-full z-20"
+      style={{ width: 0 }}
+    >
+      {/* Invisible full-height drag zone */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') toggleSidebar();
+        }}
+        className={cn(
+          'absolute top-0 -right-[10px] h-full w-5 select-none',
+          isDragging ? 'cursor-grabbing' : isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize'
+        )}
+      />
+      {/* Protruding tab handle */}
+      <div
+        role="button"
+        tabIndex={-1}
+        aria-hidden="true"
+        onClick={toggleSidebar}
+        className={cn(
+          'absolute top-1/2 -translate-y-1/2 left-full',
+          'w-[18px] h-[44px] -ml-[6px]',
+          'border border-l-0 border-border-default rounded-r-lg',
+          'bg-background-default hover:bg-background-muted active:bg-background-active',
+          'flex items-center justify-center',
+          'shadow-sm hover:shadow-md transition-all duration-150',
+          isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize',
+          'text-text-muted hover:text-text-default text-xs'
+        )}
+      >
+        {isCollapsed ? '›' : '‹'}
+      </div>
+    </div>
   );
 }
 
