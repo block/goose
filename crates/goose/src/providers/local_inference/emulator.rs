@@ -2,7 +2,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::providers::errors::ProviderError;
 use crate::providers::utils::RequestLog;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage};
-use rmcp::model::CallToolRequestParams;
+use rmcp::model::{CallToolRequestParams, Tool};
 use serde_json::json;
 use std::borrow::Cow;
 use uuid::Uuid;
@@ -43,6 +43,74 @@ pub(super) fn load_tiny_model_prompt() -> String {
         "You are Goose, an AI assistant. You can execute shell commands by starting lines with $."
             .to_string()
     })
+}
+
+pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled: bool) -> String {
+    let mut tool_desc = String::new();
+
+    if code_mode_enabled {
+        tool_desc.push_str("\n\n# Running Code\n\n");
+        tool_desc.push_str(
+            "You can call tools by writing code in a ```execute block. \
+             The code runs immediately — do not explain it, just run it.\n\n",
+        );
+        tool_desc.push_str("Example — counting files in /tmp:\n\n");
+        tool_desc.push_str("```execute\nasync function run() {\n");
+        tool_desc.push_str(
+            "  const result = await Developer.shell({ command: \"ls -1 /tmp | wc -l\" });\n",
+        );
+        tool_desc.push_str("  return result;\n}\n```\n\n");
+        tool_desc.push_str("Rules:\n");
+        tool_desc.push_str("- Code MUST define async function run() and return a result\n");
+        tool_desc.push_str("- All function calls are async — use await\n");
+        tool_desc.push_str("- Use ```execute for tool calls, $ for simple shell one-liners\n\n");
+        tool_desc.push_str("Available functions:\n\n");
+
+        for tool in tools {
+            if tool.name.starts_with("code_execution__") {
+                continue;
+            }
+            let parts: Vec<&str> = tool.name.splitn(2, "__").collect();
+            if parts.len() == 2 {
+                let namespace = {
+                    let mut c = parts[0].chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(first) => first.to_uppercase().chain(c).collect::<String>(),
+                    }
+                };
+                let camel_name: String = parts[1]
+                    .split('_')
+                    .enumerate()
+                    .map(|(i, part)| {
+                        if i == 0 {
+                            part.to_string()
+                        } else {
+                            let mut c = part.chars();
+                            match c.next() {
+                                None => String::new(),
+                                Some(first) => first.to_uppercase().chain(c).collect(),
+                            }
+                        }
+                    })
+                    .collect();
+                let desc = tool.description.as_ref().map(|d| d.as_ref()).unwrap_or("");
+                tool_desc.push_str(&format!("- {namespace}.{camel_name}(): {desc}\n"));
+            }
+        }
+    } else {
+        tool_desc.push_str("\n\n# Tools\n\nYou have access to the following tools:\n\n");
+        for tool in tools {
+            let desc = tool
+                .description
+                .as_ref()
+                .map(|d| d.as_ref())
+                .unwrap_or("No description");
+            tool_desc.push_str(&format!("- {}: {}\n", tool.name, desc));
+        }
+    }
+
+    tool_desc
 }
 
 enum EmulatorAction {

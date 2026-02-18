@@ -2,17 +2,13 @@ mod emulator;
 pub mod hf_models;
 mod inference_context;
 pub mod local_model_registry;
+mod native_path;
 mod tool_parsing;
 
-use emulator::{load_tiny_model_prompt, run_emulator_path};
-use inference_context::{
-    create_and_prefill_context, estimate_max_context_for_memory, generation_loop,
-    validate_and_compute_context, LoadedModel, TokenAction,
-};
-use tool_parsing::{
-    compact_tools_json, extract_tool_call_messages, extract_xml_tool_call_messages,
-    safe_stream_end, split_content_and_tool_calls, split_content_and_xml_tool_calls,
-};
+use emulator::{build_emulator_tool_description, load_tiny_model_prompt, run_emulator_path};
+use inference_context::LoadedModel;
+use native_path::run_native_tool_path;
+use tool_parsing::compact_tools_json;
 
 use crate::config::paths::Paths;
 use crate::config::ExtensionConfig;
@@ -30,8 +26,7 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
-use llama_cpp_2::openai::OpenAIChatTemplateParams;
+use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
 use rmcp::model::{RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
@@ -436,195 +431,6 @@ fn finalize_usage(
 type StreamSender =
     tokio::sync::mpsc::Sender<Result<(Option<Message>, Option<ProviderUsage>), ProviderError>>;
 
-#[allow(clippy::too_many_arguments)]
-fn run_native_tool_path(
-    loaded: &LoadedModel,
-    runtime: &InferenceRuntime,
-    chat_messages: &[LlamaChatMessage],
-    oai_messages_json: &Option<String>,
-    full_tools_json: Option<&str>,
-    compact_tools: Option<&str>,
-    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
-    context_limit: usize,
-    model_name: String,
-    message_id: &str,
-    tx: &StreamSender,
-    log: &mut RequestLog,
-) -> Result<(), ProviderError> {
-    let min_generation_headroom = 512;
-    let n_ctx_train = loaded.model.n_ctx_train() as usize;
-    let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, runtime);
-    let context_cap = if let Some(ctx_size) = settings.context_size {
-        ctx_size as usize
-    } else {
-        let base = if context_limit > 0 {
-            context_limit
-        } else {
-            n_ctx_train
-        };
-        match memory_max_ctx {
-            Some(mem_max) if mem_max < base => mem_max,
-            _ => base,
-        }
-    };
-    let token_budget = context_cap.saturating_sub(min_generation_headroom);
-
-    let apply_template = |tools: Option<&str>| {
-        if let Some(ref messages_json) = oai_messages_json {
-            let params = OpenAIChatTemplateParams {
-                messages_json: messages_json.as_str(),
-                tools_json: tools,
-                tool_choice: None,
-                json_schema: None,
-                grammar: None,
-                reasoning_format: None,
-                chat_template_kwargs: None,
-                add_generation_prompt: true,
-                use_jinja: true,
-                parallel_tool_calls: false,
-                enable_thinking: false,
-                add_bos: false,
-                add_eos: false,
-                parse_tool_calls: true,
-            };
-            loaded
-                .model
-                .apply_chat_template_oaicompat(&loaded.template, &params)
-        } else {
-            loaded.model.apply_chat_template_with_tools_oaicompat(
-                &loaded.template,
-                chat_messages,
-                tools,
-                None,
-                true,
-            )
-        }
-    };
-
-    let template_result = match apply_template(full_tools_json) {
-        Ok(r) => {
-            let token_count = loaded
-                .model
-                .str_to_token(&r.prompt, AddBos::Never)
-                .map(|t| t.len())
-                .unwrap_or(0);
-            if token_count > token_budget {
-                apply_template(compact_tools).unwrap_or(r)
-            } else {
-                r
-            }
-        }
-        Err(_) => apply_template(compact_tools).map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to apply chat template: {}", e))
-        })?,
-    };
-
-    let _ = log.write(
-        &serde_json::json!({"applied_prompt": &template_result.prompt}),
-        None,
-    );
-
-    let tokens = loaded
-        .model
-        .str_to_token(&template_result.prompt, AddBos::Never)
-        .map_err(|e| ProviderError::ExecutionError(format!("Failed to tokenize prompt: {}", e)))?;
-
-    let (prompt_token_count, effective_ctx) =
-        validate_and_compute_context(loaded, runtime, tokens.len(), context_limit, settings)?;
-    let mut ctx = create_and_prefill_context(loaded, runtime, &tokens, effective_ctx, settings)?;
-
-    let mut generated_text = String::new();
-    let mut streamed_len: usize = 0;
-
-    let output_token_count = generation_loop(
-        &loaded.model,
-        &mut ctx,
-        settings,
-        prompt_token_count,
-        effective_ctx,
-        |piece| {
-            generated_text.push_str(piece);
-
-            let has_xml_tc = split_content_and_xml_tool_calls(&generated_text).is_some();
-            let (content, tc) = split_content_and_tool_calls(&generated_text);
-            let stream_up_to = if tc.is_some() {
-                content.len()
-            } else if has_xml_tc {
-                split_content_and_xml_tool_calls(&generated_text)
-                    .map(|(c, _)| c.len())
-                    .unwrap_or(0)
-            } else {
-                safe_stream_end(&generated_text)
-            };
-            if stream_up_to > streamed_len {
-                #[allow(clippy::string_slice)]
-                let new_text = &generated_text[streamed_len..stream_up_to];
-                if !new_text.is_empty() {
-                    let mut msg = Message::assistant().with_text(new_text);
-                    msg.id = Some(message_id.to_string());
-                    if tx.blocking_send(Ok((Some(msg), None))).is_err() {
-                        return Ok(TokenAction::Stop);
-                    }
-                }
-                streamed_len = stream_up_to;
-            }
-
-            let should_stop = template_result
-                .additional_stops
-                .iter()
-                .any(|stop| generated_text.ends_with(stop));
-            if should_stop {
-                Ok(TokenAction::Stop)
-            } else {
-                Ok(TokenAction::Continue)
-            }
-        },
-    )?;
-
-    let (content, tool_call_msgs) =
-        if let Some((xml_content, xml_calls)) = split_content_and_xml_tool_calls(&generated_text) {
-            let msgs = extract_xml_tool_call_messages(xml_calls, message_id);
-            (xml_content, msgs)
-        } else {
-            let (json_content, tool_calls_json) = split_content_and_tool_calls(&generated_text);
-            let msgs = tool_calls_json
-                .map(|tc| extract_tool_call_messages(&tc, message_id))
-                .unwrap_or_default();
-            (json_content, msgs)
-        };
-
-    if content.len() > streamed_len {
-        #[allow(clippy::string_slice)]
-        let remaining = &content[streamed_len..];
-        if !remaining.is_empty() {
-            let mut msg = Message::assistant().with_text(remaining);
-            msg.id = Some(message_id.to_string());
-            let _ = tx.blocking_send(Ok((Some(msg), None)));
-        }
-    }
-
-    if !tool_call_msgs.is_empty() {
-        for msg in tool_call_msgs {
-            let _ = tx.blocking_send(Ok((Some(msg), None)));
-        }
-    } else if content.is_empty() && !generated_text.is_empty() {
-        let mut msg = Message::assistant().with_text(&generated_text);
-        msg.id = Some(message_id.to_string());
-        let _ = tx.blocking_send(Ok((Some(msg), None)));
-    }
-
-    let provider_usage = finalize_usage(
-        log,
-        model_name,
-        "native",
-        prompt_token_count,
-        output_token_count,
-        Some(("generated_text", &generated_text)),
-    );
-    let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
-    Ok(())
-}
-
 pub struct LocalInferenceProvider {
     runtime: Arc<InferenceRuntime>,
     model: ModelSlot,
@@ -839,76 +645,8 @@ impl Provider for LocalInferenceProvider {
         // Check if Code Mode extension is available
         let code_mode_enabled = tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
 
-        // Append tool descriptions to system prompt
         if use_emulator && !tools.is_empty() {
-            let mut tool_desc = String::new();
-
-            if code_mode_enabled {
-                // Build Code Mode instructions with available functions as
-                // Namespace.functionName() — matching how Code Mode exposes them.
-                tool_desc.push_str("\n\n# Running Code\n\n");
-                tool_desc.push_str(
-                    "You can call tools by writing code in a ```execute block. \
-                     The code runs immediately — do not explain it, just run it.\n\n",
-                );
-                tool_desc.push_str("Example — counting files in /tmp:\n\n");
-                tool_desc.push_str("```execute\nasync function run() {\n");
-                tool_desc.push_str(
-                    "  const result = await Developer.shell({ command: \"ls -1 /tmp | wc -l\" });\n",
-                );
-                tool_desc.push_str("  return result;\n}\n```\n\n");
-                tool_desc.push_str("Rules:\n");
-                tool_desc.push_str("- Code MUST define async function run() and return a result\n");
-                tool_desc.push_str("- All function calls are async — use await\n");
-                tool_desc
-                    .push_str("- Use ```execute for tool calls, $ for simple shell one-liners\n\n");
-                tool_desc.push_str("Available functions:\n\n");
-
-                for tool in tools {
-                    if tool.name.starts_with("code_execution__") {
-                        continue;
-                    }
-                    let parts: Vec<&str> = tool.name.splitn(2, "__").collect();
-                    if parts.len() == 2 {
-                        let namespace = {
-                            let mut c = parts[0].chars();
-                            match c.next() {
-                                None => String::new(),
-                                Some(first) => first.to_uppercase().chain(c).collect::<String>(),
-                            }
-                        };
-                        // Convert snake_case to camelCase
-                        let camel_name: String = parts[1]
-                            .split('_')
-                            .enumerate()
-                            .map(|(i, part)| {
-                                if i == 0 {
-                                    part.to_string()
-                                } else {
-                                    let mut c = part.chars();
-                                    match c.next() {
-                                        None => String::new(),
-                                        Some(first) => first.to_uppercase().chain(c).collect(),
-                                    }
-                                }
-                            })
-                            .collect();
-                        let desc = tool.description.as_ref().map(|d| d.as_ref()).unwrap_or("");
-                        tool_desc.push_str(&format!("- {namespace}.{camel_name}(): {desc}\n"));
-                    }
-                }
-            } else {
-                tool_desc.push_str("\n\n# Tools\n\nYou have access to the following tools:\n\n");
-                for tool in tools {
-                    let desc = tool
-                        .description
-                        .as_ref()
-                        .map(|d| d.as_ref())
-                        .unwrap_or("No description");
-                    tool_desc.push_str(&format!("- {}: {}\n", tool.name, desc));
-                }
-            }
-
+            let tool_desc = build_emulator_tool_description(tools, code_mode_enabled);
             chat_messages = vec![LlamaChatMessage::new(
                 "system".to_string(),
                 format!("{}{}", system_prompt, tool_desc),
