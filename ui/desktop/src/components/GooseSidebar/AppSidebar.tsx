@@ -13,6 +13,7 @@ import {
   FolderPlus,
   History,
   Home,
+  MoreVertical,
   Pin,
   PinOff,
   Plus,
@@ -22,6 +23,13 @@ import {
   X,
   Workflow,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   SidebarContent,
@@ -443,47 +451,61 @@ const SessionList = React.memo<{
                     className={`w-3 h-3 flex-shrink-0 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
                   />
                 </button>
-                {onNewSessionInProject && (
-                  <button
-                    onClick={() => {
-                      const dir = isGeneral
-                        ? ''
-                        : group.sessions[0]?.working_dir || '';
-                      onNewSessionInProject(dir);
-                    }}
-                    className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-muted rounded transition-all"
-                    title={isGeneral ? 'New session' : `New session in ${group.project}`}
-                  >
-                    <Plus className="w-3 h-3 text-text-muted hover:text-text-default" />
-                  </button>
-                )}
-                {!isGeneral && (
-                  <button
-                    onClick={() => togglePin(group.project)}
-                    className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-medium/50 rounded transition-all"
-                    title={pinned ? 'Unpin project' : 'Pin project'}
-                  >
-                    {pinned ? (
-                      <PinOff className="w-3 h-3 text-text-muted" />
-                    ) : (
-                      <Pin className="w-3 h-3 text-text-muted" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-medium/50 rounded transition-all"
+                      aria-label={`Actions for ${group.project}`}
+                    >
+                      <MoreVertical className="w-3 h-3 text-text-muted" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start" className="w-48">
+                    {onNewSessionInProject && (
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const dir = isGeneral
+                            ? ''
+                            : group.sessions[0]?.working_dir || '';
+                          onNewSessionInProject(dir);
+                        }}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        {isGeneral ? 'New session' : 'New session in project'}
+                      </DropdownMenuItem>
                     )}
-                  </button>
-                )}
-                {!isGeneral && (
-                  <button
-                    onClick={() =>
-                      onCloseProject(
-                        group.project,
-                        group.sessions.map((s) => s.id)
-                      )
-                    }
-                    className="opacity-0 group-hover/project:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
-                    title={`Close project "${group.project}" and delete ${group.sessions.length} session${group.sessions.length !== 1 ? 's' : ''}`}
-                  >
-                    <X className="w-3 h-3 text-text-muted hover:text-text-danger" />
-                  </button>
-                )}
+                    {!isGeneral && (
+                      <>
+                        <DropdownMenuItem onClick={() => togglePin(group.project)}>
+                          {pinned ? (
+                            <>
+                              <PinOff className="w-4 h-4 mr-2" />
+                              Unpin project
+                            </>
+                          ) : (
+                            <>
+                              <Pin className="w-4 h-4 mr-2" />
+                              Pin project
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-text-danger focus:text-text-danger"
+                          onClick={() =>
+                            onCloseProject(
+                              group.project,
+                              group.sessions.map((s) => s.id)
+                            )
+                          }
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Close project ({group.sessions.length} session{group.sessions.length !== 1 ? 's' : ''})
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               {!collapsed && (
                 <div className="relative ml-3">
@@ -915,7 +937,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         <Home className="w-4 h-4" />
                         <span>Home</span>
                       </SidebarMenuButton>
-                      <div className="relative" ref={projectDropdownRef}>
+                      <div className="relative group-data-[collapsible=icon]:hidden" ref={projectDropdownRef}>
                         <button
                           onClick={() => setProjectDropdownOpen((prev) => !prev)}
                           className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
@@ -957,7 +979,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                       {recentSessions.length > 0 && (
                         <CollapsibleTrigger asChild>
                           <button
-                            className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors"
+                            className="flex items-center justify-center w-6 h-8 hover:bg-background-medium/50 rounded-md transition-colors group-data-[collapsible=icon]:hidden"
                             aria-label={
                               isChatExpanded ? 'Collapse chat sessions' : 'Expand chat sessions'
                             }
@@ -974,7 +996,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   </SidebarMenuItem>
                 </div>
                 {recentSessions.length > 0 && (
-                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0">
+                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 group-data-[collapsible=icon]:hidden">
                     <div className="mt-1 space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto">
                       <SessionList
                         sessions={recentSessions}
