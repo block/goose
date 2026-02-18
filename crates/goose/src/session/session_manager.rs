@@ -1548,6 +1548,22 @@ impl SessionStorage {
             .await
     }
 
+    async fn set_session_identity(
+        &self,
+        session_id: &str,
+        tenant_id: Option<&str>,
+        user_id: Option<&str>,
+    ) -> Result<()> {
+        let pool = self.pool().await?;
+        sqlx::query("UPDATE sessions SET tenant_id = ?, user_id = ? WHERE id = ?")
+            .bind(tenant_id)
+            .bind(user_id)
+            .bind(session_id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
     async fn delete_session(&self, session_id: &str) -> Result<()> {
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
@@ -2204,5 +2220,35 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(none.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_set_session_identity() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let wd = temp_dir.path().to_path_buf();
+
+        let session = sm
+            .create_session(wd, "test".into(), SessionType::User)
+            .await
+            .unwrap();
+        assert!(session.tenant_id.is_none());
+        assert!(session.user_id.is_none());
+
+        sm.set_session_identity(&session.id, Some("acme-corp"), Some("user-42"))
+            .await
+            .unwrap();
+
+        let fetched = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(fetched.tenant_id.as_deref(), Some("acme-corp"));
+        assert_eq!(fetched.user_id.as_deref(), Some("user-42"));
+
+        // Can clear identity
+        sm.set_session_identity(&session.id, None, None)
+            .await
+            .unwrap();
+        let cleared = sm.get_session(&session.id, false).await.unwrap();
+        assert!(cleared.tenant_id.is_none());
+        assert!(cleared.user_id.is_none());
     }
 }

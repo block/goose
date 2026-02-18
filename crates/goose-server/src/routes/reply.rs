@@ -319,6 +319,21 @@ pub async fn reply(
             "Execution identity set on agent"
         );
 
+        // Tag the session with the caller's tenant/user identity for scoping
+        if !exec_identity.user.is_guest() || exec_identity.user.tenant.is_some() {
+            if let Err(e) = state
+                .session_manager()
+                .set_session_identity(
+                    &session_id,
+                    exec_identity.user.tenant.as_deref(),
+                    Some(exec_identity.user.id.as_str()),
+                )
+                .await
+            {
+                tracing::warn!(session_id = %session_id, "Failed to set session identity: {}", e);
+            }
+        }
+
         let session = match state.session_manager().get_session(&session_id, true).await {
             Ok(metadata) => metadata,
             Err(e) => {

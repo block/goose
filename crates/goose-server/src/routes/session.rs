@@ -81,12 +81,32 @@ const MAX_NAME_LENGTH: usize = 200;
 )]
 async fn list_sessions(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<SessionListResponse>, ErrorResponse> {
-    let sessions = state
-        .session_manager()
-        .list_sessions()
-        .await
-        .map_err(|e| ErrorResponse::internal(e.to_string()))?;
+    let identity = crate::auth::RequestIdentity::from_headers_validated(
+        &headers,
+        &state.oidc_validator,
+        &state.session_token_store,
+    )
+    .await;
+
+    let user = &identity.user;
+    let tenant_filter = user.tenant.as_deref();
+    let user_filter = if !user.is_guest() {
+        Some(user.id.as_str())
+    } else {
+        None
+    };
+
+    let sessions = if tenant_filter.is_some() || user_filter.is_some() {
+        state
+            .session_manager()
+            .list_sessions_for_tenant(tenant_filter, user_filter)
+            .await
+    } else {
+        state.session_manager().list_sessions().await
+    }
+    .map_err(|e| ErrorResponse::internal(e.to_string()))?;
 
     Ok(Json(SessionListResponse { sessions }))
 }
