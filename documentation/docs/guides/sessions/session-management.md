@@ -104,21 +104,34 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
-        By default, goose names your session using the current timestamp in the format `YYYYMMDD_<COUNT>`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
+        goose sessions are given an auto-generated name based on the context of your initial prompt.
 
-        ```
-        goose session -n react-migration
+        If you'd like to provide a specific session name, you can do so when starting a session. For example, to name your session "react-migration", run:
+
+        ```sh
+        goose session --name react-migration
         ```
 
-        You'll know your session has started when your terminal looks similar to the following:
+        If you want to confirm the session name, run:
 
+        ```sh
+        goose session list -l 1
         ```
-        starting session | provider: openai model: gpt-4o
-        session id: react-migration
-        working directory: /path/to/your/project
+
+        Example result:
+        
+        ```text
+        Available sessions:
+        20260213_9 - react-migration - 2026-02-13 16:20:37 UTC
         ```
+
+        In the output above, `20260213_9` is the session ID. Session IDs use the format `YYYYMMDD_<COUNT>`. Many [goose CLI commands](/docs/guides/goose-cli-commands) let you identify a session by name (`--name` / `-n`) as an alternative to `--session-id`.
     </TabItem>
 </Tabs>
+
+:::tip Disable AI-generated Session Naming
+Use [`GOOSE_DISABLE_SESSION_NAMING`](/docs/guides/environment-variables#session-management) to keep the default name instead of calling a model to generate one (useful in CI/headless workflows). The default name in goose Desktop is "New Chat" and the default name in goose CLI is "CLI Session".
+:::
 
 ## Exit Session
 Note that sessions are automatically saved when you exit.

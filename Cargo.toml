@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.23.0"
+version = "1.24.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -62,3 +62,9 @@ wiremock = "0.6"
 serial_test = "3.2.0"
 test-case = "3.3.1"
 url = "2.5.8"
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["metrics"] }
+opentelemetry-otlp = "0.31"
+opentelemetry-appender-tracing = "0.31"
+opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
+tracing-opentelemetry = "0.32"

@@ -1,23 +1,20 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status_openai_compat, map_http_error_to_provider_error,
     stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{get_model, handle_response_google_compat, is_google_model, RequestLog};
+use super::utils::RequestLog;
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use serde_json::Value;
 
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{create_request, get_usage, response_to_message};
+use crate::providers::formats::openai::create_request;
 use rmcp::model::Tool;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
@@ -124,18 +121,22 @@ impl ProviderDef for TetrateProvider {
             TETRATE_KNOWN_MODELS.to_vec(),
             TETRATE_DOC_URL,
             vec![
-                ConfigKey::new("TETRATE_API_KEY", true, true, None),
+                ConfigKey::new("TETRATE_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "TETRATE_HOST",
                     false,
                     false,
                     Some("https://api.router.tetrate.ai"),
+                    false,
                 ),
             ],
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -150,56 +151,16 @@ impl Provider for TetrateProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(
-            model_config,
-            system,
-            messages,
-            tools,
-            &super::utils::ImageFormat::OpenAi,
-            false,
-        )?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        // Make request
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
-            })
-            .await?;
-
-        // Parse response
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(model, usage)))
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let payload = create_request(
-            &self.model,
+            model_config,
             system,
             messages,
             tools,
@@ -207,7 +168,7 @@ impl Provider for TetrateProvider {
             true,
         )?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -254,10 +215,6 @@ impl Provider for TetrateProvider {
             .collect();
         models.sort();
         Ok(models)
-    }
-
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
     }
 }
 

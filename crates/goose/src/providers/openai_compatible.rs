@@ -9,15 +9,13 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{MessageStream, Provider, ProviderUsage, Usage};
+use super::base::{MessageStream, Provider};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use crate::providers::formats::openai::{create_request, response_to_streaming_message};
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -74,44 +72,6 @@ impl Provider for OpenAiCompatibleProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = self.build_request(model_config, system, messages, tools, false)?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let completions_path = format!("{}chat/completions", self.completions_prefix);
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(session_id, &completions_path, &payload)
-                    .await?;
-                handle_response_openai_compat(resp).await
-            })
-            .await?;
-
-        let response_model = get_model(&response);
-        let message = response_to_message(&response)
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        log.write(&response, Some(&usage))?;
-
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
@@ -139,19 +99,16 @@ impl Provider for OpenAiCompatibleProvider {
         Ok(models)
     }
 
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = self.build_request(&self.model, system, messages, tools, true)?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let payload = self.build_request(model_config, system, messages, tools, true)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let completions_path = format!("{}chat/completions", self.completions_prefix);
         let response = self

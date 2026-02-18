@@ -76,10 +76,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-:::info LLM
-OpenAI's GPT-4o was used for this task. There's an [open bug](https://github.com/block/goose/issues/1804) for Amazon Bedrock models.
-:::
-
 ### goose Prompt
 
 > _goose, I have one hour. Look through uncompleted tasks assigned to me in Asana and show me ones that you estimate will take an hour or less. Order them by deadline._

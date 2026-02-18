@@ -33,15 +33,13 @@ impl AcpServer {
         let disable_session_naming = config.get_goose_disable_session_naming().unwrap_or(false);
 
         let config_dir = self.config.config_dir.clone();
-        let provider_factory: ProviderConstructor = Arc::new(move |model_config| {
+        let provider_factory: ProviderConstructor = Arc::new(move |model_config, extensions| {
             let config_dir = config_dir.clone();
             Box::pin(async move {
                 let config_path = config_dir.join(goose::config::base::CONFIG_YAML_NAME);
                 let config = goose::config::Config::new(&config_path, "goose")?;
-                let provider_name = config
-                    .get_goose_provider()
-                    .map_err(|_| anyhow::anyhow!("No provider configured"))?;
-                goose::providers::create(&provider_name, model_config).await
+                let provider_name = config.get_goose_provider()?;
+                goose::providers::create(&provider_name, model_config, extensions).await
             })
         });
 

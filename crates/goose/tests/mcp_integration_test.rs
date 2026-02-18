@@ -11,14 +11,18 @@ use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
-use goose::agents::extension_manager::ExtensionManager;
+use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
+use goose::agents::GoosePlatform;
 use goose::model::ModelConfig;
 
 use test_case::test_case;
 
 use async_trait::async_trait;
 use goose::conversation::message::Message;
-use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
 use goose::providers::errors::ProviderError;
 use once_cell::sync::Lazy;
 use std::process::Command;
@@ -54,7 +58,10 @@ impl ProviderDef for MockProvider {
         ProviderMetadata::empty()
     }
 
-    fn from_env(model: ModelConfig) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<goose::config::ExtensionConfig>,
+    ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
         Box::pin(async move { Ok(Self::new(model)) })
     }
 }
@@ -65,18 +72,17 @@ impl Provider for MockProvider {
         "mock"
     }
 
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>,
         _model_config: &ModelConfig,
+        _session_id: &str,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
-    ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-        Ok((
-            Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"),
-            ProviderUsage::new("mock".to_string(), Usage::default()),
-        ))
+    ) -> Result<MessageStream, ProviderError> {
+        let message = Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)");
+        let usage = ProviderUsage::new("mock".to_string(), Usage::default());
+        Ok(stream_from_single_message(message, usage))
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -251,7 +257,12 @@ async fn test_replayed_session(
     let session_manager = Arc::new(goose::session::SessionManager::new(
         temp_dir.path().to_path_buf(),
     ));
-    let extension_manager = Arc::new(ExtensionManager::new(provider, session_manager));
+    let extension_manager = Arc::new(ExtensionManager::new(
+        provider,
+        session_manager,
+        GoosePlatform::GooseDesktop.to_string(),
+        ExtensionManagerCapabilities { mcpui: true },
+    ));
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {

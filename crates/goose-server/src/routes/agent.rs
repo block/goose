@@ -21,9 +21,8 @@ use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
-use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, Session};
+use goose::session::{EnabledExtensionsState, ExtensionState, Session};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -254,18 +253,27 @@ async fn start_agent(
     }
 
     if let Some(recipe) = original_recipe {
-        manager
-            .update(&session.id)
-            .recipe(Some(recipe))
-            .apply()
-            .await
-            .map_err(|err| {
-                error!("Failed to update session with recipe: {}", err);
-                ErrorResponse {
-                    message: format!("Failed to update session with recipe: {}", err),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
+        let mut update = manager.update(&session.id).recipe(Some(recipe.clone()));
+
+        if let Some(ref settings) = recipe.settings {
+            if let Some(ref provider) = settings.goose_provider {
+                update = update.provider_name(provider);
+
+                if let Some(ref model) = settings.goose_model {
+                    if let Ok(model_config) = ModelConfig::new(model) {
+                        update = update.model_config(model_config);
+                    }
                 }
-            })?;
+            }
+        }
+
+        update.apply().await.map_err(|err| {
+            error!("Failed to update session with recipe: {}", err);
+            ErrorResponse {
+                message: format!("Failed to update session with recipe: {}", err),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
     }
 
     // Refetch session to get all updates
@@ -541,15 +549,22 @@ async fn update_agent_provider(
                 format!("Invalid model config: {}", e),
             )
         })?
+        .with_canonical_limits(&payload.provider)
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 
-    let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Failed to create {} provider: {}", &payload.provider, e),
-        )
-    })?;
+    let extensions =
+        EnabledExtensionsState::for_session(state.session_manager(), &payload.session_id, config)
+            .await;
+
+    let new_provider = create(&payload.provider, model_config, extensions)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to create {} provider: {}", &payload.provider, e),
+            )
+        })?;
 
     agent
         .update_provider(new_provider, &payload.session_id)

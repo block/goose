@@ -69,7 +69,7 @@ jobs:
            run: |
               mkdir -p /home/runner/.local/bin
               curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-              | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
+                | GOOSE_VERSION=REPLACE_WITH_VERSION CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
               echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
          - name: Configure goose
@@ -159,7 +159,7 @@ steps:
       run: |
           mkdir -p /home/runner/.local/bin
           curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh \
-            | CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
+            | GOOSE_VERSION=REPLACE_WITH_VERSION CONFIGURE=false GOOSE_BIN_DIR=/home/runner/.local/bin bash
           echo "/home/runner/.local/bin" >> $GITHUB_PATH
 
     - name: Configure goose
@@ -172,8 +172,17 @@ steps:
           EOF
 ```
 
+#### Pinning goose versions in CI/CD
+
+In CI/CD, we recommend pinning a specific goose version with `GOOSE_VERSION` for reproducible runs. This also avoids 404 errors when downloading the goose CLI binary assets if the `stable` release tag doesn’t include them.
+
+Relevant installer options for CI:
+- `GOOSE_VERSION`: the version to pin the install to (both `1.21.1` and `v1.21.1` formats are supported)
+- `GOOSE_BIN_DIR`: install directory (make sure this directory is on `PATH`)
+- `CONFIGURE=false`: skip interactive `goose configure` flow
+
 :::info Replacements
-Replace `REPLACE_WITH_PROVIDER` and `REPLACE_WITH_MODEL` with your LLM provider and model names and add any other necessary configuration required.
+Replace `REPLACE_WITH_VERSION`, `REPLACE_WITH_PROVIDER`, and `REPLACE_WITH_MODEL` with the goose version you want to pin and your LLM provider/model names. Add any other necessary configuration required.
 :::
 
 ### 4. Gather PR Changes and Prepare Instructions

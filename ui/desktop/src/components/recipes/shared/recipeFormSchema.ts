@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ExtensionConfig } from '../../../api';
 
 // Zod schema for Parameter - matching API RecipeParameter type
 const parameterSchema = z.object({
@@ -39,6 +40,12 @@ export const recipeFormSchema = z.object({
   parameters: z.array(parameterSchema).default([]),
 
   jsonSchema: z.string().optional(),
+
+  model: z.string().optional(),
+
+  provider: z.string().optional(),
+
+  extensions: z.array(z.custom<ExtensionConfig>()).optional(),
 });
 
 export type RecipeFormData = z.infer<typeof recipeFormSchema>;

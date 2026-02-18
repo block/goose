@@ -17,6 +17,14 @@ vi.mock('../../../recipe/recipe_management', () => ({
   saveRecipe: vi.fn(),
 }));
 
+vi.mock('../../ConfigContext', () => ({
+  useConfig: () => ({
+    extensionsList: [],
+    getExtensions: vi.fn().mockResolvedValue([]),
+    getProviders: vi.fn().mockResolvedValue([]),
+  }),
+}));
+
 const mockCreateRecipe = vi.mocked(createRecipe);
 
 describe('CreateRecipeFromSessionModal', () => {

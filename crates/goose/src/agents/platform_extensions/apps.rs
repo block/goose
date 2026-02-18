@@ -150,7 +150,7 @@ impl AppsManagerClient {
 
     fn ensure_default_apps(&self) -> Result<(), String> {
         // TODO(Douwe): we have the same check in cache, consider unifying that
-        const CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
+        const CLOCK_HTML: &str = include_str!("../../goose_apps/clock.html");
 
         // Check if clock app exists
         let clock_path = self.apps_dir.join("clock.html");
@@ -290,8 +290,11 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::create_app_content_tool()];
 
+        let mut model_config = provider.get_model_config();
+        model_config.max_tokens = Some(16384);
+
         let (response, _usage) = provider
-            .complete(session_id, &system_prompt, &messages, &tools)
+            .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 
@@ -321,8 +324,11 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::update_app_content_tool()];
 
+        let mut model_config = provider.get_model_config();
+        model_config.max_tokens = Some(16384);
+
         let (response, _usage) = provider
-            .complete(session_id, &system_prompt, &messages, &tools)
+            .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
 

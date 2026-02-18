@@ -45,13 +45,16 @@ impl ProviderDef for XaiProvider {
             XAI_KNOWN_MODELS.to_vec(),
             XAI_DOC_URL,
             vec![
-                ConfigKey::new("XAI_API_KEY", true, true, None),
-                ConfigKey::new("XAI_HOST", false, false, Some(XAI_API_HOST)),
+                ConfigKey::new("XAI_API_KEY", true, true, None, true),
+                ConfigKey::new("XAI_HOST", false, false, Some(XAI_API_HOST), false),
             ],
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
             let api_key: String = config.get_secret("XAI_API_KEY")?;

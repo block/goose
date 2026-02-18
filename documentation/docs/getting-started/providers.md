@@ -29,7 +29,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [ChatGPT Codex](https://chatgpt.com/codex) | Access GPT-5 Codex models optimized for code generation and understanding. **Requires a ChatGPT Plus/Pro subscription.** | No manual key. Uses browser-based OAuth authentication for both CLI and Desktop. |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
-| [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images).                                                                                                                                                      | `GOOGLE_API_KEY`                                                                                                                                                                    |
+| [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images). Gemini 3 models support configurable [thinking levels](#gemini-3-thinking-levels).                                                                                                | `GOOGLE_API_KEY`, `GEMINI3_THINKING_LEVEL` (optional)                                                                                                                              |
 | [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).** Filters for allowed models by organization policy (if configured). | `GCP_PROJECT_ID`, `GCP_LOCATION` and optionally `GCP_MAX_RATE_LIMIT_RETRIES` (5), `GCP_MAX_OVERLOADED_RETRIES` (5), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Uses [device flow authentication](#github-copilot-authentication) for both CLI and Desktop. |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
@@ -371,7 +371,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        - **Display Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
        - **Authentication**:
-         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled)
+         - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled or cannot be accessed)
             - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
@@ -430,7 +430,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        - **Name**: A friendly name for the provider
        - **API URL**: The base URL of the API endpoint
        - **Authentication Required**: Answer "Yes" if your provider needs an API key, or "No" if authentication is not required
-         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain or `secrets.yaml`)
+         - If Yes: You'll be prompted to enter your **API Key** (stored securely in the keychain, or in `secrets.yaml` if the keyring is disabled or cannot be accessed)
          - If No: The API key prompt is skipped
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses
@@ -567,7 +567,14 @@ Your changes are available in your next goose session.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
-    Currently you cannot remove custom providers using goose Desktop.
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+    2. Click the `Settings` button on the sidebar
+    3. Click the `Models` tab
+    4. Click `Configure providers`
+    5. Click on your custom provider in the list
+    6. Click `Delete Provider`
+    7. Confirm that you want to permanently remove the custom provider and its stored API key (if applicable) by clicking `Confirm Delete`
+
   </TabItem>
   <TabItem value="cli" label="goose CLI">
     
@@ -1142,6 +1149,37 @@ Beyond single-model setups, goose supports [multi-model configurations](/docs/gu
 
 - **Lead/Worker Model** - Automatic switching between a lead model for initial turns and a worker model for execution tasks
 - **Planning Mode** - Manual planning phase using a dedicated model to create detailed project breakdowns before execution
+
+## Gemini 3 Thinking Levels
+
+Gemini 3 models support configurable thinking levels to balance response latency and reasoning depth:
+- **Low** (default) - Faster responses, lighter reasoning
+- **High** - Deeper reasoning, higher latency
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    When selecting a Gemini 3 model, a "Thinking Level" dropdown appears automatically. Select your preference and the setting persists across sessions.
+  </TabItem>
+  
+  <TabItem value="cli" label="goose CLI">
+    **Interactive configuration:**
+    
+    When you run `goose configure` and select a Gemini 3 model, you'll be prompted to choose a thinking level:
+    
+    ```
+    ◆  Select thinking level for Gemini 3:
+    │  ● Low - Better latency, lighter reasoning
+    │  ○ High - Deeper reasoning, higher latency
+    ```
+  </TabItem>
+</Tabs>
+
+:::info Priority Order
+The thinking level is determined in this order (highest to lowest priority):
+1. `request_params.thinking_level` in model configuration (via `GOOSE_PREDEFINED_MODELS`)
+2. `GEMINI3_THINKING_LEVEL` environment variable
+3. Default value: `low`
+:::
 
 ---
 

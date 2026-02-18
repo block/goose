@@ -66,10 +66,6 @@ uv tool install beads-mcp --with packaging
 
 In this example, we'll use Beads to coordinate building an expense tracker web app across **multiple parallel sessions**. This demonstrates how Beads enables multiple goose instances to work on the same project without conflicts.
 
-:::info LLM
-Anthropic's Claude Opus 4.5 was used for this task.
-:::
-
 ### Overview
 
 We'll run **4 goose sessions**:

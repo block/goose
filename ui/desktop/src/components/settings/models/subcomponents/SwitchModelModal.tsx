@@ -88,11 +88,7 @@ export const SwitchModelModal = ({
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
   );
-  // Only use currentModel if we're not switching to a different provider
-  // Otherwise, let the auto-select logic pick an appropriate model for the new provider
-  const [model, setModel] = useState<string>(
-    initialProvider && initialProvider !== currentProvider ? '' : currentModel || ''
-  );
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -172,12 +168,10 @@ export const SwitchModelModal = ({
       }
 
       await changeModel(sessionId, modelObj);
+      onModelSelected?.(modelObj.name);
 
       trackModelChanged(modelObj.provider || '', modelObj.name);
 
-      if (onModelSelected) {
-        onModelSelected(modelObj.name);
-      }
       onClose();
     }
   };
@@ -212,8 +206,7 @@ export const SwitchModelModal = ({
     // Load providers for manual model selection
     (async () => {
       try {
-        // Force refresh if initialProvider is set (OAuth flow needs fresh data)
-        const providersResponse = await getProviders(!!initialProvider);
+        const providersResponse = await getProviders(false);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -282,7 +275,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read, initialProvider]);
+  }, [getProviders, usePredefinedModels, read]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)

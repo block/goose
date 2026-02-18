@@ -33,6 +33,7 @@ use tokio::sync::{
     Mutex,
 };
 use tokio_util::sync::CancellationToken;
+
 pub type BoxError = Box<dyn std::error::Error + Sync + Send>;
 
 pub type Error = rmcp::ServiceError;
@@ -106,35 +107,41 @@ pub trait McpClientTrait: Send + Sync {
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
     provider: SharedProvider,
-    // Single-slot because calls are serialized per MCP client.
-    current_session_id: Arc<Mutex<Option<String>>>,
+    /// Fallback session_id for server-initiated callbacks (e.g. sampling/createMessage)
+    /// that don't include the session_id in their MCP extensions metadata.
+    /// Set once on first request; never cleared (the id is invariant per McpClient).
+    session_id: Mutex<Option<String>>,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
 }
 
 impl GooseClient {
     pub fn new(
         handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
         provider: SharedProvider,
+        client_name: String,
+        capabilities: GooseMcpClientCapabilities,
     ) -> Self {
         GooseClient {
             notification_handlers: handlers,
             provider,
-            current_session_id: Arc::new(Mutex::new(None)),
+            session_id: Mutex::new(None),
+            client_name,
+            capabilities,
         }
     }
 
-    async fn set_current_session_id(&self, session_id: &str) {
-        let mut slot = self.current_session_id.lock().await;
+    async fn set_session_id(&self, session_id: &str) {
+        let mut slot = self.session_id.lock().await;
+        assert!(
+            slot.as_deref().is_none_or(|s| s == session_id),
+            "McpClient received requests from different sessions"
+        );
         *slot = Some(session_id.to_string());
     }
 
-    async fn clear_current_session_id(&self) {
-        let mut slot = self.current_session_id.lock().await;
-        *slot = None;
-    }
-
     async fn current_session_id(&self) -> Option<String> {
-        let slot = self.current_session_id.lock().await;
-        slot.clone()
+        self.session_id.lock().await.clone()
     }
 
     async fn resolve_session_id(&self, extensions: &Extensions) -> Option<String> {
@@ -235,10 +242,11 @@ impl ClientHandler for GooseClient {
             .as_deref()
             .unwrap_or("You are a general-purpose AI agent called goose");
 
+        let model_config = provider.get_model_config();
         let (response, usage) = provider
-            .complete_with_model(
-                session_id.as_deref(),
-                &provider.get_model_config(),
+            .complete(
+                &model_config,
+                session_id.as_deref().unwrap_or(""),
                 system_prompt,
                 &provider_ready_messages,
                 &[],
@@ -320,19 +328,21 @@ impl ClientHandler for GooseClient {
     }
 
     fn get_info(&self) -> ClientInfo {
-        // Build MCP Apps UI extension capability
-        // See: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
-        let mut ui_extension_settings = JsonObject::new();
-        ui_extension_settings.insert(
-            "mimeTypes".to_string(),
-            serde_json::json!(["text/html;profile=mcp-app"]),
-        );
-
         let mut extensions = ExtensionCapabilities::new();
-        extensions.insert(
-            "io.modelcontextprotocol/ui".to_string(),
-            ui_extension_settings,
-        );
+
+        if self.capabilities.mcpui {
+            // Build MCP Apps UI extension capability
+            // See: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx
+            let mut ui_extension_settings = JsonObject::new();
+            ui_extension_settings.insert(
+                "mimeTypes".to_string(),
+                serde_json::json!(["text/html;profile=mcp-app"]),
+            );
+            extensions.insert(
+                "io.modelcontextprotocol/ui".to_string(),
+                ui_extension_settings,
+            );
+        }
 
         ClientInfo {
             meta: None,
@@ -343,7 +353,7 @@ impl ClientHandler for GooseClient {
                 .enable_elicitation()
                 .build(),
             client_info: Implementation {
-                name: "goose".to_string(),
+                name: self.client_name.clone(),
                 version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
                     .unwrap_or(env!("CARGO_PKG_VERSION").to_owned()),
                 icons: None,
@@ -353,6 +363,11 @@ impl ClientHandler for GooseClient {
             },
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct GooseMcpClientCapabilities {
+    pub mcpui: bool,
 }
 
 /// The MCP client is the interface for MCP operations.
@@ -369,12 +384,22 @@ impl McpClient {
         transport: T,
         timeout: std::time::Duration,
         provider: SharedProvider,
+        client_name: String,
+        capabilities: GooseMcpClientCapabilities,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
         E: std::error::Error + From<std::io::Error> + Send + Sync + 'static,
     {
-        Self::connect_with_container(transport, timeout, provider, None).await
+        Self::connect_with_container(
+            transport,
+            timeout,
+            provider,
+            None,
+            client_name,
+            capabilities,
+        )
+        .await
     }
 
     pub async fn connect_with_container<T, E, A>(
@@ -382,6 +407,8 @@ impl McpClient {
         timeout: std::time::Duration,
         provider: SharedProvider,
         docker_container: Option<String>,
+        client_name: String,
+        capabilities: GooseMcpClientCapabilities,
     ) -> Result<Self, ClientInitializeError>
     where
         T: IntoTransport<RoleClient, E, A>,
@@ -390,7 +417,12 @@ impl McpClient {
         let notification_subscribers =
             Arc::new(Mutex::new(Vec::<mpsc::Sender<ServerNotification>>::new()));
 
-        let client = GooseClient::new(notification_subscribers.clone(), provider);
+        let client = GooseClient::new(
+            notification_subscribers.clone(),
+            provider,
+            client_name.clone(),
+            capabilities.clone(),
+        );
         let client: rmcp::service::RunningService<rmcp::RoleClient, GooseClient> =
             client.serve(transport).await?;
         let server_info = client.peer_info().cloned();
@@ -416,31 +448,17 @@ impl McpClient {
         cancel_token: CancellationToken,
     ) -> Result<ServerResult, Error> {
         let request = inject_session_context_into_request(request, Some(session_id), working_dir);
-        // ExtensionManager serializes calls per MCP connection, so one current_session_id slot
-        // is sufficient for mapping callbacks to the active request session.
+        // The inner mutex is held only for the send; the actual response wait
+        // happens outside the lock so concurrent calls can overlap.
         let handle = {
             let client = self.client.lock().await;
-            client.service().set_current_session_id(session_id).await;
+            client.service().set_session_id(session_id).await;
             client
                 .send_cancellable_request(request, PeerRequestOptions::no_options())
                 .await
-        };
+        }?;
 
-        let handle = match handle {
-            Ok(handle) => handle,
-            Err(err) => {
-                let client = self.client.lock().await;
-                client.service().clear_current_session_id().await;
-                return Err(err);
-            }
-        };
-
-        let result = await_response(handle, self.timeout, &cancel_token).await;
-
-        let client = self.client.lock().await;
-        client.service().clear_current_session_id().await;
-
-        result
+        await_response(handle, self.timeout, &cancel_token).await
     }
 }
 
@@ -742,11 +760,22 @@ fn inject_session_context_into_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::GoosePlatform;
     use serde_json::json;
     use test_case::test_case;
 
-    fn new_client() -> GooseClient {
-        GooseClient::new(Arc::new(Mutex::new(Vec::new())), Arc::new(Mutex::new(None)))
+    fn new_client(platform: GoosePlatform) -> GooseClient {
+        let capabilities = match platform {
+            GoosePlatform::GooseDesktop => GooseMcpClientCapabilities { mcpui: true },
+            GoosePlatform::GooseCli => GooseMcpClientCapabilities { mcpui: false },
+        };
+
+        GooseClient::new(
+            Arc::new(Mutex::new(Vec::new())),
+            Arc::new(Mutex::new(None)),
+            platform.to_string(),
+            capabilities,
+        )
     }
 
     fn request_extensions(request: &ClientRequest) -> Option<&Extensions> {
@@ -855,10 +884,9 @@ mod tests {
     ) {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
-            let client = new_client();
+            let client = new_client(GoosePlatform::GooseCli);
             if let Some(session_id) = current_session {
-                let mut slot = client.current_session_id.lock().await;
-                *slot = Some(session_id.to_string());
+                client.set_session_id(session_id).await;
             }
 
             let extensions =
@@ -969,7 +997,7 @@ mod tests {
 
     #[test]
     fn test_client_info_advertises_mcp_apps_ui_extension() {
-        let client = new_client();
+        let client = new_client(GoosePlatform::GooseDesktop);
         let info = ClientHandler::get_info(&client);
 
         // Verify the client advertises the MCP Apps UI extension capability

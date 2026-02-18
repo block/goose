@@ -17,7 +17,7 @@ The configuration files allow you to set default behaviors, configure language m
 
 - **config.yaml** - Provider, model, extensions, and general settings
 - **permission.yaml** - Tool permission levels configured via `goose configure`
-- **secrets.yaml** - API keys and secrets (only when keyring is disabled)
+- **secrets.yaml** - API keys and secrets (when goose is using [file-based secret storage](#security-considerations))
 - **permissions/tool_permissions.json** - Runtime permission decisions (auto-managed)
 - **prompts/** - Customized [prompt templates](/docs/guides/prompt-templates)
 
@@ -177,8 +177,14 @@ Settings are applied in the following order of precedence:
 ## Security Considerations
 
 - Avoid storing sensitive information (API keys, tokens) in the config file
-- Use the system keyring for storing secrets
-- If keyring is disabled, secrets are stored in a separate `secrets.yaml` file
+- Use the system keyring (keychain on macOS) for storing secrets. When available, this is the recommended option.
+- If goose is using file-based secret storage, secrets are stored in a separate `secrets.yaml` file (in plain text). This can happen when:
+
+  - Your environment does not provide a desktop keyring service (for example: headless servers, CI/CD, containers)
+  - You disable the keyring explicitly (via [GOOSE_DISABLE_KEYRING](/docs/guides/environment-variables#security-and-privacy))
+  - goose cannot access the keyring and falls back to file-based secret storage
+
+  For troubleshooting keyring failures and automatic fallback behavior, see [Known Issues](/docs/troubleshooting/known-issues#keyring-cannot-be-accessed-automatic-fallback).
 
 ## Updating Configuration
 
