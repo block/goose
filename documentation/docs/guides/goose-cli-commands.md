@@ -720,7 +720,7 @@ You can customize the underlying syntax highlighting theme used for code blocks 
 - `GOOSE_CLI_LIGHT_THEME` - Theme used when in light mode (default: "GitHub")
 - `GOOSE_CLI_DARK_THEME` - Theme used when in dark mode (default: "zenburn")
 
-These accept any [bat theme name](https://github.com/sharkdp/bat/blob/master/doc/themes.md). Popular options include "Dracula", "Nord", "Solarized (light)", "Solarized (dark)", "OneHalfDark", and "Monokai Extended".
+These accept any [bat theme name](https://github.com/sharkdp/bat#adding-new-themes). Popular options include "Dracula", "Nord", "Solarized (light)", "Solarized (dark)", "OneHalfDark", and "Monokai Extended". Run `bat --list-themes` to see all available themes.
 
 :::info
 Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
