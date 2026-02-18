@@ -51,7 +51,6 @@ export default function ChatSessionsContainer({
               setChat={setChat}
               sessionId={session.sessionId}
               initialMessage={session.initialMessage}
-              suppressEmptyState={false}
               isActiveSession={isVisible}
             />
           </div>
