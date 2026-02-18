@@ -28,10 +28,13 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
 } from '../ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Gear } from '../icons';
@@ -881,9 +884,18 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     });
   };
 
+  const { state: sidebarState } = useSidebar();
+  const isCollapsedSidebar = sidebarState === 'collapsed';
+
   return (
     <>
-      <SidebarContent className="pt-12">
+      <SidebarHeader className="flex flex-row items-center gap-1 px-2 py-2">
+        <SidebarTrigger className="hover:bg-background-medium/50" />
+        {!isCollapsedSidebar && (
+          <span className="text-sm font-semibold text-text-default truncate flex-1">Goose</span>
+        )}
+      </SidebarHeader>
+      <SidebarContent>
         <SidebarMenu>
           {/* Home + Chat Zone */}
           <SidebarGroup className="px-2">
