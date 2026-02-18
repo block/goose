@@ -122,3 +122,107 @@ impl Settings {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_settings_have_expected_values() {
+        let settings = Settings::default();
+        assert!(settings.show_menu_bar_icon);
+        assert!(settings.show_dock_icon);
+        assert!(!settings.enable_wakelock);
+        assert!(settings.spellcheck_enabled);
+        assert!(settings.external_goosed.is_none());
+        assert!(settings.global_shortcut.is_none());
+        assert!(settings.keyboard_shortcuts.is_some());
+    }
+
+    #[test]
+    fn default_keyboard_shortcuts() {
+        let shortcuts = KeyboardShortcuts::default();
+        assert_eq!(shortcuts.focus_window, Some("CmdOrCtrl+Alt+G".to_string()));
+        assert_eq!(shortcuts.quick_launcher, Some("CmdOrCtrl+Alt+Shift+G".to_string()));
+        assert_eq!(shortcuts.new_chat, Some("CmdOrCtrl+T".to_string()));
+        assert_eq!(shortcuts.new_chat_window, Some("CmdOrCtrl+N".to_string()));
+        assert_eq!(shortcuts.open_directory, Some("CmdOrCtrl+O".to_string()));
+        assert_eq!(shortcuts.settings, Some("CmdOrCtrl+,".to_string()));
+    }
+
+    #[test]
+    fn settings_serialize_deserialize_roundtrip() {
+        let settings = Settings::default();
+        let json = serde_json::to_string(&settings).expect("serialize");
+        let deserialized: Settings = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(settings.show_menu_bar_icon, deserialized.show_menu_bar_icon);
+        assert_eq!(settings.show_dock_icon, deserialized.show_dock_icon);
+        assert_eq!(settings.enable_wakelock, deserialized.enable_wakelock);
+        assert_eq!(settings.spellcheck_enabled, deserialized.spellcheck_enabled);
+    }
+
+    #[test]
+    fn settings_deserialize_with_missing_fields_uses_defaults() {
+        let json = r#"{}"#;
+        let settings: Settings = serde_json::from_str(json).expect("deserialize");
+        assert!(settings.show_menu_bar_icon);
+        assert!(settings.show_dock_icon);
+        assert!(!settings.enable_wakelock);
+        assert!(settings.spellcheck_enabled);
+    }
+
+    #[test]
+    fn settings_camel_case_serialization() {
+        let settings = Settings::default();
+        let json = serde_json::to_string(&settings).expect("serialize");
+        assert!(json.contains("showMenuBarIcon"));
+        assert!(json.contains("showDockIcon"));
+        assert!(json.contains("enableWakelock"));
+        assert!(json.contains("spellcheckEnabled"));
+    }
+
+    #[test]
+    fn external_goosed_config_roundtrip() {
+        let config = ExternalGoosedConfig {
+            enabled: true,
+            url: "http://localhost:3000".to_string(),
+            secret: "my-secret".to_string(),
+        };
+        let json = serde_json::to_string(&config).expect("serialize");
+        let deserialized: ExternalGoosedConfig = serde_json::from_str(&json).expect("deserialize");
+        assert!(deserialized.enabled);
+        assert_eq!(deserialized.url, "http://localhost:3000");
+        assert_eq!(deserialized.secret, "my-secret");
+    }
+
+    #[test]
+    fn settings_save_and_load_from_temp_dir() {
+        use std::env;
+        let tmp = env::temp_dir().join("goose-test-settings");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+
+        let settings_file = tmp.join("settings.json");
+        let settings = Settings {
+            show_menu_bar_icon: false,
+            show_dock_icon: false,
+            enable_wakelock: true,
+            spellcheck_enabled: false,
+            external_goosed: None,
+            global_shortcut: Some("CmdOrCtrl+G".to_string()),
+            keyboard_shortcuts: None,
+        };
+        let content = serde_json::to_string_pretty(&settings).expect("serialize");
+        fs::write(&settings_file, &content).expect("write");
+
+        let loaded_content = fs::read_to_string(&settings_file).expect("read");
+        let loaded: Settings = serde_json::from_str(&loaded_content).expect("deserialize");
+        assert!(!loaded.show_menu_bar_icon);
+        assert!(!loaded.show_dock_icon);
+        assert!(loaded.enable_wakelock);
+        assert!(!loaded.spellcheck_enabled);
+        assert_eq!(loaded.global_shortcut, Some("CmdOrCtrl+G".to_string()));
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
