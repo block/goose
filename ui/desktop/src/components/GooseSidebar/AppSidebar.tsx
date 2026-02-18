@@ -1,5 +1,6 @@
 import { AppEvents } from '../../constants/events';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
+import * as Popover from '@radix-ui/react-popover';
 import {
   Activity,
   AppWindow,
@@ -569,7 +570,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
   const { addRecentDir, recentDirs } = useProjectPreferences();
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
-  const projectDropdownRef = useRef<HTMLButtonElement>(null);
   // This handles the case where a session is loaded from history that's older than the top 10
   useEffect(() => {
     if (!activeSessionId) return;
@@ -855,17 +855,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     navigate('/sessions');
   }, [navigate]);
 
-  useEffect(() => {
-    if (!projectDropdownOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
-        setProjectDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [projectDropdownOpen]);
-
   const handleOpenProjectFromDir = React.useCallback(
     async (dir: string) => {
       setProjectDropdownOpen(false);
@@ -921,47 +910,51 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   <Home className="w-4 h-4" />
                   <span>New Chat</span>
                 </SidebarMenuButton>
-                <SidebarMenuAction
-                  ref={projectDropdownRef}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setProjectDropdownOpen((prev) => !prev);
-                  }}
-                  aria-label="Open project"
-                  title="Open project in new session"
-                  className="cursor-pointer text-text-muted hover:text-text-default"
-                >
-                  <FolderPlus className="w-3.5 h-3.5" />
-                </SidebarMenuAction>
-                {projectDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-56 z-50 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden group-data-[collapsible=icon]:hidden">
-                    <button
-                      onClick={handleBrowseForProject}
-                      className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
+                <Popover.Root open={projectDropdownOpen} onOpenChange={setProjectDropdownOpen}>
+                  <Popover.Trigger asChild>
+                    <SidebarMenuAction
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Open project"
+                      className="cursor-pointer text-text-muted hover:text-text-default"
                     >
-                      <FolderPlus className="w-4 h-4 text-text-accent" />
-                      <span>Browse...</span>
-                    </button>
-                    {recentDirs.length > 0 && (
-                      <div className="max-h-48 overflow-y-auto">
-                        <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
-                          Recent Projects
+                      <FolderPlus className="w-3.5 h-3.5" />
+                    </SidebarMenuAction>
+                  </Popover.Trigger>
+                  <Popover.Portal>
+                    <Popover.Content
+                      side="right"
+                      align="start"
+                      sideOffset={8}
+                      className="z-[60] w-56 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95 data-[side=right]:slide-in-from-left-2"
+                    >
+                      <button
+                        onClick={handleBrowseForProject}
+                        className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
+                      >
+                        <FolderPlus className="w-4 h-4 text-text-accent" />
+                        <span>Browse...</span>
+                      </button>
+                      {recentDirs.length > 0 && (
+                        <div className="max-h-48 overflow-y-auto">
+                          <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
+                            Recent Projects
+                          </div>
+                          {recentDirs.map((dir) => (
+                            <button
+                              key={dir}
+                              onClick={() => handleOpenProjectFromDir(dir)}
+                              className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
+                              title={dir}
+                            >
+                              <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="truncate">{dir.split('/').pop() || dir}</span>
+                            </button>
+                          ))}
                         </div>
-                        {recentDirs.map((dir) => (
-                          <button
-                            key={dir}
-                            onClick={() => handleOpenProjectFromDir(dir)}
-                            className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
-                            title={dir}
-                          >
-                            <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate">{dir.split('/').pop() || dir}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </Popover.Content>
+                  </Popover.Portal>
+                </Popover.Root>
               </SidebarMenuItem>
 
               {/* Session list with project groups (General first) */}
