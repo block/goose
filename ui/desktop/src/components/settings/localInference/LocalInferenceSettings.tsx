@@ -44,11 +44,11 @@ export const LocalInferenceSettings = () => {
     try {
       const response = await listLocalModels();
       if (response.data) {
-        const featured = response.data.filter((m): m is LocalModelResponse => 'tier' in m);
-        setFeaturedModels(featured);
+        // All models from the API are featured or downloaded
+        setFeaturedModels(response.data);
 
         // Start polling for any models that are already downloading
-        featured.forEach((model) => {
+        response.data.forEach((model) => {
           if (model.status.state === 'Downloading') {
             const status = model.status;
             setDownloads((prev) => {
@@ -218,8 +218,10 @@ export const LocalInferenceSettings = () => {
   const notDownloadedModels = featuredModels.filter(
     (m) => !isDownloaded(m) && !isDownloading(m.id)
   );
-  const displayedFeatured = showAllFeatured ? notDownloadedModels : notDownloadedModels.slice(0, 2);
-  const showFeaturedToggle = notDownloadedModels.length > 2;
+  // In collapsed state, only show recommended models; expanded shows all
+  const recommendedModels = notDownloadedModels.filter((m) => m.recommended);
+  const displayedFeatured = showAllFeatured ? notDownloadedModels : recommendedModels;
+  const showFeaturedToggle = notDownloadedModels.length > recommendedModels.length;
 
   return (
     <div className="space-y-4">
