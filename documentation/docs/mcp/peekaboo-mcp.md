@@ -1,32 +1,48 @@
 ---
 title: Peekaboo Extension
-description: Use Peekaboo for enhanced macOS screen capture and GUI automation with Goose
+description: Use Peekaboo for macOS screen capture and GUI automation with Goose
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The Peekaboo extension brings high-fidelity screen capture, UI element discovery, and native GUI automation to Goose on macOS. It complements the built-in Computer Controller extension by providing pixel-accurate annotated screenshots, accessibility-based element targeting, and direct interaction tools.
+The Peekaboo extension provides macOS GUI automation through annotated screenshots and element targeting. It enables a **see → click → type** workflow for visual UI interaction.
 
 :::info macOS Only
 Peekaboo requires **macOS 15+ (Sequoia)** with Screen Recording and Accessibility permissions. It is not available on Linux or Windows.
 :::
 
-## Why Peekaboo?
-
-While Goose's built-in `screen_capture` tool provides basic screenshots, Peekaboo enables a powerful **see → click → type** workflow:
+## How It Works
 
 1. **`peekaboo_see`** — captures an annotated screenshot showing all UI elements with IDs (B1=button, T2=text field, L3=link)
 2. **`peekaboo_click`** — clicks on elements by their ID from the `see` output
 3. **`peekaboo_type`** — types text into the focused field
 
-This is far more reliable than AppleScript UI scripting for visual interaction tasks.
+Additional tools:
+- **`peekaboo_hotkey`** — press keyboard shortcuts (e.g., cmd+c, cmd+shift+t)
+- **`peekaboo_app`** — launch, quit, switch, or list applications
 
-## Install Peekaboo
+## Setup
 
-```bash
-brew install steipete/tap/peekaboo
-```
+Enable the Peekaboo extension — Goose will **auto-install Peekaboo via Homebrew** on first use if it's not already installed.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="Goose Desktop" default>
+
+  1. Open Goose Desktop Settings
+  2. Go to **Extensions**
+  3. Enable **Peekaboo**
+
+  </TabItem>
+  <TabItem value="cli" label="Goose CLI">
+
+  ```sh
+  goose configure
+  # → Toggle Extensions → Enable peekaboo
+  ```
+
+  </TabItem>
+</Tabs>
 
 Grant permissions when prompted:
 - **Screen Recording** — required for screenshots
@@ -37,39 +53,20 @@ Check permission status:
 peekaboo permissions status
 ```
 
-## Built-in Integration
+To install manually instead of auto-install:
+```bash
+brew install steipete/tap/peekaboo
+```
 
-When Peekaboo is installed (`peekaboo` on PATH), the **Computer Controller** extension automatically gains Peekaboo tools:
+## Tools
 
 | Tool | Description |
 |------|-------------|
 | `peekaboo_see` | Capture annotated screenshot with UI element IDs |
-| `peekaboo_click` | Click elements by ID, label, or coordinates |
+| `peekaboo_click` | Click elements by ID or coordinates |
 | `peekaboo_type` | Type text into focused elements |
 | `peekaboo_app` | Launch, quit, switch, or list applications |
 | `peekaboo_hotkey` | Press keyboard shortcuts (e.g., cmd+c, cmd+shift+t) |
-
-These tools appear alongside the existing Computer Controller tools. No additional configuration needed — just install Peekaboo and enable the Computer Controller extension.
-
-### Enable Computer Controller
-
-<Tabs groupId="interface">
-  <TabItem value="ui" label="Goose Desktop" default>
-
-  1. Open Goose Desktop Settings
-  2. Go to **Extensions**
-  3. Enable **Computer Controller**
-
-  </TabItem>
-  <TabItem value="cli" label="Goose CLI">
-
-  ```sh
-  goose configure
-  # → Toggle Extensions → Enable computercontroller
-  ```
-
-  </TabItem>
-</Tabs>
 
 ## Example Usage
 
@@ -98,17 +95,9 @@ Goose will:
 2. Use `peekaboo_hotkey` with `"cmd,n"` for new note
 3. Use `peekaboo_type` to enter the shopping list
 
-### Keyboard Shortcuts
-
-```
-Copy the selected text and paste it into a new Terminal window
-```
-
-Goose will use `peekaboo_hotkey` for cmd+c, then `peekaboo_app` to switch to Terminal, and `peekaboo_hotkey` for cmd+v.
-
 ## Alternative: Peekaboo as External MCP Server
 
-For access to the **full Peekaboo tool set** (20+ tools including window management, menu interaction, scrolling, dragging, etc.), you can also run Peekaboo as a standalone MCP server:
+For access to the **full Peekaboo tool set** (20+ tools including window management, menu interaction, scrolling, dragging, etc.), you can run Peekaboo as a standalone MCP server instead:
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="Goose Desktop" default>
@@ -142,26 +131,7 @@ For access to the **full Peekaboo tool set** (20+ tools including window managem
   </TabItem>
 </Tabs>
 
-This gives access to additional tools like `window` (move/resize), `menu` (click menus), `scroll`, `drag`, `dock`, `dialog`, `space`, and more.
-
-## Using with Computer Controller
-
-Peekaboo tools work alongside the existing Computer Controller tools:
-
-- **Peekaboo tools** (`peekaboo_see`, `peekaboo_click`, `peekaboo_type`) — best for visual UI interaction: clicking buttons, filling forms, reading screen content
-- **`computer_control`** (AppleScript) — best for application scripting, system settings, and programmatic automation
-- **`automation_script`** (shell/Ruby) — best for file processing, data manipulation, CLI tasks
-
 ## Troubleshooting
-
-### Peekaboo Not Found
-```bash
-# Check if installed
-which peekaboo
-
-# Install
-brew install steipete/tap/peekaboo
-```
 
 ### Permission Issues
 ```bash
@@ -169,8 +139,15 @@ peekaboo permissions status
 peekaboo permissions grant
 ```
 
-### Tools Return "Peekaboo is not installed"
-The Peekaboo tools check for the `peekaboo` binary at runtime. Ensure it's on your PATH and restart Goose.
+### Auto-Install Failed
+If Homebrew is not available, install Peekaboo manually:
+```bash
+# Install Homebrew first if needed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Then install Peekaboo
+brew install steipete/tap/peekaboo
+```
 
 ## Learn More
 

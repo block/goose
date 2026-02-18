@@ -6,6 +6,8 @@ use goose::config::Config;
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
+#[cfg(target_os = "macos")]
+use goose_mcp::PeekabooServer;
 use goose_mcp::{
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
 };
@@ -979,6 +981,12 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
         McpCommand::Memory => serve(MemoryServer::new()).await?,
         McpCommand::Tutorial => serve(TutorialServer::new()).await?,
         McpCommand::Developer => serve(DeveloperServer::new()).await?,
+        #[cfg(target_os = "macos")]
+        McpCommand::Peekaboo => serve(PeekabooServer::new()).await?,
+        #[cfg(not(target_os = "macos"))]
+        McpCommand::Peekaboo => {
+            anyhow::bail!("Peekaboo is only available on macOS");
+        }
     }
     Ok(())
 }

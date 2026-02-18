@@ -980,6 +980,11 @@ fn configure_builtin_extension() -> anyhow::Result<()> {
             "Tutorial",
             "Access interactive tutorials and guides",
         ),
+        (
+            "peekaboo",
+            "Peekaboo",
+            "macOS UI automation via annotated screenshots (auto-installs via Homebrew)",
+        ),
     ];
 
     let mut select = cliclack::select("Which built-in extension would you like to enable?");

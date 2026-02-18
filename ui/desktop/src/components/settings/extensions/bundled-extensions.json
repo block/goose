@@ -52,5 +52,16 @@
     "type": "builtin",
     "env_keys": [],
     "bundled": true
+  },
+  {
+    "id": "peekaboo",
+    "name": "peekaboo",
+    "display_name": "Peekaboo",
+    "description": "macOS UI automation — see, click, and type through annotated screenshots. Auto-installs via Homebrew on first use.",
+    "enabled": false,
+    "type": "builtin",
+    "env_keys": [],
+    "timeout": 300,
+    "bundled": true
   }
 ]
