@@ -729,6 +729,10 @@ export type PermissionsMetadata = {
     microphone?: boolean;
 };
 
+export type PlanPromptResponse = {
+    prompt: string;
+};
+
 export type PrincipalType = 'Extension' | 'Tool';
 
 export type PromptContentResponse = {
@@ -750,6 +754,15 @@ export type ProviderDetails = {
 };
 
 export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
+
+export type ProviderInfoResponse = {
+    contextLimit: number;
+    inputTokens?: number | null;
+    modelName: string;
+    outputTokens?: number | null;
+    providerName: string;
+    totalTokens?: number | null;
+};
 
 /**
  * Metadata about a provider's configuration requirements and capabilities
@@ -1066,6 +1079,10 @@ export type SessionDisplayInfo = {
 
 export type SessionExtensionsResponse = {
     extensions: Array<ExtensionConfig>;
+};
+
+export type SessionIdQuery = {
+    session_id: string;
 };
 
 export type SessionInsights = {
@@ -1616,6 +1633,82 @@ export type ListAppsResponses = {
 };
 
 export type ListAppsResponse2 = ListAppsResponses[keyof ListAppsResponses];
+
+export type GetPlanPromptData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Required session ID to build a plan prompt
+         */
+        session_id: string;
+    };
+    url: '/agent/plan_prompt';
+};
+
+export type GetPlanPromptErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetPlanPromptError = GetPlanPromptErrors[keyof GetPlanPromptErrors];
+
+export type GetPlanPromptResponses = {
+    /**
+     * Plan prompt retrieved successfully
+     */
+    200: PlanPromptResponse;
+};
+
+export type GetPlanPromptResponse = GetPlanPromptResponses[keyof GetPlanPromptResponses];
+
+export type GetProviderInfoData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * Required session ID to scope provider info to a specific session
+         */
+        session_id: string;
+    };
+    url: '/agent/provider_info';
+};
+
+export type GetProviderInfoErrors = {
+    /**
+     * Unauthorized - invalid secret key
+     */
+    401: unknown;
+    /**
+     * Agent not initialized
+     */
+    424: unknown;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type GetProviderInfoError = GetProviderInfoErrors[keyof GetProviderInfoErrors];
+
+export type GetProviderInfoResponses = {
+    /**
+     * Provider info retrieved successfully
+     */
+    200: ProviderInfoResponse;
+};
+
+export type GetProviderInfoResponse = GetProviderInfoResponses[keyof GetProviderInfoResponses];
 
 export type ReadResourceData = {
     body: ReadResourceRequest;
@@ -3679,6 +3772,42 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
+
+export type ClearSessionData = {
+    body?: never;
+    path: {
+        /**
+         * Unique identifier for the session
+         */
+        session_id: string;
+    };
+    query?: never;
+    url: '/sessions/{session_id}/clear';
+};
+
+export type ClearSessionErrors = {
+    /**
+     * Unauthorized - Invalid or missing API key
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: ErrorResponse;
+    /**
+     * Internal server error
+     */
+    500: ErrorResponse;
+};
+
+export type ClearSessionError = ClearSessionErrors[keyof ClearSessionErrors];
+
+export type ClearSessionResponses = {
+    /**
+     * Session cleared successfully
+     */
+    200: unknown;
+};
 
 export type ExportSessionData = {
     body?: never;

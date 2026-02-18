@@ -295,6 +295,100 @@
         ]
       }
     },
+    "/agent/plan_prompt": {
+      "get": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "get_plan_prompt",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "description": "Required session ID to build a plan prompt",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan prompt retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanPromptResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/provider_info": {
+      "get": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "get_provider_info",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "description": "Required session ID to scope provider info to a specific session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider info retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderInfoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/agent/read_resource": {
       "post": {
         "tags": [
@@ -2905,6 +2999,58 @@
         ]
       }
     },
+    "/sessions/{session_id}/clear": {
+      "post": {
+        "tags": [
+          "Session Management"
+        ],
+        "operationId": "clear_session",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "description": "Unique identifier for the session",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session cleared successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing API key"
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
     "/sessions/{session_id}/export": {
       "get": {
         "tags": [
@@ -5480,6 +5626,17 @@
           }
         }
       },
+      "PlanPromptResponse": {
+        "type": "object",
+        "required": [
+          "prompt"
+        ],
+        "properties": {
+          "prompt": {
+            "type": "string"
+          }
+        }
+      },
       "PrincipalType": {
         "type": "string",
         "enum": [
@@ -5554,6 +5711,41 @@
           "ollama",
           "anthropic"
         ]
+      },
+      "ProviderInfoResponse": {
+        "type": "object",
+        "required": [
+          "providerName",
+          "modelName",
+          "contextLimit"
+        ],
+        "properties": {
+          "contextLimit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "modelName": {
+            "type": "string"
+          },
+          "outputTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
       },
       "ProviderMetadata": {
         "type": "object",
@@ -6495,6 +6687,17 @@
             "items": {
               "$ref": "#/components/schemas/ExtensionConfig"
             }
+          }
+        }
+      },
+      "SessionIdQuery": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
           }
         }
       },
