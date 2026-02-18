@@ -240,6 +240,13 @@ export default function McpAppRenderer({
   cachedHtml,
   onDisplayModeChange,
 }: McpAppRendererProps) {
+  // Stable view-transition-name per instance so the View Transitions API can animate
+  // the app container between inline ↔ pip ↔ fullscreen DOM positions.
+  const viewTransitionName = useMemo(
+    () => `mcp-app-${resourceUri.replace(/[^a-zA-Z0-9]/g, '-')}`,
+    [resourceUri]
+  );
+
   // Internal display mode — starts matching the prop, but can be changed by host-side controls.
   // Standalone mode is externally controlled (dedicated Electron window) and cannot be toggled.
   const [activeDisplayMode, setActiveDisplayMode] = useState<GooseDisplayMode>(displayMode);
@@ -253,8 +260,15 @@ export default function McpAppRenderer({
 
   const changeDisplayMode = useCallback(
     (mode: GooseDisplayMode) => {
-      setActiveDisplayMode(mode);
-      onDisplayModeChange?.(mode);
+      if (document.startViewTransition) {
+        document.startViewTransition(() => {
+          setActiveDisplayMode(mode);
+          onDisplayModeChange?.(mode);
+        });
+      } else {
+        setActiveDisplayMode(mode);
+        onDisplayModeChange?.(mode);
+      }
     },
     [onDisplayModeChange]
   );
@@ -786,7 +800,11 @@ export default function McpAppRenderer({
   if (activeDisplayMode === 'fullscreen') {
     return (
       <div className="fixed inset-0 z-[1000] bg-background-default">
-        <div ref={containerRef} className="h-full w-full overflow-hidden [&_iframe]:!w-full">
+        <div
+          ref={containerRef}
+          className="h-full w-full overflow-hidden [&_iframe]:!w-full"
+          style={{ viewTransitionName }}
+        >
           {appContent}
         </div>
       </div>
@@ -813,6 +831,7 @@ export default function McpAppRenderer({
         <div
           className="fixed z-[900] overflow-hidden rounded-xl border border-border-default bg-background-default shadow-2xl [&_iframe]:!w-full"
           style={{
+            viewTransitionName,
             width: `${PIP_WIDTH}px`,
             height: `${PIP_HEIGHT}px`,
             right: `${16 - pipPosition.x}px`,
@@ -848,7 +867,7 @@ export default function McpAppRenderer({
     <div
       ref={containerRef}
       className={inlineClasses}
-      style={{ width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
+      style={{ viewTransitionName, width: '100%', height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px` }}
     >
       {appContent}
     </div>
