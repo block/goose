@@ -7,7 +7,6 @@
   "types": "./src/index.ts",
   "scripts": {
     "generate": "tsx generate-schema.ts",
-    "generate:skip-build": "tsx generate-schema.ts --skip-build",
     "lint": "tsc --noEmit",
     "format": "prettier --write src/"
   },

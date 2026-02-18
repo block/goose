@@ -4,7 +4,6 @@
  *
  * Usage:
  *   npm run generate              # build Rust schema, then generate TS
- *   npm run generate:skip-build   # use existing schema files
  */
 
 import { createClient } from "@hey-api/openapi-ts";
@@ -27,27 +26,6 @@ main().catch((err) => {
 });
 
 async function main() {
-  // 1. Optionally rebuild the schema from Rust
-  if (!process.argv.includes("--skip-build")) {
-    console.log("Building Goose extension schema from Rust...");
-    try {
-      execSync(
-        "source bin/activate-hermit && cargo run -p goose-acp --bin generate-acp-schema",
-        {
-          cwd: ROOT,
-          stdio: "inherit",
-          shell: "/bin/zsh",
-        },
-      );
-    } catch {
-      console.error(
-        "Failed to build schema. Run with --skip-build to use existing files.",
-      );
-      process.exit(1);
-    }
-  }
-
-  // 2. Read the JSON schema and metadata
   const schemaSrc = await fs.readFile(SCHEMA_PATH, "utf8");
   const jsonSchema = JSON.parse(
     // Convert JSON Schema $defs refs to OpenAPI component refs
@@ -57,7 +35,6 @@ async function main() {
   const metaSrc = await fs.readFile(META_PATH, "utf8");
   const meta = JSON.parse(metaSrc);
 
-  // 3. Generate TypeScript types + Zod validators via @hey-api/openapi-ts
   await createClient({
     input: {
       openapi: "3.1.0",
@@ -75,11 +52,9 @@ async function main() {
     plugins: ["zod", "@hey-api/typescript"],
   });
 
-  // 4. Post-process generated files
   await postProcessTypes();
   await postProcessIndex(meta);
 
-  // 5. Generate typed client wrapper
   await generateClient(meta);
 
   console.log(`\nGenerated Goose extension schema in ${OUTPUT_DIR}`);
