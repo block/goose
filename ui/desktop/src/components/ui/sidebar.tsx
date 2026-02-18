@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { VariantProps, cva } from 'class-variance-authority';
-import { Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
 import { cn } from '../../utils';
 import { Button } from './button';
@@ -17,7 +17,7 @@ import { useIsMobile } from '../../hooks/use-mobile';
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 const SIDEBAR_WIDTH = '12rem';
-const SIDEBAR_WIDTH_MOBILE = 'fit-content';
+const SIDEBAR_WIDTH_MOBILE = '280px';
 const SIDEBAR_WIDTH_ICON = '38px';
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
 
@@ -173,7 +173,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) px-4 py-0 [&>button]:hidden !w-fit !max-w-none"
+          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) px-4 py-0 [&>button]:hidden"
           style={
             {
               '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
@@ -204,7 +204,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-300 ease-out will-change-[width]',
+          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width]',
           'group-data-[collapsible=offcanvas]:w-0',
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
@@ -215,7 +215,7 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-transform duration-300 ease-out will-change-transform md:flex',
+          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform md:flex',
           side === 'left'
             ? 'left-0 group-data-[collapsible=offcanvas]:translate-x-[-100%]'
             : 'right-0 group-data-[collapsible=offcanvas]:translate-x-[100%]',
@@ -238,55 +238,41 @@ function Sidebar({
           {children}
         </div>
         {/* Side strip — thin clickable edge to fold/unfold */}
-        <SidebarToggleStrip />
+        <SidebarToggleButton />
       </div>
     </div>
   );
 }
 
 
-function SidebarToggleStrip() {
+function SidebarToggleButton() {
   const { toggleSidebar, state } = useSidebar();
   const isCollapsed = state === 'collapsed';
 
   return (
-    <div
-      data-sidebar="toggle-strip"
-      role="button"
-      tabIndex={0}
+    <button
+      data-sidebar="toggle-button"
       aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       aria-expanded={!isCollapsed}
       onClick={toggleSidebar}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggleSidebar();
-        }
-      }}
       className={cn(
-        'group/sidebar-strip absolute top-0 right-0 z-20 h-full',
-        'w-[6px] cursor-pointer select-none',
+        'absolute top-1/2 -translate-y-1/2 z-20',
+        'flex items-center justify-center',
+        'size-6 rounded-full',
+        'border border-border-default bg-background shadow-sm',
+        'text-text-muted hover:text-text-default hover:bg-background-muted',
         'transition-all duration-200',
-        'bg-border-default/40',
-        'hover:w-[8px] hover:bg-border-strong/70',
-        'active:bg-border-strong',
+        'cursor-pointer',
+        'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none',
+        isCollapsed ? '-right-3' : '-right-3',
       )}
     >
-      {/* Chevron indicator — visible on hover */}
-      <div
-        className={cn(
-          'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
-          'flex items-center justify-center',
-          'w-[16px] h-[28px] rounded-full',
-          'text-[11px] leading-none select-none pointer-events-none',
-          'transition-all duration-200',
-          'text-transparent',
-          'group-hover/sidebar-strip:text-text-muted group-hover/sidebar-strip:bg-background-muted',
-        )}
-      >
-        {isCollapsed ? '›' : '‹'}
-      </div>
-    </div>
+      {isCollapsed ? (
+        <ChevronRight className="size-3.5" />
+      ) : (
+        <ChevronLeft className="size-3.5" />
+      )}
+    </button>
   );
 }
 
@@ -349,7 +335,7 @@ function SidebarInset({ className, ...props }: React.ComponentProps<'main'>) {
         'md:peer-data-[collapsible=offcanvas]:peer-data-[state=expanded]:ml-[var(--sidebar-width)]',
         'md:peer-data-[collapsible=offcanvas]:peer-data-[state=collapsed]:ml-0',
         // Smooth transition when sidebar state changes
-        'transition-[margin-left] duration-300 ease-out',
+        'transition-[margin-left] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
         className
       )}
       {...props}
@@ -407,7 +393,9 @@ function SidebarContent({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        'flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden group-data-[collapsible=icon]:overflow-hidden sidebar-scrollbar',
+        'relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden group-data-[collapsible=icon]:overflow-hidden sidebar-scrollbar',
+        'before:pointer-events-none before:sticky before:top-0 before:z-10 before:block before:h-4 before:-mb-4 before:bg-gradient-to-b before:from-sidebar before:to-transparent',
+        'after:pointer-events-none after:sticky after:bottom-0 after:z-10 after:block after:h-4 after:-mt-4 after:bg-gradient-to-t after:from-sidebar after:to-transparent',
         className
       )}
       {...props}
@@ -504,7 +492,7 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<'li'>) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2! group-data-[collapsible=icon]:pr-0! group-data-[collapsible=icon]:[&>span]:hidden',
+  'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-data-[sidebar=menu-action]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-2! group-data-[collapsible=icon]:pr-0! group-data-[collapsible=icon]:[&>span]:hidden group-data-[collapsible=icon]:relative group-data-[collapsible=icon]:data-[active=true]:before:absolute group-data-[collapsible=icon]:data-[active=true]:before:left-0 group-data-[collapsible=icon]:data-[active=true]:before:top-1 group-data-[collapsible=icon]:data-[active=true]:before:bottom-1 group-data-[collapsible=icon]:data-[active=true]:before:w-[3px] group-data-[collapsible=icon]:data-[active=true]:before:rounded-full group-data-[collapsible=icon]:data-[active=true]:before:bg-accent',
   {
     variants: {
       variant: {
@@ -560,6 +548,7 @@ function SidebarMenuButton({
       data-sidebar="menu-button"
       data-size={size}
       data-active={isActive}
+      aria-current={isActive ? 'page' : undefined}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
       onClick={handleClick}
       {...props}
