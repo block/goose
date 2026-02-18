@@ -460,9 +460,7 @@ mod tests {
 
     #[test]
     fn test_extract_client_ip_fallback() {
-        let request = Request::builder()
-            .body(axum::body::Body::empty())
-            .unwrap();
+        let request = Request::builder().body(axum::body::Body::empty()).unwrap();
         let ip = extract_client_ip(&request);
         assert_eq!(ip, IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
     }

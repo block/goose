@@ -1,10 +1,14 @@
 use anyhow::{anyhow, Result};
+use goose::config::Config;
 use goose::oidc::OidcProviderPreset;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
 use std::sync::Arc;
 use tokio::sync::oneshot;
+
+/// Keyring secret key for the CLI session token.
+const SESSION_TOKEN_SECRET_KEY: &str = "goose_session_token";
 
 /// OIDC authorization code flow for CLI login.
 ///
@@ -200,15 +204,6 @@ fn open_browser(url: &str) -> bool {
     }
 }
 
-// Token storage paths
-fn token_path() -> Result<std::path::PathBuf> {
-    let config_dir = dirs::config_dir()
-        .ok_or_else(|| anyhow!("Could not find config directory"))?
-        .join("goose");
-    std::fs::create_dir_all(&config_dir)?;
-    Ok(config_dir.join("session_token.json"))
-}
-
 #[derive(Serialize, Deserialize)]
 struct StoredToken {
     token: String,
@@ -220,6 +215,35 @@ struct StoredToken {
     server_url: Option<String>,
     #[serde(default)]
     secret_key: Option<String>,
+}
+
+/// Legacy token path for migration from plaintext JSON to keyring.
+fn legacy_token_path() -> Option<std::path::PathBuf> {
+    dirs::config_dir().map(|d| d.join("goose").join("session_token.json"))
+}
+
+/// Migrate from legacy `session_token.json` to keyring if the file exists.
+fn migrate_legacy_token() {
+    let Some(path) = legacy_token_path() else {
+        return;
+    };
+    if !path.exists() {
+        return;
+    }
+    let Ok(json) = std::fs::read_to_string(&path) else {
+        return;
+    };
+    let Ok(stored) = serde_json::from_str::<StoredToken>(&json) else {
+        // Corrupt file — remove it
+        let _ = std::fs::remove_file(&path);
+        return;
+    };
+
+    let config = Config::global();
+    if config.set_secret(SESSION_TOKEN_SECRET_KEY, &stored).is_ok() {
+        let _ = std::fs::remove_file(&path);
+        tracing::info!("migrated session token from session_token.json to keyring");
+    }
 }
 
 fn store_token(
@@ -243,16 +267,25 @@ fn store_token(
         secret_key: secret_key.map(|s| s.to_string()),
     };
 
-    let json = serde_json::to_string_pretty(&stored)?;
-    std::fs::write(token_path()?, json)?;
-    Ok(())
+    Config::global()
+        .set_secret(SESSION_TOKEN_SECRET_KEY, &stored)
+        .map_err(|e| anyhow!("failed to store session token: {}", e))
+}
+
+/// Load the stored token from keyring, deserialize it.
+fn load_stored_token() -> Option<StoredToken> {
+    // One-time migration from legacy plaintext file
+    migrate_legacy_token();
+
+    let config = Config::global();
+    config
+        .get_secret::<StoredToken>(SESSION_TOKEN_SECRET_KEY)
+        .ok()
 }
 
 /// Load the session token, auto-refreshing via OIDC if expired but a refresh_token is available.
 pub fn load_token() -> Option<String> {
-    let path = token_path().ok()?;
-    let json = std::fs::read_to_string(path).ok()?;
-    let stored: StoredToken = serde_json::from_str(&json).ok()?;
+    let stored = load_stored_token()?;
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -327,10 +360,17 @@ fn try_refresh_token(
 }
 
 fn clear_token() -> Result<()> {
-    let path = token_path()?;
-    if path.exists() {
-        std::fs::remove_file(path)?;
+    Config::global()
+        .delete_secret(SESSION_TOKEN_SECRET_KEY)
+        .map_err(|e| anyhow!("failed to clear session token: {}", e))?;
+
+    // Also clean up legacy file if it still exists
+    if let Some(path) = legacy_token_path() {
+        if path.exists() {
+            let _ = std::fs::remove_file(path);
+        }
     }
+
     Ok(())
 }
 
