@@ -646,7 +646,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension(config_clone, &session_id_clone)
+                        .add_extension_inner(config_clone, &session_id_clone)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -668,10 +668,40 @@ impl Agent {
             })
             .collect::<Vec<_>>();
 
-        futures::future::join_all(extension_futures).await
+        let results = futures::future::join_all(extension_futures).await;
+
+        // Persist once after all extensions are loaded
+        if results.iter().any(|r| r.success) {
+            if let Err(e) = self.persist_extension_state(&session_id).await {
+                warn!("Failed to persist extension state after bulk load: {}", e);
+            }
+        }
+
+        results
     }
 
     pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        session_id: &str,
+    ) -> ExtensionResult<()> {
+        self.add_extension_inner(extension, session_id).await?;
+
+        // Persist extension state after successful add
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
+
+        Ok(())
+    }
+
+    async fn add_extension_inner(
         &self,
         extension: ExtensionConfig,
         session_id: &str,
@@ -727,17 +757,6 @@ impl Agent {
                     .await?;
             }
         }
-
-        // Persist extension state after successful add
-        self.persist_extension_state(session_id)
-            .await
-            .map_err(|e| {
-                error!("Failed to persist extension state: {}", e);
-                crate::agents::extension::ExtensionError::SetupError(format!(
-                    "Failed to persist extension state: {}",
-                    e
-                ))
-            })?;
 
         Ok(())
     }
