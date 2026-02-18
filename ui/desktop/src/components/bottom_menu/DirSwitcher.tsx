@@ -3,6 +3,7 @@ import { FolderDot } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
 import { updateWorkingDir } from '../../api';
 import { toast } from 'react-toastify';
+import { AppEvents } from '../../constants/events';
 
 interface DirSwitcherProps {
   className: string;
@@ -51,6 +52,11 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
         await updateWorkingDir({
           body: { session_id: sessionId, working_dir: newDir },
         });
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.SESSION_WORKING_DIR_CHANGED, {
+            detail: { sessionId, workingDir: newDir },
+          })
+        );
       } catch (error) {
         console.error('[DirSwitcher] Failed to update working directory:', error);
         toast.error('Failed to update working directory');

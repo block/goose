@@ -707,16 +707,30 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       );
     };
 
+    const handleSessionWorkingDirChanged = (event: Event) => {
+      const { sessionId, workingDir } = (
+        event as CustomEvent<{ sessionId: string; workingDir: string }>
+      ).detail;
+      setRecentSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, working_dir: workingDir } : s))
+      );
+    };
+
     window.addEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
     window.addEventListener(AppEvents.SESSION_NEEDS_NAME_UPDATE, handleSessionNeedsNameUpdate);
     window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
     window.addEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
+    window.addEventListener(AppEvents.SESSION_WORKING_DIR_CHANGED, handleSessionWorkingDirChanged);
 
     return () => {
       window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionCreated);
       window.removeEventListener(AppEvents.SESSION_NEEDS_NAME_UPDATE, handleSessionNeedsNameUpdate);
       window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
       window.removeEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
+      window.removeEventListener(
+        AppEvents.SESSION_WORKING_DIR_CHANGED,
+        handleSessionWorkingDirChanged
+      );
       pollingTimeouts.forEach(clearTimeout);
       isPolling = false;
     };

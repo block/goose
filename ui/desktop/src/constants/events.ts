@@ -6,6 +6,7 @@ export enum AppEvents {
   SESSION_EXTENSIONS_LOADED = 'session-extensions-loaded',
   SESSION_DELETED = 'session-deleted',
   SESSION_RENAMED = 'session-renamed',
+  SESSION_WORKING_DIR_CHANGED = 'session-working-dir-changed',
   SESSION_FORKED = 'session-forked',
   SESSION_NEEDS_NAME_UPDATE = 'session-needs-name-update',
   SESSION_STATUS_UPDATE = 'session-status-update',
