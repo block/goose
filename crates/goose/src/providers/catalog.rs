@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use super::canonical::CanonicalModelRegistry;
 
-/// Provider metadata embedded in the binary (generated from models.dev)
 const PROVIDER_METADATA_JSON: &str = include_str!("canonical/data/provider_metadata.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -40,7 +40,6 @@ fn is_compatible_provider(npm: &str) -> bool {
     npm.contains("openai") || npm.contains("anthropic") || npm.contains("ollama")
 }
 
-/// Normalize provider names from models.dev to match goose provider names
 fn normalize_provider_name(provider: &str) -> &str {
     match provider {
         "llama" => "meta-llama",
@@ -434,7 +433,6 @@ fn process_model(
     Ok((model_name, canonical_model))
 }
 
-/// Collect provider metadata for the catalog (only SDK-compatible providers)
 fn collect_provider_metadata(
     providers_obj: &serde_json::Map<String, Value>,
 ) -> Vec<ProviderMetadata> {
@@ -455,7 +453,6 @@ fn collect_provider_metadata(
             .and_then(|v| v.as_str())
             .map(String::from);
 
-        // Catalog providers need an API URL to be useful
         if api.is_none() {
             continue;
         }
@@ -512,7 +509,6 @@ async fn build_canonical_models() -> Result<()> {
     let mut registry = CanonicalModelRegistry::new();
     let mut total_models = 0;
 
-    // Build canonical models from ALL providers in models.dev
     for (provider_key, provider_data) in providers_obj {
         let models = match provider_data.get("models").and_then(|v| v.as_object()) {
             Some(m) => m,
@@ -543,7 +539,6 @@ async fn build_canonical_models() -> Result<()> {
         output_path.display()
     );
 
-    // Collect provider metadata for the catalog (SDK-compatible providers only)
     println!("\n\nCollecting provider metadata from models.dev...");
     let provider_metadata_list = collect_provider_metadata(providers_obj);
 
