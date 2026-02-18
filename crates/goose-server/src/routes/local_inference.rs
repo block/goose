@@ -9,9 +9,9 @@ use axum::{
 use goose::config::paths::Paths;
 use goose::providers::local_inference::hf_models::{self, HfModelInfo};
 use goose::providers::local_inference::local_model_registry::{
-    display_name_from_repo, get_recommended_by_id, get_registry, is_recommended_model,
-    model_id_from_repo, LocalModelEntry, ModelSettings, ModelTier, RecommendedModel,
-    RECOMMENDED_MODELS,
+    display_name_from_repo, get_featured_by_id, get_registry, is_featured_model,
+    model_id_from_repo, LocalModelEntry, ModelSettings, ModelTier, FeaturedModel,
+    FEATURED_MODELS,
 };
 use goose::providers::local_inference::{available_inference_memory_bytes, InferenceRuntime};
 use serde::{Deserialize, Serialize};
@@ -71,12 +71,12 @@ fn convert_error(e: anyhow::Error) -> ErrorResponse {
 /// This is called on list_local_models to populate the registry with recommended models.
 async fn ensure_recommended_models_in_registry() -> Result<(), ErrorResponse> {
     // First pass: collect specs that need to be fetched (without holding lock across await)
-    let specs_to_fetch: Vec<&'static RecommendedModel> = {
+    let specs_to_fetch: Vec<&'static FeaturedModel> = {
         let registry = get_registry()
             .lock()
             .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
 
-        RECOMMENDED_MODELS
+        FEATURED_MODELS
             .iter()
             .filter(|rec| {
                 let parts: Vec<&str> = rec.spec.rsplitn(2, ':').collect();
@@ -117,7 +117,7 @@ async fn ensure_recommended_models_in_registry() -> Result<(), ErrorResponse> {
                         "https://huggingface.co/{}/resolve/main/{}",
                         repo_id, estimated_filename
                     );
-                    // Use the size from RECOMMENDED_MODELS as fallback
+                    // Use the size from FEATURED_MODELS as fallback
                     (estimated_filename, download_url, rec.size_bytes)
                 }
             };
@@ -163,7 +163,7 @@ fn recommend_model_id(runtime: &InferenceRuntime) -> Option<String> {
     for (tier, size) in model_sizes {
         if target_memory >= size {
             // Find a recommended model with this tier
-            for rec in RECOMMENDED_MODELS {
+            for rec in FEATURED_MODELS {
                 if rec.tier == tier {
                     let parts: Vec<&str> = rec.spec.rsplitn(2, ':').collect();
                     if parts.len() == 2 {
@@ -175,7 +175,7 @@ fn recommend_model_id(runtime: &InferenceRuntime) -> Option<String> {
     }
 
     // Default to smallest
-    RECOMMENDED_MODELS.first().map(|rec| {
+    FEATURED_MODELS.first().map(|rec| {
         let parts: Vec<&str> = rec.spec.rsplitn(2, ':').collect();
         if parts.len() == 2 {
             model_id_from_repo(parts[1], parts[0])
@@ -206,7 +206,7 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
     let mut models: Vec<LocalModelResponse> = Vec::new();
 
     for entry in registry.list_models() {
-        let is_recommended = is_recommended_model(&entry.id);
+        let is_recommended = is_featured_model(&entry.id);
         let goose_status = entry.download_status();
 
         // Convert from goose's ModelDownloadStatus to our local one
@@ -235,7 +235,7 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
         };
 
         // Get tier and context_limit from recommended info if available
-        let rec_info = get_recommended_by_id(&entry.id);
+        let rec_info = get_featured_by_id(&entry.id);
         let tier = rec_info.map(|r| r.tier);
         let context_limit = rec_info.map(|r| r.context_limit);
 
@@ -533,7 +533,7 @@ pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCo
     }
 
     // Remove from registry (unless it's a recommended model - just mark as not downloaded)
-    if !is_recommended_model(&model_id) {
+    if !is_featured_model(&model_id) {
         let mut registry = get_registry()
             .lock()
             .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;

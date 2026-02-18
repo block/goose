@@ -26,7 +26,6 @@ pub struct HfGgufFile {
 
 /// A quantization variant — groups sharded files into one logical entry.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-#[schema(as = HfQuantVariant)]
 pub struct HfQuantVariant {
     pub quantization: String,
     pub size_bytes: u64,

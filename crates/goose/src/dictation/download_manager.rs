@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use utoipa::ToSchema;
 
 fn partial_path_for(destination: &Path) -> PathBuf {
@@ -112,7 +112,6 @@ impl DownloadManager {
                 .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
 
             if downloads.contains_key(&model_id) {
-                warn!(model_id = %model_id, "Download already in progress");
                 anyhow::bail!("Download already in progress");
             }
 
@@ -144,9 +143,7 @@ impl DownloadManager {
 
         let destination_for_cleanup = destination.clone();
 
-        // Download in background task
         tokio::spawn(async move {
-            debug!(model_id = %model_id_clone, "Background download task started");
             match Self::download_file(&url_clone, &destination, &downloads, &model_id_clone).await {
                 Ok(_) => {
                     info!(model_id = %model_id_clone, "Download completed successfully");
@@ -157,14 +154,11 @@ impl DownloadManager {
                         }
                     }
 
-                    // Set config if provided
                     if let (Some(key), Some(value)) = (config_key, config_value) {
                         let _ = crate::config::Config::global().set_param(&key, value);
                     }
                 }
                 Err(e) => {
-                    error!(model_id = %model_id_clone, error = %e, "Download failed");
-                    // Clean up partial file on failure
                     let partial = partial_path_for(&destination_for_cleanup);
                     let _ = tokio::fs::remove_file(&partial).await;
 

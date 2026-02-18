@@ -93,7 +93,7 @@ impl Default for ModelSettings {
 
 /// Recommended models with their HuggingFace specs and metadata.
 /// Format: (spec, display_name, context_limit, tier)
-pub struct RecommendedModel {
+pub struct FeaturedModel {
     pub spec: &'static str,
     pub display_name: &'static str,
     pub context_limit: u32,
@@ -109,29 +109,29 @@ pub enum ModelTier {
     Large,
 }
 
-pub const RECOMMENDED_MODELS: &[RecommendedModel] = &[
-    RecommendedModel {
+pub const FEATURED_MODELS: &[FeaturedModel] = &[
+    FeaturedModel {
         spec: "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
         display_name: "Llama 3.2 1B",
         context_limit: 131072,
         tier: ModelTier::Tiny,
         size_bytes: 771_221_824, // ~771 MB
     },
-    RecommendedModel {
+    FeaturedModel {
         spec: "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
         display_name: "Llama 3.2 3B",
         context_limit: 131072,
         tier: ModelTier::Small,
         size_bytes: 2_019_377_696, // ~2.0 GB
     },
-    RecommendedModel {
+    FeaturedModel {
         spec: "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
         display_name: "Hermes 2 Pro 7B",
         context_limit: 4096,
         tier: ModelTier::Medium,
         size_bytes: 4_368_439_584, // ~4.4 GB
     },
-    RecommendedModel {
+    FeaturedModel {
         spec: "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
         display_name: "Mistral Small 24B",
         context_limit: 32768,
@@ -151,13 +151,13 @@ pub fn parse_model_spec(spec: &str) -> Option<(&str, &str)> {
 }
 
 /// Get the recommended model info for a spec
-pub fn get_recommended_info(spec: &str) -> Option<&'static RecommendedModel> {
-    RECOMMENDED_MODELS.iter().find(|m| m.spec == spec)
+pub fn get_featured_info(spec: &str) -> Option<&'static FeaturedModel> {
+    FEATURED_MODELS.iter().find(|m| m.spec == spec)
 }
 
 /// Check if a model ID corresponds to a recommended model
-pub fn is_recommended_model(model_id: &str) -> bool {
-    RECOMMENDED_MODELS.iter().any(|m| {
+pub fn is_featured_model(model_id: &str) -> bool {
+    FEATURED_MODELS.iter().any(|m| {
         if let Some((repo_id, quant)) = parse_model_spec(m.spec) {
             model_id_from_repo(repo_id, quant) == model_id
         } else {
@@ -167,8 +167,8 @@ pub fn is_recommended_model(model_id: &str) -> bool {
 }
 
 /// Get recommended model info by model_id
-pub fn get_recommended_by_id(model_id: &str) -> Option<&'static RecommendedModel> {
-    RECOMMENDED_MODELS.iter().find(|m| {
+pub fn get_featured_by_id(model_id: &str) -> Option<&'static FeaturedModel> {
+    FEATURED_MODELS.iter().find(|m| {
         if let Some((repo_id, quant)) = parse_model_spec(m.spec) {
             model_id_from_repo(repo_id, quant) == model_id
         } else {
