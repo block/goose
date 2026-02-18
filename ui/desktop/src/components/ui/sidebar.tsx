@@ -325,25 +325,25 @@ function SidebarDragHandle() {
           'absolute top-0 -right-[10px] h-full w-5 select-none',
           isDragging ? 'cursor-grabbing' : isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize'
         )}
-      />
-      {/* Protruding tab handle */}
-      <div
-        role="button"
-        tabIndex={-1}
-        aria-hidden="true"
-        onClick={toggleSidebar}
-        className={cn(
-          'absolute top-1/2 -translate-y-1/2 left-full',
-          'w-[18px] h-[44px] -ml-[6px]',
-          'border border-l-0 border-border-default rounded-r-lg',
-          'bg-background-default hover:bg-background-muted active:bg-background-active',
-          'flex items-center justify-center',
-          'shadow-sm hover:shadow-md transition-all duration-150',
-          isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize',
-          'text-text-muted hover:text-text-default text-xs'
-        )}
       >
-        {isCollapsed ? '›' : '‹'}
+        {/* Small protruding tab — visible on hover */}
+        <div
+          className={cn(
+            'absolute top-1/2 -translate-y-1/2 right-0',
+            'w-[14px] h-[32px]',
+            'border border-l-0 rounded-r-md',
+            'flex items-center justify-center',
+            'transition-all duration-150',
+            'text-[10px] leading-none select-none',
+            // Subtle by default, visible on hover
+            'border-transparent bg-transparent text-transparent',
+            'hover:border-border-default hover:bg-background-muted hover:text-text-muted',
+            'active:bg-background-active active:text-text-default',
+            isCollapsed ? 'cursor-e-resize' : 'cursor-w-resize',
+          )}
+        >
+          {isCollapsed ? '›' : '‹'}
+        </div>
       </div>
     </div>
   );
