@@ -109,7 +109,6 @@ function ApiKeyForm({
     setIsSubmitting(true);
     try {
       await providerConfigSubmitHandler(upsert, provider, toSubmit);
-      await upsert('GOOSE_PROVIDER', provider.name, false);
       onConfigured(provider.name);
     } catch (err) {
       onError(`Configuration failed: ${err instanceof Error ? err.message : String(err)}`);

@@ -1,25 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SwitchModelModal } from '../settings/models/subcomponents/SwitchModelModal';
-import { createNavigationHandler } from '../../utils/navigationUtils';
+import { useConfig } from '../ConfigContext';
+import { getProviderMetadata } from '../settings/models/modelInterface';
 import { Goose } from '../icons';
 import ProviderSelector from './ProviderSelector';
 
 export default function OnboardingPage({ onProviderSetup }: { onProviderSetup?: () => void }) {
   const navigate = useNavigate();
-  const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
+  const { upsert, getProviders } = useConfig();
 
-  const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
-  const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
 
-  const handleConfigured = (providerName: string) => {
-    setSwitchModelProvider(providerName);
-    setShowSwitchModelModal(true);
-  };
-
-  const handleModelSelected = () => {
-    setShowSwitchModelModal(false);
+  const handleConfigured = async (providerName: string) => {
+    const metadata = await getProviderMetadata(providerName, getProviders);
+    await upsert('GOOSE_PROVIDER', providerName, false);
+    await upsert('GOOSE_MODEL', metadata.default_model, false);
     onProviderSetup?.();
     navigate('/', { replace: true });
   };
@@ -56,17 +51,6 @@ export default function OnboardingPage({ onProviderSetup }: { onProviderSetup?: 
           </div>
         </div>
       </div>
-
-      {showSwitchModelModal && (
-        <SwitchModelModal
-          sessionId={null}
-          onClose={() => setShowSwitchModelModal(false)}
-          setView={setView}
-          onModelSelected={handleModelSelected}
-          initialProvider={switchModelProvider}
-          titleOverride="Choose Model"
-        />
-      )}
     </div>
   );
 }
