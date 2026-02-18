@@ -19,6 +19,153 @@ pub struct ValidatedClaims {
     pub groups: Vec<String>,
 }
 
+/// Well-known OIDC provider presets for easy CLI login.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OidcProviderPreset {
+    Google,
+    Azure,
+    GitHub,
+    GitLab,
+    Aws,
+    Auth0,
+    Okta,
+}
+
+impl OidcProviderPreset {
+    /// OIDC discovery base URL for this provider.
+    ///
+    /// For providers with tenant-specific URLs (Azure, Auth0, Okta, AWS, GitLab),
+    /// a `tenant` parameter customizes the URL. For single-tenant providers
+    /// (Google, GitHub), it's ignored.
+    pub fn discovery_url(&self, tenant: Option<&str>) -> String {
+        match self {
+            Self::Google => {
+                "https://accounts.google.com/.well-known/openid-configuration".to_string()
+            }
+            Self::Azure => {
+                let tid = tenant.unwrap_or("common");
+                format!("https://login.microsoftonline.com/{tid}/v2.0/.well-known/openid-configuration")
+            }
+            Self::GitHub => {
+                // GitHub OIDC (Actions tokens) — for user login, GitHub uses OAuth2 not OIDC
+                "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
+                    .to_string()
+            }
+            Self::GitLab => {
+                let host = tenant.unwrap_or("gitlab.com");
+                format!("https://{host}/.well-known/openid-configuration")
+            }
+            Self::Aws => {
+                // AWS Cognito — requires pool ID as tenant
+                let region_pool = tenant.unwrap_or("us-east-1_example");
+                let (region, _pool_id) = region_pool.split_once('_').unwrap_or((region_pool, ""));
+                format!("https://cognito-idp.{region}.amazonaws.com/{region_pool}/.well-known/openid-configuration")
+            }
+            Self::Auth0 => {
+                let domain = tenant.unwrap_or("dev-example.auth0.com");
+                format!("https://{domain}/.well-known/openid-configuration")
+            }
+            Self::Okta => {
+                let domain = tenant.unwrap_or("dev-example.okta.com");
+                format!("https://{domain}/.well-known/openid-configuration")
+            }
+        }
+    }
+
+    /// OAuth2 scopes typically needed for this provider.
+    pub fn default_scopes(&self) -> &'static str {
+        match self {
+            Self::Google => "openid email profile",
+            Self::Azure => "openid email profile",
+            Self::GitHub => "openid",
+            Self::GitLab => "openid email profile",
+            Self::Aws => "openid email profile",
+            Self::Auth0 => "openid email profile",
+            Self::Okta => "openid email profile",
+        }
+    }
+
+    /// Whether this provider supports standard OIDC authorization code flow.
+    /// GitHub user login uses OAuth2 (not OIDC), so it needs a different flow.
+    pub fn supports_oidc_code_flow(&self) -> bool {
+        !matches!(self, Self::GitHub)
+    }
+
+    /// OAuth2 authorization URL for providers that don't use OIDC discovery
+    /// (e.g., GitHub user login).
+    pub fn oauth2_authorize_url(&self) -> Option<&'static str> {
+        match self {
+            Self::GitHub => Some("https://github.com/login/oauth/authorize"),
+            _ => None,
+        }
+    }
+
+    /// OAuth2 token URL for providers that don't use OIDC discovery.
+    pub fn oauth2_token_url(&self) -> Option<&'static str> {
+        match self {
+            Self::GitHub => Some("https://github.com/login/oauth/access_token"),
+            _ => None,
+        }
+    }
+
+    /// User info URL for providers that return user data via a separate endpoint
+    /// (GitHub doesn't include user info in the token itself).
+    pub fn userinfo_url(&self) -> Option<&'static str> {
+        match self {
+            Self::GitHub => Some("https://api.github.com/user"),
+            Self::GitLab => Some("https://gitlab.com/oauth/userinfo"),
+            _ => None,
+        }
+    }
+
+    /// Parse a provider name string into a preset.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name.to_lowercase().as_str() {
+            "google" => Some(Self::Google),
+            "azure" | "microsoft" | "entra" => Some(Self::Azure),
+            "github" | "gh" => Some(Self::GitHub),
+            "gitlab" | "gl" => Some(Self::GitLab),
+            "aws" | "cognito" => Some(Self::Aws),
+            "auth0" => Some(Self::Auth0),
+            "okta" => Some(Self::Okta),
+            _ => None,
+        }
+    }
+
+    /// List all available presets.
+    pub fn all() -> &'static [Self] {
+        &[
+            Self::Google,
+            Self::Azure,
+            Self::GitHub,
+            Self::GitLab,
+            Self::Aws,
+            Self::Auth0,
+            Self::Okta,
+        ]
+    }
+
+    /// Human-readable display name.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Google => "Google",
+            Self::Azure => "Microsoft Azure AD / Entra ID",
+            Self::GitHub => "GitHub",
+            Self::GitLab => "GitLab",
+            Self::Aws => "AWS Cognito",
+            Self::Auth0 => "Auth0",
+            Self::Okta => "Okta",
+        }
+    }
+}
+
+impl std::fmt::Display for OidcProviderPreset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
+}
+
 /// Configuration for a single OIDC provider.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OidcProviderConfig {
@@ -810,5 +957,140 @@ mod tests {
 
         let err = OidcError::GroupAuthorizationFailed;
         assert!(err.to_string().contains("group authorization"));
+    }
+
+    #[test]
+    fn test_provider_preset_from_name() {
+        assert_eq!(
+            OidcProviderPreset::from_name("google"),
+            Some(OidcProviderPreset::Google)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("GitHub"),
+            Some(OidcProviderPreset::GitHub)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("gh"),
+            Some(OidcProviderPreset::GitHub)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("gitlab"),
+            Some(OidcProviderPreset::GitLab)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("gl"),
+            Some(OidcProviderPreset::GitLab)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("azure"),
+            Some(OidcProviderPreset::Azure)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("microsoft"),
+            Some(OidcProviderPreset::Azure)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("aws"),
+            Some(OidcProviderPreset::Aws)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("cognito"),
+            Some(OidcProviderPreset::Aws)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("auth0"),
+            Some(OidcProviderPreset::Auth0)
+        );
+        assert_eq!(
+            OidcProviderPreset::from_name("okta"),
+            Some(OidcProviderPreset::Okta)
+        );
+        assert_eq!(OidcProviderPreset::from_name("unknown"), None);
+    }
+
+    #[test]
+    fn test_provider_preset_discovery_urls() {
+        let url = OidcProviderPreset::Google.discovery_url(None);
+        assert!(url.contains("accounts.google.com"));
+
+        let url = OidcProviderPreset::Azure.discovery_url(Some("my-tenant-id"));
+        assert!(url.contains("my-tenant-id"));
+        assert!(url.contains("login.microsoftonline.com"));
+
+        let url = OidcProviderPreset::Azure.discovery_url(None);
+        assert!(url.contains("common"));
+
+        let url = OidcProviderPreset::GitLab.discovery_url(None);
+        assert!(url.contains("gitlab.com"));
+
+        let url = OidcProviderPreset::GitLab.discovery_url(Some("gitlab.acme.com"));
+        assert!(url.contains("gitlab.acme.com"));
+
+        let url = OidcProviderPreset::Aws.discovery_url(Some("us-west-2_abc123"));
+        assert!(url.contains("cognito-idp.us-west-2.amazonaws.com"));
+        assert!(url.contains("us-west-2_abc123"));
+
+        let url = OidcProviderPreset::Auth0.discovery_url(Some("mycompany.auth0.com"));
+        assert!(url.contains("mycompany.auth0.com"));
+
+        let url = OidcProviderPreset::Okta.discovery_url(Some("dev-123.okta.com"));
+        assert!(url.contains("dev-123.okta.com"));
+    }
+
+    #[test]
+    fn test_provider_preset_github_uses_oauth2() {
+        assert!(!OidcProviderPreset::GitHub.supports_oidc_code_flow());
+        assert!(OidcProviderPreset::GitHub.oauth2_authorize_url().is_some());
+        assert!(OidcProviderPreset::GitHub.oauth2_token_url().is_some());
+    }
+
+    #[test]
+    fn test_provider_preset_standard_oidc() {
+        for preset in [
+            OidcProviderPreset::Google,
+            OidcProviderPreset::Azure,
+            OidcProviderPreset::GitLab,
+            OidcProviderPreset::Aws,
+            OidcProviderPreset::Auth0,
+            OidcProviderPreset::Okta,
+        ] {
+            assert!(preset.supports_oidc_code_flow(), "{} should support OIDC", preset);
+            assert!(preset.oauth2_authorize_url().is_none(), "{} shouldn't need OAuth2 fallback", preset);
+        }
+    }
+
+    #[test]
+    fn test_provider_preset_all() {
+        let all = OidcProviderPreset::all();
+        assert_eq!(all.len(), 7);
+    }
+
+    #[test]
+    fn test_provider_preset_display() {
+        assert_eq!(OidcProviderPreset::Google.to_string(), "Google");
+        assert_eq!(
+            OidcProviderPreset::Azure.to_string(),
+            "Microsoft Azure AD / Entra ID"
+        );
+        assert_eq!(OidcProviderPreset::GitHub.to_string(), "GitHub");
+        assert_eq!(OidcProviderPreset::GitLab.to_string(), "GitLab");
+        assert_eq!(OidcProviderPreset::Aws.to_string(), "AWS Cognito");
+    }
+
+    #[test]
+    fn test_provider_preset_serde() {
+        let preset = OidcProviderPreset::Google;
+        let json = serde_json::to_string(&preset).unwrap();
+        assert_eq!(json, "\"google\"");
+        let back: OidcProviderPreset = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, OidcProviderPreset::Google);
+    }
+
+    #[test]
+    fn test_provider_preset_scopes() {
+        assert!(OidcProviderPreset::Google.default_scopes().contains("openid"));
+        assert!(OidcProviderPreset::Google.default_scopes().contains("email"));
+        // GitHub only needs openid for Actions tokens
+        assert_eq!(OidcProviderPreset::GitHub.default_scopes(), "openid");
     }
 }

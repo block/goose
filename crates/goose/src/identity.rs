@@ -182,6 +182,10 @@ fn issuer_to_provider(issuer: &str) -> String {
         "auth0".to_string()
     } else if issuer.contains("okta.com") {
         "okta".to_string()
+    } else if issuer.contains("gitlab.com") || issuer.contains("gitlab") {
+        "gitlab".to_string()
+    } else if issuer.contains("cognito-idp") && issuer.contains("amazonaws.com") {
+        "aws-cognito".to_string()
     } else if issuer.is_empty() {
         "unknown".to_string()
     } else {
@@ -533,6 +537,15 @@ mod tests {
         );
         assert_eq!(issuer_to_provider("https://dev-123.auth0.com/"), "auth0");
         assert_eq!(issuer_to_provider("https://acme.okta.com"), "okta");
+        assert_eq!(issuer_to_provider("https://gitlab.com"), "gitlab");
+        assert_eq!(
+            issuer_to_provider("https://gitlab.example.com"),
+            "gitlab"
+        );
+        assert_eq!(
+            issuer_to_provider("https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"),
+            "aws-cognito"
+        );
         assert_eq!(issuer_to_provider(""), "unknown");
         assert_eq!(
             issuer_to_provider("https://custom-idp.example.com"),

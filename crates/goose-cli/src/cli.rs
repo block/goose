@@ -1230,9 +1230,20 @@ enum AuthCommand {
     /// Log in with an OIDC identity provider
     #[command(about = "Log in with an OIDC identity provider (opens browser)")]
     Login {
-        /// OIDC provider issuer URL (e.g., https://accounts.google.com)
-        #[arg(short, long, help = "OIDC provider issuer URL")]
+        /// Provider name: google, azure, github, gitlab, aws, auth0, okta
+        #[arg(
+            short, long,
+            help = "Provider name (google, azure, github, gitlab, aws, auth0, okta) or raw issuer URL"
+        )]
         provider: String,
+
+        /// Tenant ID for multi-tenant providers (Azure tenant, Auth0 domain, GitLab host, AWS Cognito pool)
+        #[arg(short, long, help = "Tenant ID for multi-tenant providers")]
+        tenant: Option<String>,
+
+        /// Client ID / audience (required for OIDC providers)
+        #[arg(short, long, help = "OAuth2/OIDC client ID")]
+        client_id: Option<String>,
     },
 
     /// Log out and clear stored credentials
@@ -1246,6 +1257,10 @@ enum AuthCommand {
     /// Show current user identity
     #[command(about = "Show current user identity (short form)")]
     Whoami,
+
+    /// List available OIDC provider presets
+    #[command(about = "List supported identity providers")]
+    Providers,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug)]
@@ -1809,12 +1824,26 @@ async fn handle_auth_subcommand(command: AuthCommand) -> Result<()> {
     let secret_key = client.secret_key();
 
     match command {
-        AuthCommand::Login { provider } => {
-            crate::commands::auth::handle_login(server_url, secret_key, &provider).await
+        AuthCommand::Login {
+            provider,
+            tenant,
+            client_id,
+        } => {
+            crate::commands::auth::handle_login(
+                server_url,
+                secret_key,
+                &provider,
+                tenant.as_deref(),
+                client_id.as_deref(),
+            )
+            .await
         }
         AuthCommand::Logout => crate::commands::auth::handle_logout(server_url, secret_key).await,
         AuthCommand::Status => crate::commands::auth::handle_status(server_url, secret_key).await,
         AuthCommand::Whoami => crate::commands::auth::handle_whoami(server_url, secret_key).await,
+        AuthCommand::Providers => {
+            crate::commands::auth::handle_providers().await
+        }
     }
 }
 

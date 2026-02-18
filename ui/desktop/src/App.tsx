@@ -17,6 +17,9 @@ import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
+import { AuthProvider } from './hooks/useAuth';
+import { AuthGuard } from './components/AuthGuard';
+import LoginView from './components/LoginView';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
@@ -659,6 +662,7 @@ export function AppInner() {
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>
             <Route path="launcher" element={<LauncherView />} />
+            <Route path="login" element={<LoginView />} />
             <Route
               path="welcome"
               element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
@@ -668,11 +672,13 @@ export function AppInner() {
             <Route
               path="/"
               element={
-                <ProviderGuard didSelectProvider={didSelectProvider}>
-                  <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
-                    <AppLayout activeSessions={activeSessions} />
-                  </ChatProvider>
-                </ProviderGuard>
+                <AuthGuard>
+                  <ProviderGuard didSelectProvider={didSelectProvider}>
+                    <ChatProvider chat={chat} setChat={setChat} contextKey="hub">
+                      <AppLayout activeSessions={activeSessions} />
+                    </ChatProvider>
+                  </ProviderGuard>
+                </AuthGuard>
               }
             >
               <Route index element={<HomeRedirectWrapper />} />
@@ -730,7 +736,9 @@ export default function App() {
     <ThemeProvider>
       <ModelAndProviderProvider>
         <HashRouter>
-          <AppInner />
+          <AuthProvider>
+            <AppInner />
+          </AuthProvider>
         </HashRouter>
         <AnnouncementModal />
         <TelemetryOptOutModal controlled={false} />

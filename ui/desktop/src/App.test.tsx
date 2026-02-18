@@ -92,6 +92,30 @@ vi.mock('./components/ErrorBoundary', () => ({
   ErrorUI: ({ error }: { error: Error }) => <div>Error: {error.message}</div>,
 }));
 
+// Mock auth components — bypass auth in tests
+vi.mock('./hooks/useAuth', () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    isLoading: false,
+    user: null,
+    authRequired: false,
+    oidcProviders: [],
+    loginWithApiKey: vi.fn(),
+    loginWithOidc: vi.fn(),
+    logout: vi.fn(),
+    error: null,
+  }),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('./components/AuthGuard', () => ({
+  AuthGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('./components/LoginView', () => ({
+  default: () => <div>Login</div>,
+}));
+
 // Mock ProviderGuard to show the welcome screen when no provider is configured
 vi.mock('./components/ProviderGuard', () => ({
   default: ({ children }: { children: React.ReactNode }) => {

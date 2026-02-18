@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use goose::oidc::OidcProviderPreset;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::net::TcpListener;
@@ -7,14 +8,18 @@ use tokio::sync::oneshot;
 
 /// OIDC authorization code flow for CLI login.
 ///
+/// Supports named provider presets (google, azure, github, gitlab, aws, auth0, okta)
+/// or raw issuer URLs for custom OIDC providers.
+///
 /// Flow:
-/// 1. CLI asks goosed for the OIDC authorization URL
-/// 2. CLI opens a local HTTP server on a random port for the callback
-/// 3. CLI opens the browser (or prints the URL for the user)
-/// 4. User authenticates with the OIDC provider
-/// 5. Provider redirects to localhost callback with auth code
-/// 6. CLI sends the auth code to goosed to exchange for a session token
-/// 7. Session token is stored locally for future requests
+/// 1. Resolve provider name to issuer URL (or use raw URL)
+/// 2. CLI asks goosed for the OIDC authorization URL
+/// 3. CLI opens a local HTTP server on a random port for the callback
+/// 4. CLI opens the browser (or prints the URL for the user)
+/// 5. User authenticates with the OIDC provider
+/// 6. Provider redirects to localhost callback with auth code
+/// 7. CLI sends the auth code to goosed to exchange for a session token
+/// 8. Session token is stored locally for future requests
 
 #[derive(Debug, Serialize)]
 struct OidcAuthUrlRequest {
@@ -37,14 +42,6 @@ struct OidcLoginResponse {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct TokenExchangeResponse {
-    id_token: Option<String>,
-    access_token: Option<String>,
-    token_type: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
 struct UserInfoResponse {
     id: String,
     name: String,
@@ -60,44 +57,34 @@ fn find_callback_port() -> Result<u16> {
     Ok(port)
 }
 
-/// Start a temporary local HTTP server that waits for the OIDC callback.
-/// Returns the authorization code and state parameter from the callback.
+/// Start a local HTTP server that waits for the OIDC callback.
+/// Returns (authorization_code, state) when the callback is received.
 async fn wait_for_callback(port: u16) -> Result<(String, String)> {
+    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
+
     let (tx, rx) = oneshot::channel::<(String, String)>();
     let tx = Arc::new(tokio::sync::Mutex::new(Some(tx)));
 
-    let tx_clone = tx.clone();
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
-
-    // Spawn the callback server
     let server_handle = tokio::spawn(async move {
+        use tokio::io::AsyncWriteExt;
+
         loop {
-            let (mut stream, _) = match listener.accept().await {
-                Ok(conn) => conn,
-                Err(_) => continue,
+            let Ok((mut stream, _)) = listener.accept().await else {
+                break;
             };
 
-            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let tx_clone = tx.clone();
+
             let mut buf = vec![0u8; 4096];
-            let n = match stream.read(&mut buf).await {
-                Ok(n) => n,
-                Err(_) => continue,
-            };
-
+            let n = tokio::io::AsyncReadExt::read(&mut stream, &mut buf)
+                .await
+                .unwrap_or(0);
             let request = String::from_utf8_lossy(&buf[..n]);
 
-            // Parse the GET request line
-            let first_line = request.lines().next().unwrap_or("");
-            if !first_line.starts_with("GET /callback") {
-                let response = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n";
-                let _ = stream.write_all(response.as_bytes()).await;
-                continue;
-            }
-
-            // Extract query parameters
-            let query = first_line
-                .split_whitespace()
-                .nth(1)
+            let query = request
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
                 .and_then(|path| path.split('?').nth(1))
                 .unwrap_or("");
 
@@ -211,38 +198,38 @@ fn open_browser(url: &str) -> bool {
     }
 }
 
-/// Get the token storage path.
+// Token storage paths
 fn token_path() -> Result<std::path::PathBuf> {
     let config_dir = dirs::config_dir()
-        .ok_or_else(|| anyhow!("Could not determine config directory"))?
+        .ok_or_else(|| anyhow!("Could not find config directory"))?
         .join("goose");
     std::fs::create_dir_all(&config_dir)?;
     Ok(config_dir.join("session_token.json"))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct StoredToken {
     token: String,
     issuer: String,
     expires_at: u64,
 }
 
-/// Store a session token locally.
 fn store_token(token: &str, issuer: &str, expires_in: u64) -> Result<()> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+
     let stored = StoredToken {
         token: token.to_string(),
         issuer: issuer.to_string(),
-        expires_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_secs()
-            + expires_in,
+        expires_at: now + expires_in,
     };
+
     let json = serde_json::to_string_pretty(&stored)?;
     std::fs::write(token_path()?, json)?;
     Ok(())
 }
 
-/// Load a stored session token (if valid).
 pub fn load_token() -> Option<String> {
     let path = token_path().ok()?;
     let json = std::fs::read_to_string(path).ok()?;
@@ -260,7 +247,6 @@ pub fn load_token() -> Option<String> {
     }
 }
 
-/// Clear stored session token.
 fn clear_token() -> Result<()> {
     let path = token_path()?;
     if path.exists() {
@@ -269,22 +255,65 @@ fn clear_token() -> Result<()> {
     Ok(())
 }
 
-/// Handle `goose auth login --provider <issuer>` — OIDC authorization code flow.
-pub async fn handle_login(server_url: &str, secret_key: &str, issuer: &str) -> Result<()> {
+/// Resolve a provider string to an OIDC issuer URL.
+/// Accepts:
+/// - Preset names: "google", "azure", "github", "gitlab", "aws", "auth0", "okta"
+/// - Raw issuer URLs: "https://accounts.google.com"
+fn resolve_provider(
+    provider: &str,
+    tenant: Option<&str>,
+) -> (String, Option<OidcProviderPreset>) {
+    if let Some(preset) = OidcProviderPreset::from_name(provider) {
+        // Extract issuer from discovery URL by stripping /.well-known/openid-configuration
+        let discovery = preset.discovery_url(tenant);
+        let issuer = discovery
+            .strip_suffix("/.well-known/openid-configuration")
+            .unwrap_or(&discovery)
+            .to_string();
+        (issuer, Some(preset))
+    } else if provider.starts_with("http://") || provider.starts_with("https://") {
+        (provider.to_string(), None)
+    } else {
+        (format!("https://{}", provider), None)
+    }
+}
+
+/// Handle `goose auth login --provider <name>` — OIDC authorization code flow.
+pub async fn handle_login(
+    server_url: &str,
+    secret_key: &str,
+    provider: &str,
+    tenant: Option<&str>,
+    client_id: Option<&str>,
+) -> Result<()> {
     let http = Client::new();
+    let (issuer, preset) = resolve_provider(provider, tenant);
+
+    let display_name = preset
+        .as_ref()
+        .map(|p| p.to_string())
+        .unwrap_or_else(|| issuer.clone());
+
+    println!("🔐 Starting login with {}...", display_name);
+
+    // Check if GitHub (uses OAuth2, not OIDC code flow)
+    if let Some(ref preset) = preset {
+        if !preset.supports_oidc_code_flow() {
+            return handle_github_oauth2_login(server_url, secret_key, &http, preset, client_id)
+                .await;
+        }
+    }
 
     // Step 1: Find a free port for the callback server
     let port = find_callback_port()?;
     let redirect_uri = format!("http://localhost:{}/callback", port);
-
-    println!("🔐 Starting OIDC login with {}...", issuer);
 
     // Step 2: Ask goosed for the authorization URL
     let auth_url_resp = http
         .post(format!("{}/auth/login/oidc/url", server_url))
         .header("X-Secret-Key", secret_key)
         .json(&OidcAuthUrlRequest {
-            issuer: issuer.to_string(),
+            issuer: issuer.clone(),
             redirect_uri: redirect_uri.clone(),
         })
         .send()
@@ -294,7 +323,9 @@ pub async fn handle_login(server_url: &str, secret_key: &str, issuer: &str) -> R
         let status = auth_url_resp.status();
         let body = auth_url_resp.text().await.unwrap_or_default();
         return Err(anyhow!(
-            "Failed to get authorization URL ({}): {}",
+            "Failed to get authorization URL ({}): {}.\n\
+             Hint: Make sure the OIDC provider is configured on the server.\n\
+             Run: goose auth providers",
             status,
             body
         ));
@@ -305,7 +336,7 @@ pub async fn handle_login(server_url: &str, secret_key: &str, issuer: &str) -> R
     // Step 3: Open the browser
     println!();
     if open_browser(&auth_url_data.auth_url) {
-        println!("📎 Browser opened. Please log in with your identity provider.");
+        println!("📎 Browser opened. Please log in with {}.", display_name);
     } else {
         println!("📎 Open this URL in your browser to log in:");
         println!();
@@ -329,9 +360,8 @@ pub async fn handle_login(server_url: &str, secret_key: &str, issuer: &str) -> R
     println!("✅ Authorization code received. Exchanging for token...");
 
     // Step 5: Exchange the authorization code for tokens via goosed
-    // The server handles the token exchange and validates the ID token
     let login_resp = http
-        .post(format!("{}/auth/login/oidc", server_url))
+        .post(format!("{}/auth/login/oidc/code", server_url))
         .header("X-Secret-Key", secret_key)
         .json(&serde_json::json!({
             "code": code,
@@ -350,9 +380,136 @@ pub async fn handle_login(server_url: &str, secret_key: &str, issuer: &str) -> R
     let login_data: OidcLoginResponse = login_resp.json().await?;
 
     // Step 6: Store the session token
-    store_token(&login_data.token, issuer, login_data.expires_in)?;
+    store_token(&login_data.token, &issuer, login_data.expires_in)?;
 
     println!("🎉 Login successful! Session token stored.");
+    println!(
+        "   Token expires in {} hours.",
+        login_data.expires_in / 3600
+    );
+
+    Ok(())
+}
+
+/// GitHub uses OAuth2 (not OIDC) — handle it with the device flow or web flow.
+async fn handle_github_oauth2_login(
+    server_url: &str,
+    secret_key: &str,
+    http: &Client,
+    preset: &OidcProviderPreset,
+    client_id: Option<&str>,
+) -> Result<()> {
+    let client_id = client_id.ok_or_else(|| {
+        anyhow!(
+            "GitHub login requires a --client-id.\n\
+             Create an OAuth App at https://github.com/settings/developers\n\
+             and provide the client ID."
+        )
+    })?;
+
+    let port = find_callback_port()?;
+    let redirect_uri = format!("http://localhost:{}/callback", port);
+
+    let authorize_url = preset.oauth2_authorize_url().unwrap();
+    let state = uuid::Uuid::new_v4().to_string();
+
+    let auth_url = format!(
+        "{}?client_id={}&redirect_uri={}&scope={}&state={}",
+        authorize_url,
+        urlencoding::encode(client_id),
+        urlencoding::encode(&redirect_uri),
+        urlencoding::encode("read:user user:email"),
+        urlencoding::encode(&state),
+    );
+
+    println!();
+    if open_browser(&auth_url) {
+        println!("📎 Browser opened. Please authorize the GitHub OAuth App.");
+    } else {
+        println!("📎 Open this URL in your browser to authorize:");
+        println!();
+        println!("  {}", auth_url);
+    }
+    println!();
+    println!("⏳ Waiting for GitHub callback (timeout: 5 minutes)...");
+
+    let (code, returned_state) = wait_for_callback(port).await?;
+
+    if returned_state != state {
+        return Err(anyhow!("State mismatch — possible CSRF attack."));
+    }
+
+    println!("✅ Authorization code received. Exchanging for token...");
+
+    // Exchange code with GitHub's token endpoint
+    let token_url = preset.oauth2_token_url().unwrap();
+    let token_resp = http
+        .post(token_url)
+        .header("Accept", "application/json")
+        .form(&[
+            ("client_id", client_id),
+            ("code", &code),
+            ("redirect_uri", &redirect_uri),
+        ])
+        .send()
+        .await?;
+
+    if !token_resp.status().is_success() {
+        let body = token_resp.text().await.unwrap_or_default();
+        return Err(anyhow!("GitHub token exchange failed: {}", body));
+    }
+
+    #[derive(Deserialize)]
+    struct GitHubTokenResponse {
+        access_token: String,
+    }
+
+    let gh_token: GitHubTokenResponse = token_resp.json().await?;
+
+    // Use the GitHub access token to get user info, then create a session
+    let user_resp = http
+        .get("https://api.github.com/user")
+        .header("Authorization", format!("Bearer {}", gh_token.access_token))
+        .header("User-Agent", "goose-cli")
+        .send()
+        .await?;
+
+    if !user_resp.status().is_success() {
+        return Err(anyhow!("Failed to fetch GitHub user info"));
+    }
+
+    #[derive(Deserialize)]
+    struct GitHubUser {
+        login: String,
+        id: u64,
+    }
+
+    let gh_user: GitHubUser = user_resp.json().await?;
+
+    // Create a session via goosed's login endpoint using the GitHub identity
+    let login_resp = http
+        .post(format!("{}/auth/login", server_url))
+        .header("X-Secret-Key", secret_key)
+        .json(&serde_json::json!({
+            "api_key": format!("github:{}", gh_user.id),
+            "display_name": gh_user.login,
+        }))
+        .send()
+        .await?;
+
+    if !login_resp.status().is_success() {
+        let body = login_resp.text().await.unwrap_or_default();
+        return Err(anyhow!("Login failed: {}", body));
+    }
+
+    let login_data: OidcLoginResponse = login_resp.json().await?;
+    store_token(
+        &login_data.token,
+        "https://github.com",
+        login_data.expires_in,
+    )?;
+
+    println!("🎉 Logged in as {} (GitHub)", gh_user.login);
     println!(
         "   Token expires in {} hours.",
         login_data.expires_in / 3600
@@ -365,7 +522,6 @@ pub async fn handle_login(server_url: &str, secret_key: &str, issuer: &str) -> R
 pub async fn handle_logout(server_url: &str, secret_key: &str) -> Result<()> {
     let http = Client::new();
 
-    // Revoke on server if we have a stored token
     if let Some(token) = load_token() {
         let _ = http
             .post(format!("{}/auth/logout", server_url))
@@ -384,17 +540,12 @@ pub async fn handle_logout(server_url: &str, secret_key: &str) -> Result<()> {
 pub async fn handle_status(server_url: &str, secret_key: &str) -> Result<()> {
     let http = Client::new();
 
-    // Check for stored token
     let token = load_token();
 
-    let mut headers = vec![("X-Secret-Key".to_string(), secret_key.to_string())];
-    if let Some(ref t) = token {
-        headers.push(("Authorization".to_string(), format!("Bearer {}", t)));
-    }
-
     let mut req = http.get(format!("{}/auth/me", server_url));
-    for (k, v) in &headers {
-        req = req.header(k.as_str(), v.as_str());
+    req = req.header("X-Secret-Key", secret_key);
+    if let Some(ref t) = token {
+        req = req.header("Authorization", format!("Bearer {}", t));
     }
 
     let resp = req.send().await?;
@@ -449,6 +600,47 @@ pub async fn handle_whoami(server_url: &str, secret_key: &str) -> Result<()> {
     Ok(())
 }
 
+/// Handle `goose auth providers` — list available OIDC provider presets.
+pub async fn handle_providers() -> Result<()> {
+    println!("🔐 Supported Identity Providers\n");
+    println!(
+        "  {:<12} {:<35} {}",
+        "Name", "Provider", "Notes"
+    );
+    println!("  {}", "─".repeat(75));
+
+    for preset in OidcProviderPreset::all() {
+        let notes = match preset {
+            OidcProviderPreset::Google => "Standard OIDC",
+            OidcProviderPreset::Azure => "Use --tenant <tenant-id> for single-tenant",
+            OidcProviderPreset::GitHub => "OAuth2 (requires --client-id)",
+            OidcProviderPreset::GitLab => "Use --tenant <host> for self-hosted",
+            OidcProviderPreset::Aws => "Use --tenant <pool-id> (e.g., us-west-2_abc123)",
+            OidcProviderPreset::Auth0 => "Use --tenant <domain> (e.g., myapp.auth0.com)",
+            OidcProviderPreset::Okta => "Use --tenant <domain> (e.g., dev-123.okta.com)",
+        };
+
+        let name = format!("{:?}", preset).to_lowercase();
+        println!(
+            "  {:<12} {:<35} {}",
+            name,
+            preset.to_string(),
+            notes,
+        );
+    }
+
+    println!();
+    println!("Usage:");
+    println!("  goose auth login --provider google");
+    println!("  goose auth login --provider azure --tenant <tenant-id>");
+    println!("  goose auth login --provider github --client-id <id>");
+    println!("  goose auth login --provider gitlab");
+    println!("  goose auth login --provider aws --tenant us-west-2_abc123");
+    println!("  goose auth login --provider https://custom-oidc.example.com");
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,19 +653,58 @@ mod tests {
 
     #[test]
     fn test_open_browser_returns_bool() {
-        // Just verify it doesn't panic — actual browser opening is platform-dependent
         let _ = open_browser("http://localhost:12345");
     }
 
     #[test]
-    fn test_store_and_load_token() {
-        // Use a temporary directory for testing
-        let _token = "test-token";
-        // load_token returns None when no token is stored (or expired)
-        // We can't easily test store_token without mocking the filesystem
-        // but we can verify load_token handles missing files gracefully
+    fn test_resolve_provider_preset() {
+        let (issuer, preset) = resolve_provider("google", None);
+        assert!(issuer.contains("accounts.google.com"));
+        assert!(preset.is_some());
+        assert_eq!(preset.unwrap(), OidcProviderPreset::Google);
+    }
+
+    #[test]
+    fn test_resolve_provider_azure_with_tenant() {
+        let (issuer, preset) = resolve_provider("azure", Some("my-tenant-id"));
+        assert!(issuer.contains("my-tenant-id"));
+        assert!(issuer.contains("login.microsoftonline.com"));
+        assert_eq!(preset.unwrap(), OidcProviderPreset::Azure);
+    }
+
+    #[test]
+    fn test_resolve_provider_raw_url() {
+        let (issuer, preset) = resolve_provider("https://custom-oidc.example.com", None);
+        assert_eq!(issuer, "https://custom-oidc.example.com");
+        assert!(preset.is_none());
+    }
+
+    #[test]
+    fn test_resolve_provider_bare_domain() {
+        let (issuer, preset) = resolve_provider("custom-oidc.example.com", None);
+        assert_eq!(issuer, "https://custom-oidc.example.com");
+        assert!(preset.is_none());
+    }
+
+    #[test]
+    fn test_resolve_provider_github() {
+        let (_, preset) = resolve_provider("github", None);
+        let preset = preset.unwrap();
+        assert!(!preset.supports_oidc_code_flow());
+        assert!(preset.oauth2_authorize_url().is_some());
+    }
+
+    #[test]
+    fn test_resolve_provider_aliases() {
+        assert!(resolve_provider("gh", None).1.is_some());
+        assert!(resolve_provider("gl", None).1.is_some());
+        assert!(resolve_provider("microsoft", None).1.is_some());
+        assert!(resolve_provider("cognito", None).1.is_some());
+    }
+
+    #[test]
+    fn test_load_token_graceful_on_missing() {
         let result = load_token();
-        // Result is Some or None depending on whether a token was previously stored
-        let _ = result;
+        let _ = result; // Should not panic
     }
 }
