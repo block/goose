@@ -328,7 +328,7 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
     ));
 
     // Create a temporary provider instance to handle OAuth
-    let temp_model = ModelConfig::new("temp")?;
+    let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
     match create(provider_name, temp_model, Vec::new()).await {
         Ok(provider) => match provider.configure_oauth().await {
             Ok(_) => {
@@ -730,7 +730,8 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
     let models_res = {
-        let temp_model_config = ModelConfig::new(&provider_meta.default_model)?;
+        let temp_model_config =
+            ModelConfig::new(&provider_meta.default_model)?.with_canonical_limits(provider_name);
         let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
         retry_operation(&RetryConfig::default(), || async {
             temp_provider.fetch_recommended_models().await
@@ -1490,7 +1491,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let model: String = config
         .get_goose_model()
         .expect("No model configured. Please set model first");
-    let model_config = ModelConfig::new(&model)?;
+    let model_config = ModelConfig::new(&model)?.with_canonical_limits(&provider_name);
 
     let agent = Agent::new();
 
@@ -1710,7 +1711,7 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
     let model_config = match goose::model::ModelConfig::new(&configured_model) {
-        Ok(config) => config,
+        Ok(config) => config.with_canonical_limits("openrouter"),
         Err(e) => {
             eprintln!("⚠️  Invalid model configuration: {}", e);
             eprintln!("Your settings have been saved. Please check your model configuration.");
@@ -1720,11 +1721,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
 
     match create("openrouter", model_config, Vec::new()).await {
         Ok(provider) => {
-            let model_config = provider.get_model_config();
+            let provider_model_config = provider.get_model_config();
             let test_result = provider
-                .complete_with_model(
-                    None,
-                    &model_config,
+                .complete(
+                    &provider_model_config,
+                    "",
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],
@@ -1790,7 +1791,7 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
     let model_config = match goose::model::ModelConfig::new(&configured_model) {
-        Ok(config) => config,
+        Ok(config) => config.with_canonical_limits("tetrate"),
         Err(e) => {
             eprintln!("⚠️  Invalid model configuration: {}", e);
             eprintln!("Your settings have been saved. Please check your model configuration.");

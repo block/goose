@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
 
@@ -210,8 +211,10 @@ pub async fn classify_planner_response(
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
     let message = Message::user().with_text(&prompt);
+    let model_config = provider.get_model_config();
     let (result, _usage) = provider
         .complete(
+            &model_config,
             session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
@@ -839,8 +842,10 @@ impl CliSession {
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
+        let model_config = reasoner.get_model_config();
         let (plan_response, _usage) = reasoner
             .complete(
+                &model_config,
                 &self.session_id,
                 &plan_prompt,
                 plan_messages.messages(),
@@ -961,6 +966,7 @@ impl CliSession {
 
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
+        let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
 
         use futures::StreamExt;
         loop {
@@ -1033,7 +1039,7 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message(&message, self.debug);
+                                    output::render_message_streaming(&message, &mut markdown_buffer, self.debug);
                                 }
                             }
                         }
@@ -1085,6 +1091,10 @@ impl CliSession {
                     break;
                 }
             }
+        }
+
+        if !is_json_mode && !is_stream_json_mode {
+            output::flush_markdown_buffer_current_theme(&mut markdown_buffer);
         }
 
         if is_json_mode {
@@ -1740,7 +1750,7 @@ fn log_tool_metrics(message: &Message, messages: &Conversation) {
         if let MessageContent::ToolRequest(tool_request) = content {
             if let Ok(tool_call) = &tool_request.tool_call {
                 tracing::info!(
-                    counter.goose.tool_calls = 1,
+                    monotonic_counter.goose.tool_calls = 1,
                     tool_name = %tool_call.name,
                     "Tool call started"
                 );
@@ -1771,7 +1781,7 @@ fn log_tool_metrics(message: &Message, messages: &Conversation) {
                 "error"
             };
             tracing::info!(
-                counter.goose.tool_completions = 1,
+                monotonic_counter.goose.tool_completions = 1,
                 tool_name = %tool_name,
                 result = %result_status,
                 "Tool call completed"
@@ -1841,7 +1851,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     };
 
     let model_config =
-        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
+        ModelConfig::new_with_context_env(model, &provider, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, model_config, extensions).await?;
 

@@ -2,9 +2,7 @@ use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
-use crate::providers::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
+use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status_openai_compat;
@@ -887,76 +885,15 @@ impl Provider for ChatGptCodexProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // ChatGPT Codex API requires streaming - collect the stream into a single response
-        let mut payload = create_codex_request(model_config, system, messages, tools)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-        payload["stream"] = serde_json::Value::Bool(true);
-
-        let response = self
-            .with_retry(|| async {
-                let payload_clone = payload.clone();
-                self.post_streaming(session_id, &payload_clone).await
-            })
-            .await?;
-
-        let stream = response.bytes_stream().map_err(io::Error::other);
-        let stream_reader = StreamReader::new(stream);
-        let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
-
-        let message_stream = responses_api_to_streaming_message(framed);
-        pin!(message_stream);
-
-        let mut final_message: Option<Message> = None;
-        let mut final_usage: Option<ProviderUsage> = None;
-
-        while let Some(result) = message_stream.next().await {
-            let (message, usage) = result
-                .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-            if let Some(msg) = message {
-                final_message = Some(msg);
-            }
-            if let Some(u) = usage {
-                final_usage = Some(u);
-            }
-        }
-
-        let message = final_message.ok_or_else(|| {
-            ProviderError::ExecutionError("No message received from stream".to_string())
-        })?;
-        let usage = final_usage.unwrap_or_else(|| {
-            ProviderUsage::new(
-                model_config.model_name.clone(),
-                crate::providers::base::Usage::default(),
-            )
-        });
-
-        Ok((message, usage))
-    }
-
-    fn supports_streaming(&self) -> bool {
-        true
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_codex_request(&self.model, system, messages, tools)
+        let mut payload = create_codex_request(model_config, system, messages, tools)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         payload["stream"] = serde_json::Value::Bool(true);
 
