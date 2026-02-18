@@ -346,7 +346,8 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
   }, []); // stable — reads everything from refs
 
   const showInput = !isOnPairRoute;
-  const showPromptBar = (showInput && mode === 'compact') || (mode === 'full' && !session);
+  const hasResumeSession = new URLSearchParams(location.search).has('resumeSessionId');
+  const showPromptBar = (showInput && mode === 'compact') || (mode === 'full' && !session && !hasResumeSession);
 
   const value = useMemo<UnifiedInputContextValue>(() => ({
     mode,
