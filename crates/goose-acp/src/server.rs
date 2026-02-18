@@ -994,25 +994,25 @@ impl GooseAcpAgent {
         params: serde_json::Value,
     ) -> Result<serde_json::Value, sacp::Error> {
         match method {
-            "_agent/extensions/add" => self.on_add_extension(params).await,
-            "_agent/extensions/remove" => self.on_remove_extension(params).await,
-            "_agent/tools" => self.on_get_tools(params).await,
-            "_agent/resource/read" => self.on_read_resource(params).await,
-            "_agent/working_dir/update" => self.on_update_working_dir(params).await,
-            "_session/list" => self.on_list_sessions().await,
-            "_session/get" => self.on_get_session(params).await,
-            "_session/delete" => self.on_delete_session(params).await,
-            "_session/export" => self.on_export_session(params).await,
-            "_session/import" => self.on_import_session(params).await,
-            "_config/extensions" => self.on_get_extensions().await,
+            "_goose/extensions/add" => self.on_add_extension(params).await,
+            "_goose/extensions/remove" => self.on_remove_extension(params).await,
+            "_goose/tools" => self.on_get_tools(params).await,
+            "_goose/resource/read" => self.on_read_resource(params).await,
+            "_goose/working_dir/update" => self.on_update_working_dir(params).await,
+            "_goose/session/list" => self.on_list_sessions().await,
+            "_goose/session/get" => self.on_get_session(params).await,
+            "_goose/session/delete" => self.on_delete_session(params).await,
+            "_goose/session/export" => self.on_export_session(params).await,
+            "_goose/session/import" => self.on_import_session(params).await,
+            "_goose/config/extensions" => self.on_get_extensions().await,
             // Stubbed — need more complex wiring or types not yet available.
-            "_agent/tool/call"
-            | "_agent/provider/update"
-            | "_agent/container/set"
-            | "_agent/apps/list"
-            | "_agent/apps/export"
-            | "_agent/apps/import"
-            | "_config/providers" => Err(sacp::Error::new(
+            "_goose/tool/call"
+            | "_goose/provider/update"
+            | "_goose/container/set"
+            | "_goose/apps/list"
+            | "_goose/apps/export"
+            | "_goose/apps/import"
+            | "_goose/config/providers" => Err(sacp::Error::new(
                 -32001,
                 format!("{method} not yet implemented"),
             )),

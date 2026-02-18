@@ -29,7 +29,7 @@ fn test_custom_session_list() {
         // Verify the session exists via _session/get
         let get_result = send_custom(
             conn.cx(),
-            "_session/get",
+            "_goose/session/get",
             serde_json::json!({ "session_id": session_id }),
         )
         .await;
@@ -50,7 +50,7 @@ fn test_custom_session_list() {
         // Verify _session/list returns a valid response
         // Note: list_sessions uses INNER JOIN on messages, so a fresh session
         // with no messages won't appear. We just verify the call succeeds.
-        let result = send_custom(conn.cx(), "_session/list", serde_json::json!({})).await;
+        let result = send_custom(conn.cx(), "_goose/session/list", serde_json::json!({})).await;
         assert!(result.is_ok(), "expected ok, got: {:?}", result);
         let response = result.unwrap();
         let sessions = response.get("sessions").expect("missing 'sessions' field");
@@ -69,7 +69,7 @@ fn test_custom_session_get() {
 
         let result = send_custom(
             conn.cx(),
-            "_session/get",
+            "_goose/session/get",
             serde_json::json!({
                 "session_id": session_id,
             }),
@@ -97,7 +97,7 @@ fn test_custom_session_delete() {
 
         let result = send_custom(
             conn.cx(),
-            "_session/delete",
+            "_goose/session/delete",
             serde_json::json!({ "session_id": session_id }),
         )
         .await;
@@ -105,7 +105,7 @@ fn test_custom_session_delete() {
 
         let result = send_custom(
             conn.cx(),
-            "_session/get",
+            "_goose/session/get",
             serde_json::json!({ "session_id": session_id }),
         )
         .await;
@@ -124,7 +124,7 @@ fn test_custom_get_tools() {
 
         let result = send_custom(
             conn.cx(),
-            "_agent/tools",
+            "_goose/tools",
             serde_json::json!({ "session_id": session_id }),
         )
         .await;
@@ -142,7 +142,8 @@ fn test_custom_get_extensions() {
         let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
         let conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let result = send_custom(conn.cx(), "_config/extensions", serde_json::json!({})).await;
+        let result =
+            send_custom(conn.cx(), "_goose/config/extensions", serde_json::json!({})).await;
         assert!(result.is_ok(), "expected ok, got: {:?}", result);
 
         let response = result.unwrap();
@@ -174,7 +175,7 @@ fn test_custom_stubbed_method() {
         let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
         let conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
 
-        let result = send_custom(conn.cx(), "_agent/tool/call", serde_json::json!({})).await;
+        let result = send_custom(conn.cx(), "_goose/tool/call", serde_json::json!({})).await;
         assert!(result.is_err(), "expected not-yet-implemented error");
         let err = result.unwrap_err();
         assert_eq!(
