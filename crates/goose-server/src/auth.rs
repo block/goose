@@ -7,6 +7,109 @@ use axum::{
 use goose::identity::{ExecutionIdentity, UserIdentity};
 use goose::oidc::OidcValidator;
 use goose::session_token::SessionTokenStore;
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
+
+/// IP-based sliding window rate limiter for auth endpoints.
+///
+/// Tracks request timestamps per IP within a configurable window.
+/// Returns 429 Too Many Requests when the limit is exceeded.
+#[derive(Clone)]
+pub struct RateLimiter {
+    requests: Arc<RwLock<HashMap<IpAddr, Vec<Instant>>>>,
+    max_requests: usize,
+    window: Duration,
+}
+
+impl RateLimiter {
+    pub fn new(max_requests: usize, window: Duration) -> Self {
+        Self {
+            requests: Arc::new(RwLock::new(HashMap::new())),
+            max_requests,
+            window,
+        }
+    }
+
+    /// Check if a request from this IP is allowed. Returns true if under limit.
+    pub async fn check(&self, ip: IpAddr) -> bool {
+        let now = Instant::now();
+        let mut requests = self.requests.write().await;
+        let entries = requests.entry(ip).or_default();
+
+        // Remove expired entries outside the window
+        entries.retain(|&t| now.duration_since(t) < self.window);
+
+        if entries.len() >= self.max_requests {
+            return false;
+        }
+
+        entries.push(now);
+        true
+    }
+
+    /// Periodic cleanup of stale entries (call from a background task).
+    pub async fn cleanup(&self) {
+        let now = Instant::now();
+        let mut requests = self.requests.write().await;
+        requests.retain(|_, entries| {
+            entries.retain(|&t| now.duration_since(t) < self.window);
+            !entries.is_empty()
+        });
+    }
+
+    /// Number of tracked IPs (for monitoring).
+    pub async fn tracked_ips(&self) -> usize {
+        self.requests.read().await.len()
+    }
+}
+
+/// Axum middleware that applies rate limiting based on client IP.
+///
+/// Extracts the client IP from `X-Forwarded-For`, `X-Real-IP`, or the
+/// connection info, then checks the rate limiter.
+pub async fn rate_limit_middleware(
+    State(limiter): State<RateLimiter>,
+    request: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let ip = extract_client_ip(&request);
+
+    if !limiter.check(ip).await {
+        tracing::warn!(ip = %ip, "rate limit exceeded on auth endpoint");
+        return Err(StatusCode::TOO_MANY_REQUESTS);
+    }
+
+    Ok(next.run(request).await)
+}
+
+/// Extract client IP from headers or connection info.
+fn extract_client_ip(request: &Request) -> IpAddr {
+    // Try X-Forwarded-For first (proxied requests)
+    if let Some(forwarded) = request.headers().get("x-forwarded-for") {
+        if let Ok(val) = forwarded.to_str() {
+            if let Some(first_ip) = val.split(',').next() {
+                if let Ok(ip) = first_ip.trim().parse::<IpAddr>() {
+                    return ip;
+                }
+            }
+        }
+    }
+
+    // Try X-Real-IP
+    if let Some(real_ip) = request.headers().get("x-real-ip") {
+        if let Ok(val) = real_ip.to_str() {
+            if let Ok(ip) = val.trim().parse::<IpAddr>() {
+                return ip;
+            }
+        }
+    }
+
+    // Fallback to loopback
+    IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)
+}
 
 /// Existing secret-key middleware — unchanged.
 #[allow(dead_code)]
@@ -267,5 +370,112 @@ mod tests {
         let req_id = RequestIdentity::from_headers(&headers);
         assert_eq!(req_id.user.id, "desktop-42");
         assert!(req_id.user.is_guest());
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_allows_under_limit() {
+        let limiter = RateLimiter::new(5, Duration::from_secs(60));
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+        for _ in 0..5 {
+            assert!(limiter.check(ip).await);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_blocks_over_limit() {
+        let limiter = RateLimiter::new(3, Duration::from_secs(60));
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+        assert!(limiter.check(ip).await);
+        assert!(limiter.check(ip).await);
+        assert!(limiter.check(ip).await);
+        // 4th request should be blocked
+        assert!(!limiter.check(ip).await);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_different_ips_independent() {
+        let limiter = RateLimiter::new(2, Duration::from_secs(60));
+        let ip1: IpAddr = "10.0.0.1".parse().unwrap();
+        let ip2: IpAddr = "10.0.0.2".parse().unwrap();
+
+        assert!(limiter.check(ip1).await);
+        assert!(limiter.check(ip1).await);
+        assert!(!limiter.check(ip1).await); // ip1 blocked
+
+        // ip2 should still be allowed
+        assert!(limiter.check(ip2).await);
+        assert!(limiter.check(ip2).await);
+        assert!(!limiter.check(ip2).await); // ip2 now blocked
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_window_expiry() {
+        let limiter = RateLimiter::new(2, Duration::from_millis(50));
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+
+        assert!(limiter.check(ip).await);
+        assert!(limiter.check(ip).await);
+        assert!(!limiter.check(ip).await); // blocked
+
+        // Wait for window to expire
+        tokio::time::sleep(Duration::from_millis(60)).await;
+
+        // Should be allowed again
+        assert!(limiter.check(ip).await);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_cleanup() {
+        let limiter = RateLimiter::new(10, Duration::from_millis(50));
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+
+        assert!(limiter.check(ip).await);
+        assert_eq!(limiter.tracked_ips().await, 1);
+
+        // Wait for entries to expire, then cleanup
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        limiter.cleanup().await;
+        assert_eq!(limiter.tracked_ips().await, 0);
+    }
+
+    #[test]
+    fn test_extract_client_ip_forwarded_for() {
+        let mut request = Request::builder()
+            .header("x-forwarded-for", "203.0.113.50, 70.41.3.18")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let ip = extract_client_ip(&request);
+        assert_eq!(ip, "203.0.113.50".parse::<IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn test_extract_client_ip_real_ip() {
+        let request = Request::builder()
+            .header("x-real-ip", "198.51.100.23")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let ip = extract_client_ip(&request);
+        assert_eq!(ip, "198.51.100.23".parse::<IpAddr>().unwrap());
+    }
+
+    #[test]
+    fn test_extract_client_ip_fallback() {
+        let request = Request::builder()
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let ip = extract_client_ip(&request);
+        assert_eq!(ip, IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
+    }
+
+    #[test]
+    fn test_extract_client_ip_forwarded_for_priority() {
+        let request = Request::builder()
+            .header("x-forwarded-for", "203.0.113.50")
+            .header("x-real-ip", "198.51.100.23")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let ip = extract_client_ip(&request);
+        // x-forwarded-for takes priority
+        assert_eq!(ip, "203.0.113.50".parse::<IpAddr>().unwrap());
     }
 }

@@ -32,10 +32,36 @@ pub mod user_auth;
 pub mod utils;
 
 use std::sync::Arc;
+use std::time::Duration;
 
-use axum::Router;
+use axum::{middleware, Router};
+
+use crate::auth::{rate_limit_middleware, RateLimiter};
 
 pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
+    // Rate limiter for auth endpoints: 30 requests per minute per IP
+    let auth_rate_limiter = RateLimiter::new(30, Duration::from_secs(60));
+
+    // Auth routes with rate limiting applied
+    let auth_routes = Router::new()
+        .merge(auth_config::routes(state.clone()))
+        .merge(user_auth::routes(state.clone()))
+        .merge(password_auth::routes(state.clone()))
+        .layer(middleware::from_fn_with_state(
+            auth_rate_limiter.clone(),
+            rate_limit_middleware,
+        ));
+
+    // Spawn background cleanup task for rate limiter (every 5 minutes)
+    let cleanup_limiter = auth_rate_limiter.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+            cleanup_limiter.cleanup().await;
+        }
+    });
+
     Router::new()
         .merge(a2a::routes(state.clone()))
         .merge(acp_discovery::routes(state.clone()))
@@ -60,9 +86,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(acp_ide::routes(state.clone()))
         .merge(analytics::routes(state.clone()))
         .merge(observatory::routes(state.clone()))
-        .merge(auth_config::routes(state.clone()))
-        .merge(user_auth::routes(state.clone()))
-        .merge(password_auth::routes(state.clone()))
+        .merge(auth_routes)
         .merge(extension_routes::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
