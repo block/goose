@@ -50,6 +50,11 @@ export function useAutoSubmit({
     );
   }, [sessionId]);
 
+  const hasUnfilledParameters = useCallback((session: Session) => {
+    const recipe = session.recipe;
+    return recipe?.parameters && recipe.parameters.length > 0 && !session.user_recipe_values;
+  }, []);
+
   // Auto-submit logic
   useEffect(() => {
     const currentSessionId = searchParams.get('resumeSessionId');
@@ -67,11 +72,7 @@ export function useAutoSubmit({
     // Scenario 1: New session with initial message from Hub
     // Hub always creates new sessions, so message_count will be 0
     if (initialMessage && session.message_count === 0 && messages.length === 0) {
-      const recipe = session.recipe;
-      const hasUnfilledParameters =
-        recipe?.parameters && recipe.parameters.length > 0 && !session.user_recipe_values;
-
-      if (!hasUnfilledParameters) {
+      if (!hasUnfilledParameters(session)) {
         hasAutoSubmittedRef.current = true;
         handleSubmit(initialMessage);
         clearInitialMessage();
@@ -92,11 +93,7 @@ export function useAutoSubmit({
 
     // Scenario 3: Resume with shouldStartAgent (continue existing conversation)
     if (shouldStartAgent) {
-      const recipe = session.recipe;
-      const hasUnfilledParameters =
-        recipe?.parameters && recipe.parameters.length > 0 && !session.user_recipe_values;
-
-      if (!hasUnfilledParameters) {
+      if (!hasUnfilledParameters(session)) {
         hasAutoSubmittedRef.current = true;
         handleSubmit({ msg: '', images: [] });
       }
@@ -111,6 +108,7 @@ export function useAutoSubmit({
     messages.length,
     chatState,
     clearInitialMessage,
+    hasUnfilledParameters,
   ]);
 
   return {
