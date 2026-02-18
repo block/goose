@@ -9,7 +9,7 @@ import { UserInput } from '../../types/message';
 import { ReasoningDetailProvider } from '../../contexts/ReasoningDetailContext';
 import ReasoningDetailPanel from '../ReasoningDetailPanel';
 import { UnifiedInputProvider } from '../../contexts/UnifiedInputContext';
-import PromptBar from '../prompt_bar/PromptBar';
+
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
@@ -86,14 +86,13 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       </Sidebar>
       <SidebarInset>
         {/* Non-pair routes: standard page content */}
-        <div className={isOnPairRoute ? 'hidden' : 'flex-1 overflow-auto pb-20'}>
+        <div className={isOnPairRoute ? 'hidden' : 'flex-1 overflow-auto'}>
           <Outlet />
         </div>
-        {/* Pair route: chat sessions or WelcomeState */}
-        <div className={isOnPairRoute ? 'flex-1 overflow-auto pb-20' : 'hidden'}>
+        {/* Pair route: chat sessions with ChatInput, or WelcomeState with ChatInput */}
+        <div className={isOnPairRoute ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
-        <PromptBar />
       </SidebarInset>
       <ReasoningDetailPanel />
     </div>

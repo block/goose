@@ -82,8 +82,6 @@ export interface UnifiedInputContextValue {
   zone: NavigationZone;
   config: ZoneConfig;
   slashCommands: SlashCommand[];
-  showInput: boolean;
-  showPromptBar: boolean;
   session: SessionInputState | null;
   submitPrompt: (text: string) => void;
   setSessionState: (state: SessionInputState | null) => void;
@@ -345,22 +343,15 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
     }
   }, []); // stable — reads everything from refs
 
-  const showInput = !isOnPairRoute;
-  // PromptBar shows only in compact mode (non-pair routes like /settings, /workflows)
-  // On /pair, either WelcomeState (has its own input) or BaseChat (has ChatInput) handles input
-  const showPromptBar = showInput && mode === 'compact';
-
   const value = useMemo<UnifiedInputContextValue>(() => ({
     mode,
     zone,
     config,
     slashCommands,
-    showInput,
-    showPromptBar,
     session,
     submitPrompt,
     setSessionState,
-  }), [mode, zone, config, slashCommands, showInput, showPromptBar, session]);
+  }), [mode, zone, config, slashCommands, session]);
 
   return (
     <UnifiedInputContext.Provider value={value}>
