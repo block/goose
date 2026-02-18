@@ -72,8 +72,8 @@ End with 'Deployed to production 🚀'
 ### goose Output
 
 ```
-─── load_skill | skills ───────────────────────────────────────
-name: remotion-best-practices
+─── load | summon ───────────────────────────────────────
+source: remotion-best-practices
 
 reading ~/.agents/skills/remotion-best-practices/rules/animations.md
 
