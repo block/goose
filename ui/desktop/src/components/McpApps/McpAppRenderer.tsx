@@ -26,7 +26,6 @@ import type {
 import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
 import { GripHorizontal, Maximize2, Minimize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -241,13 +240,6 @@ export default function McpAppRenderer({
   cachedHtml,
   onDisplayModeChange,
 }: McpAppRendererProps) {
-  // Stable view-transition-name per instance so the View Transitions API can animate
-  // the app container between inline ↔ pip ↔ fullscreen DOM positions.
-  const viewTransitionName = useMemo(
-    () => `mcp-app-${resourceUri.replace(/[^a-zA-Z0-9]/g, '-')}`,
-    [resourceUri]
-  );
-
   // Internal display mode — starts matching the prop, but can be changed by host-side controls.
   // Standalone mode is externally controlled (dedicated Electron window) and cannot be toggled.
   const [activeDisplayMode, setActiveDisplayMode] = useState<GooseDisplayMode>(displayMode);
@@ -261,17 +253,8 @@ export default function McpAppRenderer({
 
   const changeDisplayMode = useCallback(
     (mode: GooseDisplayMode) => {
-      if (document.startViewTransition) {
-        document.startViewTransition(() => {
-          flushSync(() => {
-            setActiveDisplayMode(mode);
-            onDisplayModeChange?.(mode);
-          });
-        });
-      } else {
-        setActiveDisplayMode(mode);
-        onDisplayModeChange?.(mode);
-      }
+      setActiveDisplayMode(mode);
+      onDisplayModeChange?.(mode);
     },
     [onDisplayModeChange]
   );
@@ -799,7 +782,7 @@ export default function McpAppRenderer({
   // Single stable container — CSS switches between inline/fullscreen/pip positioning.
   // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
-    'bg-background-default [&_iframe]:!w-full',
+    'mcp-app-container bg-background-default [&_iframe]:!w-full',
     isFullscreen && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
     isPip &&
       'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default shadow-2xl',
@@ -810,7 +793,6 @@ export default function McpAppRenderer({
   );
 
   const containerStyle: React.CSSProperties = {
-    viewTransitionName,
     ...(isFullscreen
       ? {}
       : isPip
