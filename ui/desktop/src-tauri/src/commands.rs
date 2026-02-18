@@ -640,6 +640,7 @@ pub fn handle_deep_link(app: &tauri::AppHandle, url: &str) {
 }
 
 /// Classify a deep link URL into its event category (testable without Tauri app handle).
+#[cfg(test)]
 pub(crate) fn classify_deep_link(url: &str) -> &'static str {
     if url.starts_with("goose://bot/") || url.starts_with("goose://recipe/") {
         "deep-link-recipe"
