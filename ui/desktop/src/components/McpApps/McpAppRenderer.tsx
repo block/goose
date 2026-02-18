@@ -799,7 +799,7 @@ export default function McpAppRenderer({
 
     if (activeDisplayMode === 'pip') {
       return (
-        <div className="absolute top-2 right-2 z-10 flex gap-1">
+        <div className="sticky top-2 right-2 z-10 float-right mr-2 mt-2 flex gap-1">
           {appSupportsFullscreen && (
             <button
               onClick={() => changeDisplayMode('fullscreen')}
