@@ -28,13 +28,10 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-  SidebarTrigger,
-  useSidebar,
 } from '../ui/sidebar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Gear } from '../icons';
@@ -428,7 +425,7 @@ const SessionList = React.memo<{
 
           return (
             <div key={group.project}>
-              <div className="flex items-center group/project relative">
+              <div className="flex items-center group/project">
                 <button
                   onClick={() => toggleCollapsed(group.project)}
                   className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30"
@@ -443,44 +440,49 @@ const SessionList = React.memo<{
                     className={`w-3 h-3 flex-shrink-0 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
                   />
                 </button>
-                {/* Hover action strip — appears vertically outside the sidebar */}
-                <div className="absolute right-0 top-0 translate-x-full opacity-0 group-hover/project:opacity-100 transition-opacity duration-150 flex flex-col bg-background-default border border-border-default rounded-r-md shadow-sm z-50">
+                {/* Hover action strip — inline icons that appear on hover */}
+                <div className="flex-shrink-0 flex items-center gap-0.5 opacity-0 group-hover/project:opacity-100 transition-opacity duration-150 pr-1">
                   {onNewSessionInProject && (
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         const dir = isGeneral
                           ? ''
                           : group.sessions[0]?.working_dir || '';
                         onNewSessionInProject(dir);
                       }}
-                      className="p-1 hover:bg-background-muted transition-colors rounded-tr-md"
+                      className="p-0.5 hover:bg-background-muted rounded transition-colors"
                       title={isGeneral ? 'New session' : 'New session in project'}
                     >
-                      <Plus className="w-3 h-3 text-text-muted" />
+                      <Plus className="w-3 h-3 text-text-muted hover:text-text-default" />
                     </button>
                   )}
                   {!isGeneral && (
                     <>
                       <button
-                        onClick={() => togglePin(group.project)}
-                        className="p-1 hover:bg-background-muted transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePin(group.project);
+                        }}
+                        className="p-0.5 hover:bg-background-muted rounded transition-colors"
                         title={pinned ? 'Unpin project' : 'Pin project'}
                       >
                         {pinned ? (
-                          <PinOff className="w-3 h-3 text-text-muted" />
+                          <PinOff className="w-3 h-3 text-text-muted hover:text-text-default" />
                         ) : (
-                          <Pin className="w-3 h-3 text-text-muted" />
+                          <Pin className="w-3 h-3 text-text-muted hover:text-text-default" />
                         )}
                       </button>
                       <button
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation();
                           onCloseProject(
                             group.project,
                             group.sessions.map((s) => s.id)
-                          )
-                        }
-                        className="p-1 hover:bg-background-danger/10 transition-colors rounded-br-md"
-                        title={`Close project (${group.sessions.length} session${group.sessions.length !== 1 ? 's' : ''})`}
+                          );
+                        }}
+                        className="p-0.5 hover:bg-background-danger/10 rounded transition-colors"
+                        title={`Close project`}
                       >
                         <X className="w-3 h-3 text-text-danger" />
                       </button>
@@ -887,17 +889,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     });
   };
 
-  const { state: sidebarState } = useSidebar();
-  const isCollapsedSidebar = sidebarState === 'collapsed';
-
   return (
     <>
-      <SidebarHeader className="flex flex-row items-center gap-1 px-2 py-2">
-        <SidebarTrigger className="hover:bg-background-medium/50" />
-        {!isCollapsedSidebar && (
-          <span className="text-sm font-semibold text-text-default truncate flex-1">Goose</span>
-        )}
-      </SidebarHeader>
+      {/* No header — the sidebar edge strip in sidebar.tsx handles fold/unfold */}
       <SidebarContent>
         <SidebarMenu>
           {/* Home + Chat Zone */}

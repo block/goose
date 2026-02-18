@@ -237,8 +237,31 @@ function Sidebar({
         >
           {children}
         </div>
+        {/* Side strip — thin clickable edge to fold/unfold */}
+        <SidebarEdgeStrip />
       </div>
     </div>
+  );
+}
+
+function SidebarEdgeStrip() {
+  const { toggleSidebar, state } = useSidebar();
+  const isCollapsed = state === 'collapsed';
+
+  return (
+    <button
+      data-sidebar="edge-strip"
+      aria-label="Toggle Sidebar"
+      onClick={toggleSidebar}
+      className={cn(
+        'absolute top-0 right-0 h-full w-[6px] z-20 cursor-col-resize',
+        'bg-transparent hover:bg-border-strong/40 active:bg-border-strong/60',
+        'transition-colors duration-150',
+        isCollapsed && 'right-0 cursor-e-resize',
+        !isCollapsed && 'cursor-w-resize'
+      )}
+      title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+    />
   );
 }
 
