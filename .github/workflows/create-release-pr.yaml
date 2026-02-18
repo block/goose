@@ -108,3 +108,11 @@ jobs:
           --body-file pr_body.txt
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Post release checklist comment
+      run: |
+        PR_NUMBER=$(gh pr list --head "${{ env.branch_name }}" --json number --jq '.[0].number')
+        sed 's/{{VERSION}}/${{ env.version }}/g' RELEASE_CHECKLIST.md > checklist_comment.md
+        gh pr comment "$PR_NUMBER" --body-file checklist_comment.md
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
