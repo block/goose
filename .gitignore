@@ -83,3 +83,4 @@ gooseselftest/
 .tasks/
 *.png
 ui/desktop/dist/
+sidebar.webm

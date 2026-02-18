@@ -244,13 +244,22 @@ function Sidebar({
   );
 }
 
-const SIDEBAR_PX = 192; // 12rem
-const SIDEBAR_ICON_PX = 38;
-const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-const SNAP_MID = (SIDEBAR_ICON_PX + SIDEBAR_PX) / 2;
+const SIDEBAR_PX = 192; // 12rem (expanded width)
+const SIDEBAR_ICON_PX = 38; // icon-only width
+const DRAG_DEADZONE = 4; // px before drag activates
+
+// Snap at 30% of the range (~84px) — short drag to fold, longer to unfold
+const SNAP_THRESHOLD = SIDEBAR_ICON_PX + (SIDEBAR_PX - SIDEBAR_ICON_PX) * 0.3;
 
 const getSidebarRoot = (el: HTMLElement) =>
   el.closest('[data-slot="sidebar"][data-state]') as HTMLElement | null;
+
+// Rubber-band: resist movement past edges for a physical feel
+function rubberBand(value: number, min: number, max: number): number {
+  if (value < min) return min - (min - value) * 0.3;
+  if (value > max) return max + (value - max) * 0.3;
+  return value;
+}
 
 function SidebarDragHandle() {
   const { toggleSidebar, state, setOpen } = useSidebar();
@@ -264,6 +273,7 @@ function SidebarDragHandle() {
   const [isDragging, setIsDragging] = React.useState(false);
 
   const onPointerDown = React.useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragRef.current = {
       pointerId: e.pointerId,
@@ -276,7 +286,8 @@ function SidebarDragHandle() {
   const onPointerMove = React.useCallback((e: React.PointerEvent) => {
     if (dragRef.current.pointerId !== e.pointerId) return;
     const dx = e.clientX - dragRef.current.startX;
-    if (Math.abs(dx) > 4) {
+
+    if (!dragRef.current.dragging && Math.abs(dx) > DRAG_DEADZONE) {
       dragRef.current.dragging = true;
       setIsDragging(true);
     }
@@ -285,10 +296,13 @@ function SidebarDragHandle() {
     const sidebar = getSidebarRoot(e.currentTarget as HTMLElement);
     if (!sidebar) return;
 
-    // Invert drag direction for right-side sidebars
     const side = sidebar.getAttribute('data-side');
     const signedDx = side === 'right' ? -dx : dx;
-    const next = clamp(dragRef.current.startWidth + signedDx, SIDEBAR_ICON_PX, SIDEBAR_PX);
+    const raw = dragRef.current.startWidth + signedDx;
+    const next = rubberBand(raw, SIDEBAR_ICON_PX, SIDEBAR_PX);
+
+    // Disable CSS transition during drag for immediate feedback
+    sidebar.style.setProperty('transition', 'none');
     sidebar.style.setProperty('--sidebar-width', `${next}px`);
   }, []);
 
@@ -296,16 +310,29 @@ function SidebarDragHandle() {
     if (dragRef.current.pointerId !== e.pointerId) return;
     const wasDragging = dragRef.current.dragging;
     dragRef.current.pointerId = null;
+    dragRef.current.dragging = false;
     setIsDragging(false);
 
     const sidebar = getSidebarRoot(e.currentTarget as HTMLElement);
 
+    if (cancelled) {
+      if (sidebar) {
+        sidebar.style.removeProperty('--sidebar-width');
+        sidebar.style.removeProperty('transition');
+      }
+      return;
+    }
+
     if (wasDragging && sidebar) {
       const current = parseFloat(getComputedStyle(sidebar).getPropertyValue('--sidebar-width'));
-      const shouldOpen = current >= SNAP_MID;
+      const shouldOpen = current >= SNAP_THRESHOLD;
+
+      // Re-enable transition for smooth snap animation
+      sidebar.style.removeProperty('transition');
       sidebar.style.removeProperty('--sidebar-width');
       setOpen(shouldOpen);
-    } else if (!cancelled) {
+    } else {
+      if (sidebar) sidebar.style.removeProperty('transition');
       toggleSidebar();
     }
   }, [toggleSidebar, setOpen]);
