@@ -5,11 +5,7 @@ import { createNavigationHandler } from '../../utils/navigationUtils';
 import { Goose } from '../icons';
 import ProviderSelector from './ProviderSelector';
 
-export default function OnboardingPage({
-  onProviderSetup,
-}: {
-  onProviderSetup?: () => void;
-}) {
+export default function OnboardingPage({ onProviderSetup }: { onProviderSetup?: () => void }) {
   const navigate = useNavigate();
   const setView = useMemo(() => createNavigationHandler(navigate), [navigate]);
 
@@ -36,18 +32,19 @@ export default function OnboardingPage({
   return (
     <div className="h-screen w-full bg-background-default overflow-hidden">
       <div className="h-full overflow-y-auto">
-        <div className={`flex flex-col items-center p-4 pb-8 transition-all duration-500 ease-in-out ${hasSelection ? 'pt-8' : 'pt-[15vh]'}`}>
+        <div
+          className={`flex flex-col items-center p-4 pb-8 transition-all duration-500 ease-in-out ${hasSelection ? 'pt-8' : 'pt-[15vh]'}`}
+        >
           <div className="max-w-2xl w-full mx-auto">
-            <div className={`text-left transition-all duration-500 ease-in-out overflow-hidden ${hasSelection ? 'max-h-0 opacity-0 mb-0' : 'max-h-60 opacity-100 mb-8'}`}>
+            <div
+              className={`text-left transition-all duration-500 ease-in-out overflow-hidden ${hasSelection ? 'max-h-0 opacity-0 mb-0' : 'max-h-60 opacity-100 mb-8'}`}
+            >
               <div className="mb-4">
                 <Goose className="size-8" />
               </div>
               <h1 className="text-2xl sm:text-4xl font-light mb-3">Welcome to Goose</h1>
               <p className="text-text-muted text-base sm:text-lg">
-                Your local AI agent, automating tasks seamlessly.
-              </p>
-              <p className="text-text-muted text-base sm:text-lg mt-1">
-                Select an AI provider to power Goose.
+                Your local AI agent. Connect an AI model provider to get started.
               </p>
             </div>
 
@@ -56,15 +53,6 @@ export default function OnboardingPage({
               onOllamaSetup={handleOllamaSetup}
               onFirstSelection={() => setHasSelection(true)}
             />
-
-            <div className="mt-8 text-center">
-              <button
-                onClick={() => navigate('/getting-started')}
-                className="text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors"
-              >
-                New to AI? Get started here →
-              </button>
-            </div>
           </div>
         </div>
       </div>
