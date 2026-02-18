@@ -252,7 +252,7 @@ export default function McpAppRenderer({
   const isStandalone = displayMode === 'standalone';
 
   // Display modes the app declared support for during ui/initialize.
-  // null = not yet known (show all controls), empty = app didn't declare any.
+  // null = not yet known (controls stay hidden until initialize), empty = app didn't declare any.
   const [appDeclaredModes, setAppDeclaredModes] = useState<string[] | null>(null);
 
   // Remember the inline iframe height when leaving inline mode so we can
