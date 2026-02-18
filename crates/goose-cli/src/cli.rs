@@ -1510,6 +1510,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 source_url: file.download_url.clone(),
                 settings: Default::default(),
                 size_bytes: file.size_bytes,
+                context_limit: 8192, // Default context limit
             };
 
             {

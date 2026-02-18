@@ -604,10 +604,11 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::local_inference::LocalModelResponse,
         super::routes::local_inference::ModelDownloadStatus,
         super::routes::local_inference::DownloadProgressResponse,
-        
+        super::routes::local_inference::HfSearchResult,
+        super::routes::local_inference::HfQuantVariant,
+        super::routes::local_inference::DownloadModelRequest,
         goose::providers::local_inference::hf_models::HfModelInfo,
         goose::providers::local_inference::hf_models::HfGgufFile,
-        goose::providers::local_inference::hf_models::HfQuantVariant,
         goose::providers::local_inference::local_model_registry::ModelSettings,
         goose::providers::local_inference::local_model_registry::SamplingConfig,
         DownloadProgress,

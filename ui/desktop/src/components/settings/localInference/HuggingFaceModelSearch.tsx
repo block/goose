@@ -5,7 +5,7 @@ import {
   searchHfModels,
   getRepoFiles,
   downloadHfModel,
-  type HfModelInfo,
+  type HfSearchResult,
   type HfQuantVariant,
 } from '../../../api';
 
@@ -34,7 +34,7 @@ interface Props {
 
 export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<HfModelInfo[]>([]);
+  const [results, setResults] = useState<HfSearchResult[]>([]);
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
   const [repoData, setRepoData] = useState<Record<string, RepoData>>({});
   const [searching, setSearching] = useState(false);
@@ -43,6 +43,11 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   const [directSpec, setDirectSpec] = useState('');
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Build repo_id from search result
+  const getRepoId = (result: HfSearchResult): string => {
+    return `${result.author}/${result.name}`;
+  };
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -54,17 +59,18 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
     setError(null);
     try {
       const response = await searchHfModels({
-        query: { q, limit: 20 },
+        query: { q },
       });
       if (response.data) {
         // Pre-fetch variants for all results and filter out repos with no suitable quantizations
         const modelsWithVariants = await Promise.all(
           response.data.map(async (model) => {
             try {
-              const [author, repo] = model.repo_id.split('/');
+              const repoId = getRepoId(model);
+              const [author, repo] = repoId.split('/');
               const filesResponse = await getRepoFiles({ path: { author, repo } });
-              if (filesResponse.data && filesResponse.data.variants.length > 0) {
-                return { model, data: filesResponse.data };
+              if (filesResponse.data && filesResponse.data.length > 0) {
+                return { model, variants: filesResponse.data };
               }
             } catch {
               // Skip repos we can't fetch
@@ -74,17 +80,30 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
         );
 
         const validResults = modelsWithVariants.filter(Boolean) as {
-          model: HfModelInfo;
-          data: { variants: HfQuantVariant[]; recommended_index?: number | null };
+          model: HfSearchResult;
+          variants: HfQuantVariant[];
         }[];
 
         setResults(validResults.map((r) => r.model));
         setRepoData((prev) => {
           const next = { ...prev };
           for (const r of validResults) {
-            next[r.model.repo_id] = {
-              variants: r.data.variants,
-              recommendedIndex: r.data.recommended_index ?? null,
+            const repoId = getRepoId(r.model);
+            // Find the best variant (highest quality_rank that's not too big)
+            let recommendedIdx: number | null = null;
+            const sorted = [...r.variants].sort((a, b) => b.quality_rank - a.quality_rank);
+            // Recommend the highest quality variant under 8GB, or the smallest if all are big
+            const under8GB = sorted.filter((v) => v.size_bytes < 8 * 1024 * 1024 * 1024);
+            if (under8GB.length > 0) {
+              recommendedIdx = r.variants.findIndex((v) => v.filename === under8GB[0].filename);
+            } else {
+              // Pick smallest
+              const smallest = [...r.variants].sort((a, b) => a.size_bytes - b.size_bytes)[0];
+              recommendedIdx = r.variants.findIndex((v) => v.filename === smallest.filename);
+            }
+            next[repoId] = {
+              variants: r.variants,
+              recommendedIndex: recommendedIdx,
             };
           }
           return next;
@@ -102,40 +121,49 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       }
     } catch (e) {
       console.error('Search failed:', e);
-      setError('Search failed. Please try again.');
+      setError('Search failed. Check console for details.');
     } finally {
       setSearching(false);
     }
   }, []);
 
-  const handleQueryChange = (value: string) => {
-    setQuery(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(value), 300);
-  };
+  const handleSearch = useCallback(
+    (q: string) => {
+      setQuery(q);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => doSearch(q), 400);
+    },
+    [doSearch]
+  );
 
-  const toggleRepo = async (repoId: string) => {
+  const expandRepo = async (repoId: string) => {
     if (expandedRepo === repoId) {
       setExpandedRepo(null);
       return;
     }
     setExpandedRepo(repoId);
 
-    if (!repoData[repoId]?.variants.length) {
+    // If we don't have variants yet, fetch them
+    if (!repoData[repoId]) {
       setLoadingFiles((prev) => new Set(prev).add(repoId));
       try {
         const [author, repo] = repoId.split('/');
-        const response = await getRepoFiles({
-          path: { author, repo },
-        });
+        const response = await getRepoFiles({ path: { author, repo } });
         if (response.data) {
-          const variants = response.data.variants;
+          const variants = response.data;
+          // Find recommended
+          let recommendedIdx: number | null = null;
+          const sorted = [...variants].sort((a, b) => b.quality_rank - a.quality_rank);
+          const under8GB = sorted.filter((v) => v.size_bytes < 8 * 1024 * 1024 * 1024);
+          if (under8GB.length > 0) {
+            recommendedIdx = variants.findIndex((v) => v.filename === under8GB[0].filename);
+          } else {
+            const smallest = [...variants].sort((a, b) => a.size_bytes - b.size_bytes)[0];
+            recommendedIdx = variants.findIndex((v) => v.filename === smallest.filename);
+          }
           setRepoData((prev) => ({
             ...prev,
-            [repoId]: {
-              variants,
-              recommendedIndex: response.data!.recommended_index ?? null,
-            },
+            [repoId]: { variants, recommendedIndex: recommendedIdx },
           }));
         }
       } catch (e) {
@@ -151,38 +179,38 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   };
 
   const startDownload = async (repoId: string, filename: string) => {
-    const key = `${repoId}/${filename}`;
-    setDownloading((prev) => new Set(prev).add(key));
+    const dlKey = `${repoId}/${filename}`;
+    setDownloading((prev) => new Set(prev).add(dlKey));
     try {
       const response = await downloadHfModel({
         body: { repo_id: repoId, filename },
       });
       if (response.data) {
-        onDownloadStarted(response.data.model_id);
-      } else {
-        console.error('Download error:', response.error);
+        onDownloadStarted(response.data);
       }
     } catch (e) {
       console.error('Download failed:', e);
     } finally {
       setDownloading((prev) => {
         const next = new Set(prev);
-        next.delete(key);
+        next.delete(dlKey);
         return next;
       });
     }
   };
 
   const startDirectDownload = async () => {
-    if (!directSpec.trim()) return;
-    const key = `direct:${directSpec}`;
-    setDownloading((prev) => new Set(prev).add(key));
+    const spec = directSpec.trim();
+    if (!spec) return;
+
+    const dlKey = `direct:${spec}`;
+    setDownloading((prev) => new Set(prev).add(dlKey));
     try {
       const response = await downloadHfModel({
-        body: { spec: directSpec.trim() },
+        body: { spec },
       });
       if (response.data) {
-        onDownloadStarted(response.data.model_id);
+        onDownloadStarted(response.data);
         setDirectSpec('');
       }
     } catch (e) {
@@ -190,7 +218,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
     } finally {
       setDownloading((prev) => {
         const next = new Set(prev);
-        next.delete(key);
+        next.delete(dlKey);
         return next;
       });
     }
@@ -201,46 +229,46 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       <div>
         <h4 className="text-sm font-medium text-text-default mb-2">Search HuggingFace</h4>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
             value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             placeholder="Search for GGUF models..."
-            className="w-full pl-9 pr-4 py-2 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
+            className="w-full px-3 py-2 pl-9 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
           />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           {searching && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted animate-spin" />
+            <Loader2 className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-text-muted animate-spin" />
           )}
         </div>
       </div>
 
-      {error && !searching && <p className="text-xs text-text-muted">{error}</p>}
+      {error && <p className="text-sm text-red-500">{error}</p>}
 
       {results.length > 0 && (
-        <div className="space-y-1 max-h-96 overflow-y-auto">
+        <div className="space-y-2 max-h-[400px] overflow-y-auto">
           {results.map((model) => {
-            const isExpanded = expandedRepo === model.repo_id;
-            const data = repoData[model.repo_id];
+            const repoId = getRepoId(model);
+            const isExpanded = expandedRepo === repoId;
+            const data = repoData[repoId];
             const variants = data?.variants || [];
             const recommendedIndex = data?.recommendedIndex ?? null;
+            const isLoading = loadingFiles.has(repoId);
 
             return (
-              <div key={model.repo_id} className="border border-border-subtle rounded-lg">
+              <div
+                key={model.id}
+                className="border border-border-subtle rounded-lg overflow-hidden"
+              >
                 <button
-                  onClick={() => toggleRepo(model.repo_id)}
-                  className="w-full flex items-center justify-between p-3 text-left hover:bg-background-subtle rounded-lg"
+                  className="w-full flex items-center justify-between p-3 text-left hover:bg-background-subtle transition-colors"
+                  onClick={() => expandRepo(repoId)}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-text-default truncate">
-                        {model.repo_id}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      <span className="text-xs text-text-muted">
-                        ↓ {formatDownloads(model.downloads)}
-                      </span>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <span className="text-sm font-medium text-text-default truncate">{repoId}</span>
+                    <div className="flex items-center gap-3 text-xs text-text-muted">
+                      <span>{formatDownloads(model.downloads)} downloads</span>
+                      {model.likes > 0 && <span>❤️ {formatDownloads(model.likes)}</span>}
                     </div>
                   </div>
                   {isExpanded ? (
@@ -251,15 +279,15 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                 </button>
 
                 {isExpanded && (
-                  <div className="border-t border-border-subtle px-3 pb-3 space-y-1">
-                    {loadingFiles.has(model.repo_id) && (
-                      <div className="flex items-center gap-2 py-2 text-xs text-text-muted">
+                  <div className="border-t border-border-subtle p-2 space-y-1 bg-background-subtle/50">
+                    {isLoading && (
+                      <div className="flex items-center gap-2 py-2 px-2 text-sm text-text-muted">
                         <Loader2 className="w-3 h-3 animate-spin" />
                         Loading variants...
                       </div>
                     )}
                     {variants.map((variant, idx) => {
-                      const dlKey = `${model.repo_id}/${variant.filename}`;
+                      const dlKey = `${repoId}/${variant.filename}`;
                       const isStarting = downloading.has(dlKey);
                       const isRecommended = idx === recommendedIndex;
 
@@ -287,15 +315,12 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                                 </span>
                               )}
                             </div>
-                            {variant.description && (
-                              <span className="text-xs text-text-muted">{variant.description}</span>
-                            )}
                           </div>
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={isStarting}
-                            onClick={() => startDownload(model.repo_id, variant.filename)}
+                            onClick={() => startDownload(repoId, variant.filename)}
                           >
                             {isStarting ? (
                               <Loader2 className="w-3 h-3 animate-spin" />

@@ -232,6 +232,18 @@ export type DictationProviderStatus = {
     uses_provider_config: boolean;
 };
 
+export type DownloadModelRequest = {
+    filename?: string | null;
+    /**
+     * Alternative: provide repo_id and filename separately
+     */
+    repo_id?: string | null;
+    /**
+     * Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
+     */
+    spec?: string | null;
+};
+
 export type DownloadProgress = {
     /**
      * Bytes downloaded so far
@@ -268,6 +280,7 @@ export type DownloadProgressResponse = {
     bytes_downloaded: number;
     eta_seconds?: number | null;
     model_id: string;
+    progress_percent: number;
     speed_bps?: number | null;
     status: string;
     total_bytes: number;
@@ -455,16 +468,6 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     prd?: string | null;
 };
 
-export type HfDownloadRequest = {
-    filename?: string | null;
-    repo_id?: string | null;
-    spec?: string | null;
-};
-
-export type HfDownloadResponse = {
-    model_id: string;
-};
-
 /**
  * A single downloadable GGUF file (used internally and for downloads).
  */
@@ -483,16 +486,20 @@ export type HfModelInfo = {
     repo_id: string;
 };
 
-/**
- * A quantization variant — groups sharded files into one logical entry.
- */
 export type HfQuantVariant = {
-    description: string;
     download_url: string;
     filename: string;
     quality_rank: number;
     quantization: string;
     size_bytes: number;
+};
+
+export type HfSearchResult = {
+    author: string;
+    downloads: number;
+    id: string;
+    likes: number;
+    name: string;
 };
 
 export type Icon = {
@@ -561,10 +568,10 @@ export type LoadedProvider = {
 };
 
 /**
- * Response for a single local model
+ * Response for a local model
  */
 export type LocalModelResponse = {
-    context_limit?: number | null;
+    context_limit: number;
     display_name: string;
     filename: string;
     id: string;
@@ -573,21 +580,7 @@ export type LocalModelResponse = {
     repo_id: string;
     settings: ModelSettings;
     size_bytes: number;
-    /**
-     * Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)
-     */
-    status: {
-        state: 'NotDownloaded';
-    } | {
-        bytes_downloaded: number;
-        progress_percent: number;
-        speed_bps?: number | null;
-        state: 'Downloading';
-        total_bytes: number;
-    } | {
-        state: 'Downloaded';
-    };
-    tier?: ModelTier | null;
+    status: ModelDownloadStatus;
 };
 
 /**
@@ -718,7 +711,7 @@ export type ModelConfig = {
 };
 
 /**
- * Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)
+ * Download status for local models
  */
 export type ModelDownloadStatus = {
     state: 'NotDownloaded';
@@ -800,8 +793,6 @@ export type ModelSettings = {
     use_jinja?: boolean;
     use_mlock?: boolean;
 };
-
-export type ModelTier = 'Tiny' | 'Small' | 'Medium' | 'Large';
 
 export type ParseRecipeRequest = {
     content: string;
@@ -1020,11 +1011,6 @@ export type RedactedThinkingContent = {
 export type RemoveExtensionRequest = {
     name: string;
     session_id: string;
-};
-
-export type RepoVariantsResponse = {
-    recommended_index?: number | null;
-    variants: Array<HfQuantVariant>;
 };
 
 export type ResourceContents = {
@@ -2971,7 +2957,7 @@ export type StartTetrateSetupResponses = {
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
 
 export type DownloadHfModelData = {
-    body: HfDownloadRequest;
+    body: DownloadModelRequest;
     path?: never;
     query?: never;
     url: '/local-inference/download';
@@ -2982,17 +2968,13 @@ export type DownloadHfModelErrors = {
      * Invalid request
      */
     400: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
 };
 
 export type DownloadHfModelResponses = {
     /**
      * Download started
      */
-    202: HfDownloadResponse;
+    202: string;
 };
 
 export type DownloadHfModelResponse = DownloadHfModelResponses[keyof DownloadHfModelResponses];
@@ -3047,7 +3029,7 @@ export type CancelLocalModelDownloadData = {
 
 export type CancelLocalModelDownloadErrors = {
     /**
-     * Download not found
+     * No active download
      */
     404: unknown;
 };
@@ -3070,7 +3052,7 @@ export type GetLocalModelDownloadProgressData = {
 
 export type GetLocalModelDownloadProgressErrors = {
     /**
-     * Download not found
+     * No active download
      */
     404: unknown;
 };
@@ -3148,18 +3130,11 @@ export type GetRepoFilesData = {
     url: '/local-inference/repo/{author}/{repo}/files';
 };
 
-export type GetRepoFilesErrors = {
-    /**
-     * Failed to fetch repo files
-     */
-    500: unknown;
-};
-
 export type GetRepoFilesResponses = {
     /**
-     * GGUF quantization variants in repo
+     * GGUF files in the repo
      */
-    200: RepoVariantsResponse;
+    200: Array<HfQuantVariant>;
 };
 
 export type GetRepoFilesResponse = GetRepoFilesResponses[keyof GetRepoFilesResponses];
@@ -3172,10 +3147,6 @@ export type SearchHfModelsData = {
          * Search query
          */
         q: string;
-        /**
-         * Max results (default 20)
-         */
-        limit?: number | null;
     };
     url: '/local-inference/search';
 };
@@ -3184,7 +3155,7 @@ export type SearchHfModelsResponses = {
     /**
      * Search results
      */
-    200: Array<HfModelInfo>;
+    200: Array<HfSearchResult>;
 };
 
 export type SearchHfModelsResponse = SearchHfModelsResponses[keyof SearchHfModelsResponses];

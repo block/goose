@@ -201,6 +201,12 @@ pub struct LocalModelEntry {
     pub settings: ModelSettings,
     #[serde(default)]
     pub size_bytes: u64,
+    #[serde(default = "default_context_limit")]
+    pub context_limit: u32,
+}
+
+fn default_context_limit() -> u32 {
+    8192 // Default context limit for most models
 }
 
 impl LocalModelEntry {
@@ -307,6 +313,7 @@ impl LocalModelRegistry {
                     source_url: legacy.source_url.to_string(),
                     settings: ModelSettings::default(),
                     size_bytes: 0,
+                    context_limit: 8192, // Default for legacy models
                 });
                 changed = true;
             }

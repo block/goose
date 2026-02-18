@@ -1837,7 +1837,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HfDownloadRequest"
+                "$ref": "#/components/schemas/DownloadModelRequest"
               }
             }
           },
@@ -1847,18 +1847,15 @@
           "202": {
             "description": "Download started",
             "content": {
-              "application/json": {
+              "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/HfDownloadResponse"
+                  "type": "string"
                 }
               }
             }
           },
           "400": {
             "description": "Invalid request"
-          },
-          "500": {
-            "description": "Internal server error"
           }
         }
       }
@@ -1940,7 +1937,7 @@
             }
           },
           "404": {
-            "description": "Download not found"
+            "description": "No active download"
           }
         }
       },
@@ -1964,7 +1961,7 @@
             "description": "Download cancelled"
           },
           "404": {
-            "description": "Download not found"
+            "description": "No active download"
           }
         }
       }
@@ -2072,17 +2069,17 @@
         ],
         "responses": {
           "200": {
-            "description": "GGUF quantization variants in repo",
+            "description": "GGUF files in the repo",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RepoVariantsResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HfQuantVariant"
+                  }
                 }
               }
             }
-          },
-          "500": {
-            "description": "Failed to fetch repo files"
           }
         }
       }
@@ -2102,17 +2099,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Max results (default 20)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "nullable": true,
-              "minimum": 0
-            }
           }
         ],
         "responses": {
@@ -2123,7 +2109,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/HfModelInfo"
+                    "$ref": "#/components/schemas/HfSearchResult"
                   }
                 }
               }
@@ -4259,6 +4245,25 @@
           }
         }
       },
+      "DownloadModelRequest": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "nullable": true
+          },
+          "repo_id": {
+            "type": "string",
+            "description": "Alternative: provide repo_id and filename separately",
+            "nullable": true
+          },
+          "spec": {
+            "type": "string",
+            "description": "Model spec like \"bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M\"",
+            "nullable": true
+          }
+        }
+      },
       "DownloadProgress": {
         "type": "object",
         "required": [
@@ -4320,7 +4325,8 @@
           "model_id",
           "status",
           "bytes_downloaded",
-          "total_bytes"
+          "total_bytes",
+          "progress_percent"
         ],
         "properties": {
           "bytes_downloaded": {
@@ -4336,6 +4342,10 @@
           },
           "model_id": {
             "type": "string"
+          },
+          "progress_percent": {
+            "type": "number",
+            "format": "float"
           },
           "speed_bps": {
             "type": "integer",
@@ -4932,34 +4942,6 @@
           }
         ]
       },
-      "HfDownloadRequest": {
-        "type": "object",
-        "properties": {
-          "filename": {
-            "type": "string",
-            "nullable": true
-          },
-          "repo_id": {
-            "type": "string",
-            "nullable": true
-          },
-          "spec": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "HfDownloadResponse": {
-        "type": "object",
-        "required": [
-          "model_id"
-        ],
-        "properties": {
-          "model_id": {
-            "type": "string"
-          }
-        }
-      },
       "HfGgufFile": {
         "type": "object",
         "description": "A single downloadable GGUF file (used internally and for downloads).",
@@ -5020,19 +5002,14 @@
       },
       "HfQuantVariant": {
         "type": "object",
-        "description": "A quantization variant — groups sharded files into one logical entry.",
         "required": [
-          "quantization",
-          "size_bytes",
           "filename",
+          "size_bytes",
+          "quantization",
           "download_url",
-          "description",
           "quality_rank"
         ],
         "properties": {
-          "description": {
-            "type": "string"
-          },
           "download_url": {
             "type": "string"
           },
@@ -5051,6 +5028,37 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "HfSearchResult": {
+        "type": "object",
+        "required": [
+          "id",
+          "author",
+          "name",
+          "downloads",
+          "likes"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "downloads": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "id": {
+            "type": "string"
+          },
+          "likes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -5241,7 +5249,7 @@
       },
       "LocalModelResponse": {
         "type": "object",
-        "description": "Response for a single local model",
+        "description": "Response for a local model",
         "required": [
           "id",
           "display_name",
@@ -5251,13 +5259,13 @@
           "size_bytes",
           "status",
           "recommended",
+          "context_limit",
           "settings"
         ],
         "properties": {
           "context_limit": {
             "type": "integer",
             "format": "int32",
-            "nullable": true,
             "minimum": 0
           },
           "display_name": {
@@ -5287,85 +5295,7 @@
             "minimum": 0
           },
           "status": {
-            "oneOf": [
-              {
-                "type": "object",
-                "required": [
-                  "state"
-                ],
-                "properties": {
-                  "state": {
-                    "type": "string",
-                    "enum": [
-                      "NotDownloaded"
-                    ]
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "required": [
-                  "progress_percent",
-                  "bytes_downloaded",
-                  "total_bytes",
-                  "state"
-                ],
-                "properties": {
-                  "bytes_downloaded": {
-                    "type": "integer",
-                    "format": "int64",
-                    "minimum": 0
-                  },
-                  "progress_percent": {
-                    "type": "number",
-                    "format": "float"
-                  },
-                  "speed_bps": {
-                    "type": "integer",
-                    "format": "int64",
-                    "nullable": true,
-                    "minimum": 0
-                  },
-                  "state": {
-                    "type": "string",
-                    "enum": [
-                      "Downloading"
-                    ]
-                  },
-                  "total_bytes": {
-                    "type": "integer",
-                    "format": "int64",
-                    "minimum": 0
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "required": [
-                  "state"
-                ],
-                "properties": {
-                  "state": {
-                    "type": "string",
-                    "enum": [
-                      "Downloaded"
-                    ]
-                  }
-                }
-              }
-            ],
-            "description": "Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)",
-            "discriminator": {
-              "propertyName": "state"
-            }
-          },
-          "tier": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ModelTier"
-              }
-            ],
-            "nullable": true
+            "$ref": "#/components/schemas/ModelDownloadStatus"
           }
         }
       },
@@ -5957,7 +5887,7 @@
             }
           }
         ],
-        "description": "Download status for a local model (mirrors goose::providers::local_inference::local_model_registry::ModelDownloadStatus)",
+        "description": "Download status for local models",
         "discriminator": {
           "propertyName": "state"
         }
@@ -6150,15 +6080,6 @@
             "type": "boolean"
           }
         }
-      },
-      "ModelTier": {
-        "type": "string",
-        "enum": [
-          "Tiny",
-          "Small",
-          "Medium",
-          "Large"
-        ]
       },
       "ParseRecipeRequest": {
         "type": "object",
@@ -6745,25 +6666,6 @@
           },
           "session_id": {
             "type": "string"
-          }
-        }
-      },
-      "RepoVariantsResponse": {
-        "type": "object",
-        "required": [
-          "variants"
-        ],
-        "properties": {
-          "recommended_index": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 0
-          },
-          "variants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/HfQuantVariant"
-            }
           }
         }
       },

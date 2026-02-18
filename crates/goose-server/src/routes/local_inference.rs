@@ -46,11 +46,26 @@ pub struct LocalModelResponse {
     pub size_bytes: u64,
     pub status: ModelDownloadStatus,
     pub recommended: bool,
+    pub context_limit: u32,
     pub settings: ModelSettings,
 }
 
 fn handle_internal_error<T: std::fmt::Display>(msg: T) -> ErrorResponse {
     ErrorResponse::internal(format!("{}", msg))
+}
+
+/// Get context limit for a model based on its repo_id
+fn get_context_limit_for_model(repo_id: &str) -> u32 {
+    // Known context limits for featured models
+    if repo_id.contains("Llama-3.2") {
+        131072 // 128K context
+    } else if repo_id.contains("Hermes-2-Pro") {
+        8192 // 8K context
+    } else if repo_id.contains("Mistral-Small") {
+        32768 // 32K context
+    } else {
+        8192 // Default 8K context
+    }
 }
 
 /// Recommend the best model based on available system memory
@@ -141,6 +156,7 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
             source_url: hf_file.download_url,
             settings: ModelSettings::default(),
             size_bytes: hf_file.size_bytes,
+            context_limit: get_context_limit_for_model(repo_id),
         });
     }
 
@@ -213,6 +229,7 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
             size_bytes,
             status,
             recommended: recommended_id.as_deref() == Some(&entry.id),
+            context_limit: entry.context_limit,
             settings: entry.settings.clone(),
         });
     }
@@ -376,6 +393,7 @@ pub async fn download_hf_model(
         source_url: download_url.clone(),
         settings: ModelSettings::default(),
         size_bytes: hf_file.size_bytes,
+        context_limit: get_context_limit_for_model(&repo_id),
     };
 
     {
