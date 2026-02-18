@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
+use tracing::{debug, error, info, warn};
 use utoipa::ToSchema;
 
 fn partial_path_for(destination: &Path) -> PathBuf {
@@ -101,6 +102,8 @@ impl DownloadManager {
         config_key: Option<String>,
         config_value: Option<String>,
     ) -> Result<()> {
+        info!(model_id = %model_id, url = %url, destination = ?destination, "Starting model download");
+
         // Initialize progress
         {
             let mut downloads = self
@@ -109,6 +112,7 @@ impl DownloadManager {
                 .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
 
             if downloads.contains_key(&model_id) {
+                warn!(model_id = %model_id, "Download already in progress");
                 anyhow::bail!("Download already in progress");
             }
 
@@ -136,13 +140,16 @@ impl DownloadManager {
 
         let downloads = self.downloads.clone();
         let model_id_clone = model_id.clone();
+        let url_clone = url.clone();
 
         let destination_for_cleanup = destination.clone();
 
         // Download in background task
         tokio::spawn(async move {
-            match Self::download_file(&url, &destination, &downloads, &model_id_clone).await {
+            debug!(model_id = %model_id_clone, "Background download task started");
+            match Self::download_file(&url_clone, &destination, &downloads, &model_id_clone).await {
                 Ok(_) => {
+                    info!(model_id = %model_id_clone, "Download completed successfully");
                     if let Ok(mut downloads) = downloads.lock() {
                         if let Some(progress) = downloads.get_mut(&model_id_clone) {
                             progress.status = DownloadStatus::Completed;
@@ -156,6 +163,7 @@ impl DownloadManager {
                     }
                 }
                 Err(e) => {
+                    error!(model_id = %model_id_clone, error = %e, "Download failed");
                     // Clean up partial file on failure
                     let partial = partial_path_for(&destination_for_cleanup);
                     let _ = tokio::fs::remove_file(&partial).await;
@@ -179,14 +187,17 @@ impl DownloadManager {
         downloads: &DownloadMap,
         model_id: &str,
     ) -> Result<(), anyhow::Error> {
+        debug!(url = %url, model_id = %model_id, "Initiating HTTP request for download");
         let client = reqwest::Client::new();
         let mut response = client.get(url).send().await?;
 
         if !response.status().is_success() {
+            error!(url = %url, status = %response.status(), "HTTP request failed");
             anyhow::bail!("Failed to download: HTTP {}", response.status());
         }
 
         let total_bytes = response.content_length().unwrap_or(0);
+        info!(model_id = %model_id, total_bytes = total_bytes, "Download started, receiving chunks");
 
         {
             if let Ok(mut downloads) = downloads.lock() {
