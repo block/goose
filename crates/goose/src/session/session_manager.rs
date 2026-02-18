@@ -18,7 +18,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 8;
+pub const CURRENT_SCHEMA_VERSION: i32 = 9;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -90,6 +90,10 @@ pub struct Session {
     pub message_count: usize,
     pub provider_name: Option<String>,
     pub model_config: Option<ModelConfig>,
+    #[serde(default)]
+    pub tenant_id: Option<String>,
+    #[serde(default)]
+    pub user_id: Option<String>,
 }
 
 pub struct SessionUpdateBuilder<'a> {
@@ -342,6 +346,42 @@ impl SessionManager {
         self.storage.list_sessions_by_types(types).await
     }
 
+    pub async fn list_sessions_for_tenant(
+        &self,
+        tenant_id: Option<&str>,
+        user_id: Option<&str>,
+    ) -> Result<Vec<Session>> {
+        self.storage
+            .list_sessions_for_tenant(tenant_id, user_id)
+            .await
+    }
+
+    pub async fn create_session_with_identity(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+        tenant_id: Option<&str>,
+        user_id: Option<&str>,
+    ) -> Result<Session> {
+        let session = self
+            .storage
+            .create_session(working_dir, name, session_type)
+            .await?;
+        let pool = self.storage.pool().await?;
+        sqlx::query("UPDATE sessions SET tenant_id = ?, user_id = ? WHERE id = ?")
+            .bind(tenant_id)
+            .bind(user_id)
+            .bind(&session.id)
+            .execute(pool)
+            .await?;
+        Ok(Session {
+            tenant_id: tenant_id.map(String::from),
+            user_id: user_id.map(String::from),
+            ..session
+        })
+    }
+
     pub async fn delete_session(&self, id: &str) -> Result<()> {
         self.storage.delete_session(id).await
     }
@@ -460,6 +500,8 @@ impl Default for Session {
             message_count: 0,
             provider_name: None,
             model_config: None,
+            tenant_id: None,
+            user_id: None,
         }
     }
 }
@@ -524,6 +566,8 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
             provider_name: row.try_get("provider_name").ok().flatten(),
             model_config,
+            tenant_id: row.try_get("tenant_id").ok().flatten(),
+            user_id: row.try_get("user_id").ok().flatten(),
         })
     }
 }
@@ -622,7 +666,9 @@ impl SessionStorage {
                 recipe_json TEXT,
                 user_recipe_values_json TEXT,
                 provider_name TEXT,
-                model_config_json TEXT
+                model_config_json TEXT,
+                tenant_id TEXT,
+                user_id TEXT
             )
         "#,
         )
@@ -660,6 +706,12 @@ impl SessionStorage {
             .execute(pool)
             .await?;
         sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
+            .execute(pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_sessions_tenant ON sessions(tenant_id)")
+            .execute(pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_sessions_user ON sessions(user_id)")
             .execute(pool)
             .await?;
 
@@ -1064,6 +1116,30 @@ impl SessionStorage {
                     .execute(&mut **tx)
                     .await?;
             }
+            9 => {
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN tenant_id TEXT
+                "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+
+                sqlx::query(
+                    r#"
+                    ALTER TABLE sessions ADD COLUMN user_id TEXT
+                "#,
+                )
+                .execute(&mut **tx)
+                .await?;
+
+                sqlx::query("CREATE INDEX idx_sessions_tenant ON sessions(tenant_id)")
+                    .execute(&mut **tx)
+                    .await?;
+                sqlx::query("CREATE INDEX idx_sessions_user ON sessions(user_id)")
+                    .execute(&mut **tx)
+                    .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1121,7 +1197,7 @@ impl SessionStorage {
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                schedule_id, recipe_json, user_recipe_values_json,
-               provider_name, model_config_json
+               provider_name, model_config_json, tenant_id, user_id
         FROM sessions
         WHERE id = ?
     "#,
@@ -1391,6 +1467,7 @@ impl SessionStorage {
                    s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json,
+                   s.tenant_id, s.user_id,
                    COUNT(m.id) as message_count
             FROM sessions s
             INNER JOIN messages m ON s.id = m.session_id
@@ -1407,6 +1484,51 @@ impl SessionStorage {
         }
 
         let pool = self.pool().await?;
+        q.fetch_all(pool).await.map_err(Into::into)
+    }
+
+    async fn list_sessions_for_tenant(
+        &self,
+        tenant_id: Option<&str>,
+        user_id: Option<&str>,
+    ) -> Result<Vec<Session>> {
+        let mut conditions = vec!["s.session_type IN ('user', 'scheduled')".to_string()];
+        let mut binds: Vec<String> = Vec::new();
+
+        if let Some(tid) = tenant_id {
+            conditions.push("s.tenant_id = ?".to_string());
+            binds.push(tid.to_string());
+        }
+        if let Some(uid) = user_id {
+            conditions.push("s.user_id = ?".to_string());
+            binds.push(uid.to_string());
+        }
+
+        let where_clause = conditions.join(" AND ");
+        let query = format!(
+            r#"
+            SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type,
+                   s.created_at, s.updated_at, s.extension_data,
+                   s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.schedule_id, s.recipe_json, s.user_recipe_values_json,
+                   s.provider_name, s.model_config_json,
+                   s.tenant_id, s.user_id,
+                   COUNT(m.id) as message_count
+            FROM sessions s
+            LEFT JOIN messages m ON s.id = m.session_id
+            WHERE {}
+            GROUP BY s.id
+            ORDER BY s.updated_at DESC
+            "#,
+            where_clause
+        );
+
+        let pool = self.pool().await?;
+        let mut q = sqlx::query_as::<_, Session>(&query);
+        for b in &binds {
+            q = q.bind(b);
+        }
         q.fetch_all(pool).await.map_err(Into::into)
     }
 
@@ -1965,5 +2087,111 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_session_tenant_and_user_fields() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let wd = temp_dir.path().to_path_buf();
+
+        // New sessions have None tenant/user
+        let session = sm
+            .create_session(wd.clone(), "test".into(), SessionType::User)
+            .await
+            .unwrap();
+        assert!(session.tenant_id.is_none());
+        assert!(session.user_id.is_none());
+
+        // Create with identity sets both fields
+        let session2 = sm
+            .create_session_with_identity(
+                wd.clone(),
+                "test2".into(),
+                SessionType::User,
+                Some("acme-corp"),
+                Some("user-42"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(session2.tenant_id.as_deref(), Some("acme-corp"));
+        assert_eq!(session2.user_id.as_deref(), Some("user-42"));
+
+        // Verify get_session roundtrip
+        let fetched = sm.get_session(&session2.id, true).await.unwrap();
+        assert_eq!(fetched.tenant_id.as_deref(), Some("acme-corp"));
+        assert_eq!(fetched.user_id.as_deref(), Some("user-42"));
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_for_tenant() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let wd = temp_dir.path().to_path_buf();
+
+        // Create sessions with different tenants
+        let _s1 = sm
+            .create_session_with_identity(
+                wd.clone(),
+                "s1".into(),
+                SessionType::User,
+                Some("tenant-a"),
+                Some("u1"),
+            )
+            .await
+            .unwrap();
+        let _s2 = sm
+            .create_session_with_identity(
+                wd.clone(),
+                "s2".into(),
+                SessionType::User,
+                Some("tenant-a"),
+                Some("u2"),
+            )
+            .await
+            .unwrap();
+        let _s3 = sm
+            .create_session_with_identity(
+                wd.clone(),
+                "s3".into(),
+                SessionType::User,
+                Some("tenant-b"),
+                Some("u3"),
+            )
+            .await
+            .unwrap();
+        let _s4 = sm
+            .create_session(wd.clone(), "s4".into(), SessionType::User)
+            .await
+            .unwrap(); // No tenant
+
+        // Filter by tenant-a -> 2 sessions
+        let tenant_a = sm
+            .list_sessions_for_tenant(Some("tenant-a"), None)
+            .await
+            .unwrap();
+        assert_eq!(tenant_a.len(), 2);
+
+        // Filter by tenant-b -> 1 session
+        let tenant_b = sm
+            .list_sessions_for_tenant(Some("tenant-b"), None)
+            .await
+            .unwrap();
+        assert_eq!(tenant_b.len(), 1);
+
+        // Filter by user -> 1 session
+        let user_u1 = sm.list_sessions_for_tenant(None, Some("u1")).await.unwrap();
+        assert_eq!(user_u1.len(), 1);
+
+        // No filter -> all 4
+        let all = sm.list_sessions_for_tenant(None, None).await.unwrap();
+        assert_eq!(all.len(), 4);
+
+        // Non-existent tenant -> 0
+        let none = sm
+            .list_sessions_for_tenant(Some("ghost"), None)
+            .await
+            .unwrap();
+        assert_eq!(none.len(), 0);
     }
 }
