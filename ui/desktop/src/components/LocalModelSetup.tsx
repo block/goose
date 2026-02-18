@@ -79,7 +79,6 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
   const finishSetup = async (modelId: string) => {
     await upsert('GOOSE_PROVIDER', 'local', false);
     await upsert('GOOSE_MODEL', modelId, false);
-    await upsert('LOCAL_LLM_MODEL', modelId, false);
     toastService.success({
       title: 'Local Model Ready',
       msg: `Running entirely on your machine with ${modelId}.`,

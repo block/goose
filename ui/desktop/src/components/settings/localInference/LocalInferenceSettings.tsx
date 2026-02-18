@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Download, Trash2, X, Check, ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
 import { Button } from '../../ui/button';
-import { useConfig } from '../../ConfigContext';
+import { useModelAndProvider } from '../../ModelAndProviderContext';
 import {
   listLocalModels,
   downloadLocalModel,
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
   deleteLocalModel,
+  setConfigProvider,
   type DownloadProgress,
   type LocalModelResponse,
   type RegistryModelResponse,
@@ -21,8 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../ui/dialog';
-
-const LOCAL_LLM_MODEL_CONFIG_KEY = 'LOCAL_LLM_MODEL';
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`;
@@ -43,11 +42,11 @@ export const LocalInferenceSettings = () => {
   const [featuredModels, setFeaturedModels] = useState<(LocalModelResponse & { featured?: boolean })[]>([]);
   const [registryModels, setRegistryModels] = useState<RegistryModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
-  const { read, upsert } = useConfig();
+  const { currentModel, currentProvider, setProviderAndModel } = useModelAndProvider();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
+  const selectedModelId = currentProvider === 'local' ? currentModel : null;
 
   const loadModels = useCallback(async () => {
     try {
@@ -74,29 +73,18 @@ export const LocalInferenceSettings = () => {
 
   useEffect(() => {
     loadModels();
-    loadSelectedModel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadSelectedModel = async () => {
-    try {
-      const value = await read(LOCAL_LLM_MODEL_CONFIG_KEY, false);
-      if (value && typeof value === 'string') {
-        setSelectedModelId(value);
-      } else {
-        setSelectedModelId(null);
-      }
-    } catch (error) {
-      console.error('Failed to load selected model:', error);
-      setSelectedModelId(null);
-    }
-  };
+  }, [loadModels]);
 
   const selectModel = async (modelId: string) => {
-    await upsert(LOCAL_LLM_MODEL_CONFIG_KEY, modelId, false);
-    await upsert('GOOSE_PROVIDER', 'local', false);
-    await upsert('GOOSE_MODEL', modelId, false);
-    setSelectedModelId(modelId);
+    setProviderAndModel('local', modelId);
+    try {
+      await setConfigProvider({
+        body: { provider: 'local', model: modelId },
+        throwOnError: true,
+      });
+    } catch (error) {
+      console.error('Failed to select model:', error);
+    }
   };
 
   const startFeaturedDownload = async (modelId: string) => {
@@ -159,10 +147,6 @@ export const LocalInferenceSettings = () => {
     if (!window.confirm('Delete this model? You can re-download it later.')) return;
     try {
       await deleteLocalModel({ path: { model_id: modelId } });
-      if (selectedModelId === modelId) {
-        await upsert(LOCAL_LLM_MODEL_CONFIG_KEY, '', false);
-        setSelectedModelId(null);
-      }
       loadModels();
     } catch (error) {
       console.error('Failed to delete model:', error);
