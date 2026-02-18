@@ -19,7 +19,7 @@ use rmcp::model::Tool;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
-pub const TETRATE_DASHBOARD_URL: &str = "https://router.tetrate.ai/billing";
+pub const TETRATE_BILLING_URL: &str = "https://router.tetrate.ai/billing";
 
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
@@ -69,7 +69,7 @@ impl TetrateProvider {
         match err {
             ProviderError::CreditsExhausted { details, .. } => ProviderError::CreditsExhausted {
                 details,
-                top_up_url: Some(TETRATE_DASHBOARD_URL.to_string()),
+                top_up_url: Some(TETRATE_BILLING_URL.to_string()),
             },
             other => other,
         }

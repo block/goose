@@ -1,20 +1,42 @@
 import React from 'react';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { Message, SystemNotificationContent } from '../../api';
+import { WEB_PROTOCOLS } from '../../utils/urlSecurity';
 
 interface CreditsExhaustedNotificationProps {
   notification: SystemNotificationContent;
 }
 
+function getValidatedTopUpUrl(data: unknown): string | null {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const rawUrl = (data as Record<string, unknown>).top_up_url;
+  if (typeof rawUrl !== 'string') {
+    return null;
+  }
+
+  const url = rawUrl.trim();
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+    if (!WEB_PROTOCOLS.includes(parsedUrl.protocol)) {
+      return null;
+    }
+    return parsedUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
 export const CreditsExhaustedNotification: React.FC<CreditsExhaustedNotificationProps> = ({
   notification,
 }) => {
-  const topUpUrl =
-    notification.data &&
-    typeof notification.data === 'object' &&
-    'top_up_url' in (notification.data as Record<string, unknown>)
-      ? ((notification.data as Record<string, unknown>).top_up_url as string | null)
-      : null;
+  const topUpUrl = getValidatedTopUpUrl(notification.data);
 
   const handleTopUp = () => {
     if (topUpUrl) {
