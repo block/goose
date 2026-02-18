@@ -309,17 +309,24 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Compact)
         }
         "/r" => Some(InputResult::ToggleFullToolOutput),
-        s if s == "/variant" => {
+        "/variant" => {
             println!("Usage: /variant <low|medium|high|max|off>");
             Some(InputResult::Retry)
         }
         s if s.starts_with("/variant ") => {
-            let level = s.strip_prefix("/variant ").unwrap_or("").trim().to_lowercase();
+            let level = s
+                .strip_prefix("/variant ")
+                .unwrap_or("")
+                .trim()
+                .to_lowercase();
             match level.as_str() {
                 "low" | "medium" | "high" | "max" => Some(InputResult::Variant(Some(level))),
                 "off" | "none" | "reset" => Some(InputResult::Variant(None)),
                 _ => {
-                    println!("Invalid variant level: {}. Use: low, medium, high, max, or off", level);
+                    println!(
+                        "Invalid variant level: {}. Use: low, medium, high, max, or off",
+                        level
+                    );
                     Some(InputResult::Retry)
                 }
             }
