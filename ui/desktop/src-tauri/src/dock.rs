@@ -1,3 +1,7 @@
+// The `objc` 0.2 macros (sel!, msg_send!, class!) reference cfg(feature = "cargo-clippy")
+// which triggers unexpected_cfgs warnings on newer rustc. Suppress until objc is updated.
+#![allow(unexpected_cfgs)]
+
 #[cfg(target_os = "macos")]
 use tauri::Manager;
 
