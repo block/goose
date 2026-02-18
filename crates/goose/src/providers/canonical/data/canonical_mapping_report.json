@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-17T00:41:09.305757654+00:00",
+  "timestamp": "2026-02-18T07:12:43.309131182+00:00",
   "unmapped_models": [
     {
       "provider": "anthropic",
@@ -8,6 +8,10 @@
     {
       "provider": "anthropic",
       "model": "claude-churro-eap-cc"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6"
     },
     {
       "provider": "google",
@@ -300,10 +304,6 @@
     {
       "provider": "openai",
       "model": "babbage:ft-square-2023-02-28-14-48-38"
-    },
-    {
-      "provider": "openai",
-      "model": "chatgpt-4o-latest"
     },
     {
       "provider": "openai",
@@ -1256,6 +1256,30 @@
     {
       "provider": "openai",
       "model": "ft:gpt-4.1-mini-2025-04-14:square::BwjlIMor:ckpt-step-1018"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square:plat-completion:DAHA8Zfx:ckpt-step-58"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square:plat-completion:DAHA9OcK"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square:plat-completion:DAHA9hzA:ckpt-step-116"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square:plat-ft:DA58ZIKa:ckpt-step-912"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square:plat-ft:DA58a3A7:ckpt-step-1824"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-mini-2025-04-14:square:plat-ft:DA58aFG0"
     },
     {
       "provider": "openai",
@@ -2539,6 +2563,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-4.6"
+    },
+    {
+      "provider": "openrouter",
       "model": "arcee-ai/trinity-mini"
     },
     {
@@ -2703,10 +2731,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "nousresearch/deephermes-3-mistral-24b-preview"
-    },
-    {
-      "provider": "openrouter",
       "model": "nvidia/llama-3.1-nemotron-70b-instruct"
     },
     {
@@ -2812,10 +2836,6 @@
     {
       "provider": "openrouter",
       "model": "openai/o4-mini-high"
-    },
-    {
-      "provider": "openrouter",
-      "model": "openrouter/aurora-alpha"
     },
     {
       "provider": "openrouter",
@@ -2931,14 +2951,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "qwen/qwen3.5-397b-a17b"
-    },
-    {
-      "provider": "openrouter",
-      "model": "qwen/qwen3.5-plus-02-15"
-    },
-    {
-      "provider": "openrouter",
       "model": "qwen/qwq-32b"
     },
     {
@@ -2967,10 +2979,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "tngtech/tng-r1t-chimera"
-    },
-    {
-      "provider": "openrouter",
       "model": "upstage/solar-pro-3:free"
     },
     {
@@ -2980,6 +2988,10 @@
     {
       "provider": "openrouter",
       "model": "z-ai/glm-4.6v"
+    },
+    {
+      "provider": "tetrate",
+      "model": "claude-sonnet-4-6"
     },
     {
       "provider": "tetrate",
@@ -3691,10 +3703,6 @@
         "canonical_model": "openrouter/google/gemini-2.5-flash-lite-preview-09"
       },
       {
-        "provider_model": "google/gemini-2.5-flash-preview-09-2025",
-        "canonical_model": "openrouter/google/gemini-2.5-flash-preview-09"
-      },
-      {
         "provider_model": "google/gemini-2.5-pro",
         "canonical_model": "openrouter/google/gemini-2.5-pro"
       },
@@ -3763,10 +3771,6 @@
         "canonical_model": "openrouter/mistralai/mistral-medium-3.1"
       },
       {
-        "provider_model": "mistralai/mistral-small-3.1-24b-instruct",
-        "canonical_model": "openrouter/mistralai/mistral-small-3.1-24b-instruct"
-      },
-      {
         "provider_model": "mistralai/mistral-small-3.2-24b-instruct",
         "canonical_model": "openrouter/mistralai/mistral-small-3.2-24b-instruct"
       },
@@ -3789,10 +3793,6 @@
       {
         "provider_model": "moonshotai/kimi-k2.5",
         "canonical_model": "openrouter/moonshotai/kimi-k2.5"
-      },
-      {
-        "provider_model": "nousresearch/hermes-4-70b",
-        "canonical_model": "openrouter/nousresearch/hermes-4-70b"
       },
       {
         "provider_model": "nvidia/nemotron-3-nano-30b-a3b:free",
@@ -3915,6 +3915,10 @@
         "canonical_model": "openrouter/openai/o4-mini"
       },
       {
+        "provider_model": "openrouter/aurora-alpha",
+        "canonical_model": "openrouter/openrouter/aurora-alpha"
+      },
+      {
         "provider_model": "qwen/qwen3-235b-a22b-thinking-2507",
         "canonical_model": "openrouter/qwen/qwen3-235b-a22b-thinking"
       },
@@ -3965,6 +3969,14 @@
       {
         "provider_model": "qwen/qwen3-next-80b-a3b-thinking",
         "canonical_model": "openrouter/qwen/qwen3-next-80b-a3b-thinking"
+      },
+      {
+        "provider_model": "qwen/qwen3.5-397b-a17b",
+        "canonical_model": "openrouter/qwen/qwen3.5-397b-a17b"
+      },
+      {
+        "provider_model": "qwen/qwen3.5-plus-02-15",
+        "canonical_model": "openrouter/qwen/qwen3.5-plus-02-15"
       },
       {
         "provider_model": "stepfun/step-3.5-flash",
@@ -5076,12 +5088,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "google/gemini-2.5-flash-preview-09-2025",
-      "canonical": "openrouter/google/gemini-2.5-flash-preview-09",
-      "recommended": true
-    },
-    {
-      "provider": "openrouter",
       "model": "google/gemini-2.5-pro",
       "canonical": "openrouter/google/gemini-2.5-pro",
       "recommended": true
@@ -5184,12 +5190,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/mistral-small-3.1-24b-instruct",
-      "canonical": "openrouter/mistralai/mistral-small-3.1-24b-instruct",
-      "recommended": true
-    },
-    {
-      "provider": "openrouter",
       "model": "mistralai/mistral-small-3.2-24b-instruct",
       "canonical": "openrouter/mistralai/mistral-small-3.2-24b-instruct",
       "recommended": true
@@ -5222,12 +5222,6 @@
       "provider": "openrouter",
       "model": "moonshotai/kimi-k2.5",
       "canonical": "openrouter/moonshotai/kimi-k2.5",
-      "recommended": true
-    },
-    {
-      "provider": "openrouter",
-      "model": "nousresearch/hermes-4-70b",
-      "canonical": "openrouter/nousresearch/hermes-4-70b",
       "recommended": true
     },
     {
@@ -5412,6 +5406,12 @@
     },
     {
       "provider": "openrouter",
+      "model": "openrouter/aurora-alpha",
+      "canonical": "openrouter/openrouter/aurora-alpha",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "qwen/qwen3-235b-a22b-thinking-2507",
       "canonical": "openrouter/qwen/qwen3-235b-a22b-thinking",
       "recommended": true
@@ -5486,6 +5486,18 @@
       "provider": "openrouter",
       "model": "qwen/qwen3-next-80b-a3b-thinking",
       "canonical": "openrouter/qwen/qwen3-next-80b-a3b-thinking",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-397b-a17b",
+      "canonical": "openrouter/qwen/qwen3.5-397b-a17b",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-plus-02-15",
+      "canonical": "openrouter/qwen/qwen3.5-plus-02-15",
       "recommended": true
     },
     {
@@ -6186,15 +6198,15 @@
     }
   ],
   "model_counts": {
-    "anthropic": 12,
+    "anthropic": 13,
     "aws_bedrock": 0,
     "azure_openai": 0,
     "databricks": 0,
     "gcp_vertex_ai": 0,
     "google": 45,
-    "openai": 652,
-    "openrouter": 231,
-    "tetrate": 151,
+    "openai": 657,
+    "openrouter": 227,
+    "tetrate": 152,
     "venice": 0,
     "xai": 13
   },
@@ -6281,7 +6293,6 @@
     "openrouter/google/gemini-2.5-flash",
     "openrouter/google/gemini-2.5-flash-lite",
     "openrouter/google/gemini-2.5-flash-lite-preview-09",
-    "openrouter/google/gemini-2.5-flash-preview-09",
     "openrouter/google/gemini-2.5-pro",
     "openrouter/google/gemini-2.5-pro-preview-05-06",
     "openrouter/google/gemini-3-flash-preview",
@@ -6299,13 +6310,11 @@
     "openrouter/mistralai/devstral-small",
     "openrouter/mistralai/mistral-medium-3",
     "openrouter/mistralai/mistral-medium-3.1",
-    "openrouter/mistralai/mistral-small-3.1-24b-instruct",
     "openrouter/mistralai/mistral-small-3.2-24b-instruct",
     "openrouter/moonshotai/kimi-k2",
     "openrouter/moonshotai/kimi-k2-0905:exacto",
     "openrouter/moonshotai/kimi-k2-thinking",
     "openrouter/moonshotai/kimi-k2.5",
-    "openrouter/nousresearch/hermes-4-70b",
     "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
     "openrouter/nvidia/nemotron-nano-12b-v2-vl:free",
     "openrouter/nvidia/nemotron-nano-9b-v2",
@@ -6335,6 +6344,7 @@
     "openrouter/openai/gpt-oss-20b:free",
     "openrouter/openai/gpt-oss-safeguard-20b",
     "openrouter/openai/o4-mini",
+    "openrouter/openrouter/aurora-alpha",
     "openrouter/qwen/qwen3-235b-a22b-thinking",
     "openrouter/qwen/qwen3-30b-a3b-instruct",
     "openrouter/qwen/qwen3-30b-a3b-thinking",
@@ -6348,6 +6358,8 @@
     "openrouter/qwen/qwen3-next-80b-a3b-instruct",
     "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
     "openrouter/qwen/qwen3-next-80b-a3b-thinking",
+    "openrouter/qwen/qwen3.5-397b-a17b",
+    "openrouter/qwen/qwen3.5-plus-02-15",
     "openrouter/stepfun/step-3.5-flash",
     "openrouter/stepfun/step-3.5-flash:free",
     "openrouter/x-ai/grok-3",
