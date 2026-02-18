@@ -756,7 +756,14 @@ fn split_tool_name(tool_name: &str) -> (String, String) {
         .split_first()
         .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
         .unwrap_or_default();
-    (tool.to_string(), extension)
+    (tool.to_string(), extension_display_name(&extension))
+}
+
+fn extension_display_name(name: &str) -> String {
+    match name {
+        "code_execution" => "Code Mode".to_string(),
+        _ => name.to_string(),
+    }
 }
 
 pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
