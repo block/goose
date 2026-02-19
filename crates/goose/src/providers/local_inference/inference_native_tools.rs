@@ -4,7 +4,7 @@ use llama_cpp_2::model::AddBos;
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 
 use super::inference_engine::{
-    create_and_prefill_context, estimate_max_context_for_memory, generation_loop,
+    context_cap, create_and_prefill_context, estimate_max_context_for_memory, generation_loop,
     validate_and_compute_context, GenerationContext, TokenAction,
 };
 use super::tool_parsing::{
@@ -22,20 +22,8 @@ pub(super) fn generate_with_native_tools(
     let min_generation_headroom = 512;
     let n_ctx_train = ctx.loaded.model.n_ctx_train() as usize;
     let memory_max_ctx = estimate_max_context_for_memory(&ctx.loaded.model, ctx.runtime);
-    let context_cap = if let Some(ctx_size) = ctx.settings.context_size {
-        ctx_size as usize
-    } else {
-        let base = if ctx.context_limit > 0 {
-            ctx.context_limit
-        } else {
-            n_ctx_train
-        };
-        match memory_max_ctx {
-            Some(mem_max) if mem_max < base => mem_max,
-            _ => base,
-        }
-    };
-    let token_budget = context_cap.saturating_sub(min_generation_headroom);
+    let cap = context_cap(ctx.settings, ctx.context_limit, n_ctx_train, memory_max_ctx);
+    let token_budget = cap.saturating_sub(min_generation_headroom);
 
     let apply_template = |tools: Option<&str>| {
         if let Some(ref messages_json) = oai_messages_json {

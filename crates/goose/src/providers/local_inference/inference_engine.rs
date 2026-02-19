@@ -80,20 +80,23 @@ pub(super) fn estimate_max_context_for_memory(
     Some((usable / bytes_per_token) as usize)
 }
 
-pub(super) fn effective_context_size(
-    prompt_token_count: usize,
+pub(super) fn context_cap(
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
     context_limit: usize,
     n_ctx_train: usize,
     memory_max_ctx: Option<usize>,
 ) -> usize {
+    if let Some(ctx_size) = settings.context_size {
+        return ctx_size as usize;
+    }
+
     let limit = if context_limit > 0 {
         context_limit
     } else {
         n_ctx_train
     };
 
-    // Cap by estimated memory capacity when available.
-    let limit = match memory_max_ctx {
+    match memory_max_ctx {
         Some(mem_max) if mem_max < limit => {
             tracing::info!(
                 "Capping context from {} to {} based on available memory",
@@ -103,8 +106,17 @@ pub(super) fn effective_context_size(
             mem_max
         }
         _ => limit,
-    };
+    }
+}
 
+pub(super) fn effective_context_size(
+    prompt_token_count: usize,
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+    context_limit: usize,
+    n_ctx_train: usize,
+    memory_max_ctx: Option<usize>,
+) -> usize {
+    let limit = context_cap(settings, context_limit, n_ctx_train, memory_max_ctx);
     let min_generation_headroom = 512;
     let needed = prompt_token_count + min_generation_headroom;
     if needed > limit {
@@ -198,16 +210,13 @@ pub(super) fn validate_and_compute_context(
 ) -> Result<(usize, usize), ProviderError> {
     let n_ctx_train = loaded.model.n_ctx_train() as usize;
     let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, runtime);
-    let effective_ctx = if let Some(ctx_size) = settings.context_size {
-        ctx_size as usize
-    } else {
-        effective_context_size(
-            prompt_token_count,
-            context_limit,
-            n_ctx_train,
-            memory_max_ctx,
-        )
-    };
+    let effective_ctx = effective_context_size(
+        prompt_token_count,
+        settings,
+        context_limit,
+        n_ctx_train,
+        memory_max_ctx,
+    );
     if let Some(mem_max) = memory_max_ctx {
         if prompt_token_count > mem_max {
             return Err(ProviderError::ContextLengthExceeded(format!(
@@ -302,34 +311,56 @@ pub(super) fn generation_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::providers::local_inference::local_model_registry::ModelSettings;
+
+    fn default_settings() -> ModelSettings {
+        ModelSettings::default()
+    }
 
     #[test]
     fn test_effective_context_size_basic() {
-        assert_eq!(effective_context_size(100, 4096, 4096, None), 612);
+        assert_eq!(effective_context_size(100, &default_settings(), 4096, 4096, None), 612);
     }
 
     #[test]
     fn test_effective_context_size_capped_by_limit() {
-        assert_eq!(effective_context_size(100, 1024, 8192, None), 612);
+        assert_eq!(effective_context_size(100, &default_settings(), 1024, 8192, None), 612);
     }
 
     #[test]
     fn test_effective_context_size_capped_by_memory() {
-        assert_eq!(effective_context_size(100, 4096, 4096, Some(800)), 612);
+        assert_eq!(effective_context_size(100, &default_settings(), 4096, 4096, Some(800)), 612);
     }
 
     #[test]
     fn test_effective_context_size_memory_smaller_than_needed() {
-        assert_eq!(effective_context_size(600, 4096, 4096, Some(700)), 700);
+        assert_eq!(effective_context_size(600, &default_settings(), 4096, 4096, Some(700)), 700);
     }
 
     #[test]
     fn test_effective_context_size_zero_limit_uses_train() {
-        assert_eq!(effective_context_size(100, 0, 2048, None), 612);
+        assert_eq!(effective_context_size(100, &default_settings(), 0, 2048, None), 612);
     }
 
     #[test]
     fn test_effective_context_size_prompt_exceeds_all_limits() {
-        assert_eq!(effective_context_size(5000, 4096, 4096, None), 4096);
+        assert_eq!(effective_context_size(5000, &default_settings(), 4096, 4096, None), 4096);
+    }
+
+    #[test]
+    fn test_context_cap_with_settings_override() {
+        let mut settings = default_settings();
+        settings.context_size = Some(2048);
+        assert_eq!(context_cap(&settings, 4096, 8192, Some(1024)), 2048);
+    }
+
+    #[test]
+    fn test_context_cap_without_override() {
+        assert_eq!(context_cap(&default_settings(), 4096, 8192, None), 4096);
+    }
+
+    #[test]
+    fn test_context_cap_memory_limited() {
+        assert_eq!(context_cap(&default_settings(), 4096, 8192, Some(2048)), 2048);
     }
 }
