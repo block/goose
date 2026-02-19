@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { OllamaSetup } from './OllamaSetup';
+import { OllamaSetup } from './modals/OllamaSetup';
 import * as ollamaDetection from '../utils/ollamaDetection';
 import * as providerUtils from '../utils/providerUtils';
 import { toastService } from '../toasts';

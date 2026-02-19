@@ -80,6 +80,8 @@ vi.mock('./components/ConfigContext', () => ({
     read: vi.fn().mockResolvedValue(null),
     update: vi.fn(),
     getExtensions: vi.fn().mockReturnValue([]),
+    extensionsList: [],
+    getProviders: vi.fn().mockResolvedValue([]),
     addExtension: vi.fn(),
     updateExtension: vi.fn(),
     createProviderDefaults: vi.fn(),
@@ -87,6 +89,9 @@ vi.mock('./components/ConfigContext', () => ({
   ConfigProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+vi.mock("./components/bottom_menu/BottomMenuExtensionSelection", () => ({
+  BottomMenuExtensionSelection: () => <div data-testid="mock-extensions">Extensions</div>,
+}));
 // Mock other components to simplify testing
 vi.mock('./components/ErrorBoundary', () => ({
   ErrorUI: ({ error }: { error: Error }) => <div>Error: {error.message}</div>,
@@ -108,16 +113,16 @@ vi.mock('./hooks/useAuth', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('./components/AuthGuard', () => ({
+vi.mock('./components/guards/AuthGuard', () => ({
   AuthGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('./components/LoginView', () => ({
+vi.mock('./components/pages/LoginView', () => ({
   default: () => <div>Login</div>,
 }));
 
 // Mock ProviderGuard to show the welcome screen when no provider is configured
-vi.mock('./components/ProviderGuard', () => ({
+vi.mock('./components/guards/ProviderGuard', () => ({
   default: ({ children }: { children: React.ReactNode }) => {
     // In a real app, ProviderGuard would check for provider and show welcome screen
     // For this test, we'll simulate that behavior
@@ -171,7 +176,7 @@ vi.mock('./components/GoosehintsModal', () => ({
   GoosehintsModal: () => null,
 }));
 
-vi.mock('./components/AnnouncementModal', () => ({
+vi.mock('./components/modals/AnnouncementModal', () => ({
   default: () => null,
 }));
 
@@ -293,7 +298,7 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(/^Select an AI model provider/)).toBeInTheDocument();
+    expect(screen.getByText(/Welcome to Goose!/)).toBeInTheDocument();
   });
 
   it('should not redirect to /welcome when provider is configured', async () => {

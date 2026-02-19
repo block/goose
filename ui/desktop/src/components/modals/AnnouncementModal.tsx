@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { BaseModal } from './ui/BaseModal';
-import MarkdownContent from './MarkdownContent';
-import { ANNOUNCEMENTS_ENABLED } from '../updates';
-import packageJson from '../../package.json';
-import { getAnnouncementContent } from '../../announcements/content';
-import { Button } from './ui/button';
+import { BaseModal } from '../ui/BaseModal';
+import MarkdownContent from '../MarkdownContent';
+import { ANNOUNCEMENTS_ENABLED } from '../../updates';
+import packageJson from '../../../package.json';
+import { getAnnouncementContent } from '../../../announcements/content';
+import { Button } from '../ui/button';
 
 interface AnnouncementMeta {
   id: string;
@@ -49,7 +49,7 @@ export default function AnnouncementModal() {
 
       try {
         // Load the announcements index
-        const indexModule = await import('../../announcements/index.json');
+        const indexModule = await import('../../../announcements/index.json');
         const announcements = indexModule.default as AnnouncementMeta[];
 
         // Get current app version

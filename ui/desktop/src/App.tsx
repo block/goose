@@ -14,13 +14,13 @@ import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
-import AnnouncementModal from './components/AnnouncementModal';
-import TelemetryOptOutModal from './components/TelemetryOptOutModal';
-import ProviderGuard from './components/ProviderGuard';
+import AnnouncementModal from './components/modals/AnnouncementModal';
+import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
+import ProviderGuard from './components/guards/ProviderGuard';
 import { AuthProvider } from './hooks/useAuth';
-import { AuthGuard } from './components/AuthGuard';
-import LoginView from './components/LoginView';
-import WelcomePage from './components/WelcomePage';
+import { AuthGuard } from './components/guards/AuthGuard';
+import LoginView from './components/pages/LoginView';
+import WelcomePage from './components/pages/WelcomePage';
 import { createSession } from './sessions';
 import { setupAuthInterceptor } from './lib/authInterceptor';
 
@@ -43,7 +43,7 @@ import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
 import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
-import LauncherView from './components/LauncherView';
+import LauncherView from './components/pages/LauncherView';
 
 import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { BaseModal } from './ui/BaseModal';
-import { Button } from './ui/button';
-import { Goose } from './icons/Goose';
-import { TELEMETRY_UI_ENABLED } from '../updates';
-import { toastService } from '../toasts';
-import { useConfig } from './ConfigContext';
-import { trackTelemetryPreference } from '../utils/analytics';
+import { BaseModal } from '../ui/BaseModal';
+import { Button } from '../ui/button';
+import { Goose } from '../icons/Goose';
+import { TELEMETRY_UI_ENABLED } from '../../updates';
+import { toastService } from '../../toasts';
+import { useConfig } from '../ConfigContext';
+import { trackTelemetryPreference } from '../../utils/analytics';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
