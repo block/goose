@@ -14,6 +14,7 @@ import { ChatState } from '../../types/chatState';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import { UserAvatarMenu } from '../UserAvatarMenu';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
@@ -126,6 +127,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         />
       </Sidebar>
       <SidebarInset>
+        {/* User avatar — top-right, in title bar drag area */}
+        <div className="absolute top-1 right-3 z-30 app-region-no-drag">
+          <UserAvatarMenu />
+        </div>
         {/* Non-pair routes: standard page content */}
         <div className={isOnPairRoute ? 'hidden' : 'flex-1 overflow-auto pb-16'}>
           <Outlet />

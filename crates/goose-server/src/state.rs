@@ -16,6 +16,7 @@ use crate::tunnel::TunnelManager;
 use goose::agents::extension_registry::ExtensionRegistry;
 use goose::agents::ExtensionLoadResult;
 use goose::audit::AuditLogger;
+use goose::config::load_auth_config;
 use goose::oidc::OidcValidator;
 use goose::policy::{PolicyStore, SecurityMode};
 use goose::quotas::QuotaManager;
@@ -62,7 +63,19 @@ impl AppState {
             extension_registry,
             run_store: RunStore::new(),
             agent_pool: Arc::new(AgentPool::new(10)),
-            oidc_validator: Arc::new(OidcValidator::new(vec![])),
+            oidc_validator: Arc::new({
+                let mut providers = vec![];
+                if let Some(auth_config) = load_auth_config() {
+                    if let Some(oidc_config) = auth_config.to_oidc_provider_config() {
+                        tracing::info!(
+                            issuer = %oidc_config.issuer,
+                            "Loaded OIDC provider from config.yaml"
+                        );
+                        providers.push(oidc_config);
+                    }
+                }
+                OidcValidator::new(providers)
+            }),
             session_token_store: Arc::new(SessionTokenStore::new(
                 uuid::Uuid::new_v4().to_string(),
                 &goose::config::paths::Paths::data_dir(),
