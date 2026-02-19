@@ -5,15 +5,15 @@ use std::time::Duration;
 use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 
-use goose::agents::{AgentEvent, ExtensionConfig, SessionConfig};
-use goose::config::extensions::get_enabled_extensions;
-use goose::config::paths::Paths;
-use goose::config::Config;
-use goose::conversation::message::{Message, MessageContent};
-use goose::execution::manager::AgentManager;
-use goose::model::ModelConfig;
-use goose::session::SessionType;
-use goose::session::{EnabledExtensionsState, ExtensionState, Session};
+use crate::agents::{AgentEvent, ExtensionConfig, SessionConfig};
+use crate::config::extensions::get_enabled_extensions;
+use crate::config::paths::Paths;
+use crate::config::Config;
+use crate::conversation::message::{Message, MessageContent};
+use crate::execution::manager::AgentManager;
+use crate::model::ModelConfig;
+use crate::session::SessionType;
+use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 
 use super::pairing::PairingStore;
 use super::{Gateway, GatewayConfig, IncomingMessage, OutgoingMessage, PairingState, PlatformUser};

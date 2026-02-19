@@ -6,6 +6,7 @@ pub mod context_mgmt;
 pub mod conversation;
 pub mod dictation;
 pub mod execution;
+pub mod gateway;
 pub mod goose_apps;
 pub mod hints;
 pub mod logging;

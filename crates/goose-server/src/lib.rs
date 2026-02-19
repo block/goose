@@ -1,7 +1,6 @@
 pub mod auth;
 pub mod configuration;
 pub mod error;
-pub mod gateway;
 pub mod openapi;
 pub mod routes;
 pub mod state;

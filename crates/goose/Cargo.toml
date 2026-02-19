@@ -126,6 +126,7 @@ ignore = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
+pulldown-cmark = "0.13.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

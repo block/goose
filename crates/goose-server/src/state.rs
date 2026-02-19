@@ -12,9 +12,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
-use crate::gateway::manager::GatewayManager;
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
+use goose::gateway::manager::GatewayManager;
 
 type ExtensionLoadingTasks =
     Arc<Mutex<HashMap<String, Arc<Mutex<Option<JoinHandle<Vec<ExtensionLoadResult>>>>>>>>;

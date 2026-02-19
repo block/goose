@@ -6,9 +6,9 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 
-use goose::config::paths::Paths;
-use goose::config::Config;
-use goose::execution::manager::AgentManager;
+use crate::config::paths::Paths;
+use crate::config::Config;
+use crate::execution::manager::AgentManager;
 
 use super::handler::GatewayHandler;
 use super::pairing::PairingStore;

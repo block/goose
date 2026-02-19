@@ -1,7 +1,6 @@
 mod commands;
 mod configuration;
 mod error;
-mod gateway;
 mod logging;
 mod openapi;
 mod routes;

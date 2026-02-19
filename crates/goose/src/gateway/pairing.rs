@@ -249,9 +249,9 @@ impl PairingStore {
     pub fn generate_code() -> String {
         use rand::Rng;
         let chars: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        let mut rng = rand::rng();
+        let mut rng = rand::thread_rng();
         (0..6)
-            .map(|_| chars[rng.random_range(0..chars.len())] as char)
+            .map(|_| chars[rng.gen_range(0..chars.len())] as char)
             .collect()
     }
 

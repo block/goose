@@ -51,9 +51,6 @@ rustls = { version = "0.23", features = ["ring"] }
 uuid = { workspace = true }
 once_cell = { workspace = true }
 dirs = { workspace = true }
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "sqlite"] }
-async-trait.workspace = true
-pulldown-cmark = "0.13.0"
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
