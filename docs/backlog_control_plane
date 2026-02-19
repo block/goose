@@ -1,0 +1,30 @@
+#### 3. **Admin Dashboard (future)**
+
+An admin using the desktop app could manage the control plane:
+
+| Feature | Endpoint | UI Surface |
+|---|---|---|
+| View policies | `GET /control-plane/v1/policies` | Settings → Policies panel |
+| Set quotas | `POST /control-plane/v1/quotas` | Settings → Usage & Limits |
+| View audit log | `GET /control-plane/v1/audit/events` | Activity → Audit Trail |
+| Manage agents | `GET /control-plane/v1/agents` | Settings → Agent Registry |
+
+### What Needs to Change in the Desktop App
+
+**Immediate (for enterprise compatibility):**
+
+1. **Handle 403/429 responses gracefully** — the `authInterceptor.ts` already intercepts requests, but doesn't handle policy denials or quota errors. It should show user-friendly messages instead of generic errors.
+
+2. **Surface rate limit info** — When `429` comes back, the response includes `limit` and `used` values. Show a "You've reached your limit (X/Y). Resets in Z minutes." message.
+
+**Optional (admin UI):**
+
+3. **Control Plane settings page** — only shown if the user has admin roles
+4. **Audit trail viewer** — real-time event feed via the `BroadcastSink`
+
+Want me to:
+- **A)** Add 403/429 error handling to the desktop's `authInterceptor.ts`?
+- **B)** Generate the OpenAPI spec (`just generate-openapi`) so the frontend SDK picks up the new endpoints?
+- **C)** Build an admin control plane UI page?
+- **D)** All of the above?
+

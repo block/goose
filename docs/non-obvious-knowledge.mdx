@@ -1,231 +1,161 @@
----
-title: Non-Obvious Knowledge — Goose4
-updated: 2026-02-19
-session: "feature/cli-via-goosed"
-commits: "665fd046..d373412f"
----
-
 # Non-Obvious Knowledge
 
-Hard-won insights from building Goose that aren't documented elsewhere. Each entry was discovered through debugging or design iteration — not from reading docs.
+Things that are hard to discover from reading the code alone. Updated as of commit `667d75cf`.
 
 ---
 
-## Architecture
+## Security Modes
 
-### OpenAPI Generation Pipeline
+### Three-Tier Security Model
 
-The OpenAPI spec generation has a **3-step pipeline** that's easy to break:
+Goose uses a `SecurityMode` enum (`Local` / `Team` / `Enterprise`) that auto-detects from environment:
 
-1. `cargo run -p goose-server --bin generate_schema` → writes `ui/desktop/openapi.json`
-2. `npx @hey-api/openapi-ts` → reads `openapi.json`, generates `sdk.gen.ts`, `types.gen.ts`, `index.ts`
-3. **DANGER:** Step 2 **deletes** `src/api/instances.ts` — this is a hand-written file that must be restored via `git checkout HEAD -- ui/desktop/src/api/instances.ts` after every `just generate-openapi`
+| Mode | Trigger | Guest Can... | Use Case |
+|------|---------|-------------|----------|
+| **Local** (default) | No OIDC, no secret key | Everything | Solo desktop |
+| **Team** | `GOOSE_SERVER__SECRET_KEY` ≠ `"test"` | Read + Execute (not manage) | Shared server |
+| **Enterprise** | `GOOSE_OIDC_ISSUER_URL` set | Nothing (must authenticate) | OIDC-protected |
 
-To register new routes in the OpenAPI spec, you must edit **3 files**:
-- `crates/goose-server/src/routes/mod.rs` — `pub mod <module>;` + `.merge(<module>::routes(state.clone()))`
-- `crates/goose-server/src/openapi.rs` — add path handlers to `paths()` + types to `schemas()`
-- `crates/goose-server/src/main.rs` — `mod <module>;` (for the binary target)
+**Override**: Set `GOOSE_SECURITY_MODE=local|team|enterprise` to bypass auto-detection.
 
-All three must be consistent or the types won't appear in the frontend SDK.
+**Where it matters**: `PolicyStore::for_mode(SecurityMode::detect())` in `state.rs` — this is why local desktop users don't hit "Authentication required" errors, but shared servers do.
 
-### Binary vs Library Crate Split in goose-server
+### The "test" Secret Key Convention
 
-`goose-server` has both a library (`lib.rs`) and a binary (`main.rs`). The binary re-declares `mod routes;`, `mod auth;`, etc. This means:
+`GOOSE_SERVER__SECRET_KEY` defaults to `"test"` in `commands/agent.rs`. The `SecurityMode::detect()` method treats `"test"` as "no real secret configured" → stays in Local mode. Any other value triggers Team mode.
 
-- **`crate::auth` resolves differently** depending on which target is compiling
-- When adding new modules, you MUST add `mod <name>;` to BOTH `lib.rs` AND `main.rs`
-- The `check_token` function has `#[allow(dead_code)]` because it's used via the lib (`goose_server::auth::check_token` in `commands/agent.rs`) but not directly in the binary
+### Two Independent Auth Systems
 
-### Dual Axum Versions (0.7 + 0.8)
+Goose has TWO completely independent auth systems that share no code:
 
-The `a2a` crate pulls in `tonic` which depends on axum 0.7. The goose-server uses axum 0.8 directly. This causes:
+1. **User Identity** (`X-Secret-Key` + `Authorization: Bearer`) — authenticates the human user to the goose server. Implemented in `auth.rs`. Uses OIDC JWTs or session tokens.
 
-- **Cannot use `FromRequestParts` extractor pattern** — the trait exists in both versions and the compiler gets confused
-- **Solution:** Use `from_headers(&HeaderMap)` manual extraction instead of Axum's extractor pattern
-- The `RequestIdentity::from_headers_validated()` takes `&HeaderMap` directly for this reason
-- **`authorize_middleware` uses `Extension<Arc<T>>` not `State<Arc<T>>`** — for the same reason. `from_fn_with_state` doesn't work when the router has already been typed with a different state type (`String` for `check_token`). Extensions bypass the state system entirely.
+2. **LLM Provider Auth** (`GOOSE_PROVIDER` + API keys) — authenticates goose to external LLM APIs. Implemented in `providers/`. Uses provider-specific API keys from config/keyring/env.
 
-### Pipeline Module Repeatedly Breaks Builds
+These never intersect. A user can be fully authenticated (OIDC) but have no LLM provider configured, or vice versa.
 
-`crates/goose-server/src/routes/pipeline.rs` and `crates/goose/src/pipeline.rs` (frontend agent work) repeatedly cause build failures when module declarations in `lib.rs`, `routes/mod.rs`, and `openapi.rs` get out of sync. Pipeline handlers lack utoipa annotations, causing OpenAPI schema generation to fail.
+### Policy Rule Priority
 
-### `#[allow(dead_code)]` Required for Route-Handler-Only Functions
+Rules evaluate in priority order (highest first). Default priorities:
+- **100**: Deny rules (deny-guest-management, deny-guest-execute)
+- **50**: Allow rules (allow-execute, allow-read)
 
-Functions in the `goose-server` lib that are only used by route handlers appear as dead code to clippy. This is because clippy analyses the lib and bin targets separately — route handlers are registered dynamically through the axum Router, so clippy can't see the call chain. Affected:
-- `authorize_middleware`, `route_to_policy` in `auth.rs`
-- `AgentSlotRegistry` methods (`set_delegation`, `register_a2a_agent`, `all_agents`, etc.)
-- Solution: `#[allow(dead_code)]` on the impl block or individual methods
+A Deny at priority 100 beats an Allow at priority 50. New rules added via the control plane API default to priority 50.
 
 ---
 
-## Authentication & Authorization
+## Desktop UI Architecture
 
-### Auth Header Priority Chain (6 levels)
+### Global ChatInput Lives in AppLayout
 
-The `RequestIdentity` extractor in `auth.rs` resolves identity via this priority chain:
+`ChatInput` is rendered ONCE in `AppLayout.tsx` via `GlobalChatInput` — NOT inside `BaseChat`. This means:
+- ChatInput appears on every page (settings, extensions, recipes, etc.)
+- `BaseChat` registers its session state via `useRegisterSession()` into `UnifiedInputContext`
+- `GlobalChatInput` reads from `UnifiedInputContext` to get the current session's props
+- When no session exists: ChatInput shows with `sessionId=null` and `handleSubmit` creates a new session
 
+**Consequence**: Never render `ChatInput` inside page components. It's already there.
+
+### PromptBar Was Deleted
+
+`PromptBar.tsx` no longer exists (deleted in commit `ec5c7ecc`). All its functionality is now in `GlobalChatInput` + `UnifiedInputContext`. Old imports will fail.
+
+### `useRegisterSession` Carries ALL ChatInput Props
+
+`BaseChat` passes ~25 props through `useRegisterSession()`:
+- `sessionId`, `chatState`, `handleSubmit`, `setChatState`, `onStop`
+- `commandHistory`, `droppedFiles`, `onFilesProcessed`, `setView`
+- `totalTokens`, `accumulatedInputTokens`, `accumulatedOutputTokens`
+- `messages`, `sessionCosts`, `recipe`, `recipeId`, `recipeAccepted`, `initialPrompt`
+- `toolCount`, `append`, `onWorkingDirChange`, `inputRef`
+
+If a new prop is needed in ChatInput, it MUST be added to `SessionInputState` interface and passed through `useRegisterSession`.
+
+### Sidebar Project Groups Sync via Events
+
+When `DirSwitcher` changes a session's working directory:
+1. `updateWorkingDir(sessionId, newDir)` API call → updates server
+2. `window.dispatchEvent(SESSION_WORKING_DIR_CHANGED, { sessionId, workingDir })` → DOM event
+3. `AppSidebar` listener updates `recentSessions` state → re-groups by project
+
+Without step 2, the sidebar would show the session under the old project until page refresh.
+
+### PageShell headerExtra for Tabs
+
+`PageShell` has a `headerExtra` prop that renders between the title header and the scrollable body when `stickyHeader` is true. This is how SettingsView pins its tab bar:
+
+```tsx
+<PageShell title="Settings" stickyHeader headerExtra={<TabsList>...</TabsList>}>
+  <TabsContent>...</TabsContent>
+</PageShell>
 ```
-1. Session JWT (our /auth/login tokens) → SessionTokenStore validates
-2. OIDC JWT (with registered providers) → OidcValidator validates (JWKS)
-3. Lightweight JWT decode (no signature check) → fallback for unknown issuers
-4. X-Api-Key header → from_api_key() with prefixed ID
-5. X-Goose-User-Id header → stable guest (deterministic ID)
-6. (nothing) → anonymous guest (random UUID per request)
-```
 
-`X-Api-Key` is the **industry standard** header — a previous rename to `X-Goose-Api-Key` was reverted because the Anthropic collision concern was theoretical (different HTTP connections to different hosts).
+### Codegen-Safe File Locations
 
-### Middleware Execution Order
+`just generate-openapi` wipes `ui/desktop/src/api/` and regenerates from the OpenAPI spec. Hand-written files that must survive codegen go in `src/lib/`:
+- `src/lib/instances.ts` — session instance management (moved from `src/api/`)
+- `src/lib/authInterceptor.ts` — auth token attachment (moved from `src/api/`)
 
-The middleware chain in `commands/agent.rs` uses axum layers (applied in reverse order):
+Never put hand-written code in `src/api/`. It WILL be deleted.
 
-```
-Request → CORS → check_token (X-Secret-Key) → Extension layers → authorize_middleware → Route Handler
-```
+### Infinite Re-render Traps (Fixed)
 
-- `check_token`: Validates the server's shared secret (machine-to-machine auth)
-- `authorize_middleware`: Evaluates PolicyStore + QuotaManager, emits AuditEvent
-- Extension layers inject `Arc<PolicyStore>`, `Arc<AuditLogger>`, `Arc<QuotaManager>` into request extensions
-- Extensions must be layered ABOVE (after in code) `authorize_middleware` so they're available when it runs
+Three separate infinite re-render bugs were fixed this session:
 
-### OIDC Provider Quirks
+1. **EnvironmentBadge tooltip** — Radix Tooltip caused re-renders. Fix: use native `title` attribute instead.
+2. **ScrollArea handleScroll** — `setState` in scroll handler triggered re-render → new handler → new scroll. Fix: use refs (`isFollowingRef`, `isScrolledRef`) with equality guards.
+3. **UnifiedInputContext** — `setSession(state)` created new object every render → subscribers re-rendered. Fix: stable callbacks with `useRef` to hold session state.
 
-- **GitHub doesn't support standard OIDC code flow** — it needs a separate OAuth2 handler
-- **GitLab + AWS Cognito** have non-standard issuer URL formats that need special handling in `issuer_to_provider()`
-- **JWT leeway defaults to 60 seconds** — `jsonwebtoken::Validation` has this built-in. Test expired tokens with `exp` far in the past (e.g., year 1970), not with `exp = now`
+**Pattern**: If a component re-renders infinitely, check for: (a) setState in event handlers creating closure churn, (b) context values changing identity every render, (c) Radix UI components with tooltip/popover causing layout recalc.
 
-### CLI Session Tokens Now in System Keyring
+### `import type` Compliance
 
-As of commit `97fa1e4a`, CLI session tokens are stored in the system keyring via `Config::global().set_secret("goose_session_token", &stored)` instead of plaintext `~/.config/goose/session_token.json`. Auto-migration: `migrate_legacy_token()` reads the old JSON file, stores in keyring, deletes the file. Fallback to `secrets.yaml` if keyring is unavailable.
+All 260+ type-only imports use `import type` syntax. When adding new type imports:
+- ✅ `import type { Foo } from './bar'`
+- ✅ `import DefaultExport from './bar'; import type { TypeExport } from './bar'` (split)
+- ❌ `import DefaultExport, { TypeExport } from './bar'` (mixed — triggers TS1484)
 
-### Policy Engine Evaluation Semantics
+### Zero console.log in Production
 
-- **First-match wins**: Rules sorted by priority (lower number = higher priority)
-- **Abstain**: If no rule matches, returns `Abstain` — the middleware treats this as "allow" (permissive default)
-- **RBAC check**: If a rule has `required_roles`, user must have **at least one** matching role (OR logic, not AND)
-- **Wildcard matching**: `execute:*` matches `execute:reply`, `execute:tool`. `*` alone matches everything
-- **Tenant scoping**: Rules can be tenant-specific. `PolicyStore::engine_for(tenant)` merges global + tenant rules
-- **Default rules**: `deny-guest-management` (guests can't `manage:*`), `allow-execute` (all can `execute:*`), `allow-read` (all can `read:*`)
-
-### Quota Hierarchical Scope Matching
-
-`QuotaScope` has hierarchical matching where broader scopes apply to narrower ones:
-- `Global` limit applies to ALL scopes (Tenant, User, TenantUser)
-- `Tenant("acme")` limit applies to `TenantUser { tenant: "acme", user: _ }`
-- Usage is tracked per **exact scope** — a Global limit checks usage recorded at the Global scope, not summed across tenants
-
-This means: if you set a Global limit of 100 executions/hour, each tenant independently counts toward that 100 at their own scope level. A global limit doesn't aggregate across tenants.
+All `console.log` statements were removed from production code. Only `console.error` and `console.warn` remain for actual error/warning conditions. Test files (`*.test.tsx`) still have `console.log`.
 
 ---
 
-## Desktop / Frontend
+## Provider Configuration
 
-### localStorage Keys for Auth
+### Custom Provider Engine Names
 
-The desktop app stores auth state in localStorage with these keys:
-```
-goose_auth_token     — session JWT (from /auth/login)
-goose_auth_user      — serialized user object
-goose_auth_token_expiry — ISO timestamp of token expiration
-secretKey            — server secret key (for X-Secret-Key header)
-```
+Declarative custom providers (`~/.config/goose/custom_providers/*.json`) support three engines:
+- `openai` — OpenAI-compatible API (sends `Authorization: Bearer`)
+- `ollama` — Ollama API
+- `anthropic` — Anthropic API (sends `x-api-key` header)
 
-The `useAuth` hook manages these. The `authInterceptor` reads them. Both must stay in sync on the key names.
+**Azure OpenAI** is NOT a custom provider engine. Use the native `azure` provider instead, which handles:
+- `api-key` header (not `Authorization: Bearer`)
+- Deployment-based URL routing
+- Azure credential chain (API key or DefaultAzureCredential)
 
-### OIDC Login Uses Custom Protocol Handler
+### Azure Provider Config Keys
 
-The desktop app registers `goose://auth/callback` as a deep link handler. OIDC login flow:
-1. `useAuth.loginWithOidc(issuer)` requests auth URL from server
-2. Opens system browser to provider login page with `redirect_uri=goose://auth/callback`
-3. After auth, browser redirects to `goose://auth/callback?code=XXX&state=YYY`
-4. Electron intercepts the deep link, extracts code+state
-5. Exchanges code for session token via server
-
----
-
-## Agent & Dispatch
-
-### `SlotDelegation` Methods are `#[allow(dead_code)]`
-
-`register_a2a_agent`, `register_acp_agent`, `unregister_agent` in `agent_slot_registry.rs` are tested but not all called from production code yet. They're kept with `#[allow(dead_code)]` for forward compatibility. The entire `impl AgentSlotRegistry` block has `#[allow(dead_code)]` since many persistence methods (e.g., `with_persistence`, `init`, `run_migrations`, `load_from_db`) are only called internally.
-
-### `for_sub_agent()` Creates Child Identity Chain
-
-When compound execution dispatches to sub-agents, `ExecutionIdentity::for_sub_agent(kind, persona)` creates a new `AgentIdentity` with:
-- New UUID
-- `parent_id` pointing to the parent agent
-- `spawned_by` recording the parent agent's display name
-- Same `UserIdentity` (the human user stays the same)
-
-This chain is preserved in A2A metadata via `to_a2a_metadata()`.
-
-### `dispatch_compound_sequential` Replaced 155 Lines
-
-The inline compound execution code in `reply.rs` was extracted into `dispatch_compound_sequential` in `dispatch.rs`. The replacement:
-- Uses `AgentReplyDispatcher` for in-process (full `agent.reply()` with tools)
-- Uses `A2ADispatcher` for remote A2A
-- Routes based on `SlotDelegation` lookup per sub-task agent name
-- Sequential execution (not parallel) — same as the original inline code
-
-### `OrchestratorAgent::new()` Takes `Arc<Mutex<Option<Provider>>>`
-
-Not a direct provider — it's wrapped in `Arc<Mutex<Option<...>>>`. Easy to get wrong when constructing.
-
----
-
-## Data & Persistence
-
-### SQLite Token Store Schema
-
-```sql
--- data_dir/auth/tokens.db
-CREATE TABLE schema_version (version INTEGER NOT NULL);
-CREATE TABLE revoked_tokens (
-    jti TEXT PRIMARY KEY,
-    revoked_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL  -- for cleanup of old revocations
-);
-CREATE TABLE refresh_tokens (
-    issuer TEXT NOT NULL,
-    subject TEXT NOT NULL,
-    refresh_token TEXT NOT NULL,
-    stored_at TEXT NOT NULL,
-    PRIMARY KEY (issuer, subject)
-);
+```yaml
+# In keyring or secrets.yaml:
+AZURE_OPENAI_API_KEY: "..."
+AZURE_OPENAI_ENDPOINT: "https://your-resource.cognitiveservices.azure.com"
+AZURE_OPENAI_DEPLOYMENT_NAME: "gpt-5.2"
+AZURE_OPENAI_API_VERSION: "2024-05-01-preview"  # default: 2024-10-21
 ```
 
-### AgentSlotRegistry SQLite Schema
+### Secret Resolution Order
 
-```sql
--- data_dir/agents/registry.db
-CREATE TABLE schema_version (version INTEGER NOT NULL);
-CREATE TABLE agents (
-    name TEXT PRIMARY KEY,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    delegation_type TEXT NOT NULL DEFAULT 'in_process',
-    delegation_url TEXT
-);
-CREATE TABLE agent_extensions (
-    agent_name TEXT NOT NULL,
-    extension_name TEXT NOT NULL,
-    PRIMARY KEY (agent_name, extension_name),
-    FOREIGN KEY (agent_name) REFERENCES agents(name) ON DELETE CASCADE
-);
-```
+1. **Environment variables** (uppercased key name) — checked first
+2. **System keyring** (`secret-tool` / `gnome-keyring`) — checked second
+3. **`~/.config/goose/secrets.yaml`** — fallback (used when `GOOSE_DISABLE_KEYRING` is set)
 
-Lazy pool initialization following the `SessionTokenStore` pattern. Falls back to in-memory when no `data_dir` is provided (tests).
+### Custom Provider base_url Path Handling
 
-### Session Schema Version 9
-
-The session storage is at schema version 9 with `tenant_id TEXT` and `user_id TEXT` columns. Migrations run automatically on startup. The `set_session_identity` method uses a raw SQL UPDATE to tag sessions.
-
-### `list_sessions_for_tenant` Uses Dynamic SQL
-
-The method builds a WHERE clause dynamically based on which filters are provided:
-- Both tenant and user → `WHERE tenant_id = ? AND user_id = ?`
-- Only tenant → `WHERE tenant_id = ?`
-- Only user → `WHERE user_id = ?`
-- Neither → `WHERE session_type IN ('user', 'scheduled')` (no tenant filtering)
+The OpenAI engine in `from_custom_config` parses the base_url:
+- Empty path, `/v1`, or `/v1/` → defaults to `v1/chat/completions`
+- Any other path → used as-is (you must include `chat/completions` if needed)
 
 ---
 
@@ -273,6 +203,43 @@ Maps HTTP method + path to policy action/resource pairs:
 
 ---
 
+## Session Storage
+
+### Agent Pool Uses SQLite
+
+The `AgentPool` stores agent registrations in SQLite:
+
+```sql
+CREATE TABLE agents (
+    name TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    delegation_type TEXT NOT NULL DEFAULT 'in_process',
+    delegation_url TEXT
+);
+CREATE TABLE agent_extensions (
+    agent_name TEXT NOT NULL,
+    extension_name TEXT NOT NULL,
+    PRIMARY KEY (agent_name, extension_name),
+    FOREIGN KEY (agent_name) REFERENCES agents(name) ON DELETE CASCADE
+);
+```
+
+Lazy pool initialization following the `SessionTokenStore` pattern. Falls back to in-memory when no `data_dir` is provided (tests).
+
+### Session Schema Version 9
+
+The session storage is at schema version 9 with `tenant_id TEXT` and `user_id TEXT` columns. Migrations run automatically on startup. The `set_session_identity` method uses a raw SQL UPDATE to tag sessions.
+
+### `list_sessions_for_tenant` Uses Dynamic SQL
+
+The method builds a WHERE clause dynamically based on which filters are provided:
+- Both tenant and user → `WHERE tenant_id = ? AND user_id = ?`
+- Only tenant → `WHERE tenant_id = ?`
+- Only user → `WHERE user_id = ?`
+- Neither → `WHERE session_type IN ('user', 'scheduled')` (no tenant filtering)
+
+---
+
 ## Testing
 
 ### Flaky Test: `prepare_tools_returns_sorted_tools_including_frontend`
@@ -285,18 +252,53 @@ When testing expired tokens, don't create a token with `exp = now` and expect im
 - Set `validation.leeway = 0` explicitly
 - Create tokens with `exp` far in the past (e.g., year 1970)
 
-### `just generate-openapi` Deletes `instances.ts`
+### `just generate-openapi` Deletes `src/api/` Contents
 
-Every time you run `just generate-openapi`, it deletes `ui/desktop/src/api/instances.ts` (a hand-written wrapper). The `just` recipe automatically restores it via `git checkout`, but if you're running the steps manually, you'll lose the file.
+Every time you run `just generate-openapi`, it wipes `ui/desktop/src/api/` and regenerates. Hand-written files MUST live in `src/lib/` (see "Codegen-Safe File Locations" above). The `just` recipe restores `instances.ts` via `git checkout`, but `authInterceptor.ts` was moved to `src/lib/` permanently.
+
+### Files That Resist `rg` (ripgrep)
+
+Some newly created files (`policy.rs`, `audit.rs`, `quotas.rs`) intermittently fail to be found by `rg` even though they exist on disk (confirmed by `ls -la`, `stat`, `cat`). This appears to be a file indexing/caching issue. Workaround: use `grep` directly or `cat | grep`. The files compile and test correctly regardless.
 
 ### Test Count Checkpoints
 
 | Crate | Count | Notes |
 |---|---|---|
-| goose (lib) | 987 | +35 from ACP work (13 policy, 8 audit, 11 quota, 3 RBAC) |
-| goose-server | 97 | +10 from ACP work (8 control plane, 2 agent registry) |
-| **Total** | **1,084+** | As of commit d373412f |
+| goose (lib) | 987+ | +35 from ACP work (13 policy, 8 audit, 11 quota, 3 RBAC) |
+| goose-server | 97+ | +10 from ACP work (8 control plane, 2 agent registry) |
+| **Total** | **1,084+** | As of commit 667d75cf |
 
-### Files That Resist `rg` (ripgrep)
+---
 
-Some newly created files (`policy.rs`, `audit.rs`, `quotas.rs`) intermittently fail to be found by `rg` even though they exist on disk (confirmed by `ls -la`, `stat`, `cat`). This appears to be a file indexing/caching issue. Workaround: use `grep` directly or `cat | grep`. The files compile and test correctly regardless.
+## Design System
+
+### Semantic Token Migration
+
+43 raw `zinc-*` Tailwind classes were migrated to semantic tokens (`text-default`, `bg-background-muted`, `border-default`, etc.). WCAG AA contrast was fixed for:
+- Light theme: `text-danger`, `text-success`, `text-warning`, `text-info`, `border-default`, `border-strong`
+- Dark theme: `border-default`, `border-strong`
+
+### Zero `role="button"` Divs
+
+All interactive divs with `role="button"` were replaced:
+- `<div role="button" tabIndex onKeyDown>` → `<Button variant="ghost">` or native `<button>`
+- Zero instances remain in the codebase
+
+### Pages Using PageShell
+
+| Page | Migrated | Notes |
+|------|----------|-------|
+| WorkflowsOverview | ✅ | |
+| CatalogsOverview | ✅ | |
+| AgentsView | ✅ | |
+| RecipesView | ✅ | |
+| SchedulesView | ✅ | |
+| SessionListView | ✅ | |
+| SettingsView | ✅ | Uses `headerExtra` for tabs |
+| BaseChat | ❌ | Special chat layout |
+| ExtensionsView | ❌ | Not yet migrated |
+| AppsView | ❌ | Not yet migrated |
+
+### MainPanelLayout Still Exists
+
+`MainPanelLayout` is still used by 5 components (BaseChat, SharedSessionView, SessionHistoryView, ExtensionsView, AppsView). It provides `h-dvh` + `pt-[32px]` for the app toolbar drag area. It should eventually be phased out in favor of `PageShell` where appropriate.

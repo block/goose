@@ -1,7 +1,7 @@
 {
-  "exported_at": "2026-02-19T00:40:11.000000",
-  "entity_count": 1651,
-  "relation_count": 2339,
+  "exported_at": "2026-02-19T01:56:33.729904",
+  "entity_count": 1615,
+  "relation_count": 2203,
   "format_version": "1.0",
   "branch": "feature/cli-via-goosed",
   "session_deliverables": [
@@ -25,27 +25,87 @@
       "files_changed": 8,
       "lines_added": "~800"
     },
-    "Dual Identity Phase 1: UserIdentity + AgentIdentity + ExecutionIdentity (a239e6ac)",
-    "Dual Identity Phase 2: Wire into execution + auth middleware (f7586c5d)",
-    "Dual Identity Phase 3: OIDC discovery, JWT validation, tenant isolation (46171f82)",
-    "User Auth Endpoints: /auth/me, login, logout, refresh + session tokens (4d54d42a)",
-    "OIDC CLI Flow: authorization code + server code exchange (0ae7a738)",
-    "OIDC Provider Presets: Google, Azure, GitHub, GitLab, AWS, Auth0, Okta (cfeca36f)",
+    "Dual Identity Phase 1-3: UserIdentity, AgentIdentity, OIDC (a239e6ac..46171f82)",
+    "User Auth Endpoints + OIDC CLI Flow (4d54d42a..0ae7a738)",
+    "OIDC Provider Presets (cfeca36f)",
     "Tenant-Scoped Session Isolation (10678485)",
-    "Identity in SpawnConfig propagation to pool agents (9bdefa77)",
-    "Dispatcher wiring: AgentReplyDispatcher replaces inline compound code (fd6fa15c)",
-    "OIDC Token Refresh: server + CLI auto-refresh (d4ea45b5)",
-    "Persistent Token Store: SQLite-backed revocations + refresh tokens (16a4df7b)",
-    "JWKS Key Rotation TTL + Discovery Cache TTL (18ad7a74)",
+    "Dispatcher wiring: AgentReplyDispatcher (fd6fa15c)",
+    "OIDC Token Refresh (d4ea45b5)",
+    "Persistent Token Store: SQLite (16a4df7b)",
+    "JWKS Key Rotation + Discovery Cache (18ad7a74)",
     "Rate Limiting on Auth Endpoints (5d6c40fc)",
-    "Frontend Auth Interceptor: Bearer token on all API calls (fb47a58a)",
-    "Revert X-Goose-Api-Key \u2192 back to standard X-Api-Key (a8038043)",
-    "CLI session tokens migrated to system keyring (97fa1e4a)",
-    "ACP Phase 1: Policy engine + Audit logging (a627d700)",
-    "ACP Phase 2: Wire policy + audit into server middleware (f4ad5292)",
-    "ACP Phase 3a: RBAC roles on UserIdentity (c1be2cb3)",
-    "ACP Phase 3b: Persistent agent slot registry (cb50197d)",
-    "ACP Phase 4: Quota manager with tenant/user scoping (28b5e350)",
-    "ACP Phase 5: Control plane REST API /control-plane/v1/* (d373412f)"
-  ]
+    {
+      "name": "UI Cleanup: import type, dead code, console.log, DS compliance",
+      "commit": "f816800e..336f587a",
+      "files_changed": 140,
+      "lines_removed": "~2600"
+    },
+    {
+      "name": "SettingsView PageShell migration + WelcomeState cleanup",
+      "commit": "595f4d1f..3777216d",
+      "files_changed": 12,
+      "lines_changed": "~300"
+    },
+    {
+      "name": "authInterceptor codegen-safe move + role=button DS fix",
+      "commit": "0b0fe612..486d4f2f",
+      "files_changed": 6
+    },
+    {
+      "name": "Sidebar project/dir sync via DirSwitcher events",
+      "commit": "37af164a",
+      "files_changed": 3
+    },
+    {
+      "name": "Policy engine + audit logging + RBAC",
+      "commit": "a627d700..c1be2cb3",
+      "files_changed": 10
+    },
+    {
+      "name": "Quota manager + agent slot registry",
+      "commit": "cb50197d..28b5e350",
+      "files_changed": 6
+    },
+    {
+      "name": "Control plane management API",
+      "commit": "d373412f",
+      "files_changed": 4
+    },
+    {
+      "name": "SecurityMode: local/team/enterprise with auto-detection",
+      "commit": "8e4b73ff..667d75cf",
+      "files_changed": 2
+    },
+    {
+      "name": "UI Cleanup: import type, dead code, console.log, DS compliance",
+      "commit": "f816800e..336f587a",
+      "files_changed": 140,
+      "lines_removed": "~2600"
+    },
+    {
+      "name": "SettingsView PageShell migration + WelcomeState cleanup",
+      "commit": "595f4d1f..3777216d",
+      "files_changed": 12
+    },
+    {
+      "name": "authInterceptor codegen-safe move + role=button DS fix",
+      "commit": "0b0fe612..486d4f2f",
+      "files_changed": 6
+    },
+    {
+      "name": "Sidebar project/dir sync via DirSwitcher events",
+      "commit": "37af164a",
+      "files_changed": 3
+    },
+    {
+      "name": "SecurityMode: local/team/enterprise with auto-detection",
+      "commit": "8e4b73ff..667d75cf",
+      "files_changed": 2
+    },
+    {
+      "name": "KG cleanup: removed 50 stale entities, 162 orphaned relations",
+      "commit": "pending"
+    }
+  ],
+  "last_commit": "667d75cf"
 }

@@ -387,140 +387,6 @@
     "name": "Crate: goose",
     "entityType": "Component",
     "observations": [
-      "2026-02-06T20:33:00 Rust crate under crates/goose (confidence:0.9)",
-      "2026-02-06T20:39:00 crate=crates/goose (confidence:0.9)",
-      "2026-02-06T20:40:00 crate=crates/goose (confidence:0.95)",
-      "2026-02-06T20:42:00 crate at crates/goose (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "RepoPath: crates/goose",
-    "entityType": "RepoPath",
-    "observations": [
-      "2026-02-06T20:33:00 path=crates/goose (confidence:0.9)",
-      "2026-02-06T20:39:00 path=crates/goose (confidence:0.9)",
-      "2026-02-06T20:40:00 path=crates/goose (confidence:0.95)",
-      "2026-02-06T20:42:00 path=crates/goose (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "Crate: goose-acp",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-06T20:33:00 Rust crate under crates/goose-acp (confidence:0.9)",
-      "2026-02-06T20:39:00 crate=crates/goose-acp (confidence:0.9)",
-      "2026-02-06T20:40:00 crate=crates/goose-acp (confidence:0.95)",
-      "2026-02-06T20:42:00 crate at crates/goose-acp (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "RepoPath: crates/goose-acp",
-    "entityType": "RepoPath",
-    "observations": [
-      "2026-02-06T20:33:00 path=crates/goose-acp (confidence:0.9)",
-      "2026-02-06T20:39:00 path=crates/goose-acp (confidence:0.9)",
-      "2026-02-06T20:40:00 path=crates/goose-acp (confidence:0.95)",
-      "2026-02-06T20:42:00 path=crates/goose-acp (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "Crate: goose-bench",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-06T20:33:00 Rust crate under crates/goose-bench (confidence:0.9)",
-      "2026-02-06T20:39:00 crate=crates/goose-bench (confidence:0.9)"
-    ]
-  },
-  {
-    "name": "RepoPath: crates/goose-bench",
-    "entityType": "RepoPath",
-    "observations": [
-      "2026-02-06T20:33:00 path=crates/goose-bench (confidence:0.9)",
-      "2026-02-06T20:39:00 path=crates/goose-bench (confidence:0.9)"
-    ]
-  },
-  {
-    "name": "Crate: goose-cli",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-06T20:33:00 Rust crate under crates/goose-cli (confidence:0.9)",
-      "2026-02-06T20:39:00 crate=crates/goose-cli (confidence:0.9)",
-      "2026-02-06T20:40:00 crate=crates/goose-cli (confidence:0.95)",
-      "2026-02-06T20:42:00 crate at crates/goose-cli (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "RepoPath: crates/goose-cli",
-    "entityType": "RepoPath",
-    "observations": [
-      "2026-02-06T20:33:00 path=crates/goose-cli (confidence:0.9)",
-      "2026-02-06T20:39:00 path=crates/goose-cli (confidence:0.9)",
-      "2026-02-06T20:40:00 path=crates/goose-cli (confidence:0.95)",
-      "2026-02-06T20:42:00 path=crates/goose-cli (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "Crate: goose-mcp",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-06T20:33:00 Rust crate under crates/goose-mcp (confidence:0.9)",
-      "2026-02-06T20:39:00 crate=crates/goose-mcp (confidence:0.9)",
-      "2026-02-06T20:40:00 crate=crates/goose-mcp (confidence:0.95)",
-      "2026-02-06T20:42:00 crate at crates/goose-mcp (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "RepoPath: crates/goose-mcp",
-    "entityType": "RepoPath",
-    "observations": [
-      "2026-02-06T20:33:00 path=crates/goose-mcp (confidence:0.9)",
-      "2026-02-06T20:39:00 path=crates/goose-mcp (confidence:0.9)",
-      "2026-02-06T20:40:00 path=crates/goose-mcp (confidence:0.95)",
-      "2026-02-06T20:42:00 path=crates/goose-mcp (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "Crate: goose-server",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-06T20:33:00 Rust crate under crates/goose-server (confidence:0.9)",
-      "2026-02-06T20:39:00 crate=crates/goose-server (confidence:0.9)",
-      "2026-02-06T20:40:00 crate=crates/goose-server (confidence:0.95)",
-      "2026-02-06T20:42:00 crate at crates/goose-server (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "RepoPath: crates/goose-server",
-    "entityType": "RepoPath",
-    "observations": [
-      "2026-02-06T20:33:00 path=crates/goose-server (confidence:0.9)",
-      "2026-02-06T20:39:00 path=crates/goose-server (confidence:0.9)",
-      "2026-02-06T20:40:00 path=crates/goose-server (confidence:0.95)",
-      "2026-02-06T20:42:00 path=crates/goose-server (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "Crate: goose-test",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-06T20:33:00 Rust crate under crates/goose-test (confidence:0.9)",
-      "2026-02-06T20:39:00 crate=crates/goose-test (confidence:0.9)",
-      "2026-02-06T20:42:00 crate at crates/goose-test (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "RepoPath: crates/goose-test",
-    "entityType": "RepoPath",
-    "observations": [
-      "2026-02-06T20:33:00 path=crates/goose-test (confidence:0.9)",
-      "2026-02-06T20:39:00 path=crates/goose-test (confidence:0.9)",
-      "2026-02-06T20:42:00 path=crates/goose-test (confidence:0.95)"
-    ]
-  },
-  {
-    "name": "Crate: goose",
-    "entityType": "Component",
-    "observations": [
       "2026-02-06T20:33:00 Rust crate under crates/goose (confidence:0.9)"
     ]
   },
@@ -2025,13 +1891,6 @@
     "name": "Interface: sacp::File",
     "entityType": "Interface",
     "observations": [
-      "2026-02-06T23:05:00 kind= url=\"<stdin>\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::File",
-    "entityType": "Interface",
-    "observations": [
       "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
     ]
   },
@@ -2039,7 +1898,7 @@
     "name": "Interface: sacp::return",
     "entityType": "Interface",
     "observations": [
-      "2026-02-06T23:05:00 kind= url=PathBase.read_text(self, (confidence:0.7)"
+      "2026-02-06T23:05:00 kind= url=io.open(self, (confidence:0.7)"
     ]
   },
   {
@@ -2047,13 +1906,6 @@
     "entityType": "Interface",
     "observations": [
       "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_abc.py\", (confidence:0.7)"
     ]
   },
   {
@@ -2068,20 +1920,6 @@
     "entityType": "Interface",
     "observations": [
       "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::return",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=io.open(self, (confidence:0.7)"
     ]
   },
   {
@@ -2103,83 +1941,6 @@
     "entityType": "Interface",
     "observations": [
       "2026-02-06T23:05:00 kind=Traceback url=recent (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"<stdin>\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::return",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=PathBase.read_text(self, (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_abc.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::with",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=self.open(mode='r', (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::return",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=io.open(self, (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: sacp::[Errno",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind=FileNotFoundError: url=2] (confidence:0.7)"
     ]
   },
   {
@@ -2221,13 +1982,6 @@
     "name": "Interface: agent_client_protocol::File",
     "entityType": "Interface",
     "observations": [
-      "2026-02-06T23:05:00 kind= url=\"<stdin>\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::File",
-    "entityType": "Interface",
-    "observations": [
       "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
     ]
   },
@@ -2235,7 +1989,7 @@
     "name": "Interface: agent_client_protocol::return",
     "entityType": "Interface",
     "observations": [
-      "2026-02-06T23:05:00 kind= url=PathBase.read_text(self, (confidence:0.7)"
+      "2026-02-06T23:05:00 kind= url=io.open(self, (confidence:0.7)"
     ]
   },
   {
@@ -2243,13 +1997,6 @@
     "entityType": "Interface",
     "observations": [
       "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_abc.py\", (confidence:0.7)"
     ]
   },
   {
@@ -2264,20 +2011,6 @@
     "entityType": "Interface",
     "observations": [
       "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::return",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=io.open(self, (confidence:0.7)"
     ]
   },
   {
@@ -2299,83 +2032,6 @@
     "entityType": "Interface",
     "observations": [
       "2026-02-06T23:05:00 kind=Traceback url=recent (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"<stdin>\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::return",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=PathBase.read_text(self, (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_abc.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::with",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=self.open(mode='r', (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::File",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=\"/usr/lib64/python3.13/pathlib/_local.py\", (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::return",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=io.open(self, (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind= url=undefined (confidence:0.7)"
-    ]
-  },
-  {
-    "name": "Interface: agent_client_protocol::[Errno",
-    "entityType": "Interface",
-    "observations": [
-      "2026-02-06T23:05:00 kind=FileNotFoundError: url=2] (confidence:0.7)"
     ]
   },
   {
@@ -14358,22 +14014,6 @@
     ]
   },
   {
-    "name": "PromptBar",
-    "entityType": "UIComponent",
-    "observations": [
-      "Currently ChatInput is 1653 lines, embedded in Hub and Chat views only",
-      "Goal: Extract to layout-level, persistent across all pages",
-      "Context-adaptive: changes behavior based on current zone",
-      "Home zone: standard chat, create session",
-      "Workflows zone: describe a workflow, search recipes",
-      "Observatory zone: ask analytics questions, trigger evals",
-      "Platform zone: search settings, configure extensions",
-      "Slash commands: /new, /recipe, /eval, /search, /help",
-      "Foundation for Generative UI (json-render)",
-      "Priority 1 - blocks generative UI conceptually"
-    ]
-  },
-  {
     "name": "GenerativeUI",
     "entityType": "Feature",
     "observations": [
@@ -14493,20 +14133,6 @@
       "Commits: a9eaaef3, f8e7762f",
       "COMPLETED: 4-zone sidebar (Workflows, Observatory, Catalogs), project-grouped sessions, Tools health view",
       "Status: COMPLETE - 4-zone sidebar, project groups, tools health, all pushed"
-    ]
-  },
-  {
-    "name": "Phase2_PromptBar",
-    "entityType": "Phase",
-    "observations": [
-      "STATUS: TODO - Priority 1",
-      "Extract ChatInput to layout-level",
-      "Context-adaptive behavior per zone",
-      "Slash command system",
-      "Foundation for Generative UI",
-      "Estimated: 2-3 weeks",
-      "COMPLETED: PromptBarContext with zone detection, PromptBar component with slash commands, Cmd+K shortcut, Hub event wiring",
-      "Status: COMPLETE - all 3 sub-tasks closed (extract, adaptive, slash commands)"
     ]
   },
   {
@@ -15578,14 +15204,6 @@
     ]
   },
   {
-    "name": "Component: GenerativePanel",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-17T18:52:00 (confidence:0.95) Standalone panel rendering AI-generated UI specs via @json-render/react. Supports expand/collapse/fullscreen modes. Defines action handlers for navigate, create_session, run_eval, install_extension, run_recipe, dismiss.",
-      "2026-02-17T18:52:00 (confidence:0.95) Located at ui/desktop/src/components/generative/GenerativePanel.tsx (140 lines)."
-    ]
-  },
-  {
     "name": "Component: GooseGenerativeUI",
     "entityType": "Component",
     "observations": [
@@ -15601,15 +15219,6 @@
       "2026-02-17T18:52:00 (confidence:0.95) Catalogs page showing 3 categories: Tools (from getExtensions), Agents (from listBuiltinAgents + listAgents), Workflows (from listSavedRecipes). Has search, refresh, install/total counts, category cards with status indicators.",
       "2026-02-17T18:52:00 (confidence:0.95) Located at ui/desktop/src/components/catalogs/CatalogsOverview.tsx (446 lines).",
       "2026-02-17T18:52:00 (confidence:0.95) Verified fully wired to real API endpoints \u2014 no mock data. Uses semantic design tokens throughout."
-    ]
-  },
-  {
-    "name": "Component: PromptBar",
-    "entityType": "Component",
-    "observations": [
-      "2026-02-17T18:52:00 (confidence:0.95) Persistent prompt input bar with: file drop/attach, voice dictation, slash command palette with keyboard nav (Up/Down/Enter/Escape), Cmd+K global focus shortcut, zone-aware placeholders/hints, auto-resize textarea.",
-      "2026-02-17T18:52:00 (confidence:0.95) Located at ui/desktop/src/components/prompt_bar/PromptBar.tsx (328 lines).",
-      "2026-02-17T18:52:00 (confidence:0.95) Already fully implements zone-awareness via UnifiedInputContext. No changes needed."
     ]
   },
   {
@@ -15707,13 +15316,6 @@
     "entityType": "Decision",
     "observations": [
       "2026-02-17T18:52:00 (confidence:0.95) CatalogsOverview was verified to already use real API endpoints (getExtensions, listBuiltinAgents, listAgents, listSavedRecipes). No mock data wiring needed. This was a false gap identified during initial audit."
-    ]
-  },
-  {
-    "name": "Decision: PromptBar Zone-Awareness Already Complete",
-    "entityType": "Decision",
-    "observations": [
-      "2026-02-17T18:52:00 (confidence:0.95) UnifiedInputContext + PromptBar already fully implement zone-awareness: zone detection from routes, zone-specific placeholders/hints/slash commands, keyboard navigation, Cmd+K shortcut. No additional work needed."
     ]
   },
   {
@@ -16231,18 +15833,6 @@
       "Has search, refresh, error handling, semantic design tokens",
       "No changes needed \u2014 design docs overstated the gap",
       "Confidence: 1.0 \u2014 verified by reading all 446 lines of component"
-    ]
-  },
-  {
-    "name": "Finding_PromptBarAlreadyComplete",
-    "entityType": "Finding",
-    "observations": [
-      "[2026-02-17T22:05:49.369490] PromptBar + UnifiedInputContext already implement zone-awareness fully",
-      "Zone detection, zone-specific placeholders/hints, slash commands with descriptions",
-      "Keyboard navigation (arrows, enter, escape), Cmd+K shortcut, auto-resize",
-      "File drop/attach, voice dictation via useAudioRecorder",
-      "10 slash commands across 5 zones \u2014 all with descriptions and actions",
-      "Confidence: 1.0 \u2014 no changes needed"
     ]
   },
   {
@@ -16844,6 +16434,156 @@
       "2026-02-19T00:40:11 (confidence:0.95) Reverted X-Goose-Api-Key rename \u2014 X-Api-Key is the industry standard",
       "2026-02-19T00:40:11 (confidence:0.95) Used by AWS API Gateway, Swagger/OpenAPI, most REST APIs",
       "2026-02-19T00:40:11 (confidence:0.95) Anthropic collision is theoretical \u2014 different HTTP connections to different hosts"
+    ]
+  },
+  {
+    "name": "SecurityMode",
+    "entityType": "Enum",
+    "observations": [
+      "Enum in crates/goose/src/policy.rs with Local/Team/Enterprise variants",
+      "Local (default): no restrictions, permissive for solo desktop use",
+      "Team: deny guest management on shared servers (secret key configured)",
+      "Enterprise: full enforcement + deny guest execution (OIDC configured)",
+      "Auto-detect from GOOSE_SECURITY_MODE env, or infer from OIDC/secret key presence",
+      "SecurityMode::detect() reads env vars directly, no parameters needed",
+      "Derives Default with #[default] on Local variant"
+    ]
+  },
+  {
+    "name": "SecurityMode::detect",
+    "entityType": "Function",
+    "observations": [
+      "Auto-detects security mode from environment variables",
+      "Priority: 1) GOOSE_SECURITY_MODE explicit override, 2) GOOSE_OIDC_ISSUER_URL -> Enterprise, 3) GOOSE_SERVER__SECRET_KEY (non-test) -> Team, 4) default -> Local",
+      "Called in AppState::new() via PolicyStore::for_mode(SecurityMode::detect())"
+    ]
+  },
+  {
+    "name": "PolicyStore::for_mode",
+    "entityType": "Function",
+    "observations": [
+      "Factory method replacing PolicyStore::new() for mode-aware initialization",
+      "Local mode: allow-execute + allow-read rules only",
+      "Team mode: adds deny-guest-management rule",
+      "Enterprise mode: adds deny-guest-management + deny-guest-execute rules"
+    ]
+  },
+  {
+    "name": "rules_for_mode",
+    "entityType": "Function",
+    "observations": [
+      "Replaces old default_rules() function in policy.rs",
+      "Returns Vec<PolicyRule> based on SecurityMode",
+      "All modes get allow-execute and allow-read at priority 50",
+      "Team adds deny-guest-management at priority 100",
+      "Enterprise adds deny-guest-management + deny-guest-execute at priority 100"
+    ]
+  },
+  {
+    "name": "guest_management_deny_rule",
+    "entityType": "Function",
+    "observations": [
+      "Extracted from old default_rules() for explicit opt-in",
+      "Priority 100 deny rule for auth_method=Guest on manage:* actions",
+      "Used by Team and Enterprise modes, NOT by Local mode",
+      "Can also be added dynamically via control plane API"
+    ]
+  },
+  {
+    "name": "PageShell",
+    "entityType": "UIComponent",
+    "observations": [
+      "Reusable page layout at src/components/Layout/PageShell.tsx",
+      "Props: title, subtitle, actions, maxWidth (narrow/default/wide/full), stickyHeader, centerContent, headerExtra, bodyProps",
+      "headerExtra renders between header and scrollable body in sticky mode (used by SettingsView for tabs)",
+      "Used by: WorkflowsOverview, CatalogsOverview, AgentsView, RecipesView, SchedulesView, SessionListView, SettingsView",
+      "Provides consistent px-8 py-6 padding and max-w-5xl default width"
+    ]
+  },
+  {
+    "name": "GlobalChatInput",
+    "entityType": "UIComponent",
+    "observations": [
+      "Defined in AppLayout.tsx, renders ChatInput on every page",
+      "Reads session state from useUnifiedInput() context",
+      "When no session: shows ChatInput with null sessionId, Idle state, startNewSession on submit",
+      "When session: passes all session props (chatState, handleSubmit, tokens, messages, costs, recipe, toolCount, etc.)",
+      "Fixed at bottom of viewport with z-50"
+    ]
+  },
+  {
+    "name": "SESSION_WORKING_DIR_CHANGED",
+    "entityType": "Concept",
+    "observations": [
+      "Custom DOM event dispatched by DirSwitcher after updateWorkingDir API succeeds",
+      "Added to AppEvents enum in constants/events.ts",
+      "AppSidebar listens for it and updates recentSessions state in-place",
+      "Ensures sidebar project groups re-sort when working directory changes",
+      "Event detail contains { sessionId, workingDir }"
+    ]
+  },
+  {
+    "name": "authInterceptor",
+    "entityType": "CodeArtifact",
+    "observations": [
+      "Lives at ui/desktop/src/lib/authInterceptor.ts (moved from src/api/ for codegen safety)",
+      "setupAuthInterceptor() called once at app startup in App.tsx",
+      "Attaches Authorization: Bearer <token> from localStorage goose_auth_token",
+      "Attaches X-Secret-Key header for server authentication",
+      "Must be in src/lib/ because src/api/ gets wiped by generate-openapi codegen"
+    ]
+  },
+  {
+    "name": "import-type-compliance",
+    "entityType": "Concept",
+    "observations": [
+      "All 260+ type-only imports across 123 files now use import type syntax",
+      "Compliant with TypeScript --verbatimModuleSyntax flag",
+      "Enforced via TS1484 error code checking",
+      "Mixed imports (default + named types) split into separate statements",
+      "e.g. import Foo, { Bar } -> import Foo; import type { Bar }"
+    ]
+  },
+  {
+    "name": "dead-code-cleanup",
+    "entityType": "Concept",
+    "observations": [
+      "17 orphan files deleted (~2000+ lines removed)",
+      "Includes: AnalyticsView, GenerativePanel, InterruptionHandler, PopularChatTopics, WaveformVisualizer, CustomRadio, Pill, design-system catalog, SessionsInsights, useRecipeManager, sessionCache, etc.",
+      "40 console.log statements removed from production code, 0 remaining",
+      "Only console.log remaining are in test files (MarkdownContent.test, App.test, RecipeFormFields.test)"
+    ]
+  },
+  {
+    "name": "SettingsView-PageShell-migration",
+    "entityType": "Decision",
+    "observations": [
+      "SettingsView migrated from MainPanelLayout to PageShell",
+      "Uses stickyHeader + headerExtra for pinned tabs",
+      "Title changed from text-4xl font-light to PageShell standard text-2xl font-semibold tracking-tight",
+      "Width constrained to max-w-5xl (was unconstrained)",
+      "All 7 section wrappers normalized to space-y-4 (removed inconsistent pr-4 pb-8 mt-1)",
+      "ResetProviderSection permanently removed (destructive action doesnt belong in settings)"
+    ]
+  },
+  {
+    "name": "WelcomeState-status-bar-removal",
+    "entityType": "Decision",
+    "observations": [
+      "BottomMenuModeSelection, BottomMenuAgentSelection, BottomMenuExtensionSelection removed from WelcomeState",
+      "These were duplicate \u2014 ChatInput already shows the same mode/agents/tools info",
+      "WelcomeState now shows only: Goose icon, title, 6 capability cards, footer hint"
+    ]
+  },
+  {
+    "name": "role-button-ds-fix",
+    "entityType": "Decision",
+    "observations": [
+      "Replaced 3 instances of div/a role=button with proper DS components",
+      "SessionsInsights.tsx: div -> Button variant=ghost size=sm",
+      "AlertBox.tsx: a role=button -> Button variant=link size=xs",
+      "RecipeExtensionSelector.tsx: div role=button tabIndex onKeyDown -> native button element",
+      "Zero role=button divs remaining in codebase"
     ]
   }
 ]

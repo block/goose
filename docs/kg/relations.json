@@ -400,76 +400,6 @@
     "relationType": "located_at"
   },
   {
-    "from": "Crate: goose",
-    "to": "Repo: goose3",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose",
-    "to": "RepoPath: crates/goose",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-acp",
-    "to": "Repo: goose3",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-acp",
-    "to": "RepoPath: crates/goose-acp",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-bench",
-    "to": "Repo: goose3",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-bench",
-    "to": "RepoPath: crates/goose-bench",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-cli",
-    "to": "Repo: goose3",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-cli",
-    "to": "RepoPath: crates/goose-cli",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-mcp",
-    "to": "Repo: goose3",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-mcp",
-    "to": "RepoPath: crates/goose-mcp",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-server",
-    "to": "Repo: goose3",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-server",
-    "to": "RepoPath: crates/goose-server",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-test",
-    "to": "Repo: goose3",
-    "relationType": "located_at"
-  },
-  {
-    "from": "Crate: goose-test",
-    "to": "RepoPath: crates/goose-test",
-    "relationType": "located_at"
-  },
-  {
     "from": "Concept: GooseAgent",
     "to": "Crate: goose",
     "relationType": "related_to"
@@ -597,11 +527,6 @@
   {
     "from": "Concept: PlanningSkills",
     "to": "Crate: goose-mcp",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Concept: ACP",
-    "to": "Crate: goose-acp",
     "relationType": "related_to"
   },
   {
@@ -1630,331 +1555,6 @@
     "relationType": "related_to"
   },
   {
-    "from": "Interface: sacp::Error",
-    "to": "Concept: ACP Errors",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::JrRequestCx",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::JrResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::McpAcpTransport",
-    "to": "Concept: ACP Transport",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionBuilder",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::UntypedMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::JrMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::JrMessageHandler",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::Error",
-    "to": "Concept: ACP Errors",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ExtNotification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ExtRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ExtResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::InitializeProxyRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::InitializeRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::InitializeResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::JsonRpcMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::KillTerminalCommandRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::KillTerminalCommandResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::LoadSessionRequest",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::LoadSessionRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::LoadSessionResponse",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::LoadSessionResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::McpConnectRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::McpConnectResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::McpDisconnectNotification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::McpOverAcpMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::NewSessionRequest",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::NewSessionRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::NewSessionResponse",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::NewSessionResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::Notification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::PromptRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::PromptResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ReadTextFileRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ReadTextFileResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ReleaseTerminalRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ReleaseTerminalResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::Request",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::RequestPermissionRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::RequestPermissionResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionCapabilities",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionId",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionMode",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionMode",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionModeId",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionModeId",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionModeState",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionModeState",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionNotification",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SessionNotification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SetSessionModeRequest",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SetSessionModeRequest",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SetSessionModeRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SetSessionModeResponse",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SetSessionModeResponse",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SetSessionModeResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::SuccessorMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::TerminalOutputRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::TerminalOutputResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::WaitForTerminalExitRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::WaitForTerminalExitResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::WriteTextFileRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::WriteTextFileResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::ActiveSession",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: sacp::Error",
-    "to": "Concept: ACP Errors",
-    "relationType": "related_to"
-  },
-  {
     "from": "Interface: sacp::JrRequestCx",
     "to": "Concept: ACP Messages",
     "relationType": "related_to"
@@ -2002,346 +1602,6 @@
   {
     "from": "Source: docs.rs agent_client_protocol url list 2026-02-06T23:40:00",
     "to": "Library: agent-client-protocol",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::CancelNotification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::CreateTerminalRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::CreateTerminalResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::CurrentModeUpdate",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::Error",
-    "to": "Concept: ACP Errors",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::ExtNotification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::ExtRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::ExtResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::InitializeRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::InitializeResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::JsonRpcMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::KillTerminalCommandRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::KillTerminalCommandResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::LoadSessionRequest",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::LoadSessionRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::LoadSessionResponse",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::LoadSessionResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::NewSessionRequest",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::NewSessionRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::NewSessionResponse",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::NewSessionResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::Notification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::PromptRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::PromptResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::RawIncomingMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::ReadTextFileRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::ReadTextFileResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::ReleaseTerminalRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::ReleaseTerminalResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::Request",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::RequestPermissionRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::RequestPermissionResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionCapabilities",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionConfigGroupId",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionConfigId",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionConfigOption",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionConfigSelect",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionConfigSelectGroup",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionConfigSelectOption",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionConfigValueId",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionId",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionMode",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionMode",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionModeId",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionModeId",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionModeState",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionModeState",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionNotification",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SessionNotification",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionConfigOptionRequest",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionConfigOptionRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionConfigOptionResponse",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionConfigOptionResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionModeRequest",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionModeRequest",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionModeRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionModeResponse",
-    "to": "Concept: ACP Session",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionModeResponse",
-    "to": "Concept: ACP Mode",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::SetSessionModeResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::StreamMessage",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::TerminalOutputRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::TerminalOutputResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::WaitForTerminalExitRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::WaitForTerminalExitResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::WriteTextFileRequest",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::WriteTextFileResponse",
-    "to": "Concept: ACP Messages",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::Agent",
-    "to": "Concept: ACP Agent",
-    "relationType": "related_to"
-  },
-  {
-    "from": "Interface: agent_client_protocol::MessageHandler",
-    "to": "Concept: ACP Messages",
     "relationType": "related_to"
   },
   {
@@ -10266,11 +9526,6 @@
   },
   {
     "from": "GooseDesktop",
-    "to": "PromptBar",
-    "relationType": "will_contain"
-  },
-  {
-    "from": "GooseDesktop",
     "to": "GenerativeUI",
     "relationType": "will_contain"
   },
@@ -10303,16 +9558,6 @@
     "from": "NavigationSystem",
     "to": "CatalogSystem",
     "relationType": "routes_to"
-  },
-  {
-    "from": "PromptBar",
-    "to": "GenerativeUI",
-    "relationType": "enables"
-  },
-  {
-    "from": "PromptBar",
-    "to": "NavigationSystem",
-    "relationType": "adapts_to"
   },
   {
     "from": "GenerativeUI",
@@ -10356,16 +9601,6 @@
   },
   {
     "from": "Phase1_Navigation",
-    "to": "Phase2_PromptBar",
-    "relationType": "enables"
-  },
-  {
-    "from": "Phase2_PromptBar",
-    "to": "Phase4_GenerativeUI",
-    "relationType": "enables"
-  },
-  {
-    "from": "Phase1_Navigation",
     "to": "Phase3_Catalogs",
     "relationType": "enables"
   },
@@ -10378,11 +9613,6 @@
     "from": "Phase4_GenerativeUI",
     "to": "Phase6_AnalyticsV2",
     "relationType": "enhances"
-  },
-  {
-    "from": "Phase2_PromptBar",
-    "to": "Phase3_Catalogs",
-    "relationType": "parallel_with"
   },
   {
     "from": "ModeConceptSOTA",
@@ -10840,16 +10070,6 @@
     "relationType": "depends_on"
   },
   {
-    "from": "Component: PromptBar",
-    "to": "Component: UnifiedInputContext",
-    "relationType": "depends_on"
-  },
-  {
-    "from": "Component: AppLayout",
-    "to": "Component: PromptBar",
-    "relationType": "depends_on"
-  },
-  {
     "from": "Component: AppLayout",
     "to": "Component: UnifiedInputContext",
     "relationType": "depends_on"
@@ -10860,19 +10080,9 @@
     "relationType": "implements"
   },
   {
-    "from": "Component: GenerativePanel",
-    "to": "DesignSystem: Generative Catalog",
-    "relationType": "implements"
-  },
-  {
     "from": "Utility: generativeSpec",
     "to": "RepoPath: ui/desktop/src/utils/generativeSpec.ts",
     "relationType": "located_at"
-  },
-  {
-    "from": "Decision: Two Generative UI Systems Coexist",
-    "to": "Component: GenerativePanel",
-    "relationType": "affects"
   },
   {
     "from": "Decision: Two Generative UI Systems Coexist",
@@ -10892,16 +10102,6 @@
   {
     "from": "Decision: Catalog Views Use Real API",
     "to": "Component: CatalogsOverview",
-    "relationType": "affects"
-  },
-  {
-    "from": "Decision: PromptBar Zone-Awareness Already Complete",
-    "to": "Component: PromptBar",
-    "relationType": "affects"
-  },
-  {
-    "from": "Decision: PromptBar Zone-Awareness Already Complete",
-    "to": "Component: UnifiedInputContext",
     "relationType": "affects"
   },
   {
@@ -10963,11 +10163,6 @@
     "from": "DesignSystem: Goose Component Map",
     "to": "RepoPath: ui/desktop/src/components/ui/design-system/",
     "relationType": "located_at"
-  },
-  {
-    "from": "DesignSystem: Generative Catalog",
-    "to": "Component: GenerativePanel",
-    "relationType": "related_to"
   },
   {
     "from": "AnalyticsTokenMigration",
@@ -11271,11 +10466,6 @@
   },
   {
     "from": "Finding_CatalogAlreadyWired",
-    "to": "Source_NavigationArchitecture",
-    "relationType": "derived_from"
-  },
-  {
-    "from": "Finding_PromptBarAlreadyComplete",
     "to": "Source_NavigationArchitecture",
     "relationType": "derived_from"
   },
@@ -11719,5 +10909,135 @@
     "from": "goose-cli: keyring session token storage",
     "relationType": "stores in",
     "to": "system keyring via Config::global()"
+  },
+  {
+    "from": "SecurityMode",
+    "relationType": "DEFINED_IN",
+    "to": "crates/goose/src/policy.rs"
+  },
+  {
+    "from": "SecurityMode",
+    "relationType": "USED_BY",
+    "to": "PolicyStore"
+  },
+  {
+    "from": "SecurityMode::detect",
+    "relationType": "CALLED_BY",
+    "to": "AppState"
+  },
+  {
+    "from": "PolicyStore::for_mode",
+    "relationType": "REPLACES",
+    "to": "PolicyStore"
+  },
+  {
+    "from": "rules_for_mode",
+    "relationType": "REPLACES",
+    "to": "default_rules"
+  },
+  {
+    "from": "guest_management_deny_rule",
+    "relationType": "USED_BY",
+    "to": "rules_for_mode"
+  },
+  {
+    "from": "SecurityMode",
+    "relationType": "DETECTS_FROM",
+    "to": "GOOSE_SECURITY_MODE"
+  },
+  {
+    "from": "SecurityMode",
+    "relationType": "DETECTS_FROM",
+    "to": "GOOSE_OIDC_ISSUER_URL"
+  },
+  {
+    "from": "SecurityMode",
+    "relationType": "DETECTS_FROM",
+    "to": "GOOSE_SERVER__SECRET_KEY"
+  },
+  {
+    "from": "PageShell",
+    "relationType": "USED_BY",
+    "to": "SettingsView"
+  },
+  {
+    "from": "PageShell",
+    "relationType": "PROVIDES",
+    "to": "headerExtra"
+  },
+  {
+    "from": "GlobalChatInput",
+    "relationType": "DEFINED_IN",
+    "to": "AppLayout"
+  },
+  {
+    "from": "GlobalChatInput",
+    "relationType": "READS_FROM",
+    "to": "UnifiedInputContext"
+  },
+  {
+    "from": "SESSION_WORKING_DIR_CHANGED",
+    "relationType": "DISPATCHED_BY",
+    "to": "DirSwitcher"
+  },
+  {
+    "from": "SESSION_WORKING_DIR_CHANGED",
+    "relationType": "LISTENED_BY",
+    "to": "AppSidebar"
+  },
+  {
+    "from": "authInterceptor",
+    "relationType": "LIVES_IN",
+    "to": "ui/desktop/src/lib/"
+  },
+  {
+    "from": "authInterceptor",
+    "relationType": "IMPORTED_BY",
+    "to": "App.tsx"
+  },
+  {
+    "from": "import-type-compliance",
+    "relationType": "APPLIED_TO",
+    "to": "ui/desktop/src/"
+  },
+  {
+    "from": "SettingsView-PageShell-migration",
+    "relationType": "AFFECTS",
+    "to": "SettingsView"
+  },
+  {
+    "from": "WelcomeState-status-bar-removal",
+    "relationType": "AFFECTS",
+    "to": "WelcomeState"
+  },
+  {
+    "from": "role-button-ds-fix",
+    "relationType": "AFFECTS",
+    "to": "SessionsInsights"
+  },
+  {
+    "from": "role-button-ds-fix",
+    "relationType": "AFFECTS",
+    "to": "AlertBox"
+  },
+  {
+    "from": "role-button-ds-fix",
+    "relationType": "AFFECTS",
+    "to": "RecipeExtensionSelector"
+  },
+  {
+    "from": "dead-code-cleanup",
+    "relationType": "REMOVED",
+    "to": "AnalyticsView"
+  },
+  {
+    "from": "dead-code-cleanup",
+    "relationType": "REMOVED",
+    "to": "GenerativePanel"
+  },
+  {
+    "from": "dead-code-cleanup",
+    "relationType": "REMOVED",
+    "to": "SessionsInsights"
   }
 ]
