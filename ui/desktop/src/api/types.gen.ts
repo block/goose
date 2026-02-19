@@ -127,6 +127,10 @@ export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | R
 
 export type Conversation = Array<Message>;
 
+export type CreateCustomProviderResponse = {
+    provider_name: string;
+};
+
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -787,6 +791,10 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+    /**
+     * step-by-step instructions for set up providers eg: api key
+     */
+    setup_steps?: Array<string>;
 };
 
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
@@ -2024,10 +2032,10 @@ export type CreateCustomProviderResponses = {
     /**
      * Custom provider created successfully
      */
-    200: string;
+    200: CreateCustomProviderResponse;
 };
 
-export type CreateCustomProviderResponse = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
+export type CreateCustomProviderResponse2 = CreateCustomProviderResponses[keyof CreateCustomProviderResponses];
 
 export type RemoveCustomProviderData = {
     body?: never;
@@ -2809,6 +2817,19 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
+
+export type StartNanogptSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_nanogpt';
+};
+
+export type StartNanogptSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
 
 export type StartOpenrouterSetupData = {
     body?: never;

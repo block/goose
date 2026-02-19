@@ -121,6 +121,12 @@ impl ProviderDef for GoogleProvider {
                 ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST), false),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to aistudio.google.com and sign in with your Google account",
+            "Click 'Get API key' in the top navigation",
+            "Create a new API key or select an existing one",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(
