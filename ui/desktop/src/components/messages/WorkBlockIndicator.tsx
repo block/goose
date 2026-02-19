@@ -52,7 +52,8 @@ export default function WorkBlockIndicator({
   sessionId,
   toolCallNotifications,
 }: WorkBlockIndicatorProps) {
-  const { toggleWorkBlock, panelDetail, isOpen, updateWorkBlock } = useReasoningDetail();
+  const { toggleWorkBlock, panelDetail, isOpen, updateWorkBlock, closeDetail } =
+    useReasoningDetail();
 
   const hasAutoOpened = useRef(false);
 
@@ -92,6 +93,15 @@ export default function WorkBlockIndicator({
       updateWorkBlock(buildDetail());
     }
   }, [messages, isStreaming, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-close the panel when streaming ends so the final answer is visible
+  const prevStreamingRef = useRef(isStreaming);
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming && isActive) {
+      closeDetail();
+    }
+    prevStreamingRef.current = isStreaming;
+  }, [isStreaming, isActive, closeDetail]);
 
   const displayAgent = agentName || 'Goose Agent';
   const displayMode = modeName || 'assistant';
