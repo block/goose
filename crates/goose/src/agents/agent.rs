@@ -553,7 +553,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[instrument(skip(self, tool_call, request_id, session), fields(session_id = %session.id, input, output))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
