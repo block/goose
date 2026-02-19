@@ -172,6 +172,19 @@ The Developer extension provides these tools:
 | `screen_capture` | Take screenshots | Debugging UI issues, documenting state | ✅ Low<br />Visual information only |
 | `image_processor` | Process and resize images | Optimizing assets, format conversion | ✅ Low<br />Image manipulation only |
 
+### Environment Variables in Shell Commands
+
+Shell commands executed by the `shell` tool have access to environment variables from your session. This includes:
+- System variables like `PATH`, `HOME`, and `USER`
+- Environment variables from your terminal session (including any you've exported)
+- Session-specific variables like `AGENT_SESSION_ID` for [session-isolated workflows](/docs/guides/environment-variables#using-session-ids-in-workflows)
+
+This enables workflows that depend on environment configuration, such as authenticated CLI operations and build processes.
+
+:::warning Sensitive Information
+Environment variables may contain sensitive values like API keys and tokens (e.g., `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`).
+:::
+
 ### Access Control Features
 
 You can layer multiple controls to match your risk tolerance and workflow:

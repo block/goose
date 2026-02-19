@@ -663,6 +663,12 @@ echo "Results from step 1" > ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
 cat ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
 ```
 
+## Environment Variable Passthrough
+
+The Developer extension's `shell` tool inherits environment variables from your session. This enables workflows that depend on environment configuration, such as authenticated CLI operations and build processes.
+
+See [Environment Variables in Shell Commands](/docs/mcp/developer-mcp#environment-variables-in-shell-commands) for details.
+
 ## Enterprise Environments
 
 When deploying goose in enterprise environments, administrators might need to control behavior and infrastructure, or enforce consistent settings across teams. The following environment variables are commonly used:
