@@ -84,7 +84,12 @@ export interface UnifiedInputContextValue {
   slashCommands: SlashCommand[];
   session: SessionInputState | null;
   submitPrompt: (text: string) => void;
-  setSessionState: (state: SessionInputState | null) => void;
+  setSessionState: (
+    state:
+      | SessionInputState
+      | null
+      | ((prev: SessionInputState | null) => SessionInputState | null)
+  ) => void;
 }
 
 const UnifiedInputContext = createContext<UnifiedInputContextValue | null>(null);
@@ -111,14 +116,38 @@ export function useRegisterSession(
     stateRef.current.handleSubmit?.(input);
   }, []);
 
+  // 1) Register/unregister ONLY when sessionId changes or on unmount.
+  //    The cleanup setter(null) runs only here — never on field updates.
   useEffect(() => {
     const setter = setSessionStateRef.current;
-    if (setter && state.sessionId) {
-      setter({
-        sessionId: state.sessionId,
+    const sessionId = state.sessionId;
+    if (!setter || !sessionId) return;
+
+    setter({
+      sessionId,
+      chatState: stateRef.current.chatState ?? ChatState.Idle,
+      handleSubmit: stableSubmit,
+      setView: stateRef.current.setView ?? (() => {}),
+      toolCount: stateRef.current.toolCount ?? 0,
+    });
+
+    return () => {
+      setter(null);
+    };
+  }, [state.sessionId, stableSubmit]);
+
+  // 2) Update session fields without unregistering.
+  //    Uses functional update to avoid overwriting a different session.
+  useEffect(() => {
+    const setter = setSessionStateRef.current;
+    const sessionId = state.sessionId;
+    if (!setter || !sessionId) return;
+
+    setter((prev) => {
+      if (!prev || prev.sessionId !== sessionId) return prev;
+      return {
+        ...prev,
         chatState: state.chatState ?? ChatState.Idle,
-        handleSubmit: stableSubmit,
-        setView: state.setView ?? (() => {}),
         toolCount: state.toolCount ?? 0,
         setChatState: state.setChatState,
         onStop: state.onStop,
@@ -137,13 +166,10 @@ export function useRegisterSession(
         append: state.append,
         onWorkingDirChange: state.onWorkingDirChange,
         inputRef: state.inputRef,
-      });
-      return () => {
-        setter(null);
+        setView: state.setView ?? prev.setView,
       };
-    }
-    return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    });
+    // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally tracks primitive/length values to reduce churn
   }, [
     state.sessionId,
     state.chatState,
@@ -152,22 +178,12 @@ export function useRegisterSession(
     state.messages?.length,
     state.accumulatedInputTokens,
     state.accumulatedOutputTokens,
-    state.append,
-    state.commandHistory,
-    state.droppedFiles,
-    state.initialPrompt,
-    state.inputRef,
-    state.messages,
-    stableSubmit,
-    state.onFilesProcessed,
-    state.onStop,
-    state.onWorkingDirChange,
+    state.droppedFiles?.length,
+    state.commandHistory?.length,
     state.recipe,
     state.recipeAccepted,
     state.recipeId,
-    state.sessionCosts,
-    state.setChatState,
-    state.setView,
+    state.initialPrompt,
   ]);
 }
 
