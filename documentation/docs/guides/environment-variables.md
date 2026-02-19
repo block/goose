@@ -460,6 +460,14 @@ When the keyring is disabled (or cannot be accessed and goose [falls back to fil
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
 :::
 
+### macOS Sandbox for goose Desktop
+
+Optional [macOS sandbox](/docs/guides/sandbox) for goose Desktop that restricts file access, network connections, and process execution using Apple's `sandbox-exec` technology.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|--------|---------|
+| `GOOSE_SANDBOX` | Enable the sandbox with [customizable security controls](/docs/guides/sandbox#configuration) | `true` or `1` to enable | `false` |
+
 ## Network Configuration
 
 These variables configure network proxy settings for goose.
@@ -611,14 +619,27 @@ These variables are automatically set by goose during command execution.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables [customizing shell behavior](#customizing-shell-behavior) | "1" when set | Unset |
+| `AGENT` | Generic agent identifier for cross-tool compatibility, enables tools and scripts to detect when they're being run by goose | "goose" when set | Unset |
 | `AGENT_SESSION_ID` | The current session ID for [session-isolated workflows](#using-session-ids-in-workflows), automatically available to STDIO extensions and the Developer extension shell commands | Session ID string (e.g., `20260217_5`) | Unset (only set in extension/shell contexts) |
 
 ### Customizing Shell Behavior
 
-Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want goose to use a different tool, prevent goose from running `git commit`, or block long-running development servers that could hang the AI agent. This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
+Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. Common use cases include:
+- Skipping expensive shell initialization (e.g. syntax highlighting, custom prompts)
+- Blocking interactive commands that would hang the agent (e.g., `git commit`)
+- Redirecting to agent-friendly tools (e.g., `rg` instead of `find`)
+- Building cross-agent tools and scripts that detect AI agent execution
+- Integrating with MCP servers and LLM gateways
+
+This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
 
 **How it works:**
-1. When goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
+
+goose provides the `GOOSE_TERMINAL` and `AGENT` variables you can use to detect whether goose is the executing agent.
+
+1. When goose runs commands:
+   - `GOOSE_TERMINAL` is automatically set to "1"
+   - `AGENT` is automatically set to "goose"
 2. Your shell configuration can detect this and change behavior while keeping your normal terminal usage unchanged
 
 **Examples:**
@@ -645,6 +666,17 @@ if [[ -n "$GOOSE_TERMINAL" ]]; then
 fi
 ```
 
+```bash
+# Detect AI agent execution using standard naming convention
+if [[ -n "$AGENT" ]]; then
+  echo "Running under AI agent: $AGENT"
+  # Apply agent-specific behavior if needed
+  if [[ "$AGENT" == "goose" ]]; then
+    echo "Detected goose - applying goose-specific settings"
+  fi
+fi
+```
+
 ### Using Session IDs in Workflows
 
 STDIO extensions (local extensions that communicate via standard input/output) and the Developer extension's shell commands automatically receive the `AGENT_SESSION_ID` environment variable. This enables you to create session-isolated workflows and make it easier to:
@@ -662,6 +694,12 @@ echo "Results from step 1" > ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
 # Later steps in the recipe can read from the same location
 cat ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
 ```
+
+## Environment Variable Passthrough
+
+The Developer extension's `shell` tool inherits environment variables from your session. This enables workflows that depend on environment configuration, such as authenticated CLI operations and build processes.
+
+See [Environment Variables in Shell Commands](/docs/mcp/developer-mcp#environment-variables-in-shell-commands) for details.
 
 ## Enterprise Environments
 

@@ -15,7 +15,7 @@
  * - "standalone" — Goose-specific mode for dedicated Electron windows
  */
 
-import { AppRenderer, type RequestHandlerExtra } from '@mcp-ui/client';
+import { AppRenderer } from '@mcp-ui/client';
 import type {
   McpUiDisplayMode,
   McpUiHostContext,
@@ -23,7 +23,7 @@ import type {
   McpUiResourcePermissions,
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
@@ -40,8 +40,6 @@ import {
   McpAppToolInputPartial,
   McpAppToolResult,
   DimensionLayout,
-  SamplingCreateMessageParams,
-  SamplingCreateMessageResponse,
 } from './types';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
@@ -267,13 +265,6 @@ export default function McpAppRenderer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
-  const [apiHost, setApiHost] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.electron.getGoosedHostPort().then(setApiHost);
-    window.electron.getSecretKey().then(setSecretKey);
-  }, []);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
@@ -535,42 +526,6 @@ export default function McpAppRenderer({
     return () => observer.disconnect();
   }, []);
 
-  const handleFallbackRequest = useCallback(
-    async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
-      if (request.method === 'sampling/createMessage') {
-        if (!sessionId || !apiHost || !secretKey) {
-          throw new Error('Session not initialized for sampling request');
-        }
-        const { messages, systemPrompt, maxTokens } =
-          request.params as unknown as SamplingCreateMessageParams;
-        const response = await fetch(`${apiHost}/sessions/${sessionId}/sampling/message`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': secretKey,
-          },
-          body: JSON.stringify({
-            messages: messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-            systemPrompt,
-            maxTokens,
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(`Sampling request failed: ${response.statusText}`);
-        }
-        return (await response.json()) as SamplingCreateMessageResponse;
-      }
-      return {
-        status: 'error' as const,
-        message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
-      };
-    },
-    [sessionId, apiHost, secretKey]
-  );
-
   const handleError = useCallback((err: Error) => {
     console.error('[MCP App Error]:', err);
     dispatch({ type: 'ERROR', message: errorMessage(err) });
@@ -687,7 +642,6 @@ export default function McpAppRenderer({
         onReadResource={handleReadResource}
         onLoggingMessage={handleLoggingMessage}
         onSizeChanged={handleSizeChanged}
-        onFallbackRequest={handleFallbackRequest}
         onError={handleError}
       />
     );

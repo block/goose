@@ -4,7 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
-use goose::dictation::download_manager::{DownloadProgress, DownloadStatus};
+use goose::download_manager::{DownloadProgress, DownloadStatus};
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
@@ -426,6 +426,15 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::dictation::get_download_progress,
         super::routes::dictation::cancel_download,
         super::routes::dictation::delete_model,
+        super::routes::local_inference::list_local_models,
+        super::routes::local_inference::search_hf_models,
+        super::routes::local_inference::get_repo_files,
+        super::routes::local_inference::download_hf_model,
+        super::routes::local_inference::get_local_model_download_progress,
+        super::routes::local_inference::cancel_local_model_download,
+        super::routes::local_inference::delete_local_model,
+        super::routes::local_inference::get_model_settings,
+        super::routes::local_inference::update_model_settings,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -598,6 +607,15 @@ derive_utoipa!(Icon as IconSchema);
         goose::dictation::providers::DictationProvider,
         super::routes::dictation::DictationProviderStatus,
         super::routes::dictation::WhisperModelResponse,
+        super::routes::local_inference::LocalModelResponse,
+        super::routes::local_inference::ModelDownloadStatus,
+        super::routes::local_inference::DownloadModelRequest,
+        goose::providers::local_inference::hf_models::HfModelInfo,
+        goose::providers::local_inference::hf_models::HfGgufFile,
+        goose::providers::local_inference::hf_models::HfQuantVariant,
+        super::routes::local_inference::RepoVariantsResponse,
+        goose::providers::local_inference::local_model_registry::ModelSettings,
+        goose::providers::local_inference::local_model_registry::SamplingConfig,
         DownloadProgress,
         DownloadStatus,
     ))
