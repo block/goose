@@ -395,8 +395,11 @@ What we demonstrated in this workshop hints at a fascinating future for software
 Want to try this yourself? Here's what you need:
 
 1. **Install and Configure Goose**: Follow the [quickstart guide](https://block.github.io/goose/docs/quickstart)
-2. **Enable Alpha Features**: Add `ALPHA_FEATURES: true` to your config
-3. **Start Small**: Try building a simple app first to get comfortable with the workflow
+2. **Start Small**: Try building a simple app first to get comfortable with the workflow
+
+:::note
+As of version 1.10.0, subagents are no longer experimental and don't require enabling any feature flags.
+:::
 
 The [complete workshop materials](https://gist.github.com/angiejones/60ff19c08c5a3992e42adc8de3e96309) are available, including step-by-step instructions and cheat sheet prompts. 
 

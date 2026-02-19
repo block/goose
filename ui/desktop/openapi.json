@@ -3660,6 +3660,10 @@
             "type": "boolean",
             "description": "Whether this key should be configured using OAuth device code flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
           },
+          "primary": {
+            "type": "boolean",
+            "description": "Whether this key should be shown prominently during provider setup\n(onboarding, settings modal, CLI configure)"
+          },
           "required": {
             "type": "boolean",
             "description": "Whether this key is required for the provider to function"
@@ -7018,7 +7022,8 @@
         "type": "string",
         "enum": [
           "thinkingMessage",
-          "inlineMessage"
+          "inlineMessage",
+          "creditsExhausted"
         ]
       },
       "TaskSupport": {

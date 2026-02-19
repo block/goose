@@ -164,7 +164,10 @@ impl Agent {
         tools.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Prepare system prompt
-        let extensions_info = self.extension_manager.get_extensions_info().await;
+        let extensions_info = self
+            .extension_manager
+            .get_extensions_info(working_dir)
+            .await;
         let (extension_count, tool_count) = self
             .extension_manager
             .get_extension_and_tool_counts(session_id)

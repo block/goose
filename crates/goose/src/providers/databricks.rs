@@ -246,8 +246,8 @@ impl ProviderDef for DatabricksProvider {
             DATABRICKS_KNOWN_MODELS.to_vec(),
             DATABRICKS_DOC_URL,
             vec![
-                ConfigKey::new("DATABRICKS_HOST", true, false, None),
-                ConfigKey::new("DATABRICKS_TOKEN", false, true, None),
+                ConfigKey::new("DATABRICKS_HOST", true, false, None, true),
+                ConfigKey::new("DATABRICKS_TOKEN", false, true, None, true),
             ],
         )
     }

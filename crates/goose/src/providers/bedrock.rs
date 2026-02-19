@@ -277,9 +277,9 @@ impl ProviderDef for BedrockProvider {
             BEDROCK_KNOWN_MODELS.to_vec(),
             BEDROCK_DOC_LINK,
             vec![
-                ConfigKey::new("AWS_PROFILE", false, false, Some("default")),
-                ConfigKey::new("AWS_REGION", false, false, None),
-                ConfigKey::new("AWS_BEARER_TOKEN_BEDROCK", false, true, None),
+                ConfigKey::new("AWS_PROFILE", false, false, Some("default"), true),
+                ConfigKey::new("AWS_REGION", false, false, None, true),
+                ConfigKey::new("AWS_BEARER_TOKEN_BEDROCK", false, true, None, true),
             ],
         )
     }

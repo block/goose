@@ -45,6 +45,7 @@ These variables are needed when using custom endpoints, enterprise deployments, 
 | `GOOSE_PROVIDER__TYPE` | The specific type/implementation of the provider | [See available providers](/docs/getting-started/providers#available-providers) | Derived from GOOSE_PROVIDER |
 | `GOOSE_PROVIDER__HOST` | Custom API endpoint for the provider | URL (e.g., "https://api.openai.com") | Provider-specific default |
 | `GOOSE_PROVIDER__API_KEY` | Authentication key for the provider | API key string | None |
+| `GEMINI3_THINKING_LEVEL` | Sets the [thinking level](/docs/getting-started/providers#gemini-3-thinking-levels) for Gemini 3 models globally | `low`, `high` | `low` |
 
 **Examples**
 
@@ -116,6 +117,15 @@ export GOOSE_PREDEFINED_MODELS='[
     "context_limit": 500000
   }
 ]'
+
+# Gemini 3 with high thinking level
+export GOOSE_PREDEFINED_MODELS='[
+  {
+    "name": "gemini-3-pro",
+    "provider": "google",
+    "request_params": {"thinking_level": "high"}
+  }
+]'
 ```
 
 Custom context limits and request parameters are applied when the model is used. Custom context limits are displayed in goose CLI's [token usage indicator](/docs/guides/sessions/smart-context-management#token-usage).
@@ -152,6 +162,30 @@ export GOOSE_LEAD_PROVIDER="anthropic"
 export GOOSE_LEAD_TURNS=5
 export GOOSE_LEAD_FAILURE_THRESHOLD=3
 export GOOSE_LEAD_FALLBACK_TURNS=2
+```
+
+### Claude Extended Thinking
+
+These variables control Claude's [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) feature, which allows the model to reason through complex problems before generating a response. Supported on Anthropic and Databricks providers.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `CLAUDE_THINKING_ENABLED` | Enables extended thinking for Claude models | Set to any value to enable | Disabled |
+| `CLAUDE_THINKING_BUDGET` | Maximum tokens allocated for Claude's internal reasoning process | Positive integer (minimum 1024) | 16000 |
+
+**Examples**
+
+```bash
+# Enable extended thinking with default budget (16000 tokens)
+export CLAUDE_THINKING_ENABLED=1
+
+# Enable with a larger budget for complex tasks
+export CLAUDE_THINKING_ENABLED=1
+export CLAUDE_THINKING_BUDGET=32000
+
+# Enable with a smaller budget for faster responses
+export CLAUDE_THINKING_ENABLED=1
+export CLAUDE_THINKING_BUDGET=8000
 ```
 
 ### Planning Mode Configuration
@@ -225,11 +259,15 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_DISABLE_SESSION_NAMING` | Disables automatic AI-generated session naming; avoids the background model call and keeps the default "CLI Session" (goose CLI) or "New Chat" (goose Desktop) | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
+| `GOOSE_CLI_LIGHT_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using light mode | bat theme name (e.g., "Solarized (light)", "OneHalfLight") | "GitHub" |
+| `GOOSE_CLI_DARK_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using dark mode | bat theme name (e.g., "Dracula", "Nord") | "zenburn" |
 | `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0) | 0.8 |
 | `GOOSE_TOOL_CALL_CUTOFF` | Number of tool calls to keep in full detail before summarizing older tool outputs to help maintain efficient context usage  | Integer (e.g., 5, 10, 20) | 10 |
+| `GOOSE_MOIM_MESSAGE_TEXT` | Injects persistent text into goose's [working memory](/docs/guides/using-persistent-instructions) every turn. Useful for behavioral guardrails or persistent reminders. | Any text string | Not set |
+| `GOOSE_MOIM_MESSAGE_FILE` | Path to a file whose contents are injected into goose's [working memory](/docs/guides/using-persistent-instructions) every turn. Supports `~/`. Max 64 KB per file. | File path | Not set |
 
 **Examples**
 
@@ -265,6 +303,10 @@ export GOOSE_PROMPT_EDITOR=vim
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
 
+# Customize syntax highlighting themes (uses bat themes)
+export GOOSE_CLI_LIGHT_THEME="Solarized (light)"
+export GOOSE_CLI_DARK_THEME="Dracula"
+
 # Use Ctrl+N instead of Ctrl+J for newline
 export GOOSE_CLI_NEWLINE_KEY=n
 
@@ -279,6 +321,12 @@ export GOOSE_AUTO_COMPACT_THRESHOLD=0.6
 
 # Keep more tool calls in full detail (useful for debugging or verbose workflows)
 export GOOSE_TOOL_CALL_CUTOFF=20
+
+# Inject a persistent reminder into goose's working memory every turn
+export GOOSE_MOIM_MESSAGE_TEXT="IMPORTANT: Always run tests before committing changes."
+
+# Load persistent instructions from a file (supports ~/)
+export GOOSE_MOIM_MESSAGE_FILE="~/.goose/guardrails.md"
 ```
 
 ### Model Context Limit Overrides
@@ -438,32 +486,55 @@ export HTTPS_PROXY="http://username:password@proxy.company.com:8080"
 export NO_PROXY="localhost,127.0.0.1,.internal"
 ```
 
+Alternatively, proxy settings can be configured through your operating system's network settings. If you encounter connection issues, see [Corporate Proxy or Firewall Issues](/docs/troubleshooting/known-issues#corporate-proxy-or-firewall-issues) for troubleshooting steps.
+
 ## Observability
 
 Beyond goose's built-in [logging system](/docs/guides/logs), you can export telemetry to external observability platforms for advanced monitoring, performance analysis, and production insights.
 
-### OpenTelemetry Protocol (OTLP)
+### Observability Configuration
 
-Configure goose to export traces and metrics to any OTLP-compatible observability platform. 
-OTLP is the standard protocol for sending telemetry collected by [OpenTelemetry](https://opentelemetry.io/docs/). When configured, goose exports telemetry asynchronously and flushes on exit.
+Configure goose to export telemetry to any [OpenTelemetry](https://opentelemetry.io/docs/) compatible platform.
 
-| Variable | Purpose | Values | Default |
-|----------|---------|--------|---------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL | URL (e.g., `http://localhost:4318`) | None |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds | Integer (ms) | `10000` |
+To enable export, set a collector endpoint:
 
-**When to use OTLP:**
-- Diagnosing slow tool execution or LLM response times
-- Understanding intermittent failures across multiple sessions
-- Monitoring goose performance in production or CI/CD environments
-- Tracking usage patterns, costs, and resource consumption over time
-- Setting up alerts for performance degradation or high error rates
-
-**Example:**
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
-export OTEL_EXPORTER_OTLP_TIMEOUT=10000
 ```
+
+You can control each signal (traces, metrics, logs) independently with `OTEL_{SIGNAL}_EXPORTER`:
+
+| Variable pattern | Purpose | Values |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP endpoint (applies `/v1/traces`, etc.) | URL |
+| `OTEL_EXPORTER_OTLP_{SIGNAL}_ENDPOINT` | Override endpoint for a specific signal | URL |
+| `OTEL_{SIGNAL}_EXPORTER` | Exporter type per signal | `otlp`, `console`, `none` |
+| `OTEL_SDK_DISABLED` | Disable all OTel export | `true` |
+
+Additional variables like `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES`,
+and `OTEL_EXPORTER_OTLP_TIMEOUT` are also supported.
+See the [OTel environment variable spec][otel-env] for the full list.
+
+**Examples:**
+```bash
+# Export everything to a local collector
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+
+# Export only traces, disable metrics and logs
+export OTEL_TRACES_EXPORTER="otlp"
+export OTEL_METRICS_EXPORTER="none"
+export OTEL_LOGS_EXPORTER="none"
+export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"
+
+# Debug traces to console (no collector needed)
+export OTEL_TRACES_EXPORTER="console"
+
+# Sample 10% of traces (reduce volume in production)
+export OTEL_TRACES_SAMPLER="parentbased_traceidratio"
+export OTEL_TRACES_SAMPLER_ARG="0.1"
+```
+
+[otel-env]: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/
 
 ### Langfuse Integration
 
@@ -500,24 +571,6 @@ export GOOSE_RECIPE_GITHUB_REPO="myorg/goose-recipes"
 # Set global recipe timeouts
 export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
 export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
-```
-
-## Experimental Features
-
-These variables enable experimental features that are in active development. These may change or be removed in future releases. Use with caution in production environments.
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|---------|
-| `ALPHA_FEATURES` | Enables experimental alpha features&mdash;check the feature docs to see if this flag is required | "true", "1" (case-insensitive) to enable | false |
-
-**Examples**
-
-```bash
-# Enable alpha features
-export ALPHA_FEATURES=true
-
-# Or enable for a single session
-ALPHA_FEATURES=true goose session
 ```
 
 ## Development & Testing
@@ -557,7 +610,8 @@ These variables are automatically set by goose during command execution.
 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
-| `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables customizing shell behavior | "1" when set | Unset |
+| `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables [customizing shell behavior](#customizing-shell-behavior) | "1" when set | Unset |
+| `AGENT_SESSION_ID` | The current session ID for [session-isolated workflows](#using-session-ids-in-workflows), automatically available to STDIO extensions and the Developer extension shell commands | Session ID string (e.g., `20260217_5`) | Unset (only set in extension/shell contexts) |
 
 ### Customizing Shell Behavior
 
@@ -589,6 +643,24 @@ fi
 if [[ -n "$GOOSE_TERMINAL" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
 fi
+```
+
+### Using Session IDs in Workflows
+
+STDIO extensions (local extensions that communicate via standard input/output) and the Developer extension's shell commands automatically receive the `AGENT_SESSION_ID` environment variable. This enables you to create session-isolated workflows and make it easier to:
+- Coordinate work across multiple tool calls using session-isolated handoff paths
+- Isolate worktrees or temporary files by session
+- Debug correlation between artifacts and session history
+
+The following example shows how a recipe might use the session ID to hand off information between steps:
+
+```bash
+# Create session-specific handoff directory
+mkdir -p ~/Desktop/${AGENT_SESSION_ID}/handoff
+echo "Results from step 1" > ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
+
+# Later steps in the recipe can read from the same location
+cat ~/Desktop/${AGENT_SESSION_ID}/handoff/output.txt
 ```
 
 ## Enterprise Environments

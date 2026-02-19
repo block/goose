@@ -145,16 +145,23 @@ impl ProviderDef for LiteLLMProvider {
             vec![],
             LITELLM_DOC_URL,
             vec![
-                ConfigKey::new("LITELLM_API_KEY", true, true, None),
-                ConfigKey::new("LITELLM_HOST", true, false, Some("http://localhost:4000")),
+                ConfigKey::new("LITELLM_API_KEY", true, true, None, true),
+                ConfigKey::new(
+                    "LITELLM_HOST",
+                    true,
+                    false,
+                    Some("http://localhost:4000"),
+                    true,
+                ),
                 ConfigKey::new(
                     "LITELLM_BASE_PATH",
                     true,
                     false,
                     Some("v1/chat/completions"),
+                    false,
                 ),
-                ConfigKey::new("LITELLM_CUSTOM_HEADERS", false, true, None),
-                ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600")),
+                ConfigKey::new("LITELLM_CUSTOM_HEADERS", false, true, None, false),
+                ConfigKey::new("LITELLM_TIMEOUT", false, false, Some("600"), false),
             ],
         )
     }

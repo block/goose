@@ -1,3 +1,4 @@
+use crate::custom_requests::*;
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
@@ -17,6 +18,7 @@ use goose::providers::base::Provider;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
+use goose_acp_macros::custom_methods;
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
@@ -994,6 +996,192 @@ impl GooseAcpAgent {
     }
 }
 
+#[custom_methods]
+impl GooseAcpAgent {
+    #[custom_method("extensions/add")]
+    async fn on_add_extension(
+        &self,
+        req: AddExtensionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        let config: ExtensionConfig = serde_json::from_value(req.config)
+            .map_err(|e| sacp::Error::invalid_params().data(format!("bad config: {e}")))?;
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        agent
+            .add_extension(config, &req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("extensions/remove")]
+    async fn on_remove_extension(
+        &self,
+        req: RemoveExtensionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        agent
+            .remove_extension(&req.name, &req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("tools")]
+    async fn on_get_tools(&self, req: GetToolsRequest) -> Result<GetToolsResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let tools = agent.list_tools(&req.session_id, None).await;
+        let tools_json = tools
+            .into_iter()
+            .map(|t| serde_json::to_value(&t))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(GetToolsResponse { tools: tools_json })
+    }
+
+    #[custom_method("resource/read")]
+    async fn on_read_resource(
+        &self,
+        req: ReadResourceRequest,
+    ) -> Result<ReadResourceResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let cancel_token = CancellationToken::new();
+        let result = agent
+            .extension_manager
+            .read_resource(&req.session_id, &req.uri, &req.extension_name, cancel_token)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let result_json = serde_json::to_value(&result)
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(ReadResourceResponse {
+            result: result_json,
+        })
+    }
+
+    #[custom_method("working_dir/update")]
+    async fn on_update_working_dir(
+        &self,
+        req: UpdateWorkingDirRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        let working_dir = req.working_dir.trim().to_string();
+        if working_dir.is_empty() {
+            return Err(sacp::Error::invalid_params().data("working directory cannot be empty"));
+        }
+        let path = std::path::PathBuf::from(&working_dir);
+        if !path.exists() || !path.is_dir() {
+            return Err(sacp::Error::invalid_params().data("invalid directory path"));
+        }
+        self.session_manager
+            .update(&req.session_id)
+            .working_dir(path)
+            .apply()
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("session/list")]
+    async fn on_list_sessions(&self) -> Result<ListSessionsResponse, sacp::Error> {
+        let sessions = self
+            .session_manager
+            .list_sessions()
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let sessions_json = sessions
+            .into_iter()
+            .map(|s| serde_json::to_value(&s))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(ListSessionsResponse {
+            sessions: sessions_json,
+        })
+    }
+
+    #[custom_method("session/get")]
+    async fn on_get_session(
+        &self,
+        req: GetSessionRequest,
+    ) -> Result<GetSessionResponse, sacp::Error> {
+        let session = self
+            .session_manager
+            .get_session(&req.session_id, req.include_messages)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let session_json = serde_json::to_value(&session)
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(GetSessionResponse {
+            session: session_json,
+        })
+    }
+
+    #[custom_method("session/delete")]
+    async fn on_delete_session(
+        &self,
+        req: DeleteSessionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        self.session_manager
+            .delete_session(&req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(EmptyResponse {})
+    }
+
+    #[custom_method("session/export")]
+    async fn on_export_session(
+        &self,
+        req: ExportSessionRequest,
+    ) -> Result<ExportSessionResponse, sacp::Error> {
+        let data = self
+            .session_manager
+            .export_session(&req.session_id)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(ExportSessionResponse { data })
+    }
+
+    #[custom_method("session/import")]
+    async fn on_import_session(
+        &self,
+        req: ImportSessionRequest,
+    ) -> Result<ImportSessionResponse, sacp::Error> {
+        let session = self
+            .session_manager
+            .import_session(&req.data)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        let session_json = serde_json::to_value(&session)
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(ImportSessionResponse {
+            session: session_json,
+        })
+    }
+
+    #[custom_method("config/extensions")]
+    async fn on_get_extensions(&self) -> Result<GetExtensionsResponse, sacp::Error> {
+        let extensions = goose::config::extensions::get_all_extensions();
+        let warnings = goose::config::extensions::get_warnings();
+        let extensions_json = extensions
+            .into_iter()
+            .map(|e| serde_json::to_value(&e))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+        Ok(GetExtensionsResponse {
+            extensions: extensions_json,
+            warnings,
+        })
+    }
+
+    async fn get_agent_for_session(&self, session_id: &str) -> Result<Arc<Agent>, sacp::Error> {
+        self.sessions
+            .lock()
+            .await
+            .get(session_id)
+            .map(|s| Arc::clone(&s.agent))
+            .ok_or_else(|| {
+                sacp::Error::invalid_params().data(format!("no active session: {session_id}"))
+            })
+    }
+}
+
 pub struct GooseAcpHandler {
     pub agent: Arc<GooseAcpAgent>,
 }
@@ -1061,7 +1249,9 @@ impl JrMessageHandler for GooseAcpHandler {
                 self.agent.on_cancel(notif).await
             })
             .await
-            // HACK: sacp doesn't support session/set_model yet, so we handle it as untyped JSON.
+            // Handle methods not yet in the sacp typed API.
+            // - session/set_model: typed support pending in sacp
+            // - _<method>: custom requests that will eventually route to goose-server
             .otherwise({
                 let agent = self.agent.clone();
                 |message: MessageCx| async move {
@@ -1077,6 +1267,13 @@ impl JrMessageHandler for GooseAcpHandler {
                             let json = serde_json::to_value(resp)
                                 .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
                             request_cx.respond(json)?;
+                            Ok(())
+                        }
+                        MessageCx::Request(req, request_cx) if req.method.starts_with('_') => {
+                            match agent.handle_custom_request(&req.method, req.params).await {
+                                Ok(json) => request_cx.respond(json)?,
+                                Err(e) => request_cx.respond_with_error(e)?,
+                            }
                             Ok(())
                         }
                         _ => Err(sacp::Error::method_not_found()),

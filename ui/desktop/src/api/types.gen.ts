@@ -91,6 +91,11 @@ export type ConfigKey = {
      */
     oauth_flow: boolean;
     /**
+     * Whether this key should be shown prominently during provider setup
+     * (onboarding, settings modal, CLI configure)
+     */
+    primary?: boolean;
+    /**
      * Whether this key is required for the provider to function
      */
     required: boolean;
@@ -1205,7 +1210,7 @@ export type SystemNotificationContent = {
     notificationType: SystemNotificationType;
 };
 
-export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage';
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
 
 export type TaskSupport = string;
 

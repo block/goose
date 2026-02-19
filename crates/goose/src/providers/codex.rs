@@ -600,9 +600,9 @@ impl ProviderDef for CodexProvider {
             CODEX_KNOWN_MODELS.to_vec(),
             CODEX_DOC_URL,
             vec![
-                ConfigKey::from_value_type::<CodexCommand>(true, false),
-                ConfigKey::from_value_type::<CodexReasoningEffort>(false, false),
-                ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false),
+                ConfigKey::from_value_type::<CodexCommand>(true, false, true),
+                ConfigKey::from_value_type::<CodexReasoningEffort>(false, false, true),
+                ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false, true),
             ],
         )
         .with_unlisted_models()

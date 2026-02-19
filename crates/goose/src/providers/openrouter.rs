@@ -158,12 +158,13 @@ impl ProviderDef for OpenRouterProvider {
             OPENROUTER_KNOWN_MODELS.to_vec(),
             OPENROUTER_DOC_URL,
             vec![
-                ConfigKey::new("OPENROUTER_API_KEY", true, true, None),
+                ConfigKey::new("OPENROUTER_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "OPENROUTER_HOST",
                     false,
                     false,
                     Some("https://openrouter.ai"),
+                    false,
                 ),
             ],
         )

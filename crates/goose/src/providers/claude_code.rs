@@ -483,7 +483,9 @@ impl ProviderDef for ClaudeCodeProvider {
             // Only a few agentic choices; fetched dynamically via fetch_supported_models.
             vec![],
             CLAUDE_CODE_DOC_URL,
-            vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(true, false)],
+            vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(
+                true, false, true,
+            )],
         )
         // The model list only returns aliases the `claude` CLI uses, such as "default"
         // and "haiku". There is no listing that includes full names like

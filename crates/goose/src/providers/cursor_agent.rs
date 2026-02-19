@@ -291,7 +291,7 @@ impl ProviderDef for CursorAgentProvider {
             CURSOR_AGENT_KNOWN_MODELS.to_vec(),
             CURSOR_AGENT_DOC_URL,
             vec![ConfigKey::from_value_type::<CursorAgentCommand>(
-                true, false,
+                true, false, true,
             )],
         )
         .with_unlisted_models()

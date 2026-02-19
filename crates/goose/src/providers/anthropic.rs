@@ -153,12 +153,13 @@ impl ProviderDef for AnthropicProvider {
             models,
             ANTHROPIC_DOC_URL,
             vec![
-                ConfigKey::new("ANTHROPIC_API_KEY", true, true, None),
+                ConfigKey::new("ANTHROPIC_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "ANTHROPIC_HOST",
                     true,
                     false,
                     Some("https://api.anthropic.com"),
+                    false,
                 ),
             ],
         )

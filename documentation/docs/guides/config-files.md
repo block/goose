@@ -45,26 +45,18 @@ The following settings can be configured at the root level of your config.yaml f
 | `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Model for tool interpretation | Model name (e.g., "llama3.2") | System default | No |
 | `GOOSE_CLI_MIN_PRIORITY` | Tool output verbosity | Float between 0.0 and 1.0 | 0.0 | No |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" | No |
+| `GOOSE_CLI_LIGHT_THEME` | Custom syntax highlighting theme for light mode | [bat theme name](https://github.com/sharkdp/bat#adding-new-themes) | "GitHub" | No |
+| `GOOSE_CLI_DARK_THEME` | Custom syntax highlighting theme for dark mode | [bat theme name](https://github.com/sharkdp/bat#adding-new-themes) | "zenburn" | No |
 | `GOOSE_CLI_SHOW_COST` | Show estimated cost for token use in the CLI | true/false | false | No |
 | `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
 | `GOOSE_RECIPE_GITHUB_REPO` | GitHub repository for recipes | Format: "org/repo" | None | No |
 | `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint URL for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | URL (e.g., `http://localhost:4318`) | None | No |
-| `OTEL_EXPORTER_OTLP_TIMEOUT` | Export timeout in milliseconds for [observability](/docs/guides/environment-variables#opentelemetry-protocol-otlp) | Integer (ms) | 10000 | No |
 | `SECURITY_PROMPT_ENABLED` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false | No |
 | `SECURITY_PROMPT_THRESHOLD` | Sensitivity threshold for prompt injection detection (higher = stricter) | Float between 0.01 and 1.0 | 0.8 | No |
 | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No |
 | `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | Classification endpoint URL for ML-based prompt injection detection | URL (e.g., "https://api.example.com/classify") | None | No |
 | `SECURITY_PROMPT_CLASSIFIER_TOKEN` | Authentication token for `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | String | None | No |
 | `GOOSE_TELEMETRY_ENABLED` | Enable [anonymous usage data](/docs/guides/usage-data) collection | true/false | false | No |
-
-## Experimental Features
-
-These settings enable experimental features that are in active development. These may change or be removed in future releases.
-
-| Setting | Purpose | Values | Default | Required |
-|---------|---------|---------|---------|-----------|
-| `ALPHA_FEATURES` | Enables access to experimental alpha features&mdash;check the feature docs to see if this flag is required | true/false | false | No |
 
 Additional [environment variables](/docs/guides/environment-variables) may also be supported in config.yaml.
 
@@ -95,10 +87,6 @@ GOOSE_SEARCH_PATHS:
   - "/usr/local/bin"
   - "~/custom/tools"
   - "/opt/homebrew/bin"
-
-# Observability (OpenTelemetry)
-OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"
-OTEL_EXPORTER_OTLP_TIMEOUT: 20000
 
 # Security Configuration
 SECURITY_PROMPT_ENABLED: true
@@ -154,6 +142,20 @@ GOOSE_SEARCH_PATHS:
 ```
 
 These paths are prepended to the system PATH when running extension commands, ensuring your custom tools are found without modifying your global PATH.
+
+## Observability Configuration
+
+Configure goose to export telemetry to [OpenTelemetry](https://opentelemetry.io/docs/) compatible platforms. Environment variables override these settings and support additional options like per-signal configuration. See the [environment variables guide](/docs/guides/environment-variables#opentelemetry-protocol-otlp) for details.
+
+| Setting | Purpose | Values | Default |
+|---------|---------|--------|---------|
+| `otel_exporter_otlp_endpoint` | OTLP endpoint URL | URL (e.g., `http://localhost:4318`) | None |
+| `otel_exporter_otlp_timeout` | Export timeout in milliseconds | Integer (ms) | 10000 |
+
+```yaml
+otel_exporter_otlp_endpoint: "http://localhost:4318"
+otel_exporter_otlp_timeout: 20000
+```
 
 ## Recipe Command Configuration
 You can optionally set up [custom slash commands](/docs/guides/context-engineering/slash-commands) to run recipes that you create. List the command (without the leading `/`) along with the path to the recipe:

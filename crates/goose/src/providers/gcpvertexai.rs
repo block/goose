@@ -503,36 +503,41 @@ impl ProviderDef for GcpVertexAIProvider {
             KNOWN_MODELS.to_vec(),
             GCP_VERTEX_AI_DOC_URL,
             vec![
-                ConfigKey::new("GCP_PROJECT_ID", true, false, None),
+                ConfigKey::new("GCP_PROJECT_ID", true, false, None, true),
                 ConfigKey::new(
                     "GCP_LOCATION",
                     true,
                     false,
                     Some(&GcpLocation::Iowa.to_string()),
+                    true,
                 ),
                 ConfigKey::new(
                     "GCP_MAX_RETRIES",
                     false,
                     false,
                     Some(&DEFAULT_MAX_RETRIES.to_string()),
+                    false,
                 ),
                 ConfigKey::new(
                     "GCP_INITIAL_RETRY_INTERVAL_MS",
                     false,
                     false,
                     Some(&DEFAULT_INITIAL_RETRY_INTERVAL_MS.to_string()),
+                    false,
                 ),
                 ConfigKey::new(
                     "GCP_BACKOFF_MULTIPLIER",
                     false,
                     false,
                     Some(&DEFAULT_BACKOFF_MULTIPLIER.to_string()),
+                    false,
                 ),
                 ConfigKey::new(
                     "GCP_MAX_RETRY_INTERVAL_MS",
                     false,
                     false,
                     Some(&DEFAULT_MAX_RETRY_INTERVAL_MS.to_string()),
+                    false,
                 ),
             ],
         )

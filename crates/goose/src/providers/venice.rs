@@ -205,19 +205,21 @@ impl ProviderDef for VeniceProvider {
             FALLBACK_MODELS.to_vec(),
             VENICE_DOC_URL,
             vec![
-                ConfigKey::new("VENICE_API_KEY", true, true, None),
-                ConfigKey::new("VENICE_HOST", true, false, Some(VENICE_DEFAULT_HOST)),
+                ConfigKey::new("VENICE_API_KEY", true, true, None, true),
+                ConfigKey::new("VENICE_HOST", true, false, Some(VENICE_DEFAULT_HOST), false),
                 ConfigKey::new(
                     "VENICE_BASE_PATH",
                     true,
                     false,
                     Some(VENICE_DEFAULT_BASE_PATH),
+                    false,
                 ),
                 ConfigKey::new(
                     "VENICE_MODELS_PATH",
                     true,
                     false,
                     Some(VENICE_DEFAULT_MODELS_PATH),
+                    false,
                 ),
             ],
         )

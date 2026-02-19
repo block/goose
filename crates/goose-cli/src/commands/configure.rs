@@ -21,6 +21,7 @@ use goose::config::{
 };
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
+use goose::providers::base::ConfigKey;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
@@ -541,6 +542,129 @@ fn try_store_secret(config: &Config, key_name: &str, value: String) -> anyhow::R
     }
 }
 
+async fn configure_single_key(
+    config: &Config,
+    provider_name: &str,
+    display_name: &str,
+    key: &ConfigKey,
+) -> anyhow::Result<bool> {
+    let from_env = std::env::var(&key.name).ok();
+
+    match from_env {
+        Some(env_value) => {
+            let _ = cliclack::log::info(format!("{} is set via environment variable", key.name));
+            if cliclack::confirm("Would you like to save this value to your keyring?")
+                .initial_value(true)
+                .interact()?
+            {
+                if key.secret {
+                    if !try_store_secret(config, &key.name, env_value)? {
+                        return Ok(false);
+                    }
+                } else {
+                    config.set_param(&key.name, &env_value)?;
+                }
+                let _ = cliclack::log::info(format!("Saved {} to {}", key.name, config.path()));
+            }
+        }
+        None => {
+            let existing: Result<String, _> = if key.secret {
+                config.get_secret(&key.name)
+            } else {
+                config.get_param(&key.name)
+            };
+
+            match existing {
+                Ok(_) => {
+                    let _ = cliclack::log::info(format!("{} is already configured", key.name));
+                    if cliclack::confirm("Would you like to update this value?").interact()? {
+                        if key.oauth_flow {
+                            handle_oauth_configuration(provider_name, &key.name).await?;
+                        } else {
+                            let value: String = if key.secret {
+                                cliclack::password(format!("Enter new value for {}", key.name))
+                                    .mask('▪')
+                                    .interact()?
+                            } else {
+                                let mut input =
+                                    cliclack::input(format!("Enter new value for {}", key.name));
+                                if key.default.is_some() {
+                                    input = input.default_input(&key.default.clone().unwrap());
+                                }
+                                input.interact()?
+                            };
+
+                            if key.secret {
+                                if !try_store_secret(config, &key.name, value)? {
+                                    return Ok(false);
+                                }
+                            } else {
+                                config.set_param(&key.name, &value)?;
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    if key.oauth_flow {
+                        handle_oauth_configuration(provider_name, &key.name).await?;
+                    } else if !key.required && key.secret {
+                        if cliclack::confirm(format!(
+                            "Would you like to set {}? (optional)",
+                            key.name
+                        ))
+                        .initial_value(true)
+                        .interact()?
+                        {
+                            let value: String =
+                                cliclack::password(format!("Enter value for {}", key.name))
+                                    .mask('▪')
+                                    .interact()?;
+                            if !try_store_secret(config, &key.name, value)? {
+                                return Ok(false);
+                            }
+                        }
+                    } else {
+                        let prompt = if key.required {
+                            format!(
+                                "Provider {} requires {}, please enter a value",
+                                display_name, key.name
+                            )
+                        } else {
+                            format!("Enter {} (optional, press Enter to skip)", key.name)
+                        };
+
+                        let value: String = if key.secret {
+                            cliclack::password(&prompt).mask('▪').interact()?
+                        } else {
+                            let mut input = cliclack::input(&prompt);
+                            if key.default.is_some() {
+                                input = input.default_input(&key.default.clone().unwrap());
+                            }
+                            if !key.required {
+                                input = input.required(false);
+                            }
+                            input.interact()?
+                        };
+
+                        if value.is_empty() {
+                            return Ok(true);
+                        }
+
+                        if key.secret {
+                            if !try_store_secret(config, &key.name, value)? {
+                                return Ok(false);
+                            }
+                        } else {
+                            config.set_param(&key.name, &value)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
 pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     // Get global config instance
     let config = Config::global();
@@ -574,107 +698,31 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         .find(|(p, _)| &p.name == provider_name)
         .expect("Selected provider must exist in metadata");
 
-    // Configure required provider keys
-    for key in &provider_meta.config_keys {
-        if !key.required {
-            continue;
+    for key in provider_meta
+        .config_keys
+        .iter()
+        .filter(|k| k.primary || k.oauth_flow)
+    {
+        if !configure_single_key(config, provider_name, &provider_meta.display_name, key).await? {
+            return Ok(false);
         }
+    }
 
-        // First check if the value is set via environment variable
-        let from_env = std::env::var(&key.name).ok();
-
-        match from_env {
-            Some(env_value) => {
-                let _ =
-                    cliclack::log::info(format!("{} is set via environment variable", key.name));
-                if cliclack::confirm("Would you like to save this value to your keyring?")
-                    .initial_value(true)
-                    .interact()?
-                {
-                    if key.secret {
-                        if !try_store_secret(config, &key.name, env_value)? {
-                            return Ok(false);
-                        }
-                    } else {
-                        config.set_param(&key.name, &env_value)?;
-                    }
-                    let _ = cliclack::log::info(format!("Saved {} to {}", key.name, config.path()));
-                }
-            }
-            None => {
-                let existing: Result<String, _> = if key.secret {
-                    config.get_secret(&key.name)
-                } else {
-                    config.get_param(&key.name)
-                };
-
-                match existing {
-                    Ok(_) => {
-                        let _ = cliclack::log::info(format!("{} is already configured", key.name));
-                        if cliclack::confirm("Would you like to update this value?").interact()? {
-                            // Check if this key uses OAuth flow
-                            if key.oauth_flow {
-                                handle_oauth_configuration(provider_name, &key.name).await?;
-                            } else {
-                                // Non-OAuth key, use manual entry
-                                let value: String = if key.secret {
-                                    cliclack::password(format!("Enter new value for {}", key.name))
-                                        .mask('▪')
-                                        .interact()?
-                                } else {
-                                    let mut input = cliclack::input(format!(
-                                        "Enter new value for {}",
-                                        key.name
-                                    ));
-                                    if key.default.is_some() {
-                                        input = input.default_input(&key.default.clone().unwrap());
-                                    }
-                                    input.interact()?
-                                };
-
-                                if key.secret {
-                                    if !try_store_secret(config, &key.name, value)? {
-                                        return Ok(false);
-                                    }
-                                } else {
-                                    config.set_param(&key.name, &value)?;
-                                }
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        if key.oauth_flow {
-                            handle_oauth_configuration(provider_name, &key.name).await?;
-                        } else {
-                            // Non-OAuth key, use manual entry
-                            let value: String = if key.secret {
-                                cliclack::password(format!(
-                                    "Provider {} requires {}, please enter a value",
-                                    provider_meta.display_name, key.name
-                                ))
-                                .mask('▪')
-                                .interact()?
-                            } else {
-                                let mut input = cliclack::input(format!(
-                                    "Provider {} requires {}, please enter a value",
-                                    provider_meta.display_name, key.name
-                                ));
-                                if key.default.is_some() {
-                                    input = input.default_input(&key.default.clone().unwrap());
-                                }
-                                input.interact()?
-                            };
-
-                            if key.secret {
-                                if !try_store_secret(config, &key.name, value)? {
-                                    return Ok(false);
-                                }
-                            } else {
-                                config.set_param(&key.name, &value)?;
-                            }
-                        }
-                    }
-                }
+    let non_primary_keys: Vec<_> = provider_meta
+        .config_keys
+        .iter()
+        .filter(|k| !k.primary && !k.oauth_flow)
+        .collect();
+    if !non_primary_keys.is_empty()
+        && cliclack::confirm("Would you like to configure advanced settings?")
+            .initial_value(false)
+            .interact()?
+    {
+        for key in non_primary_keys {
+            if !configure_single_key(config, provider_name, &provider_meta.display_name, key)
+                .await?
+            {
+                return Ok(false);
             }
         }
     }

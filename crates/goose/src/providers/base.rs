@@ -205,27 +205,39 @@ pub struct ConfigKey {
     /// Whether this key should be configured using OAuth device code flow
     /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input
     pub oauth_flow: bool,
+    /// Whether this key should be shown prominently during provider setup
+    /// (onboarding, settings modal, CLI configure)
+    #[serde(default)]
+    pub primary: bool,
 }
 
 impl ConfigKey {
     /// Create a new ConfigKey
-    pub fn new(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
+    pub fn new(
+        name: &str,
+        required: bool,
+        secret: bool,
+        default: Option<&str>,
+        primary: bool,
+    ) -> Self {
         Self {
             name: name.to_string(),
             required,
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: false,
+            primary,
         }
     }
 
-    pub fn from_value_type<T: ConfigValue>(required: bool, secret: bool) -> Self {
+    pub fn from_value_type<T: ConfigValue>(required: bool, secret: bool, primary: bool) -> Self {
         Self {
             name: T::KEY.to_string(),
             required,
             secret,
             default: Some(T::DEFAULT.to_string()),
             oauth_flow: false,
+            primary,
         }
     }
 
@@ -233,13 +245,20 @@ impl ConfigKey {
     ///
     /// This is used for providers that support OAuth authentication instead of manual API key entry.
     /// When oauth_flow is true, the configuration system will call the provider's configure_oauth() method.
-    pub fn new_oauth(name: &str, required: bool, secret: bool, default: Option<&str>) -> Self {
+    pub fn new_oauth(
+        name: &str,
+        required: bool,
+        secret: bool,
+        default: Option<&str>,
+        primary: bool,
+    ) -> Self {
         Self {
             name: name.to_string(),
             required,
             secret,
             default: default.map(|s| s.to_string()),
             oauth_flow: true,
+            primary,
         }
     }
 }
