@@ -1,5 +1,6 @@
 // Atoms — self-contained UI primitives
 
+export { Badge } from './Badge';
 export { Button, buttonVariants } from './button';
 export type { LoadingStatus } from './Dot';
 export { default as Dot } from './Dot';
@@ -18,6 +19,7 @@ export {
   VercelIcon,
 } from './icons';
 export { Input } from './input';
+export { StatusDot } from './StatusDot';
 export { default as Stop } from './Stop';
 export type { ScrollAreaHandle } from './scroll-area';
 export { ScrollArea, ScrollBar } from './scroll-area';

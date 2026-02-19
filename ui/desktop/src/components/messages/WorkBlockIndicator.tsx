@@ -4,8 +4,11 @@ import type { Message } from '../../api';
 import { useReasoningDetail, type WorkBlockDetail } from '../../contexts/ReasoningDetailContext';
 import FlyingBird from '../branding/FlyingBird';
 import GooseLogo from '../branding/GooseLogo';
+import { Badge } from '../ui/atoms/Badge';
+import { StatusDot } from '../ui/atoms/StatusDot';
 
-/** Convert snake_case to Title Case */
+// ── Helpers ─────────────────────────────────────────────────────────
+
 function snakeToTitle(s: string): string {
   return s
     .split('_')
@@ -13,13 +16,11 @@ function snakeToTitle(s: string): string {
     .join(' ');
 }
 
-/** Extract the tool name (after last __) from a fully-qualified name like "developer__shell" */
 function getToolName(fullName: string): string {
   const parts = fullName.split('__');
   return parts[parts.length - 1] || fullName;
 }
 
-/** Build a concise description of a tool call (e.g. "editing src/App.tsx") */
 function describeToolCall(name: string, args: Record<string, unknown>): string {
   const toolName = getToolName(name);
   const str = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v));
@@ -64,12 +65,6 @@ function describeToolCall(name: string, args: Record<string, unknown>): string {
   return snakeToTitle(toolName);
 }
 
-/**
- * Extract the last tool call description from messages.
- *
- * Tool calls are discrete events — they appear all at once (not streamed
- * word-by-word), making them the most stable signal for "what Goose is doing."
- */
 function extractLastToolDescription(messages: Message[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -100,6 +95,8 @@ function countToolCalls(messages: Message[]): number {
   return count;
 }
 
+// ── Props ───────────────────────────────────────────────────────────
+
 interface WorkBlockIndicatorProps {
   messages: Message[];
   blockId: string;
@@ -110,6 +107,8 @@ interface WorkBlockIndicatorProps {
   toolCallNotifications?: Map<string, unknown[]>;
 }
 
+// ── Component ───────────────────────────────────────────────────────
+
 export default function WorkBlockIndicator({
   messages,
   blockId,
@@ -119,33 +118,23 @@ export default function WorkBlockIndicator({
   sessionId,
   toolCallNotifications,
 }: WorkBlockIndicatorProps) {
-  const { toggleWorkBlock, panelDetail, isOpen, updateWorkBlock, closeDetail } =
+  const { isOpen, panelDetail, toggleWorkBlock, updateWorkBlock, closeDetail } =
     useReasoningDetail();
 
   const hasAutoOpened = useRef(false);
-
-  // Tool-call-only one-liner: stable, discrete, never streams word-by-word
   const oneLiner = useMemo(() => extractLastToolDescription(messages), [messages]);
-  const toolCount = useMemo(() => countToolCalls(messages), [messages]);
+  const toolCount = countToolCalls(messages);
 
   const isActive =
     isOpen && panelDetail?.type === 'workblock' && panelDetail.data.messageId === blockId;
 
-  // Refs keep latest values accessible from effects without adding deps
-  const latestRef = useRef({
-    messages,
-    toolCount,
-    isStreaming,
-    toolCallNotifications,
-    isActive,
-  });
-  useEffect(() => {
-    latestRef.current = { messages, toolCount, isStreaming, toolCallNotifications, isActive };
-  });
+  // Keep a mutable ref so callbacks always read fresh values without re-creating
+  const latestRef = useRef({ messages, toolCount, isStreaming, toolCallNotifications, isActive });
+  latestRef.current = { messages, toolCount, isStreaming, toolCallNotifications, isActive };
 
   const buildDetail = useCallback(
     (): WorkBlockDetail => ({
-      title: 'Work Block',
+      title: 'Activity',
       messageId: blockId,
       messages: latestRef.current.messages,
       toolCount: latestRef.current.toolCount,
@@ -164,7 +153,7 @@ export default function WorkBlockIndicator({
     toggleWorkBlock(buildDetail());
   };
 
-  // Auto-open the panel when streaming starts (once per block)
+  // Auto-open on first streaming
   useEffect(() => {
     if (isStreaming && messages.length > 0 && !hasAutoOpened.current) {
       hasAutoOpened.current = true;
@@ -172,9 +161,7 @@ export default function WorkBlockIndicator({
     }
   }, [isStreaming, messages.length, toggleWorkBlock, buildDetail]);
 
-  // Live-update the panel content when messages or tool count change during streaming.
-  // messages.length and toolCount are value-based change detectors — they trigger
-  // this effect when content meaningfully changes. buildDetail reads from latestRef.
+  // Live-update during streaming
   // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length and toolCount are intentional change detectors
   useEffect(() => {
     if (isActive && isStreaming) {
@@ -182,7 +169,7 @@ export default function WorkBlockIndicator({
     }
   }, [messages.length, toolCount, isStreaming, isActive, updateWorkBlock, buildDetail]);
 
-  // Auto-close the panel when streaming ends so the final answer is visible
+  // Auto-close when streaming ends
   const prevStreamingRef = useRef(isStreaming);
   useEffect(() => {
     if (prevStreamingRef.current && !isStreaming && isActive) {
@@ -191,8 +178,9 @@ export default function WorkBlockIndicator({
     prevStreamingRef.current = isStreaming;
   }, [isStreaming, isActive, closeDetail]);
 
-  const displayAgent = agentName || 'Goose Agent';
-  const displayMode = modeName || 'assistant';
+  const displayAgent = agentName || 'Goose';
+  const displayMode = modeName || 'default';
+  const showAgentBadge = agentName && agentName !== 'Goose';
 
   return (
     <div className="py-1.5 px-2">
@@ -205,7 +193,7 @@ export default function WorkBlockIndicator({
           ${isActive ? 'bg-background-muted' : 'hover:bg-background-muted/50'}
         `}
       >
-        {/* Animated goose icon */}
+        {/* Icon */}
         <div className="shrink-0">
           {isStreaming ? (
             <FlyingBird className="flex-shrink-0" cycleInterval={150} />
@@ -216,30 +204,32 @@ export default function WorkBlockIndicator({
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 flex-wrap">
+          {/* Line 1: Status + metrics */}
+          <div className="flex items-center gap-1.5">
+            <StatusDot status={isStreaming ? 'active' : 'completed'} />
             <span className="text-xs font-medium text-text-default">
-              {isStreaming ? 'Goose is working on it…' : `Worked on ${messages.length} steps`}
+              {isStreaming ? 'Working…' : `${messages.length} steps`}
             </span>
             {toolCount > 0 && !isStreaming && (
               <>
-                <span className="text-xs text-text-muted/50 mx-0.5">·</span>
+                <span className="text-xs text-text-muted/40">·</span>
                 <span className="text-xs text-text-muted/70">
-                  {toolCount} tool{toolCount !== 1 ? 's' : ''} used
+                  {toolCount} tool{toolCount !== 1 ? 's' : ''}
                 </span>
               </>
             )}
-          </div>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-xs font-medium text-blue-500">{displayAgent}</span>
-            <span className="text-xs text-text-muted/40">/</span>
-            <span className="text-xs font-medium text-blue-500">{displayMode}</span>
-            {oneLiner && (
-              <>
-                <span className="text-xs text-text-muted/40 mx-0.5">·</span>
-                <span className="text-xs text-text-muted/50 truncate">{oneLiner}</span>
-              </>
+            {showAgentBadge && (
+              <Badge variant="default" size="sm">
+                {displayAgent}
+                {modeName && modeName !== 'default' ? ` / ${displayMode}` : ''}
+              </Badge>
             )}
           </div>
+
+          {/* Line 2: One-liner activity description */}
+          {oneLiner && (
+            <p className="text-xs text-text-muted/60 truncate mt-0.5 leading-snug">{oneLiner}</p>
+          )}
         </div>
 
         {/* Chevron */}
