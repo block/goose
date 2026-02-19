@@ -540,7 +540,7 @@ pub async fn get_agent_performance(
     let metrics = match store.get_agent_performance(params.days.unwrap_or(30)).await {
         Ok(m) => m,
         Err(e) => {
-            tracing::warn!("Analytics query failed (schema may not exist yet): {e}");
+            tracing::warn!("Analytics agent performance query failed: {e}");
             AgentPerformanceMetrics::default()
         }
     };
@@ -595,7 +595,7 @@ pub async fn get_response_quality(
     let metrics = match store.get_response_quality(params.days.unwrap_or(30)).await {
         Ok(m) => m,
         Err(e) => {
-            tracing::warn!("Analytics quality query failed (schema may not exist yet): {e}");
+            tracing::warn!("Analytics response quality query failed: {e}");
             ResponseQualityMetrics::default()
         }
     };
