@@ -1,10 +1,10 @@
+import type { Recipe } from '../api';
+import { updateAgentProvider, updateFromSession } from '../api';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
 } from '../components/settings/extensions';
 import type { ExtensionConfig, FixedExtensionEntry } from '../contexts/ConfigContext';
-import { updateAgentProvider, updateFromSession } from '../api';
-import type { Recipe } from '../api';
 
 // Helper function to substitute parameters in text
 export const substituteParameters = (text: string, params: Record<string, string>): string => {
@@ -55,7 +55,7 @@ export const initializeSystem = async (
     }
 
     // Initialize or sync built-in extensions into config.yaml
-    let refreshedExtensions = await options.getExtensions(false);
+    const refreshedExtensions = await options.getExtensions(false);
 
     if (refreshedExtensions.length === 0) {
       await initializeBundledExtensions(options.addExtension);

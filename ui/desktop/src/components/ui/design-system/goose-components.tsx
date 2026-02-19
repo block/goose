@@ -6,24 +6,27 @@
  */
 'use client';
 
-import React from 'react';
 import type { ComponentRenderProps } from '@json-render/react';
-import { ElementErrorBoundary } from './ElementErrorBoundary';
-import { PageHeader } from './PageHeader';
-import { DataCard } from './DataCard';
-import { StatCard } from './StatCard';
-import { ListItem } from './ListItem';
-import { TreeItem } from './TreeItem';
-import { EmptyState } from './EmptyState';
-import { LoadingState } from './LoadingState';
-import { ErrorState } from './ErrorState';
-import { SearchInput } from './SearchInput';
-import { TabBar } from './TabBar';
+import type React from 'react';
 import { cn } from '../../../utils';
+import { DataCard } from './DataCard';
+import { ElementErrorBoundary } from './ElementErrorBoundary';
+import { EmptyState } from './EmptyState';
+import { ErrorState } from './ErrorState';
+import { ListItem } from './ListItem';
+import { LoadingState } from './LoadingState';
+import { PageHeader } from './PageHeader';
+import { SearchInput } from './SearchInput';
+import { StatCard } from './StatCard';
+import { TabBar } from './TabBar';
+import { TreeItem } from './TreeItem';
 
 // ─── Layout Primitives (inline) ─────────────────────────────────
 
-function StackComponent({ element, children }: ComponentRenderProps<{
+function StackComponent({
+  element,
+  children,
+}: ComponentRenderProps<{
   direction?: 'vertical' | 'horizontal';
   gap?: 'sm' | 'md' | 'lg';
   align?: 'start' | 'center' | 'end';
@@ -39,42 +42,71 @@ function StackComponent({ element, children }: ComponentRenderProps<{
   );
 }
 
-function GridComponent({ element, children }: ComponentRenderProps<{
+function GridComponent({
+  element,
+  children,
+}: ComponentRenderProps<{
   columns?: number;
   gap?: 'sm' | 'md' | 'lg';
 }>) {
   const p = element.props || {};
   const cols = p.columns || 2;
   const gapMap = { sm: 'gap-2', md: 'gap-4', lg: 'gap-6' };
-  const colClass = cols === 1 ? 'grid-cols-1' : cols === 2 ? 'grid-cols-2' : cols === 3 ? 'grid-cols-3' : 'grid-cols-4';
+  const colClass =
+    cols === 1
+      ? 'grid-cols-1'
+      : cols === 2
+        ? 'grid-cols-2'
+        : cols === 3
+          ? 'grid-cols-3'
+          : 'grid-cols-4';
   return <div className={cn('grid', colClass, gapMap[p.gap || 'md'])}>{children}</div>;
 }
 
-function TextComponent({ element }: ComponentRenderProps<{
+function TextComponent({
+  element,
+}: ComponentRenderProps<{
   content?: string;
   variant?: 'body' | 'heading' | 'label' | 'caption' | 'code';
   color?: 'default' | 'muted' | 'accent' | 'success' | 'warning' | 'danger';
 }>) {
   const p = element.props || {};
   const variantClass: Record<string, string> = {
-    body: 'text-sm', heading: 'text-lg font-semibold', label: 'text-xs font-medium uppercase tracking-wide',
-    caption: 'text-xs', code: 'font-mono text-sm bg-background-muted px-1.5 py-0.5 rounded',
+    body: 'text-sm',
+    heading: 'text-lg font-semibold',
+    label: 'text-xs font-medium uppercase tracking-wide',
+    caption: 'text-xs',
+    code: 'font-mono text-sm bg-background-muted px-1.5 py-0.5 rounded',
   };
   const colorClass: Record<string, string> = {
-    default: 'text-text-default', muted: 'text-text-muted', accent: 'text-text-accent',
-    success: 'text-text-success', warning: 'text-text-warning', danger: 'text-text-danger',
+    default: 'text-text-default',
+    muted: 'text-text-muted',
+    accent: 'text-text-accent',
+    success: 'text-text-success',
+    warning: 'text-text-warning',
+    danger: 'text-text-danger',
   };
-  return <span className={cn(variantClass[p.variant || 'body'], colorClass[p.color || 'default'])}>{p.content}</span>;
+  return (
+    <span className={cn(variantClass[p.variant || 'body'], colorClass[p.color || 'default'])}>
+      {p.content}
+    </span>
+  );
 }
 
-function SeparatorComponent({ element }: ComponentRenderProps<{ orientation?: 'horizontal' | 'vertical' }>) {
+function SeparatorComponent({
+  element,
+}: ComponentRenderProps<{ orientation?: 'horizontal' | 'vertical' }>) {
   const p = element.props || {};
-  return p.orientation === 'vertical'
-    ? <div className="w-px bg-border-default self-stretch" />
-    : <hr className="border-border-default" />;
+  return p.orientation === 'vertical' ? (
+    <div className="w-px bg-border-default self-stretch" />
+  ) : (
+    <hr className="border-border-default" />
+  );
 }
 
-function BadgeComponent({ element }: ComponentRenderProps<{
+function BadgeComponent({
+  element,
+}: ComponentRenderProps<{
   text?: string;
   variant?: 'success' | 'warning' | 'danger' | 'info';
 }>) {
@@ -86,7 +118,12 @@ function BadgeComponent({ element }: ComponentRenderProps<{
     info: 'bg-background-muted text-text-accent',
   };
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', variantClass[p.variant || 'info'])}>
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+        variantClass[p.variant || 'info']
+      )}
+    >
       {p.text}
     </span>
   );
@@ -94,42 +131,71 @@ function BadgeComponent({ element }: ComponentRenderProps<{
 
 // ─── Design System Component Wrappers ───────────────────────────
 
-function PageHeaderComponent({ element }: ComponentRenderProps<{
-  title?: string; description?: string;
+function PageHeaderComponent({
+  element,
+}: ComponentRenderProps<{
+  title?: string;
+  description?: string;
 }>) {
   const p = element.props || {};
   return <PageHeader title={p.title || ''} description={p.description} />;
 }
 
-function DataCardComponent({ element, children }: ComponentRenderProps<{
+function DataCardComponent({
+  element,
+  children,
+}: ComponentRenderProps<{
   variant?: 'default' | 'interactive' | 'stat';
 }>) {
   const p = element.props || {};
   return <DataCard variant={p.variant}>{children}</DataCard>;
 }
 
-function StatCardComponent({ element }: ComponentRenderProps<{
-  label?: string; value?: string | number;
+function StatCardComponent({
+  element,
+}: ComponentRenderProps<{
+  label?: string;
+  value?: string | number;
   color?: 'default' | 'success' | 'warning' | 'danger';
-  trend?: number; trendDirection?: 'up' | 'down';
+  trend?: number;
+  trendDirection?: 'up' | 'down';
 }>) {
   const p = element.props || {};
-  const trend = p.trend != null ? { value: p.trend, direction: (p.trendDirection || 'up') as 'up' | 'down' } : undefined;
+  const trend =
+    p.trend != null
+      ? { value: p.trend, direction: (p.trendDirection || 'up') as 'up' | 'down' }
+      : undefined;
   return <StatCard label={p.label || ''} value={p.value ?? ''} variant={p.color} trend={trend} />;
 }
 
-function ListItemComponent({ element }: ComponentRenderProps<{
-  title?: string; description?: string;
+function ListItemComponent({
+  element,
+}: ComponentRenderProps<{
+  title?: string;
+  description?: string;
   status?: 'active' | 'inactive' | 'error' | 'loading';
   indent?: number;
 }>) {
   const p = element.props || {};
-  return <ListItem title={p.title || ''} description={p.description} status={p.status} indent={p.indent} />;
+  return (
+    <ListItem
+      title={p.title || ''}
+      description={p.description}
+      status={p.status}
+      indent={p.indent}
+    />
+  );
 }
 
-function TreeItemComponent({ element, children }: ComponentRenderProps<{
-  label?: string; badge?: string; childCount?: number;
-  defaultExpanded?: boolean; indent?: number;
+function TreeItemComponent({
+  element,
+  children,
+}: ComponentRenderProps<{
+  label?: string;
+  badge?: string;
+  childCount?: number;
+  defaultExpanded?: boolean;
+  indent?: number;
 }>) {
   const p = element.props || {};
   return (
@@ -145,29 +211,43 @@ function TreeItemComponent({ element, children }: ComponentRenderProps<{
   );
 }
 
-function EmptyStateComponent({ element }: ComponentRenderProps<{
-  title?: string; description?: string;
+function EmptyStateComponent({
+  element,
+}: ComponentRenderProps<{
+  title?: string;
+  description?: string;
 }>) {
   const p = element.props || {};
   return <EmptyState title={p.title} description={p.description} />;
 }
 
-function LoadingStateComponent({ element }: ComponentRenderProps<{
-  variant?: 'spinner' | 'skeleton' | 'pulse'; lines?: number;
+function LoadingStateComponent({
+  element,
+}: ComponentRenderProps<{
+  variant?: 'spinner' | 'skeleton' | 'pulse';
+  lines?: number;
 }>) {
   const p = element.props || {};
   return <LoadingState variant={p.variant} lines={p.lines} />;
 }
 
-function ErrorStateComponent({ element }: ComponentRenderProps<{
-  title?: string; message?: string;
+function ErrorStateComponent({
+  element,
+}: ComponentRenderProps<{
+  title?: string;
+  message?: string;
 }>) {
   const p = element.props || {};
   return <ErrorState title={p.title} message={p.message} />;
 }
 
-function SearchInputComponent({ element, emit }: ComponentRenderProps<{
-  placeholder?: string; value?: string; debounceMs?: number;
+function SearchInputComponent({
+  element,
+  emit,
+}: ComponentRenderProps<{
+  placeholder?: string;
+  value?: string;
+  debounceMs?: number;
 }>) {
   const p = element.props || {};
   return (
@@ -180,7 +260,10 @@ function SearchInputComponent({ element, emit }: ComponentRenderProps<{
   );
 }
 
-function TabBarComponent({ element, emit }: ComponentRenderProps<{
+function TabBarComponent({
+  element,
+  emit,
+}: ComponentRenderProps<{
   tabs?: Array<{ id: string; label: string; group?: string; badge?: string }>;
   activeTab?: string;
   variant?: 'default' | 'pill' | 'underline';
@@ -193,12 +276,12 @@ function TabBarComponent({ element, emit }: ComponentRenderProps<{
   for (const tab of rawTabs) {
     const g = tab.group || '';
     if (!groupMap.has(g)) groupMap.set(g, []);
-    groupMap.get(g)!.push(tab);
+    groupMap.get(g)?.push(tab);
   }
 
   const groups = Array.from(groupMap.entries()).map(([label, tabs]) => ({
     label: label || undefined,
-    tabs: tabs.map(t => ({ id: t.id, label: t.label, badge: t.badge })),
+    tabs: tabs.map((t) => ({ id: t.id, label: t.label, badge: t.badge })),
   }));
 
   return (
@@ -222,7 +305,8 @@ function ButtonComponent({ element }: AnyComponentRenderProps) {
   };
   const variants: Record<string, string> = {
     primary: 'bg-accent text-text-on-accent hover:opacity-90',
-    secondary: 'bg-background-muted text-text-default border border-border-default hover:bg-background-active',
+    secondary:
+      'bg-background-muted text-text-default border border-border-default hover:bg-background-active',
     destructive: 'bg-red-600 text-white hover:opacity-90',
     ghost: 'text-text-muted hover:bg-background-active hover:text-text-default',
   };
@@ -258,7 +342,10 @@ function TableComponent({ element }: AnyComponentRenderProps) {
         <thead>
           <tr className="bg-background-muted">
             {columns.map((col) => (
-              <th key={col.key} className={`px-3 py-2 font-medium text-text-default text-${col.align || 'left'}`}>
+              <th
+                key={col.key}
+                className={`px-3 py-2 font-medium text-text-default text-${col.align || 'left'}`}
+              >
                 {col.label}
               </th>
             ))}
@@ -266,9 +353,15 @@ function TableComponent({ element }: AnyComponentRenderProps) {
         </thead>
         <tbody className="divide-y divide-border-default">
           {rows.map((row, i) => (
-            <tr key={i} className={`${p.striped && i % 2 === 1 ? 'bg-background-muted/50' : ''} hover:bg-background-active`}>
+            <tr
+              key={i}
+              className={`${p.striped && i % 2 === 1 ? 'bg-background-muted/50' : ''} hover:bg-background-active`}
+            >
               {columns.map((col) => (
-                <td key={col.key} className={`px-3 py-2 text-text-muted text-${col.align || 'left'}`}>
+                <td
+                  key={col.key}
+                  className={`px-3 py-2 text-text-muted text-${col.align || 'left'}`}
+                >
                   {String(row[col.key] ?? '')}
                 </td>
               ))}
@@ -330,7 +423,9 @@ function CardComponent({ element, children }: AnyComponentRenderProps) {
     elevated: 'bg-background-default border border-border-default shadow-md',
   };
   return (
-    <div className={`rounded-xl ${variants[p.variant || 'default']} ${paddings[p.padding || 'md']}`}>
+    <div
+      className={`rounded-xl ${variants[p.variant || 'default']} ${paddings[p.padding || 'md']}`}
+    >
       {(p.title || p.subtitle) && (
         <div className={`${p.padding === 'none' ? 'px-4 pt-4' : ''} mb-3`}>
           {p.title && <h3 className="font-semibold text-text-default">{p.title}</h3>}
@@ -359,7 +454,9 @@ function SelectComponent({ element }: AnyComponentRenderProps) {
         defaultValue={p.value || ''}
       >
         {p.placeholder && (
-          <option value="" disabled>{p.placeholder}</option>
+          <option value="" disabled>
+            {p.placeholder}
+          </option>
         )}
         {(p.options || []).map((opt) => (
           <option key={opt.value} value={opt.value} disabled={opt.disabled}>
@@ -462,7 +559,7 @@ type AnyComponentRenderProps = ComponentRenderProps<Record<string, unknown>>;
 
 function withErrorBoundary(
   name: string,
-  Component: React.ComponentType<AnyComponentRenderProps>,
+  Component: React.ComponentType<AnyComponentRenderProps>
 ): React.ComponentType<AnyComponentRenderProps> {
   const Wrapped = (props: AnyComponentRenderProps) => (
     <ElementErrorBoundary elementId={name}>
@@ -499,10 +596,12 @@ const rawComponents: Record<string, React.ComponentType<AnyComponentRenderProps>
   Input: InputComponent as React.ComponentType<AnyComponentRenderProps>,
 };
 
-export const gooseComponents: Record<string, React.ComponentType<AnyComponentRenderProps>> =
-  Object.fromEntries(
-    Object.entries(rawComponents).map(([name, Component]) => [
-      name,
-      withErrorBoundary(name, Component),
-    ]),
-  );
+export const gooseComponents: Record<
+  string,
+  React.ComponentType<AnyComponentRenderProps>
+> = Object.fromEntries(
+  Object.entries(rawComponents).map(([name, Component]) => [
+    name,
+    withErrorBoundary(name, Component),
+  ])
+);

@@ -1,30 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import cronstrue from 'cronstrue';
+import { CircleDotDashed, Edit, Eye, Pause, Play, Plus, RefreshCw, Square } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import type { ScheduledJob } from '../../schedule';
 import {
-  listSchedules,
   createSchedule,
   deleteSchedule,
+  inspectRunningJob,
+  killRunningJob,
+  listSchedules,
   pauseSchedule,
   unpauseSchedule,
   updateSchedule,
-  killRunningJob,
-  inspectRunningJob,
 } from '../../schedule';
-import type { ScheduledJob } from '../../schedule';
-import { Card } from '../ui/molecules/card';
-import { Button } from '../ui/atoms/button';
-import { TrashIcon } from '../icons/TrashIcon';
-import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from 'lucide-react';
-import { ScheduleModal } from './ScheduleModal';
-import type { NewSchedulePayload } from './ScheduleModal';
-import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
-import cronstrue from 'cronstrue';
-import { formatToLocalDateWithTimezone } from '../../utils/date';
+import { getErrorType, trackScheduleCreated, trackScheduleDeleted } from '../../utils/analytics';
 import { errorMessage } from '../../utils/conversionUtils';
-import { PageShell } from '../Layout/PageShell';
+import { formatToLocalDateWithTimezone } from '../../utils/date';
 import type { ViewOptions } from '../../utils/navigationUtils';
-import { trackScheduleCreated, trackScheduleDeleted, getErrorType } from '../../utils/analytics';
+import { TrashIcon } from '../icons/TrashIcon';
+import { PageShell } from '../Layout/PageShell';
+import { Button } from '../ui/atoms/button';
+import { Card } from '../ui/molecules/card';
+import ScheduleDetailView from './ScheduleDetailView';
+import type { NewSchedulePayload } from './ScheduleModal';
+import { ScheduleModal } from './ScheduleModal';
 
 interface SchedulesViewProps {
   onClose?: () => void;
@@ -223,7 +224,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
         window.history.replaceState({}, document.title);
       }
     }
-  }, [viewingScheduleId, location.state]);
+  }, [viewingScheduleId, location.state, fetchSchedules]);
 
   useEffect(() => {
     if (viewingScheduleId !== null || actionsInProgress.size > 0) return;
@@ -235,7 +236,14 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     }, 15000);
 
     return () => clearInterval(intervalId);
-  }, [viewingScheduleId, isRefreshing, isLoading, isSubmitting, actionsInProgress.size]);
+  }, [
+    viewingScheduleId,
+    isRefreshing,
+    isLoading,
+    isSubmitting,
+    actionsInProgress.size,
+    fetchSchedules,
+  ]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -470,47 +478,47 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
           </>
         }
       >
-                {apiError && (
-                  <div className="mb-4 p-4 bg-background-danger border border-border-danger rounded-md">
-                    <p className="text-text-danger text-sm">Error: {apiError}</p>
-                  </div>
-                )}
+        {apiError && (
+          <div className="mb-4 p-4 bg-background-danger border border-border-danger rounded-md">
+            <p className="text-text-danger text-sm">Error: {apiError}</p>
+          </div>
+        )}
 
-                {isLoading && schedules.length === 0 && (
-                  <div className="flex justify-center items-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2"></div>
-                  </div>
-                )}
+        {isLoading && schedules.length === 0 && (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2"></div>
+          </div>
+        )}
 
-                {!isLoading && !apiError && schedules.length === 0 && (
-                  <div className="flex flex-col pt-4 pb-12">
-                    <CircleDotDashed className="h-5 w-5 text-text-muted mb-3.5" />
-                    <p className="text-base text-text-muted font-light mb-2">No schedules yet</p>
-                  </div>
-                )}
+        {!isLoading && !apiError && schedules.length === 0 && (
+          <div className="flex flex-col pt-4 pb-12">
+            <CircleDotDashed className="h-5 w-5 text-text-muted mb-3.5" />
+            <p className="text-base text-text-muted font-light mb-2">No schedules yet</p>
+          </div>
+        )}
 
-                {!isLoading && schedules.length > 0 && (
-                  <div className="space-y-2 pb-8">
-                    {schedules.map((job) => (
-                      <ScheduleCard
-                        key={job.id}
-                        job={job}
-                        onNavigateToDetail={handleNavigateToDetail}
-                        onEdit={(schedule) => {
-                          setEditingSchedule(schedule);
-                          setSubmitApiError(null);
-                          setIsModalOpen(true);
-                        }}
-                        onPause={handlePauseSchedule}
-                        onUnpause={handleUnpauseSchedule}
-                        onKill={handleKillRunningJob}
-                        onInspect={handleInspectRunningJob}
-                        onDelete={handleDeleteSchedule}
-                        actionInProgress={actionsInProgress.has(job.id) || isSubmitting}
-                      />
-                    ))}
-                  </div>
-                )}
+        {!isLoading && schedules.length > 0 && (
+          <div className="space-y-2 pb-8">
+            {schedules.map((job) => (
+              <ScheduleCard
+                key={job.id}
+                job={job}
+                onNavigateToDetail={handleNavigateToDetail}
+                onEdit={(schedule) => {
+                  setEditingSchedule(schedule);
+                  setSubmitApiError(null);
+                  setIsModalOpen(true);
+                }}
+                onPause={handlePauseSchedule}
+                onUnpause={handleUnpauseSchedule}
+                onKill={handleKillRunningJob}
+                onInspect={handleInspectRunningJob}
+                onDelete={handleDeleteSchedule}
+                actionInProgress={actionsInProgress.has(job.id) || isSubmitting}
+              />
+            ))}
+          </div>
+        )}
       </PageShell>
 
       <ScheduleModal

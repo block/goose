@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
 import cronstrue from 'cronstrue';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import type { ScheduledJob } from '../../schedule';
 import { errorMessage } from '../../utils/conversionUtils';
 
@@ -137,11 +138,11 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
         isValid(true);
       } catch (e) {
         isValid(false);
-        setReadableCron('error: ' + errorMessage(e));
+        setReadableCron(`error: ${errorMessage(e)}`);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, second, minute, hour12, isPM, dayOfWeek, dayOfMonth, month]);
+  }, [period, second, minute, hour12, isPM, dayOfWeek, dayOfMonth, month, isValid, onChange]);
 
   const selectClassName = 'px-2 py-1 border rounded bg-white dark:bg-gray-800 dark:border-gray-600';
 
@@ -229,7 +230,7 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
               min="1"
               max="12"
               value={hour12}
-              onChange={(e) => setHour12(parseInt(e.target.value) || 1)}
+              onChange={(e) => setHour12(parseInt(e.target.value, 10) || 1)}
               className="w-16 px-2 py-1 border rounded"
             />
             <span className="text-sm">:</span>

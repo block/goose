@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useAlerts } from '../useAlerts';
+import { act, renderHook } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlertType } from '../types';
+import { useAlerts } from '../useAlerts';
 
 describe('useAlerts', () => {
   beforeEach(() => {

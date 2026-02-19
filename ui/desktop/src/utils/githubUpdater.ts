@@ -1,10 +1,10 @@
-import { app } from 'electron';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { compareVersions } from 'compare-versions';
-import * as fs from 'fs/promises';
-import * as path from 'path';
-import * as os from 'os';
+import { app } from 'electron';
+import { errorMessage, safeJsonParse } from './conversionUtils';
 import log from './logger';
-import { safeJsonParse, errorMessage } from './conversionUtils';
 
 interface GitHubRelease {
   tag_name: string;
@@ -29,7 +29,8 @@ interface UpdateCheckResult {
 export class GitHubUpdater {
   private readonly owner = process.env.GITHUB_OWNER || 'block';
   private readonly repo = process.env.GITHUB_REPO || 'goose';
-  private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
+  private readonly apiUrl =
+    `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
     const startTime = Date.now();

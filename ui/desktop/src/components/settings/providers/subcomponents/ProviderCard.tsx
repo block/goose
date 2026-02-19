@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
+import type { ProviderDetails, ProviderMetadata } from '../../../../api';
+import DefaultCardButtons from './buttons/DefaultCardButtons';
+import CardBody from './CardBody';
 import CardContainer from './CardContainer';
 import CardHeader from './CardHeader';
-import CardBody from './CardBody';
-import DefaultCardButtons from './buttons/DefaultCardButtons';
-import type { ProviderDetails, ProviderMetadata } from '../../../../api';
 
 type ProviderCardProps = {
   provider: ProviderDetails;

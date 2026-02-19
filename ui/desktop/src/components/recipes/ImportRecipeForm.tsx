@@ -1,16 +1,16 @@
-import { useState } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { z } from 'zod';
 import { Download } from 'lucide-react';
+import { useState } from 'react';
+import { z } from 'zod';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
+import type { Recipe } from '../../recipe';
+import { parseDeeplink, parseRecipeFromFile } from '../../recipe';
+import { saveRecipe } from '../../recipe/recipe_management';
+import { getRecipeJsonSchema } from '../../recipe/validation';
+import { toastError, toastSuccess } from '../../toasts';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Button } from '../ui/atoms/button';
 import { Input } from '../ui/atoms/input';
-import { parseDeeplink, parseRecipeFromFile } from '../../recipe';
-import type { Recipe } from '../../recipe';
-import { toastSuccess, toastError } from '../../toasts';
-import { useEscapeKey } from '../../hooks/useEscapeKey';
-import { getRecipeJsonSchema } from '../../recipe/validation';
-import { saveRecipe } from '../../recipe/recipe_management';
-import { errorMessage } from '../../utils/conversionUtils';
 
 interface ImportRecipeFormProps {
   isOpen: boolean;
@@ -35,7 +35,7 @@ const importRecipeSchema = z
         return file.size <= 1024 * 1024;
       }, 'File is too large, max size is 1MB'),
   })
-  .refine((data) => (data.deeplink && data.deeplink.trim()) || data.recipeUploadFile, {
+  .refine((data) => data.deeplink?.trim() || data.recipeUploadFile, {
     message: 'Either of deeplink or recipe file are required',
     path: ['deeplink'],
   });
@@ -60,15 +60,15 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
         let recipe: Recipe;
 
         // Parse recipe from either deeplink or recipe file
-        if (value.deeplink && value.deeplink.trim()) {
+        if (value.deeplink?.trim()) {
           const parsedRecipe = await parseDeeplink(value.deeplink.trim());
           if (!parsedRecipe) {
             throw new Error('Invalid deeplink or recipe format');
           }
           recipe = parsedRecipe;
         } else {
-          const fileContent = await value.recipeUploadFile!.text();
-          recipe = await parseRecipeFromFile(fileContent);
+          const fileContent = await value.recipeUploadFile?.text();
+          recipe = await parseRecipeFromFile(fileContent ?? '');
         }
 
         await saveRecipe(recipe, null);
@@ -186,7 +186,6 @@ export default function ImportRecipeForm({ isOpen, onClose, onSuccess }: ImportR
                               } ${isDisabled ? 'cursor-not-allowed bg-gray-40 text-gray-300' : ''}`}
                               placeholder="Paste your goose://recipe?config=... deeplink here"
                               rows={3}
-                              autoFocus={!isDisabled}
                             />
                             <p
                               className={`text-xs mt-1 ${isDisabled ? 'text-gray-300' : 'text-text-muted'}`}

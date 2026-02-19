@@ -49,17 +49,11 @@ function hasElicitation(message: Message): boolean {
  * Real user messages are the initial request and any follow-up user inputs
  * that don't follow a tool call cycle.
  */
-function isRealUserMessage(
-  message: Message,
-  index: number,
-  messages: Message[]
-): boolean {
+function isRealUserMessage(message: Message, index: number, messages: Message[]): boolean {
   if (message.role !== 'user') return false;
 
   // Pure tool responses are never real user messages
-  const hasOnlyToolResponses = message.content.every(
-    (c) => c.type === 'toolResponse'
-  );
+  const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
   if (hasOnlyToolResponses) return false;
 
   // If the previous assistant message had tool requests, this user message
@@ -130,7 +124,7 @@ export function identifyWorkBlocks(
       const roles = [];
       for (let i = run.start; i <= Math.min(run.end, run.start + 5); i++) {
         const m = messages[i];
-        roles.push(`${i}:${m.role}(${m.content.map(c => c.type).join(',')})`);
+        roles.push(`${i}:${m.role}(${m.content.map((c) => c.type).join(',')})`);
       }
       if (run.end - run.start > 5) roles.push('...');
     }

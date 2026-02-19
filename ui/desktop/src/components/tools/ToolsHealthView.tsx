@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
-import { getToolAnalytics } from '../../api';
 import type { ToolAnalytics, ToolUsageStat } from '../../api';
+import { getToolAnalytics } from '../../api';
 
 const COLORS = {
   success: '#22c55e',
@@ -83,10 +83,7 @@ function ToolRow({ tool, maxCalls }: { tool: ToolUsageStat; maxCalls: number }) 
       </td>
       <td className="py-3 px-4">
         <div className="flex items-center gap-2">
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: healthColor }}
-          />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: healthColor }} />
           <span className="text-sm" style={{ color: healthColor }}>
             {successRate.toFixed(1)}%
           </span>
@@ -137,7 +134,12 @@ export default function ToolsHealthView() {
     load();
   }, []);
 
-  if (loading) return <div className="p-6"><LoadingSkeleton /></div>;
+  if (loading)
+    return (
+      <div className="p-6">
+        <LoadingSkeleton />
+      </div>
+    );
   if (error) return <div className="p-6 text-red-400">{error}</div>;
   if (!analytics) return <div className="p-6 text-text-muted">No data</div>;
 
@@ -187,10 +189,7 @@ export default function ToolsHealthView() {
             <div className="text-xs text-text-muted uppercase tracking-wider mb-1">
               Success Rate
             </div>
-            <div
-              className="text-2xl font-bold"
-              style={{ color: getHealthColor(successRate) }}
-            >
+            <div className="text-2xl font-bold" style={{ color: getHealthColor(successRate) }}>
               {successRate.toFixed(1)}%
             </div>
             <div className="text-xs mt-1" style={{ color: getHealthColor(successRate) }}>
@@ -199,7 +198,9 @@ export default function ToolsHealthView() {
           </div>
           <div className="bg-background-default rounded-xl p-4 border border-border-default">
             <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Extensions</div>
-            <div className="text-2xl font-bold text-text-default font-semibold">{extensionCount}</div>
+            <div className="text-2xl font-bold text-text-default font-semibold">
+              {extensionCount}
+            </div>
             <div className="text-xs text-text-muted mt-1">Active</div>
           </div>
           <div className="bg-background-default rounded-xl p-4 border border-border-default">
@@ -241,7 +242,9 @@ export default function ToolsHealthView() {
         {/* Daily Activity Chart */}
         {analytics.daily_tool_activity.length > 0 && (
           <div className="bg-background-default rounded-xl p-4 border border-border-default">
-            <h3 className="text-sm font-medium text-text-default font-semibold mb-4">Daily Tool Activity</h3>
+            <h3 className="text-sm font-medium text-text-default font-semibold mb-4">
+              Daily Tool Activity
+            </h3>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={analytics.daily_tool_activity}>
                 <defs>
@@ -347,7 +350,9 @@ export default function ToolsHealthView() {
         {/* Extension Breakdown */}
         {analytics.extension_usage.length > 0 && (
           <div className="bg-background-default rounded-xl p-4 border border-border-default">
-            <h3 className="text-sm font-medium text-text-default font-semibold mb-3">Extension Breakdown</h3>
+            <h3 className="text-sm font-medium text-text-default font-semibold mb-3">
+              Extension Breakdown
+            </h3>
             <div className="space-y-2">
               {analytics.extension_usage.map((ext) => {
                 const maxExtCalls = Math.max(

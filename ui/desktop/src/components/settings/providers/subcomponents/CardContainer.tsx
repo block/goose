@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 
 interface CardContainerProps {
   header: React.ReactNode;

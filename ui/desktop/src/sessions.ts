@@ -1,15 +1,15 @@
+import type { ExtensionConfig, Session } from './api';
 import { startAgent } from './api';
-import type { Session, ExtensionConfig } from './api';
+import { AppEvents } from './constants/events';
+import type { FixedExtensionEntry } from './contexts/ConfigContext';
 import type { setViewType } from './hooks/useNavigation';
+import type { Recipe } from './recipe';
+import { decodeRecipe } from './recipe';
 import {
-  getExtensionConfigsWithOverrides,
   clearExtensionOverrides,
+  getExtensionConfigsWithOverrides,
   hasExtensionOverrides,
 } from './store/extensionOverrides';
-import type { FixedExtensionEntry } from './contexts/ConfigContext';
-import { AppEvents } from './constants/events';
-import { decodeRecipe } from './recipe';
-import type { Recipe } from './recipe';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {

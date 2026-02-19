@@ -24,7 +24,7 @@ export class LocalMessageStorage {
 
       // If we filtered any messages, update storage
       if (validMessages.length !== messages.length) {
-        this.setStoredMessages(validMessages);
+        LocalMessageStorage.setStoredMessages(validMessages);
       }
 
       return validMessages;
@@ -45,7 +45,7 @@ export class LocalMessageStorage {
   static addMessage(content: string) {
     if (!content.trim()) return;
 
-    const messages = this.getStoredMessages();
+    const messages = LocalMessageStorage.getStoredMessages();
     const now = Date.now();
 
     // Don't add duplicate of last message
@@ -61,11 +61,11 @@ export class LocalMessageStorage {
     // Keep only the most recent MAX_MESSAGES
     const validMessages = messages.slice(-MAX_MESSAGES);
 
-    this.setStoredMessages(validMessages);
+    LocalMessageStorage.setStoredMessages(validMessages);
   }
 
   static getRecentMessages(): string[] {
-    return this.getStoredMessages()
+    return LocalMessageStorage.getStoredMessages()
       .map((msg) => msg.content)
       .reverse(); // Most recent first
   }

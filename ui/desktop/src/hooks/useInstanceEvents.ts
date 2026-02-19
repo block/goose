@@ -1,7 +1,7 @@
 /* global EventSource */
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { createInstanceEventSourceUrl } from '../lib/instances';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { InstanceEvent } from '../lib/instances';
+import { createInstanceEventSourceUrl } from '../lib/instances';
 
 const MAX_EVENTS = 500;
 const RECONNECT_BASE_MS = 1000;
@@ -96,7 +96,7 @@ export function useInstanceEvents(
 
         // Exponential backoff reconnect
         const attempt = reconnectAttemptRef.current;
-        const delay = Math.min(RECONNECT_BASE_MS * Math.pow(2, attempt), RECONNECT_MAX_MS);
+        const delay = Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_MAX_MS);
         reconnectAttemptRef.current = attempt + 1;
 
         setError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`);

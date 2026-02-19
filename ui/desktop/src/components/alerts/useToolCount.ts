@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getTools } from '../../api';
 
 // TODO(Douwe): return this as part of the start agent request

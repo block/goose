@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Button } from '../../ui/atoms/button';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
+import { Button } from '../../ui/atoms/button';
 
 interface JsonSchemaEditorProps {
   isOpen: boolean;

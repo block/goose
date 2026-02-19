@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useForm } from '@tanstack/react-form';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useForm } from '@tanstack/react-form';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RecipeFormFields, extractTemplateVariables } from '../RecipeFormFields';
-import { type RecipeFormData } from '../recipeFormSchema';
+import { extractTemplateVariables, RecipeFormFields } from '../RecipeFormFields';
+import type { RecipeFormData } from '../recipeFormSchema';
 
 vi.mock('../../../../contexts/ConfigContext', () => ({
   useConfig: () => ({

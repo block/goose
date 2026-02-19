@@ -1,17 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useConfig } from '../../contexts/ConfigContext';
+import { toastService } from '../../toasts';
+import { errorMessage } from '../../utils/conversionUtils';
 import {
   checkOllamaStatus,
   getOllamaDownloadUrl,
-  pollForOllama,
-  hasModel,
-  pullOllamaModel,
   getPreferredModel,
+  hasModel,
   type PullProgress,
+  pollForOllama,
+  pullOllamaModel,
 } from '../../utils/ollamaDetection';
-import { toastService } from '../../toasts';
 import { Ollama } from '../icons';
-import { errorMessage } from '../../utils/conversionUtils';
 
 interface OllamaSetupProps {
   onSuccess: () => void;

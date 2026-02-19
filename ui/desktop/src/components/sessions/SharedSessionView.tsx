@@ -1,9 +1,9 @@
-import React from 'react';
-import { Calendar, MessageSquareText, Folder, Target, LoaderCircle, Share2 } from 'lucide-react';
-import { type SharedSessionDetails } from '../../sharedSessions';
-import { SessionMessages } from './SessionViewComponents';
+import { Calendar, Folder, LoaderCircle, MessageSquareText, Share2, Target } from 'lucide-react';
+import type React from 'react';
+import type { SharedSessionDetails } from '../../sharedSessions';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { SessionMessages } from './SessionViewComponents';
 
 interface SharedSessionViewProps {
   session: SharedSessionDetails | null;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import MarkdownContent from './MarkdownContent';
 import Expand from '../ui/atoms/Expand';
+import MarkdownContent from './MarkdownContent';
 
 export type ToolCallArgumentValue =
   | string
@@ -49,10 +49,7 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
             <div className={`w-full flex items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
               {isExpanded ? (
                 <div>
-                  <MarkdownContent
-                    content={value}
-                    className="font-sans text-sm text-text-muted"
-                  />
+                  <MarkdownContent content={value} className="font-sans text-sm text-text-muted" />
                 </div>
               ) : (
                 <button

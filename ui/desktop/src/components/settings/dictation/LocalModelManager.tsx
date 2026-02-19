@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Download, Trash2, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '../../ui/atoms/button';
-import { useConfig } from '../../../contexts/ConfigContext';
+import { Check, ChevronDown, ChevronUp, Download, Trash2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
-  listModels,
+  cancelDownload as cancelDownloadApi,
+  type DownloadProgress,
+  deleteModel as deleteModelApi,
   downloadModel,
   getDownloadProgress,
-  cancelDownload as cancelDownloadApi,
-  deleteModel as deleteModelApi,
+  listModels,
   type WhisperModelResponse,
-  type DownloadProgress,
 } from '../../../api';
+import { useConfig } from '../../../contexts/ConfigContext';
+import { Button } from '../../ui/atoms/button';
 
 const LOCAL_WHISPER_MODEL_CONFIG_KEY = 'LOCAL_WHISPER_MODEL';
 
@@ -31,25 +31,6 @@ export const LocalModelManager = () => {
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [showAllModels, setShowAllModels] = useState(false);
   const { read, upsert } = useConfig();
-
-  useEffect(() => {
-    loadModels();
-    loadSelectedModel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Determine if we should show all models by default (if non-recommended models are downloaded)
-  useEffect(() => {
-    if (models.length === 0) return;
-
-    const hasDownloadedNonRecommended = models.some(
-      (model) => model.downloaded && !model.recommended
-    );
-
-    if (hasDownloadedNonRecommended && !showAllModels) {
-      setShowAllModels(true);
-    }
-  }, [models, showAllModels]);
 
   const loadSelectedModel = async () => {
     try {
@@ -80,6 +61,21 @@ export const LocalModelManager = () => {
       console.error('Failed to load models:', error);
     }
   };
+
+  useEffect(() => {
+    loadModels();
+    loadSelectedModel();
+  }, [loadModels, loadSelectedModel]);
+
+  useEffect(() => {
+    if (models.length === 0) return;
+    const hasDownloadedNonRecommended = models.some(
+      (model) => model.downloaded && !model.recommended
+    );
+    if (hasDownloadedNonRecommended && !showAllModels) {
+      setShowAllModels(true);
+    }
+  }, [models, showAllModels]);
 
   const startDownload = async (modelId: string) => {
     try {

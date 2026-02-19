@@ -1,7 +1,7 @@
 export type {
+  CallToolResponse as ToolResult,
   CspMetadata,
   PermissionsMetadata,
-  CallToolResponse as ToolResult,
 } from '../../api/types.gen';
 
 export type ContentBlock =

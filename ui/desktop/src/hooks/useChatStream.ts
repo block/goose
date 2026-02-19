@@ -1,23 +1,21 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
-import { AppEvents } from '../constants/events';
-import { ChatState } from '../types/chatState';
-
+import type { Message, Session, TokenState } from '../api';
 import {
   getSession,
+  listApps,
   reply,
   resumeAgent,
   updateFromSession,
   updateSessionUserRecipeValues,
-  listApps,
 } from '../api';
-import type { Message, Session, TokenState } from '../api';
-
-import { createUserMessage, createElicitationResponseMessage } from '../types/message';
+import { AppEvents } from '../constants/events';
+import { ChatState } from '../types/chatState';
 import type { NotificationEvent, UserInput } from '../types/message';
+import { createElicitationResponseMessage, createUserMessage } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import { streamReducer, initialState } from './chatStream/streamReducer';
 import { streamFromResponse } from './chatStream/streamDecoder';
+import { initialState, streamReducer } from './chatStream/streamReducer';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -72,7 +70,7 @@ export function useChatStream({
         namePollingRef.current = null;
       }
     };
-  }, [sessionId]);
+  }, []);
 
   useEffect(() => {
     if (state.session) {
@@ -97,7 +95,7 @@ export function useChatStream({
         });
       }
 
-      const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
+      const isNewSession = sessionId?.match(/^\d{8}_\d{6}$/);
       if (isNewSession) {
         window.dispatchEvent(new CustomEvent(AppEvents.MESSAGE_STREAM_FINISHED));
       }
@@ -332,7 +330,7 @@ export function useChatStream({
           // Silently handle abort
         } else {
           // Unexpected error during fetch setup (streamFromResponse handles its own errors)
-          onFinish('Submit error: ' + errorMessage(error));
+          onFinish(`Submit error: ${errorMessage(error)}`);
         }
       }
     },
@@ -371,7 +369,7 @@ export function useChatStream({
         if (error instanceof Error && error.name === 'AbortError') {
           // Silently handle abort
         } else {
-          onFinish('Submit error: ' + errorMessage(error));
+          onFinish(`Submit error: ${errorMessage(error)}`);
         }
       }
     },
@@ -546,7 +544,7 @@ export function useChatStream({
       if (!map.has(key)) {
         map.set(key, []);
       }
-      map.get(key)!.push(notification);
+      map.get(key)?.push(notification);
       return map;
     }, new Map<string, NotificationEvent[]>());
   }, [state.notifications]);

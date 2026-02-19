@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { OllamaSetup } from './OllamaSetup';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { toastService } from '../../toasts';
 import * as ollamaDetection from '../../utils/ollamaDetection';
 import * as providerUtils from '../../utils/providerUtils';
-import { toastService } from '../../toasts';
+import { OllamaSetup } from './OllamaSetup';
 
 // Mock dependencies
 vi.mock('../../utils/ollamaDetection');
@@ -250,7 +250,7 @@ describe('OllamaSetup', () => {
 
       // Simulate Ollama being detected
       vi.mocked(ollamaDetection.hasModel).mockResolvedValue(true);
-      pollCallback!({ isRunning: true, host: 'http://127.0.0.1:11434' });
+      pollCallback?.({ isRunning: true, host: 'http://127.0.0.1:11434' });
 
       await waitFor(() => {
         expect(screen.getByText('Ollama is detected and running')).toBeInTheDocument();

@@ -1,5 +1,5 @@
-import { safeJsonParse } from './utils/conversionUtils';
 import type { Message } from './api';
+import { safeJsonParse } from './utils/conversionUtils';
 
 export interface SharedSessionDetails {
   share_token: string;
@@ -41,7 +41,7 @@ export async function fetchSharedSessionDetails(
       'Failed to parse shared session'
     );
 
-    if (baseUrl != data.base_url) {
+    if (baseUrl !== data.base_url) {
       throw new Error(`Base URL mismatch for shared session: ${baseUrl} != ${data.base_url}`);
     }
 

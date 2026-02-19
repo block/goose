@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Switch } from '../../ui/atoms/switch';
-import { Input } from '../../ui/atoms/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import { AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { ExternalGoosedConfig } from '../../../utils/settings';
 import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';
+import { Input } from '../../ui/atoms/input';
+import { Switch } from '../../ui/atoms/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 
 const DEFAULT_CONFIG: ExternalGoosedConfig = {
   enabled: false,

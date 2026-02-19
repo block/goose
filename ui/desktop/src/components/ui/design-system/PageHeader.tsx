@@ -17,13 +17,9 @@ export function PageHeader({ title, description, actions, badge, className }: Pa
           <h1 className="text-2xl font-semibold text-text-default">{title}</h1>
           {badge}
         </div>
-        {description && (
-          <p className="text-sm text-text-muted">{description}</p>
-        )}
+        {description && <p className="text-sm text-text-muted">{description}</p>}
       </div>
-      {actions && (
-        <div className="flex items-center gap-2 shrink-0">{actions}</div>
-      )}
+      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }

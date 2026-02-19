@@ -1,6 +1,11 @@
 // TooltipWrapper.tsx
-import React from 'react';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../../ui/atoms/Tooltip';
+import type React from 'react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../../../../ui/atoms/Tooltip';
 
 interface TooltipWrapperProps {
   children: React.ReactNode;

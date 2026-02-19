@@ -1,11 +1,10 @@
-import { AppEvents } from '../../constants/events';
-import { useRef, useEffect, useCallback, useState } from 'react';
-import { FaCircle } from 'react-icons/fa';
 import { isEqual } from 'lodash';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { FaCircle } from 'react-icons/fa';
+import { AppEvents } from '../../constants/events';
 import { cn } from '../../utils';
-import { AlertType } from '../alerts';
 import type { Alert } from '../alerts';
-import { AlertBox } from '../alerts';
+import { AlertBox, AlertType } from '../alerts';
 
 interface AlertPopoverProps {
   alerts: Alert[];

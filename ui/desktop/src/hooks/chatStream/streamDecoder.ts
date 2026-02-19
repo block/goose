@@ -4,11 +4,11 @@
  * Extracted from useChatStream to isolate event parsing and batching logic.
  * Handles reduced-motion preferences with batched UI updates.
  */
-import React from 'react';
-import { ChatState } from '../../types/chatState';
+import type React from 'react';
 import type { Message, MessageEvent, TokenState } from '../../api';
-import { getCompactingMessage, getThinkingMessage } from '../../types/message';
+import { ChatState } from '../../types/chatState';
 import type { MessageWithAttribution, NotificationEvent, RoutingInfo } from '../../types/message';
+import { getCompactingMessage, getThinkingMessage } from '../../types/message';
 import { errorMessage } from '../../utils/conversionUtils';
 import { maybeHandlePlatformEvent } from '../../utils/platform_events';
 import type { StreamAction } from './streamReducer';
@@ -74,11 +74,7 @@ export async function streamFromResponse(
     lastBatchUpdate = Date.now();
   };
 
-  const maybeUpdateUI = (
-    tokenState: TokenState,
-    chatState: ChatState,
-    forceImmediate = false
-  ) => {
+  const maybeUpdateUI = (tokenState: TokenState, chatState: ChatState, forceImmediate = false) => {
     if (!reduceMotion || forceImmediate) {
       dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
       dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
@@ -114,8 +110,7 @@ export async function streamFromResponse(
 
           const hasToolConfirmation = msg.content.some(
             (content) =>
-              content.type === 'actionRequired' &&
-              content.data.actionType === 'toolConfirmation'
+              content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
           );
 
           const hasElicitation = msg.content.some(
@@ -136,7 +131,7 @@ export async function streamFromResponse(
         }
         case 'Error': {
           flushBatchedUpdates();
-          onFinish('Stream error: ' + event.error);
+          onFinish(`Stream error: ${event.error}`);
           return;
         }
         case 'Finish': {
@@ -181,7 +176,7 @@ export async function streamFromResponse(
   } catch (error) {
     flushBatchedUpdates();
     if (error instanceof Error && error.name !== 'AbortError') {
-      onFinish('Stream error: ' + errorMessage(error));
+      onFinish(`Stream error: ${errorMessage(error)}`);
     }
   }
 }

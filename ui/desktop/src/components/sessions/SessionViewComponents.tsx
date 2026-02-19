@@ -1,15 +1,15 @@
-import React from 'react';
-import { MessageSquare, AlertCircle } from 'lucide-react';
-import { Card } from '../ui/molecules/card';
-import { Button } from '../ui/atoms/button';
-import { ScrollArea } from '../ui/atoms/scroll-area';
+import { AlertCircle, MessageSquare } from 'lucide-react';
+import type React from 'react';
+import type { Message } from '../../api';
+import type { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
+import { getTextAndImageContent } from '../../types/message';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
 import MarkdownContent from '../messages/MarkdownContent';
 import ToolCallWithResponse from '../messages/ToolCallWithResponse';
 import ImagePreview from '../shared/ImagePreview';
-import { getTextAndImageContent } from '../../types/message';
-import type { ToolRequestMessageContent, ToolResponseMessageContent } from '../../types/message';
-import { formatMessageTimestamp } from '../../utils/timeUtils';
-import type { Message } from '../../api';
+import { Button } from '../ui/atoms/button';
+import { ScrollArea } from '../ui/atoms/scroll-area';
+import { Card } from '../ui/molecules/card';
 
 /**
  * Get tool responses map from messages
@@ -140,7 +140,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                                 // In the session history page, if no tool response found for given request, it means the tool call
                                 // is broken or cancelled.
                                 isCancelledMessage={
-                                  toolResponsesMap.get(toolRequest.id) == undefined
+                                  toolResponsesMap.get(toolRequest.id) === undefined
                                 }
                                 isPendingApproval={false}
                                 key={toolRequest.id}

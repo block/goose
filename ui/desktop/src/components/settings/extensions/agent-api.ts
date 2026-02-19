@@ -1,6 +1,6 @@
-import { toastService } from '../../../toasts';
-import { agentAddExtension, agentRemoveExtension } from '../../../api';
 import type { ExtensionConfig } from '../../../api';
+import { agentAddExtension, agentRemoveExtension } from '../../../api';
+import { toastService } from '../../../toasts';
 import { errorMessage } from '../../../utils/conversionUtils';
 import {
   createExtensionRecoverHints,
@@ -13,7 +13,7 @@ export async function addToAgent(
   showToast: boolean
 ) {
   const extensionName = extensionConfig.name;
-  let toastId = showToast
+  const toastId = showToast
     ? toastService.loading({
         title: extensionName,
         msg: `adding ${extensionName} extension...`,
@@ -54,7 +54,7 @@ export async function removeFromAgent(
   sessionId: string,
   showToast: boolean
 ) {
-  let toastId = showToast
+  const toastId = showToast
     ? toastService.loading({
         title: extensionName,
         msg: `Removing ${extensionName} extension...`,

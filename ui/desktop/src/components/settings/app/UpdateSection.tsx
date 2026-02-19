@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '../../ui/atoms/button';
-import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, Download, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { errorMessage } from '../../../utils/conversionUtils';
+import { Button } from '../../ui/atoms/button';
 
 type UpdateStatus =
   | 'idle'
@@ -57,7 +57,6 @@ export default function UpdateSection() {
 
     // Listen for updater events
     window.electron.onUpdaterEvent((event) => {
-
       switch (event.event) {
         case 'checking-for-update':
           setUpdateStatus('checking');

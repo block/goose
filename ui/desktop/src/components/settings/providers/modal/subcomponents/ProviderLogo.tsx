@@ -1,13 +1,13 @@
-import OpenAILogo from './icons/openai@3x.png';
 import AnthropicLogo from './icons/anthropic@3x.png';
+import DatabricksLogo from './icons/databricks@3x.png';
+import DefaultLogo from './icons/default@3x.png';
 import GoogleLogo from './icons/google@3x.png';
 import GroqLogo from './icons/groq@3x.png';
 import OllamaLogo from './icons/ollama@3x.png';
-import DatabricksLogo from './icons/databricks@3x.png';
+import OpenAILogo from './icons/openai@3x.png';
 import OpenRouterLogo from './icons/openrouter@3x.png';
 import SnowflakeLogo from './icons/snowflake@3x.png';
 import XaiLogo from './icons/xai@3x.png';
-import DefaultLogo from './icons/default@3x.png';
 
 // Map provider names to their logos
 const providerLogos: Record<string, string> = {

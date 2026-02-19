@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import type ProviderState from '../../interfaces/ProviderState';
 
 export default interface ProviderSetupFormProps {

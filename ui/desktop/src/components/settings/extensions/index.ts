@@ -1,13 +1,9 @@
-export { DEFAULT_EXTENSION_TIMEOUT, nameToKey } from './utils';
-
+export { addToAgent, removeFromAgent } from './agent-api';
+export { initializeBundledExtensions, syncBundledExtensions } from './bundled-extensions';
+export { addExtensionFromDeepLink } from './deeplink';
 export {
   activateExtensionDefault,
-  toggleExtensionDefault,
   deleteExtension,
+  toggleExtensionDefault,
 } from './extension-manager';
-
-export { syncBundledExtensions, initializeBundledExtensions } from './bundled-extensions';
-
-export { addExtensionFromDeepLink } from './deeplink';
-
-export { addToAgent, removeFromAgent } from './agent-api';
+export { DEFAULT_EXTENSION_TIMEOUT, nameToKey } from './utils';

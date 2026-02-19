@@ -48,11 +48,13 @@ const catalogDef = {
     },
     DataTable: {
       props: z.object({
-        columns: z.array(z.object({
-          key: z.string(),
-          label: z.string(),
-          align: z.enum(['left', 'center', 'right']).default('left'),
-        })),
+        columns: z.array(
+          z.object({
+            key: z.string(),
+            label: z.string(),
+            align: z.enum(['left', 'center', 'right']).default('left'),
+          })
+        ),
         rows: z.array(z.record(z.string(), z.union([z.string(), z.number(), z.boolean()]))),
         sortable: z.boolean().default(false),
         maxRows: z.number().default(10),
@@ -112,12 +114,14 @@ const catalogDef = {
     },
     List: {
       props: z.object({
-        items: z.array(z.object({
-          label: z.string(),
-          description: z.string().optional(),
-          icon: z.string().optional(),
-          status: z.enum(['success', 'warning', 'error', 'info', 'neutral']).optional(),
-        })),
+        items: z.array(
+          z.object({
+            label: z.string(),
+            description: z.string().optional(),
+            icon: z.string().optional(),
+            status: z.enum(['success', 'warning', 'error', 'info', 'neutral']).optional(),
+          })
+        ),
         ordered: z.boolean().default(false),
       }) as AnySchema,
       description: 'List of items with optional descriptions and status icons',
@@ -195,7 +199,7 @@ const catalogDef = {
   },
 };
 
-// @ts-ignore — zod 3/4 type compatibility at the defineCatalog call level
+// @ts-expect-error — zod 3/4 type compatibility at the defineCatalog call level
 export const gooseCatalog = defineCatalog(schema, catalogDef);
 
 export const catalogPrompt = gooseCatalog.prompt();

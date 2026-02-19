@@ -1,18 +1,23 @@
-import { useState, useEffect, useRef } from 'react';
-import { Switch } from '../../ui/atoms/switch';
-import { Button } from '../../ui/atoms/button';
 import { Settings } from 'lucide-react';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
-import UpdateSection from './UpdateSection';
-import TunnelSection from '../tunnel/TunnelSection';
-
+import { useEffect, useRef, useState } from 'react';
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
+import { trackSettingToggled } from '../../../utils/analytics';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
+import { Button } from '../../ui/atoms/button';
+import { Switch } from '../../ui/atoms/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../ui/molecules/dialog';
+import TunnelSection from '../tunnel/TunnelSection';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
-import { trackSettingToggled } from '../../../utils/analytics';
+import UpdateSection from './UpdateSection';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;

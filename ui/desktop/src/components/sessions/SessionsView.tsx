@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import SessionListView from './SessionListView';
-import SessionHistoryView from './SessionHistoryView';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getSession } from '../../api';
 import type { Session } from '../../api';
+import { getSession } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
+import SessionHistoryView from './SessionHistoryView';
+import SessionListView from './SessionListView';
 
 const SessionsView: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);

@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { transcribeDictation, getDictationConfig } from '../api';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DictationProvider } from '../api';
+import { getDictationConfig, transcribeDictation } from '../api';
 import { useConfig } from '../contexts/ConfigContext';
 import { errorMessage } from '../utils/conversionUtils';
 
@@ -110,7 +110,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
       }
     };
     check();
-  }, [read, config]);
+  }, [read]);
 
   const transcribeChunk = useCallback(async (samples: Float32Array) => {
     const prov = providerRef.current;

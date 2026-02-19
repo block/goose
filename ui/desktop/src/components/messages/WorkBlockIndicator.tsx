@@ -1,7 +1,7 @@
-import { useMemo, useEffect, useRef } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { useReasoningDetail, type WorkBlockDetail } from '../../contexts/ReasoningDetailContext';
+import { useEffect, useMemo, useRef } from 'react';
 import type { Message } from '../../api';
+import { useReasoningDetail, type WorkBlockDetail } from '../../contexts/ReasoningDetailContext';
 import FlyingBird from '../branding/FlyingBird';
 import GooseLogo from '../branding/GooseLogo';
 
@@ -16,7 +16,7 @@ function extractOneLiner(messages: Message[]): string {
     for (const c of msg.content) {
       if (c.type === 'text' && c.text?.trim()) {
         const clean = c.text.replace(/<[^>]*>/g, '').trim();
-        return clean.length > 120 ? clean.slice(0, 117) + '…' : clean;
+        return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
       }
     }
   }
@@ -85,14 +85,14 @@ export default function WorkBlockIndicator({
       hasAutoOpened.current = true;
       toggleWorkBlock(buildDetail());
     }
-  }, [isStreaming, messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isStreaming, messages.length, buildDetail, toggleWorkBlock]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live-update the panel content when messages change during streaming
   useEffect(() => {
     if (isActive && isStreaming && updateWorkBlock) {
       updateWorkBlock(buildDetail());
     }
-  }, [messages, isStreaming, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isStreaming, isActive, buildDetail, updateWorkBlock]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-close the panel when streaming ends so the final answer is visible
   const prevStreamingRef = useRef(isStreaming);

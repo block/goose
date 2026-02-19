@@ -1,10 +1,10 @@
 import type {
+  ActionRequired,
   Message,
   MessageEvent,
-  ActionRequired,
+  ToolConfirmationRequest,
   ToolRequest,
   ToolResponse,
-  ToolConfirmationRequest,
 } from '../api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import ImagePreview from '../shared/ImagePreview';
-import MarkdownContent from '../messages/MarkdownContent';
-import { getTextAndImageContent } from '../../types/message';
 import type { Message } from '../../api';
-import MessageCopyLink from '../messages/MessageCopyLink';
+import { getTextAndImageContent } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import Edit from '../icons/Edit';
+import MarkdownContent from '../messages/MarkdownContent';
+import MessageCopyLink from '../messages/MessageCopyLink';
+import ImagePreview from '../shared/ImagePreview';
 import { Button } from '../ui/atoms/button';
 
 interface UserMessageProps {
@@ -29,7 +29,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
     if (!isEditing) {
       setEditContent(textContent);
     }
-  }, [message.content, textContent, message.id, isEditing]);
+  }, [textContent, isEditing]);
 
   // Initialize edit mode with current message content
   const initializeEditMode = useCallback(() => {
@@ -124,7 +124,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
     }
-  }, [editContent, isEditing]);
+  }, [isEditing]);
 
   return (
     <div className="w-full mt-[16px] opacity-0 animate-[appear_150ms_ease-in_forwards]">

@@ -22,14 +22,20 @@ interface TabBarProps {
 }
 
 export function TabBar({
-  groups, activeTab, onTabChange, variant = 'default', className,
+  groups,
+  activeTab,
+  onTabChange,
+  variant = 'default',
+  className,
 }: TabBarProps) {
   return (
-    <div className={cn(
-      'flex flex-wrap items-center gap-1',
-      variant === 'underline' && 'border-b border-border-default gap-0',
-      className
-    )}>
+    <div
+      className={cn(
+        'flex flex-wrap items-center gap-1',
+        variant === 'underline' && 'border-b border-border-default gap-0',
+        className
+      )}
+    >
       {groups.map((group, gi) => (
         <div key={gi} className="flex items-center gap-1">
           {group.label && (
@@ -37,7 +43,7 @@ export function TabBar({
               {group.label}
             </span>
           )}
-          {group.tabs.map(tab => {
+          {group.tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             const Icon = tab.icon;
             return (
@@ -61,18 +67,20 @@ export function TabBar({
                     isActive
                       ? 'border-border-accent text-text-default'
                       : 'border-transparent text-text-muted hover:text-text-default hover:border-border-default',
-                  ],
+                  ]
                 )}
               >
                 {Icon && <Icon className="h-3.5 w-3.5" />}
                 {tab.label}
                 {tab.badge !== undefined && (
-                  <span className={cn(
-                    'text-[10px] rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center',
-                    isActive
-                      ? 'bg-background-default/20 text-inherit'
-                      : 'bg-background-muted text-text-muted'
-                  )}>
+                  <span
+                    className={cn(
+                      'text-[10px] rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center',
+                      isActive
+                        ? 'bg-background-default/20 text-inherit'
+                        : 'bg-background-muted text-text-muted'
+                    )}
+                  >
                     {tab.badge}
                   </span>
                 )}

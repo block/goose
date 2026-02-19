@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { identifyWorkBlocks } from '../assistantWorkBlocks';
-import type { WorkBlock } from '../assistantWorkBlocks';
+import { describe, expect, it } from 'vitest';
 import type { Message } from '../../api';
+import type { WorkBlock } from '../assistantWorkBlocks';
+import { identifyWorkBlocks } from '../assistantWorkBlocks';
 
 // Helper to create a minimal Message-like object
 function msg(
@@ -176,12 +176,12 @@ describe('identifyWorkBlocks', () => {
     // Block 1: indices 1, 2
     const block1 = result.get(1);
     expect(block1).toBeDefined();
-    expect(block1!.finalIndex).toBe(3);
+    expect(block1?.finalIndex).toBe(3);
 
     // Block 2: indices 5, 6
     const block2 = result.get(5);
     expect(block2).toBeDefined();
-    expect(block2!.finalIndex).toBe(7);
+    expect(block2?.finalIndex).toBe(7);
 
     // They should be different blocks
     expect(block1).not.toBe(block2);
@@ -204,7 +204,7 @@ describe('identifyWorkBlocks', () => {
     expect(block1).toBeDefined();
     expect(block3).toBeDefined();
     expect(block1).toBe(block3); // Same block object
-    expect(block1!.finalIndex).toBe(5);
+    expect(block1?.finalIndex).toBe(5);
   });
 
   it('handles final answer that has BOTH text and tool requests (two-tier)', () => {
@@ -289,10 +289,7 @@ describe('identifyWorkBlocks', () => {
     expect(streamingBlock.finalIndex).toBe(-1);
 
     // Second call: completed (final answer arrived)
-    const completedMessages = [
-      ...streamingMessages,
-      textMsg('assistant', 'Here are the files'),
-    ];
+    const completedMessages = [...streamingMessages, textMsg('assistant', 'Here are the files')];
     const completedResult = identifyWorkBlocks(completedMessages as unknown as Message[], false);
     const completedBlock = completedResult.get(1)!;
     expect(completedBlock.isStreaming).toBe(false);
@@ -347,10 +344,7 @@ describe('identifyWorkBlocks', () => {
 
   it('NR: single streaming assistant with only text does NOT create a work block', () => {
     // Phase 1 of transient flash: message has text only (no tool calls yet)
-    const messages = [
-      textMsg('user', 'List files'),
-      textMsg('assistant', 'Let me check...'),
-    ];
+    const messages = [textMsg('user', 'List files'), textMsg('assistant', 'Let me check...')];
     const result = identifyWorkBlocks(messages as unknown as Message[], true);
 
     // Single text-only assistant → no block (text renders normally in chat)
@@ -382,7 +376,7 @@ describe('identifyWorkBlocks', () => {
     const messages = [
       textMsg('user', 'Do X'),
       textMsg('assistant', 'Working...'), // first response, text only
-      textMsg('user', 'Do Y'),            // real second user message — splits runs
+      textMsg('user', 'Do Y'), // real second user message — splits runs
       toolRequestAndTextMsg('read', 'Reading file'), // streaming, text+tools in NEW run
     ];
     const result = identifyWorkBlocks(messages as unknown as Message[], true);
@@ -448,7 +442,7 @@ describe('identifyWorkBlocks', () => {
     // Pure text message (index 3) should be the final answer, not text+tools (index 1)
     expect(block.finalIndex).toBe(3);
     expect(result.has(3)).toBe(false); // Final answer excluded from block
-    expect(result.has(1)).toBe(true);  // text+tools message stays in block
+    expect(result.has(1)).toBe(true); // text+tools message stays in block
   });
 
   it('NR: final answer with text+tools when no pure text exists', () => {

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import RecipeActivityEditor from '../../RecipeActivityEditor';
 
@@ -57,7 +57,7 @@ describe('RecipeActivityEditor', () => {
     });
 
     it('truncates long activity text in boxes', () => {
-      const longActivity = 'button: ' + 'a'.repeat(150);
+      const longActivity = `button: ${'a'.repeat(150)}`;
       const activities = [longActivity];
       render(<RecipeActivityEditor activities={activities} setActivities={mockOnChange} />);
 

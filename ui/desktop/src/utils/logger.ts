@@ -1,6 +1,6 @@
-import log from 'electron-log';
 import path from 'node:path';
 import { app } from 'electron';
+import log from 'electron-log';
 
 log.transports.file.resolvePathFn = () => {
   return path.join(app.getPath('userData'), 'logs', 'main.log');

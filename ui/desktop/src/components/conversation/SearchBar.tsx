@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
-import type { KeyboardEvent } from 'react';
-import { Search as SearchIcon } from 'lucide-react';
-import { ArrowDown, ArrowUp, Close } from '../icons';
 import debounce from 'lodash/debounce';
+import { Search as SearchIcon } from 'lucide-react';
+import type { KeyboardEvent } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, Close } from '../icons';
 import { Button } from '../ui/atoms/button';
 
 /**
@@ -72,7 +72,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         debouncedSearchRef.current?.(initialSearchTerm, caseSensitive);
       }
     }
-  }, [initialSearchTerm, caseSensitive, debouncedSearchRef]);
+  }, [initialSearchTerm, caseSensitive]);
 
   const [localSearchResults, setLocalSearchResults] = useState<typeof searchResults>(undefined);
 

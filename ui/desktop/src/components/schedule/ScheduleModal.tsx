@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import type React from 'react';
 import type { FormEvent } from 'react';
-import { Card } from '../ui/molecules/card';
+import { useCallback, useEffect, useState } from 'react';
+import ClockIcon from '../../assets/clock-icon.svg';
+import type { Recipe } from '../../recipe';
+import { parseDeeplink, parseRecipeFromFile } from '../../recipe';
+import { getStorageDirectory } from '../../recipe/recipe_management';
+import type { ScheduledJob } from '../../schedule';
 import { Button } from '../ui/atoms/button';
 import { Input } from '../ui/atoms/input';
-import type { ScheduledJob } from '../../schedule';
+import { Card } from '../ui/molecules/card';
 import { CronPicker } from './CronPicker';
-import { parseDeeplink, parseRecipeFromFile } from '../../recipe';
-import type { Recipe } from '../../recipe';
-import { getStorageDirectory } from '../../recipe/recipe_management';
-import ClockIcon from '../../assets/clock-icon.svg';
 
 export interface NewSchedulePayload {
   id: string;
@@ -58,26 +59,29 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     setScheduleId(cleanId);
   };
 
-  const handleDeepLinkChange = useCallback(async (value: string) => {
-    setDeepLinkInput(value);
-    setInternalValidationError(null);
+  const handleDeepLinkChange = useCallback(
+    async (value: string) => {
+      setDeepLinkInput(value);
+      setInternalValidationError(null);
 
-    if (value.trim()) {
-      try {
-        const recipe = await parseDeeplink(value.trim());
-        if (!recipe) throw new Error();
-        setParsedRecipe(recipe);
-        if (recipe.title) {
-          setScheduleIdFromTitle(recipe.title);
+      if (value.trim()) {
+        try {
+          const recipe = await parseDeeplink(value.trim());
+          if (!recipe) throw new Error();
+          setParsedRecipe(recipe);
+          if (recipe.title) {
+            setScheduleIdFromTitle(recipe.title);
+          }
+        } catch {
+          setParsedRecipe(null);
+          setInternalValidationError('Invalid deep link. Please use a goose://recipe link.');
         }
-      } catch {
+      } else {
         setParsedRecipe(null);
-        setInternalValidationError('Invalid deep link. Please use a goose://recipe link.');
       }
-    } else {
-      setParsedRecipe(null);
-    }
-  }, []);
+    },
+    [setScheduleIdFromTitle]
+  );
 
   useEffect(() => {
     if (isOpen) {

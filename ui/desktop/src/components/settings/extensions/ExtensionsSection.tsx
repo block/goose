@@ -1,27 +1,22 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Button } from '../../ui/atoms/button';
 import { Plus } from 'lucide-react';
-import { GPSIcon } from '../../ui/atoms/icons';
-import { useConfig } from '../../../contexts/ConfigContext';
-import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
-import ExtensionList from './subcomponents/ExtensionList';
-import ExtensionModal from './modal/ExtensionModal';
-import {
-  createExtensionConfig,
-  extensionToFormData,
-  getDefaultFormData,
-} from './utils';
-import type { ExtensionFormData } from './utils';
-
-import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ExtensionConfig } from '../../../api/types.gen';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
+import { Button } from '../../ui/atoms/button';
+import { GPSIcon } from '../../ui/atoms/icons';
+import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
+import ExtensionModal from './modal/ExtensionModal';
+import ExtensionList from './subcomponents/ExtensionList';
+import type { ExtensionFormData } from './utils';
+import { createExtensionConfig, extensionToFormData, getDefaultFormData } from './utils';
 
 interface ExtensionSectionProps {
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   hideButtons?: boolean;
   disableConfiguration?: boolean;
-  customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | void>;
+  customToggle?: (extension: FixedExtensionEntry) => Promise<boolean | undefined>;
   selectedExtensions?: string[]; // Add controlled state
   onModalClose?: (extensionName: string) => void;
   searchTerm?: string;

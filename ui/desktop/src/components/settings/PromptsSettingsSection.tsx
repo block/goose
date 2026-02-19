@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { getPrompt, getPrompts, resetPrompt, savePrompt } from '../../api';
-import type { PromptContentResponse, Template } from '../../api';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/molecules/card';
-import { Button } from '../ui/atoms/button';
-import { AlertTriangle, RotateCcw, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
+import type { PromptContentResponse, Template } from '../../api';
+import { getPrompt, getPrompts, resetPrompt, savePrompt } from '../../api';
+import { Button } from '../ui/atoms/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/molecules/card';
 
 export default function PromptsSettingsSection() {
   const [prompts, setPrompts] = useState<Template[]>([]);
@@ -27,7 +27,7 @@ export default function PromptsSettingsSection() {
 
   useEffect(() => {
     fetchPrompts();
-  }, []);
+  }, [fetchPrompts]);
 
   useEffect(() => {
     if (selectedPrompt) {

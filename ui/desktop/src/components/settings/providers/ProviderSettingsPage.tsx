@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { ProviderDetails } from '../../../api';
+import { useConfig } from '../../../contexts/ConfigContext';
+import { createNavigationHandler } from '../../../utils/navigationUtils';
 import { ScrollArea } from '../../ui/atoms/scroll-area';
 import BackButton from '../../ui/molecules/BackButton';
 import ProviderGrid from './ProviderGrid';
-import { useConfig } from '../../../contexts/ConfigContext';
-import type { ProviderDetails } from '../../../api';
-import { createNavigationHandler } from '../../../utils/navigationUtils';
 
 interface ProviderSettingsProps {
   onClose: () => void;
@@ -47,7 +47,7 @@ export default function ProviderSettings({
   useEffect(() => {
     loadProviders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Intentionally not including loadProviders in deps to prevent reloading
+  }, [loadProviders]); // Intentionally not including loadProviders in deps to prevent reloading
 
   // This function will be passed to ProviderGrid for manual refreshes after config changes
   const refreshProviders = useCallback(() => {

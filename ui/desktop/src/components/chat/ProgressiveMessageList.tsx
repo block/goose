@@ -16,15 +16,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../../api';
-import GooseMessage from './GooseMessage';
-import UserMessage from './UserMessage';
-import { SystemNotificationInline } from '../context_management/SystemNotificationInline';
-import type { NotificationEvent } from '../../types/message';
-import LoadingGoose from './LoadingGoose';
 import type { ChatType } from '../../types/chat';
-import { identifyConsecutiveToolCalls, isInChain } from '../../utils/toolCallChaining';
+import type { NotificationEvent } from '../../types/message';
 import { identifyWorkBlocks } from '../../utils/assistantWorkBlocks';
+import { identifyConsecutiveToolCalls, isInChain } from '../../utils/toolCallChaining';
+import { SystemNotificationInline } from '../context_management/SystemNotificationInline';
 import WorkBlockIndicator from '../messages/WorkBlockIndicator';
+import GooseMessage from './GooseMessage';
+import LoadingGoose from './LoadingGoose';
+import UserMessage from './UserMessage';
 
 interface ProgressiveMessageListProps {
   messages: Message[];
@@ -121,14 +121,7 @@ export default function ProgressiveMessageList({
         timeoutRef.current = null;
       }
     };
-  }, [
-    messages.length,
-    batchSize,
-    batchDelay,
-    showLoadingThreshold,
-    renderedCount,
-    onRenderingComplete,
-  ]);
+  }, [messages.length, batchSize, batchDelay, showLoadingThreshold, onRenderingComplete]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -307,20 +300,17 @@ export default function ProgressiveMessageList({
     toolCallChains,
     workBlocks,
     submitElicitationResponse,
+    hasInlineSystemNotification,
+    hasOnlyToolResponses,
   ]);
 
   // Show pending indicator when streaming started but no assistant response yet
   // Don't show if there's already an active streaming work block
   const lastMessage = messages[messages.length - 1];
   const hasNoAssistantResponse = !lastMessage || lastMessage.role === 'user';
-  const hasStreamingWorkBlock = Array.from(workBlocks.values()).some(
-    (b) => b.isStreaming
-  );
+  const hasStreamingWorkBlock = Array.from(workBlocks.values()).some((b) => b.isStreaming);
   const showPendingIndicator =
-    isStreamingMessage &&
-    messages.length > 0 &&
-    hasNoAssistantResponse &&
-    !hasStreamingWorkBlock;
+    isStreamingMessage && messages.length > 0 && hasNoAssistantResponse && !hasStreamingWorkBlock;
 
   return (
     <>

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { PropsWithChildren } from 'react';
-import SearchBar from './SearchBar';
-import { SearchHighlighter } from '../../utils/searchHighlighter';
 import debounce from 'lodash/debounce';
+import type { PropsWithChildren } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { SearchHighlighter } from '../../utils/searchHighlighter';
+import SearchBar from './SearchBar';
 
 /**
  * Props for the SearchView component
@@ -342,7 +342,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isSearchVisible, handleNavigate, handleSearch, handleUseSelectionFind]);
+  }, [isSearchVisible, handleNavigate, handleUseSelectionFind]);
 
   // Listen for Find menu commands
   useEffect(() => {
@@ -358,7 +358,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
       window.electron.off('use-selection-find', handleUseSelectionFind);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - handlers are stable due to useCallback and useRef
+  }, [handleFindCommand, handleFindNext, handleFindPrevious, handleUseSelectionFind]); // Empty dependency array - handlers are stable due to useCallback and useRef
 
   return (
     <div

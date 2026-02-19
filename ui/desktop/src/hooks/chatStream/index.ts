@@ -6,6 +6,6 @@
  * - useChatStream.ts: the original hook (re-exported below)
  */
 export { useChatStream } from '../useChatStream';
-export { streamReducer, initialState } from './streamReducer';
-export type { StreamState, StreamAction } from './streamReducer';
-export { streamFromResponse, pushMessage, prefersReducedMotion } from './streamDecoder';
+export { prefersReducedMotion, pushMessage, streamFromResponse } from './streamDecoder';
+export type { StreamAction, StreamState } from './streamReducer';
+export { initialState, streamReducer } from './streamReducer';

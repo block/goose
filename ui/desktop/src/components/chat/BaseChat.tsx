@@ -1,4 +1,3 @@
-import { AppEvents } from '../../constants/events';
 import React, {
   createContext,
   useCallback,
@@ -9,41 +8,41 @@ import React, {
   useState,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import type { Message } from '../../api';
+import { AppEvents } from '../../constants/events';
+import { useModelAndProvider } from '../../contexts/ModelAndProviderContext';
+import { useRegisterSession } from '../../contexts/UnifiedInputContext';
+import { useChatStream } from '../../hooks/chatStream';
+import { useIsMobile } from '../../hooks/use-mobile';
+import { useAutoSubmit } from '../../hooks/useAutoSubmit';
+import { useCostTracking } from '../../hooks/useCostTracking';
+import { useFileDrop } from '../../hooks/useFileDrop';
+import { useNavigation } from '../../hooks/useNavigation';
+import type { Recipe } from '../../recipe';
+import { scanRecipe } from '../../recipe';
+import { toastSuccess } from '../../toasts';
+import type { ChatType } from '../../types/chat';
+import { ChatState } from '../../types/chatState';
+import type { UserInput } from '../../types/message';
+import { getTextAndImageContent } from '../../types/message';
+import { cn } from '../../utils';
+import { substituteParameters } from '../../utils/providerUtils';
+import { useToolCount } from '../alerts/useToolCount';
 import { SearchView } from '../conversation/SearchView';
-
-import WelcomeState from './WelcomeState';
-import ProgressiveMessageList from './ProgressiveMessageList';
+import EnvironmentBadge from '../GooseSidebar/EnvironmentBadge';
+import { Goose } from '../icons';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import ParameterInputModal from '../modals/ParameterInputModal';
+import CreateRecipeFromSessionModal from '../recipes/CreateRecipeFromSessionModal';
+import RecipeActivities from '../recipes/RecipeActivities';
+import { RecipeHeader } from '../shared/RecipeHeader';
+import type { ScrollAreaHandle } from '../ui/atoms/scroll-area';
 // ChatInput is now rendered in AppLayout via UnifiedInputContext
 import { ScrollArea } from '../ui/atoms/scroll-area';
-import type { ScrollAreaHandle } from '../ui/atoms/scroll-area';
-import { useFileDrop } from '../../hooks/useFileDrop';
-import type { Message } from '../../api';
-import { ChatState } from '../../types/chatState';
-import type { ChatType } from '../../types/chat';
-import { useIsMobile } from '../../hooks/use-mobile';
-import { useSidebar } from '../ui/molecules/sidebar';
-import { cn } from '../../utils';
-import { useChatStream } from '../../hooks/chatStream';
-import { useNavigation } from '../../hooks/useNavigation';
-import { useRegisterSession } from '../../contexts/UnifiedInputContext';
-import { RecipeHeader } from '../shared/RecipeHeader';
 import { RecipeWarningModal } from '../ui/molecules/RecipeWarningModal';
-import { scanRecipe } from '../../recipe';
-import type { UserInput } from '../../types/message';
-import { useCostTracking } from '../../hooks/useCostTracking';
-import RecipeActivities from '../recipes/RecipeActivities';
-import { useToolCount } from '../alerts/useToolCount';
-import { getTextAndImageContent } from '../../types/message';
-import ParameterInputModal from '../modals/ParameterInputModal';
-import { substituteParameters } from '../../utils/providerUtils';
-import { useModelAndProvider } from '../../contexts/ModelAndProviderContext';
-import CreateRecipeFromSessionModal from '../recipes/CreateRecipeFromSessionModal';
-import { toastSuccess } from '../../toasts';
-import type { Recipe } from '../../recipe';
-import { useAutoSubmit } from '../../hooks/useAutoSubmit';
-import { Goose } from '../icons';
-import EnvironmentBadge from '../GooseSidebar/EnvironmentBadge';
+import { useSidebar } from '../ui/molecules/sidebar';
+import ProgressiveMessageList from './ProgressiveMessageList';
+import WelcomeState from './WelcomeState';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
@@ -68,7 +67,7 @@ export default function BaseChat({
   initialMessage,
   isActiveSession,
 }: BaseChatProps) {
-  const location = useLocation();
+  const _location = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
@@ -226,7 +225,8 @@ export default function BaseChat({
   const toolCount = useToolCount(sessionId);
 
   const append = useCallback(
-    (message: Message) => handleSubmit({ msg: getTextAndImageContent(message).textContent, images: [] }),
+    (message: Message) =>
+      handleSubmit({ msg: getTextAndImageContent(message).textContent, images: [] }),
     [handleSubmit]
   );
 
@@ -299,7 +299,7 @@ export default function BaseChat({
     return () => {
       window.removeEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
     };
-  }, [location.pathname, navigate]);
+  }, [navigate]);
 
   const handleRecipeCreated = (recipe: Recipe) => {
     toastSuccess({
@@ -332,7 +332,7 @@ export default function BaseChat({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.name, setChat]);
+  }, [session?.name, setChat, messages, recipe, sessionId]);
 
   // If we have a recipe prompt and user recipe values, substitute parameters
   let recipePrompt = '';
@@ -355,8 +355,10 @@ export default function BaseChat({
     onFilesProcessed: () => setDroppedFiles([]),
     setView,
     totalTokens: tokenState?.totalTokens ?? session?.total_tokens ?? undefined,
-    accumulatedInputTokens: tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined,
-    accumulatedOutputTokens: tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined,
+    accumulatedInputTokens:
+      tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined,
+    accumulatedOutputTokens:
+      tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined,
     messages,
     sessionCosts,
     recipe: recipe ?? undefined,
@@ -375,7 +377,7 @@ export default function BaseChat({
           removeTopPadding={true}
           {...customMainLayoutProps}
         >
-          {renderHeader && renderHeader()}
+          {renderHeader?.()}
           <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
             <div className="flex-1 bg-background-default rounded-b-2xl flex items-center justify-center">
               <div className="flex flex-col items-center justify-center p-8">
@@ -407,7 +409,7 @@ export default function BaseChat({
         {...customMainLayoutProps}
       >
         {/* Custom header */}
-        {renderHeader && renderHeader()}
+        {renderHeader?.()}
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">

@@ -1,22 +1,22 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Wrench,
-  Bot,
-  FileText,
-  ChevronRight,
-  Package,
-  Download,
-  Plus,
-  Search,
-  RefreshCw,
-  ExternalLink,
-  CheckCircle2,
   AlertCircle,
+  Bot,
+  CheckCircle2,
+  ChevronRight,
+  Download,
+  ExternalLink,
+  FileText,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  Wrench,
 } from 'lucide-react';
-import { PageShell } from '../Layout/PageShell';
-import { getExtensions, listBuiltinAgents, listAgents } from '../../api';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getExtensions, listAgents, listBuiltinAgents } from '../../api';
 import { listSavedRecipes } from '../../recipe/recipe_management';
+import { PageShell } from '../Layout/PageShell';
 
 interface CatalogItem {
   id: string;
@@ -120,9 +120,7 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
               setExpanded(!expanded);
             }}
           >
-            {expanded
-              ? '▲ Show less'
-              : `▼ +${category.items.length - 3} more`}
+            {expanded ? '▲ Show less' : `▼ +${category.items.length - 3} more`}
           </button>
         )}
         {category.items.length === 0 && !category.loading && (
@@ -168,7 +166,7 @@ export default function CatalogsOverview() {
 
   useEffect(() => {
     loadCatalogs();
-  }, []);
+  }, [loadCatalogs]);
 
   async function loadCatalogs() {
     setLoading(true);
@@ -192,8 +190,7 @@ export default function CatalogsOverview() {
           {
             label: 'Browse Registry',
             icon: <ExternalLink className="w-3.5 h-3.5" />,
-            onClick: () =>
-              window.open('https://block.github.io/goose/v1/extensions/', '_blank'),
+            onClick: () => window.open('https://block.github.io/goose/v1/extensions/', '_blank'),
           },
         ],
       },
@@ -254,9 +251,7 @@ export default function CatalogsOverview() {
         prev.map((c) => (c.id === 'tools' ? { ...c, items: toolItems, loading: false } : c))
       );
     } catch {
-      setCategories((prev) =>
-        prev.map((c) => (c.id === 'tools' ? { ...c, loading: false } : c))
-      );
+      setCategories((prev) => prev.map((c) => (c.id === 'tools' ? { ...c, loading: false } : c)));
     }
 
     // Load agents (builtin + external A2A)
@@ -300,9 +295,7 @@ export default function CatalogsOverview() {
         prev.map((c) => (c.id === 'agents' ? { ...c, items: agentItems, loading: false } : c))
       );
     } catch {
-      setCategories((prev) =>
-        prev.map((c) => (c.id === 'agents' ? { ...c, loading: false } : c))
-      );
+      setCategories((prev) => prev.map((c) => (c.id === 'agents' ? { ...c, loading: false } : c)));
     }
 
     // Load workflows (recipes)
@@ -316,9 +309,7 @@ export default function CatalogsOverview() {
         type: 'recipe',
       }));
       setCategories((prev) =>
-        prev.map((c) =>
-          c.id === 'workflows' ? { ...c, items: workflowItems, loading: false } : c
-        )
+        prev.map((c) => (c.id === 'workflows' ? { ...c, items: workflowItems, loading: false } : c))
       );
     } catch {
       setCategories((prev) =>
@@ -372,68 +363,67 @@ export default function CatalogsOverview() {
         </>
       }
     >
+      {/* Catalog cards grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {filteredCategories.map((category) => (
+          <CatalogCard key={category.id} category={category} />
+        ))}
+      </div>
 
-        {/* Catalog cards grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {filteredCategories.map((category) => (
-            <CatalogCard key={category.id} category={category} />
-          ))}
-        </div>
-
-        {/* Search results flat view */}
-        {searchTerm && (
-          <div className="bg-background-default border border-border-default rounded-xl p-6">
-            <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">
-              Search Results
-            </h3>
-            <div className="space-y-2">
-              {filteredCategories.flatMap((c) =>
-                c.items.map((item) => (
-                  <div
-                    key={`${c.id}-${item.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg hover:bg-background-subtle cursor-pointer"
-                    onClick={() => navigate(c.route)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center"
-                        style={{
-                          backgroundColor: `${c.color}20`,
-                          color: c.color,
-                        }}
-                      >
-                        {c.icon}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-text-default">{item.name}</div>
-                        <div className="text-xs text-text-muted">{item.description}</div>
-                      </div>
+      {/* Search results flat view */}
+      {searchTerm && (
+        <div className="bg-background-default border border-border-default rounded-xl p-6">
+          <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-4">
+            Search Results
+          </h3>
+          <div className="space-y-2">
+            {filteredCategories.flatMap((c) =>
+              c.items.map((item) => (
+                <div
+                  key={`${c.id}-${item.id}`}
+                  className="flex items-center justify-between p-3 rounded-lg hover:bg-background-subtle cursor-pointer"
+                  onClick={() => navigate(c.route)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{
+                        backgroundColor: `${c.color}20`,
+                        color: c.color,
+                      }}
+                    >
+                      {c.icon}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs px-2 py-0.5 rounded bg-background-subtle text-text-muted">
-                        {c.label}
-                      </span>
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          item.status === 'installed'
-                            ? 'bg-green-500'
-                            : item.status === 'error'
-                              ? 'bg-red-500'
-                              : 'bg-gray-400'
-                        }`}
-                      />
+                    <div>
+                      <div className="text-sm font-medium text-text-default">{item.name}</div>
+                      <div className="text-xs text-text-muted">{item.description}</div>
                     </div>
                   </div>
-                ))
-              )}
-              {filteredCategories.every((c) => c.items.length === 0) && (
-                <div className="text-sm text-text-muted text-center py-6">
-                  No results for &quot;{searchTerm}&quot;
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded bg-background-subtle text-text-muted">
+                      {c.label}
+                    </span>
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        item.status === 'installed'
+                          ? 'bg-green-500'
+                          : item.status === 'error'
+                            ? 'bg-red-500'
+                            : 'bg-gray-400'
+                      }`}
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
+              ))
+            )}
+            {filteredCategories.every((c) => c.items.length === 0) && (
+              <div className="text-sm text-text-muted text-center py-6">
+                No results for &quot;{searchTerm}&quot;
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
     </PageShell>
   );
 }

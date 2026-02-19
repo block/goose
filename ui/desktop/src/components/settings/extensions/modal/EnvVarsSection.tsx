@@ -1,8 +1,8 @@
+import { Edit, Plus, X } from 'lucide-react';
 import React from 'react';
-import { Button } from '../../../ui/atoms/button';
-import { Plus, X, Edit } from 'lucide-react';
-import { Input } from '../../../ui/atoms/input';
 import { cn } from '../../../../utils';
+import { Button } from '../../../ui/atoms/button';
+import { Input } from '../../../ui/atoms/input';
 
 interface EnvVarsSectionProps {
   envVars: { key: string; value: string; isEdited?: boolean }[];

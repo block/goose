@@ -17,14 +17,25 @@ const variantTextColor: Record<string, string> = {
   danger: 'text-text-danger',
 };
 
-export function StatCard({ label, value, icon: Icon, trend, variant = 'default', className }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  icon: Icon,
+  trend,
+  variant = 'default',
+  className,
+}: StatCardProps) {
   return (
-    <div className={cn(
-      'bg-background-default border border-border-default rounded-lg p-4 flex flex-col gap-2',
-      className
-    )}>
+    <div
+      className={cn(
+        'bg-background-default border border-border-default rounded-lg p-4 flex flex-col gap-2',
+        className
+      )}
+    >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-text-muted uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-medium text-text-muted uppercase tracking-wider">
+          {label}
+        </span>
         {Icon && <Icon className="h-4 w-4 text-text-muted" />}
       </div>
       <div className="flex items-baseline gap-2">
@@ -32,10 +43,12 @@ export function StatCard({ label, value, icon: Icon, trend, variant = 'default',
           {typeof value === 'number' ? value.toLocaleString() : value}
         </span>
         {trend && (
-          <span className={cn(
-            'text-xs font-medium',
-            trend.direction === 'up' ? 'text-text-success' : 'text-text-danger'
-          )}>
+          <span
+            className={cn(
+              'text-xs font-medium',
+              trend.direction === 'up' ? 'text-text-success' : 'text-text-danger'
+            )}
+          >
             {trend.direction === 'up' ? '↑' : '↓'} {Math.abs(trend.value)}%
           </span>
         )}

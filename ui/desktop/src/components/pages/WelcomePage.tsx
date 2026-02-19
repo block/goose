@@ -1,22 +1,21 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { useAuth } from '../../hooks/useAuth';
-import { useConfig } from '../../contexts/ConfigContext';
-import WelcomeGooseLogo from '../branding/WelcomeGooseLogo';
-import { ProviderCard } from '../settings/providers/subcomponents/ProviderCard';
-import ProviderConfigurationModal from '../settings/providers/modal/ProviderConfiguationModal';
+import { Check, ChevronRight, Key, Loader2, LogIn, Shield } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ProviderDetails } from '../../api';
+import { useConfig } from '../../contexts/ConfigContext';
+import { useAuth } from '../../hooks/useAuth';
+import WelcomeGooseLogo from '../branding/WelcomeGooseLogo';
+import ProviderConfigurationModal from '../settings/providers/modal/ProviderConfiguationModal';
+import { ProviderCard } from '../settings/providers/subcomponents/ProviderCard';
 import { Button } from '../ui/atoms/button';
 import { Input } from '../ui/atoms/input';
 import { Separator } from '../ui/atoms/separator';
-import { Shield, Key, ChevronRight, Check, LogIn, Loader2 } from 'lucide-react';
 
 /* ─── Auth provider helpers ────────────────────────────────────── */
 
 function formatIssuerName(issuer: string): string {
   if (issuer.includes('google')) return 'Google';
   if (issuer.includes('github')) return 'GitHub';
-  if (issuer.includes('microsoft') || issuer.includes('azure'))
-    return 'Microsoft';
+  if (issuer.includes('microsoft') || issuer.includes('azure')) return 'Microsoft';
   if (issuer.includes('okta')) return 'Okta';
   if (issuer.includes('auth0')) return 'Auth0';
   if (issuer.includes('gitlab')) return 'GitLab';
@@ -94,8 +93,14 @@ interface WelcomePageProps {
 }
 
 export default function WelcomePage({ onComplete }: WelcomePageProps) {
-  const { isAuthenticated, authRequired, oidcProviders, loginWithApiKey, loginWithOidc, isLoading } =
-    useAuth();
+  const {
+    isAuthenticated,
+    authRequired,
+    oidcProviders,
+    loginWithApiKey,
+    loginWithOidc,
+    isLoading,
+  } = useAuth();
   const { getProviders } = useConfig();
 
   const [activePanel, setActivePanel] = useState<'auth' | 'provider'>('provider');
@@ -203,13 +208,9 @@ export default function WelcomePage({ onComplete }: WelcomePageProps) {
         <div className="flex flex-1 flex-col items-center justify-center gap-8 p-8">
           <WelcomeGooseLogo className="h-24 w-24" />
           <div className="text-center">
-            <h1 className="text-2xl font-semibold text-foreground">
-              Welcome to Goose
-            </h1>
+            <h1 className="text-2xl font-semibold text-foreground">Welcome to Goose</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {activePanel === 'auth'
-                ? 'Sign in to get started'
-                : 'Choose your model provider'}
+              {activePanel === 'auth' ? 'Sign in to get started' : 'Choose your model provider'}
             </p>
           </div>
         </div>
@@ -226,19 +227,13 @@ export default function WelcomePage({ onComplete }: WelcomePageProps) {
             >
               <item.icon className="h-4 w-4" />
               <span className="flex-1 text-left">{item.label}</span>
-              {item.complete && (
-                <Check className="h-4 w-4 text-green-500" />
-              )}
+              {item.complete && <Check className="h-4 w-4 text-green-500" />}
             </Button>
           ))}
         </nav>
 
         <div className="p-4">
-          <Button
-            className="w-full"
-            disabled={!providerConfigured}
-            onClick={handleGetStarted}
-          >
+          <Button className="w-full" disabled={!providerConfigured} onClick={handleGetStarted}>
             Get Started
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
@@ -299,22 +294,13 @@ export default function WelcomePage({ onComplete }: WelcomePageProps) {
                   onKeyDown={(e) => e.key === 'Enter' && handleApiKeyLogin()}
                   className="flex-1"
                 />
-                <Button
-                  onClick={handleApiKeyLogin}
-                  disabled={!apiKey.trim() || isAuthenticating}
-                >
-                  {isAuthenticating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    'Sign In'
-                  )}
+                <Button onClick={handleApiKeyLogin} disabled={!apiKey.trim() || isAuthenticating}>
+                  {isAuthenticating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
                 </Button>
               </div>
             </div>
 
-            {authError && (
-              <p className="text-sm text-destructive">{authError}</p>
-            )}
+            {authError && <p className="text-sm text-destructive">{authError}</p>}
 
             {isAuthenticated && (
               <div className="flex items-center gap-2 rounded-md border border-green-500/20 bg-green-500/10 p-3">
@@ -330,9 +316,7 @@ export default function WelcomePage({ onComplete }: WelcomePageProps) {
         {activePanel === 'provider' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-semibold text-foreground">
-                Choose a Model Provider
-              </h2>
+              <h2 className="text-xl font-semibold text-foreground">Choose a Model Provider</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Select and configure an AI model provider to power Goose
               </p>

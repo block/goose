@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { cn } from '../../utils';
 
 export type ToolCallStatus = 'pending' | 'loading' | 'success' | 'error';
@@ -20,7 +20,6 @@ export const ToolCallStatusIndicator: React.FC<ToolCallStatusIndicatorProps> = (
         return 'bg-red-500';
       case 'loading':
         return 'bg-yellow-500 animate-pulse';
-      case 'pending':
       default:
         return 'bg-gray-400';
     }

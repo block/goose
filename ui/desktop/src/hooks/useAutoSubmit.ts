@@ -1,8 +1,7 @@
-import { AppEvents } from '../constants/events';
 import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { Session } from '../api';
-import type { Message } from '../api';
+import type { Message, Session } from '../api';
+import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 import type { UserInput } from '../types/message';
 
@@ -40,7 +39,7 @@ export function useAutoSubmit({
   // Reset auto-submit flag when session changes
   useEffect(() => {
     hasAutoSubmittedRef.current = false;
-  }, [sessionId]);
+  }, []);
 
   const clearInitialMessage = useCallback(() => {
     window.dispatchEvent(

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { errorMessage } from '../../utils/conversionUtils';
 
@@ -115,12 +116,9 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
     }
   }, [handleSave, isSaving]);
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setEditValue(e.target.value);
-    },
-    []
-  );
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditValue(e.target.value);
+  }, []);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {

@@ -1,5 +1,5 @@
+import { ArrowDownToLine, Pause, Terminal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Terminal, ArrowDownToLine, Pause } from 'lucide-react';
 import type { InstanceEvent } from '../../lib/instances';
 
 const eventTypeColors: Record<string, string> = {
@@ -42,7 +42,7 @@ export function InstanceEventLog({
     if (autoScroll && containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [events, autoScroll]);
+  }, [autoScroll]);
 
   const handleScroll = () => {
     if (!containerRef.current) return;

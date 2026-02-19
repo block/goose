@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { Button } from '../../ui/atoms/button';
+import { useEffect, useRef, useState } from 'react';
 import type { KeyboardShortcuts } from '../../../utils/settings';
-import { getShortcutLabel, formatShortcut } from './KeyboardShortcutsSection';
+import { Button } from '../../ui/atoms/button';
+import { formatShortcut, getShortcutLabel } from './KeyboardShortcutsSection';
 
 interface ShortcutRecorderProps {
   value: string;
@@ -59,7 +59,7 @@ export function ShortcutRecorder({
       parts.push('Shift');
     }
 
-    let key = e.code && e.code.startsWith('Key') ? e.code.replace('Key', '') : e.key;
+    let key = e.code?.startsWith('Key') ? e.code.replace('Key', '') : e.key;
 
     const keyMap: Record<string, string> = {
       ' ': 'Space',
@@ -86,7 +86,7 @@ export function ShortcutRecorder({
       Backquote: '`',
     };
 
-    if (e.code && e.code.startsWith('Digit')) {
+    if (e.code?.startsWith('Digit')) {
       key = e.code.replace('Digit', '');
     } else if (keyMap[key] || keyMap[e.code]) {
       key = keyMap[key] || keyMap[e.code];
@@ -134,7 +134,6 @@ export function ShortcutRecorder({
       <div className="flex items-center gap-2">
         <div
           ref={inputRef}
-          tabIndex={0}
           onKeyDown={handleKeyDown}
           onClick={handleStartRecording}
           className={`

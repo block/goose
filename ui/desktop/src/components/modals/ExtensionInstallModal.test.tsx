@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
-import { ExtensionInstallModal } from './ExtensionInstallModal';
+import { act, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
+import { ExtensionInstallModal } from './ExtensionInstallModal';
 
 vi.mock('../settings/extensions/deeplink', () => ({
   addExtensionFromDeepLink: vi.fn(),
@@ -33,7 +33,7 @@ describe('ExtensionInstallModal', () => {
   const getAddExtensionEventHandler = () => {
     const addExtensionCall = mockElectron.on.mock.calls.find((call) => call[0] === 'add-extension');
     expect(addExtensionCall).toBeDefined();
-    return addExtensionCall![1];
+    return addExtensionCall?.[1];
   };
 
   beforeEach(() => {

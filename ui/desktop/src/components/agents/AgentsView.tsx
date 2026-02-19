@@ -1,38 +1,38 @@
-import { useEffect, useState, useCallback } from 'react';
 import {
+  Activity,
   Bot,
-  Plus,
-  Trash2,
-  RefreshCw,
   ChevronDown,
   ChevronRight,
   Code,
-  Plug,
   Cpu,
-  Wrench,
-  Puzzle,
-  Power,
   Link,
-  Unlink,
+  Plug,
+  Plus,
+  Power,
+  Puzzle,
+  RefreshCw,
   Rocket,
-  Activity,
+  Trash2,
+  Unlink,
+  Wrench,
 } from 'lucide-react';
-import { PageShell } from '../Layout/PageShell';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  listAgents,
+  bindExtensionToAgent,
   connectAgent,
   disconnectAgent,
+  listAgents,
   listBuiltinAgents,
   toggleBuiltinAgent,
-  bindExtensionToAgent,
   unbindExtensionFromAgent,
 } from '../../api/sdk.gen';
 import type { BuiltinAgentMode } from '../../api/types.gen';
-import { TabBar } from '../ui/design-system';
-import type { TabGroup } from '../ui/design-system';
 import { useInstances } from '../../hooks/useInstances';
-import { InstanceList } from './InstanceList';
+import { PageShell } from '../Layout/PageShell';
+import type { TabGroup } from '../ui/design-system';
+import { TabBar } from '../ui/design-system';
 import { InstanceDetail } from './InstanceDetail';
+import { InstanceList } from './InstanceList';
 import { SpawnInstanceModal } from './SpawnInstanceModal';
 
 // Unified agent type — both builtin and external
@@ -314,28 +314,28 @@ export default function AgentsView() {
 
   return (
     <>
-    <PageShell
-      stickyHeader
-      title="Agents"
-      subtitle={`${agents.length} agent${agents.length !== 1 ? 's' : ''} available${runningCount > 0 ? ` · ${runningCount} running` : ''}`}
-      actions={
-        <>
-          {activeTab === 'catalog' && (
-            <button
-              onClick={() => setShowConnect(!showConnect)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Connect Agent
-            </button>
-          )}
-          {activeTab === 'instances' && (
-            <button
-              onClick={() => {
-                setSpawnDefaultPersona('');
-                setSpawnModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+      <PageShell
+        stickyHeader
+        title="Agents"
+        subtitle={`${agents.length} agent${agents.length !== 1 ? 's' : ''} available${runningCount > 0 ? ` · ${runningCount} running` : ''}`}
+        actions={
+          <>
+            {activeTab === 'catalog' && (
+              <button
+                onClick={() => setShowConnect(!showConnect)}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Connect Agent
+              </button>
+            )}
+            {activeTab === 'instances' && (
+              <button
+                onClick={() => {
+                  setSpawnDefaultPersona('');
+                  setSpawnModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >
                 <Rocket className="w-4 h-4" />
                 Deploy Instance
@@ -353,10 +353,9 @@ export default function AgentsView() {
                 className={`w-4 h-4 ${loading || instancesLoading ? 'animate-spin' : ''}`}
               />
             </button>
-        </>
-      }
-    >
-
+          </>
+        }
+      >
         {/* Tabs */}
         <div className="mb-6">
           <TabBar
@@ -391,7 +390,6 @@ export default function AgentsView() {
                     onChange={(e) => setConnectName(e.target.value)}
                     placeholder="Agent name or URL..."
                     className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 outline-none"
-                    autoFocus
                   />
                   <button
                     onClick={handleConnect}

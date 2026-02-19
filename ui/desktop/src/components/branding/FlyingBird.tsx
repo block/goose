@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Bird1, Bird2, Bird3, Bird4, Bird5, Bird6 } from '../icons';
 
 interface FlyingBirdProps {

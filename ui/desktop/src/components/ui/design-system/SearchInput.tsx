@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
 import { Search, X } from 'lucide-react';
+import { useCallback, useState } from 'react';
 import { cn } from '../../../utils';
 
 interface SearchInputProps {
@@ -22,22 +22,25 @@ export function SearchInput({
 
   const currentValue = controlledValue ?? internalValue;
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newValue = e.target.value;
 
-    if (controlledValue === undefined) {
-      setInternalValue(newValue);
-    }
+      if (controlledValue === undefined) {
+        setInternalValue(newValue);
+      }
 
-    if (debounceTimer) clearTimeout(debounceTimer);
+      if (debounceTimer) clearTimeout(debounceTimer);
 
-    if (debounceMs > 0) {
-      const timer = setTimeout(() => onChange?.(newValue), debounceMs);
-      setDebounceTimer(timer);
-    } else {
-      onChange?.(newValue);
-    }
-  }, [controlledValue, onChange, debounceMs, debounceTimer]);
+      if (debounceMs > 0) {
+        const timer = setTimeout(() => onChange?.(newValue), debounceMs);
+        setDebounceTimer(timer);
+      } else {
+        onChange?.(newValue);
+      }
+    },
+    [controlledValue, onChange, debounceMs, debounceTimer]
+  );
 
   const handleClear = useCallback(() => {
     if (controlledValue === undefined) {

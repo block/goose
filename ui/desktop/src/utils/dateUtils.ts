@@ -88,11 +88,13 @@ export function groupSessionsByProjectThenDate(sessions: Session[]): ProjectGrou
     projectMap[project].push(session);
   });
 
-  const projectGroups: ProjectGroup[] = Object.entries(projectMap).map(([project, projectSessions]) => ({
-    project,
-    sessionCount: projectSessions.length,
-    dateGroups: groupSessionsByDate(projectSessions),
-  }));
+  const projectGroups: ProjectGroup[] = Object.entries(projectMap).map(
+    ([project, projectSessions]) => ({
+      project,
+      sessionCount: projectSessions.length,
+      dateGroups: groupSessionsByDate(projectSessions),
+    })
+  );
 
   // Sort: 'General' last, others by most recent session
   return projectGroups.sort((a, b) => {

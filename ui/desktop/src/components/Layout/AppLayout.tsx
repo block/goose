@@ -1,20 +1,20 @@
 import React from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import AppSidebar from '../GooseSidebar/AppSidebar';
-import type { View, ViewOptions } from '../../utils/navigationUtils';
-import { Sidebar, SidebarInset, SidebarProvider } from '../ui/molecules/sidebar';
-import ChatSessionsContainer from '../chat/ChatSessionsContainer';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useChatContext } from '../../contexts/ChatContext';
-import type { UserInput } from '../../types/message';
 import { ReasoningDetailProvider } from '../../contexts/ReasoningDetailContext';
-import ReasoningDetailPanel from '../messages/ReasoningDetailPanel';
 import { UnifiedInputProvider, useUnifiedInput } from '../../contexts/UnifiedInputContext';
-import ChatInput from '../chat/ChatInput';
-import { ChatState } from '../../types/chatState';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession } from '../../sessions';
+import { ChatState } from '../../types/chatState';
+import type { UserInput } from '../../types/message';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import ChatInput from '../chat/ChatInput';
+import ChatSessionsContainer from '../chat/ChatSessionsContainer';
+import AppSidebar from '../GooseSidebar/AppSidebar';
+import ReasoningDetailPanel from '../messages/ReasoningDetailPanel';
 import { UserAvatarMenu } from '../shared/UserAvatarMenu';
+import { Sidebar, SidebarInset, SidebarProvider } from '../ui/molecules/sidebar';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
@@ -27,9 +27,12 @@ function GlobalChatInput() {
   const { session } = useUnifiedInput();
   const setView = useNavigation();
 
-  const handleCreateSession = React.useCallback((input: UserInput) => {
-    startNewSession(input.msg, setView, getInitialWorkingDir());
-  }, [setView]);
+  const handleCreateSession = React.useCallback(
+    (input: UserInput) => {
+      startNewSession(input.msg, setView, getInitialWorkingDir());
+    },
+    [setView]
+  );
 
   const s = session;
 

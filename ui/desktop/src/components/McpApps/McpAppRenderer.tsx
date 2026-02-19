@@ -7,23 +7,23 @@ import { AppEvents } from '../../constants/events';
  * @see SEP-1865 https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
  */
 
-import { useState, useCallback, useEffect } from 'react';
-import { useSandboxBridge } from './useSandboxBridge';
+import { useCallback, useEffect, useState } from 'react';
+import { callTool, readResource } from '../../api';
+import { cn } from '../../utils';
+import { errorMessage } from '../../utils/conversionUtils';
+import { getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
 import type {
+  CspMetadata,
+  McpMethodParams,
+  McpMethodResponse,
+  PermissionsMetadata,
+  ToolCancelled,
   ToolInput,
   ToolInputPartial,
   ToolResult,
-  ToolCancelled,
-  CspMetadata,
-  PermissionsMetadata,
-  McpMethodParams,
-  McpMethodResponse,
 } from './types';
-import { cn } from '../../utils';
+import { useSandboxBridge } from './useSandboxBridge';
 import { DEFAULT_IFRAME_HEIGHT } from './utils';
-import { readResource, callTool } from '../../api';
-import { errorMessage } from '../../utils/conversionUtils';
-import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
 
 interface McpAppRendererProps {
   resourceUri: string;

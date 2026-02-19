@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
 import { FolderDot } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
-import { updateWorkingDir } from '../../api';
+import type React from 'react';
+import { useState } from 'react';
 import { toast } from 'react-toastify';
+import { updateWorkingDir } from '../../api';
 import { AppEvents } from '../../constants/events';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
 
 interface DirSwitcherProps {
   className: string;

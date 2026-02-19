@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
-import { vi, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
 
 // Mock Electron modules before any imports
 vi.mock('electron', () => ({

@@ -1,5 +1,8 @@
-import { useState, useCallback } from 'react';
+import { AlertTriangle, Edit, Info, PlusIcon, Trash2 } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { upsertConfig } from '../../../../api';
 import { Button } from '../../../ui/atoms/button';
+import { ConfirmationModal } from '../../../ui/molecules/ConfirmationModal';
 import {
   Dialog,
   DialogContent,
@@ -10,13 +13,10 @@ import {
 } from '../../../ui/molecules/dialog';
 import type { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
-import HeadersSection from './HeadersSection';
 import ExtensionConfigFields from './ExtensionConfigFields';
-import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
-import { upsertConfig } from '../../../../api';
-import { ConfirmationModal } from '../../../ui/molecules/ConfirmationModal';
+import HeadersSection from './HeadersSection';
 
 interface ExtensionModalProps {
   title: string;
@@ -252,7 +252,7 @@ export default function ExtensionModal({
       typeof formData.timeout === 'string' ? Number(formData.timeout) : formData.timeout;
 
     // Check if it's a valid number (not NaN) and is a positive number
-    return !isNaN(timeoutValue) && timeoutValue > 0;
+    return !Number.isNaN(timeoutValue) && timeoutValue > 0;
   };
 
   // Form validation

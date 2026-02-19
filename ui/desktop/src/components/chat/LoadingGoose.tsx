@@ -1,8 +1,8 @@
-import GooseLogo from '../branding/GooseLogo';
-import AnimatedIcons from '../branding/AnimatedIcons';
-import FlyingBird from '../branding/FlyingBird';
 import { ChatState } from '../../types/chatState';
 import type { RoutingInfo } from '../../types/message';
+import AnimatedIcons from '../branding/AnimatedIcons';
+import FlyingBird from '../branding/FlyingBird';
+import GooseLogo from '../branding/GooseLogo';
 
 interface LoadingGooseProps {
   message?: string;
@@ -50,9 +50,7 @@ const LoadingGoose = ({ message, chatState = ChatState.Idle, routingInfo }: Load
         {icon}
         <span>
           {displayMessage}
-          {agentLabel && (
-            <span className="ml-1 text-text-muted/70 italic">({agentLabel})</span>
-          )}
+          {agentLabel && <span className="ml-1 text-text-muted/70 italic">({agentLabel})</span>}
         </span>
       </div>
     </div>

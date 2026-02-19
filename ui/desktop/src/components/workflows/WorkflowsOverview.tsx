@@ -1,23 +1,23 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
   FileText,
   GitBranch,
-  Clock,
-  ChevronRight,
-  Plus,
-  Search,
-  RefreshCw,
-  CheckCircle2,
-  AlertCircle,
-  Play,
   Pause,
-  Calendar,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
 } from 'lucide-react';
-import { PageShell } from '../Layout/PageShell';
-import { listPipelines, listSchedules } from '../../api';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { RecipeManifest } from '../../api';
+import { listPipelines, listSchedules } from '../../api';
 import { listSavedRecipes } from '../../recipe/recipe_management';
+import { PageShell } from '../Layout/PageShell';
 
 interface WorkflowItem {
   id: string;
@@ -356,7 +356,9 @@ export default function WorkflowsOverview() {
   const subtitle = [
     totalActive > 0 ? `${totalActive} active` : null,
     `${totalItems} total across ${categories.length} types`,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <PageShell
@@ -384,84 +386,83 @@ export default function WorkflowsOverview() {
         </>
       }
     >
+      {/* Category cards */}
+      {!searchTerm && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {filteredCategories.map((category) => (
+            <WorkflowCard key={category.id} category={category} />
+          ))}
+        </div>
+      )}
 
-        {/* Category cards */}
-        {!searchTerm && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {filteredCategories.map((category) => (
-              <WorkflowCard key={category.id} category={category} />
-            ))}
-          </div>
-        )}
-
-        {/* Search results */}
-        {searchTerm && (
-          <div className="space-y-2">
-            {allFilteredItems.length > 0 ? (
-              allFilteredItems.map((item) => (
+      {/* Search results */}
+      {searchTerm && (
+        <div className="space-y-2">
+          {allFilteredItems.length > 0 ? (
+            allFilteredItems.map((item) => (
+              <div
+                key={`${item.categoryLabel}-${item.id}`}
+                className="flex items-center gap-3 p-3 bg-background-default border border-border-default rounded-lg hover:border-border-accent transition-colors cursor-pointer"
+              >
                 <div
-                  key={`${item.categoryLabel}-${item.id}`}
-                  className="flex items-center gap-3 p-3 bg-background-default border border-border-default rounded-lg hover:border-border-accent transition-colors cursor-pointer"
-                >
-                  <div
-                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      item.status === 'active'
-                        ? 'bg-green-500'
-                        : item.status === 'paused'
-                          ? 'bg-amber-500'
-                          : item.status === 'error'
-                            ? 'bg-red-500'
-                            : 'bg-gray-400'
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-text-default font-medium truncate">{item.name}</div>
-                    {item.description && (
-                      <div className="text-sm text-text-muted truncate">{item.description}</div>
-                    )}
-                  </div>
-                  <span className="text-xs text-text-muted px-2 py-0.5 rounded bg-background-muted flex-shrink-0">
-                    {item.categoryLabel}
-                  </span>
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    item.status === 'active'
+                      ? 'bg-green-500'
+                      : item.status === 'paused'
+                        ? 'bg-amber-500'
+                        : item.status === 'error'
+                          ? 'bg-red-500'
+                          : 'bg-gray-400'
+                  }`}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-text-default font-medium truncate">{item.name}</div>
+                  {item.description && (
+                    <div className="text-sm text-text-muted truncate">{item.description}</div>
+                  )}
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-12 text-text-muted">
-                No workflows matching &ldquo;{searchTerm}&rdquo;
+                <span className="text-xs text-text-muted px-2 py-0.5 rounded bg-background-muted flex-shrink-0">
+                  {item.categoryLabel}
+                </span>
               </div>
-            )}
-          </div>
-        )}
+            ))
+          ) : (
+            <div className="text-center py-12 text-text-muted">
+              No workflows matching &ldquo;{searchTerm}&rdquo;
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* Quick stats footer */}
-        {!searchTerm && !loading && (
-          <div className="flex items-center justify-center gap-8 pt-4 border-t border-border-muted text-sm text-text-muted">
-            <div className="flex items-center gap-2">
-              <Play className="w-4 h-4" />
-              <span>{totalActive} running</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Pause className="w-4 h-4" />
-              <span>
-                {categories.reduce(
-                  (sum, cat) => sum + cat.items.filter((i) => i.status === 'paused').length,
-                  0
-                )}{' '}
-                paused
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4" />
-              <span>
-                {categories.reduce(
-                  (sum, cat) => sum + cat.items.filter((i) => i.status === 'draft').length,
-                  0
-                )}{' '}
-                drafts
-              </span>
-            </div>
+      {/* Quick stats footer */}
+      {!searchTerm && !loading && (
+        <div className="flex items-center justify-center gap-8 pt-4 border-t border-border-muted text-sm text-text-muted">
+          <div className="flex items-center gap-2">
+            <Play className="w-4 h-4" />
+            <span>{totalActive} running</span>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <Pause className="w-4 h-4" />
+            <span>
+              {categories.reduce(
+                (sum, cat) => sum + cat.items.filter((i) => i.status === 'paused').length,
+                0
+              )}{' '}
+              paused
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            <span>
+              {categories.reduce(
+                (sum, cat) => sum + cat.items.filter((i) => i.status === 'draft').length,
+                0
+              )}{' '}
+              drafts
+            </span>
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }

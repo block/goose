@@ -1,22 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  X,
-  Copy,
-  StopCircle,
-  FileText,
-  Clock,
-  Cpu,
+  AlertTriangle,
   ArrowRight,
   CheckCircle,
-  AlertTriangle,
+  Clock,
+  Copy,
+  Cpu,
   ExternalLink,
+  FileText,
+  StopCircle,
+  X,
 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useInstanceEvents } from '../../hooks/useInstanceEvents';
 import type { InstanceResponse, InstanceResultResponse, InstanceStatus } from '../../lib/instances';
 import { getInstanceResult } from '../../lib/instances';
-import { InstanceStatusBadge } from './InstanceStatusBadge';
 import { InstanceEventLog } from './InstanceEventLog';
-import { useInstanceEvents } from '../../hooks/useInstanceEvents';
+import { InstanceStatusBadge } from './InstanceStatusBadge';
 
 function formatElapsed(secs?: number): string {
   if (secs == null) return '—';
@@ -73,7 +73,7 @@ export function InstanceDetail({ instance, onClose, onCancel }: InstanceDetailPr
     return () => {
       cancelled = true;
     };
-  }, [instance.id, instance.status, isTerminal]);
+  }, [instance.id, isTerminal]);
 
   const handleCancel = useCallback(async () => {
     setCancelling(true);
@@ -144,7 +144,7 @@ export function InstanceDetail({ instance, onClose, onCancel }: InstanceDetailPr
             title="Copy instance ID"
           >
             <Copy className="w-3 h-3" />
-            {copied ? 'Copied!' : instance.id.slice(0, 12) + '...'}
+            {copied ? 'Copied!' : `${instance.id.slice(0, 12)}...`}
           </button>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">

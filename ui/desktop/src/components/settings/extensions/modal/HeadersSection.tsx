@@ -1,8 +1,8 @@
-import React from 'react';
-import { Button } from '../../../ui/atoms/button';
 import { Plus, X } from 'lucide-react';
-import { Input } from '../../../ui/atoms/input';
+import React from 'react';
 import { cn } from '../../../../utils';
+import { Button } from '../../../ui/atoms/button';
+import { Input } from '../../../ui/atoms/input';
 
 interface HeadersSectionProps {
   headers: { key: string; value: string; isEdited?: boolean }[];

@@ -1,7 +1,7 @@
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import type { SyntheticEvent } from 'react';
-import { Button } from '../../../../ui/atoms/button';
-import { Trash2, AlertTriangle } from 'lucide-react';
 import type { ConfigKey } from '../../../../../api';
+import { Button } from '../../../../ui/atoms/button';
 
 interface ProviderSetupActionsProps {
   onCancel: () => void;

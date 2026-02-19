@@ -1,5 +1,5 @@
-import { getPricing } from '../api';
 import type { PricingData } from '../api';
+import { getPricing } from '../api';
 
 /**
  * Fetch pricing for a specific provider/model from the backend

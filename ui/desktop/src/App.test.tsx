@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { render, screen, waitFor } from '@testing-library/react';
 /**
  * @vitest-environment jsdom
  */
-import React from 'react';
-import { screen, render, waitFor } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import type React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppInner } from './App';
 
 // Set up globals for jsdom
@@ -89,7 +89,7 @@ vi.mock('./contexts/ConfigContext', () => ({
   ConfigProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock("./components/bottom_menu/BottomMenuExtensionSelection", () => ({
+vi.mock('./components/bottom_menu/BottomMenuExtensionSelection', () => ({
   BottomMenuExtensionSelection: () => <div data-testid="mock-extensions">Extensions</div>,
 }));
 // Mock other components to simplify testing

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { listApps, resumeAgent, startAgent, stopAgent } from '../../api';
+import { errorMessage, formatAppName } from '../../utils/conversionUtils';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
-import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
-import { formatAppName } from '../../utils/conversionUtils';
-import { errorMessage } from '../../utils/conversionUtils';
 
 export default function StandaloneAppView() {
   const [searchParams] = useSearchParams();

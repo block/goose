@@ -1,5 +1,13 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
 import type { IpcRendererEvent } from 'electron';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ExtensionConfig } from '../../api/types.gen';
+import { useConfig } from '../../contexts/ConfigContext';
+import { toastService } from '../../toasts';
+import { errorMessage } from '../../utils/conversionUtils';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
+import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
+import { extractExtensionName } from '../settings/extensions/utils';
+import { Button } from '../ui/atoms/button';
 import {
   Dialog,
   DialogContent,
@@ -8,14 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/molecules/dialog';
-import { Button } from '../ui/atoms/button';
-import { extractExtensionName } from '../settings/extensions/utils';
-import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
-import type { ExtensionConfig } from '../../api/types.gen';
-import type { View, ViewOptions } from '../../utils/navigationUtils';
-import { useConfig } from '../../contexts/ConfigContext';
-import { toastService } from '../../toasts';
-import { errorMessage } from '../../utils/conversionUtils';
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
 
@@ -145,8 +145,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
           isBlocked: false,
         };
       }
-
-      case 'trusted':
       default:
         return {
           title: 'Confirm Extension Installation',
@@ -159,58 +157,59 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
     }
   };
 
-  const handleExtensionRequest = useCallback(async (link: string): Promise<void> => {
-    if (processingLinkRef.current === link) {
-      return;
-    }
-    processingLinkRef.current = link;
-
-    try {
-
-      const command = extractCommand(link);
-      const remoteUrl = extractRemoteUrl(link);
-      const extName = extractExtensionName(link);
-      const extensionsList = await getExtensionsRef.current(true);
-
-      if (extensionsList?.find((ext) => ext.name === extName)) {
-
-        toastService.success({
-          title: `Extension '${extName}' Already Installed`,
-          msg: `'${extName}' extension has already been installed successfully. Start a new chat session to use it.`,
-        });
+  const handleExtensionRequest = useCallback(
+    async (link: string): Promise<void> => {
+      if (processingLinkRef.current === link) {
         return;
       }
+      processingLinkRef.current = link;
 
-      const extensionInfo: ExtensionInfo = {
-        name: extName,
-        command: command,
-        remoteUrl: remoteUrl || undefined,
-        link: link,
-      };
+      try {
+        const command = extractCommand(link);
+        const remoteUrl = extractRemoteUrl(link);
+        const extName = extractExtensionName(link);
+        const extensionsList = await getExtensionsRef.current(true);
 
-      const modalType = await determineModalType(command, remoteUrl);
+        if (extensionsList?.find((ext) => ext.name === extName)) {
+          toastService.success({
+            title: `Extension '${extName}' Already Installed`,
+            msg: `'${extName}' extension has already been installed successfully. Start a new chat session to use it.`,
+          });
+          return;
+        }
 
-      setModalState({
-        isOpen: true,
-        modalType,
-        extensionInfo,
-        isPending: false,
-        error: null,
-      });
+        const extensionInfo: ExtensionInfo = {
+          name: extName,
+          command: command,
+          remoteUrl: remoteUrl || undefined,
+          link: link,
+        };
 
-      setPendingLink(modalType === 'blocked' ? null : link);
+        const modalType = await determineModalType(command, remoteUrl);
 
-      window.electron.logInfo(`Extension modal opened: ${modalType} for ${extName}`);
-    } catch (error) {
-      console.error('Error processing extension request:', error);
-      setModalState((prev) => ({
-        ...prev,
-        error: errorMessage(error, 'Unknown error'),
-      }));
-    } finally {
-      processingLinkRef.current = null;
-    }
-  }, []);
+        setModalState({
+          isOpen: true,
+          modalType,
+          extensionInfo,
+          isPending: false,
+          error: null,
+        });
+
+        setPendingLink(modalType === 'blocked' ? null : link);
+
+        window.electron.logInfo(`Extension modal opened: ${modalType} for ${extName}`);
+      } catch (error) {
+        console.error('Error processing extension request:', error);
+        setModalState((prev) => ({
+          ...prev,
+          error: errorMessage(error, 'Unknown error'),
+        }));
+      } finally {
+        processingLinkRef.current = null;
+      }
+    },
+    [determineModalType]
+  );
 
   const dismissModal = useCallback(() => {
     setModalState({
@@ -231,7 +230,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
     setModalState((prev) => ({ ...prev, isPending: true }));
 
     try {
-
       if (addExtension) {
         await addExtensionFromDeepLink(
           pendingLink,
@@ -254,7 +252,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   }, [pendingLink, dismissModal, addExtension, setView]);
 
   useEffect(() => {
-
     const handleAddExtension = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       await handleExtensionRequest(link);
@@ -281,7 +278,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         return 'outline';
       case 'untrusted':
         return 'destructive';
-      case 'trusted':
       default:
         return 'default';
     }
@@ -293,7 +289,6 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
         return 'text-red-600 dark:text-red-400';
       case 'untrusted':
         return 'text-yellow-600 dark:text-yellow-400';
-      case 'trusted':
       default:
         return '';
     }

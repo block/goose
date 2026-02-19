@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../ui/atoms/button';
 
 export default function RecipeActivityEditor({
@@ -110,7 +110,7 @@ export default function RecipeActivityEditor({
                 className="inline-flex items-center bg-background-default border-2 border-border-default rounded-full px-4 py-2 text-sm text-text-default"
                 title={activity.length > 100 ? activity : undefined}
               >
-                <span>{activity.length > 100 ? activity.slice(0, 100) + '...' : activity}</span>
+                <span>{activity.length > 100 ? `${activity.slice(0, 100)}...` : activity}</span>
                 <Button
                   type="button"
                   onClick={() => handleRemoveActivity(activity)}

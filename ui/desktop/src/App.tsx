@@ -1,28 +1,28 @@
-import { useEffect, useState, useRef } from 'react';
 import type { IpcRendererEvent } from 'electron';
+import { useEffect, useRef, useState } from 'react';
 import {
   HashRouter,
-  Routes,
-  Route,
   Navigate,
-  useNavigate,
+  Route,
+  Routes,
   useLocation,
+  useNavigate,
   useSearchParams,
 } from 'react-router-dom';
-import { openSharedSessionFromDeepLink } from './sessionLinks';
-import { type SharedSessionDetails } from './sharedSessions';
-import { ErrorUI } from './components/shared/ErrorBoundary';
-import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
-import AnnouncementModal from './components/modals/AnnouncementModal';
-import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
-import ProviderGuard from './components/guards/ProviderGuard';
-import { AuthProvider } from './hooks/useAuth';
 import { AuthGuard } from './components/guards/AuthGuard';
+import ProviderGuard from './components/guards/ProviderGuard';
+import AnnouncementModal from './components/modals/AnnouncementModal';
+import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
+import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
 import LoginView from './components/pages/LoginView';
 import WelcomePage from './components/pages/WelcomePage';
-import { createSession } from './sessions';
+import { ErrorUI } from './components/shared/ErrorBoundary';
+import { AuthProvider } from './hooks/useAuth';
 import { setupAuthInterceptor } from './lib/authInterceptor';
+import { openSharedSessionFromDeepLink } from './sessionLinks';
+import { createSession } from './sessions';
+import type { SharedSessionDetails } from './sharedSessions';
 
 // Initialize auth interceptor before any API calls — attaches
 // the Bearer token from localStorage to every outgoing request
@@ -35,43 +35,42 @@ interface PairRouteState {
   resumeSessionId?: string;
   initialMessage?: UserInput;
 }
-import SettingsView from './components/settings/SettingsView';
-import type { SettingsViewOptions } from './components/settings/SettingsView';
+
+import { AppLayout } from './components/Layout/AppLayout';
+import LauncherView from './components/pages/LauncherView';
+import SchedulesView from './components/schedule/SchedulesView';
 import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
-import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
-import { AppLayout } from './components/Layout/AppLayout';
+import type { SettingsViewOptions } from './components/settings/SettingsView';
+import SettingsView from './components/settings/SettingsView';
 import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
-import LauncherView from './components/pages/LauncherView';
 
 import 'react-toastify/dist/ReactToastify.css';
+import AgentsView from './components/agents/AgentsView';
+import EvaluateView from './components/analytics/EvaluateView';
+import MonitoringView from './components/analytics/MonitoringView';
+import AppsView from './components/apps/AppsView';
+import StandaloneAppView from './components/apps/StandaloneAppView';
+import CatalogsOverview from './components/catalogs/CatalogsOverview';
+import type { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
+import ExtensionsView from './components/extensions/ExtensionsView';
+import RecipesView from './components/recipes/RecipesView';
+import PermissionSettingsView from './components/settings/permission/PermissionSetting';
+import ToolsHealthView from './components/tools/ToolsHealthView';
+import { PipelineManager } from './components/workflows';
+import WorkflowsOverview from './components/workflows/WorkflowsOverview';
+import { AppEvents } from './constants/events';
 import { useConfig } from './contexts/ConfigContext';
 import { ModelAndProviderProvider } from './contexts/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import PermissionSettingsView from './components/settings/permission/PermissionSetting';
-
-import ExtensionsView from './components/extensions/ExtensionsView';
-import type { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-import RecipesView from './components/recipes/RecipesView';
-import AgentsView from './components/agents/AgentsView';
-import { PipelineManager } from './components/workflows';
-import WorkflowsOverview from './components/workflows/WorkflowsOverview';
-import MonitoringView from './components/analytics/MonitoringView';
-import EvaluateView from './components/analytics/EvaluateView';
-import ToolsHealthView from './components/tools/ToolsHealthView';
-import CatalogsOverview from './components/catalogs/CatalogsOverview';
-import AppsView from './components/apps/AppsView';
-import StandaloneAppView from './components/apps/StandaloneAppView';
-import type { View, ViewOptions } from './utils/navigationUtils';
-
-import { useNavigation } from './hooks/useNavigation';
-import { errorMessage } from './utils/conversionUtils';
-import { getInitialWorkingDir } from './utils/workingDir';
 import { usePageViewTracking } from './hooks/useAnalytics';
-import { trackOnboardingCompleted, trackErrorWithContext } from './utils/analytics';
-import { AppEvents } from './constants/events';
+import { useNavigation } from './hooks/useNavigation';
+import { trackErrorWithContext } from './utils/analytics';
+import { errorMessage } from './utils/conversionUtils';
+import type { View, ViewOptions } from './utils/navigationUtils';
 import { registerPlatformEventHandlers } from './utils/platform_events';
+import { getInitialWorkingDir } from './utils/workingDir';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -144,7 +143,14 @@ const PairRouteWrapper = ({
     // Note: isCreatingSession is intentionally NOT in the dependency array
     // It's only used as a guard to prevent concurrent session creation
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMessage, recipeDeeplinkFromConfig, resumeSessionId, setSearchParams, extensionsList]);
+  }, [
+    initialMessage,
+    recipeDeeplinkFromConfig,
+    resumeSessionId,
+    setSearchParams,
+    extensionsList,
+    isCreatingSession,
+  ]);
 
   // Add resumed session to active sessions if not already there
   useEffect(() => {

@@ -21,7 +21,7 @@ export default function ExtensionTimeoutField({
     const timeoutValue = typeof timeout === 'string' ? Number(timeout) : timeout;
 
     // Check if it's a valid number (not NaN) and is a positive number
-    return !isNaN(timeoutValue) && timeoutValue > 0;
+    return !Number.isNaN(timeoutValue) && timeoutValue > 0;
   };
 
   return (

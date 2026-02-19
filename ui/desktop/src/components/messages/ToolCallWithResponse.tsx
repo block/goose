@@ -1,27 +1,27 @@
+import { isUIResource } from '@mcp-ui/client';
+import { ChevronRight, FlaskConical } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { CallToolResponse, Content, EmbeddedResource } from '../../api';
 import { AppEvents } from '../../constants/events';
-import { ToolIconWithStatus } from './ToolCallStatusIndicator';
-import type { ToolCallStatus } from './ToolCallStatusIndicator';
-import { getToolCallIcon } from '../../utils/toolIconMapping';
-import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { Button } from '../ui/atoms/button';
-import { ToolCallArguments } from './ToolCallArguments';
-import type { ToolCallArgumentValue } from './ToolCallArguments';
-import MarkdownContent from './MarkdownContent';
 import type {
-  ToolRequestMessageContent,
-  ToolResponseMessageContent,
   NotificationEvent,
   ToolConfirmationData,
+  ToolRequestMessageContent,
+  ToolResponseMessageContent,
 } from '../../types/message';
 import { cn, snakeToTitleCase } from '../../utils';
-import type { LoadingStatus } from '../ui/atoms/Dot';
-import { ChevronRight, FlaskConical } from 'lucide-react';
-import { TooltipWrapper } from '../settings/providers/subcomponents/buttons/TooltipWrapper';
-import MCPUIResourceRenderer from './MCPUIResourceRenderer';
-import { isUIResource } from '@mcp-ui/client';
-import type { CallToolResponse, Content, EmbeddedResource } from '../../api';
+import { getToolCallIcon } from '../../utils/toolIconMapping';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
+import { TooltipWrapper } from '../settings/providers/subcomponents/buttons/TooltipWrapper';
+import { Button } from '../ui/atoms/button';
+import type { LoadingStatus } from '../ui/atoms/Dot';
+import MarkdownContent from './MarkdownContent';
+import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
+import type { ToolCallArgumentValue } from './ToolCallArguments';
+import { ToolCallArguments } from './ToolCallArguments';
+import type { ToolCallStatus } from './ToolCallStatusIndicator';
+import { ToolIconWithStatus } from './ToolCallStatusIndicator';
 
 interface ToolGraphNode {
   tool: string;
@@ -385,8 +385,7 @@ const logToString = (logMessage: NotificationEvent) => {
   const params = message.params as Record<string, unknown>;
 
   if (
-    params &&
-    params.data &&
+    params?.data &&
     typeof params.data === 'object' &&
     'type' in params.data &&
     params.data.type === 'subagent_tool_request'
@@ -398,8 +397,7 @@ const logToString = (logMessage: NotificationEvent) => {
 
   // Special case for the developer system shell logs
   if (
-    params &&
-    params.data &&
+    params?.data &&
     typeof params.data === 'object' &&
     'output' in params.data &&
     'stream' in params.data
@@ -471,7 +469,6 @@ function ToolCallView({
     switch (responseStyle) {
       case 'concise':
         return false;
-      case 'detailed':
       default:
         return true;
     }
@@ -525,7 +522,7 @@ function ToolCallView({
       if (!map.has(key)) {
         map.set(key, []);
       }
-      map.get(key)!.push(item);
+      map.get(key)?.push(item);
       return map;
     }, new Map<string, Progress[]>());
 
@@ -803,15 +800,12 @@ function ToolCallView({
         ))}
 
       {/* Tool Output */}
-      {!isCancelledMessage && (
-        <>
-          {toolResults.map((result, index) => (
-            <div key={index} className={cn('border-t border-border-default')}>
-              <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
-            </div>
-          ))}
-        </>
-      )}
+      {!isCancelledMessage &&
+        toolResults.map((result, index) => (
+          <div key={index} className={cn('border-t border-border-default')}>
+            <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
+          </div>
+        ))}
     </ToolCallExpandable>
   );
 }
@@ -872,7 +866,7 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
             isStartExpanded={false}
           >
             <MarkdownContent
-              content={'```typescript\n' + code + '\n```'}
+              content={`\`\`\`typescript\n${code}\n\`\`\``}
               className="whitespace-pre-wrap max-w-full overflow-x-auto"
             />
           </ToolCallExpandable>
@@ -909,7 +903,7 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
         toolCall.name
       )
     ) {
-      return '```typescript\n' + text + '\n```';
+      return `\`\`\`typescript\n${text}\n\`\`\``;
     } else {
       return text;
     }
@@ -962,7 +956,7 @@ function ToolLogsView({
     if (boxRef.current) {
       boxRef.current.scrollTop = boxRef.current.scrollHeight;
     }
-  }, [logs.length]);
+  }, []);
   // normally we do not want to put .length on an array in react deps:
   //
   // if the objects inside the array change but length doesn't change you want updates

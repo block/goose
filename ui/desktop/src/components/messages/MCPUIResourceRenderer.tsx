@@ -1,19 +1,19 @@
-import { AppEvents } from '../../constants/events';
-import { UIResourceRenderer } from '@mcp-ui/client';
 import type {
+  UIActionResult,
   UIActionResultIntent,
   UIActionResultLink,
   UIActionResultNotification,
   UIActionResultPrompt,
   UIActionResultToolCall,
-  UIActionResult,
 } from '@mcp-ui/client';
-import { useState, useEffect } from 'react';
+import { UIResourceRenderer } from '@mcp-ui/client';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import type { EmbeddedResource } from '../../api';
+import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
 import { errorMessage } from '../../utils/conversionUtils';
-import { isProtocolSafe, getProtocol } from '../../utils/urlSecurity';
+import { getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
 
 interface MCPUIResourceRendererProps {
   content: EmbeddedResource & { type: 'resource' };

@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import { cn } from '../../utils';
 
 type PageWidth = 'narrow' | 'default' | 'wide' | 'full';
@@ -64,16 +64,8 @@ export function PageShell({
           <Header title={title} subtitle={subtitle} actions={actions} />
           {headerExtra}
         </div>
-        <div
-          {...bodyProps}
-          className={cn(
-            'flex-1 min-h-0 overflow-y-auto',
-            bodyProps?.className
-          )}
-        >
-          <div className={cn('mx-auto w-full px-8 pb-6', widthClass)}>
-            {children}
-          </div>
+        <div {...bodyProps} className={cn('flex-1 min-h-0 overflow-y-auto', bodyProps?.className)}>
+          <div className={cn('mx-auto w-full px-8 pb-6', widthClass)}>{children}</div>
         </div>
       </div>
     );

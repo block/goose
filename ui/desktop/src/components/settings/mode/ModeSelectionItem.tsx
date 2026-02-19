@@ -1,7 +1,7 @@
-import { useEffect, useState, forwardRef } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 import { Gear } from '../../icons';
-import { ConfigureApproveMode } from './ConfigureApproveMode';
 import PermissionRulesModal from '../permission/PermissionRulesModal';
+import { ConfigureApproveMode } from './ConfigureApproveMode';
 
 export interface GooseMode {
   key: string;
@@ -42,7 +42,7 @@ interface ModeSelectionItemProps {
 
 export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemProps>(
   ({ currentMode, mode, showDescription, isApproveModeConfigure, handleModeChange }, ref) => {
-    const [checked, setChecked] = useState(currentMode == mode.key);
+    const [checked, setChecked] = useState(currentMode === mode.key);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
 
@@ -64,16 +64,17 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
           </div>
 
           <div className="relative flex items-center gap-2">
-            {!isApproveModeConfigure && (mode.key == 'approve' || mode.key == 'smart_approve') && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent triggering the mode change
-                  setIsPermissionModalOpen(true);
-                }}
-              >
-                <Gear className="w-4 h-4 text-text-muted hover:text-text-default" />
-              </button>
-            )}
+            {!isApproveModeConfigure &&
+              (mode.key === 'approve' || mode.key === 'smart_approve') && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent triggering the mode change
+                    setIsPermissionModalOpen(true);
+                  }}
+                >
+                  <Gear className="w-4 h-4 text-text-muted hover:text-text-default" />
+                </button>
+              )}
             <input
               type="radio"
               name="modes"

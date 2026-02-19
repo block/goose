@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Tornado } from 'lucide-react';
-import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
+import { useCallback, useEffect, useState } from 'react';
 import { useConfig } from '../../contexts/ConfigContext';
+import { trackModeChanged } from '../../utils/analytics';
+import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../ui/molecules/dropdown-menu';
-import { trackModeChanged } from '../../utils/analytics';
 
 export const BottomMenuModeSelection = () => {
   const [gooseMode, setGooseMode] = useState('auto');

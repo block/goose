@@ -1,6 +1,6 @@
-import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
-import type { ExtensionConfig } from '../../../api/types.gen';
 import { parse as parseShellQuote, quote as quoteShell } from 'shell-quote';
+import type { ExtensionConfig } from '../../../api/types.gen';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 
 // Default extension timeout in seconds
 // TODO: keep in sync with rust better
@@ -59,7 +59,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
   const hasEnvs = extension.type === 'streamable_http' || extension.type === 'stdio';
 
   // Handle both envs (legacy) and env_keys (new secrets)
-  let envVars = [];
+  const envVars = [];
 
   // Add legacy envs with their values
   if (hasEnvs && extension.envs) {
@@ -84,7 +84,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
   }
 
   // Handle headers for streamable_http
-  let headers = [];
+  const headers = [];
   if (extension.type === 'streamable_http' && 'headers' in extension && extension.headers) {
     headers.push(
       ...Object.entries(extension.headers).map(([key, value]) => ({
@@ -113,7 +113,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     timeout: 'timeout' in extension ? (extension.timeout ?? undefined) : undefined,
     envVars,
     headers,
-    installation_notes: (extension as Record<string, unknown>)['installation_notes'] as
+    installation_notes: (extension as Record<string, unknown>).installation_notes as
       | string
       | undefined,
   };

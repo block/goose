@@ -1,26 +1,27 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
-  ReactFlow,
-  Background,
-  Controls,
-  MiniMap,
-  Panel,
-  useNodesState,
-  useEdgesState,
   addEdge,
+  Background,
   type Connection,
+  Controls,
   type Edge,
+  MiniMap,
   type Node,
   type OnConnect,
+  Panel,
+  ReactFlow,
   ReactFlowProvider,
+  useEdgesState,
+  useNodesState,
   useReactFlow,
 } from '@xyflow/react';
+import type React from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
-import { Save, Undo2, Redo2, FileJson, FileText } from 'lucide-react';
+import { FileJson, FileText, Redo2, Save, Undo2 } from 'lucide-react';
 import { nodeTypes } from './nodes';
 import { NodePalette } from './panels/NodePalette';
 import { PropertiesPanel } from './panels/PropertiesPanel';
-import { createNode, flowToPipeline, pipelineToYaml, pipelineToJson } from './serialization';
+import { createNode, flowToPipeline, pipelineToJson, pipelineToYaml } from './serialization';
 import type { DagNodeData, NodeKind, PipelineMetadata } from './types';
 
 interface DagEditorProps {

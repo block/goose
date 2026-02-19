@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
+import { useCallback, useEffect, useState } from 'react';
+import { trackSettingToggled } from '../../../utils/analytics';
+import type { KeyboardShortcuts } from '../../../utils/settings';
+import { defaultKeyboardShortcuts } from '../../../utils/settings';
 import { Button } from '../../ui/atoms/button';
 import { Switch } from '../../ui/atoms/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import { ShortcutRecorder } from './ShortcutRecorder';
-import { defaultKeyboardShortcuts } from '../../../utils/settings';
-import type { KeyboardShortcuts } from '../../../utils/settings';
-import { trackSettingToggled } from '../../../utils/analytics';
 
 interface ShortcutConfig {
   key: keyof KeyboardShortcuts;

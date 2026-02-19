@@ -1,17 +1,18 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Rocket, AlertCircle, ChevronDown } from 'lucide-react';
+import { AlertCircle, ChevronDown, Rocket } from 'lucide-react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { ProviderDetails } from '../../api';
+import { providers as fetchProviders, getProviderModels } from '../../api';
+import type { SpawnInstanceRequest } from '../../lib/instances';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
+  DialogHeader,
+  DialogTitle,
 } from '../ui/molecules/dialog';
-import type { SpawnInstanceRequest } from '../../lib/instances';
-import { providers as fetchProviders, getProviderModels } from '../../api';
-import type { ProviderDetails } from '../../api';
 
 interface SpawnInstanceModalProps {
   open: boolean;

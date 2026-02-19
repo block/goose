@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import CreateRecipeFromSessionModal from '../CreateRecipeFromSessionModal';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecipe } from '../../../api/sdk.gen';
 import type { CreateRecipeResponse } from '../../../api/types.gen';
+import CreateRecipeFromSessionModal from '../CreateRecipeFromSessionModal';
 
 vi.mock('../../../api/sdk.gen', () => ({
   createRecipe: vi.fn(),

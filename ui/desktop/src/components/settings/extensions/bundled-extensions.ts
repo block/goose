@@ -41,7 +41,7 @@ export async function syncBundledExtensions(
 
     for (let i = existingExtensions.length - 1; i >= 0; i--) {
       const ext = existingExtensions[i];
-      if (ext.type == 'builtin' && DEPRECATED_BUILTINS.includes(ext.name)) {
+      if (ext.type === 'builtin' && DEPRECATED_BUILTINS.includes(ext.name)) {
         existingExtensions.splice(i, 1);
       }
     }

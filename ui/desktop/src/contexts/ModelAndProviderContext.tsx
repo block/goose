@@ -1,15 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { toastError, toastSuccess } from '../toasts';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { ProviderMetadata } from '../api';
+import { setConfigProvider, updateAgentProvider } from '../api';
 import type Model from '../components/settings/models/modelInterface';
 import { getProviderMetadata } from '../components/settings/models/modelInterface';
-import { setConfigProvider, updateAgentProvider } from '../api';
-import type { ProviderMetadata } from '../api';
-import { useConfig } from './ConfigContext';
-import { errorMessage } from '../utils/conversionUtils';
 import {
   getModelDisplayName,
   getProviderDisplayName,
 } from '../components/settings/models/predefinedModelsUtils';
+import { toastError, toastSuccess } from '../toasts';
+import { errorMessage } from '../utils/conversionUtils';
+import { useConfig } from './ConfigContext';
 
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';
 export const UNKNOWN_PROVIDER_MSG = 'Unknown provider in config -- please inspect your config.yaml';

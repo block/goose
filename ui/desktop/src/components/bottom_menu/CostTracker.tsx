@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import type { PricingData } from '../../api';
 import { useModelAndProvider } from '../../contexts/ModelAndProviderContext';
+import { fetchModelPricing } from '../../utils/pricing';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
-import { fetchModelPricing } from '../../utils/pricing';
-import type { PricingData } from '../../api';
 
 interface CostTrackerProps {
   inputTokens?: number;

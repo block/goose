@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
 import { app } from 'electron';
 
 const RECENT_DIRS_FILE = path.join(app.getPath('userData'), 'recent-dirs.json');

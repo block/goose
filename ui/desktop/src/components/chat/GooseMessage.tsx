@@ -1,38 +1,38 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import ImagePreview from '../shared/ImagePreview';
-import { formatMessageTimestamp } from '../../utils/timeUtils';
-import MarkdownContent from '../messages/MarkdownContent';
-import ToolCallWithResponse from '../messages/ToolCallWithResponse';
 import { Brain, ChevronRight } from 'lucide-react';
-import {
-  getTextAndImageContent,
-  getToolRequests,
-  getToolResponses,
-  getToolConfirmationContent,
-  getElicitationContent,
-  getPendingToolConfirmationIds,
-  getAnyToolConfirmationData,
-} from '../../types/message';
-import type {
-  MessageWithAttribution,
-  ToolConfirmationData,
-  NotificationEvent,
-} from '../../types/message';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Message } from '../../api';
-import ToolCallConfirmation from '../messages/ToolCallConfirmation';
-import ElicitationRequest from '../messages/ElicitationRequest';
-import MessageCopyLink from '../messages/MessageCopyLink';
-import { cn } from '../../utils';
-import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../../utils/toolCallChaining';
 import { AppEvents } from '../../constants/events';
 import { useReasoningDetail } from '../../contexts/ReasoningDetailContext';
+import type {
+  MessageWithAttribution,
+  NotificationEvent,
+  ToolConfirmationData,
+} from '../../types/message';
+import {
+  getAnyToolConfirmationData,
+  getElicitationContent,
+  getPendingToolConfirmationIds,
+  getTextAndImageContent,
+  getToolConfirmationContent,
+  getToolRequests,
+  getToolResponses,
+} from '../../types/message';
+import { cn } from '../../utils';
 import {
   extractGenerativeSpec,
   hasPartialGenerativeSpec,
   stripPartialGenerativeSpec,
 } from '../../utils/generativeSpec';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
+import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../../utils/toolCallChaining';
+import ElicitationRequest from '../messages/ElicitationRequest';
+import MarkdownContent from '../messages/MarkdownContent';
+import MessageCopyLink from '../messages/MessageCopyLink';
+import ToolCallConfirmation from '../messages/ToolCallConfirmation';
+import ToolCallWithResponse from '../messages/ToolCallWithResponse';
+import ImagePreview from '../shared/ImagePreview';
 import { GooseGenerativeUI } from '../ui/design-system/goose-renderer';
-import { useNavigate } from 'react-router-dom';
 
 function ThinkingSection({
   cotText,
@@ -162,7 +162,7 @@ export default function GooseMessage({
 
   const hideToolCalls = responseStyle === 'hidden';
 
-  let { textContent, imagePaths } = getTextAndImageContent(message);
+  const { textContent, imagePaths } = getTextAndImageContent(message);
 
   const stripInternalTags = (text: string, streaming: boolean): string => {
     let cleaned = text

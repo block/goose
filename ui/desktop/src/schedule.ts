@@ -1,17 +1,16 @@
+import type { Recipe, SessionDisplayInfo } from './api';
 import {
-  listSchedules as apiListSchedules,
   createSchedule as apiCreateSchedule,
   deleteSchedule as apiDeleteSchedule,
+  sessionsHandler as apiGetScheduleSessions,
+  inspectRunningJob as apiInspectRunningJob,
+  killRunningJob as apiKillRunningJob,
+  listSchedules as apiListSchedules,
   pauseSchedule as apiPauseSchedule,
+  runNowHandler as apiRunScheduleNow,
   unpauseSchedule as apiUnpauseSchedule,
   updateSchedule as apiUpdateSchedule,
-  sessionsHandler as apiGetScheduleSessions,
-  runNowHandler as apiRunScheduleNow,
-  killRunningJob as apiKillRunningJob,
-  inspectRunningJob as apiInspectRunningJob,
 } from './api';
-import type { SessionDisplayInfo } from './api';
-import type { Recipe } from './api';
 
 export interface ScheduledJob {
   id: string;
@@ -42,7 +41,7 @@ export interface ScheduleSession {
 export async function listSchedules(): Promise<ScheduledJob[]> {
   try {
     const response = await apiListSchedules<true>();
-    if (response && response.data && Array.isArray(response.data.jobs)) {
+    if (response?.data && Array.isArray(response.data.jobs)) {
       return response.data.jobs as ScheduledJob[];
     }
     console.error('Unexpected response format from apiListSchedules', response);
@@ -94,7 +93,7 @@ export async function runScheduleNow(scheduleId: string): Promise<string> {
       path: { id: scheduleId },
     });
 
-    if (response && response.data && response.data.session_id) {
+    if (response?.data?.session_id) {
       return response.data.session_id;
     }
     console.error('Unexpected response format from apiRunScheduleNow', response);
@@ -134,7 +133,7 @@ export async function updateSchedule(scheduleId: string, cron: string): Promise<
       body: { cron },
     });
 
-    if (response && response.data) {
+    if (response?.data) {
       return response.data as ScheduledJob;
     }
     console.error('Unexpected response format from apiUpdateSchedule', response);
@@ -161,7 +160,7 @@ export async function killRunningJob(scheduleId: string): Promise<KillJobRespons
       path: { id: scheduleId },
     });
 
-    if (response && response.data) {
+    if (response?.data) {
       return response.data as KillJobResponse;
     }
     console.error('Unexpected response format from apiKillRunningJob', response);
@@ -178,7 +177,7 @@ export async function inspectRunningJob(scheduleId: string): Promise<InspectJobR
       path: { id: scheduleId },
     });
 
-    if (response && response.data) {
+    if (response?.data) {
       return response.data as InspectJobResponse;
     }
     console.error('Unexpected response format from apiInspectRunningJob', response);

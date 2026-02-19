@@ -1,21 +1,27 @@
-import { useState, useEffect } from 'react';
-import { Button } from '../../ui/atoms/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/molecules/dialog';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
-import { QRCodeSVG } from 'qrcode.react';
 import {
-  Loader2,
-  Copy,
   Check,
   ChevronDown,
   ChevronUp,
-  Info,
+  Copy,
   ExternalLink,
+  Info,
+  Loader2,
   QrCode,
 } from 'lucide-react';
-import { errorMessage } from '../../../utils/conversionUtils';
-import { startTunnel, stopTunnel, getTunnelStatus } from '../../../api/sdk.gen';
+import { QRCodeSVG } from 'qrcode.react';
+import { useEffect, useState } from 'react';
+import { getTunnelStatus, startTunnel, stopTunnel } from '../../../api/sdk.gen';
 import type { TunnelInfo } from '../../../api/types.gen';
+import { errorMessage } from '../../../utils/conversionUtils';
+import { Button } from '../../ui/atoms/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../ui/molecules/dialog';
 
 const STATUS_MESSAGES = {
   idle: 'Tunnel is not running',

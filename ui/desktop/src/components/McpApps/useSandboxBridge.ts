@@ -1,20 +1,20 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import packageJson from '../../../package.json';
+import { useTheme } from '../../contexts/ThemeContext';
+import { errorMessage } from '../../utils/conversionUtils';
 import type {
+  CspMetadata,
+  HostContext,
   JsonRpcMessage,
-  JsonRpcRequest,
   JsonRpcNotification,
+  JsonRpcRequest,
+  PermissionsMetadata,
+  ToolCancelled,
   ToolInput,
   ToolInputPartial,
   ToolResult,
-  ToolCancelled,
-  HostContext,
-  CspMetadata,
-  PermissionsMetadata,
 } from './types';
 import { fetchMcpAppProxyUrl } from './utils';
-import { useTheme } from '../../contexts/ThemeContext';
-import packageJson from '../../../package.json';
-import { errorMessage } from '../../utils/conversionUtils';
 
 interface SandboxBridgeOptions {
   resourceHtml: string;
@@ -64,7 +64,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
   // Reset initialization state when resource changes
   useEffect(() => {
     isGuestInitializedRef.current = false;
-  }, [resourceUri]);
+  }, []);
 
   const sendToSandbox = useCallback((message: JsonRpcMessage) => {
     iframeRef.current?.contentWindow?.postMessage(message, '*');

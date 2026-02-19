@@ -1,14 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  AreaChart,
   Area,
-  BarChart,
+  AreaChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 import { getResponseQuality } from '../../api';
 
@@ -102,14 +102,22 @@ function qualityScore(m: ResponseQualityMetrics): number {
 }
 
 function ScoreGauge({ score }: { score: number }) {
-  const colorClass = score >= 80 ? 'text-text-success' : score >= 60 ? 'text-text-warning' : 'text-text-danger';
+  const colorClass =
+    score >= 80 ? 'text-text-success' : score >= 60 ? 'text-text-warning' : 'text-text-danger';
   const circumference = 2 * Math.PI * 45;
   const filled = (score / 100) * circumference;
 
   return (
     <div className="flex flex-col items-center">
       <svg width="120" height="120" viewBox="0 0 120 120" className={colorClass}>
-        <circle cx="60" cy="60" r="45" fill="none" className="stroke-border-default" strokeWidth="8" />
+        <circle
+          cx="60"
+          cy="60"
+          r="45"
+          fill="none"
+          className="stroke-border-default"
+          strokeWidth="8"
+        />
         <circle
           cx="60"
           cy="60"
@@ -121,7 +129,14 @@ function ScoreGauge({ score }: { score: number }) {
           strokeLinecap="round"
           transform="rotate(-90 60 60)"
         />
-        <text x="60" y="55" textAnchor="middle" className="fill-text-default" fontSize="28" fontWeight="bold">
+        <text
+          x="60"
+          y="55"
+          textAnchor="middle"
+          className="fill-text-default"
+          fontSize="28"
+          fontWeight="bold"
+        >
           {score}
         </text>
         <text x="60" y="75" textAnchor="middle" className="fill-text-muted" fontSize="12">

@@ -1,18 +1,19 @@
-import React, { memo, useMemo, useCallback, useState } from 'react';
-import { ProviderCard } from './subcomponents/ProviderCard';
-import CardContainer from './subcomponents/CardContainer';
-import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
+import { Plus } from 'lucide-react';
+import type React from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import type {
   DeclarativeProviderConfig,
   ProviderDetails,
   UpdateCustomProviderRequest,
 } from '../../../api';
-import { Plus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
-import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
-import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../../contexts/ModelAndProviderContext';
 import type { View } from '../../../utils/navigationUtils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
+import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
+import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
+import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
+import CardContainer from './subcomponents/CardContainer';
+import { ProviderCard } from './subcomponents/ProviderCard';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -241,7 +242,7 @@ function ProviderCards({
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
-  const title = (editingProvider ? (editable ? 'Edit' : 'Configure') : 'Add') + '  Provider';
+  const title = `${editingProvider ? (editable ? 'Edit' : 'Configure') : 'Add'}  Provider`;
   return (
     <>
       {providerCards}

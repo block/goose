@@ -1,21 +1,22 @@
-import { Sliders, Bot } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { Bot, Sliders } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import { useConfig } from '../../../../contexts/ConfigContext';
 import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
-import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
-import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
 import type { View } from '../../../../utils/navigationUtils';
+import type { Alert } from '../../../alerts';
+import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
+import { useCurrentModelInfo } from '../../../chat/BaseChat';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../ui/molecules/dropdown-menu';
-import { useCurrentModelInfo } from '../../../chat/BaseChat';
-import { useConfig } from '../../../../contexts/ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
-import type { Alert } from '../../../alerts';
-import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
+import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
+import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
@@ -30,10 +31,7 @@ export default function ModelsBottomBar({
   setView,
   alerts,
 }: ModelsBottomBarProps) {
-  const {
-    currentModel,
-    currentProvider,
-  } = useModelAndProvider();
+  const { currentModel, currentProvider } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
@@ -115,7 +113,7 @@ export default function ModelsBottomBar({
       .catch(() => {
         setDisplayProvider(currentProvider);
       });
-  }, [currentProvider, currentModel, getProviders]);
+  }, [currentProvider, getProviders]);
 
   // Fetch provider default model when provider changes and no current model
   useEffect(() => {

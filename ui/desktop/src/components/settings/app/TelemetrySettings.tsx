@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Switch } from '../../ui/atoms/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
+import { useCallback, useEffect, useState } from 'react';
 import { useConfig } from '../../../contexts/ConfigContext';
-import { TELEMETRY_UI_ENABLED } from '../../../updates';
-import TelemetryOptOutModal from '../../modals/TelemetryOptOutModal';
 import { toastService } from '../../../toasts';
+import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
   trackTelemetryPreference,
 } from '../../../utils/analytics';
+import TelemetryOptOutModal from '../../modals/TelemetryOptOutModal';
+import { Switch } from '../../ui/atoms/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import type { Parameter } from '../../recipe';
-import { Button } from '../ui/atoms/button';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import { Button } from '../ui/atoms/button';
 
 interface ParameterInputModalProps {
   parameters: Parameter[];

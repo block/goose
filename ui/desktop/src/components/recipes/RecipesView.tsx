@@ -1,67 +1,67 @@
-import { useState, useEffect, useMemo } from 'react';
-import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
+import cronstrue from 'cronstrue';
 import {
-  FileText,
-  Edit,
-  Trash2,
-  Play,
-  Calendar,
   AlertCircle,
-  Link,
-  Clock,
-  Terminal,
-  ExternalLink,
-  Share2,
-  Copy,
-  Download,
+  Calendar,
   ChevronDown,
   ChevronRight,
+  Clock,
+  Copy,
+  Download,
+  Edit,
+  ExternalLink,
+  FileText,
   GitBranch,
+  Link,
+  Play,
+  Share2,
+  Terminal,
+  Trash2,
 } from 'lucide-react';
-import { Card } from '../ui/molecules/card';
-import { Button } from '../ui/atoms/button';
-import { Skeleton } from '../ui/atoms/skeleton';
-import { PageShell } from '../Layout/PageShell';
-import { toastSuccess, toastError } from '../../toasts';
-import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { useEffect, useMemo, useState } from 'react';
+import type { RecipeManifest } from '../../api';
 import {
   deleteRecipe,
-  startAgent,
+  recipeToYaml,
   scheduleRecipe,
   setRecipeSlashCommand,
-  recipeToYaml,
+  startAgent,
 } from '../../api';
-import type { RecipeManifest } from '../../api';
-import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
-import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, encodeRecipe, stripEmptyExtensions } from '../../recipe';
-import type { Recipe } from '../../recipe';
+import { AppEvents } from '../../constants/events';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { useNavigation } from '../../hooks/useNavigation';
-import { CronPicker } from '../schedule/CronPicker';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/molecules/dialog';
-import { SearchView } from '../conversation/SearchView';
-import cronstrue from 'cronstrue';
-import { getInitialWorkingDir } from '../../utils/workingDir';
+import type { Recipe } from '../../recipe';
+import { encodeRecipe, generateDeepLink, stripEmptyExtensions } from '../../recipe';
+import { convertToLocaleDateString, listSavedRecipes } from '../../recipe/recipe_management';
+import { toastError, toastSuccess } from '../../toasts';
 import {
-  trackRecipeDeleted,
-  trackRecipeStarted,
+  getErrorType,
   trackRecipeDeeplinkCopied,
-  trackRecipeYamlCopied,
+  trackRecipeDeleted,
   trackRecipeExportedToFile,
   trackRecipeScheduled,
   trackRecipeSlashCommandSet,
-  getErrorType,
+  trackRecipeStarted,
+  trackRecipeYamlCopied,
 } from '../../utils/analytics';
+import { errorMessage } from '../../utils/conversionUtils';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { getInitialWorkingDir } from '../../utils/workingDir';
+import { SearchView } from '../conversation/SearchView';
+import { PageShell } from '../Layout/PageShell';
+import { CronPicker } from '../schedule/CronPicker';
+import { Button } from '../ui/atoms/button';
+import { Skeleton } from '../ui/atoms/skeleton';
+import { Card } from '../ui/molecules/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/molecules/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '../ui/molecules/dropdown-menu';
-import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { errorMessage } from '../../utils/conversionUtils';
-import { AppEvents } from '../../constants/events';
+import CreateEditRecipeModal from './CreateEditRecipeModal';
+import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 
 export default function RecipesView() {
   const setView = useNavigation();
@@ -155,10 +155,7 @@ export default function RecipesView() {
       (m) => !parentMap.has(m.id) && !childIds.has(m.id)
     );
 
-    return [
-      ...parentGroups,
-      ...standaloneRecipes.map((m) => ({ parent: m, children: [] })),
-    ];
+    return [...parentGroups, ...standaloneRecipes.map((m) => ({ parent: m, children: [] }))];
   }, [filteredRecipes]);
 
   const toggleParentExpanded = (parentId: string) => {
@@ -172,26 +169,6 @@ export default function RecipesView() {
       return next;
     });
   };
-
-  useEffect(() => {
-    loadSavedRecipes();
-  }, []);
-
-  useEscapeKey(showEditor, () => setShowEditor(false));
-
-  useEffect(() => {
-    if (!loading && showSkeleton) {
-      const timer = setTimeout(() => {
-        setShowSkeleton(false);
-        setTimeout(() => {
-          setShowContent(true);
-        }, 50);
-      }, 300);
-
-      return () => clearTimeout(timer);
-    }
-    return () => void 0;
-  }, [loading, showSkeleton]);
 
   const loadSavedRecipes = async () => {
     try {
@@ -208,6 +185,26 @@ export default function RecipesView() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadSavedRecipes();
+  }, [loadSavedRecipes]);
+
+  useEscapeKey(showEditor, () => setShowEditor(false));
+
+  useEffect(() => {
+    if (!loading && showSkeleton) {
+      const timer = setTimeout(() => {
+        setShowSkeleton(false);
+        setTimeout(() => {
+          setShowContent(true);
+        }, 50);
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+    return () => void 0;
+  }, [loading, showSkeleton]);
 
   const handleStartRecipeChat = async (recipe: Recipe) => {
     try {
@@ -801,15 +798,15 @@ export default function RecipesView() {
           </>
         }
       >
-              <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search recipes...">
-                <div
-                  className={`h-full relative transition-all duration-300 ${
-                    showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
-                  }`}
-                >
-                  {renderContent()}
-                </div>
-              </SearchView>
+        <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search recipes...">
+          <div
+            className={`h-full relative transition-all duration-300 ${
+              showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
+            }`}
+          >
+            {renderContent()}
+          </div>
+        </SearchView>
       </PageShell>
 
       {showEditor && selectedRecipe && (

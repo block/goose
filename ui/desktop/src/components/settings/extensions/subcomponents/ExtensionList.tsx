@@ -1,11 +1,11 @@
-import ExtensionItem from './ExtensionItem';
-import builtInExtensionsData from '../../../../built-in-extensions.json';
 import type { ExtensionConfig } from '../../../../api';
+import builtInExtensionsData from '../../../../built-in-extensions.json';
 import type { FixedExtensionEntry } from '../../../../contexts/ConfigContext';
+import ExtensionItem from './ExtensionItem';
 
 interface ExtensionListProps {
   extensions: FixedExtensionEntry[];
-  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
+  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | undefined> | undefined;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean;
   disableConfiguration?: boolean;
@@ -129,7 +129,7 @@ export function getSubtitle(config: ExtensionConfig) {
     case 'streamable_http': {
       const prefix = `${config.type.toUpperCase().replace('_', ' ')} extension`;
       return {
-        description: `${prefix}${config.description ? ': ' + config.description : ''}`,
+        description: `${prefix}${config.description ? `: ${config.description}` : ''}`,
         command: config.uri || null,
       };
     }

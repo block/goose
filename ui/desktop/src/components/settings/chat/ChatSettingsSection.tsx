@@ -1,10 +1,10 @@
-import { ModeSection } from '../mode/ModeSection';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import { DictationSettings } from '../dictation/DictationSettings';
-import { SecurityToggle } from '../security/SecurityToggle';
+import { ModeSection } from '../mode/ModeSection';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
+import { SecurityToggle } from '../security/SecurityToggle';
 import { GoosehintsSection } from './GoosehintsSection';
 import { SpellcheckToggle } from './SpellcheckToggle';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 
 export default function ChatSettingsSection() {
   return (

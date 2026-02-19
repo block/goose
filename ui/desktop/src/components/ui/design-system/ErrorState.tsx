@@ -1,5 +1,5 @@
-import { cn } from '../../../utils';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { cn } from '../../../utils';
 
 interface ErrorStateProps {
   title?: string;
@@ -15,14 +15,14 @@ export function ErrorState({
   className,
 }: ErrorStateProps) {
   return (
-    <div className={cn('flex flex-col items-center justify-center py-12 px-4 text-center', className)}>
+    <div
+      className={cn('flex flex-col items-center justify-center py-12 px-4 text-center', className)}
+    >
       <div className="h-12 w-12 rounded-full bg-background-danger-muted flex items-center justify-center mb-4">
         <AlertTriangle className="h-6 w-6 text-text-danger" />
       </div>
       <h3 className="text-sm font-medium text-text-default mb-1">{title}</h3>
-      {message && (
-        <p className="text-sm text-text-muted max-w-sm">{message}</p>
-      )}
+      {message && <p className="text-sm text-text-muted max-w-sm">{message}</p>}
       {onRetry && (
         <button
           onClick={onRetry}

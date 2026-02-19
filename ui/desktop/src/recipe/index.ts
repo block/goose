@@ -1,10 +1,10 @@
-import {
-  encodeRecipe as apiEncodeRecipe,
-  decodeRecipe as apiDecodeRecipe,
-  scanRecipe as apiScanRecipe,
-  parseRecipe as apiParseRecipe,
-} from '../api';
 import type { RecipeParameter } from '../api';
+import {
+  decodeRecipe as apiDecodeRecipe,
+  encodeRecipe as apiEncodeRecipe,
+  parseRecipe as apiParseRecipe,
+  scanRecipe as apiScanRecipe,
+} from '../api';
 
 // Re-export OpenAPI types with frontend-specific additions
 export type Parameter = RecipeParameter;
@@ -33,7 +33,6 @@ export async function encodeRecipe(recipe: Recipe): Promise<string> {
 }
 
 export async function decodeRecipe(deeplink: string): Promise<Recipe> {
-
   try {
     const response = await apiDecodeRecipe({
       body: { deeplink },

@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
 } from 'recharts';
+import type { EvalDatasetSummary, EvalOverview } from '../../api';
 import { getEvalOverview, listEvalDatasets, runEval } from '../../api';
-import type { EvalOverview, EvalDatasetSummary } from '../../api';
 
 const COLORS = {
   green: '#22c55e',
@@ -106,7 +106,7 @@ export default function EvalOverviewTab() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const handleRunAll = async () => {
     if (datasets.length === 0) return;

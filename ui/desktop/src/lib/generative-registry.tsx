@@ -8,9 +8,20 @@
  * We cast to specific shapes in each component for type safety.
  */
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
 
 const CHART_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
@@ -27,16 +38,23 @@ const statusColors: Record<string, string> = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyProps = any;
 
-// @ts-ignore — zod 3/4 compatibility
+// @ts-expect-error — zod 3/4 compatibility
 export const { registry } = defineRegistry(gooseCatalog, {
   components: {
     // --- Layout ---
     Grid: ({ props: rawProps, children }: { props: AnyProps; children?: React.ReactNode }) => {
       const props = rawProps as { columns: number; gap: string };
-      const cols: Record<number, string> = { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' };
+      const cols: Record<number, string> = {
+        1: 'grid-cols-1',
+        2: 'grid-cols-2',
+        3: 'grid-cols-3',
+        4: 'grid-cols-4',
+      };
       const gaps: Record<string, string> = { sm: 'gap-2', md: 'gap-4', lg: 'gap-6' };
       return (
-        <div className={`grid ${cols[props.columns] || 'grid-cols-2'} ${gaps[props.gap] || 'gap-4'}`}>
+        <div
+          className={`grid ${cols[props.columns] || 'grid-cols-2'} ${gaps[props.gap] || 'gap-4'}`}
+        >
           {children}
         </div>
       );
@@ -57,17 +75,29 @@ export const { registry } = defineRegistry(gooseCatalog, {
 
     // --- Data Display ---
     MetricCard: ({ props: rawProps }: { props: AnyProps }) => {
-      const props = rawProps as { label: string; value: string; delta?: string; deltaType?: string; description?: string };
+      const props = rawProps as {
+        label: string;
+        value: string;
+        delta?: string;
+        deltaType?: string;
+        description?: string;
+      };
       return (
         <div className="bg-background-muted border border-border-default rounded-xl p-4 space-y-1">
           <div className="text-sm text-text-muted">{props.label}</div>
           <div className="text-2xl font-bold text-text-default">{props.value}</div>
           {props.delta && (
-            <div className={`text-sm font-medium ${
-              props.deltaType === 'positive' ? 'text-text-success' :
-              props.deltaType === 'negative' ? 'text-text-danger' : 'text-text-muted'
-            }`}>
-              {props.deltaType === 'positive' ? '↑' : props.deltaType === 'negative' ? '↓' : '→'} {props.delta}
+            <div
+              className={`text-sm font-medium ${
+                props.deltaType === 'positive'
+                  ? 'text-text-success'
+                  : props.deltaType === 'negative'
+                    ? 'text-text-danger'
+                    : 'text-text-muted'
+              }`}
+            >
+              {props.deltaType === 'positive' ? '↑' : props.deltaType === 'negative' ? '↓' : '→'}{' '}
+              {props.delta}
             </div>
           )}
           {props.description && <div className="text-xs text-text-muted">{props.description}</div>}
@@ -88,7 +118,10 @@ export const { registry } = defineRegistry(gooseCatalog, {
             <thead>
               <tr className="bg-background-muted">
                 {props.columns.map((col) => (
-                  <th key={col.key} className={`px-3 py-2 font-medium text-text-default text-${col.align || 'left'}`}>
+                  <th
+                    key={col.key}
+                    className={`px-3 py-2 font-medium text-text-default text-${col.align || 'left'}`}
+                  >
                     {col.label}
                   </th>
                 ))}
@@ -98,7 +131,10 @@ export const { registry } = defineRegistry(gooseCatalog, {
               {rows.map((row, i) => (
                 <tr key={i} className="hover:bg-background-active">
                   {props.columns.map((col) => (
-                    <td key={col.key} className={`px-3 py-2 text-text-default text-${col.align || 'left'}`}>
+                    <td
+                      key={col.key}
+                      className={`px-3 py-2 text-text-default text-${col.align || 'left'}`}
+                    >
                       {String(row[col.key] ?? '')}
                     </td>
                   ))}
@@ -112,8 +148,13 @@ export const { registry } = defineRegistry(gooseCatalog, {
 
     Chart: ({ props: rawProps }: { props: AnyProps }) => {
       const props = rawProps as {
-        type: string; data: Array<Record<string, string | number>>;
-        xKey: string; yKeys: string[]; height?: number; title?: string; colors?: string[];
+        type: string;
+        data: Array<Record<string, string | number>>;
+        xKey: string;
+        yKeys: string[];
+        height?: number;
+        title?: string;
+        colors?: string[];
       };
       const colors = props.colors || CHART_COLORS;
       const height = props.height || 300;
@@ -121,20 +162,38 @@ export const { registry } = defineRegistry(gooseCatalog, {
       if (props.type === 'pie') {
         return (
           <div className="space-y-2">
-            {props.title && <h4 className="text-sm font-medium text-text-default">{props.title}</h4>}
+            {props.title && (
+              <h4 className="text-sm font-medium text-text-default">{props.title}</h4>
+            )}
             <ResponsiveContainer width="100%" height={height}>
               <PieChart>
-                <Pie data={props.data} dataKey={props.yKeys[0]} nameKey={props.xKey} cx="50%" cy="50%" outerRadius={80}>
-                  {props.data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+                <Pie
+                  data={props.data}
+                  dataKey={props.yKeys[0]}
+                  nameKey={props.xKey}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                >
+                  {props.data.map((_, i) => (
+                    <Cell key={i} fill={colors[i % colors.length]} />
+                  ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: 'var(--background-muted)', border: '1px solid var(--border-default)', borderRadius: '8px' }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'var(--background-muted)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
         );
       }
 
-      const ChartComponent = props.type === 'bar' ? BarChart : props.type === 'line' ? LineChart : AreaChart;
+      const ChartComponent =
+        props.type === 'bar' ? BarChart : props.type === 'line' ? LineChart : AreaChart;
       const DataComponent = props.type === 'bar' ? Bar : props.type === 'line' ? Line : Area;
 
       return (
@@ -146,9 +205,14 @@ export const { registry } = defineRegistry(gooseCatalog, {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
               <XAxis dataKey={props.xKey} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
               <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-              <Tooltip contentStyle={{ backgroundColor: 'var(--background-muted)', border: '1px solid var(--border-default)', borderRadius: '8px' }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--background-muted)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '8px',
+                }}
+              />
               {props.yKeys.map((key, i) => (
-                // @ts-ignore — dynamic component selection
                 <DataComponent
                   key={key}
                   type="monotone"
@@ -166,7 +230,12 @@ export const { registry } = defineRegistry(gooseCatalog, {
 
     ProgressBar: ({ props: rawProps }: { props: AnyProps }) => {
       const props = rawProps as { label: string; value: number; color?: string };
-      const barColors: Record<string, string> = { green: 'bg-green-500', yellow: 'bg-yellow-500', red: 'bg-red-500', blue: 'bg-blue-500' };
+      const barColors: Record<string, string> = {
+        green: 'bg-green-500',
+        yellow: 'bg-yellow-500',
+        red: 'bg-red-500',
+        blue: 'bg-blue-500',
+      };
       return (
         <div className="space-y-1">
           <div className="flex justify-between text-sm">
@@ -187,7 +256,9 @@ export const { registry } = defineRegistry(gooseCatalog, {
     StatusBadge: ({ props: rawProps }: { props: AnyProps }) => {
       const props = rawProps as { label: string; status: string };
       return (
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[props.status] || statusColors.neutral}`}>
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[props.status] || statusColors.neutral}`}
+        >
           {props.label}
         </span>
       );
@@ -254,15 +325,23 @@ export const { registry } = defineRegistry(gooseCatalog, {
           {props.items.map((item, i) => (
             <li key={i} className="flex items-start gap-2">
               {item.status && (
-                <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
-                  item.status === 'success' ? 'bg-text-success' :
-                  item.status === 'error' ? 'bg-text-danger' :
-                  item.status === 'warning' ? 'bg-text-warning' : 'bg-text-info'
-                }`} />
+                <span
+                  className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                    item.status === 'success'
+                      ? 'bg-text-success'
+                      : item.status === 'error'
+                        ? 'bg-text-danger'
+                        : item.status === 'warning'
+                          ? 'bg-text-warning'
+                          : 'bg-text-info'
+                  }`}
+                />
               )}
               <div>
                 <span className="text-sm text-text-default">{item.label}</span>
-                {item.description && <span className="text-xs text-text-muted ml-2">{item.description}</span>}
+                {item.description && (
+                  <span className="text-xs text-text-muted ml-2">{item.description}</span>
+                )}
               </div>
             </li>
           ))}
@@ -280,7 +359,9 @@ export const { registry } = defineRegistry(gooseCatalog, {
         ghost: 'hover:bg-background-active text-text-default',
       };
       return (
-        <button className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${variants[props.variant || 'primary'] || variants.primary}`}>
+        <button
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${variants[props.variant || 'primary'] || variants.primary}`}
+        >
           {props.label}
         </button>
       );
@@ -288,7 +369,13 @@ export const { registry } = defineRegistry(gooseCatalog, {
 
     // --- Goose-Specific ---
     SessionCard: ({ props: rawProps }: { props: AnyProps }) => {
-      const props = rawProps as { name: string; provider?: string; messageCount?: number; tokenCount?: number; createdAt?: string };
+      const props = rawProps as {
+        name: string;
+        provider?: string;
+        messageCount?: number;
+        tokenCount?: number;
+        createdAt?: string;
+      };
       return (
         <div className="bg-background-muted border border-border-default rounded-xl p-4 hover:border-border-strong transition-colors cursor-pointer">
           <div className="font-medium text-text-default">{props.name}</div>
@@ -303,9 +390,16 @@ export const { registry } = defineRegistry(gooseCatalog, {
     },
 
     ToolResult: ({ props: rawProps }: { props: AnyProps }) => {
-      const props = rawProps as { toolName: string; status: string; duration?: string; output?: string };
+      const props = rawProps as {
+        toolName: string;
+        status: string;
+        duration?: string;
+        output?: string;
+      };
       return (
-        <div className={`p-3 rounded-lg border ${props.status === 'success' ? 'border-text-success/20 bg-text-success/5' : 'border-text-danger/20 bg-text-danger/5'}`}>
+        <div
+          className={`p-3 rounded-lg border ${props.status === 'success' ? 'border-text-success/20 bg-text-success/5' : 'border-text-danger/20 bg-text-danger/5'}`}
+        >
           <div className="flex items-center gap-2">
             <span className={props.status === 'success' ? 'text-text-success' : 'text-text-danger'}>
               {props.status === 'success' ? '✓' : '✗'}
@@ -313,21 +407,30 @@ export const { registry } = defineRegistry(gooseCatalog, {
             <span className="font-mono text-sm text-text-default">{props.toolName}</span>
             {props.duration && <span className="text-xs text-text-muted">{props.duration}</span>}
           </div>
-          {props.output && <pre className="mt-2 text-xs text-text-muted overflow-x-auto">{props.output}</pre>}
+          {props.output && (
+            <pre className="mt-2 text-xs text-text-muted overflow-x-auto">{props.output}</pre>
+          )}
         </div>
       );
     },
 
     EvalResult: ({ props: rawProps }: { props: AnyProps }) => {
       const props = rawProps as {
-        datasetName: string; accuracy: number; agentAccuracy?: number;
-        modeAccuracy?: number; testCount: number; passCount: number; failCount: number;
+        datasetName: string;
+        accuracy: number;
+        agentAccuracy?: number;
+        modeAccuracy?: number;
+        testCount: number;
+        passCount: number;
+        failCount: number;
       };
       return (
         <div className="bg-background-muted border border-border-default rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-medium text-text-default">{props.datasetName}</span>
-            <span className={`text-lg font-bold ${props.accuracy >= 90 ? 'text-text-success' : props.accuracy >= 70 ? 'text-text-warning' : 'text-text-danger'}`}>
+            <span
+              className={`text-lg font-bold ${props.accuracy >= 90 ? 'text-text-success' : props.accuracy >= 70 ? 'text-text-warning' : 'text-text-danger'}`}
+            >
               {props.accuracy.toFixed(1)}%
             </span>
           </div>

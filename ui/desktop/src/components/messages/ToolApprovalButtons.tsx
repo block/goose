@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Button } from '../ui/atoms/button';
-import { confirmToolAction } from '../../api';
+import { useEffect, useState } from 'react';
 import type { Permission } from '../../api';
+import { confirmToolAction } from '../../api';
+import { Button } from '../ui/atoms/button';
 
 const globalApprovalState = new Map<
   string,

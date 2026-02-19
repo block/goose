@@ -1,51 +1,51 @@
-import { AppEvents } from '../../constants/events';
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { Bug, ChefHat, ScrollText } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
-import { Button } from '../ui/atoms/button';
-import type { View } from '../../utils/navigationUtils';
-import Stop from '../ui/atoms/Stop';
-import { Attach, Send, Close, Microphone } from '../icons';
-import { ChatState } from '../../types/chatState';
 import debounce from 'lodash/debounce';
-import { LocalMessageStorage } from '../../utils/localMessageStorage';
-import { DirSwitcher } from '../bottom_menu/DirSwitcher';
-import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
-import { BottomMenuModeSelection } from '../bottom_menu/BottomMenuModeSelection';
-import { BottomMenuExtensionSelection } from '../bottom_menu/BottomMenuExtensionSelection';
-import { BottomMenuAgentSelection } from '../bottom_menu/BottomMenuAgentSelection';
-import { AlertType, useAlerts } from '../alerts';
+import { Bug, ChefHat, ScrollText } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Message } from '../../api';
+import { getSession } from '../../api';
+import { AppEvents } from '../../constants/events';
 import { useConfig } from '../../contexts/ConfigContext';
 import { useModelAndProvider } from '../../contexts/ModelAndProviderContext';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
-import { toastError } from '../../toasts';
-import MentionPopover from './MentionPopover';
-import type { DisplayItemWithMatch } from './MentionPopover';
-import { COST_TRACKING_ENABLED } from '../../updates';
-import { CostTracker } from '../bottom_menu/CostTracker';
-import { useFileDrop } from '../../hooks/useFileDrop';
 import type { DroppedFile } from '../../hooks/useFileDrop';
+import { useFileDrop } from '../../hooks/useFileDrop';
 import type { Recipe } from '../../recipe';
-import { MessageQueue } from './MessageQueue';
-import type { QueuedMessage } from './MessageQueue';
-import { detectInterruption } from '../../utils/interruptionDetector';
-import { DiagnosticsModal } from '../ui/molecules/Diagnostics';
-import { getSession } from '../../api';
-import type { Message } from '../../api';
-import CreateRecipeFromSessionModal from '../recipes/CreateRecipeFromSessionModal';
-import CreateEditRecipeModal from '../recipes/CreateEditRecipeModal';
-import { getInitialWorkingDir } from '../../utils/workingDir';
-import { getPredefinedModelsFromEnv } from '../settings/models/predefinedModelsUtils';
+import { toastError } from '../../toasts';
+import { ChatState } from '../../types/chatState';
+import type { ImageData, UserInput } from '../../types/message';
+import { COST_TRACKING_ENABLED } from '../../updates';
 import {
+  trackCreateRecipeOpened,
+  trackDiagnosticsOpened,
+  trackEditRecipeOpened,
   trackFileAttached,
   trackVoiceDictation,
-  trackDiagnosticsOpened,
-  trackCreateRecipeOpened,
-  trackEditRecipeOpened,
 } from '../../utils/analytics';
-import { getNavigationShortcutText } from '../../utils/keyboardShortcuts';
-import type { UserInput, ImageData } from '../../types/message';
 import { compressImageDataUrl } from '../../utils/conversionUtils';
+import { detectInterruption } from '../../utils/interruptionDetector';
+import { getNavigationShortcutText } from '../../utils/keyboardShortcuts';
+import { LocalMessageStorage } from '../../utils/localMessageStorage';
+import type { View } from '../../utils/navigationUtils';
+import { getInitialWorkingDir } from '../../utils/workingDir';
+import { AlertType, useAlerts } from '../alerts';
+import { BottomMenuAgentSelection } from '../bottom_menu/BottomMenuAgentSelection';
+import { BottomMenuExtensionSelection } from '../bottom_menu/BottomMenuExtensionSelection';
+import { BottomMenuModeSelection } from '../bottom_menu/BottomMenuModeSelection';
+import { CostTracker } from '../bottom_menu/CostTracker';
+import { DirSwitcher } from '../bottom_menu/DirSwitcher';
+import { Attach, Close, Microphone, Send } from '../icons';
+import CreateEditRecipeModal from '../recipes/CreateEditRecipeModal';
+import CreateRecipeFromSessionModal from '../recipes/CreateRecipeFromSessionModal';
+import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
+import { getPredefinedModelsFromEnv } from '../settings/models/predefinedModelsUtils';
+import { Button } from '../ui/atoms/button';
+import Stop from '../ui/atoms/Stop';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
+import { DiagnosticsModal } from '../ui/molecules/Diagnostics';
+import type { DisplayItemWithMatch } from './MentionPopover';
+import MentionPopover from './MentionPopover';
+import type { QueuedMessage } from './MessageQueue';
+import { MessageQueue } from './MessageQueue';
 
 interface PastedImage {
   id: string;
@@ -182,7 +182,7 @@ export default function ChatInput({
     } catch (error) {
       console.error('Error saving queue pause state:', error);
     }
-  }, [queuedMessages]); // Save when queue changes
+  }, []); // Save when queue changes
 
   useEffect(() => {
     try {
@@ -269,7 +269,7 @@ export default function ChatInput({
     onTranscription: (text) => {
       trackVoiceDictation('transcribed');
 
-      let filteredText = text.replace(/\([^)]*\)/g, '').trim();
+      const filteredText = text.replace(/\([^)]*\)/g, '').trim();
 
       if (!filteredText) {
         return;
@@ -455,7 +455,7 @@ export default function ChatInput({
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentModel, currentProvider]);
+  }, [loadProviderDetails]);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
@@ -494,7 +494,16 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [
+    totalTokens,
+    toolCount,
+    tokenLimit,
+    isTokenLimitLoaded,
+    addAlert,
+    clearAlerts,
+    handleSubmit,
+    setView,
+  ]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -536,21 +545,21 @@ export default function ChatInput({
         // Restore scroll position
         element.scrollTop = scrollTop;
       }, 50),
-    [maxHeight, minTextareaHeight]
+    []
   );
 
   useEffect(() => {
     if (textAreaRef.current) {
       debouncedAutosize(textAreaRef.current);
     }
-  }, [debouncedAutosize, displayValue, textAreaRef]);
+  }, [debouncedAutosize, textAreaRef]);
 
   // Set consistent minimum height when displayValue is empty
   useEffect(() => {
     if (textAreaRef.current && displayValue === '') {
       textAreaRef.current.style.height = `${minTextareaHeight}px`;
     }
-  }, [displayValue, textAreaRef, minTextareaHeight]);
+  }, [displayValue, textAreaRef]);
 
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
@@ -620,7 +629,7 @@ export default function ChatInput({
     const droppedImageData: ImageData[] = allDroppedFiles
       .filter((file) => file.isImage && file.dataUrl && !file.error && !file.isLoading)
       .map((file) => {
-        const matches = file.dataUrl!.match(/^data:([^;]+);base64,(.+)$/);
+        const matches = file.dataUrl?.match(/^data:([^;]+);base64,(.+)$/);
         if (matches) {
           return {
             data: matches[2],
@@ -839,7 +848,7 @@ export default function ChatInput({
 
     const interruptionMatch = detectInterruption(displayValue.trim());
 
-    if (interruptionMatch && interruptionMatch.shouldInterrupt) {
+    if (interruptionMatch?.shouldInterrupt) {
       setLastInterruption(interruptionMatch.matchedText);
       if (onStop) onStop();
       queuePausedRef.current = true;
@@ -976,7 +985,7 @@ export default function ChatInput({
       }
 
       if (evt.altKey) {
-        const newValue = displayValue + '\n';
+        const newValue = `${displayValue}\n`;
         setDisplayValue(newValue);
         setValue(newValue);
         return;
@@ -1233,7 +1242,6 @@ export default function ChatInput({
         <div className="relative">
           <textarea
             data-testid="chat-input"
-            autoFocus
             id="dynamic-textarea"
             placeholder={isRecording ? '' : getNavigationShortcutText()}
             value={displayValue}
@@ -1259,85 +1267,82 @@ export default function ChatInput({
           {/* Inline action buttons - absolutely positioned on the right */}
           <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
             {/* Microphone button - show only if provider is selected */}
-            {dictationProvider && (
-              <>
-                {!isEnabled ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex">
-                        <Button
-                          type="button"
-                          size="sm"
-                          shape="round"
-                          variant="outline"
-                          onClick={() => {}}
-                          disabled={true}
-                          className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
-                        >
-                          <Microphone />
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {dictationProvider === 'openai' ? (
-                        <p>
-                          OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Models.</b>
-                        </p>
-                      ) : dictationProvider === 'elevenlabs' ? (
-                        <p>
-                          ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                        </p>
-                      ) : dictationProvider === 'local' ? (
-                        <p>
-                          Local Whisper model not found. Download a model in{' '}
-                          <b>Settings &gt; Dictation &gt; Local (Offline)</b>
-                        </p>
-                      ) : (
-                        <p>Dictation provider is not properly configured.</p>
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+            {dictationProvider &&
+              (!isEnabled ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
                       <Button
                         type="button"
                         size="sm"
                         shape="round"
                         variant="outline"
-                        onClick={() => {
-                          if (isRecording) {
-                            trackVoiceDictation('stop');
-                            stopRecording();
-                          } else {
-                            trackVoiceDictation('start');
-                            startRecording();
-                          }
-                        }}
-                        disabled={isTranscribing}
-                        className={`rounded-full px-6 py-2 ${
-                          isRecording
-                            ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                            : isTranscribing
-                              ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                              : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
-                        }`}
+                        onClick={() => {}}
+                        disabled={true}
+                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
                       >
                         <Microphone />
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {dictationProvider === 'openai' ? (
                       <p>
-                        Voice dictation
-                        {isRecording ? '' : ' • Say "submit" to send'}
+                        OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Models.</b>
                       </p>
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </>
-            )}
+                    ) : dictationProvider === 'elevenlabs' ? (
+                      <p>
+                        ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
+                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                      </p>
+                    ) : dictationProvider === 'local' ? (
+                      <p>
+                        Local Whisper model not found. Download a model in{' '}
+                        <b>Settings &gt; Dictation &gt; Local (Offline)</b>
+                      </p>
+                    ) : (
+                      <p>Dictation provider is not properly configured.</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      shape="round"
+                      variant="outline"
+                      onClick={() => {
+                        if (isRecording) {
+                          trackVoiceDictation('stop');
+                          stopRecording();
+                        } else {
+                          trackVoiceDictation('start');
+                          startRecording();
+                        }
+                      }}
+                      disabled={isTranscribing}
+                      className={`rounded-full px-6 py-2 ${
+                        isRecording
+                          ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                          : isTranscribing
+                            ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                            : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                      }`}
+                    >
+                      <Microphone />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      Voice dictation
+                      {isRecording ? '' : ' • Say "submit" to send'}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
 
             {/* Send/Stop button */}
             {isLoading && !hasSubmittableContent ? (
@@ -1537,15 +1542,13 @@ export default function ChatInput({
         <div className="flex flex-row items-center">
           {/* Cost Tracker */}
           {COST_TRACKING_ENABLED && (
-            <>
-              <div className="flex items-center h-full ml-1 mr-1">
-                <CostTracker
-                  inputTokens={accumulatedInputTokens}
-                  outputTokens={accumulatedOutputTokens}
-                  sessionCosts={sessionCosts}
-                />
-              </div>
-            </>
+            <div className="flex items-center h-full ml-1 mr-1">
+              <CostTracker
+                inputTokens={accumulatedInputTokens}
+                outputTokens={accumulatedOutputTokens}
+                sessionCosts={sessionCosts}
+              />
+            </div>
           )}
           <Tooltip>
             <div>

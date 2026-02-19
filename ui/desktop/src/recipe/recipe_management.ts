@@ -1,9 +1,9 @@
-import { saveRecipe as saveRecipeApi, listRecipes } from '../api';
 import type { Recipe, RecipeManifest } from '../api';
+import { listRecipes, saveRecipe as saveRecipeApi } from '../api';
 
 export const saveRecipe = async (recipe: Recipe, recipeId?: string | null): Promise<string> => {
   try {
-    let response = await saveRecipeApi({
+    const response = await saveRecipeApi({
       body: {
         recipe,
         id: recipeId,

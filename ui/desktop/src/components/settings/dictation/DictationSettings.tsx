@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { getDictationConfig } from '../../../api';
+import { useEffect, useState } from 'react';
 import type { DictationProvider, DictationProviderStatus } from '../../../api';
+import { getDictationConfig } from '../../../api';
 import { useConfig } from '../../../contexts/ConfigContext';
-import { Input } from '../../ui/atoms/input';
-import { Button } from '../../ui/atoms/button';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { Button } from '../../ui/atoms/button';
+import { Input } from '../../ui/atoms/input';
 import { LocalModelManager } from './LocalModelManager';
 
 export const DictationSettings = () => {
@@ -145,71 +145,69 @@ export const DictationSettings = () => {
         </div>
       </div>
 
-      {provider && providerStatuses[provider] && (
-        <>
-          {provider === 'local' ? (
-            <div className="py-2 px-2">
-              <LocalModelManager />
+      {provider &&
+        providerStatuses[provider] &&
+        (provider === 'local' ? (
+          <div className="py-2 px-2">
+            <LocalModelManager />
+          </div>
+        ) : providerStatuses[provider].uses_provider_config ? (
+          <div className="py-2 px-2 bg-background-muted rounded-lg">
+            {!providerStatuses[provider].configured ? (
+              <p className="text-xs text-text-muted">
+                Configure the API key in <b>{providerStatuses[provider].settings_path}</b>
+              </p>
+            ) : (
+              <p className="text-xs text-green-600">
+                ✓ Configured in {providerStatuses[provider].settings_path}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="py-2 px-2 bg-background-muted rounded-lg">
+            <div className="mb-2">
+              <h4 className="text-text-default text-sm">API Key</h4>
+              <p className="text-xs text-text-muted mt-[2px]">
+                Required for transcription
+                {providerStatuses[provider]?.configured && (
+                  <span className="text-green-600 ml-2">(Configured)</span>
+                )}
+              </p>
             </div>
-          ) : providerStatuses[provider].uses_provider_config ? (
-            <div className="py-2 px-2 bg-background-muted rounded-lg">
-              {!providerStatuses[provider].configured ? (
-                <p className="text-xs text-text-muted">
-                  Configure the API key in <b>{providerStatuses[provider].settings_path}</b>
-                </p>
-              ) : (
-                <p className="text-xs text-green-600">
-                  ✓ Configured in {providerStatuses[provider].settings_path}
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="py-2 px-2 bg-background-muted rounded-lg">
-              <div className="mb-2">
-                <h4 className="text-text-default text-sm">API Key</h4>
-                <p className="text-xs text-text-muted mt-[2px]">
-                  Required for transcription
-                  {providerStatuses[provider]?.configured && (
-                    <span className="text-green-600 ml-2">(Configured)</span>
-                  )}
-                </p>
-              </div>
 
-              {!isEditingKey ? (
-                <div className="flex gap-2 flex-wrap">
-                  <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
-                    {providerStatuses[provider]?.configured ? 'Update API Key' : 'Add API Key'}
+            {!isEditingKey ? (
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
+                  {providerStatuses[provider]?.configured ? 'Update API Key' : 'Add API Key'}
+                </Button>
+                {providerStatuses[provider]?.configured && (
+                  <Button variant="destructive" size="sm" onClick={handleRemoveKey}>
+                    Remove API Key
                   </Button>
-                  {providerStatuses[provider]?.configured && (
-                    <Button variant="destructive" size="sm" onClick={handleRemoveKey}>
-                      Remove API Key
-                    </Button>
-                  )}
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Enter your API key"
+                  className="max-w-md"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleSaveKey}>
+                    Save
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                    Cancel
+                  </Button>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  <Input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your API key"
-                    className="max-w-md"
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSaveKey}>
-                      Save
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleCancelEdit}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
+              </div>
+            )}
+          </div>
+        ))}
     </div>
   );
 };

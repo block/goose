@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
-import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
+import { useCallback, useEffect, useState } from 'react';
 import { useConfig } from '../../../contexts/ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
+import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 
 export const ModeSection = () => {
   const [currentMode, setCurrentMode] = useState('auto');

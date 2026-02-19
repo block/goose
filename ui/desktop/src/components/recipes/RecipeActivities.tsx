@@ -1,7 +1,7 @@
-import { Card } from '../ui/molecules/card';
+import { substituteParameters } from '../../utils/providerUtils';
 import GooseLogo from '../branding/GooseLogo';
 import MarkdownContent from '../messages/MarkdownContent';
-import { substituteParameters } from '../../utils/providerUtils';
+import { Card } from '../ui/molecules/card';
 
 interface RecipeActivitiesProps {
   append: (text: string) => void;
@@ -59,7 +59,7 @@ export default function RecipeActivities({
                 className="cursor-pointer px-3 py-1.5 text-sm hover:bg-background-muted transition-colors"
               >
                 {substitutedContent.length > 60
-                  ? substitutedContent.slice(0, 60) + '...'
+                  ? `${substitutedContent.slice(0, 60)}...`
                   : substitutedContent}
               </Card>
             );

@@ -1,11 +1,11 @@
 import { useSearchParams } from 'react-router-dom';
-import BaseChat from './BaseChat';
-import WelcomeState from './WelcomeState';
+import { useNavigation } from '../../hooks/useNavigation';
+import { startNewSession } from '../../sessions';
 import type { ChatType } from '../../types/chat';
 import type { UserInput } from '../../types/message';
-import { startNewSession } from '../../sessions';
-import { useNavigation } from '../../hooks/useNavigation';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import BaseChat from './BaseChat';
+import WelcomeState from './WelcomeState';
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;

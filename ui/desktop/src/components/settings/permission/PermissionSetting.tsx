@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
+import { Button } from '../../ui/atoms/button';
 import { ScrollArea } from '../../ui/atoms/scroll-area';
 import BackButton from '../../ui/molecules/BackButton';
-import { useConfig } from '../../../contexts/ConfigContext';
-import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
-import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
-import { Button } from '../../ui/atoms/button';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);

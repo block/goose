@@ -1,21 +1,25 @@
-import { AppEvents } from '../../constants/events';
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Puzzle } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/molecules/dropdown-menu';
-import { Input } from '../ui/atoms/input';
-import { Switch } from '../ui/atoms/switch';
-import { useConfig } from '../../contexts/ConfigContext';
-import type { FixedExtensionEntry } from '../../contexts/ConfigContext';
-import { toastService } from '../../toasts';
-import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
-import { getSessionExtensions } from '../../api';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ExtensionConfig } from '../../api';
-import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
+import { getSessionExtensions } from '../../api';
+import { AppEvents } from '../../constants/events';
+import type { FixedExtensionEntry } from '../../contexts/ConfigContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import {
-  setExtensionOverride,
   getExtensionOverride,
   getExtensionOverrides,
+  setExtensionOverride,
 } from '../../store/extensionOverrides';
+import { toastService } from '../../toasts';
+import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
+import { Input } from '../ui/atoms/input';
+import { Switch } from '../ui/atoms/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '../ui/molecules/dropdown-menu';
 
 interface BottomMenuExtensionSelectionProps {
   sessionId: string | null;
@@ -25,11 +29,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const [searchQuery, setSearchQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [sessionExtensions, setSessionExtensions] = useState<ExtensionConfig[]>([]);
-  const [hubUpdateTrigger, setHubUpdateTrigger] = useState(0);
+  const [_hubUpdateTrigger, setHubUpdateTrigger] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [pendingSort, setPendingSort] = useState(false);
   const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [_refreshTrigger, setRefreshTrigger] = useState(0);
   const [isSessionExtensionsLoaded, setIsSessionExtensionsLoaded] = useState(false);
   const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { extensionsList: allExtensions } = useConfig();
@@ -79,7 +83,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
 
     setIsSessionExtensionsLoaded(false);
     fetchExtensions();
-  }, [sessionId, isOpen, refreshTrigger]);
+  }, [sessionId]);
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
@@ -183,14 +187,13 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         }) as FixedExtensionEntry
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allExtensions, sessionExtensions, isHubView, hubUpdateTrigger]);
+  }, [allExtensions, sessionExtensions, isHubView]);
 
   const filteredExtensions = useMemo(() => {
     return extensionsList.filter((ext) => {
       const query = searchQuery.toLowerCase();
       return (
-        ext.name.toLowerCase().includes(query) ||
-        (ext.description && ext.description.toLowerCase().includes(query))
+        ext.name.toLowerCase().includes(query) || ext.description?.toLowerCase().includes(query)
       );
     });
   }, [extensionsList, searchQuery]);

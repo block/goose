@@ -7,10 +7,10 @@ import {
   useRef,
   useState,
 } from 'react';
-import { ItemIcon } from '../shared/ItemIcon';
-import { getSlashCommands } from '../../api';
 import type { CommandType } from '../../api';
+import { getSlashCommands } from '../../api';
 import { getInitialWorkingDir } from '../../utils/workingDir';
+import { ItemIcon } from '../shared/ItemIcon';
 
 type DisplayItemType = CommandType | 'Directory' | 'File';
 
@@ -440,7 +440,7 @@ const MentionPopover = forwardRef<
           const typeComparison = compareByType(a, b);
           return typeComparison || a.name.localeCompare(b.name);
         });
-    }, [items, query, currentWorkingDir]);
+    }, [items, query, currentWorkingDir, compareByType]);
 
     // Expose methods to parent component
     useImperativeHandle(
@@ -513,7 +513,7 @@ const MentionPopover = forwardRef<
         const displayItem = displayItems[index];
         onSelect(
           ['Builtin', 'Recipe'].includes(displayItem.itemType)
-            ? '/' + displayItem.name
+            ? `/${displayItem.name}`
             : displayItem.extra
         );
         onClose();

@@ -1,15 +1,14 @@
-import Electron from 'electron';
+import type { Buffer } from 'node:buffer';
+import { type ChildProcess, spawn } from 'node:child_process';
 import fs from 'node:fs';
-import { spawn, ChildProcess } from 'child_process';
-import { createServer } from 'net';
+import { createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import log from './utils/logger';
+import type Electron from 'electron';
 import type { App } from 'electron';
-import { Buffer } from 'node:buffer';
-
 import { status } from './api';
 import type { Client } from './api/client';
+import log from './utils/logger';
 import type { ExternalGoosedConfig } from './utils/settings';
 
 export const findAvailablePort = (): Promise<number> => {
@@ -132,7 +131,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
   const processEnv: GooseProcessEnv = { ...process.env, ...additionalEnv } as GooseProcessEnv;
 
   if (isWindows && !resolvedGoosedPath.toLowerCase().endsWith('.exe')) {
-    goosedPath = resolvedGoosedPath + '.exe';
+    goosedPath = `${resolvedGoosedPath}.exe`;
   } else {
     goosedPath = resolvedGoosedPath;
   }
@@ -154,7 +153,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
         if (key.includes('SECRET') || key.includes('PASSWORD') || key.includes('TOKEN')) {
           acc[key] = '[REDACTED]';
         } else {
-          acc[key] = spawnOptions.env![key] || '';
+          acc[key] = spawnOptions.env?.[key] || '';
         }
         return acc;
       },
@@ -223,7 +222,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 };
 
 const getGoosedBinaryPath = (app: Electron.App): string => {
-  let executableName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
+  const executableName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
 
   let possiblePaths: string[];
   if (!app.isPackaged) {

@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
-import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import 'katex/dist/katex.min.css';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
 // Improved oneDark theme for better comment contrast and readability
 const customOneDarkTheme = {
   ...oneDark,
@@ -26,9 +27,9 @@ const customOneDarkTheme = {
   cdata: { ...oneDark.cdata, color: '#a0a0a0' },
 };
 
-import { Check, Copy } from '../icons';
 import { wrapHTMLInCodeBlock } from '../../utils/htmlSecurity';
-import { isProtocolSafe, getProtocol, BLOCKED_PROTOCOLS } from '../../utils/urlSecurity';
+import { BLOCKED_PROTOCOLS, getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
+import { Check, Copy } from '../icons';
 
 interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
@@ -136,7 +137,11 @@ const MarkdownCode = memo(
     return !inline && match ? (
       <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
     ) : (
-      <code ref={ref} {...props} className="break-words bg-inline-code whitespace-pre-wrap font-mono">
+      <code
+        ref={ref}
+        {...props}
+        className="break-words bg-inline-code whitespace-pre-wrap font-mono"
+      >
         {children}
       </code>
     );

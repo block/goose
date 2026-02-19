@@ -1,14 +1,14 @@
-import React from 'react';
 import {
-  Zap,
-  Bot,
-  Wrench,
-  GitBranch,
   ArrowRightLeft,
-  UserCheck,
+  Bot,
+  GitBranch,
   Globe,
   GripVertical,
+  UserCheck,
+  Wrench,
+  Zap,
 } from 'lucide-react';
+import type React from 'react';
 import { NODE_PALETTE, type NodeKind } from '../types';
 
 const ICONS: Record<string, React.FC<{ size?: number }>> = {

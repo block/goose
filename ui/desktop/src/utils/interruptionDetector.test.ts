@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { InterruptionMatch } from './interruptionDetector';
 import {
   detectInterruption,
-  isInterruptionCommand,
   getInterruptionMessage,
   INTERRUPTION_KEYWORDS,
+  isInterruptionCommand,
 } from './interruptionDetector';
-import type { InterruptionMatch } from './interruptionDetector';
 
 describe('interruptionDetector', () => {
   describe('detectInterruption', () => {

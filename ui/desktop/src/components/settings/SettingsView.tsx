@@ -1,20 +1,20 @@
-import type { View, ViewOptions } from '../../utils/navigationUtils';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/atoms/tabs';
-import ModelsSection from './models/ModelsSection';
-import SessionSharingSection from './sessions/SessionSharingSection';
-import ExternalBackendSection from './app/ExternalBackendSection';
-import AppSettingsSection from './app/AppSettingsSection';
-import ConfigSettings from './config/ConfigSettings';
-import PromptsSettingsSection from './PromptsSettingsSection';
+import { Bot, FileText, Keyboard, MessageSquare, Monitor, Share2, Shield } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { ExtensionConfig } from '../../api';
-import { PageShell } from '../Layout/PageShell';
-import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard, Shield } from 'lucide-react';
-import AuthSection from './auth/AuthSection';
-import { useState, useEffect, useRef } from 'react';
-import ChatSettingsSection from './chat/ChatSettingsSection';
-import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
 import { trackSettingsTabViewed } from '../../utils/analytics';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
+import { PageShell } from '../Layout/PageShell';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/atoms/tabs';
+import AppSettingsSection from './app/AppSettingsSection';
+import ExternalBackendSection from './app/ExternalBackendSection';
+import AuthSection from './auth/AuthSection';
+import ChatSettingsSection from './chat/ChatSettingsSection';
+import ConfigSettings from './config/ConfigSettings';
+import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
+import ModelsSection from './models/ModelsSection';
+import PromptsSettingsSection from './PromptsSettingsSection';
+import SessionSharingSection from './sessions/SessionSharingSection';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;

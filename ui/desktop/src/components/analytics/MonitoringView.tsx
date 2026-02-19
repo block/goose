@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { PageHeader } from '../ui/design-system/PageHeader';
 import { TabBar } from '../ui/design-system/TabBar';
 import AnalyticsDashboard from './AnalyticsDashboard';
-import ToolAnalyticsTab from './ToolAnalyticsTab';
 import LiveMonitoringTab from './LiveMonitoringTab';
 import ResponseQualityTab from './ResponseQualityTab';
+import ToolAnalyticsTab from './ToolAnalyticsTab';
 
 const TAB_GROUPS = [
   {

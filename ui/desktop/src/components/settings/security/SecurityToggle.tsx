@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Switch } from '../../ui/atoms/switch';
+import { useEffect, useMemo, useState } from 'react';
 import { useConfig } from '../../../contexts/ConfigContext';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { Switch } from '../../ui/atoms/switch';
 
 interface SecurityConfig {
   SECURITY_PROMPT_ENABLED?: boolean;
@@ -254,7 +254,7 @@ export const SecurityToggle = () => {
               }}
               onBlur={(e) => {
                 const value = parseFloat(e.target.value);
-                if (isNaN(value) || value < 0.01 || value > 1.0) {
+                if (Number.isNaN(value) || value < 0.01 || value > 1.0) {
                   // Revert to previous valid value
                   setThresholdInput(configThreshold.toString());
                 } else {

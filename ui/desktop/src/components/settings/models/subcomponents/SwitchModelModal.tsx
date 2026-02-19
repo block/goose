@@ -1,6 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
 import { Bot, ExternalLink } from 'lucide-react';
-
+import { useCallback, useEffect, useState } from 'react';
+import type { ProviderType } from '../../../../api';
+import { useConfig } from '../../../../contexts/ConfigContext';
+import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
+import { trackModelChanged } from '../../../../utils/analytics';
+import type { View } from '../../../../utils/navigationUtils';
+import { Button } from '../../../ui/atoms/button';
+import { Input } from '../../../ui/atoms/input';
 import {
   Dialog,
   DialogContent,
@@ -9,18 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../ui/molecules/dialog';
-import { Button } from '../../../ui/atoms/button';
-import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
-import { Input } from '../../../ui/atoms/input';
 import { Select } from '../../../ui/molecules/Select';
-import { useConfig } from '../../../../contexts/ConfigContext';
-import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
-import type { View } from '../../../../utils/navigationUtils';
+import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
 import type Model from '../modelInterface';
-import { getProviderMetadata, fetchModelsForProviders } from '../modelInterface';
+import { fetchModelsForProviders, getProviderMetadata } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import type { ProviderType } from '../../../../api';
-import { trackModelChanged } from '../../../../utils/analytics';
 
 const THINKING_LEVEL_OPTIONS = [
   { value: 'low', label: 'Low - Better latency, lighter reasoning' },
@@ -86,7 +85,9 @@ export const SwitchModelModal = ({
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
-  const [provider, setProvider] = useState<string | null>(initialProvider || currentProvider || null);
+  const [provider, setProvider] = useState<string | null>(
+    initialProvider || currentProvider || null
+  );
   const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({

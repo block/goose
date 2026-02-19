@@ -1,16 +1,22 @@
+import { AlertCircle, ChevronDownIcon, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '../../ui/atoms/button';
-import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
-import { getTools, upsertPermissions } from '../../../api';
 import type { PermissionLevel, ToolInfo } from '../../../api';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
+import { getTools, upsertPermissions } from '../../../api';
+import { useChatContext } from '../../../contexts/ChatContext';
+import { Button } from '../../ui/atoms/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../ui/molecules/dialog';
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '../../ui/molecules/dropdown-menu';
-import { useChatContext } from '../../../contexts/ChatContext';
 
 function getFirstSentence(text: string): string {
   const match = text.match(/^([^.?!]+[.?!])/);

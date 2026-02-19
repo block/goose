@@ -38,7 +38,6 @@ export default function LauncherView() {
           onKeyDown={handleKeyDown}
           className="w-full h-full bg-transparent text-text-default text-xl px-6 outline-none placeholder-text-muted"
           placeholder="Ask goose anything..."
-          autoFocus
         />
       </form>
     </div>

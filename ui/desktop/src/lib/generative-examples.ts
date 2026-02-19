@@ -11,10 +11,22 @@ export const exampleDashboardSpec = {
       type: 'Grid',
       props: { columns: 4, gap: 'md' },
       children: [
-        { type: 'MetricCard', props: { label: 'Sessions', value: '142', delta: '+12%', deltaType: 'positive' } },
-        { type: 'MetricCard', props: { label: 'Tool Calls', value: '1,847', delta: '+5%', deltaType: 'positive' } },
-        { type: 'MetricCard', props: { label: 'Success Rate', value: '98.2%', delta: '-0.3%', deltaType: 'negative' } },
-        { type: 'MetricCard', props: { label: 'Avg Latency', value: '1.2s', delta: 'stable', deltaType: 'neutral' } },
+        {
+          type: 'MetricCard',
+          props: { label: 'Sessions', value: '142', delta: '+12%', deltaType: 'positive' },
+        },
+        {
+          type: 'MetricCard',
+          props: { label: 'Tool Calls', value: '1,847', delta: '+5%', deltaType: 'positive' },
+        },
+        {
+          type: 'MetricCard',
+          props: { label: 'Success Rate', value: '98.2%', delta: '-0.3%', deltaType: 'negative' },
+        },
+        {
+          type: 'MetricCard',
+          props: { label: 'Avg Latency', value: '1.2s', delta: 'stable', deltaType: 'neutral' },
+        },
       ],
     },
     {
@@ -116,9 +128,19 @@ export const exampleEvalSpec = {
           { key: 'status', label: 'Status', align: 'center' },
         ],
         rows: [
-          { input: 'Fix the auth bug', expected: 'coding/debug', actual: 'coding/code', status: '✗' },
+          {
+            input: 'Fix the auth bug',
+            expected: 'coding/debug',
+            actual: 'coding/code',
+            status: '✗',
+          },
           { input: 'Write unit tests', expected: 'qa/test', actual: 'coding/code', status: '✗' },
-          { input: 'Deploy to staging', expected: 'coding/devops', actual: 'coding/devops', status: '✓' },
+          {
+            input: 'Deploy to staging',
+            expected: 'coding/devops',
+            actual: 'coding/devops',
+            status: '✓',
+          },
           { input: 'Review the PR', expected: 'pm/review', actual: 'pm/review', status: '✓' },
           { input: 'Check security', expected: 'qa/security', actual: 'qa/audit', status: '✗' },
         ],
@@ -136,9 +158,28 @@ export const exampleToolResultSpec = {
       type: 'Grid',
       props: { columns: 1, gap: 'sm' },
       children: [
-        { type: 'ToolResult', props: { toolName: 'developer__shell', status: 'success', duration: '0.3s', output: 'Build successful' } },
-        { type: 'ToolResult', props: { toolName: 'developer__text_editor', status: 'success', duration: '0.1s' } },
-        { type: 'ToolResult', props: { toolName: 'fetch__fetch', status: 'error', duration: '5.0s', output: 'Connection timeout' } },
+        {
+          type: 'ToolResult',
+          props: {
+            toolName: 'developer__shell',
+            status: 'success',
+            duration: '0.3s',
+            output: 'Build successful',
+          },
+        },
+        {
+          type: 'ToolResult',
+          props: { toolName: 'developer__text_editor', status: 'success', duration: '0.1s' },
+        },
+        {
+          type: 'ToolResult',
+          props: {
+            toolName: 'fetch__fetch',
+            status: 'error',
+            duration: '5.0s',
+            output: 'Connection timeout',
+          },
+        },
       ],
     },
     {

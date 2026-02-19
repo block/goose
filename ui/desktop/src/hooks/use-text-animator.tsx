@@ -1,5 +1,5 @@
-import SplitType from 'split-type';
 import { useEffect, useRef } from 'react';
+import SplitType from 'split-type';
 
 interface TextSplitterOptions {
   resizeCallback?: () => void;
@@ -239,7 +239,7 @@ export function useTextAnimator({ text }: UseTextAnimatorProps) {
         animator.current.reset();
       }
     };
-  }, [text]);
+  }, []);
 
   return elementRef;
 }

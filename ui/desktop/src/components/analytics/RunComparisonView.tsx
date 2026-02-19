@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { compareEvalRuns } from '../../api';
 import type { RunComparison } from '../../api';
+import { compareEvalRuns } from '../../api';
 
 function formatPercent(v: number): string {
   return `${(v * 100).toFixed(1)}%`;

@@ -1,6 +1,6 @@
+import { FolderKey } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '../../ui/atoms/button';
-import { FolderKey } from 'lucide-react';
 import { GoosehintsModal } from './GoosehintsModal';
 
 export const GoosehintsSection = () => {

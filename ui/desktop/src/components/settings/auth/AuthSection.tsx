@@ -1,13 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { addOidcProvider, listOidcProviders, removeOidcProvider } from '../../../api';
 import { useAuth } from '../../../hooks/useAuth';
 import { Button } from '../../ui/atoms/button';
 import { Input } from '../../ui/atoms/input';
 import { Separator } from '../../ui/atoms/separator';
-import {
-  addOidcProvider,
-  removeOidcProvider,
-  listOidcProviders,
-} from '../../../api';
 
 /* ───────── Auth method presets ───────── */
 
@@ -97,9 +93,10 @@ function PresetCard({
     <button
       onClick={onSelect}
       className={`relative flex flex-col items-center justify-center gap-1 rounded-lg border p-4 text-center transition-all duration-200 h-[100px]
-        ${selected
-          ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
-          : 'border-border/50 bg-card hover:border-border hover:bg-accent/30'
+        ${
+          selected
+            ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
+            : 'border-border/50 bg-card hover:border-border hover:bg-accent/30'
         }`}
     >
       {configured && (
@@ -161,7 +158,10 @@ export default function AuthSection() {
 
           // Match to a preset
           const match = AUTH_PRESETS.find(
-            (p) => 'issuer' in p && p.issuer && issuer.toLowerCase().includes(p.issuer.replace('https://', ''))
+            (p) =>
+              'issuer' in p &&
+              p.issuer &&
+              issuer.toLowerCase().includes(p.issuer.replace('https://', ''))
           );
           setSelected(match ? (match.id as PresetId) : 'custom');
           setOidc((prev) => ({
@@ -271,7 +271,12 @@ export default function AuthSection() {
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1.5 align-middle" />
             Signed in{user?.name ? ` as ${user.name}` : ''}
           </span>
-          <Button variant="ghost" size="sm" onClick={logout} className="h-6 text-[11px] text-red-400 hover:text-red-300">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={logout}
+            className="h-6 text-[11px] text-red-400 hover:text-red-300"
+          >
             Sign out
           </Button>
         </div>
@@ -291,10 +296,18 @@ export default function AuthSection() {
               selected={selected === p.id}
               configured={
                 (p.id === 'apikey' && isAuthenticated && user?.auth_method === 'api_key') ||
-                ('issuer' in p && p.issuer ? currentIssuer?.includes(p.issuer.replace('https://', '')) ?? false : false) ||
-                (p.id === 'custom' && currentIssuer != null && !AUTH_PRESETS.some(
-                  (q) => q.id !== 'custom' && 'issuer' in q && q.issuer && currentIssuer.includes(q.issuer.replace('https://', ''))
-                ))
+                ('issuer' in p && p.issuer
+                  ? (currentIssuer?.includes(p.issuer.replace('https://', '')) ?? false)
+                  : false) ||
+                (p.id === 'custom' &&
+                  currentIssuer != null &&
+                  !AUTH_PRESETS.some(
+                    (q) =>
+                      q.id !== 'custom' &&
+                      'issuer' in q &&
+                      q.issuer &&
+                      currentIssuer.includes(q.issuer.replace('https://', ''))
+                  ))
               }
               onSelect={() => handleSelect(p.id)}
             />
@@ -335,13 +348,13 @@ export default function AuthSection() {
             <p className="text-xs text-muted-foreground">{preset.docs}</p>
           )}
 
-          <Field
-            label="Issuer URL"
-            required
-            hint="The OpenID Connect discovery endpoint"
-          >
+          <Field label="Issuer URL" required hint="The OpenID Connect discovery endpoint">
             <Input
-              placeholder={('issuerPlaceholder' in preset! ? preset.issuerPlaceholder : preset!.issuer) as string || 'https://...'}
+              placeholder={
+                (('issuerPlaceholder' in preset!
+                  ? preset.issuerPlaceholder
+                  : preset?.issuer) as string) || 'https://...'
+              }
               value={oidc.issuer}
               onChange={(e) => setOidc((prev) => ({ ...prev, issuer: e.target.value }))}
             />

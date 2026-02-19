@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react';
-import { Input } from '../atoms/input';
+import type React from 'react';
+import { useCallback, useState } from 'react';
 import { Button } from '../atoms/button';
+import { Input } from '../atoms/input';
 
 interface JsonSchemaProperty {
   type?: string;
@@ -184,7 +185,7 @@ export default function JsonSchemaForm({
           onChange={(e) => {
             const numValue =
               prop.type === 'integer' ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
-            handleChange(key, isNaN(numValue) ? '' : numValue);
+            handleChange(key, Number.isNaN(numValue) ? '' : numValue);
           }}
           min={prop.minimum}
           max={prop.maximum}

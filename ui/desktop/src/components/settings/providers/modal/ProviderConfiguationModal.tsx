@@ -1,4 +1,10 @@
+import { AlertTriangle, LogIn } from 'lucide-react';
 import { useState } from 'react';
+import type { ProviderDetails } from '../../../../api';
+import { configureProviderOauth, removeCustomProvider } from '../../../../api';
+import { Button } from '../../../../components/ui/atoms/button';
+import { useConfig } from '../../../../contexts/ConfigContext';
+import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
 import {
   Dialog,
   DialogContent,
@@ -7,18 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../ui/molecules/dialog';
-import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import type { ConfigInput } from './subcomponents/forms/DefaultProviderSetupForm';
-import ProviderSetupActions from './subcomponents/ProviderSetupActions';
-import ProviderLogo from './subcomponents/ProviderLogo';
-import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
+import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import { providerConfigSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
-import { useConfig } from '../../../../contexts/ConfigContext';
-import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
-import { AlertTriangle, LogIn } from 'lucide-react';
-import { removeCustomProvider, configureProviderOauth } from '../../../../api';
-import type { ProviderDetails } from '../../../../api';
-import { Button } from '../../../../components/ui/atoms/button';
+import ProviderLogo from './subcomponents/ProviderLogo';
+import ProviderSetupActions from './subcomponents/ProviderSetupActions';
+import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
 
 const formatErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {

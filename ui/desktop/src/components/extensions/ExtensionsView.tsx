@@ -1,19 +1,19 @@
-import type { View, ViewOptions } from '../../utils/navigationUtils';
-import ExtensionsSection from '../settings/extensions/ExtensionsSection';
-import type { ExtensionConfig } from '../../api';
-import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Button } from '../ui/atoms/button';
-import { Plus } from 'lucide-react';
-import { GPSIcon } from '../ui/atoms/icons';
-import { useState, useEffect } from 'react';
 import kebabCase from 'lodash/kebabCase';
-import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
-import { getDefaultFormData, createExtensionConfig } from '../settings/extensions/utils';
-import type { ExtensionFormData } from '../settings/extensions/utils';
-import { activateExtensionDefault } from '../settings/extensions';
+import { Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import type { ExtensionConfig } from '../../api';
 import { useConfig } from '../../contexts/ConfigContext';
-import { SearchView } from '../conversation/SearchView';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
+import { SearchView } from '../conversation/SearchView';
+import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { activateExtensionDefault } from '../settings/extensions';
+import ExtensionsSection from '../settings/extensions/ExtensionsSection';
+import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
+import type { ExtensionFormData } from '../settings/extensions/utils';
+import { createExtensionConfig, getDefaultFormData } from '../settings/extensions/utils';
+import { Button } from '../ui/atoms/button';
+import { GPSIcon } from '../ui/atoms/icons';
 
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -61,7 +61,7 @@ export default function ExtensionsView({
     if (viewOptions.deepLinkConfig?.name && refreshKey > 0) {
       scrollToExtension(viewOptions.deepLinkConfig?.name);
     }
-  }, [viewOptions.deepLinkConfig?.name, refreshKey]);
+  }, [viewOptions.deepLinkConfig?.name, refreshKey, scrollToExtension]);
 
   const handleModalClose = () => {
     setIsAddModalOpen(false);

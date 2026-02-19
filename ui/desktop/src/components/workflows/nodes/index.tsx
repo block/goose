@@ -1,19 +1,20 @@
-import React, { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { DagNodeData, NodeKind } from '../types';
+import { Handle, type NodeProps, Position } from '@xyflow/react';
 import {
-  Zap,
-  Bot,
-  Wrench,
-  GitBranch,
   ArrowRightLeft,
-  UserCheck,
-  Globe,
+  Bot,
   CheckCircle2,
-  XCircle,
+  GitBranch,
+  Globe,
   Loader2,
   SkipForward,
+  UserCheck,
+  Wrench,
+  XCircle,
+  Zap,
 } from 'lucide-react';
+import type React from 'react';
+import { memo } from 'react';
+import type { DagNodeData, NodeKind } from '../types';
 
 const KIND_COLORS: Record<NodeKind, string> = {
   trigger: '#6366f1',

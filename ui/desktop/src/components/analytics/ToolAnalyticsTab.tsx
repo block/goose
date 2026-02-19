@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
 } from 'recharts';
-import { getToolAnalytics, getAgentPerformance } from '../../api';
-import type { ToolAnalytics, AgentPerformanceMetrics } from '../../api';
+import type { AgentPerformanceMetrics, ToolAnalytics } from '../../api';
+import { getAgentPerformance, getToolAnalytics } from '../../api';
 
 const COLORS = [
   '#6366f1',

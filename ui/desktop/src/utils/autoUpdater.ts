@@ -1,31 +1,31 @@
-import { autoUpdater } from 'electron-updater';
-import type { UpdateInfo } from 'electron-updater';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import type { MenuItemConstructorOptions } from 'electron';
 import {
-  BrowserWindow,
-  ipcMain,
-  nativeImage,
-  Tray,
-  shell,
   app,
+  BrowserWindow,
   dialog,
+  ipcMain,
   Menu,
   Notification,
+  nativeImage,
+  shell,
+  type Tray,
 } from 'electron';
-import type { MenuItemConstructorOptions } from 'electron';
-import * as path from 'path';
-import * as fs from 'fs/promises';
-import log from './logger';
-import { githubUpdater } from './githubUpdater';
-import { loadRecentDirs } from './recentDirs';
-import { errorMessage } from './conversionUtils';
+import type { UpdateInfo } from 'electron-updater';
+import { autoUpdater } from 'electron-updater';
 import {
-  trackUpdateCheckStarted,
   trackUpdateCheckCompleted,
-  trackUpdateDownloadStarted,
-  trackUpdateDownloadProgress,
+  trackUpdateCheckStarted,
   trackUpdateDownloadCompleted,
+  trackUpdateDownloadProgress,
+  trackUpdateDownloadStarted,
   trackUpdateInstallInitiated,
 } from './analytics';
+import { errorMessage } from './conversionUtils';
+import { githubUpdater } from './githubUpdater';
+import log from './logger';
+import { loadRecentDirs } from './recentDirs';
 
 let updateAvailable = false;
 let trayRef: Tray | null = null;

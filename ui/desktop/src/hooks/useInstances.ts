@@ -1,14 +1,14 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import {
-  listInstances,
-  spawnInstance,
-  cancelInstance as cancelInstanceApi,
-  getInstanceResult,
-} from '../lib/instances';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   InstanceResponse,
   InstanceResultResponse,
   SpawnInstanceRequest,
+} from '../lib/instances';
+import {
+  cancelInstance as cancelInstanceApi,
+  getInstanceResult,
+  listInstances,
+  spawnInstance,
 } from '../lib/instances';
 
 const POLL_INTERVAL_ACTIVE_MS = 3000;

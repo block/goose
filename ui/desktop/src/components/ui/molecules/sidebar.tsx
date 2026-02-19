@@ -1,19 +1,18 @@
 'use client';
 
-import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
-import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
+import { cva } from 'class-variance-authority';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
-
+import * as React from 'react';
+import { useIsMobile } from '../../../hooks/use-mobile';
 import { cn } from '../../../utils';
 import { Button } from '../atoms/button';
 import { Input } from '../atoms/input';
 import { Separator } from '../atoms/separator';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './sheet';
 import { Skeleton } from '../atoms/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../atoms/Tooltip';
-import { useIsMobile } from '../../../hooks/use-mobile';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './sheet';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -81,7 +80,7 @@ function SidebarProvider({
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-  }, [isMobile, setOpen, setOpenMobile]);
+  }, [isMobile, setOpen]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -110,7 +109,7 @@ function SidebarProvider({
       setOpenMobile,
       toggleSidebar,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [state, open, setOpen, isMobile, openMobile, toggleSidebar]
   );
 
   return (
@@ -264,14 +263,10 @@ function SidebarToggleButton() {
         'transition-all duration-200',
         'cursor-pointer',
         'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none',
-        isCollapsed ? '-right-3' : '-right-3',
+        isCollapsed ? '-right-3' : '-right-3'
       )}
     >
-      {isCollapsed ? (
-        <ChevronRight className="size-3.5" />
-      ) : (
-        <ChevronLeft className="size-3.5" />
-      )}
+      {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
     </button>
   );
 }
@@ -285,7 +280,7 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       data-slot="sidebar-trigger"
       variant="ghost"
       size="sm"
-      className={cn("relative z-10", className)}
+      className={cn('relative z-10', className)}
       onClick={(event) => {
         onClick?.(event);
         toggleSidebar();

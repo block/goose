@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 import ReactSelect from 'react-select';
 
 export const Select = (props: React.ComponentProps<typeof ReactSelect>) => {

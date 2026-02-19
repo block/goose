@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Button } from '../../../ui/atoms/button';
-import { SwitchModelModal } from './SwitchModelModal';
 import type { View } from '../../../../utils/navigationUtils';
+import { Button } from '../../../ui/atoms/button';
 import { shouldShowPredefinedModels } from '../predefinedModelsUtils';
+import { SwitchModelModal } from './SwitchModelModal';
 
 interface ConfigureModelButtonsProps {
   setView: (view: View) => void;

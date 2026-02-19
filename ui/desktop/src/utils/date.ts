@@ -5,7 +5,7 @@ export const formatToLocalDateTime = (dateString?: string | null): string => {
   try {
     const date = new Date(dateString);
     // Check if the date is valid
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return 'Invalid Date';
     }
     return date.toLocaleString(); // Uses user's locale and timezone
@@ -21,7 +21,7 @@ export const formatDate = (dateString?: string | null): string => {
   }
   try {
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return 'Invalid Date';
     }
     return date.toLocaleDateString(); // Uses user's locale
@@ -37,7 +37,7 @@ export const formatToLocalDateWithTimezone = (dateString?: string | null): strin
   }
   try {
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
+    if (Number.isNaN(date.getTime())) {
       return 'Invalid Date';
     }
     // Format: Jan 1, 2023, 10:00:00 AM PST (example)

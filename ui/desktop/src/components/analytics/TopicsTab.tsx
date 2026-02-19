@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
 } from 'recharts';
-import { getEvalTopics } from '../../api';
 import type { TopicAnalytics } from '../../api';
+import { getEvalTopics } from '../../api';
 
 const COLORS = [
   '#3b82f6',

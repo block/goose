@@ -12,12 +12,13 @@
 
 import type { Spec } from '@json-render/react';
 import { JSONUIProvider, Renderer } from '@json-render/react';
-import { gooseComponents } from './goose-components';
 import { ElementErrorBoundary } from './ElementErrorBoundary';
+import { gooseComponents } from './goose-components';
 
-export interface GooseActionHandler {
-  (actionName: string, params?: Record<string, unknown>): void | Promise<void>;
-}
+export type GooseActionHandler = (
+  actionName: string,
+  params?: Record<string, unknown>
+) => void | Promise<void>;
 
 export function GooseGenerativeUI({
   spec,
@@ -40,11 +41,7 @@ export function GooseGenerativeUI({
 
   return (
     <ElementErrorBoundary elementId="GooseGenerativeUI:root">
-      <JSONUIProvider
-        registry={gooseComponents}
-        initialState={state}
-        handlers={handlers}
-      >
+      <JSONUIProvider registry={gooseComponents} initialState={state} handlers={handlers}>
         <Renderer spec={spec} registry={gooseComponents} loading={loading} />
       </JSONUIProvider>
     </ElementErrorBoundary>
@@ -54,7 +51,9 @@ export function GooseGenerativeUI({
 export function isGooseUISpec(obj: unknown): obj is Spec {
   if (!obj || typeof obj !== 'object') return false;
   const spec = obj as Record<string, unknown>;
-  return typeof spec.root === 'string' && typeof spec.elements === 'object' && spec.elements !== null;
+  return (
+    typeof spec.root === 'string' && typeof spec.elements === 'object' && spec.elements !== null
+  );
 }
 
 export function getGooseUIPromptInstructions(): string {

@@ -1,7 +1,7 @@
-import { ipcMain, app, BrowserWindow } from 'electron';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'crypto';
+import { app, BrowserWindow, ipcMain } from 'electron';
 
 function calculateRecipeHash(recipe: unknown): string {
   const hash = crypto.createHash('sha256');

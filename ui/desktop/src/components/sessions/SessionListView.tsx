@@ -1,34 +1,22 @@
-import { AppEvents } from '../../constants/events';
-import React, { useEffect, useState, useRef, useCallback, useMemo, startTransition } from 'react';
 import {
-  MessageSquareText,
-  Target,
   AlertCircle,
   Calendar,
-  Folder,
-  Edit2,
-  Trash2,
-  Download,
-  Upload,
-  ExternalLink,
-  Copy,
-  Puzzle,
   ChevronDown,
   ChevronRight,
+  Copy,
+  Download,
+  Edit2,
+  ExternalLink,
+  Folder,
+  MessageSquareText,
+  Puzzle,
+  Target,
+  Trash2,
+  Upload,
 } from 'lucide-react';
-import { Card } from '../ui/molecules/card';
-import { Button } from '../ui/atoms/button';
-import { ScrollArea } from '../ui/atoms/scroll-area';
-import { formatMessageTimestamp } from '../../utils/timeUtils';
-import { SearchView } from '../conversation/SearchView';
-import { SearchHighlighter } from '../../utils/searchHighlighter';
-import { PageShell } from '../Layout/PageShell';
-import { groupSessionsByDate, groupSessionsByProjectThenDate, type DateGroup, type ProjectGroup } from '../../utils/dateUtils';
-import { errorMessage } from '../../utils/conversionUtils';
-import { Skeleton } from '../ui/atoms/skeleton';
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
-import { ConfirmationModal } from '../ui/molecules/ConfirmationModal';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
+import type { ExtensionConfig, ExtensionData, Session } from '../../api';
 import {
   deleteSession,
   exportSession,
@@ -38,11 +26,28 @@ import {
   searchSessions,
   updateSessionName,
 } from '../../api';
-import type { Session, ExtensionConfig, ExtensionData } from '../../api';
-import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
-import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { shouldShowNewChatTitle } from '../../sessions';
+import { AppEvents } from '../../constants/events';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
+import { shouldShowNewChatTitle } from '../../sessions';
+import { errorMessage } from '../../utils/conversionUtils';
+import {
+  type DateGroup,
+  groupSessionsByDate,
+  groupSessionsByProjectThenDate,
+  type ProjectGroup,
+} from '../../utils/dateUtils';
+import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import type { SearchHighlighter } from '../../utils/searchHighlighter';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
+import { SearchView } from '../conversation/SearchView';
+import { PageShell } from '../Layout/PageShell';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
+import { Button } from '../ui/atoms/button';
+import { ScrollArea } from '../ui/atoms/scroll-area';
+import { Skeleton } from '../ui/atoms/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
+import { ConfirmationModal } from '../ui/molecules/ConfirmationModal';
+import { Card } from '../ui/molecules/card';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {
@@ -147,7 +152,6 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
                 onChange={handleInputChange}
                 className="w-full p-3 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter session description"
-                autoFocus
                 maxLength={200}
                 onKeyDown={handleKeyDown}
                 disabled={isUpdating || disabled}
@@ -230,7 +234,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     // Search state for debouncing
     const [searchTerm, setSearchTerm] = useState('');
-    const [caseSensitive, setCaseSensitive] = useState(false);
+    const [_caseSensitive, setCaseSensitive] = useState(false);
     const debouncedSearchTerm = useDebounce(searchTerm, 300); // 300ms debounce
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -363,7 +367,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           });
         }
       }
-    }, [selectedSessionId, sessions]);
+    }, [selectedSessionId]);
 
     // Debounced search effect - performs content search via API
     useEffect(() => {
@@ -380,21 +384,23 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         const resp = await searchSessions({
           query: { query: debouncedSearchTerm },
         });
-        
+
         if (resp.data) {
           // Response is Vec<Session> - sessions that match the search
           const matchedSessionIds = new Set(resp.data.map((s: { id: string }) => s.id));
           const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
-          
+
           startTransition(() => {
             setFilteredSessions(filtered);
-            setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
+            setSearchResults(
+              filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null
+            );
           });
         }
       };
 
       performSearch();
-    }, [debouncedSearchTerm, caseSensitive, sessions]);
+    }, [debouncedSearchTerm, sessions]);
 
     // Handle immediate search input (updates search term for debouncing)
     const handleSearch = useCallback((term: string, caseSensitive: boolean) => {
@@ -805,7 +811,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         {projectGroups.map((pg) => {
           const isCollapsed = collapsedProjects.has(pg.project);
           return (
-            <div key={pg.project} className="border border-border-default rounded-lg overflow-hidden">
+            <div
+              key={pg.project}
+              className="border border-border-default rounded-lg overflow-hidden"
+            >
               <button
                 onClick={() => toggleProjectCollapse(pg.project)}
                 className="w-full flex items-center gap-3 px-4 py-3 bg-background-default hover:bg-background-default/80 transition-colors cursor-pointer"
@@ -907,72 +916,72 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </>
           }
         >
-              <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
-                <div ref={containerRef} className="h-full relative">
-                  <SearchView
-                    onSearch={handleSearch}
-                    onNavigate={handleSearchNavigation}
-                    searchResults={searchResults}
-                    className="relative"
-                    placeholder="Search history..."
-                  >
-                    {/* Skeleton layer - always rendered but conditionally visible */}
-                    <div
-                      className={`absolute inset-0 transition-opacity duration-300 ${
-                        isLoading || showSkeleton
-                          ? 'opacity-100 z-10'
-                          : 'opacity-0 z-0 pointer-events-none'
-                      }`}
-                    >
-                      <div className="space-y-8">
-                        {/* Today section */}
-                        <div className="space-y-4">
-                          <Skeleton className="h-6 w-16" />
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                            <SessionSkeleton variant={0} />
-                            <SessionSkeleton variant={1} />
-                            <SessionSkeleton variant={2} />
-                            <SessionSkeleton variant={3} />
-                            <SessionSkeleton variant={0} />
-                          </div>
-                        </div>
-
-                        {/* Yesterday section */}
-                        <div className="space-y-4">
-                          <Skeleton className="h-6 w-20" />
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                            <SessionSkeleton variant={1} />
-                            <SessionSkeleton variant={2} />
-                            <SessionSkeleton variant={3} />
-                            <SessionSkeleton variant={0} />
-                            <SessionSkeleton variant={1} />
-                            <SessionSkeleton variant={2} />
-                          </div>
-                        </div>
-
-                        {/* Additional section */}
-                        <div className="space-y-4">
-                          <Skeleton className="h-6 w-24" />
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                            <SessionSkeleton variant={3} />
-                            <SessionSkeleton variant={0} />
-                            <SessionSkeleton variant={1} />
-                          </div>
-                        </div>
+          <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
+            <div ref={containerRef} className="h-full relative">
+              <SearchView
+                onSearch={handleSearch}
+                onNavigate={handleSearchNavigation}
+                searchResults={searchResults}
+                className="relative"
+                placeholder="Search history..."
+              >
+                {/* Skeleton layer - always rendered but conditionally visible */}
+                <div
+                  className={`absolute inset-0 transition-opacity duration-300 ${
+                    isLoading || showSkeleton
+                      ? 'opacity-100 z-10'
+                      : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+                >
+                  <div className="space-y-8">
+                    {/* Today section */}
+                    <div className="space-y-4">
+                      <Skeleton className="h-6 w-16" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                        <SessionSkeleton variant={0} />
+                        <SessionSkeleton variant={1} />
+                        <SessionSkeleton variant={2} />
+                        <SessionSkeleton variant={3} />
+                        <SessionSkeleton variant={0} />
                       </div>
                     </div>
 
-                    {/* Content layer - always rendered but conditionally visible */}
-                    <div
-                      className={`relative transition-opacity duration-300 ${
-                        showContent ? 'opacity-100 z-10' : 'opacity-0 z-0'
-                      }`}
-                    >
-                      {renderActualContent()}
+                    {/* Yesterday section */}
+                    <div className="space-y-4">
+                      <Skeleton className="h-6 w-20" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                        <SessionSkeleton variant={1} />
+                        <SessionSkeleton variant={2} />
+                        <SessionSkeleton variant={3} />
+                        <SessionSkeleton variant={0} />
+                        <SessionSkeleton variant={1} />
+                        <SessionSkeleton variant={2} />
+                      </div>
                     </div>
-                  </SearchView>
+
+                    {/* Additional section */}
+                    <div className="space-y-4">
+                      <Skeleton className="h-6 w-24" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                        <SessionSkeleton variant={3} />
+                        <SessionSkeleton variant={0} />
+                        <SessionSkeleton variant={1} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </ScrollArea>
+
+                {/* Content layer - always rendered but conditionally visible */}
+                <div
+                  className={`relative transition-opacity duration-300 ${
+                    showContent ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                  }`}
+                >
+                  {renderActualContent()}
+                </div>
+              </SearchView>
+            </div>
+          </ScrollArea>
         </PageShell>
 
         <input

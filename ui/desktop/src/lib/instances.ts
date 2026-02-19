@@ -8,20 +8,20 @@
 
 import { client } from '../api/client.gen';
 import {
-  listInstances as sdkListInstances,
-  spawnInstance as sdkSpawnInstance,
-  getInstance as sdkGetInstance,
   cancelInstance as sdkCancelInstance,
+  getInstance as sdkGetInstance,
   getInstanceResult as sdkGetInstanceResult,
+  listInstances as sdkListInstances,
   listPersonas as sdkListPersonas,
+  spawnInstance as sdkSpawnInstance,
 } from '../api/sdk.gen';
 
 // Re-export generated types so existing component imports keep working
 export type {
   InstanceResponse,
   InstanceResultResponse,
-  SpawnInstanceRequest,
   PersonaSummary,
+  SpawnInstanceRequest,
 } from '../api/types.gen';
 
 import type {

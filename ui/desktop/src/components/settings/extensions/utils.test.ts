@@ -1,15 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 import {
-  nameToKey,
-  getDefaultFormData,
-  extensionToFormData,
   createExtensionConfig,
+  DEFAULT_EXTENSION_TIMEOUT,
+  extensionToFormData,
   extractCommand,
   extractExtensionName,
+  getDefaultFormData,
+  nameToKey,
   splitCmdAndArgs,
-  DEFAULT_EXTENSION_TIMEOUT,
 } from './utils';
-import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 
 describe('Extension Utils', () => {
   beforeEach(() => {

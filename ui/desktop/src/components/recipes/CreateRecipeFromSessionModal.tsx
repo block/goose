@@ -1,16 +1,15 @@
-import { useState, useEffect } from 'react';
 import { useForm } from '@tanstack/react-form';
+import { Loader2, Play, Save, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { createRecipe } from '../../api/sdk.gen';
 import type { Recipe } from '../../recipe';
+import { saveRecipe } from '../../recipe/recipe_management';
+import { toastError } from '../../toasts';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Geese } from '../icons/Geese';
-import { X, Save, Play, Loader2 } from 'lucide-react';
 import { Button } from '../ui/atoms/button';
 import { RecipeFormFields } from './shared/RecipeFormFields';
-import type { RecipeFormData } from './shared/recipeFormSchema';
-import { createRecipe } from '../../api/sdk.gen';
-import type { RecipeParameter } from './shared/recipeFormSchema';
-import { toastError } from '../../toasts';
-import { saveRecipe } from '../../recipe/recipe_management';
-import { errorMessage } from '../../utils/conversionUtils';
+import type { RecipeFormData, RecipeParameter } from './shared/recipeFormSchema';
 
 interface CreateRecipeFromSessionModalProps {
   isOpen: boolean;
@@ -174,15 +173,14 @@ export default function CreateRecipeFromSessionModal({
               }
             : {}),
         })),
-        response:
-          formData.jsonSchema && formData.jsonSchema.trim()
-            ? {
-                json_schema: JSON.parse(formData.jsonSchema),
-              }
-            : undefined,
+        response: formData.jsonSchema?.trim()
+          ? {
+              json_schema: JSON.parse(formData.jsonSchema),
+            }
+          : undefined,
       };
 
-      let recipeId = await saveRecipe(recipe, null);
+      const recipeId = await saveRecipe(recipe, null);
 
       onRecipeCreated?.(recipe);
       onClose();

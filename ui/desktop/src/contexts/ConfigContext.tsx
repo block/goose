@@ -1,24 +1,24 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type {
+  ConfigKeyQuery,
+  ConfigResponse,
+  ExtensionConfig,
+  ExtensionQuery,
+  ExtensionResponse,
+  ProviderDetails,
+  UpsertConfigQuery,
+} from '../api';
 import {
+  addExtension as apiAddExtension,
+  getExtensions as apiGetExtensions,
+  removeExtension as apiRemoveExtension,
+  providers,
   readAllConfig,
   readConfig,
   removeConfig,
   upsertConfig,
-  getExtensions as apiGetExtensions,
-  addExtension as apiAddExtension,
-  removeExtension as apiRemoveExtension,
-  providers,
 } from '../api';
 import { syncBundledExtensions } from '../components/settings/extensions';
-import type {
-  ConfigResponse,
-  UpsertConfigQuery,
-  ConfigKeyQuery,
-  ExtensionResponse,
-  ProviderDetails,
-  ExtensionQuery,
-  ExtensionConfig,
-} from '../api';
 
 export type { ExtensionConfig } from '../api/types.gen';
 

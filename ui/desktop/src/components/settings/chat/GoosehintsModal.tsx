@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Button } from '../../ui/atoms/button';
+import { useEffect, useState } from 'react';
 import { Check } from '../../icons';
+import { Button } from '../../ui/atoms/button';
 import {
   Dialog,
   DialogContent,

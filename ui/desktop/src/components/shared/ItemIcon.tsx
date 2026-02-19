@@ -1,21 +1,21 @@
-import React from 'react';
 import {
-  Folder,
-  File,
-  Image,
-  Video,
-  Music,
   Archive,
-  FileText,
-  Palette,
+  BookOpen,
   Code,
   Database,
+  File,
+  FileText,
+  Folder,
+  Image,
+  Music,
+  Palette,
   Settings,
   Terminal,
-  Zap,
-  BookOpen,
+  Video,
   Wrench,
+  Zap,
 } from 'lucide-react';
+import type React from 'react';
 import type { DisplayItem } from '../chat/MentionPopover';
 
 interface FileIconProps {

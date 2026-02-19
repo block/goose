@@ -1,6 +1,7 @@
-import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
-import type { Recipe } from './recipe';
+import type Electron from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { GooseApp } from './api';
+import type { Recipe } from './recipe';
 import type { Settings } from './utils/settings';
 
 interface NotificationData {

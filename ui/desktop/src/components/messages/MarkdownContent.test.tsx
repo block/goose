@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
 import { screen, waitFor } from '@testing-library/dom';
+import { render } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import MarkdownContent from './MarkdownContent';
 
 // Mock the icons to avoid import issues

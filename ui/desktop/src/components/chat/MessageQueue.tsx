@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, Clock, Send, GripVertical, Zap, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '../ui/atoms/button';
+import { ChevronDown, ChevronUp, Clock, GripVertical, Send, Sparkles, X, Zap } from 'lucide-react';
+import type React from 'react';
+import { useState } from 'react';
 import type { ImageData } from '../../types/message';
+import { Button } from '../ui/atoms/button';
 
 export interface QueuedMessage {
   id: string;
@@ -254,7 +255,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
           <div
             key={message.id}
             className="group relative"
-            draggable={onReorderMessages ? true : false}
+            draggable={!!onReorderMessages}
             onDragStart={(e) => handleDragStart(e, message.id)}
             onDragOver={(e) => handleDragOver(e, message.id)}
             onDragLeave={handleDragLeave}
@@ -308,7 +309,6 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                       onChange={(e) => setEditContent(e.target.value)}
                       className="w-full text-sm bg-background border border-border rounded-md px-2 py-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       rows={Math.min(Math.ceil(editContent.length / 60), 4)}
-                      autoFocus
                     />
                     <div className="flex gap-2">
                       <Button

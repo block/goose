@@ -1,6 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import type { View } from '../../../utils/navigationUtils';
-import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConfig } from '../../../contexts/ConfigContext';
 import {
   UNKNOWN_PROVIDER_MSG,
@@ -8,8 +6,9 @@ import {
   useModelAndProvider,
 } from '../../../contexts/ModelAndProviderContext';
 import { toastError } from '../../../toasts';
-
+import type { View } from '../../../utils/navigationUtils';
 import { Card, CardContent } from '../../ui/molecules/card';
+import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;
@@ -45,7 +44,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
         const providers = await getProviders(true);
         const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
 
-        if (providerDetailsList.length != 1) {
+        if (providerDetailsList.length !== 1) {
           toastError({
             title: UNKNOWN_PROVIDER_TITLE,
             msg: UNKNOWN_PROVIDER_MSG,

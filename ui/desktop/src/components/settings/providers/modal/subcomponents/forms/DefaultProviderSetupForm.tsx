@@ -1,8 +1,13 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Input } from '../../../../../ui/atoms/input';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ConfigKey, ProviderDetails } from '../../../../../../api';
 import { useConfig } from '../../../../../../contexts/ConfigContext';
-import type { ProviderDetails, ConfigKey } from '../../../../../../api';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/molecules/collapsible';
+import { Input } from '../../../../../ui/atoms/input';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../../../../../ui/molecules/collapsible';
 
 type ValidationErrors = Record<string, string>;
 
@@ -77,7 +82,7 @@ export default function DefaultProviderSetupForm({
   useEffect(() => {
     loadConfigValues();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadConfigValues]);
 
   const getPlaceholder = (parameter: ConfigKey): string => {
     if (parameter.secret) {
@@ -112,7 +117,7 @@ export default function DefaultProviderSetupForm({
     if (parameter_name.startsWith(provider.name.toUpperCase().replace('-', '_'))) {
       parameter_name = parameter_name.slice(provider.name.length + 1);
     }
-    let pretty = envToPrettyName(parameter_name);
+    const pretty = envToPrettyName(parameter_name);
     return (
       <span>
         <span>{pretty}</span>

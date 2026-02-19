@@ -1,19 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { generateDeepLink } from '../../recipe';
-import type { Recipe, Parameter } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
-import { Geese } from '../icons/Geese';
-import Copy from '../icons/Copy';
-import type { ExtensionConfig } from '../../contexts/ConfigContext';
-import { Button } from '../ui/atoms/button';
+import React, { useCallback, useEffect, useState } from 'react';
 import type { Settings } from '../../api';
-
+import type { ExtensionConfig } from '../../contexts/ConfigContext';
+import type { Parameter, Recipe } from '../../recipe';
+import { generateDeepLink } from '../../recipe';
+import { saveRecipe } from '../../recipe/recipe_management';
+import { toastError, toastSuccess } from '../../toasts';
+import { errorMessage } from '../../utils/conversionUtils';
+import Copy from '../icons/Copy';
+import { Geese } from '../icons/Geese';
+import { Button } from '../ui/atoms/button';
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import type { RecipeFormData } from './shared/recipeFormSchema';
-import { toastSuccess, toastError } from '../../toasts';
-import { saveRecipe } from '../../recipe/recipe_management';
-import { errorMessage } from '../../utils/conversionUtils';
 
 interface CreateEditRecipeModalProps {
   isOpen: boolean;
@@ -127,8 +126,8 @@ export default function CreateEditRecipeModal({
     });
 
     // Parse response schema if provided
-    let responseConfig = undefined;
-    if (jsonSchema && jsonSchema.trim()) {
+    let responseConfig;
+    if (jsonSchema?.trim()) {
       try {
         const parsedSchema = JSON.parse(jsonSchema);
         responseConfig = { json_schema: parsedSchema };
@@ -199,7 +198,7 @@ export default function CreateEditRecipeModal({
       title.trim() && description.trim() && (instructions.trim() || (prompt || '').trim());
 
     // If JSON schema is provided, it must be valid
-    if (jsonSchema && jsonSchema.trim()) {
+    if (jsonSchema?.trim()) {
       try {
         JSON.parse(jsonSchema);
       } catch {
@@ -251,19 +250,7 @@ export default function CreateEditRecipeModal({
     return () => {
       isCancelled = true;
     };
-  }, [
-    title,
-    description,
-    instructions,
-    prompt,
-    activities,
-    parameters,
-    jsonSchema,
-    model,
-    provider,
-    extensions,
-    getCurrentRecipe,
-  ]);
+  }, [title, description, instructions, prompt, getCurrentRecipe]);
 
   const handleCopy = () => {
     if (!deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink') {
@@ -328,7 +315,7 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      let saved_recipe_id = await saveRecipe(recipe, recipeId);
+      const saved_recipe_id = await saveRecipe(recipe, recipeId);
 
       // Close modal first
       onClose(true);

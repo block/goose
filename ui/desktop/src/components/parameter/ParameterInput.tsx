@@ -1,5 +1,5 @@
-import React from 'react';
-import { AlertTriangle, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import type React from 'react';
 import type { Parameter } from '../../recipe';
 
 interface ParameterInputProps {

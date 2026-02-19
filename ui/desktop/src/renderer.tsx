@@ -1,11 +1,11 @@
-import React, { Suspense, lazy } from 'react';
+import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
-import { ConfigProvider } from './contexts/ConfigContext';
-import { ErrorBoundary } from './components/shared/ErrorBoundary';
-import SuspenseLoader from './suspense-loader';
-import { client } from './api/client.gen';
-import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
+import { client } from './api/client.gen';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
+import { ConfigProvider } from './contexts/ConfigContext';
+import SuspenseLoader from './suspense-loader';
+import { setTelemetryEnabled } from './utils/analytics';
 
 const App = lazy(() => import('./App'));
 

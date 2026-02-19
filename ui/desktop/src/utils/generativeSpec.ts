@@ -9,8 +9,8 @@
  *   { "root": "...", "elements": { ... } }
  */
 
-import { isGooseUISpec } from '../components/ui/design-system/goose-renderer';
 import type { Spec } from '@json-render/react';
+import { isGooseUISpec } from '../components/ui/design-system/goose-renderer';
 
 interface ExtractedSpec {
   spec: Spec;

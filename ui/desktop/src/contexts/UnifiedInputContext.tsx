@@ -12,20 +12,20 @@
 
 import {
   createContext,
-  useContext,
-  useMemo,
-  useCallback,
-  useState,
-  useRef,
-  useEffect,
   type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import type { Message, Recipe } from '../api';
+import type { DroppedFile } from '../hooks/useFileDrop';
 import { ChatState } from '../types/chatState';
 import type { UserInput } from '../types/message';
-import type { DroppedFile } from '../hooks/useFileDrop';
 import type { View, ViewOptions } from '../utils/navigationUtils';
-import type { Message, Recipe } from '../api';
 
 // ─── Zone & Slash Command Types ───────────────────────────────────
 
@@ -97,7 +97,9 @@ export function useUnifiedInput() {
 
 // Hook for session components (BaseChat) to register their session into the unified context.
 // Uses a ref for the context setter to avoid re-running the effect when the context value changes.
-export function useRegisterSession(state: Partial<SessionInputState> & { sessionId: string | null }) {
+export function useRegisterSession(
+  state: Partial<SessionInputState> & { sessionId: string | null }
+) {
   const ctx = useContext(UnifiedInputContext);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -136,11 +138,37 @@ export function useRegisterSession(state: Partial<SessionInputState> & { session
         onWorkingDirChange: state.onWorkingDirChange,
         inputRef: state.inputRef,
       });
-      return () => { setter(null); };
+      return () => {
+        setter(null);
+      };
     }
     return undefined;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.sessionId, state.chatState, state.toolCount, state.totalTokens, state.messages?.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.sessionId,
+    state.chatState,
+    state.toolCount,
+    state.totalTokens,
+    state.messages?.length,
+    state.accumulatedInputTokens,
+    state.accumulatedOutputTokens,
+    state.append,
+    state.commandHistory,
+    state.droppedFiles,
+    state.initialPrompt,
+    state.inputRef,
+    state.messages,
+    stableSubmit,
+    state.onFilesProcessed,
+    state.onStop,
+    state.onWorkingDirChange,
+    state.recipe,
+    state.recipeAccepted,
+    state.recipeId,
+    state.sessionCosts,
+    state.setChatState,
+    state.setView,
+  ]);
 }
 
 // ─── Zone Detection ───────────────────────────────────────────────
@@ -188,44 +216,47 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
   const mode: InputMode = isOnPairRoute ? 'full' : 'compact';
 
   // Global slash commands (available everywhere)
-  const globalCommands: SlashCommand[] = useMemo(() => [
-    {
-      command: '/new',
-      description: 'Start a new chat session',
-      action: () => window.dispatchEvent(new CustomEvent('TRIGGER_NEW_CHAT')),
-    },
-    {
-      command: '/recipe',
-      description: 'Browse and run recipes',
-      action: (args?: string) => {
-        if (args) {
-          navigate(`/recipes?search=${encodeURIComponent(args)}`);
-        } else {
-          navigate('/recipes');
-        }
+  const globalCommands: SlashCommand[] = useMemo(
+    () => [
+      {
+        command: '/new',
+        description: 'Start a new chat session',
+        action: () => window.dispatchEvent(new CustomEvent('TRIGGER_NEW_CHAT')),
       },
-    },
-    {
-      command: '/settings',
-      description: 'Open settings',
-      action: () => navigate('/settings'),
-    },
-    {
-      command: '/model',
-      description: 'Change model configuration',
-      action: () => navigate('/settings'),
-    },
-    {
-      command: '/project',
-      description: 'Switch project directory',
-      action: () => navigate('/sessions'),
-    },
-    {
-      command: '/help',
-      description: 'Show available commands',
-      action: () => setLastCommand('/help'),
-    },
-  ], [navigate]);
+      {
+        command: '/recipe',
+        description: 'Browse and run recipes',
+        action: (args?: string) => {
+          if (args) {
+            navigate(`/recipes?search=${encodeURIComponent(args)}`);
+          } else {
+            navigate('/recipes');
+          }
+        },
+      },
+      {
+        command: '/settings',
+        description: 'Open settings',
+        action: () => navigate('/settings'),
+      },
+      {
+        command: '/model',
+        description: 'Change model configuration',
+        action: () => navigate('/settings'),
+      },
+      {
+        command: '/project',
+        description: 'Switch project directory',
+        action: () => navigate('/sessions'),
+      },
+      {
+        command: '/help',
+        description: 'Show available commands',
+        action: () => setLastCommand('/help'),
+      },
+    ],
+    [navigate]
+  );
 
   // Zone-specific commands
   const zoneCommands: SlashCommand[] = useMemo(() => {
@@ -348,25 +379,22 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
     if (onCreateSessionRef.current) {
       onCreateSessionRef.current(trimmed);
     } else {
-      window.dispatchEvent(
-        new CustomEvent('PROMPT_BAR_SUBMIT', { detail: { message: trimmed } })
-      );
+      window.dispatchEvent(new CustomEvent('PROMPT_BAR_SUBMIT', { detail: { message: trimmed } }));
     }
   }, []); // stable — reads everything from refs
 
-  const value = useMemo<UnifiedInputContextValue>(() => ({
-    mode,
-    zone,
-    config,
-    slashCommands,
-    session,
-    submitPrompt,
-    setSessionState,
-  }), [mode, zone, config, slashCommands, session]);
-
-  return (
-    <UnifiedInputContext.Provider value={value}>
-      {children}
-    </UnifiedInputContext.Provider>
+  const value = useMemo<UnifiedInputContextValue>(
+    () => ({
+      mode,
+      zone,
+      config,
+      slashCommands,
+      session,
+      submitPrompt,
+      setSessionState,
+    }),
+    [mode, zone, config, slashCommands, session, submitPrompt]
   );
+
+  return <UnifiedInputContext.Provider value={value}>{children}</UnifiedInputContext.Provider>;
 }

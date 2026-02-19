@@ -1,12 +1,11 @@
+import { Download, Play, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { GooseApp } from '../../api';
+import { exportApp, importApp, listApps } from '../../api';
+import { useChatContext } from '../../contexts/ChatContext';
+import { errorMessage, formatAppName } from '../../utils/conversionUtils';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/atoms/button';
-import { Download, Play, Upload } from 'lucide-react';
-import { exportApp, importApp, listApps } from '../../api';
-import type { GooseApp } from '../../api';
-import { useChatContext } from '../../contexts/ChatContext';
-import { formatAppName } from '../../utils/conversionUtils';
-import { errorMessage } from '../../utils/conversionUtils';
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -74,7 +73,7 @@ export default function AppsView() {
     // apps.length intentionally not in deps: we want to capture the initial apps.length to check
     // "did we have cached apps when refresh started?" Adding it would cause infinite loop since setApps() changes apps.length
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }, [sessionId, apps.length]);
 
   useEffect(() => {
     const handlePlatformEvent = (event: Event) => {

@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Input } from '../../ui/atoms/input';
-import { Check, Lock, Loader2, AlertCircle } from 'lucide-react';
-import { Switch } from '../../ui/atoms/switch';
-import { Button } from '../../ui/atoms/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
+import { AlertCircle, Check, Loader2, Lock } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { Button } from '../../ui/atoms/button';
+import { Input } from '../../ui/atoms/input';
+import { Switch } from '../../ui/atoms/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 
 export default function SessionSharingSection() {
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');
 
   // If env is set, force sharing enabled and set the baseUrl accordingly.
   const [sessionSharingConfig, setSessionSharingConfig] = useState({
-    enabled: envBaseUrlShare ? true : false,
+    enabled: !!envBaseUrlShare,
     baseUrl: typeof envBaseUrlShare === 'string' ? envBaseUrlShare : '',
   });
   const [urlError, setUrlError] = useState('');

@@ -12,10 +12,9 @@ import {
   Terminal,
   TestTube,
 } from 'lucide-react';
-import React from 'react';
+import type React from 'react';
 
 import { Goose } from '../icons/Goose';
-
 
 interface Capability {
   icon: React.ElementType;
@@ -169,8 +168,11 @@ export default function WelcomeState({ onSubmit }: WelcomeStateProps) {
 
       {/* Footer hint */}
       <p className="text-xs text-text-subtle mt-8 text-center">
-        Type <kbd className="px-1.5 py-0.5 rounded bg-background-muted text-[11px] text-text-default font-mono">/</kbd> for
-        slash commands · Drag files into the chat
+        Type{' '}
+        <kbd className="px-1.5 py-0.5 rounded bg-background-muted text-[11px] text-text-default font-mono">
+          /
+        </kbd>{' '}
+        for slash commands · Drag files into the chat
       </p>
     </div>
   );

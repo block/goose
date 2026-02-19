@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { detectProvider } from '../../api';
-import { Key } from '../icons/Key';
 import { ArrowRight } from '../icons/ArrowRight';
+import { Key } from '../icons/Key';
 import { Button } from '../ui/atoms/button';
 
 interface ApiKeyTesterProps {

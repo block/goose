@@ -1,5 +1,3 @@
-import { AppEvents } from '../../constants/events';
-import React, { useEffect, useState } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import {
   Activity,
@@ -20,10 +18,26 @@ import {
   Puzzle,
   Search,
   Trash2,
-  X,
   Workflow,
+  X,
 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import type { Session } from '../../api';
+import { deleteSession, listSessions, updateSessionName } from '../../api';
+import { AppEvents } from '../../constants/events';
+import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
+import { useConfig } from '../../contexts/ConfigContext';
+import { useNavigation } from '../../hooks/useNavigation';
+import { useProjectPreferences } from '../../hooks/useProjectPreferences';
+import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
+import { resumeSession, shouldShowNewChatTitle, startNewSession } from '../../sessions';
+import type { View, ViewOptions } from '../../utils/navigationUtils';
+import { getInitialWorkingDir } from '../../utils/workingDir';
+import { InlineEditText } from '../common/InlineEditText';
+import { Gear } from '../icons';
+import { SessionIndicators } from '../shared/SessionIndicators';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/molecules/collapsible';
 import {
   SidebarContent,
   SidebarGroup,
@@ -35,20 +49,6 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from '../ui/molecules/sidebar';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/molecules/collapsible';
-import { Gear } from '../icons';
-import type { View, ViewOptions } from '../../utils/navigationUtils';
-import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';
-import { deleteSession, listSessions, updateSessionName } from '../../api';
-import type { Session } from '../../api';
-import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
-import { useNavigation } from '../../hooks/useNavigation';
-import { SessionIndicators } from '../shared/SessionIndicators';
-import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
-import { getInitialWorkingDir } from '../../utils/workingDir';
-import { useConfig } from '../../contexts/ConfigContext';
-import { InlineEditText } from '../common/InlineEditText';
-import { useProjectPreferences } from '../../hooks/useProjectPreferences';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;
@@ -207,7 +207,7 @@ const getProjectName = (workingDir: string | undefined | null): string => {
   const initialWorkDir = typeof window !== 'undefined' ? getInitialWorkingDir() : '';
   if (initialWorkDir) {
     const iwdClean = initialWorkDir.replace(/\/$/, '');
-    if (cleanPath !== iwdClean && cleanPath.startsWith(iwdClean + '/')) {
+    if (cleanPath !== iwdClean && cleanPath.startsWith(`${iwdClean}/`)) {
       const iwdName = iwdClean.split('/').pop() || '';
       const relative = cleanPath.slice(iwdClean.length + 1);
       return `${iwdName} › ${relative}`;
@@ -620,7 +620,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   }, []);
 
   useEffect(() => {
-    let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
+    const pollingTimeouts: ReturnType<typeof setTimeout>[] = [];
     let isPolling = false;
 
     const handleSessionCreated = (event: Event) => {
@@ -1039,7 +1039,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 <SidebarGroupContent className="hidden group-data-[collapsible=icon]:block">
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      onClick={() => zone.route ? navigate(zone.route) : navigate(visibleItems[0].path)}
+                      onClick={() =>
+                        zone.route ? navigate(zone.route) : navigate(visibleItems[0].path)
+                      }
                       isActive={zoneActive}
                       tooltip={zone.label}
                       className="w-full justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
@@ -1051,54 +1053,54 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 </SidebarGroupContent>
                 {/* Full collapsible group visible when sidebar expanded */}
                 <div className="group-data-[collapsible=icon]:hidden">
-                <Collapsible defaultOpen={zoneActive}>
-                  <div className="flex items-center">
-                    {zone.route ? (
-                      <SidebarGroupLabel
-                        className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none"
-                        onClick={() => navigate(zone.route!)}
-                      >
-                        <ZoneIcon className="w-3.5 h-3.5" />
-                        <span>{zone.label}</span>
-                      </SidebarGroupLabel>
-                    ) : (
-                      <CollapsibleTrigger asChild>
-                        <SidebarGroupLabel className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none">
+                  <Collapsible defaultOpen={zoneActive}>
+                    <div className="flex items-center">
+                      {zone.route ? (
+                        <SidebarGroupLabel
+                          className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none"
+                          onClick={() => navigate(zone.route!)}
+                        >
                           <ZoneIcon className="w-3.5 h-3.5" />
                           <span>{zone.label}</span>
                         </SidebarGroupLabel>
+                      ) : (
+                        <CollapsibleTrigger asChild>
+                          <SidebarGroupLabel className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none">
+                            <ZoneIcon className="w-3.5 h-3.5" />
+                            <span>{zone.label}</span>
+                          </SidebarGroupLabel>
+                        </CollapsibleTrigger>
+                      )}
+                      <CollapsibleTrigger asChild>
+                        <button className="px-1.5 py-1.5 hover:bg-background-medium/50 rounded transition-colors">
+                          <ChevronRight className="w-3 h-3 text-text-muted transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
+                        </button>
                       </CollapsibleTrigger>
-                    )}
-                    <CollapsibleTrigger asChild>
-                      <button className="px-1.5 py-1.5 hover:bg-background-medium/50 rounded transition-colors">
-                        <ChevronRight className="w-3 h-3 text-text-muted transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
-                      </button>
-                    </CollapsibleTrigger>
-                  </div>
-                  <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 group-data-[collapsible=icon]:hidden">
-                    <SidebarGroupContent className="space-y-0.5 mt-1">
-                      {visibleItems.map((item) => {
-                        const ItemIcon = item.icon;
-                        return (
-                          <div key={item.path} className="sidebar-item">
-                            <SidebarMenuItem>
-                              <SidebarMenuButton
-                                data-testid={`sidebar-${item.label.toLowerCase()}-button`}
-                                onClick={() => navigate(item.path)}
-                                isActive={isActivePath(item.path)}
-                                tooltip={item.tooltip}
-                                className="w-full justify-start px-3 pl-7 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                              >
-                                <ItemIcon className="w-4 h-4" />
-                                <span>{item.label}</span>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          </div>
-                        );
-                      })}
-                    </SidebarGroupContent>
-                  </CollapsibleContent>
-                </Collapsible>
+                    </div>
+                    <CollapsibleContent className="overflow-hidden transition-all data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 group-data-[collapsible=icon]:hidden">
+                      <SidebarGroupContent className="space-y-0.5 mt-1">
+                        {visibleItems.map((item) => {
+                          const ItemIcon = item.icon;
+                          return (
+                            <div key={item.path} className="sidebar-item">
+                              <SidebarMenuItem>
+                                <SidebarMenuButton
+                                  data-testid={`sidebar-${item.label.toLowerCase()}-button`}
+                                  onClick={() => navigate(item.path)}
+                                  isActive={isActivePath(item.path)}
+                                  tooltip={item.tooltip}
+                                  className="w-full justify-start px-3 pl-7 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
+                                >
+                                  <ItemIcon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            </div>
+                          );
+                        })}
+                      </SidebarGroupContent>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               </SidebarGroup>
             );

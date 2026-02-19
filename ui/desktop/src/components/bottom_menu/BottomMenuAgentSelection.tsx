@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
 import { Bot } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/molecules/dropdown-menu';
+import { useEffect, useMemo, useState } from 'react';
 import { listBuiltinAgents, orchestratorStatus } from '../../api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '../ui/molecules/dropdown-menu';
 
 interface AgentInfo {
   name: string;
@@ -90,16 +94,11 @@ export const BottomMenuAgentSelection = () => {
         </div>
         {orchestrator && (
           <div className="flex items-center justify-between px-1 py-1.5 mb-1 rounded bg-surface-subtle">
-            <div className="text-xs text-text-default/70">
-              {orchestrator.routing_mode}
-            </div>
+            <div className="text-xs text-text-default/70">{orchestrator.routing_mode}</div>
           </div>
         )}
         {agents.map((agent) => (
-          <div
-            key={agent.name}
-            className="flex items-center justify-between px-1 py-1.5"
-          >
+          <div key={agent.name} className="flex items-center justify-between px-1 py-1.5">
             <div className="flex items-center gap-2">
               <div
                 className={`w-2 h-2 rounded-full ${agent.enabled ? 'bg-green-400' : 'bg-gray-400'}`}

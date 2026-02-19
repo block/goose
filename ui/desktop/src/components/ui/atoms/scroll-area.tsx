@@ -1,5 +1,5 @@
-import * as React from 'react';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
+import * as React from 'react';
 
 type ScrollBehavior = 'auto' | 'smooth';
 
@@ -182,7 +182,7 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       }
 
       lastScrollHeightRef.current = currentScrollHeight;
-    }, [children, autoScroll]);
+    }, [autoScroll]);
 
     // Add scroll event listener
     React.useEffect(() => {

@@ -1,15 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* global AbortSignal, TextEncoder, EventListener */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkOllamaStatus,
-  getOllamaModels,
-  hasModel,
-  pullOllamaModel,
-  pollForOllama,
   getOllamaDownloadUrl,
+  getOllamaModels,
   getPreferredModel,
+  hasModel,
+  pollForOllama,
+  pullOllamaModel,
 } from './ollamaDetection';
 
 // Mock fetch globally
@@ -206,18 +206,18 @@ describe('ollamaDetection', () => {
               .mockResolvedValueOnce({
                 done: false,
                 value: new TextEncoder().encode(
-                  JSON.stringify({ status: 'downloading', completed: 100, total: 1000 }) + '\n'
+                  `${JSON.stringify({ status: 'downloading', completed: 100, total: 1000 })}\n`
                 ),
               })
               .mockResolvedValueOnce({
                 done: false,
                 value: new TextEncoder().encode(
-                  JSON.stringify({ status: 'downloading', completed: 500, total: 1000 }) + '\n'
+                  `${JSON.stringify({ status: 'downloading', completed: 500, total: 1000 })}\n`
                 ),
               })
               .mockResolvedValueOnce({
                 done: false,
-                value: new TextEncoder().encode(JSON.stringify({ status: 'success' }) + '\n'),
+                value: new TextEncoder().encode(`${JSON.stringify({ status: 'success' })}\n`),
               })
               .mockResolvedValueOnce({ done: true }),
           }),

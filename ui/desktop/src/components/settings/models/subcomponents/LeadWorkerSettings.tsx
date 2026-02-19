@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useConfig } from '../../../../contexts/ConfigContext';
 import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
 import { Button } from '../../../ui/atoms/button';
-import { Select } from '../../../ui/molecules/Select';
 import { Input } from '../../../ui/atoms/input';
-import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/molecules/dialog';
+import { Select } from '../../../ui/molecules/Select';
 import { fetchModelsForProviders } from '../modelInterface';
+import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 
 interface LeadWorkerSettingsProps {
   isOpen: boolean;

@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { IoIosCloseCircle, IoIosWarning, IoIosInformationCircle } from 'react-icons/io';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { FaPencilAlt, FaSave } from 'react-icons/fa';
-import { cn } from '../../utils';
-import { errorMessage } from '../../utils/conversionUtils';
-import { AlertType } from './types';
-import type { Alert } from './types';
+import { IoIosCloseCircle, IoIosInformationCircle, IoIosWarning } from 'react-icons/io';
 import { upsertConfig } from '../../api';
 import { useConfig } from '../../contexts/ConfigContext';
+import { cn } from '../../utils';
+import { errorMessage } from '../../utils/conversionUtils';
 import { Button } from '../ui/atoms/button';
+import type { Alert } from './types';
+import { AlertType } from './types';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
   [AlertType.Error]: <IoIosCloseCircle className="h-5 w-5" />,
@@ -66,7 +67,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   const handleSaveThreshold = async () => {
     if (isSaving) return; // Prevent double-clicks
 
-    let validThreshold = Math.max(1, Math.min(100, thresholdValue));
+    const validThreshold = Math.max(1, Math.min(100, thresholdValue));
     if (validThreshold !== thresholdValue) {
       setThresholdValue(validThreshold);
     }
@@ -128,7 +129,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                     // Allow empty input for easier editing
                     if (e.target.value === '') {
                       setThresholdValue(1);
-                    } else if (!isNaN(val)) {
+                    } else if (!Number.isNaN(val)) {
                       // Clamp value between 1 and 100
                       setThresholdValue(Math.max(1, Math.min(100, val)));
                     }
@@ -136,7 +137,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                   onBlur={(e) => {
                     // On blur, ensure we have a valid value
                     const val = parseInt(e.target.value, 10);
-                    if (isNaN(val) || val < 1) {
+                    if (Number.isNaN(val) || val < 1) {
                       setThresholdValue(1);
                     } else if (val > 100) {
                       setThresholdValue(100);
@@ -161,7 +162,6 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                   }}
                   className="w-12 px-1 text-[10px] bg-white/10 border border-current/30 rounded outline-none text-center focus:bg-white/20 focus:border-current/50 transition-colors"
                   disabled={isSaving}
-                  autoFocus
                 />
                 <span className="text-[10px] opacity-70">%</span>
                 <button
@@ -215,7 +215,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
               }
 
               return [...Array(30)].map((_, i) => {
-                const progress = alert.progress!.current / alert.progress!.total;
+                const progress = (alert.progress?.current ?? 0) / (alert.progress?.total ?? 1);
                 const progressPercentage = Math.round(progress * 100);
                 const dotPosition = i / 29; // 0 to 1 range for 30 dots
                 const isActive = dotPosition <= progress;
@@ -254,14 +254,14 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <div className="flex justify-between items-baseline text-[11px]">
             <div className="flex gap-1 items-baseline">
               <span className={'dark:text-black/60 text-white/60'}>
-                {formatTokenCount(alert.progress!.current)}
+                {formatTokenCount(alert.progress?.current)}
               </span>
               <span className={'dark:text-black/40 text-white/40'}>
-                {Math.round((alert.progress!.current / alert.progress!.total) * 100)}%
+                {Math.round(((alert.progress?.current ?? 0) / (alert.progress?.total ?? 1)) * 100)}%
               </span>
             </div>
             <span className={'dark:text-black/60 text-white/60'}>
-              {formatTokenCount(alert.progress!.total)}
+              {formatTokenCount(alert.progress?.total)}
             </span>
           </div>
           {alert.showCompactButton && alert.onCompact && (
@@ -269,7 +269,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                alert.onCompact!();
+                alert.onCompact?.();
               }}
               disabled={alert.compactButtonDisabled}
               className={cn(
@@ -285,27 +285,25 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           )}
         </div>
       ) : (
-        <>
-          <div className="flex items-center gap-2">
-            <div className="flex-shrink-0">{alertIcons[alert.type]}</div>
-            <div className="flex flex-col gap-2 flex-1">
-              <span className="text-[11px] break-words whitespace-pre-line">{alert.message}</span>
-              {alert.action && (
-                <Button
-                  variant="link"
-                  size="xs"
-                  className="text-[11px] text-left underline p-0 h-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    alert.action?.onClick();
-                  }}
-                >
-                  {alert.action.text}
-                </Button>
-              )}
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="flex-shrink-0">{alertIcons[alert.type]}</div>
+          <div className="flex flex-col gap-2 flex-1">
+            <span className="text-[11px] break-words whitespace-pre-line">{alert.message}</span>
+            {alert.action && (
+              <Button
+                variant="link"
+                size="xs"
+                className="text-[11px] text-left underline p-0 h-auto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  alert.action?.onClick();
+                }}
+              >
+                {alert.action.text}
+              </Button>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

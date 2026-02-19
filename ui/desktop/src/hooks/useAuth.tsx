@@ -1,13 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import type React from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   authStatus as apiAuthStatus,
   getUserInfo as apiGetUserInfo,
+  listOidcProviders as apiListOidcProviders,
   login as apiLogin,
   logout as apiLogout,
   oidcAuthUrl as apiOidcAuthUrl,
   oidcCodeExchange as apiOidcCodeExchange,
-  listOidcProviders as apiListOidcProviders,
 } from '../api';
 
 interface User {
@@ -85,10 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (data?.token) {
             localStorage.setItem(TOKEN_KEY, data.token);
             if (data.expires_in) {
-              localStorage.setItem(
-                TOKEN_EXPIRY_KEY,
-                String(Date.now() + data.expires_in * 1000)
-              );
+              localStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + data.expires_in * 1000));
               scheduleTokenRefresh(data.expires_in);
             }
           }
@@ -231,10 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data?.token) {
           localStorage.setItem(TOKEN_KEY, data.token);
           if (data.expires_in) {
-            localStorage.setItem(
-              TOKEN_EXPIRY_KEY,
-              String(Date.now() + data.expires_in * 1000)
-            );
+            localStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + data.expires_in * 1000));
             scheduleTokenRefresh(data.expires_in);
           }
 
@@ -278,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
     }
     return undefined;
-  }, [navigate, scheduleTokenRefresh, state.oidcProviders]);
+  }, [navigate, scheduleTokenRefresh, state.oidcProviders, state.securityMode]);
 
   // Cleanup refresh timer on unmount
   useEffect(() => {
@@ -293,10 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data?.token) {
           localStorage.setItem(TOKEN_KEY, data.token);
           if (data.expires_in) {
-            localStorage.setItem(
-              TOKEN_EXPIRY_KEY,
-              String(Date.now() + data.expires_in * 1000)
-            );
+            localStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + data.expires_in * 1000));
             scheduleTokenRefresh(data.expires_in);
           }
           setState((prev) => ({
@@ -334,46 +326,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [navigate, scheduleTokenRefresh]
   );
 
-  const loginWithOidc = useCallback(
-    async (issuer: string) => {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
-      try {
-        const redirectUri = 'goose://auth/callback';
-        const { data } = await apiOidcAuthUrl({
-          body: { issuer, redirect_uri: redirectUri },
-        });
+  const loginWithOidc = useCallback(async (issuer: string) => {
+    setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    try {
+      const redirectUri = 'goose://auth/callback';
+      const { data } = await apiOidcAuthUrl({
+        body: { issuer, redirect_uri: redirectUri },
+      });
 
-        if (data?.auth_url) {
-          // Store state for callback verification
-          sessionStorage.setItem('oidc_state', data.state);
-          sessionStorage.setItem('oidc_issuer', issuer);
-          sessionStorage.setItem('oidc_redirect_uri', redirectUri);
+      if (data?.auth_url) {
+        // Store state for callback verification
+        sessionStorage.setItem('oidc_state', data.state);
+        sessionStorage.setItem('oidc_issuer', issuer);
+        sessionStorage.setItem('oidc_redirect_uri', redirectUri);
 
-          // Open auth URL in system browser
-          await window.electron.openExternal(data.auth_url);
+        // Open auth URL in system browser
+        await window.electron.openExternal(data.auth_url);
 
-          setState((prev) => ({
-            ...prev,
-            isLoading: false, // User is now in the browser
-            error: null,
-          }));
-        } else {
-          setState((prev) => ({
-            ...prev,
-            error: 'Failed to generate authorization URL',
-            isLoading: false,
-          }));
-        }
-      } catch (err) {
         setState((prev) => ({
           ...prev,
-          error: `OIDC login failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          isLoading: false, // User is now in the browser
+          error: null,
+        }));
+      } else {
+        setState((prev) => ({
+          ...prev,
+          error: 'Failed to generate authorization URL',
           isLoading: false,
         }));
       }
-    },
-    []
-  );
+    } catch (err) {
+      setState((prev) => ({
+        ...prev,
+        error: `OIDC login failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        isLoading: false,
+      }));
+    }
+  }, []);
 
   const logoutFn = useCallback(async () => {
     const currentToken = localStorage.getItem(TOKEN_KEY);

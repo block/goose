@@ -1,24 +1,31 @@
-import React, { useState, useEffect } from 'react';
 import {
+  AlertCircle,
   Calendar,
-  MessageSquareText,
+  Check,
+  Copy,
   Folder,
+  LoaderCircle,
+  MessageSquareText,
   Share2,
   Sparkles,
-  Copy,
-  Check,
   Target,
-  LoaderCircle,
-  AlertCircle,
 } from 'lucide-react';
-import { resumeSession } from '../../sessions';
-import { Button } from '../ui/atoms/button';
+import type React from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { ScrollArea } from '../ui/atoms/scroll-area';
-import { formatMessageTimestamp } from '../../utils/timeUtils';
+import type { Message, Session } from '../../api';
+import { useNavigation } from '../../hooks/useNavigation';
+import { resumeSession } from '../../sessions';
 import { createSharedSession } from '../../sharedSessions';
 import { errorMessage } from '../../utils/conversionUtils';
+import { formatMessageTimestamp } from '../../utils/timeUtils';
+import ProgressiveMessageList from '../chat/ProgressiveMessageList';
+import { SearchView } from '../conversation/SearchView';
+import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { Button } from '../ui/atoms/button';
+import { ScrollArea } from '../ui/atoms/scroll-area';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
+import BackButton from '../ui/molecules/BackButton';
 import {
   Dialog,
   DialogContent,
@@ -27,12 +34,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/molecules/dialog';
-import ProgressiveMessageList from '../chat/ProgressiveMessageList';
-import { SearchView } from '../conversation/SearchView';
-import BackButton from '../ui/molecules/BackButton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
-import type { Message, Session } from '../../api';
-import { useNavigation } from '../../hooks/useNavigation';
 
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {

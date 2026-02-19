@@ -78,8 +78,8 @@ export function detectInterruption(input: string): InterruptionMatch | null {
   for (const keyword of INTERRUPTION_KEYWORDS) {
     for (const variation of keyword.variations) {
       if (
-        normalizedInput.startsWith(variation + ' ') ||
-        normalizedInput.startsWith(variation + ',')
+        normalizedInput.startsWith(`${variation} `) ||
+        normalizedInput.startsWith(`${variation},`)
       ) {
         return {
           keyword,

@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
-  AreaChart,
   Area,
-  BarChart,
+  AreaChart,
   Bar,
-  XAxis,
-  YAxis,
+  BarChart,
   CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
   Cell,
   Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
-import { getSessionAnalytics, getEvalOverview, listEvalRuns } from '../../api';
-import type { SessionAnalytics, EvalOverview, EvalRunSummary } from '../../api';
+import type { EvalOverview, EvalRunSummary, SessionAnalytics } from '../../api';
+import { getEvalOverview, getSessionAnalytics, listEvalRuns } from '../../api';
 
 // --- Design tokens ---
 const COLORS = {

@@ -22,7 +22,14 @@ const statusDot: Record<ListItemStatus, string> = {
 };
 
 export function ListItem({
-  title, description, icon, status, actions, onClick, indent = 0, className,
+  title,
+  description,
+  icon,
+  status,
+  actions,
+  onClick,
+  indent = 0,
+  className,
 }: ListItemProps) {
   const Component = onClick ? 'button' : 'div';
   return (
@@ -36,14 +43,10 @@ export function ListItem({
       style={indent > 0 ? { paddingLeft: `${indent * 1.5 + 0.75}rem` } : undefined}
     >
       {icon && <div className="shrink-0 text-text-muted">{icon}</div>}
-      {status && (
-        <div className={cn('h-2 w-2 rounded-full shrink-0', statusDot[status])} />
-      )}
+      {status && <div className={cn('h-2 w-2 rounded-full shrink-0', statusDot[status])} />}
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-text-default truncate">{title}</div>
-        {description && (
-          <div className="text-xs text-text-muted truncate">{description}</div>
-        )}
+        {description && <div className="text-xs text-text-muted truncate">{description}</div>}
       </div>
       {actions && <div className="shrink-0 flex items-center gap-1">{actions}</div>}
     </Component>

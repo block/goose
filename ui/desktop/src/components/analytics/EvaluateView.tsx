@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { PageHeader } from '../ui/design-system/PageHeader';
 import { TabBar } from '../ui/design-system/TabBar';
-import EvalOverviewTab from './EvalOverviewTab';
 import DatasetsTab from './DatasetsTab';
+import EvalOverviewTab from './EvalOverviewTab';
+import EvalRunner from './EvalRunner';
+import RoutingInspector from './RoutingInspector';
 import RunHistoryTab from './RunHistoryTab';
 import TopicsTab from './TopicsTab';
-import RoutingInspector from './RoutingInspector';
-import EvalRunner from './EvalRunner';
 
 const TAB_GROUPS = [
   {

@@ -1,30 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import cronstrue from 'cronstrue';
+import { Edit, Eye, Loader2, Pause, Play, Square } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import type { Session } from '../../api';
+import { getSession } from '../../api';
+import type { ScheduledJob } from '../../schedule';
+import {
+  getScheduleSessions,
+  inspectRunningJob,
+  killRunningJob,
+  listSchedules,
+  pauseSchedule,
+  runScheduleNow,
+  unpauseSchedule,
+  updateSchedule,
+} from '../../schedule';
+import { toastError, toastSuccess } from '../../toasts';
+import { getErrorType, trackScheduleRunNow } from '../../utils/analytics';
+import { errorMessage } from '../../utils/conversionUtils';
+import { formatToLocalDateWithTimezone } from '../../utils/date';
+import SessionHistoryView from '../sessions/SessionHistoryView';
 import { Button } from '../ui/atoms/button';
 import { ScrollArea } from '../ui/atoms/scroll-area';
 import BackButton from '../ui/molecules/BackButton';
 import { Card } from '../ui/molecules/card';
-import {
-  getScheduleSessions,
-  runScheduleNow,
-  pauseSchedule,
-  unpauseSchedule,
-  updateSchedule,
-  listSchedules,
-  killRunningJob,
-  inspectRunningJob,
-} from '../../schedule';
-import type { ScheduledJob } from '../../schedule';
-import SessionHistoryView from '../sessions/SessionHistoryView';
-import { ScheduleModal } from './ScheduleModal';
 import type { NewSchedulePayload } from './ScheduleModal';
-import { toastError, toastSuccess } from '../../toasts';
-import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
-import cronstrue from 'cronstrue';
-import { formatToLocalDateWithTimezone } from '../../utils/date';
-import { getSession } from '../../api';
-import type { Session } from '../../api';
-import { trackScheduleRunNow, getErrorType } from '../../utils/analytics';
-import { errorMessage } from '../../utils/conversionUtils';
+import { ScheduleModal } from './ScheduleModal';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -99,7 +100,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       fetchSessions(scheduleId);
       fetchSchedule(scheduleId);
     }
-  }, [scheduleId, selectedSession]);
+  }, [scheduleId, selectedSession, fetchSchedule, fetchSessions]);
 
   const handleRunNow = async () => {
     if (!scheduleId) return;

@@ -1,4 +1,10 @@
-import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import { spawn } from 'node:child_process';
+import fsSync from 'node:fs';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { format as formatUrl, pathToFileURL, URLSearchParams } from 'node:url';
+import type { App, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
   BrowserWindow,
@@ -14,26 +20,13 @@ import {
   shell,
   Tray,
 } from 'electron';
-import type { App } from 'electron';
-import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
-import path from 'node:path';
-import os from 'node:os';
-import { spawn } from 'child_process';
 import 'dotenv/config';
-import { checkServerStatus, startGoosed } from './goosed';
-import { expandTilde } from './utils/pathUtils';
-import log from './utils/logger';
-import { ensureWinShims } from './utils/winShims';
-import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName, errorMessage } from './utils/conversionUtils';
-import type { Settings } from './utils/settings';
-import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
-import * as crypto from 'crypto';
-import * as yaml from 'yaml';
+import * as crypto from 'node:crypto';
 import windowStateKeeper from 'electron-window-state';
+import * as yaml from 'yaml';
+import { checkServerStatus, startGoosed } from './goosed';
+import { UPDATES_ENABLED } from './updates';
 import {
   getUpdateAvailable,
   registerUpdateIpcHandlers,
@@ -41,12 +34,18 @@ import {
   setupAutoUpdater,
   updateTrayMenu,
 } from './utils/autoUpdater';
-import { UPDATES_ENABLED } from './updates';
+import { errorMessage, formatAppName } from './utils/conversionUtils';
+import log from './utils/logger';
+import { expandTilde } from './utils/pathUtils';
+import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
+import type { Settings } from './utils/settings';
+import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
+import { ensureWinShims } from './utils/winShims';
 import './utils/recipeHash';
-import { createClient, createConfig } from './api/client';
-import type { Client } from './api/client';
-import type { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import type { GooseApp } from './api';
+import type { Client } from './api/client';
+import { createClient, createConfig } from './api/client';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
 function shouldSetupUpdater(): boolean {
@@ -449,7 +448,7 @@ const getServerSecret = (settings: Settings): string => {
   return GENERATED_SECRET;
 };
 
-let appConfig = {
+const appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
@@ -703,7 +702,7 @@ const createChat = async (
   // Handle new-window events (alternative approach for external links)
   // Use type assertion for non-standard Electron event
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mainWindow.webContents.on('new-window' as any, function (event: any, url: string) {
+  mainWindow.webContents.on('new-window' as any, (event: any, url: string) => {
     event.preventDefault();
     try {
       const protocol = new URL(url).protocol;
@@ -740,7 +739,7 @@ const createChat = async (
     appPath = '/pair';
   }
 
-  let searchParams = new URLSearchParams();
+  const searchParams = new URLSearchParams();
   if (resumeSessionId) {
     searchParams.set('resumeSessionId', resumeSessionId);
     if (appPath === '/') {
@@ -750,7 +749,7 @@ const createChat = async (
 
   // Goose's react app uses HashRouter, so the path + search params follow a #/
   url.hash = `${appPath}?${searchParams.toString()}`;
-  let formattedUrl = formatUrl(url);
+  const formattedUrl = formatUrl(url);
   log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);
 
@@ -782,7 +781,7 @@ const createChat = async (
   // Handle mouse back button (button 3)
   // Use type assertion for non-standard Electron event
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mainWindow.webContents.on('mouse-up' as any, function (_event: any, mouseButton: number) {
+  mainWindow.webContents.on('mouse-up' as any, (_event: any, mouseButton: number) => {
     // MouseButton 3 is the back button.
     if (mouseButton === 3) {
       mainWindow.webContents.send('mouse-back-button-clicked');
@@ -1061,7 +1060,7 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
 
     addRecentDir(dirToAdd);
 
-    let deeplinkData: RecipeDeeplinkData | undefined = undefined;
+    let deeplinkData: RecipeDeeplinkData | undefined;
     if (windowDeeplinkURL) {
       deeplinkData = parseRecipeDeeplink(windowDeeplinkURL);
     }
@@ -1094,7 +1093,7 @@ function parseRecipeDeeplink(url: string): RecipeDeeplinkData | undefined {
     // Parse raw query to preserve "+" characters in values like config
     const search = parsedUrl.search || '';
     const configMatch = search.match(/(?:[?&])config=([^&]*)/);
-    let recipeDeeplinkTmp = configMatch ? configMatch[1] : null;
+    const recipeDeeplinkTmp = configMatch ? configMatch[1] : null;
     if (recipeDeeplinkTmp) {
       try {
         recipeDeeplink = decodeURIComponent(recipeDeeplinkTmp);
@@ -1437,7 +1436,7 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
         dialogOptions.defaultPath = path.dirname(expandedPath);
       }
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
+    } catch (_error) {
       // If path doesn't exist, fall back to home directory and log error
       console.error(`Default path does not exist: ${expandedPath}, falling back to home directory`);
       dialogOptions.defaultPath = os.homedir();
@@ -1724,7 +1723,7 @@ async function appMain() {
   registerGlobalShortcuts();
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    details.requestHeaders['Origin'] = 'http://localhost:5173';
+    details.requestHeaders.Origin = 'http://localhost:5173';
     callback({ cancel: false, requestHeaders: details.requestHeaders });
   });
 
@@ -1956,7 +1955,6 @@ async function appMain() {
                 } else {
                   focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
                 }
-
               }
             },
           })
@@ -2181,7 +2179,7 @@ async function appMain() {
 
       // Set a reasonable size limit (e.g., 10MB)
       const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-      const contentLength = parseInt(response.headers.get('content-length') || '0');
+      const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
       if (contentLength > MAX_SIZE) {
         throw new Error('Response too large');
       }
@@ -2366,7 +2364,7 @@ async function getAllowList(): Promise<string[]> {
   const parsedYaml = yaml.parse(yamlContent);
 
   // Extract the commands from the extensions array
-  if (parsedYaml && parsedYaml.extensions && Array.isArray(parsedYaml.extensions)) {
+  if (parsedYaml?.extensions && Array.isArray(parsedYaml.extensions)) {
     const commands = parsedYaml.extensions.map(
       (ext: { id: string; command: string }) => ext.command
     );

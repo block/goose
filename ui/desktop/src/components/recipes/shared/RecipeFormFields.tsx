@@ -1,17 +1,21 @@
-import React, { useState } from 'react';
-import type { Parameter } from '../../../recipe';
 import { ChevronDown } from 'lucide-react';
+import React, { useState } from 'react';
 import type { ExtensionConfig } from '../../../api';
+import type { Parameter } from '../../../recipe';
 
 import ParameterInput from '../../parameter/ParameterInput';
-import RecipeActivityEditor from '../RecipeActivityEditor';
-import JsonSchemaEditor from './JsonSchemaEditor';
-import InstructionsEditor from './InstructionsEditor';
 import { Button } from '../../ui/atoms/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/molecules/collapsible';
-import type { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
-import { RecipeModelSelector } from './RecipeModelSelector';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '../../ui/molecules/collapsible';
+import RecipeActivityEditor from '../RecipeActivityEditor';
+import InstructionsEditor from './InstructionsEditor';
+import JsonSchemaEditor from './JsonSchemaEditor';
 import { RecipeExtensionSelector } from './RecipeExtensionSelector';
+import { RecipeModelSelector } from './RecipeModelSelector';
+import type { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
 
 // Type for field API to avoid linting issues - use any to bypass complex type constraints
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,9 +108,7 @@ export function RecipeFormFields({
     // Separate manually added parameters (those not found in instructions/prompt/activities)
     const manualParams = currentParams.filter((param: Parameter) => {
       // Only keep manual params that have a valid key and are not found in the parsed params
-      return (
-        param.key && param.key.trim() && !newParams.some((newParam) => newParam.key === param.key)
-      );
+      return param.key?.trim() && !newParams.some((newParam) => newParam.key === param.key);
     });
 
     // Combine parsed parameters with manually added ones, filtering out empty ones
@@ -116,7 +118,7 @@ export function RecipeFormFields({
         return existing ? { ...existing } : newParam;
       }),
       ...manualParams,
-    ].filter((param: Parameter) => param.key && param.key.trim()) as Parameter[];
+    ].filter((param: Parameter) => param.key?.trim()) as Parameter[];
 
     // Only update if parameters actually changed
     const currentParamKeys = currentParams.map((p: Parameter) => p.key).sort();
@@ -151,9 +153,9 @@ export function RecipeFormFields({
   const checkHasAdvancedData = React.useCallback((values: RecipeFormData) => {
     const hasActivities = Boolean(values.activities && values.activities.length > 0);
     const hasParameters = Boolean(values.parameters && values.parameters.length > 0);
-    const hasJsonSchema = Boolean(values.jsonSchema && values.jsonSchema.trim());
-    const hasModel = Boolean(values.model && values.model.trim());
-    const hasProvider = Boolean(values.provider && values.provider.trim());
+    const hasJsonSchema = Boolean(values.jsonSchema?.trim());
+    const hasModel = Boolean(values.model?.trim());
+    const hasProvider = Boolean(values.provider?.trim());
     const hasExtensions = Boolean(values.extensions && values.extensions.length > 0);
     return (
       hasActivities || hasParameters || hasJsonSchema || hasModel || hasProvider || hasExtensions
@@ -438,7 +440,7 @@ export function RecipeFormFields({
 
                   {field.state.value.length > 0 &&
                     field.state.value
-                      .filter((parameter: Parameter) => parameter.key && parameter.key.trim()) // Filter out empty parameters
+                      .filter((parameter: Parameter) => parameter.key?.trim()) // Filter out empty parameters
                       .map((parameter: Parameter) => {
                         const currentValues = form.state.values;
                         const isUnused = !isParameterUsed(
@@ -520,10 +522,12 @@ export function RecipeFormFields({
                   </Button>
                 </div>
 
-                {field.state.value && field.state.value.trim() && (
+                {field.state.value?.trim() && (
                   <div
                     className={`border rounded-lg p-3 bg-background-muted ${
-                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-default'
+                      field.state.meta.errors.length > 0
+                        ? 'border-red-500'
+                        : 'border-border-default'
                     }`}
                   >
                     <pre className="text-xs font-mono text-text-default whitespace-pre-wrap break-words max-h-32 overflow-y-auto">

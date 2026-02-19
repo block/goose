@@ -1,15 +1,15 @@
-import React from 'react';
-import { X, Settings2 } from 'lucide-react';
+import { Settings2, X } from 'lucide-react';
+import type React from 'react';
 import type {
-  DagNodeData,
-  NodeKind,
-  AgentConfig,
-  ToolConfig,
-  TriggerConfig,
-  ConditionConfig,
-  TransformConfig,
-  HumanConfig,
   A2aConfig,
+  AgentConfig,
+  ConditionConfig,
+  DagNodeData,
+  HumanConfig,
+  NodeKind,
+  ToolConfig,
+  TransformConfig,
+  TriggerConfig,
 } from '../types';
 
 interface PropertiesPanelProps {

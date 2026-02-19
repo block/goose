@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
-import { useConfig } from '../../../contexts/ConfigContext';
-import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 import { ChevronRight } from 'lucide-react';
-import PermissionModal from './PermissionModal';
+import type React from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { Button } from '../../ui/atoms/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
+import PermissionModal from './PermissionModal';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,7 +84,7 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
       fetchExtensions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, fetchExtensions]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

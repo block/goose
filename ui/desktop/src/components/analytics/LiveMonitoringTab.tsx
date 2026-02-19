@@ -1,15 +1,15 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { Activity, AlertTriangle, CheckCircle, Clock, RefreshCw, Zap } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from 'recharts';
 import { getLiveMonitoring } from '../../api';
-import { Activity, AlertTriangle, CheckCircle, Clock, RefreshCw, Zap } from 'lucide-react';
 
 // ── Types (from generated API) ──────────────────────────────────────
 

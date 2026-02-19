@@ -4,8 +4,9 @@
  * Extracted from useChatStream to isolate state transition logic,
  * making it independently testable.
  */
-import { ChatState } from '../../types/chatState';
+
 import type { Message, Session, TokenState } from '../../api';
+import { ChatState } from '../../types/chatState';
 import type { NotificationEvent } from '../../types/message';
 
 // ── State ────────────────────────────────────────────────────────────

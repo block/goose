@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import type { UpdateCustomProviderRequest } from '../../../../../../api';
+import { Button } from '../../../../../ui/atoms/button';
 import { Input } from '../../../../../ui/atoms/input';
 import { Select } from '../../../../../ui/molecules/Select';
-import { Button } from '../../../../../ui/atoms/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
-import type { UpdateCustomProviderRequest } from '../../../../../../api';
-import { Trash2, AlertTriangle } from 'lucide-react';
 
 interface CustomProviderFormProps {
   onSubmit: (data: UpdateCustomProviderRequest) => void;

@@ -1,10 +1,10 @@
+import { Brain, Wrench, X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { X, Brain, Wrench } from 'lucide-react';
 import { useReasoningDetail } from '../../contexts/ReasoningDetailContext';
-import MarkdownContent from './MarkdownContent';
-import { ScrollArea } from '../ui/atoms/scroll-area';
 import { cn } from '../../utils';
 import GooseMessage from '../chat/GooseMessage';
+import { ScrollArea } from '../ui/atoms/scroll-area';
+import MarkdownContent from './MarkdownContent';
 
 export default function ReasoningDetailPanel() {
   const { detail, panelDetail, isOpen, closeDetail } = useReasoningDetail();
@@ -18,16 +18,14 @@ export default function ReasoningDetailPanel() {
   const isReasoningStreaming = isReasoning && detail?.title === 'Thinking...';
   const isLiveStreaming = isWorkBlockStreaming || isReasoningStreaming;
 
-  const title = isWorkBlock
-    ? panelDetail.data.title || 'Work Block'
-    : detail?.title || 'Details';
+  const title = isWorkBlock ? panelDetail.data.title || 'Work Block' : detail?.title || 'Details';
 
   // Auto-scroll to bottom during live streaming
   useEffect(() => {
     if (isLiveStreaming && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [detail?.content, panelDetail, isLiveStreaming]);
+  }, [isLiveStreaming]);
 
   return (
     <div
@@ -57,9 +55,7 @@ export default function ReasoningDetailPanel() {
                   )}
                 />
               )}
-              <h3 className="text-sm font-medium text-text-default truncate">
-                {title}
-              </h3>
+              <h3 className="text-sm font-medium text-text-default truncate">{title}</h3>
               {isWorkBlock && panelDetail.data.agentName && (
                 <span className="text-xs text-blue-500 font-medium ml-1">
                   {panelDetail.data.agentName}
@@ -80,7 +76,8 @@ export default function ReasoningDetailPanel() {
               <div className="space-y-3">
                 {panelDetail.data.toolCount > 0 && (
                   <div className="text-xs text-text-muted px-1 py-1.5 border-b border-border-default">
-                    {panelDetail.data.toolCount} tool{panelDetail.data.toolCount !== 1 ? 's' : ''} used
+                    {panelDetail.data.toolCount} tool{panelDetail.data.toolCount !== 1 ? 's' : ''}{' '}
+                    used
                   </div>
                 )}
                 {panelDetail.data.messages.map((msg, i) => {

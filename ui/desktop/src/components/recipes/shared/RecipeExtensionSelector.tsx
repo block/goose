@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { ExtensionConfig } from '../../../api';
 import { useConfig } from '../../../contexts/ConfigContext';
+import { formatExtensionName } from '../../settings/extensions/subcomponents/ExtensionList';
 import { Input } from '../../ui/atoms/input';
 import { Switch } from '../../ui/atoms/switch';
-import { formatExtensionName } from '../../settings/extensions/subcomponents/ExtensionList';
 
 interface RecipeExtensionSelectorProps {
   selectedExtensions: ExtensionConfig[];
@@ -44,10 +44,7 @@ export const RecipeExtensionSelector = ({
 
   const filteredExtensions = displayExtensions.filter((ext) => {
     const query = searchQuery.toLowerCase();
-    return (
-      ext.name.toLowerCase().includes(query) ||
-      (ext.description && ext.description.toLowerCase().includes(query))
-    );
+    return ext.name.toLowerCase().includes(query) || ext.description?.toLowerCase().includes(query);
   });
 
   const sortedExtensions = [...filteredExtensions].sort((a, b) => {

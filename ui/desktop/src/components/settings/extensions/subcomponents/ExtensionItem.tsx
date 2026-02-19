@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
 import kebabCase from 'lodash/kebabCase';
-import { Switch } from '../../../ui/atoms/switch';
-import { Gear } from '../../../icons';
+import { useEffect, useState } from 'react';
 import type { FixedExtensionEntry } from '../../../../contexts/ConfigContext';
-import { getSubtitle, getFriendlyTitle } from './ExtensionList';
-import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/molecules/card';
+import { Gear } from '../../../icons';
+import { Switch } from '../../../ui/atoms/switch';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '../../../ui/molecules/card';
+import { getFriendlyTitle, getSubtitle } from './ExtensionList';
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;
-  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
+  onToggle: (extension: FixedExtensionEntry) => Promise<boolean | undefined> | undefined;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean; // to not allow users to edit configuration
 }

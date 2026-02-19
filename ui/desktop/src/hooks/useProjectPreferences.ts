@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'goose-project-preferences';
 const RECENT_DIRS_KEY = 'goose-recent-project-dirs';

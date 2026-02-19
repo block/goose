@@ -1,3 +1,4 @@
+import { Button } from '../atoms/button';
 import {
   Dialog,
   DialogContent,
@@ -6,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from './dialog';
-import { Button } from '../atoms/button';
 
 export function ConfirmationModal({
   isOpen,
