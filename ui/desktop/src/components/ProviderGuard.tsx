@@ -1,83 +1,57 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useConfig } from './ConfigContext';
 import WelcomeGooseLogo from './WelcomeGooseLogo';
-import { toastService } from '../toasts';
-import { OllamaSetup } from './OllamaSetup';
-import WelcomePage from './WelcomePage';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
   children: React.ReactNode;
 }
 
+/**
+ * Guard component that redirects to /welcome if no provider is configured.
+ * This is NOT a page — it only checks state and redirects.
+ */
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
   const { read } = useConfig();
-  const [hasProvider, setHasProvider] = useState(false);
-  const [showFirstTimeSetup, setShowFirstTimeSetup] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isChecking, setIsChecking] = useState(true);
-  const [showOllamaSetup, setShowOllamaSetup] = useState(false);
-
-  const handleOllamaComplete = useCallback(() => {
-    setShowOllamaSetup(false);
-    setHasProvider(true);
-    setShowFirstTimeSetup(false);
-  }, []);
-
-  const handleOllamaCancel = useCallback(() => {
-    setShowOllamaSetup(false);
-  }, []);
+  const [hasProvider, setHasProvider] = useState(false);
 
   useEffect(() => {
     const checkProvider = async () => {
       try {
         const provider = ((await read('GOOSE_PROVIDER', false)) as string) || '';
-        const hasConfiguredProvider = provider.trim() !== '';
+        const configured = provider.trim() !== '' || didSelectProvider;
+        setHasProvider(configured);
 
-        if (hasConfiguredProvider || didSelectProvider) {
-          setHasProvider(true);
-          setShowFirstTimeSetup(false);
-        } else {
-          setHasProvider(false);
-          setShowFirstTimeSetup(true);
+        if (!configured && location.pathname !== '/welcome') {
+          navigate('/welcome', { replace: true });
         }
-      } catch (error) {
-        console.error('Error checking provider:', error);
-        toastService.error({
-          title: 'Configuration Error',
-          msg: 'Failed to check provider configuration.',
-          traceback: error instanceof Error ? error.stack || '' : '',
-        });
-        setHasProvider(false);
-        setShowFirstTimeSetup(true);
+      } catch {
+        // If config read fails, redirect to welcome for setup
+        if (location.pathname !== '/welcome') {
+          navigate('/welcome', { replace: true });
+        }
       } finally {
         setIsChecking(false);
       }
     };
 
     checkProvider();
-  }, [read, didSelectProvider]);
+  }, [read, didSelectProvider, navigate, location.pathname]);
 
   if (isChecking) {
     return (
-      <div className="h-screen w-full bg-background-default flex items-center justify-center">
+      <div className="h-screen w-full bg-bgApp flex items-center justify-center">
         <WelcomeGooseLogo />
       </div>
     );
   }
 
-  if (showOllamaSetup) {
-    return <OllamaSetup onSuccess={handleOllamaComplete} onCancel={handleOllamaCancel} />;
-  }
-
-  if (!hasProvider && showFirstTimeSetup) {
-    return (
-      <WelcomePage
-        onComplete={() => {
-          setHasProvider(true);
-          setShowFirstTimeSetup(false);
-        }}
-      />
-    );
+  if (!hasProvider) {
+    return null; // Will redirect via useEffect
   }
 
   return <>{children}</>;
