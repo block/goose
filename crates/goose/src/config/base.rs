@@ -102,6 +102,7 @@ impl From<keyring::Error> for ConfigError {
 /// For goose-specific configuration, consider prefixing with "goose_" to avoid conflicts.
 pub struct Config {
     config_path: PathBuf,
+    defaults_path: Option<PathBuf>,
     secrets: SecretStorage,
     guard: Mutex<()>,
     secrets_cache: Arc<Mutex<Option<HashMap<String, Value>>>>,
@@ -121,6 +122,16 @@ impl Default for Config {
 
         let config_path = config_dir.join(CONFIG_YAML_NAME);
 
+        let defaults_path = find_workspace_or_exe_root().and_then(|root| {
+            let path = root.join("defaults.yaml");
+            if path.exists() {
+                tracing::info!("Found bundled defaults.yaml at: {:?}", path);
+                Some(path)
+            } else {
+                None
+            }
+        });
+
         let secrets = match env::var("GOOSE_DISABLE_KEYRING") {
             Ok(_) => SecretStorage::File {
                 path: config_dir.join("secrets.yaml"),
@@ -131,6 +142,7 @@ impl Default for Config {
         };
         Config {
             config_path,
+            defaults_path,
             secrets,
             guard: Mutex::new(()),
             secrets_cache: Arc::new(Mutex::new(None)),
@@ -233,6 +245,7 @@ impl Config {
     pub fn new<P: AsRef<Path>>(config_path: P, service: &str) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
+            defaults_path: None,
             secrets: SecretStorage::Keyring {
                 service: service.to_string(),
             },
@@ -251,6 +264,23 @@ impl Config {
     ) -> Result<Self, ConfigError> {
         Ok(Config {
             config_path: config_path.as_ref().to_path_buf(),
+            defaults_path: None,
+            secrets: SecretStorage::File {
+                path: secrets_path.as_ref().to_path_buf(),
+            },
+            guard: Mutex::new(()),
+            secrets_cache: Arc::new(Mutex::new(None)),
+        })
+    }
+
+    pub fn new_with_defaults<P1: AsRef<Path>, P2: AsRef<Path>, P3: AsRef<Path>>(
+        config_path: P1,
+        secrets_path: P2,
+        defaults_path: P3,
+    ) -> Result<Self, ConfigError> {
+        Ok(Config {
+            config_path: config_path.as_ref().to_path_buf(),
+            defaults_path: Some(defaults_path.as_ref().to_path_buf()),
             secrets: SecretStorage::File {
                 path: secrets_path.as_ref().to_path_buf(),
             },
@@ -285,8 +315,21 @@ impl Config {
                 // No backup available, create a default config
                 tracing::info!("No backup found, creating default configuration");
 
-                // Try to load from init-config.yaml if it exists, otherwise use empty config
-                let default_config = self.load_init_config_if_exists().unwrap_or_default();
+                // Start with bundled defaults if available
+                let mut default_config = if let Some(defaults) = self.load_defaults() {
+                    tracing::info!("Initializing config with bundled defaults");
+                    defaults
+                } else {
+                    Mapping::new()
+                };
+
+                // Overlay init-config.yaml values on top of defaults (if it exists)
+                if let Ok(init_config) = self.load_init_config_if_exists() {
+                    tracing::info!("Merging init-config.yaml into defaults");
+                    for (k, v) in init_config {
+                        default_config.insert(k, v);
+                    }
+                }
 
                 self.create_and_save_default_config(default_config)?
             }
@@ -299,17 +342,26 @@ impl Config {
             }
         }
 
+        // Merge in any missing defaults (without overwriting existing values)
+        if self.merge_missing_defaults(&mut values) {
+            if let Err(e) = self.save_values(values.clone()) {
+                tracing::warn!("Failed to save config after merging defaults: {}", e);
+            }
+        }
+
         Ok(values)
     }
 
     pub fn all_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        self.load().map(|m| {
-            HashMap::from_iter(m.into_iter().filter_map(|(k, v)| {
+        // load() already merges defaults, so just convert and return
+        let config_values = self.load()?;
+        Ok(HashMap::from_iter(config_values.into_iter().filter_map(
+            |(k, v)| {
                 k.as_str()
                     .map(|k| k.to_string())
                     .zip(serde_json::to_value(v).ok())
-            }))
-        })
+            },
+        )))
     }
 
     // Helper method to create and save default config with consistent logging
@@ -358,7 +410,21 @@ impl Config {
                 // Last resort: create a fresh default config file
                 tracing::error!("Could not recover config file, creating fresh default configuration. Original error: {}", parse_error);
 
-                let default_config = self.load_init_config_if_exists().unwrap_or_default();
+                // Start with bundled defaults if available
+                let mut default_config = if let Some(defaults) = self.load_defaults() {
+                    tracing::info!("Initializing config with bundled defaults");
+                    defaults
+                } else {
+                    Mapping::new()
+                };
+
+                // Overlay init-config.yaml values on top of defaults (if it exists)
+                if let Ok(init_config) = self.load_init_config_if_exists() {
+                    tracing::info!("Merging init-config.yaml into defaults");
+                    for (k, v) in init_config {
+                        default_config.insert(k, v);
+                    }
+                }
 
                 self.create_and_save_default_config(default_config)
             }
@@ -647,9 +713,10 @@ impl Config {
 
     /// Get a configuration value (non-secret).
     ///
-    /// This will attempt to get the value from:
-    /// 1. Environment variable with the exact key name
-    /// 2. Configuration file
+    /// This will attempt to get the value from (in order):
+    /// 1. Environment variable with the uppercase key name
+    /// 2. Configuration file (~/.config/goose/config.yaml)
+    /// 3. Bundled defaults file (defaults.yaml next to the executable)
     ///
     /// The value will be deserialized into the requested type. This works with
     /// both simple types (String, i32, etc.) and complex types that implement
@@ -658,7 +725,7 @@ impl Config {
     /// # Errors
     ///
     /// Returns a ConfigError if:
-    /// - The key doesn't exist in either environment or config file
+    /// - The key doesn't exist in any of the above sources
     /// - The value cannot be deserialized into the requested type
     /// - There is an error reading the config file
     pub fn get_param<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Result<T, ConfigError> {
@@ -673,6 +740,39 @@ impl Config {
             .get(key)
             .ok_or_else(|| ConfigError::NotFound(key.to_string()))
             .and_then(|v| Ok(serde_yaml::from_value(v.clone())?))
+    }
+
+    fn load_defaults(&self) -> Option<Mapping> {
+        let path = self.defaults_path.as_ref()?;
+        let content = std::fs::read_to_string(path).ok()?;
+        parse_yaml_content(&content).ok()
+    }
+
+    /// Merge defaults into the config, but only for keys that don't exist yet.
+    /// Returns true if any values were added (indicating the config should be saved).
+    fn merge_missing_defaults(&self, values: &mut Mapping) -> bool {
+        let Some(defaults) = self.load_defaults() else {
+            return false;
+        };
+
+        let mut added_any = false;
+        for (key, default_value) in defaults {
+            if !values.contains_key(&key) {
+                tracing::info!(
+                    "Adding missing default to config: {} = {:?}",
+                    key.as_str().unwrap_or("unknown"),
+                    default_value
+                );
+                values.insert(key, default_value);
+                added_any = true;
+            }
+        }
+
+        if added_any {
+            tracing::info!("Merged missing defaults into user config");
+        }
+
+        added_any
     }
 
     /// Set a configuration value in the config file (non-secret).
@@ -978,34 +1078,36 @@ config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 config_value!(GEMINI3_THINKING_LEVEL, String);
 
-/// Load init-config.yaml from workspace root if it exists.
-/// This function is shared between the config recovery and the init_config endpoint.
-pub fn load_init_config_from_workspace() -> Result<Mapping, ConfigError> {
-    let workspace_root = match std::env::current_exe() {
-        Ok(mut exe_path) => {
-            while let Some(parent) = exe_path.parent() {
-                let cargo_toml = parent.join("Cargo.toml");
-                if cargo_toml.exists() {
-                    if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
-                        if content.contains("[workspace]") {
-                            exe_path = parent.to_path_buf();
-                            break;
-                        }
-                    }
+/// Find the workspace root or executable directory.
+///
+/// This is the canonical way to locate bundled files like `init-config.yaml`
+/// and `defaults.yaml` that ship alongside the binary.
+fn find_workspace_or_exe_root() -> Option<PathBuf> {
+    let mut path = std::env::current_exe().ok()?;
+    while let Some(parent) = path.parent() {
+        let cargo_toml = parent.join("Cargo.toml");
+        if cargo_toml.exists() {
+            if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
+                if content.contains("[workspace]") {
+                    return Some(parent.to_path_buf());
                 }
-                exe_path = parent.to_path_buf();
             }
-            exe_path
         }
-        Err(_) => {
-            return Err(ConfigError::FileError(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "Could not determine executable path",
-            )))
-        }
-    };
+        path = parent.to_path_buf();
+    }
+    // No workspace found — use the final ancestor (exe's root directory)
+    Some(path)
+}
 
-    let init_config_path = workspace_root.join("init-config.yaml");
+pub fn load_init_config_from_workspace() -> Result<Mapping, ConfigError> {
+    let root = find_workspace_or_exe_root().ok_or_else(|| {
+        ConfigError::FileError(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "Could not determine executable path",
+        ))
+    })?;
+
+    let init_config_path = root.join("init-config.yaml");
     if !init_config_path.exists() {
         return Err(ConfigError::NotFound(
             "init-config.yaml not found".to_string(),
@@ -1725,5 +1827,107 @@ mod tests {
         let config_file = NamedTempFile::new().unwrap();
         let secrets_file = NamedTempFile::new().unwrap();
         Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap()
+    }
+
+    fn new_test_config_with_defaults(defaults_content: &str) -> (Config, NamedTempFile) {
+        let config_file = NamedTempFile::new().unwrap();
+        let secrets_file = NamedTempFile::new().unwrap();
+        let defaults_file = NamedTempFile::new().unwrap();
+        std::fs::write(defaults_file.path(), defaults_content).unwrap();
+        let config = Config::new_with_defaults(
+            config_file.path(),
+            secrets_file.path(),
+            defaults_file.path(),
+        )
+        .unwrap();
+        // Return defaults_file to keep it alive (NamedTempFile deletes on drop)
+        (config, defaults_file)
+    }
+
+    #[test]
+    fn test_defaults_fallback_when_key_not_in_config() -> Result<(), ConfigError> {
+        let (config, _defaults) =
+            new_test_config_with_defaults("SECURITY_PROMPT_ENABLED: true\nsome_key: default_val");
+
+        // Key only in defaults → returns defaults value
+        let value: bool = config.get_param("SECURITY_PROMPT_ENABLED")?;
+        assert!(value);
+
+        let value: String = config.get_param("some_key")?;
+        assert_eq!(value, "default_val");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_file_overrides_defaults() -> Result<(), ConfigError> {
+        let (config, _defaults) = new_test_config_with_defaults("SECURITY_PROMPT_ENABLED: true");
+
+        // User explicitly sets to false in config file
+        config.set_param("SECURITY_PROMPT_ENABLED", false)?;
+
+        // Config file value should win over defaults
+        let value: bool = config.get_param("SECURITY_PROMPT_ENABLED")?;
+        assert!(!value);
+
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn test_env_var_overrides_defaults() -> Result<(), ConfigError> {
+        let (config, _defaults) = new_test_config_with_defaults("SECURITY_PROMPT_ENABLED: true");
+
+        // Env var should still win over defaults
+        std::env::set_var("SECURITY_PROMPT_ENABLED", "false");
+        let value: bool = config.get_param("SECURITY_PROMPT_ENABLED")?;
+        assert!(!value);
+        std::env::remove_var("SECURITY_PROMPT_ENABLED");
+
+        Ok(())
+    }
+
+    #[test]
+    #[serial]
+    fn test_full_precedence_env_over_config_over_defaults() -> Result<(), ConfigError> {
+        let (config, _defaults) = new_test_config_with_defaults("my_key: from_defaults");
+
+        // Only defaults → returns defaults
+        let value: String = config.get_param("my_key")?;
+        assert_eq!(value, "from_defaults");
+
+        // Config file overrides defaults
+        config.set_param("my_key", "from_config")?;
+        let value: String = config.get_param("my_key")?;
+        assert_eq!(value, "from_config");
+
+        // Env var overrides config file (and defaults)
+        std::env::set_var("MY_KEY", "from_env");
+        let value: String = config.get_param("my_key")?;
+        assert_eq!(value, "from_env");
+        std::env::remove_var("MY_KEY");
+
+        // After removing env var, config file value is back
+        let value: String = config.get_param("my_key")?;
+        assert_eq!(value, "from_config");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_defaults_file_behaves_as_before() {
+        // Config without defaults (the normal open-source case)
+        let config = new_test_config();
+
+        let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
+    }
+
+    #[test]
+    fn test_defaults_key_not_found_still_returns_not_found() {
+        let (config, _defaults) = new_test_config_with_defaults("some_other_key: value");
+
+        let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
+        assert!(matches!(result, Err(ConfigError::NotFound(_))));
     }
 }
