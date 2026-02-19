@@ -125,6 +125,7 @@ export default function ReasoningDetailPanel() {
                         toolCallNotifications={EMPTY_TOOL_NOTIFICATIONS}
                         isStreaming={isWorkBlockStreaming && isLastMsg}
                         suppressToolCalls
+                        hideRoutingBadges
                       />
                     </div>
                   );

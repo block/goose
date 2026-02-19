@@ -129,6 +129,7 @@ interface GooseMessageProps {
   append: (value: string) => void;
   isStreaming: boolean;
   suppressToolCalls?: boolean;
+  hideRoutingBadges?: boolean;
   submitElicitationResponse?: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -143,6 +144,7 @@ export default function GooseMessage({
   append,
   isStreaming,
   suppressToolCalls,
+  hideRoutingBadges = false,
   submitElicitationResponse,
 }: GooseMessageProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -336,7 +338,7 @@ export default function GooseMessage({
 
   if (isToolOnlyMessage && !isStreaming) {
     // For completed tool-only messages in hidden mode, show routing info if available
-    if (!routingInfo || routingInfo.agentName === 'Goose Agent') {
+    if (hideRoutingBadges || !routingInfo || routingInfo.agentName === 'Goose Agent') {
       return null;
     }
     // Show just the agent badge for non-default agents
@@ -366,7 +368,7 @@ export default function GooseMessage({
           />
         )}
 
-        {routingInfo && routingInfo.agentName !== 'Goose Agent' && (
+        {!hideRoutingBadges && routingInfo && routingInfo.agentName !== 'Goose Agent' && (
           <div className="flex items-center gap-1.5 mb-1">
             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20">
               <span className="text-xs font-medium text-blue-400">{routingInfo.agentName}</span>
@@ -415,7 +417,7 @@ export default function GooseMessage({
                 {!isStreaming && (
                   <div className="text-xs font-mono text-text-muted pt-1 transition-all duration-200 group-hover:-translate-y-4 group-hover:opacity-0">
                     {timestamp}
-                    {routingInfo && (
+                    {!hideRoutingBadges && routingInfo && (
                       <>
                         <span className="mx-1 opacity-50">·</span>
                         <span className="text-blue-400">{routingInfo.agentName}</span>
