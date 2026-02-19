@@ -611,14 +611,20 @@ These variables are automatically set by goose during command execution.
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `GOOSE_TERMINAL` | Indicates that a command is being executed by goose, enables [customizing shell behavior](#customizing-shell-behavior) | "1" when set | Unset |
+| `AGENT` | Generic agent identifier for cross-tool compatibility, enables tools and scripts to detect when they're being run by goose | "goose" | Unset |
 | `AGENT_SESSION_ID` | The current session ID for [session-isolated workflows](#using-session-ids-in-workflows), automatically available to STDIO extensions and the Developer extension shell commands | Session ID string (e.g., `20260217_5`) | Unset (only set in extension/shell contexts) |
 
 ### Customizing Shell Behavior
 
 Sometimes you want goose to use different commands or have different shell behavior than your normal terminal usage. For example, you might want goose to use a different tool, prevent goose from running `git commit`, or block long-running development servers that could hang the AI agent. This is most useful when using goose CLI, where shell commands are executed directly in your terminal environment.
 
+goose provides the `GOOSE_TERMINAL` and `AGENT` variables you can use to detect whether goose is the executing agent.
+
 **How it works:**
-1. When goose runs commands, `GOOSE_TERMINAL` is automatically set to "1"
+
+1. When goose runs commands:
+   - `GOOSE_TERMINAL` is automatically set to "1"
+   - `AGENT` is automatically set to "goose"
 2. Your shell configuration can detect this and change behavior while keeping your normal terminal usage unchanged
 
 **Examples:**
@@ -640,7 +646,7 @@ fi
 
 ```bash
 # Guide goose toward better tool choices
-if [[ -n "$GOOSE_TERMINAL" ]]; then
+if [[ "$AGENT" == "goose" ]]; then
   alias find="echo 'Use rg instead: rg --files | rg <pattern> for filenames, or rg <pattern> for content search'"
 fi
 ```
