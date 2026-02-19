@@ -343,7 +343,7 @@ Peekaboo — macOS UI automation CLI. Auto-installed via Homebrew on first use.
 - After actions, use capture_screenshot=true to verify the result
 "#;
 
-fn is_peekaboo_installed() -> bool {
+pub fn is_peekaboo_installed() -> bool {
     std::process::Command::new("which")
         .arg("peekaboo")
         .output()
@@ -351,7 +351,7 @@ fn is_peekaboo_installed() -> bool {
         .unwrap_or(false)
 }
 
-fn resolve_brew() -> Option<String> {
+pub fn resolve_brew() -> Option<String> {
     if let Ok(output) = std::process::Command::new("which").arg("brew").output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -370,7 +370,7 @@ fn resolve_brew() -> Option<String> {
     None
 }
 
-fn auto_install_peekaboo() -> Result<(), String> {
+pub fn auto_install_peekaboo() -> Result<(), String> {
     let brew = resolve_brew().ok_or_else(|| {
         "Homebrew is not installed. Install Homebrew first (https://brew.sh), then run: brew install steipete/tap/peekaboo".to_string()
     })?;

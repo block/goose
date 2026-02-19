@@ -1,4 +1,6 @@
 use crate::subprocess::SubprocessExt;
+#[cfg(target_os = "macos")]
+use base64::Engine;
 use etcetera::{choose_app_strategy, AppStrategy};
 use indoc::{formatdoc, indoc};
 use reqwest::{Client, Url};
@@ -16,6 +18,11 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, sync::Mutex};
 use tokio::process::Command;
+
+#[cfg(target_os = "macos")]
+use rmcp::model::Role;
+#[cfg(target_os = "macos")]
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -91,14 +98,36 @@ pub struct AutomationScriptParams {
     pub save_output: bool,
 }
 
-/// Parameters for the computer_control tool
+/// Parameters for the computer_control tool (Windows, Linux)
+#[cfg(not(target_os = "macos"))]
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ComputerControlParams {
-    /// The automation script content (PowerShell for Windows, AppleScript for macOS, shell for Linux)
+    /// The automation script content (PowerShell for Windows, shell for Linux)
     pub script: String,
     /// Whether to save the script output to a file
     #[serde(default)]
     pub save_output: bool,
+}
+
+/// Parameters for the computer_control tool (macOS — Peekaboo CLI passthrough)
+#[cfg(target_os = "macos")]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ComputerControlParams {
+    /// The peekaboo subcommand and arguments as a single string.
+    /// Examples:
+    ///   "see --app Safari --annotate"
+    ///   "click --on B1"
+    ///   "type --text \"hello\" --return"
+    ///   "hotkey --keys cmd,c"
+    ///   "app launch Safari --open https://example.com"
+    ///   "window list --app Safari --json"
+    ///   "press tab --count 3"
+    ///   "clipboard --action get"
+    pub command: String,
+    /// Whether to capture and return a screenshot as part of the result.
+    /// Useful after click/type actions to see the updated UI state.
+    #[serde(default)]
+    pub capture_screenshot: bool,
 }
 
 /// Parameters for the cache tool
@@ -285,6 +314,8 @@ pub struct ComputerControllerServer {
     http_client: Client,
     instructions: String,
     system_automation: Arc<Box<dyn SystemAutomation + Send + Sync>>,
+    #[cfg(target_os = "macos")]
+    peekaboo_installed: Arc<AtomicBool>,
 }
 
 impl Default for ComputerControllerServer {
@@ -334,17 +365,45 @@ impl ComputerControllerServer {
             "macos" => indoc! {r#"
             Here are some extra tools:
             automation_script
-              - Create and run Shell and Ruby scripts
+              - Create and run Shell, Ruby, or AppleScript (via osascript) scripts
               - Shell (bash) is recommended for most tasks
+              - AppleScript (via osascript) for app scripting and system settings
               - Scripts can save their output to files
-              - macOS-specific features:
-                - AppleScript for system and UI control
-                - Integration with macOS apps and services
-              - Use the screenshot tool if needed to help with tasks
 
-            computer_control
-              - System automation using AppleScript
-              - Consider the screenshot tool to work out what is on screen and what to do to help with the control task.
+            computer_control (Peekaboo CLI — auto-installed via Homebrew)
+              Pass peekaboo commands as a string. Core workflow: see → click → type.
+
+              Vision:
+              - see — annotated UI map with element IDs. `see --app Safari --annotate`, `see --mode screen`, `see --analyze "describe this"`
+              - image — capture screenshot. `image --mode frontmost`, `image --app Safari --retina --path /tmp/out.png`
+
+              Interaction:
+              - click — by element ID `click --on B1`, coordinates `click --coords 100,200`, supports `--double`, `--right`
+              - type — type text `type --text "hello" --return`, `--clear` to clear first, `--wpm 140`
+              - press — special keys `press tab --count 3`, `press escape`, `press return`
+              - hotkey — keyboard shortcuts `hotkey --keys cmd,c`, `hotkey --keys cmd,shift,t` (comma-separated)
+              - paste — via clipboard `paste --text "long content"` (more reliable than type for long text)
+              - scroll — `scroll --direction down --amount 5 --smooth`
+              - drag — `drag --from B1 --to T2`
+              - move — cursor `move 500,300 --smooth`
+
+              Apps & Windows:
+              - app — `app launch Safari --open https://example.com`, `app quit Safari`, `app switch Safari`, `app list`
+              - window — `window list --app Safari --json`, `window focus --app Safari`, `window set-bounds --app Safari --x 50 --y 50 --width 1200 --height 800`
+              - list — `list apps --json`, `list windows --json`, `list screens --json`
+
+              System:
+              - clipboard — `clipboard --action get`, `clipboard --action set --text "content"`
+              - menu — `menu click --app Safari --item "New Window"`, `menu click --path "Format > Font > Show Fonts"`
+              - menubar — `menubar list --json`, `menubar click --title "WiFi"`
+              - dock — `dock launch Safari`, `dock list --json`
+              - dialog — `dialog click --button "OK"`, `dialog list`
+              - space — `space list`, `space switch --index 2`
+              - open — `open https://example.com --app Safari`
+              - permissions — `permissions status`
+
+              Common targeting: `--app Name`, `--window-title`, `--window-id`, `--on ID`, `--coords x,y`
+              Tips: always `see --annotate` first; use `--json` for structured output; use `paste` over `type` for long text
             "#},
             _ => indoc! {r#"
             Here are some extra tools:
@@ -413,6 +472,8 @@ impl ComputerControllerServer {
             http_client: Client::builder().user_agent("goose/1.0").build().unwrap(),
             instructions,
             system_automation,
+            #[cfg(target_os = "macos")]
+            peekaboo_installed: Arc::new(AtomicBool::new(crate::peekaboo::is_peekaboo_installed())),
         }
     }
 
@@ -589,15 +650,17 @@ impl ComputerControllerServer {
         name = "automation_script",
         description = "
             Create and run small scripts for automation tasks.
-            Supports Shell and Ruby (on macOS).
+            Supports Shell, Ruby, and AppleScript (via osascript on macOS).
 
             The script is saved to a temporary file and executed.
             Consider using shell script (bash) for most simple tasks first.
             Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
+            AppleScript (via osascript in a shell script) for app scripting and system settings.
             Some examples of shell:
                 - create a sorted list of unique lines: sort file.txt | uniq
                 - extract 2nd column in csv: awk -F ',' '{ print $2}'
                 - pattern matching: grep pattern file.txt
+                - run AppleScript: osascript -e 'tell app \"Finder\" to get name of every window'
         "
     )]
     pub async fn automation_script(
@@ -780,27 +843,18 @@ impl ComputerControllerServer {
         self.computer_control_impl(params).await
     }
 
-    /// Control the computer using system automation
+    /// Control the computer using Peekaboo CLI for macOS GUI automation.
+    /// Auto-installs via Homebrew on first use.
     #[cfg(target_os = "macos")]
     #[tool(
         name = "computer_control",
-        description = "
-            Control the computer using AppleScript (macOS only). Automate applications and system features.
-
-            Key capabilities:
-            - Control Applications: Launch, quit, manage apps (Mail, Safari, iTunes, etc)
-            - System Control: Manage settings (volume, brightness, wifi), shutdown/restart
-            - File Operations: Organize files/folders
-            - Integration: Calendar, reminders, messages
-
-            Can be combined with screenshot tool for visual task assistance.
-        "
+        description = "Control the Mac using the Peekaboo CLI for GUI automation. Pass a peekaboo subcommand and arguments as a string. The core workflow is: see (capture annotated screenshot with element IDs) → click (on element IDs) → type (text). Set capture_screenshot=true to see the UI state after actions. See extension instructions for the full command reference."
     )]
     pub async fn computer_control(
         &self,
         params: Parameters<ComputerControlParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        self.computer_control_impl(params).await
+        self.peekaboo_impl(params).await
     }
 
     /// Control the computer using system automation
@@ -839,6 +893,7 @@ impl ComputerControllerServer {
         self.computer_control_impl(params).await
     }
 
+    #[cfg(not(target_os = "macos"))]
     async fn computer_control_impl(
         &self,
         params: Parameters<ComputerControlParams>,
@@ -873,6 +928,170 @@ impl ComputerControllerServer {
         }
 
         Ok(CallToolResult::success(vec![Content::text(result)]))
+    }
+
+    #[cfg(target_os = "macos")]
+    fn ensure_peekaboo(&self) -> Result<(), ErrorData> {
+        if self.peekaboo_installed.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        if crate::peekaboo::is_peekaboo_installed() {
+            self.peekaboo_installed.store(true, Ordering::Relaxed);
+            return Ok(());
+        }
+        tracing::info!("Peekaboo not found, attempting auto-install via brew");
+        match crate::peekaboo::auto_install_peekaboo() {
+            Ok(()) => {
+                self.peekaboo_installed.store(true, Ordering::Relaxed);
+                tracing::info!("Peekaboo installed successfully");
+                Ok(())
+            }
+            Err(msg) => Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "Peekaboo is not installed and auto-install failed: {}\n\
+                     Install manually with: brew install steipete/tap/peekaboo\n\
+                     Peekaboo requires macOS 15+ (Sequoia) with Screen Recording and Accessibility permissions.",
+                    msg
+                ),
+                None,
+            )),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn run_peekaboo_cmd(&self, args: &[&str]) -> Result<String, ErrorData> {
+        let output = std::process::Command::new("peekaboo")
+            .args(args)
+            .output()
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    format!("Failed to run peekaboo: {}", e),
+                    None,
+                )
+            })?;
+        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        if !output.status.success() {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "peekaboo {} failed (exit {}):\n{}\n{}",
+                    args.first().unwrap_or(&""),
+                    output.status,
+                    stderr.trim(),
+                    stdout.trim()
+                ),
+                None,
+            ));
+        }
+        Ok(stdout)
+    }
+
+    #[cfg(target_os = "macos")]
+    async fn peekaboo_impl(
+        &self,
+        params: Parameters<ComputerControlParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.ensure_peekaboo()?;
+        let params = params.0;
+
+        let args = shell_words::split(&params.command).map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Failed to parse command: {}", e),
+                None,
+            )
+        })?;
+        if args.is_empty() {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "Command cannot be empty".to_string(),
+                None,
+            ));
+        }
+
+        let is_see = args[0] == "see";
+        let is_image = args[0] == "image";
+        let screenshot_path = if is_see || is_image {
+            Some(self.get_cache_path(&args[0], "png"))
+        } else {
+            None
+        };
+
+        let mut full_args: Vec<String> = args.clone();
+
+        if let Some(ref path) = screenshot_path {
+            if !full_args.iter().any(|a| a == "--path") {
+                full_args.push("--path".to_string());
+                full_args.push(path.to_string_lossy().to_string());
+            }
+        }
+        if is_see && !full_args.iter().any(|a| a == "--json-output") {
+            full_args.push("--json-output".to_string());
+        }
+
+        let wants_json = matches!(
+            args[0].as_str(),
+            "list" | "window" | "menubar" | "permissions" | "clipboard"
+        );
+        if wants_json
+            && !full_args.iter().any(|a| a == "--json" || a == "-j")
+            && !full_args.iter().any(|a| a == "--json-output")
+        {
+            full_args.push("--json".to_string());
+        }
+
+        let arg_refs: Vec<&str> = full_args.iter().map(|s| s.as_str()).collect();
+        let stdout = self.run_peekaboo_cmd(&arg_refs)?;
+
+        let mut contents = Vec::new();
+
+        if let Some(ref path) = screenshot_path {
+            let annotated = path.to_string_lossy().replace(".png", "_annotated.png");
+            let image_path = if is_see && std::path::Path::new(&annotated).exists() {
+                PathBuf::from(&annotated)
+            } else {
+                path.clone()
+            };
+            if image_path.exists() {
+                if let Ok(bytes) = fs::read(&image_path) {
+                    let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
+                    contents.push(Content::image(data, "image/png").with_priority(0.0));
+                }
+            }
+        }
+
+        if params.capture_screenshot && screenshot_path.is_none() {
+            let cap_path = self.get_cache_path("peekaboo_capture", "png");
+            let cap_path_str = cap_path.to_string_lossy().to_string();
+            if self
+                .run_peekaboo_cmd(&["image", "--mode", "frontmost", "--path", &cap_path_str])
+                .is_ok()
+                && cap_path.exists()
+            {
+                if let Ok(bytes) = fs::read(&cap_path) {
+                    let data = base64::prelude::BASE64_STANDARD.encode(&bytes);
+                    contents.push(Content::image(data, "image/png").with_priority(0.0));
+                }
+            }
+        }
+
+        let text = if stdout.len() > 12000 {
+            let truncated: String = stdout.chars().take(12000).collect();
+            format!(
+                "{}\n\n[Output truncated. {} total chars.]",
+                truncated,
+                stdout.len()
+            )
+        } else {
+            stdout
+        };
+
+        contents.insert(0, Content::text(&text).with_audience(vec![Role::Assistant]));
+
+        Ok(CallToolResult::success(contents))
     }
 
     /// Process Excel (XLSX) files to read and manipulate spreadsheet data
