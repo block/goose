@@ -216,6 +216,7 @@ async fn setup_test_session(
             temp_dir.path().to_path_buf(),
             session_name.to_string(),
             SessionType::Hidden,
+            None,
         )
         .await?;
 

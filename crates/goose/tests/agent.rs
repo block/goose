@@ -432,6 +432,7 @@ mod tests {
                     PathBuf::default(),
                     "max-turn-test".to_string(),
                     SessionType::Hidden,
+                    None,
                 )
                 .await?;
 
@@ -547,6 +548,7 @@ mod tests {
                     std::path::PathBuf::from("."),
                     "Test Session".to_string(),
                     SessionType::Hidden,
+                    None,
                 )
                 .await
                 .expect("Failed to create session");

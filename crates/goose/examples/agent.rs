@@ -24,6 +24,7 @@ async fn main() -> anyhow::Result<()> {
             PathBuf::default(),
             "max-turn-test".to_string(),
             SessionType::Hidden,
+            None,
         )
         .await?;
 

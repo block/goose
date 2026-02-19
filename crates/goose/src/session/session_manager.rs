@@ -270,7 +270,7 @@ impl SessionManager {
         session_type: SessionType,
     ) -> Result<Session> {
         self.storage
-            .create_session(working_dir, name, session_type)
+            .create_session(working_dir, name, session_type, None)
             .await
     }
 
@@ -281,7 +281,12 @@ impl SessionManager {
         parent_session_id: String,
     ) -> Result<Session> {
         self.storage
-            .create_subagent_session(working_dir, name, parent_session_id)
+            .create_session(
+                working_dir,
+                name,
+                SessionType::SubAgent,
+                Some(parent_session_id),
+            )
             .await
     }
 
@@ -926,47 +931,7 @@ impl SessionStorage {
         working_dir: PathBuf,
         name: String,
         session_type: SessionType,
-    ) -> Result<Session> {
-        let pool = self.pool().await?;
-        let mut tx = pool.begin().await?;
-
-        let today = chrono::Utc::now().format("%Y%m%d").to_string();
-        let session = sqlx::query_as(
-            r#"
-                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data)
-                VALUES (
-                    ? || '_' || CAST(COALESCE((
-                        SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
-                        FROM sessions
-                        WHERE id LIKE ? || '_%'
-                    ), 0) + 1 AS TEXT),
-                    ?,
-                    FALSE,
-                    ?,
-                    ?,
-                    '{}'
-                )
-                RETURNING *
-                "#,
-        )
-            .bind(&today)
-            .bind(&today)
-            .bind(&name)
-            .bind(session_type.to_string())
-            .bind(&*working_dir.to_string_lossy())
-            .fetch_one(&mut *tx)
-            .await?;
-
-        tx.commit().await?;
-        crate::posthog::emit_session_started();
-        Ok(session)
-    }
-
-    async fn create_subagent_session(
-        &self,
-        working_dir: PathBuf,
-        name: String,
-        parent_session_id: String,
+        parent_session_id: Option<String>,
     ) -> Result<Session> {
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
@@ -983,7 +948,7 @@ impl SessionStorage {
                     ), 0) + 1 AS TEXT),
                     ?,
                     FALSE,
-                    'sub_agent',
+                    ?,
                     ?,
                     '{}',
                     ?
@@ -994,6 +959,7 @@ impl SessionStorage {
         .bind(&today)
         .bind(&today)
         .bind(&name)
+        .bind(session_type.to_string())
         .bind(&*working_dir.to_string_lossy())
         .bind(&parent_session_id)
         .fetch_one(&mut *tx)
@@ -1417,6 +1383,7 @@ impl SessionStorage {
                 import.working_dir.clone(),
                 import.name.clone(),
                 import.session_type,
+                import.parent_session_id.clone(),
             )
             .await?;
 
@@ -1460,6 +1427,7 @@ impl SessionStorage {
                 original_session.working_dir.clone(),
                 new_name,
                 original_session.session_type,
+                original_session.parent_session_id.clone(),
             )
             .await?;
 
