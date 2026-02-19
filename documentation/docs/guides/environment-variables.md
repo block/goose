@@ -430,6 +430,14 @@ When the keyring is disabled (or cannot be accessed and goose [falls back to fil
 * Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
 :::
 
+### macOS Sandbox for goose Desktop
+
+Optional [macOS sandbox](/docs/guides/sandbox) for goose Desktop that restricts file access, network connections, and process execution using Apple's `sandbox-exec` technology.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|--------|---------|
+| `GOOSE_SANDBOX` | Enable the sandbox with [customizable security controls](/docs/guides/sandbox#configuration) | `true` or `1` to enable | `false` |
+
 ## Network Configuration
 
 These variables configure network proxy settings for goose.

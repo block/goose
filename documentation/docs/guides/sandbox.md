@@ -12,7 +12,7 @@ goose Desktop includes an optional macOS sandbox that you can enable when you ne
 - **Audit and enforce policies** — Log all network activity and enforce compliance requirements
 
 goose runs with full tool access, but the sandbox uses two layers of protection:
-- **File access control** - Apple's sandbox-exec restricts file and network access at the system level
+- **File access control** - Apple's `sandbox-exec` restricts file and network access at the system level
 - **Outbound connections** - A local egress proxy filters and logs outgoing connections
 
 :::info macOS Requirement
@@ -50,7 +50,7 @@ All configuration is via environment variables. Defaults are designed to be secu
 
 ### File System
 
-The seatbelt sandbox profile blocks write operations to these sensitive files by default:
+The [seatbelt sandbox profile](https://github.com/block/goose/blob/main/ui/desktop/src/sandbox/index.ts) blocks write operations to these sensitive files:
 
 - `~/.ssh/` - Prevent SSH key tampering
 - `~/.bashrc`, `~/.zshrc`, `~/.bash_profile`, `~/.zprofile` - Prevent shell config injection
@@ -62,7 +62,7 @@ The seatbelt sandbox profile blocks write operations to these sensitive files by
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOSE_SANDBOX_PROTECT_FILES` | `true` | Write-protect `~/.ssh` and shell configs. Set to `false` to disable |
+| `GOOSE_SANDBOX_PROTECT_FILES` | `true` | Write-protect sensitive files listed above. Set to `false` to disable |
 
 ----
 
