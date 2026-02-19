@@ -2818,6 +2818,19 @@ export type TranscribeDictationResponses = {
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
 
+export type StartNanogptSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/handle_nanogpt';
+};
+
+export type StartNanogptSetupResponses = {
+    200: SetupResponse;
+};
+
+export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
+
 export type StartOpenrouterSetupData = {
     body?: never;
     path?: never;

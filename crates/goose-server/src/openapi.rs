@@ -413,6 +413,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::recipe::recipe_to_yaml,
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
+        super::routes::setup::start_nanogpt_setup,
         super::routes::tunnel::start_tunnel,
         super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,

@@ -1787,6 +1787,26 @@
         }
       }
     },
+    "/handle_nanogpt": {
+      "post": {
+        "tags": [
+          "super::routes::setup"
+        ],
+        "operationId": "start_nanogpt_setup",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/handle_openrouter": {
       "post": {
         "tags": [

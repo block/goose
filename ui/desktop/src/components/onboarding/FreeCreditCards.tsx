@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { startOpenRouterSetup } from '../../utils/openRouterSetup';
+import { startNanogptSetup } from '../../utils/nanogptSetup';
 import { startTetrateSetup } from '../../utils/tetrateSetup';
 import { OpenRouter, Tetrate } from '../icons';
 import { SetupModal } from '../SetupModal';
@@ -75,9 +76,30 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
     }
   };
 
-  const handleNanogptSetup = () => {
-    // TODO: implement NanoGPT setup flow
-    console.log('NanoGPT setup not yet implemented');
+  const handleNanogptSetup = async () => {
+    try {
+      const result = await startNanogptSetup();
+      if (result.success) {
+        onConfigured('nanogpt');
+      } else {
+        setSetupState({
+          show: true,
+          title: 'Setup Failed',
+          message: result.message,
+          showRetry: true,
+          type: 'nanogpt',
+        });
+      }
+    } catch (error) {
+      console.error('NanoGPT setup error:', error);
+      setSetupState({
+        show: true,
+        title: 'Setup Error',
+        message: 'An unexpected error occurred during setup.',
+        showRetry: true,
+        type: 'nanogpt',
+      });
+    }
   };
 
   const handleRetry = () => {
@@ -156,7 +178,9 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
                 <ChevronRight />
               </div>
             </div>
-            <p className="text-text-muted text-xs">Simple, affordable AI access. Coming soon.</p>
+            <p className="text-text-muted text-xs">
+              Simple, affordable AI access. Sign up to get started.
+            </p>
           </div>
         </div>
 
