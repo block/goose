@@ -20,6 +20,7 @@ import ProviderGuard from './components/ProviderGuard';
 import { AuthProvider } from './hooks/useAuth';
 import { AuthGuard } from './components/AuthGuard';
 import LoginView from './components/LoginView';
+import WelcomePage from './components/WelcomePage';
 import { createSession } from './sessions';
 import { setupAuthInterceptor } from './lib/authInterceptor';
 
@@ -276,19 +277,12 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   const navigate = useNavigate();
 
   return (
-    <div className="w-screen h-screen bg-background-default">
-      <ProviderSettings
-        onClose={() => {
-          navigate('/', { replace: true });
-        }}
-        isOnboarding={true}
-        onProviderLaunched={(model?: string) => {
-          trackOnboardingCompleted('other', model);
-          onSelectProvider();
-          navigate('/', { replace: true });
-        }}
-      />
-    </div>
+    <WelcomePage
+      onComplete={() => {
+        onSelectProvider();
+        navigate('/', { replace: true });
+      }}
+    />
   );
 };
 
