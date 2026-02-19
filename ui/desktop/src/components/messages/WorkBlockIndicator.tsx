@@ -103,6 +103,7 @@ interface WorkBlockIndicatorProps {
   isStreaming: boolean;
   agentName?: string;
   modeName?: string;
+  showAgentBadge?: boolean;
   sessionId?: string;
   toolCallNotifications?: Map<string, unknown[]>;
 }
@@ -115,6 +116,7 @@ export default function WorkBlockIndicator({
   isStreaming,
   agentName,
   modeName,
+  showAgentBadge = true,
   sessionId,
   toolCallNotifications,
 }: WorkBlockIndicatorProps) {
@@ -141,12 +143,13 @@ export default function WorkBlockIndicator({
       isStreaming: latestRef.current.isStreaming,
       agentName,
       modeName,
+      showAgentBadge,
       sessionId,
       toolCallNotifications: latestRef.current.toolCallNotifications as
         | Map<string, unknown[]>
         | undefined,
     }),
-    [blockId, agentName, modeName, sessionId]
+    [blockId, agentName, modeName, showAgentBadge, sessionId]
   );
 
   const handleClick = () => {
@@ -180,7 +183,7 @@ export default function WorkBlockIndicator({
 
   const displayAgent = agentName || 'Goose';
   const displayMode = modeName || 'default';
-  const showAgentBadge = agentName && agentName !== 'Goose';
+  const isNonDefaultAgent = !!agentName && agentName !== 'Goose' && agentName !== 'Goose Agent';
 
   return (
     <div className="py-1.5 px-2">
@@ -218,7 +221,7 @@ export default function WorkBlockIndicator({
                 </span>
               </>
             )}
-            {showAgentBadge && (
+            {showAgentBadge && isNonDefaultAgent && (
               <Badge variant="default" size="sm">
                 {displayAgent}
                 {modeName && modeName !== 'default' ? ` / ${displayMode}` : ''}

@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../../api';
 import type { ChatType } from '../../types/chat';
-import type { NotificationEvent } from '../../types/message';
+import type { MessageWithAttribution, NotificationEvent } from '../../types/message';
 import { identifyWorkBlocks } from '../../utils/assistantWorkBlocks';
 import { identifyConsecutiveToolCalls, isInChain } from '../../utils/toolCallChaining';
 import { SystemNotificationInline } from '../context_management/SystemNotificationInline';
@@ -173,6 +173,8 @@ export default function ProgressiveMessageList({
   const renderMessages = useCallback(() => {
     const messagesToRender = messages.slice(0, renderedCount);
     const seenBlocks = new Set<string>();
+    let prevAgent = '';
+    let prevMode = '';
 
     return messagesToRender
       .map((message, index) => {
@@ -215,6 +217,19 @@ export default function ProgressiveMessageList({
             seenBlocks.add(blockKey);
             const blockMessages = block.intermediateIndices.map((i: number) => messages[i]);
 
+            // Extract agent/mode from the first assistant message's routing info
+            const firstAssistant = blockMessages.find((m) => m.role === 'assistant');
+            const routing = firstAssistant
+              ? (firstAssistant as MessageWithAttribution)._routingInfo
+              : undefined;
+            const agentName = routing?.agentName;
+            const modeName = routing?.modeSlug;
+
+            // Only show badge when agent/mode changes from previous block
+            const showAgentBadge = (agentName ?? '') !== prevAgent || (modeName ?? '') !== prevMode;
+            prevAgent = agentName ?? '';
+            prevMode = modeName ?? '';
+
             return (
               <div
                 key={blockKey}
@@ -225,6 +240,9 @@ export default function ProgressiveMessageList({
                   messages={blockMessages}
                   blockId={blockKey}
                   isStreaming={block.isStreaming}
+                  agentName={agentName}
+                  modeName={modeName}
+                  showAgentBadge={showAgentBadge}
                   sessionId={chat.sessionId}
                   toolCallNotifications={toolCallNotifications}
                 />

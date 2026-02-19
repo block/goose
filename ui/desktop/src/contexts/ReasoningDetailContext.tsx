@@ -23,6 +23,7 @@ export interface WorkBlockDetail {
   isStreaming?: boolean;
   agentName?: string;
   modeName?: string;
+  showAgentBadge?: boolean;
   sessionId?: string;
   toolCallNotifications?: Map<string, unknown[]>;
 }

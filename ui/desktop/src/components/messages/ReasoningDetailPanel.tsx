@@ -26,9 +26,13 @@ export default function ReasoningDetailPanel() {
 
   const title = isWorkBlock ? panelDetail.data.title || 'Activity' : detail?.title || 'Details';
 
-  // Only show agent/mode badge when it's a non-default agent
+  // Only show agent/mode badge when passed from the work block (agent changed from previous)
   const showAgentBadge =
-    isWorkBlock && panelDetail.data.agentName && panelDetail.data.agentName !== 'Goose';
+    isWorkBlock &&
+    panelDetail.data.showAgentBadge !== false &&
+    !!panelDetail.data.agentName &&
+    panelDetail.data.agentName !== 'Goose' &&
+    panelDetail.data.agentName !== 'Goose Agent';
 
   // Auto-scroll during streaming using rAF to avoid smooth-scroll + Radix reflow loop
   useEffect(() => {
