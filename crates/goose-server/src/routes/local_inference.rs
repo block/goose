@@ -14,8 +14,8 @@ use goose::providers::local_inference::{
     hf_models::{resolve_model_spec, HfGgufFile},
     local_model_registry::{
         display_name_from_repo, get_registry, is_featured_model, model_id_from_repo,
-        LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus,
-        ModelSettings, FEATURED_MODELS,
+        LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus, ModelSettings,
+        FEATURED_MODELS,
     },
     recommend_local_model,
 };

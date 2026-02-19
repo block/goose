@@ -72,7 +72,10 @@ async fn test_local_inference_cold_and_warm_performance() {
 
     let text = response.as_concat_text();
     assert!(!text.is_empty(), "cold start should produce a response");
-    println!("Cold start: {cold_elapsed:.2?}, response length: {}", text.len());
+    println!(
+        "Cold start: {cold_elapsed:.2?}, response length: {}",
+        text.len()
+    );
 
     // Warm run (model already loaded)
     let messages2 = vec![Message::user().with_text("what is the capital of France?")];
@@ -85,7 +88,10 @@ async fn test_local_inference_cold_and_warm_performance() {
 
     let text2 = response2.as_concat_text();
     assert!(!text2.is_empty(), "warm run should produce a response");
-    println!("Warm run: {warm_elapsed:.2?}, response length: {}", text2.len());
+    println!(
+        "Warm run: {warm_elapsed:.2?}, response length: {}",
+        text2.len()
+    );
     assert!(
         warm_elapsed < cold_elapsed,
         "warm run ({warm_elapsed:.2?}) should be faster than cold start ({cold_elapsed:.2?})"

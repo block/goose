@@ -7,11 +7,11 @@ use axum::{
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use goose::download_manager::{get_download_manager, DownloadProgress};
 use goose::dictation::providers::{
     is_configured, transcribe_local, transcribe_with_provider, DictationProvider, PROVIDERS,
 };
 use goose::dictation::whisper;
+use goose::download_manager::{get_download_manager, DownloadProgress};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

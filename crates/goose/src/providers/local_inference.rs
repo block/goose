@@ -1,13 +1,15 @@
 pub mod hf_models;
-mod inference_engine;
-pub mod local_model_registry;
 mod inference_emulated_tools;
+mod inference_engine;
 mod inference_native_tools;
+pub mod local_model_registry;
 mod tool_parsing;
 
-use inference_engine::LoadedModel;
-use inference_emulated_tools::{build_emulator_tool_description, load_tiny_model_prompt, generate_with_emulated_tools};
+use inference_emulated_tools::{
+    build_emulator_tool_description, generate_with_emulated_tools, load_tiny_model_prompt,
+};
 use inference_engine::GenerationContext;
+use inference_engine::LoadedModel;
 use inference_native_tools::generate_with_native_tools;
 use tool_parsing::compact_tools_json;
 
@@ -370,7 +372,9 @@ impl ProviderDef for LocalInferenceProvider {
     where
         Self: Sized,
     {
-        use crate::providers::local_inference::local_model_registry::{get_registry, FEATURED_MODELS};
+        use crate::providers::local_inference::local_model_registry::{
+            get_registry, FEATURED_MODELS,
+        };
 
         let mut known_models: Vec<&str> = FEATURED_MODELS.to_vec();
 
@@ -563,9 +567,8 @@ impl Provider for LocalInferenceProvider {
             },
         });
 
-        let mut log = RequestLog::start(&self.model_config, &log_payload).map_err(|e| {
-            ProviderError::ExecutionError(e.to_string())
-        })?;
+        let mut log = RequestLog::start(&self.model_config, &log_payload)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
         let (tx, mut rx) = tokio::sync::mpsc::channel::<
             Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,

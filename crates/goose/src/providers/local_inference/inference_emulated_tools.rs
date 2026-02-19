@@ -379,9 +379,20 @@ pub(super) fn generate_with_emulated_tools(
         .str_to_token(&prompt, AddBos::Never)
         .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
-    let (prompt_token_count, effective_ctx) =
-        validate_and_compute_context(ctx.loaded, ctx.runtime, tokens.len(), ctx.context_limit, ctx.settings)?;
-    let mut llama_ctx = create_and_prefill_context(ctx.loaded, ctx.runtime, &tokens, effective_ctx, ctx.settings)?;
+    let (prompt_token_count, effective_ctx) = validate_and_compute_context(
+        ctx.loaded,
+        ctx.runtime,
+        tokens.len(),
+        ctx.context_limit,
+        ctx.settings,
+    )?;
+    let mut llama_ctx = create_and_prefill_context(
+        ctx.loaded,
+        ctx.runtime,
+        &tokens,
+        effective_ctx,
+        ctx.settings,
+    )?;
 
     let message_id = ctx.message_id;
     let tx = ctx.tx;
@@ -466,7 +477,9 @@ mod tests {
 
     fn assert_shell(action: &EmulatorAction, expected: &str) {
         match action {
-            EmulatorAction::ShellCommand(cmd) => assert_eq!(cmd, expected, "shell command mismatch"),
+            EmulatorAction::ShellCommand(cmd) => {
+                assert_eq!(cmd, expected, "shell command mismatch")
+            }
             other => panic!("expected ShellCommand, got {:?}", action_label(other)),
         }
     }
@@ -584,10 +597,7 @@ mod tests {
 
     #[test]
     fn execute_fence_split_across_chunks() {
-        let actions = parse_chunks(
-            &["Here:\n```ex", "ecute\nlet x = 1;\n", "```\n"],
-            true,
-        );
+        let actions = parse_chunks(&["Here:\n```ex", "ecute\nlet x = 1;\n", "```\n"], true);
         let executes: Vec<_> = actions
             .iter()
             .filter(|a| matches!(a, EmulatorAction::ExecuteCode(_)))

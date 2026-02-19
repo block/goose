@@ -3,6 +3,7 @@ use crate::providers::errors::ProviderError;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 
+use super::finalize_usage;
 use super::inference_engine::{
     context_cap, create_and_prefill_context, estimate_max_context_for_memory, generation_loop,
     validate_and_compute_context, GenerationContext, TokenAction,
@@ -11,7 +12,6 @@ use super::tool_parsing::{
     extract_tool_call_messages, extract_xml_tool_call_messages, safe_stream_end,
     split_content_and_tool_calls, split_content_and_xml_tool_calls,
 };
-use super::finalize_usage;
 
 pub(super) fn generate_with_native_tools(
     ctx: &mut GenerationContext<'_>,
@@ -87,9 +87,20 @@ pub(super) fn generate_with_native_tools(
         .str_to_token(&template_result.prompt, AddBos::Never)
         .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
-    let (prompt_token_count, effective_ctx) =
-        validate_and_compute_context(ctx.loaded, ctx.runtime, tokens.len(), ctx.context_limit, ctx.settings)?;
-    let mut llama_ctx = create_and_prefill_context(ctx.loaded, ctx.runtime, &tokens, effective_ctx, ctx.settings)?;
+    let (prompt_token_count, effective_ctx) = validate_and_compute_context(
+        ctx.loaded,
+        ctx.runtime,
+        tokens.len(),
+        ctx.context_limit,
+        ctx.settings,
+    )?;
+    let mut llama_ctx = create_and_prefill_context(
+        ctx.loaded,
+        ctx.runtime,
+        &tokens,
+        effective_ctx,
+        ctx.settings,
+    )?;
 
     let message_id = ctx.message_id;
     let tx = ctx.tx;
