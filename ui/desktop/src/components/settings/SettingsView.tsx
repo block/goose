@@ -8,7 +8,8 @@ import ConfigSettings from './config/ConfigSettings';
 import PromptsSettingsSection from './PromptsSettingsSection';
 import type { ExtensionConfig } from '../../api';
 import { PageShell } from '../Layout/PageShell';
-import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard } from 'lucide-react';
+import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard, Shield } from 'lucide-react';
+import AuthSection from './auth/AuthSection';
 import { useState, useEffect, useRef } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
@@ -28,6 +29,7 @@ const SECTION_TO_TAB: Record<string, string> = {
   sharing: 'sharing',
   styles: 'chat',
   tools: 'chat',
+  auth: 'auth',
   app: 'app',
   chat: 'chat',
   prompts: 'prompts',
@@ -101,6 +103,10 @@ export default function SettingsView({
         <Keyboard className="h-4 w-4" />
         Keyboard
       </TabsTrigger>
+      <TabsTrigger value="auth" className="flex gap-2" data-testid="settings-auth-tab">
+        <Shield className="h-4 w-4" />
+        Auth
+      </TabsTrigger>
       <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
         <Monitor className="h-4 w-4" />
         App
@@ -137,6 +143,10 @@ export default function SettingsView({
 
         <TabsContent value="keyboard" className={TAB_CONTENT_CLASS}>
           <KeyboardShortcutsSection />
+        </TabsContent>
+
+        <TabsContent value="auth" className={TAB_CONTENT_CLASS}>
+          <AuthSection />
         </TabsContent>
 
         <TabsContent value="app" className={TAB_CONTENT_CLASS}>
