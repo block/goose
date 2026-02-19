@@ -300,8 +300,15 @@ pub fn route_to_policy(method: &str, path: &str) -> (String, String) {
         ["extensions", ..] => ("manage:extensions", "extension:registry"),
 
         // Config
+        ["config", "read"] => ("read:config", "system:config"),
         ["config", ..] if method == "GET" => ("read:config", "system:config"),
         ["config", ..] => ("manage:config", "system:config"),
+
+        // Telemetry — safe, always allowed
+        ["telemetry", ..] => ("write:telemetry", "system:telemetry"),
+
+        // Setup — safe, always allowed
+        ["setup", ..] => ("write:setup", "system:setup"),
 
         // Auth — always allowed (handled by rate limiter)
         ["auth", ..] => ("auth:access", "auth:endpoint"),

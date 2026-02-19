@@ -57,10 +57,13 @@ impl SecurityMode {
             return Self::Enterprise;
         }
 
-        let has_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
-            .map(|v| !v.is_empty() && v != "test")
+        // Note: GOOSE_SERVER__SECRET_KEY is always set by the CLI when spawning
+        // goosed locally, so it cannot be used to infer Team mode. Use an explicit
+        // GOOSE_TEAM_MODE=1 or GOOSE_SECURITY_MODE=team env var instead.
+        let team_mode = std::env::var("GOOSE_TEAM_MODE")
+            .map(|v| v == "1" || v == "true")
             .unwrap_or(false);
-        if has_secret {
+        if team_mode {
             return Self::Team;
         }
 
