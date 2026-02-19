@@ -45,7 +45,8 @@ use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -211,8 +212,10 @@ pub async fn classify_planner_response(
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
     let message = Message::user().with_text(&prompt);
+    let model_config = provider.get_model_config();
     let (result, _usage) = provider
         .complete(
+            &model_config,
             session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
@@ -840,8 +843,10 @@ impl CliSession {
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
+        let model_config = reasoner.get_model_config();
         let (plan_response, _usage) = reasoner
             .complete(
+                &model_config,
                 &self.session_id,
                 &plan_prompt,
                 plan_messages.messages(),
@@ -963,6 +968,8 @@ impl CliSession {
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
+        let mut prompted_credits_urls: HashSet<String> = HashSet::new();
+        let mut thinking_header_shown = false;
 
         use futures::StreamExt;
         loop {
@@ -1035,7 +1042,12 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message_streaming(&message, &mut markdown_buffer, self.debug);
+                                    output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
+                                    maybe_open_credits_top_up_url(
+                                        &message,
+                                        interactive,
+                                        &mut prompted_credits_urls,
+                                    );
                                 }
                             }
                         }
@@ -1447,6 +1459,37 @@ impl CliSession {
     }
 }
 
+fn maybe_open_credits_top_up_url(
+    message: &Message,
+    interactive: bool,
+    prompted_credits_urls: &mut HashSet<String>,
+) {
+    if !interactive || !std::io::stdout().is_terminal() {
+        return;
+    }
+
+    let Some(url) = output::get_credits_top_up_url(message) else {
+        return;
+    };
+
+    if !prompted_credits_urls.insert(url.clone()) {
+        return;
+    }
+
+    let should_open = cliclack::confirm("Open the top-up URL in your browser?")
+        .initial_value(false)
+        .interact()
+        .unwrap_or(false);
+
+    if should_open && webbrowser::open(&url).is_err() {
+        output::render_text(
+            "Could not open browser automatically. Visit the URL above.",
+            Some(Color::Yellow),
+            true,
+        );
+    }
+}
+
 fn emit_stream_event(event: &StreamEvent) {
     if let Ok(json) = serde_json::to_string(event) {
         println!("{}", json);
@@ -1847,7 +1890,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     };
 
     let model_config =
-        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
+        ModelConfig::new_with_context_env(model, &provider, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, model_config, extensions).await?;
 

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -14,7 +15,9 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
+use crate::agents::extension_manager::{
+    get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
+};
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
@@ -84,6 +87,21 @@ pub struct ExtensionLoadResult {
     pub error: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub enum GoosePlatform {
+    GooseDesktop,
+    GooseCli,
+}
+
+impl fmt::Display for GoosePlatform {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GoosePlatform::GooseCli => write!(f, "goose-cli"),
+            GoosePlatform::GooseDesktop => write!(f, "goose-desktop"),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AgentConfig {
     pub session_manager: Arc<SessionManager>,
@@ -91,6 +109,7 @@ pub struct AgentConfig {
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
     pub disable_session_naming: bool,
+    pub goose_platform: GoosePlatform,
 }
 
 impl AgentConfig {
@@ -100,6 +119,7 @@ impl AgentConfig {
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
         disable_session_naming: bool,
+        goose_platform: GoosePlatform,
     ) -> Self {
         Self {
             session_manager,
@@ -107,6 +127,7 @@ impl AgentConfig {
             scheduler_service,
             goose_mode,
             disable_session_naming,
+            goose_platform,
         }
     }
 }
@@ -190,6 +211,7 @@ impl Agent {
             Config::global()
                 .get_goose_disable_session_naming()
                 .unwrap_or(false),
+            GoosePlatform::GooseCli,
         ))
     }
 
@@ -199,12 +221,22 @@ impl Agent {
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
+        let goose_platform = config.goose_platform.clone();
+        let capabilities = match config.goose_platform {
+            GoosePlatform::GooseDesktop => ExtensionManagerCapabilities { mcpui: true },
+            GoosePlatform::GooseCli => ExtensionManagerCapabilities { mcpui: false },
+        };
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         Self {
             provider: provider.clone(),
             config,
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
+            extension_manager: Arc::new(ExtensionManager::new(
+                provider.clone(),
+                session_manager,
+                goose_platform.to_string(),
+                capabilities,
+            )),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -646,7 +678,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension(config_clone, &session_id_clone)
+                        .add_extension_inner(config_clone, &session_id_clone)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -668,10 +700,40 @@ impl Agent {
             })
             .collect::<Vec<_>>();
 
-        futures::future::join_all(extension_futures).await
+        let results = futures::future::join_all(extension_futures).await;
+
+        // Persist once after all extensions are loaded
+        if results.iter().any(|r| r.success) {
+            if let Err(e) = self.persist_extension_state(&session_id).await {
+                warn!("Failed to persist extension state after bulk load: {}", e);
+            }
+        }
+
+        results
     }
 
     pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        session_id: &str,
+    ) -> ExtensionResult<()> {
+        self.add_extension_inner(extension, session_id).await?;
+
+        // Persist extension state after successful add
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
+
+        Ok(())
+    }
+
+    async fn add_extension_inner(
         &self,
         extension: ExtensionConfig,
         session_id: &str,
@@ -727,17 +789,6 @@ impl Agent {
                     .await?;
             }
         }
-
-        // Persist extension state after successful add
-        self.persist_extension_state(session_id)
-            .await
-            .map_err(|e| {
-                error!("Failed to persist extension state: {}", e);
-                crate::agents::extension::ExtensionError::SetupError(format!(
-                    "Failed to persist extension state: {}",
-                    e
-                ))
-            })?;
 
         Ok(())
     }
@@ -1449,6 +1500,29 @@ impl Agent {
                                 }
                             }
                         }
+                        Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+
+                            let user_msg = if top_up_url.is_some() {
+                                "Please add credits to your account, then resend your message to continue.".to_string()
+                            } else {
+                                "Please check your account with your provider to add more credits, then resend your message to continue.".to_string()
+                            };
+
+                            let notification_data = serde_json::json!({
+                                "top_up_url": top_up_url,
+                            });
+
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification_with_data(
+                                    SystemNotificationType::CreditsExhausted,
+                                    user_msg,
+                                    notification_data,
+                                )
+                            );
+                            break;
+                        }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
@@ -1597,6 +1671,7 @@ impl Agent {
                     .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
+                    .with_canonical_limits(&provider_name)
             }
         };
 
@@ -1695,7 +1770,15 @@ impl Agent {
     ) -> Result<Recipe> {
         tracing::info!("Starting recipe creation with {} messages", messages.len());
 
-        let extensions_info = self.extension_manager.get_extensions_info().await;
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await?;
+        let extensions_info = self
+            .extension_manager
+            .get_extensions_info(&session.working_dir)
+            .await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
         let (extension_count, tool_count) = self
             .extension_manager
@@ -1744,6 +1827,15 @@ impl Agent {
         );
 
         tracing::info!("Calling provider to generate recipe content");
+        let model_config = {
+            let provider_guard = self.provider.lock().await;
+            let provider = provider_guard.as_ref().ok_or_else(|| {
+                let error = anyhow!("Provider not available during recipe creation");
+                tracing::error!("{}", error);
+                error
+            })?;
+            provider.get_model_config()
+        };
         let (result, _usage) = self
             .provider
             .lock()
@@ -1754,7 +1846,13 @@ impl Agent {
                 tracing::error!("{}", error);
                 error
             })?
-            .complete(session_id, &system_prompt, messages.messages(), &tools)
+            .complete(
+                &model_config,
+                session_id,
+                &system_prompt,
+                messages.messages(),
+                &tools,
+            )
             .await
             .map_err(|e| {
                 tracing::error!("Provider completion failed during recipe creation: {}", e);

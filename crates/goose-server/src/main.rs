@@ -1,4 +1,7 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
+use goose::agents::validate_extensions;
 use goose::config::paths::Paths;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
 use goose_mcp::{
@@ -23,6 +26,12 @@ enum Commands {
     Mcp {
         /// Name of the MCP server type
         name: String,
+    },
+    /// Validate a bundled-extensions JSON file
+    #[command(name = "validate-extensions")]
+    ValidateExtensions {
+        /// Path to the bundled-extensions JSON file
+        path: PathBuf,
     },
 }
 
@@ -51,6 +60,15 @@ async fn main() -> anyhow::Result<()> {
                             .bash_env_file(Some(bash_env)),
                     )
                     .await?
+                }
+            }
+        }
+        Commands::ValidateExtensions { path } => {
+            match validate_extensions::validate_bundled_extensions(path) {
+                Ok(msg) => println!("{msg}"),
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
                 }
             }
         }
