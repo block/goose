@@ -1007,4 +1007,37 @@ mod tests {
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
     }
+
+    #[test]
+    fn test_whitespace_only_text_blocks_are_skipped() {
+        let messages = vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("").with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "search".into(),
+                    arguments: Some(object!({"query": "test"})),
+                }),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 3);
+
+        let assistant_content = spec[1]["content"].as_array().unwrap();
+        assert_eq!(assistant_content.len(), 1);
+        assert_eq!(assistant_content[0]["type"], "tool_use");
+    }
 }
