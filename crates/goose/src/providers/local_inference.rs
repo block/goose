@@ -622,7 +622,10 @@ impl Provider for LocalInferenceProvider {
         // Models that support native OpenAI-compatible tool-call JSON use the
         // native path (template-based tool calling with JSON output). All other
         // models use the emulator which parses `$ command` and ```execute blocks.
-        let use_emulator = !model_settings.native_tool_calling;
+        // Only use emulator when there are actually tools to emulate - utility calls
+        // like compaction and session naming pass empty tools and should preserve
+        // their system prompts.
+        let use_emulator = !model_settings.native_tool_calling && !tools.is_empty();
         let system_prompt = if use_emulator {
             load_tiny_model_prompt()
         } else {
