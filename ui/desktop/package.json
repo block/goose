@@ -42,6 +42,7 @@
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "dependencies": {
+    "goose-acp-types": "file:../acp",
     "@mcp-ui/client": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.0.1",
     "@radix-ui/react-accordion": "^1.2.12",

@@ -4,6 +4,9 @@ sidebar_position: 50
 sidebar_label: Subagents
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 Subagents are independent instances that execute tasks while keeping your main conversation clean and focused. Think of them as temporary assistants that handle specific jobs, bringing process isolation and context preservation by offloading work to separate instances.
 
 <details>
@@ -39,11 +42,30 @@ You can run multiple subagents sequentially or in parallel.
 | **Sequential** (Default) | Tasks execute one after another | "first...then", "after" | `"First analyze the code, then generate documentation"` |
 | **Parallel** | Tasks execute simultaneously | "parallel", "simultaneously", "at the same time", "concurrently" | `"Create three HTML templates in parallel"` |
 
-While subagents are working, a record of their tool calls appears in the `Logs` section of the subagent call in goose Desktop or is printed in the goose CLI output. For example:
+## Monitoring Subagent Activity
 
-```text
-[subagent:16] text_editor | developer
-```
+When goose delegates work to a subagent, you can see the subagent's tool calls in real-time. This transparency helps you understand what the subagent is doing and verify it's on the right track.
+
+<Tabs groupId="interface">
+  <TabItem value="desktop" label="goose Desktop" default>
+    Subagent tool calls appear as expandable sections within the conversation. Click to expand and see the full details of each tool call, including:
+    - The tool name being invoked
+    - Arguments passed to the tool
+    - Tool output and results
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    Subagent tool calls are displayed inline with visual indicators showing the tool name and extension. For example:
+
+    ```text
+    [subagent:16] text_editor | developer
+    ```
+
+    Each tool call shows:
+    - The subagent identifier (e.g., `subagent:16`)
+    - The tool name (e.g., `text_editor`)
+    - The extension providing the tool (e.g., `developer`)
+  </TabItem>
+</Tabs>
 
 :::info
 If a subagent fails or times out (5-minute default), you will receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.

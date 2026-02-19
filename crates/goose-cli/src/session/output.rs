@@ -3,7 +3,8 @@ use bat::WrappingMode;
 use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
 use goose::conversation::message::{
-    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+    ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
+    ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
@@ -245,8 +246,6 @@ pub fn render_message(message: &Message, debug: bool) {
                 print_markdown("Thinking was redacted", theme);
             }
             MessageContent::SystemNotification(notification) => {
-                use goose::conversation::message::SystemNotificationType;
-
                 match notification.notification_type {
                     SystemNotificationType::ThinkingMessage => {
                         show_thinking();
@@ -255,6 +254,9 @@ pub fn render_message(message: &Message, debug: bool) {
                     SystemNotificationType::InlineMessage => {
                         hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
+                    }
+                    SystemNotificationType::CreditsExhausted => {
+                        render_credits_exhausted_notification(notification);
                     }
                 }
             }
@@ -329,8 +331,6 @@ pub fn render_message_streaming(
                 print_markdown("Thinking was redacted", theme);
             }
             MessageContent::SystemNotification(notification) => {
-                use goose::conversation::message::SystemNotificationType;
-
                 match notification.notification_type {
                     SystemNotificationType::ThinkingMessage => {
                         show_thinking();
@@ -340,6 +340,10 @@ pub fn render_message_streaming(
                         flush_markdown_buffer(buffer, theme);
                         hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
+                    }
+                    SystemNotificationType::CreditsExhausted => {
+                        flush_markdown_buffer(buffer, theme);
+                        render_credits_exhausted_notification(notification);
                     }
                 }
             }
@@ -351,6 +355,40 @@ pub fn render_message_streaming(
     }
 
     let _ = std::io::stdout().flush();
+}
+
+fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {
+    hide_thinking();
+    println!("\n{}", style(&notification.msg).yellow());
+
+    if let Some(url) = notification
+        .data
+        .as_ref()
+        .and_then(|d| d.get("top_up_url"))
+        .and_then(|v| v.as_str())
+    {
+        println!(
+            "{}",
+            style(format!("Visit this URL to top up credits: {url}")).yellow()
+        );
+    }
+}
+
+pub fn get_credits_top_up_url(message: &Message) -> Option<String> {
+    message.content.iter().find_map(|content| {
+        let MessageContent::SystemNotification(notification) = content else {
+            return None;
+        };
+        if notification.notification_type != SystemNotificationType::CreditsExhausted {
+            return None;
+        }
+        notification
+            .data
+            .as_ref()
+            .and_then(|d| d.get("top_up_url"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    })
 }
 
 pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme) {
@@ -756,7 +794,14 @@ fn split_tool_name(tool_name: &str) -> (String, String) {
         .split_first()
         .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
         .unwrap_or_default();
-    (tool.to_string(), extension)
+    (tool.to_string(), extension_display_name(&extension))
+}
+
+fn extension_display_name(name: &str) -> String {
+    match name {
+        "code_execution" => "Code Mode".to_string(),
+        _ => name.to_string(),
+    }
 }
 
 pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
@@ -1427,6 +1472,7 @@ impl McpSpinners {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::env;
 
     #[test]
@@ -1493,5 +1539,28 @@ mod tests {
             ),
             "/v/l/p/w/m/components/file.txt"
         );
+    }
+
+    #[test]
+    fn test_get_credits_top_up_url_from_credits_notification() {
+        let message = Message::assistant().with_system_notification_with_data(
+            SystemNotificationType::CreditsExhausted,
+            "Insufficient credits",
+            json!({"top_up_url": "https://router.tetrate.ai/billing"}),
+        );
+        assert_eq!(
+            get_credits_top_up_url(&message).as_deref(),
+            Some("https://router.tetrate.ai/billing")
+        );
+    }
+
+    #[test]
+    fn test_get_credits_top_up_url_ignores_non_credits_notification() {
+        let message = Message::assistant().with_system_notification_with_data(
+            SystemNotificationType::InlineMessage,
+            "hello",
+            json!({"top_up_url": "https://router.tetrate.ai/billing"}),
+        );
+        assert_eq!(get_credits_top_up_url(&message), None);
     }
 }

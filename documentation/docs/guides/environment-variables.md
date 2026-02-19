@@ -164,6 +164,30 @@ export GOOSE_LEAD_FAILURE_THRESHOLD=3
 export GOOSE_LEAD_FALLBACK_TURNS=2
 ```
 
+### Claude Extended Thinking
+
+These variables control Claude's [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) feature, which allows the model to reason through complex problems before generating a response. Supported on Anthropic and Databricks providers.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `CLAUDE_THINKING_ENABLED` | Enables extended thinking for Claude models | Set to any value to enable | Disabled |
+| `CLAUDE_THINKING_BUDGET` | Maximum tokens allocated for Claude's internal reasoning process | Positive integer (minimum 1024) | 16000 |
+
+**Examples**
+
+```bash
+# Enable extended thinking with default budget (16000 tokens)
+export CLAUDE_THINKING_ENABLED=1
+
+# Enable with a larger budget for complex tasks
+export CLAUDE_THINKING_ENABLED=1
+export CLAUDE_THINKING_BUDGET=32000
+
+# Enable with a smaller budget for faster responses
+export CLAUDE_THINKING_ENABLED=1
+export CLAUDE_THINKING_BUDGET=8000
+```
+
 ### Planning Mode Configuration
 
 These variables control goose's [planning functionality](/docs/guides/creating-plans).
@@ -235,6 +259,8 @@ These variables control how goose manages conversation sessions and context.
 | `GOOSE_DISABLE_SESSION_NAMING` | Disables automatic AI-generated session naming; avoids the background model call and keeps the default "CLI Session" (goose CLI) or "New Chat" (goose Desktop) | "1", "true" (case-insensitive) to enable | false |
 | `GOOSE_PROMPT_EDITOR` | [External editor](/docs/guides/goose-cli-commands#external-editor-mode) to use for composing prompts instead of CLI input | Editor command (e.g., "vim", "code --wait") | Unset (uses CLI input) |
 | `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" |
+| `GOOSE_CLI_LIGHT_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using light mode | bat theme name (e.g., "Solarized (light)", "OneHalfLight") | "GitHub" |
+| `GOOSE_CLI_DARK_THEME` | Custom [bat theme](https://github.com/sharkdp/bat#adding-new-themes) for syntax highlighting when using dark mode | bat theme name (e.g., "Dracula", "Nord") | "zenburn" |
 | `GOOSE_CLI_NEWLINE_KEY` | Customize the keyboard shortcut for [inserting newlines in CLI input](/docs/guides/goose-cli-commands#keyboard-shortcuts) | Single character (e.g., "n", "m") | "j" (Ctrl+J) |
 | `GOOSE_RANDOM_THINKING_MESSAGES` | Controls whether to show amusing random messages during processing | "true", "false" | "true" |
 | `GOOSE_CLI_SHOW_COST` | Toggles display of model cost estimates in CLI output | "1", "true" (case-insensitive) to enable | false |
@@ -276,6 +302,10 @@ export GOOSE_PROMPT_EDITOR=vim
 
 # Set the ANSI theme for the session
 export GOOSE_CLI_THEME=ansi
+
+# Customize syntax highlighting themes (uses bat themes)
+export GOOSE_CLI_LIGHT_THEME="Solarized (light)"
+export GOOSE_CLI_DARK_THEME="Dracula"
 
 # Use Ctrl+N instead of Ctrl+J for newline
 export GOOSE_CLI_NEWLINE_KEY=n

@@ -11,7 +11,7 @@ import TabItem from '@theme/TabItem';
 Code Mode is a method of interacting with MCP tools programmatically instead of calling them directly. Code Mode is particularly useful when working with many enabled extensions, as it can help manage context window usage more efficiently.
 
 :::info
-This functionality requires the built-in [Code Execution extension](/docs/mcp/code-execution-mcp) to be enabled.
+This functionality requires the built-in [Code Mode extension](/docs/mcp/code-mode-mcp) to be enabled.
 :::
 
 Code Mode controls how tools are discovered and called:
@@ -21,7 +21,7 @@ Code Mode controls how tools are discovered and called:
 
 ## How Code Mode Works
 
-The [Code Execution extension](/docs/mcp/code-execution-mcp) is an MCP server that uses the MCP protocol to expose three foundational meta-tools. When Code Execution is enabled, goose switches to Code Mode. For every request, the LLM writes JavaScript code that goose runs in a sandbox environment to:
+The [Code Mode extension](/docs/mcp/code-mode-mcp) is an MCP server that uses the MCP protocol to expose three foundational meta-tools. When Code Mode is enabled, goose switches to Code Mode. For every request, the LLM writes JavaScript code that goose executes using [pctx (Port of Context)](https://github.com/AdrianCole/pctx), a custom Deno-based runtime, to:
 - Discover available tools from your enabled extensions (if needed)
 - Learn how to work with the tools it needs for the current task
 - Call those tools programmatically to complete the task
@@ -32,7 +32,7 @@ Traditional MCP tool calling and Code Mode are two different approaches to the s
 
 | Aspect | Traditional | Code Mode |
 |--------|------------------|-----------|
-| **Tool Discovery** | All tools from enabled extensions, for example:<br/>• `developer.shell`<br/>• `developer.text_editor`<br/>• `github.list_issues`<br/>• `github.get_pull_request`<br/>• `slack.send_message`<br/>• ... *potentially many more* | Code Execution extension's meta-tools:<br/>• `list_functions`<br/>• `get_function_details`<br/>• `execute`<br/><br/>The LLM uses these tools to discover tools from other enabled extensions as needed |
+| **Tool Discovery** | All tools from enabled extensions, for example:<br/>• `developer.shell`<br/>• `developer.text_editor`<br/>• `github.list_issues`<br/>• `github.get_pull_request`<br/>• `slack.send_message`<br/>• ... *potentially many more* | Code Mode extension's meta-tools:<br/>• `list_functions`<br/>• `get_function_details`<br/>• `execute`<br/><br/>The LLM uses these tools to discover tools from other enabled extensions as needed |
 | **Tool Calling** | • Sequential tool calls<br/>• Each result sent to the LLM before the next call | • May require tool discovery calls<br/>• Multiple tool calls batched in one execution<br/>• Intermediate results are chained and processed locally |
 | **Context Window** | Every LLM call includes all tool definitions from enabled extensions | Every LLM call includes the 3 meta-tool definitions, plus any tool definitions previously discovered in the session |
 | **Best For** | • 1-3 enabled extensions<br/>• Simple tasks using 1-2 tools | • 5+ extensions<br/>• Well-defined multi-step workflows |
