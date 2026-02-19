@@ -572,8 +572,6 @@ impl Provider for LocalInferenceProvider {
         >(32);
 
         tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Handle::current();
-
             // Macro to log errors before sending them through the channel
             macro_rules! send_err {
                 ($err:expr) => {{
@@ -589,7 +587,7 @@ impl Provider for LocalInferenceProvider {
                 }};
             }
 
-            let model_guard = rt.block_on(model_arc.lock());
+            let model_guard = model_arc.blocking_lock();
             let loaded = match model_guard.as_ref() {
                 Some(l) => l,
                 None => {
