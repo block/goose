@@ -351,6 +351,17 @@ export default function McpAppRenderer({
     pipPositionRef.current = pipPosition;
   }, [pipPosition]);
 
+  const clampPipPosition = useCallback((pos: { x: number; y: number }) => {
+    const minX = PIP_WIDTH + PIP_MARGIN_RIGHT - window.innerWidth;
+    const maxX = PIP_MARGIN_RIGHT;
+    const minY = PIP_HEIGHT + PIP_MARGIN_BOTTOM - window.innerHeight;
+    const maxY = PIP_MARGIN_BOTTOM;
+    return {
+      x: Math.max(minX, Math.min(maxX, pos.x)),
+      y: Math.max(minY, Math.min(maxY, pos.y)),
+    };
+  }, []);
+
   const handlePipPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -362,11 +373,11 @@ export default function McpAppRenderer({
     if (!pipDragRef.current) return;
     const dx = e.clientX - pipDragRef.current.startX;
     const dy = e.clientY - pipDragRef.current.startY;
-    setPipPosition({
+    setPipPosition(clampPipPosition({
       x: pipDragRef.current.originX + dx,
       y: pipDragRef.current.originY + dy,
-    });
-  }, []);
+    }));
+  }, [clampPipPosition]);
 
   const handlePipPointerUp = useCallback((e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -385,8 +396,8 @@ export default function McpAppRenderer({
       default: return;
     }
     e.preventDefault();
-    setPipPosition((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
-  }, []);
+    setPipPosition((prev) => clampPipPosition({ x: prev.x + dx, y: prev.y + dy }));
+  }, [clampPipPosition]);
 
   // Cache iframe contentWindows for O(1) source matching via MutationObserver.
   useEffect(() => {
