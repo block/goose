@@ -276,6 +276,17 @@ You are an AI assistant called [YourName], created by [YourCompany].
    - Update `ui/desktop/package.json` (`productName`, description, and bundle/debug scripts if they assume old app names)
    - Update Linux desktop templates (`ui/desktop/forge.deb.desktop`, `ui/desktop/forge.rpm.desktop`) to match executable/icon names
    - Update updater asset matching in `ui/desktop/src/utils/githubUpdater.ts` so release artifact names match your published bundles
+   - Set build/release environment variables consistently:
+     - `GITHUB_OWNER` and `GITHUB_REPO` for publisher + updater repository lookup
+     - `GOOSE_BUNDLE_NAME` for bundle/debug scripts and updater asset naming (defaults to `Goose`)
+
+Example:
+
+```bash
+export GITHUB_OWNER="your-org"
+export GITHUB_REPO="your-goose-fork"
+export GOOSE_BUNDLE_NAME="InsightStream-goose"
+```
 
 6. **Use this branding consistency checklist** before release:
    - Application metadata (`forge.config.ts`, `package.json`, `index.html`) uses your distro name
