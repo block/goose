@@ -34,14 +34,8 @@ use super::inference_engine::{
 };
 use super::{finalize_usage, StreamSender, CODE_EXECUTION_TOOL, SHELL_TOOL};
 
-/// Bytes to hold back from streaming in code mode: length of `` ```execute\n ``
-/// plus the preceding `\n`, so the parser doesn't emit text that turns out to be
-/// the start of an execute fence.
-const HOLD_BACK_CODE_MODE: usize = 12;
-
-/// Bytes to hold back from streaming without code mode: length of `\n$`, so the
-/// parser doesn't emit text that turns out to be the start of a shell command.
-const HOLD_BACK_SHELL_ONLY: usize = 2;
+const HOLD_BACK_CODE_MODE: usize = " ```execute\n".len();
+const HOLD_BACK_SHELL_ONLY: usize = "\n$".len();
 
 pub(super) fn load_tiny_model_prompt() -> String {
     use std::env;
