@@ -112,7 +112,7 @@ export default function ProviderSelector({
           <Gift size={20} className="text-text-muted mb-2" />
           <span className="font-medium text-text-default text-base block">Free Credits</span>
           <p className="text-text-muted text-sm mt-1">
-            Sign up with an AI provider and get free credits
+            Get free credits from a provider to try Goose
           </p>
         </div>
 
