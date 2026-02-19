@@ -368,40 +368,93 @@ impl ComputerControllerServer {
               - Create and run Shell, Ruby, or AppleScript scripts
               - Scripts can save their output to files
 
-            computer_control (Peekaboo CLI — auto-installed via Homebrew)
-              Pass peekaboo commands as a string. Core workflow: see → click → type.
+            computer_control — Peekaboo CLI for macOS UI automation (auto-installed via Homebrew).
+              Peekaboo captures/inspects screens, targets UI elements, drives input, and manages
+              apps/windows/menus. Pass a peekaboo subcommand string as the `command` parameter.
+              Set `capture_screenshot: true` to capture the screen after actions (click, type, etc.).
+              Commands support `--json`/`-j` for structured output. Run `peekaboo <cmd> --help` for
+              full flags if needed.
+
+              Quickstart (most reliable flow):
+                1. command: "see --app Safari --annotate"    — get annotated screenshot with element IDs
+                2. command: "click --on B3 --app Safari"     — click element B3
+                3. command: "type \"user@example.com\" --app Safari"  — type text
+                4. command: "press tab --count 1 --app Safari"       — press tab
+                5. command: "type \"password\" --app Safari --return" — type and press enter
 
               Vision:
-              - see — annotated UI map with element IDs. `see --app Safari --annotate`, `see --mode screen`, `see --analyze "describe this"`
-              - image — capture screenshot. `image --mode frontmost`, `image --app Safari --retina --path /tmp/out.png`
+              - see — annotated UI map with element IDs and optional AI analysis
+                `see --app Safari --annotate`, `see --mode screen --screen-index 0`
+                `see --app Notes --analyze "describe what's on screen"`
+              - image — capture screenshots without annotation
+                `image --mode frontmost`, `image --mode screen --screen-index 1 --retina`
+                `image --app Safari --window-title "Dashboard" --analyze "Summarize KPIs"`
+              - capture — live motion-aware capture
+                `capture live --mode region --region 100,100,800,600 --duration 30`
 
               Interaction:
-              - click — by element ID `click --on B1`, coordinates `click --coords 100,200`, supports `--double`, `--right`
-              - type — type text `type --text "hello" --return`, `--clear` to clear first, `--wpm 140`
-              - press — special keys `press tab --count 3`, `press escape`, `press return`
-              - hotkey — keyboard shortcuts `hotkey --keys cmd,c`, `hotkey --keys cmd,shift,t` (comma-separated)
-              - paste — via clipboard `paste --text "long content"` (more reliable than type for long text)
-              - scroll — `scroll --direction down --amount 5 --smooth`
-              - drag — `drag --from B1 --to T2`
-              - move — cursor `move 500,300 --smooth`
+              - click — by element ID, query, or coordinates with smart waits
+                `click --on B1`, `click --coords 100,200`, `click --on B1 --double`, `click --on B1 --right`
+              - type — text input with optional control keys
+                `type "hello" --return`, `type "text" --clear --app Notes`, `type "slow" --wpm 80`
+              - press — special key sequences with repeats
+                `press tab --count 3`, `press escape`, `press return`, `press space`
+              - hotkey — modifier key combos (comma-separated)
+                `hotkey --keys cmd,c`, `hotkey --keys cmd,shift,t`, `hotkey --keys cmd,a`
+              - paste — set clipboard then paste (more reliable than type for long text)
+                `paste --text "long multi-line content"`
+              - scroll — directional scrolling with optional targeting
+                `scroll --direction down --amount 5 --smooth`, `scroll --direction up --amount 3`
+              - drag — drag between elements or coordinates
+                `drag --from B1 --to T2`, `drag --from-coords 100,100 --to-coords 500,300`
+              - swipe — gesture-style drags
+                `swipe --from-coords 100,500 --to-coords 100,200 --duration 800`
+              - move — cursor positioning
+                `move 500,300 --smooth`
 
               Apps & Windows:
-              - app — `app launch Safari --open https://example.com`, `app quit Safari`, `app switch Safari`, `app list`
-              - window — `window list --app Safari --json`, `window focus --app Safari`, `window set-bounds --app Safari --x 50 --y 50 --width 1200 --height 800`
-              - list — `list apps --json`, `list windows --json`, `list screens --json`
+              - app — launch, quit, switch, list applications
+                `app launch Safari --open https://example.com`, `app quit Safari`
+                `app switch Safari`, `app list`, `app hide Safari`, `app unhide Safari`
+              - window — manage window position, size, focus, list
+                `window list --app Safari --json`, `window focus --app Safari`
+                `window set-bounds --app Safari --x 50 --y 50 --width 1200 --height 800`
+                `window close --app Safari`, `window minimize --app Safari`
+              - list — enumerate apps, windows, screens
+                `list apps --json`, `list windows --json`, `list screens --json`
+              - space — macOS Spaces (virtual desktops)
+                `space list`, `space switch --index 2`
 
-              System:
-              - clipboard — `clipboard --action get`, `clipboard --action set --text "content"`
-              - menu — `menu click --app Safari --item "New Window"`, `menu click --path "Format > Font > Show Fonts"`
-              - menubar — `menubar list --json`, `menubar click --title "WiFi"`
-              - dock — `dock launch Safari`, `dock list --json`
-              - dialog — `dialog click --button "OK"`, `dialog list`
-              - space — `space list`, `space switch --index 2`
-              - open — `open https://example.com --app Safari`
-              - permissions — `permissions status`
+              Menus & System:
+              - menu — click application menu items
+                `menu click --app Safari --item "New Window"`
+                `menu click --app TextEdit --path "Format > Font > Show Fonts"`
+              - menubar — status bar / menu extras
+                `menubar list --json`, `menubar click --title "WiFi"`
+              - dock — Dock items
+                `dock launch Safari`, `dock list --json`
+              - dialog — system dialogs and alerts
+                `dialog click --button "OK"`, `dialog list`
+              - clipboard — read/write clipboard
+                `clipboard --action get`, `clipboard --action set --text "content"`
+              - open — open URLs or files with app targeting
+                `open https://example.com --app Safari`
+              - permissions — check Screen Recording / Accessibility status
+                `permissions status`
 
-              Common targeting: `--app Name`, `--window-title`, `--window-id`, `--on ID`, `--coords x,y`
-              Tips: always `see --annotate` first; use `--json` for structured output; use `paste` over `type` for long text
+              Common targeting parameters (work across most commands):
+              - App/window: `--app Name`, `--pid 1234`, `--window-title "title"`, `--window-id 5678`, `--window-index 0`
+              - Elements: `--on B1` (element ID from see), `--coords 100,200`
+              - Snapshot reuse: `--snapshot <id>` (reuse a previous see result without re-capturing)
+              - Focus: `--no-auto-focus`, `--space-switch`, `--bring-to-current-space`
+
+              Tips:
+              - Always `see --annotate` first to identify element IDs before clicking
+              - Use `--json` for structured output on list/query commands
+              - Use `paste` over `type` for long or multi-line text
+              - Use `--screen-index` for multi-monitor setups
+              - If something fails, check `permissions status` for missing permissions
+              - Use `capture_screenshot: true` on click/type/press actions to verify the result
             "#},
             _ => indoc! {r#"
             Here are some extra tools:
@@ -860,7 +913,22 @@ impl ComputerControllerServer {
     #[cfg(target_os = "macos")]
     #[tool(
         name = "computer_control",
-        description = "Control the Mac using the Peekaboo CLI for GUI automation. Pass a peekaboo subcommand and arguments as a string. The core workflow is: see (capture annotated screenshot with element IDs) → click (on element IDs) → type (text). Set capture_screenshot=true to see the UI state after actions. See extension instructions for the full command reference."
+        description = "
+            macOS UI automation via Peekaboo CLI. Pass a subcommand string as `command`.
+
+            Core workflow: see → click → type
+            1. see --app Safari --annotate  (get annotated screenshot with element IDs)
+            2. click --on B3               (click element by ID)
+            3. type \"hello\" --return       (type text, press enter)
+
+            Key commands: see, image, click, type, press, hotkey, paste, scroll, drag,
+            swipe, move, app, window, list, menu, menubar, dock, dialog, clipboard,
+            space, open, permissions.
+
+            Targeting: --app Name, --window-title, --window-id, --on ID, --coords x,y
+            Set capture_screenshot=true to verify UI state after actions.
+            See extension instructions for full command reference and examples.
+        "
     )]
     pub async fn computer_control(
         &self,
