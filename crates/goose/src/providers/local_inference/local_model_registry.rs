@@ -206,7 +206,11 @@ impl LocalModelRegistry {
     pub fn load() -> Result<Self> {
         let path = Self::registry_path();
         if path.exists() {
+            let lock_path = path.with_extension("json.lock");
+            let lock_file = std::fs::File::create(&lock_path)?;
+            fs2::FileExt::lock_shared(&lock_file)?;
             let contents = std::fs::read_to_string(&path)?;
+            fs2::FileExt::unlock(&lock_file)?;
             let registry: LocalModelRegistry = serde_json::from_str(&contents)?;
             Ok(registry)
         } else {
@@ -219,8 +223,17 @@ impl LocalModelRegistry {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
+
+        let lock_path = path.with_extension("json.lock");
+        let lock_file = std::fs::File::create(&lock_path)?;
+        fs2::FileExt::lock_exclusive(&lock_file)?;
+
+        let mut tmp = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
         let contents = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, contents)?;
+        std::io::Write::write_all(&mut tmp, contents.as_bytes())?;
+        tmp.persist(&path)?;
+
+        fs2::FileExt::unlock(&lock_file)?;
         Ok(())
     }
 
