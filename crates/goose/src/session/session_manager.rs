@@ -321,11 +321,6 @@ impl SessionManager {
         self.storage.get_insights().await
     }
 
-    /// Returns total token costs (total, input, output) for a session including all child subagent sessions.
-    pub async fn get_session_cost(&self, session_id: &str) -> Result<(i64, i64, i64)> {
-        self.storage.get_session_cost(session_id).await
-    }
-
     pub async fn export_session(&self, id: &str) -> Result<String> {
         self.storage.export_session(id).await
     }
@@ -1040,6 +1035,40 @@ impl SessionStorage {
             session.message_count = count;
         }
 
+        // Roll child subagent token costs into the parent's accumulated totals
+        let child_tokens = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>)>(
+            r#"
+            SELECT
+                SUM(COALESCE(accumulated_total_tokens, total_tokens, 0)),
+                SUM(COALESCE(accumulated_input_tokens, input_tokens, 0)),
+                SUM(COALESCE(accumulated_output_tokens, output_tokens, 0))
+            FROM sessions
+            WHERE parent_session_id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+
+        if let Some(child_total) = child_tokens.0 {
+            if child_total > 0 {
+                let base = session.accumulated_total_tokens.unwrap_or(0) as i64;
+                session.accumulated_total_tokens = Some((base + child_total) as i32);
+            }
+        }
+        if let Some(child_input) = child_tokens.1 {
+            if child_input > 0 {
+                let base = session.accumulated_input_tokens.unwrap_or(0) as i64;
+                session.accumulated_input_tokens = Some((base + child_input) as i32);
+            }
+        }
+        if let Some(child_output) = child_tokens.2 {
+            if child_output > 0 {
+                let base = session.accumulated_output_tokens.unwrap_or(0) as i64;
+                session.accumulated_output_tokens = Some((base + child_output) as i32);
+            }
+        }
+
         Ok(session)
     }
 
@@ -1369,30 +1398,6 @@ impl SessionStorage {
             total_sessions: row.0 as usize,
             total_tokens: row.1.unwrap_or(0),
         })
-    }
-
-    /// Returns total token costs for a session including all child subagent sessions.
-    async fn get_session_cost(&self, session_id: &str) -> Result<(i64, i64, i64)> {
-        let pool = self.pool().await?;
-        let row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>)>(
-            r#"
-            SELECT
-                COALESCE(SUM(COALESCE(accumulated_total_tokens, total_tokens, 0)), 0),
-                COALESCE(SUM(COALESCE(accumulated_input_tokens, input_tokens, 0)), 0),
-                COALESCE(SUM(COALESCE(accumulated_output_tokens, output_tokens, 0)), 0)
-            FROM sessions
-            WHERE id = ?1 OR parent_session_id = ?1
-            "#,
-        )
-        .bind(session_id)
-        .fetch_one(pool)
-        .await?;
-
-        Ok((
-            row.0.unwrap_or(0),
-            row.1.unwrap_or(0),
-            row.2.unwrap_or(0),
-        ))
     }
 
     async fn export_session(&self, id: &str) -> Result<String> {
@@ -1831,18 +1836,17 @@ mod tests {
             .await
             .unwrap();
 
-        // Parent cost should include itself + both children: 100+50+200 = 350
-        let (total, input, output) = sm.get_session_cost(&parent.id).await.unwrap();
-        assert_eq!(total, 350);
-        assert_eq!(input, 210);
-        assert_eq!(output, 140);
+        // get_session should roll child costs into parent's accumulated tokens
+        let parent_fetched = sm.get_session(&parent.id, false).await.unwrap();
+        assert_eq!(parent_fetched.accumulated_total_tokens, Some(350)); // 100+50+200
+        assert_eq!(parent_fetched.accumulated_input_tokens, Some(210)); // 60+30+120
+        assert_eq!(parent_fetched.accumulated_output_tokens, Some(140)); // 40+20+80
 
-        // Child cost should only include itself (no children of its own)
-        let (child_total, child_input, child_output) =
-            sm.get_session_cost(&child1.id).await.unwrap();
-        assert_eq!(child_total, 50);
-        assert_eq!(child_input, 30);
-        assert_eq!(child_output, 20);
+        // Child should only include its own tokens (no children of its own)
+        let child_fetched = sm.get_session(&child1.id, false).await.unwrap();
+        assert_eq!(child_fetched.accumulated_total_tokens, Some(50));
+        assert_eq!(child_fetched.accumulated_input_tokens, Some(30));
+        assert_eq!(child_fetched.accumulated_output_tokens, Some(20));
     }
 
     #[tokio::test]

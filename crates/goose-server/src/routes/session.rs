@@ -144,57 +144,6 @@ async fn get_session_insights(
     Ok(Json(insights))
 }
 
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionCostResponse {
-    session_id: String,
-    total_tokens: i64,
-    input_tokens: i64,
-    output_tokens: i64,
-}
-
-#[utoipa::path(
-    get,
-    path = "/sessions/{session_id}/cost",
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session cost including child subagent tokens", body = SessionCostResponse),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn get_session_cost(
-    State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
-) -> Result<Json<SessionCostResponse>, StatusCode> {
-    // Verify session exists
-    state
-        .session_manager()
-        .get_session(&session_id, false)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    let (total, input, output) = state
-        .session_manager()
-        .get_session_cost(&session_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(SessionCostResponse {
-        session_id,
-        total_tokens: total,
-        input_tokens: input,
-        output_tokens: output,
-    }))
-}
-
 #[utoipa::path(
     put,
     path = "/sessions/{session_id}/name",
@@ -551,7 +500,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(import_session).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
         )
         .route("/sessions/insights", get(get_session_insights))
-        .route("/sessions/{session_id}/cost", get(get_session_cost))
         .route("/sessions/{session_id}/name", put(update_session_name))
         .route(
             "/sessions/{session_id}/user_recipe_values",
