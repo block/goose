@@ -171,8 +171,7 @@ pub async fn run_model_list<C: Connection>() {
             "gpt-4o-2024-05-13",
             "gpt-4o-2024-08-06",
             "gpt-4o-2024-11-20",
-            "text-embedding-3-large",
-            "text-embedding-3-small",
+
             "gpt-4",
             "gpt-4-0613",
             "gpt-4-turbo",
