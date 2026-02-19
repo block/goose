@@ -581,7 +581,7 @@ impl<'a> ToolAnalyticsStore<'a> {
         let duration_stats: Vec<(f64,)> = sqlx::query_as(
             r#"
             SELECT
-                COALESCE(MAX(created_timestamp) - MIN(created_timestamp), 0) as duration_seconds
+                CAST(COALESCE(MAX(created_timestamp) - MIN(created_timestamp), 0) AS REAL) as duration_seconds
             FROM messages
             WHERE created_timestamp > unixepoch() - (? * 86400)
             GROUP BY session_id
