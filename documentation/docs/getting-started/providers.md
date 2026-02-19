@@ -168,7 +168,7 @@ To configure your chosen provider, see available options, or select a model, vis
        │  ○ goose Settings 
        └  
        ```
-    3. Choose a model provider and press `Enter`. Use the arrow keys (↑/↓) to move through the options.
+    3. Choose a model provider and press `Enter`. Use the arrow keys (↑/↓) to move through the options, or start typing to filter the list.
 
        ```
        ┌   goose-configure 
@@ -526,7 +526,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        └  
        ```
 
-    3. Select the custom provider you want to update and press `Enter`. Use the arrow keys (↑/↓) to move through the options.
+    3. Select the custom provider you want to update and press `Enter`. Use the arrow keys (↑/↓) to move through the options, or start typing to filter the list.
 
        ```sh
        ┌   goose-configure 
