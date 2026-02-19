@@ -1,14 +1,15 @@
 import React, { memo, useMemo, useCallback, useState } from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
+import CardContainer from './subcomponents/CardContainer';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
 import {
   DeclarativeProviderConfig,
   ProviderDetails,
   UpdateCustomProviderRequest,
 } from '../../../api';
+import { Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
-import { AddProviderCard } from './modal/subcomponents/AddProviderCards';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import type { View } from '../../../utils/navigationUtils';
@@ -27,6 +28,27 @@ const GridLayout = memo(function GridLayout({ children }: { children: React.Reac
   );
 });
 
+const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onClick: () => void }) {
+  return (
+    <CardContainer
+      testId="add-custom-provider-card"
+      onClick={onClick}
+      header={null}
+      body={
+        <div className="flex flex-col items-center justify-center min-h-[200px]">
+          <Plus className="w-8 h-8 text-gray-400 mb-2" />
+          <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
+            <div className="font-medium">Add Provider</div>
+            <div className="text-xs text-gray-500 mt-1">From catalog or manual setup</div>
+          </div>
+        </div>
+      }
+      grayedOut={false}
+      borderStyle="dashed"
+    />
+  );
+});
+
 function ProviderCards({
   providers,
   isOnboarding,
@@ -41,7 +63,7 @@ function ProviderCards({
   onModelSelected?: (model?: string) => void;
 }) {
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
-  const [showProviderForm, setShowProviderForm] = useState(false);
+  const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
   const [switchModelProvider, setSwitchModelProvider] = useState<string | null>(null);
   const [isActiveProvider, setIsActiveProvider] = useState(false);
@@ -76,6 +98,7 @@ function ProviderCards({
             isEditable: result.data.is_editable,
             providerType: provider.provider_type,
           });
+
           // Check if this is the active provider
           try {
             const providerModel = await getCurrentModelAndProvider();
@@ -84,7 +107,7 @@ function ProviderCards({
             setIsActiveProvider(false);
           }
 
-          setShowProviderForm(true);
+          setShowCustomProviderModal(true);
         }
       } else {
         openModal(provider);
@@ -104,7 +127,7 @@ function ProviderCards({
         throwOnError: true,
       });
       const providerId = editingProvider.id;
-      setShowProviderForm(false);
+      setShowCustomProviderModal(false);
       setEditingProvider(null);
       if (refreshProviders) {
         refreshProviders();
@@ -123,7 +146,7 @@ function ProviderCards({
       path: { id: editingProvider.id },
       throwOnError: true,
     });
-    setShowProviderForm(false);
+    setShowCustomProviderModal(false);
     setEditingProvider(null);
     setIsActiveProvider(false);
     if (refreshProviders) {
@@ -131,24 +154,11 @@ function ProviderCards({
     }
   }, [editingProvider, refreshProviders]);
 
-  const handleCloseForm = useCallback(() => {
-    setShowProviderForm(false);
+  const handleCloseModal = useCallback(() => {
+    setShowCustomProviderModal(false);
     setEditingProvider(null);
     setIsActiveProvider(false);
   }, []);
-
-  const handleCreateCustomProvider = useCallback(
-    async (data: UpdateCustomProviderRequest) => {
-      const { createCustomProvider } = await import('../../../api');
-      await createCustomProvider({ body: data, throwOnError: true });
-      setShowProviderForm(false);
-      if (refreshProviders) {
-        refreshProviders();
-      }
-      setShowSwitchModelModal(true);
-    },
-    [refreshProviders]
-  );
 
   const onCloseProviderConfig = useCallback(() => {
     setConfiguringProvider(null);
@@ -183,6 +193,19 @@ function ProviderCards({
     [setView]
   );
 
+  const handleCreateCustomProvider = useCallback(
+    async (data: UpdateCustomProviderRequest) => {
+      const { createCustomProvider } = await import('../../../api');
+      await createCustomProvider({ body: data, throwOnError: true });
+      setShowCustomProviderModal(false);
+      if (refreshProviders) {
+        refreshProviders();
+      }
+      setShowSwitchModelModal(true);
+    },
+    [refreshProviders]
+  );
+
   const providerCards = useMemo(() => {
     // providers needs to be an array
     const providersArray = Array.isArray(providers) ? providers : [];
@@ -200,7 +223,9 @@ function ProviderCards({
       />
     ));
 
-    cards.push(<AddProviderCard key="add-provider" onClick={() => setShowProviderForm(true)} />);
+    cards.push(
+      <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
+    );
 
     return cards;
   }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
@@ -222,7 +247,7 @@ function ProviderCards({
   return (
     <>
       {providerCards}
-      <Dialog open={showProviderForm} onOpenChange={handleCloseForm}>
+      <Dialog open={showCustomProviderModal} onOpenChange={handleCloseModal}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -231,7 +256,7 @@ function ProviderCards({
             initialData={initialData}
             isEditable={editable}
             onSubmit={editingProvider ? handleUpdateCustomProvider : handleCreateCustomProvider}
-            onCancel={handleCloseForm}
+            onCancel={handleCloseModal}
             onDelete={
               editingProvider?.providerType === 'Custom' ? handleDeleteCustomProvider : undefined
             }
