@@ -365,9 +365,7 @@ impl ComputerControllerServer {
             "macos" => indoc! {r#"
             Here are some extra tools:
             automation_script
-              - Create and run Shell, Ruby, or AppleScript (via osascript) scripts
-              - Shell (bash) is recommended for most tasks
-              - AppleScript (via osascript) for app scripting and system settings
+              - Create and run Shell, Ruby, or AppleScript scripts
               - Scripts can save their output to files
 
             computer_control (Peekaboo CLI — auto-installed via Homebrew)
@@ -645,22 +643,36 @@ impl ComputerControllerServer {
     }
 
     /// Create and run small scripts for automation tasks
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     #[tool(
         name = "automation_script",
         description = "
-            Create and run small scripts for automation tasks.
-            Supports Shell, Ruby, and AppleScript (via osascript on macOS).
+            Create and run Shell, Ruby, or AppleScript (via osascript) scripts.
+            Use shell (bash) for most tasks. AppleScript for app scripting and system settings.
+            Examples:
+                - sort file.txt | uniq
+                - awk -F ',' '{ print $2}' file.csv
+                - osascript -e 'tell app \"Finder\" to get name of every window'
+        "
+    )]
+    pub async fn automation_script(
+        &self,
+        params: Parameters<AutomationScriptParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.automation_script_impl(params).await
+    }
 
-            The script is saved to a temporary file and executed.
+    /// Create and run small scripts for automation tasks
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    #[tool(
+        name = "automation_script",
+        description = "
+            Create and run Shell scripts for automation tasks.
             Consider using shell script (bash) for most simple tasks first.
-            Ruby is useful for text processing or when you need more sophisticated scripting capabilities.
-            AppleScript (via osascript in a shell script) for app scripting and system settings.
-            Some examples of shell:
-                - create a sorted list of unique lines: sort file.txt | uniq
-                - extract 2nd column in csv: awk -F ',' '{ print $2}'
-                - pattern matching: grep pattern file.txt
-                - run AppleScript: osascript -e 'tell app \"Finder\" to get name of every window'
+            Examples:
+                - sort file.txt | uniq
+                - awk -F ',' '{ print $2}' file.csv
+                - grep pattern file.txt
         "
     )]
     pub async fn automation_script(
