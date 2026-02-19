@@ -1590,9 +1590,11 @@ impl ExtensionManager {
         session_id: &str,
         working_dir: &std::path::Path,
     ) -> Option<String> {
+        // Skip MOIM for models with small context windows to avoid consuming limited context
+        const MIN_CONTEXT_FOR_MOIM: usize = 9 * 1024 * 1024;
         if let Ok(provider_guard) = self.provider.try_lock() {
             if let Some(provider) = provider_guard.as_ref() {
-                if provider.get_model_config().context_limit() < 9 * 1024 * 1024 {
+                if provider.get_model_config().context_limit() < MIN_CONTEXT_FOR_MOIM {
                     return None;
                 }
             }
