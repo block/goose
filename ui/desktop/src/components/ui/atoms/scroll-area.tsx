@@ -182,7 +182,9 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       }
 
       lastScrollHeightRef.current = currentScrollHeight;
-    }, [autoScroll]);
+      // children is intentionally in deps to trigger auto-scroll on content changes
+      // biome-ignore lint/correctness/useExhaustiveDependencies: children drives content-change detection for auto-scroll
+    }, [children, autoScroll]);
 
     // Add scroll event listener
     React.useEffect(() => {
