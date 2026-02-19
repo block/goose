@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import TextInput from "ink-text-input";
-import {
-  ClientSideConnection,
-  type SessionNotification,
-  type RequestPermissionRequest,
-  type RequestPermissionResponse,
+import type {
+  SessionNotification,
+  RequestPermissionRequest,
+  RequestPermissionResponse,
 } from "@agentclientprotocol/sdk";
 import { GooseClient } from "@goose/acp";
 import { createHttpStream } from "./transport.js";
@@ -435,8 +434,7 @@ export default function App({
   const [pendingPermission, setPendingPermission] =
     useState<PendingPermission | null>(null);
   const [permissionIdx, setPermissionIdx] = useState(0);
-  const connRef = useRef<ClientSideConnection | null>(null);
-  const gooseRef = useRef<GooseClient | null>(null);
+  const clientRef = useRef<GooseClient | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const streamBuf = useRef("");
   const sentInitialPrompt = useRef(false);
@@ -495,9 +493,9 @@ export default function App({
 
   const sendPrompt = useCallback(
     async (text: string) => {
-      const conn = connRef.current;
+      const client = clientRef.current;
       const sid = sessionIdRef.current;
-      if (!conn || !sid) return;
+      if (!client || !sid) return;
 
       setMessages((prev) => [
         ...prev,
@@ -508,7 +506,7 @@ export default function App({
       streamBuf.current = "";
 
       try {
-        const result = await conn.prompt({
+        const result = await client.prompt({
           sessionId: sid,
           prompt: [{ type: "text", text }],
         });
@@ -540,7 +538,7 @@ export default function App({
         setStatus("initializing...");
         const stream = createHttpStream(serverUrl);
 
-        const conn = new ClientSideConnection(
+        const client = new GooseClient(
           () => ({
             sessionUpdate: async (params: SessionNotification) => {
               const update = params.update;
@@ -573,12 +571,11 @@ export default function App({
         );
 
         if (cancelled) return;
-        connRef.current = conn;
-        gooseRef.current = new GooseClient(conn);
+        clientRef.current = client;
 
         setStatus("handshaking...");
-        await conn.initialize({
-          protocolVersion: "0",
+        await client.initialize({
+          protocolVersion: 0,
           clientInfo: { name: "goose-text", version: "0.1.0" },
           clientCapabilities: {},
         });
@@ -586,7 +583,7 @@ export default function App({
         if (cancelled) return;
 
         setStatus("creating session...");
-        const session = await conn.newSession({
+        const session = await client.newSession({
           cwd: process.cwd(),
           mcpServers: [],
         });
@@ -674,7 +671,6 @@ export default function App({
   const PAD_X = 2;
   const PAD_BOTTOM = 1;
   const innerWidth = Math.max(termWidth - PAD_X * 2, 20);
-  // Header = 2 lines (title row + hrule), Input = 2 lines (hrule + input row)
   const headerHeight = 2;
   const inputBarHeight = initialPrompt ? 0 : 2;
   const bodyHeight = Math.max(termHeight - headerHeight - inputBarHeight - PAD_BOTTOM, 3);
