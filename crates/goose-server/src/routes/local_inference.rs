@@ -18,6 +18,7 @@ use goose::providers::local_inference::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::debug;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -303,10 +304,13 @@ pub async fn download_local_model(
 pub async fn get_local_model_download_progress(
     Path(model_id): Path<String>,
 ) -> Result<Json<DownloadProgress>, ErrorResponse> {
+    let download_id = format!("{}-model", model_id);
+    debug!(model_id = %model_id, download_id = %download_id, "Getting download progress");
+
     let manager = get_download_manager();
 
     let model_progress = manager
-        .get_progress(&format!("{}-model", model_id))
+        .get_progress(&download_id)
         .ok_or_else(|| ErrorResponse::not_found("Download not found"))?;
 
     Ok(Json(model_progress))

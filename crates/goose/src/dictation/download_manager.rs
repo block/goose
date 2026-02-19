@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
+use tracing::info;
 use utoipa::ToSchema;
 
 fn partial_path_for(destination: &Path) -> PathBuf {
@@ -101,7 +102,7 @@ impl DownloadManager {
         config_key: Option<String>,
         config_value: Option<String>,
     ) -> Result<()> {
-        // Initialize progress
+        info!(model_id = %model_id, url = %url, destination = ?destination, "Starting model download");
         {
             let mut downloads = self
                 .downloads
@@ -143,6 +144,7 @@ impl DownloadManager {
         tokio::spawn(async move {
             match Self::download_file(&url, &destination, &downloads, &model_id_clone).await {
                 Ok(_) => {
+                    info!(model_id = %model_id_clone, "Download completed successfully");
                     if let Ok(mut downloads) = downloads.lock() {
                         if let Some(progress) = downloads.get_mut(&model_id_clone) {
                             progress.status = DownloadStatus::Completed;

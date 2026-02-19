@@ -48,6 +48,15 @@ export const LocalInferenceSettings = () => {
   const downloadSectionRef = useRef<HTMLDivElement>(null);
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
 
+  // Build a lookup from model ID to display name, combining both featured and registry models
+  const getDisplayName = useCallback((modelId: string): string => {
+    const featured = featuredModels.find((m) => m.id === modelId);
+    if (featured) return featured.name;
+    const registry = registryModels.find((m) => m.id === modelId);
+    if (registry) return registry.display_name;
+    return modelId;
+  }, [featuredModels, registryModels]);
+
   const loadModels = useCallback(async () => {
     try {
       const response = await listLocalModels();
@@ -71,9 +80,36 @@ export const LocalInferenceSettings = () => {
     }
   }, []);
 
+  // Check for any in-progress downloads when the component mounts.
+  // This handles the case where the user navigates away and back while a download is active.
+  const detectActiveDownloads = useCallback(async () => {
+    const allModels = [...featuredModels, ...registryModels.map((r) => ({ id: r.id }))];
+    for (const model of allModels) {
+      if (downloads.has(model.id)) continue;
+      try {
+        const response = await getLocalModelDownloadProgress({ path: { model_id: model.id } });
+        if (response.data && response.data.status === 'downloading') {
+          setDownloads((prev) => new Map(prev).set(model.id, response.data!));
+          pollDownloadProgress(model.id);
+        }
+      } catch {
+        // No active download for this model
+      }
+    }
+  }, [featuredModels, registryModels, downloads]);
+
   useEffect(() => {
     loadModels();
   }, [loadModels]);
+
+  // After models are loaded, check for active downloads
+  useEffect(() => {
+    if (featuredModels.length > 0 || registryModels.length > 0) {
+      detectActiveDownloads();
+    }
+    // Only run when models list changes, not on every detectActiveDownloads change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [featuredModels, registryModels]);
 
   const selectModel = async (modelId: string) => {
     setProviderAndModel('local', modelId);
@@ -189,13 +225,14 @@ export const LocalInferenceSettings = () => {
           <div className="space-y-2">
             {Array.from(downloads.entries()).map(([modelId, progress]) => {
               if (progress.status === 'completed') return null;
+              const displayName = getDisplayName(modelId);
               return (
                 <div
                   key={modelId}
                   className="border rounded-lg p-3 border-border-subtle bg-background-default"
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-text-default truncate">{modelId}</span>
+                    <span className="text-sm font-medium text-text-default truncate">{displayName}</span>
                     {progress.status === 'downloading' && (
                       <Button
                         variant="ghost"
@@ -216,8 +253,23 @@ export const LocalInferenceSettings = () => {
                         />
                       </div>
                       <div className="flex justify-between text-xs text-text-muted">
-                        <span>{formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}</span>
-                        <span>{progress.progress_percent.toFixed(0)}%</span>
+                        <span>
+                          {formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}
+                          {' '}({progress.progress_percent.toFixed(0)}%)
+                        </span>
+                        <span className="flex gap-2">
+                          {progress.eta_seconds != null && progress.eta_seconds > 0 && (
+                            <span>
+                              {progress.eta_seconds < 60
+                                ? `${Math.round(progress.eta_seconds)}s`
+                                : `${Math.round(progress.eta_seconds / 60)}m`}{' '}
+                              remaining
+                            </span>
+                          )}
+                          {progress.speed_bps != null && progress.speed_bps > 0 && (
+                            <span>{formatBytes(progress.speed_bps)}/s</span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   )}
