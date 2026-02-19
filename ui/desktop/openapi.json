@@ -1827,6 +1827,308 @@
         }
       }
     },
+    "/local-inference/download": {
+      "post": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "download_hf_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Download started",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/local-inference/models": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "list_local_models",
+        "responses": {
+          "200": {
+            "description": "List of available local LLM models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LocalModelResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/local-inference/models/{model_id}": {
+      "delete": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "delete_local_model",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model deleted"
+          },
+          "404": {
+            "description": "Model not found"
+          }
+        }
+      }
+    },
+    "/local-inference/models/{model_id}/download": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "get_local_model_download_progress",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadProgress"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No active download"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "cancel_local_model_download",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Download cancelled"
+          },
+          "404": {
+            "description": "No active download"
+          }
+        }
+      }
+    },
+    "/local-inference/models/{model_id}/settings": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "get_model_settings",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelSettings"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "update_model_settings",
+        "parameters": [
+          {
+            "name": "model_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Settings updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelSettings"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not found"
+          },
+          "500": {
+            "description": "Failed to save settings"
+          }
+        }
+      }
+    },
+    "/local-inference/repo/{author}/{repo}/files": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "get_repo_files",
+        "parameters": [
+          {
+            "name": "author",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GGUF files in the repo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoVariantsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/local-inference/search": {
+      "get": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "search_hf_models",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max results",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HfModelInfo"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Search failed"
+          }
+        }
+      }
+    },
     "/mcp-ui-proxy": {
       "get": {
         "tags": [
@@ -3954,6 +4256,18 @@
           }
         }
       },
+      "DownloadModelRequest": {
+        "type": "object",
+        "required": [
+          "spec"
+        ],
+        "properties": {
+          "spec": {
+            "type": "string",
+            "description": "Model spec like \"bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M\""
+          }
+        }
+      },
       "DownloadProgress": {
         "type": "object",
         "required": [
@@ -4588,6 +4902,100 @@
           }
         ]
       },
+      "HfGgufFile": {
+        "type": "object",
+        "description": "A single downloadable GGUF file (used internally and for downloads).",
+        "required": [
+          "filename",
+          "size_bytes",
+          "quantization",
+          "download_url"
+        ],
+        "properties": {
+          "download_url": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "quantization": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "HfModelInfo": {
+        "type": "object",
+        "required": [
+          "repo_id",
+          "author",
+          "model_name",
+          "downloads",
+          "gguf_files"
+        ],
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "downloads": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "gguf_files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HfGgufFile"
+            }
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "repo_id": {
+            "type": "string"
+          }
+        }
+      },
+      "HfQuantVariant": {
+        "type": "object",
+        "description": "A quantization variant — groups sharded files into one logical entry.",
+        "required": [
+          "quantization",
+          "size_bytes",
+          "filename",
+          "download_url",
+          "description",
+          "quality_rank"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "download_url": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "quality_rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "quantization": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Icon": {
         "type": "object",
         "required": [
@@ -4770,6 +5178,51 @@
           },
           "is_editable": {
             "type": "boolean"
+          }
+        }
+      },
+      "LocalModelResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "repo_id",
+          "filename",
+          "quantization",
+          "size_bytes",
+          "status",
+          "recommended",
+          "settings"
+        ],
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "quantization": {
+            "type": "string"
+          },
+          "recommended": {
+            "type": "boolean"
+          },
+          "repo_id": {
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/ModelSettings"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/ModelDownloadStatus"
           }
         }
       },
@@ -5293,6 +5746,78 @@
           }
         }
       },
+      "ModelDownloadStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "NotDownloaded"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "progress_percent",
+              "bytes_downloaded",
+              "total_bytes",
+              "state"
+            ],
+            "properties": {
+              "bytes_downloaded": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "progress_percent": {
+                "type": "number",
+                "format": "float"
+              },
+              "speed_bps": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "Downloading"
+                ]
+              },
+              "total_bytes": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "Downloaded"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "state"
+        }
+      },
       "ModelInfo": {
         "type": "object",
         "description": "Information about a model's capabilities",
@@ -5414,6 +5939,71 @@
           },
           "source": {
             "type": "string"
+          }
+        }
+      },
+      "ModelSettings": {
+        "type": "object",
+        "properties": {
+          "context_size": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "flash_attention": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "format": "float"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "n_batch": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "n_gpu_layers": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true,
+            "minimum": 0
+          },
+          "n_threads": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "native_tool_calling": {
+            "type": "boolean"
+          },
+          "presence_penalty": {
+            "type": "number",
+            "format": "float"
+          },
+          "repeat_last_n": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "repeat_penalty": {
+            "type": "number",
+            "format": "float"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/SamplingConfig"
+          },
+          "use_jinja": {
+            "type": "boolean"
+          },
+          "use_mlock": {
+            "type": "boolean"
           }
         }
       },
@@ -6005,6 +6595,25 @@
           }
         }
       },
+      "RepoVariantsResponse": {
+        "type": "object",
+        "required": [
+          "variants"
+        ],
+        "properties": {
+          "recommended_index": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HfQuantVariant"
+            }
+          }
+        }
+      },
       "ResourceContents": {
         "anyOf": [
           {
@@ -6194,6 +6803,97 @@
           "session_id": {
             "type": "string"
           }
+        }
+      },
+      "SamplingConfig": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Greedy"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "temperature",
+              "top_k",
+              "top_p",
+              "min_p",
+              "type"
+            ],
+            "properties": {
+              "min_p": {
+                "type": "number",
+                "format": "float"
+              },
+              "seed": {
+                "type": "integer",
+                "format": "int32",
+                "nullable": true,
+                "minimum": 0
+              },
+              "temperature": {
+                "type": "number",
+                "format": "float"
+              },
+              "top_k": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "top_p": {
+                "type": "number",
+                "format": "float"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "Temperature"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "tau",
+              "eta",
+              "type"
+            ],
+            "properties": {
+              "eta": {
+                "type": "number",
+                "format": "float"
+              },
+              "seed": {
+                "type": "integer",
+                "format": "int32",
+                "nullable": true,
+                "minimum": 0
+              },
+              "tau": {
+                "type": "number",
+                "format": "float"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "MirostatV2"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type"
         }
       },
       "SavePromptRequest": {
@@ -6815,7 +7515,8 @@
         "type": "string",
         "enum": [
           "thinkingMessage",
-          "inlineMessage"
+          "inlineMessage",
+          "creditsExhausted"
         ]
       },
       "TaskSupport": {

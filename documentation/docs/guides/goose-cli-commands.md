@@ -714,6 +714,14 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 - The theme setting is saved to the [configuration file](/docs/guides/config-files) as `GOOSE_CLI_THEME` and persists between sessions
 - The saved configuration can be overridden for the session using the `GOOSE_CLI_THEME` [environment variable](/docs/guides/environment-variables#session-management)
 
+**Custom Syntax Highlighting:**
+
+You can customize the underlying syntax highlighting theme used for code blocks by setting:
+- `GOOSE_CLI_LIGHT_THEME` - Theme used when in light mode (default: "GitHub")
+- `GOOSE_CLI_DARK_THEME` - Theme used when in dark mode (default: "zenburn")
+
+These accept any [bat theme name](https://github.com/sharkdp/bat#adding-new-themes). Popular options include "Dracula", "Nord", "Solarized (light)", "Solarized (dark)", "OneHalfDark", and "Monokai Extended". Run `bat --list-themes` to see all available themes.
+
 :::info
 Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
 

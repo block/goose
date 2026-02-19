@@ -48,17 +48,12 @@ runners:
   #   stdio:
   #     - node mcp-harness/dist/index.js
 
-  - name: goose
+  - name: goose-full
     type: goose
     bin: goose
     extensions: [developer, todo, skills, code_execution, extensionmanager]
     stdio:
       - node mcp-harness/dist/index.js
-
-  - name: goose-diet
-    type: goose
-    bin: ~/Downloads/goose-diet
-    extensions: [developer]
 
   - name: opencode
     type: opencode
@@ -74,12 +69,6 @@ runners:
     stdio:
       - node mcp-harness/dist/index.js
 
-  - name: pi-lean
-    type: pi
-    bin: pi
-    # Pi takes provider/model from the test matrix, not config
-    # MCP support via pi-mcp-adapter: `pi install npm:pi-mcp-adapter`
-
 # =============================================================================
 # Test Matrix
 # =============================================================================
@@ -91,9 +80,6 @@ matrix:
   - scenario: everyday-app-automation
   - scenario: file-editing
 
-  # Feature removal: all runners
-  - scenario: remove-feature
-
   # Multi-turn: goose and pi only (opencode doesn't support session continuation)
   - scenario: multi-turn-edit
-    runners: [pi, goose]
+    runners: [goose-full]

@@ -7,19 +7,16 @@ use super::utils::{ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
-use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::formats::ollama::{create_request, response_to_streaming_message_ollama};
-use crate::utils::safe_truncate;
 use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use regex::Regex;
 use reqwest::Response;
 use rmcp::model::Tool;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
@@ -47,6 +44,33 @@ pub struct OllamaProvider {
     model: ModelConfig,
     supports_streaming: bool,
     name: String,
+}
+fn resolve_ollama_num_ctx(model_config: &ModelConfig) -> Option<usize> {
+    let config = crate::config::Config::global();
+    let input_limit = match config.get_param::<usize>("GOOSE_INPUT_LIMIT") {
+        Ok(limit) if limit > 0 => Some(limit),
+        Ok(_) => None,
+        Err(crate::config::ConfigError::NotFound(_)) => None,
+        Err(e) => {
+            tracing::warn!("Invalid GOOSE_INPUT_LIMIT value: {}", e);
+            None
+        }
+    };
+
+    input_limit.or(model_config.context_limit)
+}
+
+fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
+    let Some(limit) = resolve_ollama_num_ctx(model_config) else {
+        return;
+    };
+
+    if let Some(obj) = payload.as_object_mut() {
+        let options = obj.entry("options").or_insert_with(|| json!({}));
+        if let Some(options_obj) = options.as_object_mut() {
+            options_obj.insert("num_ctx".to_string(), json!(limit));
+        }
+    }
 }
 
 impl OllamaProvider {
@@ -188,30 +212,6 @@ impl Provider for OllamaProvider {
         self.model.clone()
     }
 
-    async fn generate_session_name(
-        &self,
-        session_id: &str,
-        messages: &Conversation,
-    ) -> Result<String, ProviderError> {
-        let context = self.get_initial_user_messages(messages);
-        let message = Message::user().with_text(self.create_session_name_prompt(&context));
-        let model_config = self.get_model_config();
-        let result = self
-            .complete(
-                &model_config,
-                session_id,
-                "You are a title generator. Output only the requested title of 4 words or less, with no additional text, reasoning, or explanations.",
-                &[message],
-                &[],
-            )
-            .await?;
-
-        let mut description = result.0.as_concat_text();
-        description = Self::filter_reasoning_tokens(&description);
-
-        Ok(safe_truncate(&description, 100))
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -228,7 +228,7 @@ impl Provider for OllamaProvider {
             tools
         };
 
-        let payload = create_request(
+        let mut payload = create_request(
             model_config,
             system,
             messages,
@@ -236,6 +236,7 @@ impl Provider for OllamaProvider {
             &ImageFormat::OpenAi,
             true,
         )?;
+        apply_ollama_options(&mut payload, model_config);
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
@@ -290,46 +291,6 @@ impl Provider for OllamaProvider {
     }
 }
 
-impl OllamaProvider {
-    fn filter_reasoning_tokens(text: &str) -> String {
-        let mut filtered = text.to_string();
-
-        let reasoning_patterns = [
-            r"<think>.*?</think>",
-            r"<thinking>.*?</thinking>",
-            r"Let me think.*?\n",
-            r"I need to.*?\n",
-            r"First, I.*?\n",
-            r"Okay, .*?\n",
-            r"So, .*?\n",
-            r"Well, .*?\n",
-            r"Hmm, .*?\n",
-            r"Actually, .*?\n",
-            r"Based on.*?I think",
-            r"Looking at.*?I would say",
-        ];
-
-        for pattern in reasoning_patterns {
-            if let Ok(re) = Regex::new(pattern) {
-                filtered = re.replace_all(&filtered, "").to_string();
-            }
-        }
-        filtered = filtered
-            .replace("<think>", "")
-            .replace("</think>", "")
-            .replace("<thinking>", "")
-            .replace("</thinking>", "");
-        filtered = filtered
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        filtered
-    }
-}
-
 /// Ollama-specific streaming handler with XML tool call fallback.
 /// Uses the Ollama format module which buffers text when XML tool calls are detected,
 /// preventing duplicate content from being emitted to the UI.
@@ -351,4 +312,41 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
             yield (message, usage);
         }
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_ollama_options_uses_input_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", Some("8192"))]);
+        let model_config = ModelConfig::new("qwen3")
+            .unwrap()
+            .with_context_limit(Some(16_000));
+        let mut payload = json!({});
+        apply_ollama_options(&mut payload, &model_config);
+        assert_eq!(payload["options"]["num_ctx"], 8192);
+    }
+
+    #[test]
+    fn test_apply_ollama_options_falls_back_to_context_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
+        let model_config = ModelConfig::new("qwen3")
+            .unwrap()
+            .with_context_limit(Some(12_000));
+        let mut payload = json!({});
+        apply_ollama_options(&mut payload, &model_config);
+        assert_eq!(payload["options"]["num_ctx"], 12_000);
+    }
+
+    #[test]
+    fn test_apply_ollama_options_skips_when_no_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
+        let mut model_config = ModelConfig::new("qwen3").unwrap();
+        model_config.context_limit = None;
+        let mut payload = json!({});
+        apply_ollama_options(&mut payload, &model_config);
+        assert!(payload.get("options").is_none());
+    }
 }

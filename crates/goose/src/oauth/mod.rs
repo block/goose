@@ -105,6 +105,7 @@ pub async fn oauth_flow(
         .save(StoredCredentials {
             client_id,
             token_response,
+            granted_scopes: vec![],
         })
         .await?;
 

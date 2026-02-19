@@ -29,7 +29,7 @@ Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) and sen
 ### Turn off unnecessary extensions or tool
 Turning on too many extensions can degrade performance. Enable only essential [extensions and tools](/docs/guides/managing-tools/tool-permissions) to improve tool selection accuracy, save context window space, and stay within provider tool limits.
 
-:::tip Code Execution for Many Extensions
+:::tip Code Mode for Many Extensions
 Consider enabling [Code Mode](/docs/guides/managing-tools/code-mode), an alternative approach to tool calling that discovers tools on demand.
 :::
 
