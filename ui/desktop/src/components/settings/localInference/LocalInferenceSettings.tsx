@@ -109,10 +109,7 @@ export const LocalInferenceSettings = () => {
 
     try {
       await downloadHfModel({
-        body: {
-          repo_id: model.repo_id,
-          filename: model.filename,
-        },
+        body: { spec: model.id },
       });
       pollDownloadProgress(modelId);
       scrollToDownloads();

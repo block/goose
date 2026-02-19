@@ -5,8 +5,9 @@ import {
   searchHfModels,
   getRepoFiles,
   downloadHfModel,
-  type HfSearchResult,
+  type HfModelInfo,
   type HfQuantVariant,
+  type RepoVariantsResponse,
 } from '../../../api';
 
 const formatBytes = (bytes: number): string => {
@@ -34,7 +35,7 @@ interface Props {
 
 export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<HfSearchResult[]>([]);
+  const [results, setResults] = useState<HfModelInfo[]>([]);
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
   const [repoData, setRepoData] = useState<Record<string, RepoData>>({});
   const [searching, setSearching] = useState(false);
@@ -45,8 +46,8 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Build repo_id from search result
-  const getRepoId = (result: HfSearchResult): string => {
-    return `${result.author}/${result.name}`;
+  const getRepoId = (result: HfModelInfo): string => {
+    return result.repo_id;
   };
 
   const doSearch = useCallback(async (q: string) => {
@@ -69,8 +70,8 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
               const repoId = getRepoId(model);
               const [author, repo] = repoId.split('/');
               const filesResponse = await getRepoFiles({ path: { author, repo } });
-              if (filesResponse.data && filesResponse.data.length > 0) {
-                return { model, variants: filesResponse.data };
+              if (filesResponse.data && filesResponse.data.variants.length > 0) {
+                return { model, variantsResponse: filesResponse.data };
               }
             } catch {
               // Skip repos we can't fetch
@@ -80,8 +81,8 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
         );
 
         const validResults = modelsWithVariants.filter(Boolean) as {
-          model: HfSearchResult;
-          variants: HfQuantVariant[];
+          model: HfModelInfo;
+          variantsResponse: RepoVariantsResponse;
         }[];
 
         setResults(validResults.map((r) => r.model));
@@ -89,21 +90,9 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
           const next = { ...prev };
           for (const r of validResults) {
             const repoId = getRepoId(r.model);
-            // Find the best variant (highest quality_rank that's not too big)
-            let recommendedIdx: number | null = null;
-            const sorted = [...r.variants].sort((a, b) => b.quality_rank - a.quality_rank);
-            // Recommend the highest quality variant under 8GB, or the smallest if all are big
-            const under8GB = sorted.filter((v) => v.size_bytes < 8 * 1024 * 1024 * 1024);
-            if (under8GB.length > 0) {
-              recommendedIdx = r.variants.findIndex((v) => v.filename === under8GB[0].filename);
-            } else {
-              // Pick smallest
-              const smallest = [...r.variants].sort((a, b) => a.size_bytes - b.size_bytes)[0];
-              recommendedIdx = r.variants.findIndex((v) => v.filename === smallest.filename);
-            }
             next[repoId] = {
-              variants: r.variants,
-              recommendedIndex: recommendedIdx,
+              variants: r.variantsResponse.variants,
+              recommendedIndex: r.variantsResponse.recommended_index ?? null,
             };
           }
           return next;
@@ -150,20 +139,12 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
         const [author, repo] = repoId.split('/');
         const response = await getRepoFiles({ path: { author, repo } });
         if (response.data) {
-          const variants = response.data;
-          // Find recommended
-          let recommendedIdx: number | null = null;
-          const sorted = [...variants].sort((a, b) => b.quality_rank - a.quality_rank);
-          const under8GB = sorted.filter((v) => v.size_bytes < 8 * 1024 * 1024 * 1024);
-          if (under8GB.length > 0) {
-            recommendedIdx = variants.findIndex((v) => v.filename === under8GB[0].filename);
-          } else {
-            const smallest = [...variants].sort((a, b) => a.size_bytes - b.size_bytes)[0];
-            recommendedIdx = variants.findIndex((v) => v.filename === smallest.filename);
-          }
           setRepoData((prev) => ({
             ...prev,
-            [repoId]: { variants, recommendedIndex: recommendedIdx },
+            [repoId]: {
+              variants: response.data.variants,
+              recommendedIndex: response.data.recommended_index ?? null,
+            },
           }));
         }
       } catch (e) {
@@ -178,12 +159,13 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
     }
   };
 
-  const startDownload = async (repoId: string, filename: string) => {
-    const dlKey = `${repoId}/${filename}`;
+  const startDownload = async (repoId: string, quantization: string) => {
+    const spec = `${repoId}:${quantization}`;
+    const dlKey = spec;
     setDownloading((prev) => new Set(prev).add(dlKey));
     try {
       const response = await downloadHfModel({
-        body: { repo_id: repoId, filename },
+        body: { spec },
       });
       if (response.data) {
         onDownloadStarted(response.data);
@@ -256,10 +238,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
             const isLoading = loadingFiles.has(repoId);
 
             return (
-              <div
-                key={model.id}
-                className="border border-border-subtle rounded-lg overflow-hidden"
-              >
+              <div key={repoId} className="border border-border-subtle rounded-lg overflow-hidden">
                 <button
                   className="w-full flex items-center justify-between p-3 text-left hover:bg-background-subtle transition-colors"
                   onClick={() => expandRepo(repoId)}
@@ -268,7 +247,6 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                     <span className="text-sm font-medium text-text-default truncate">{repoId}</span>
                     <div className="flex items-center gap-3 text-xs text-text-muted">
                       <span>{formatDownloads(model.downloads)} downloads</span>
-                      {model.likes > 0 && <span>❤️ {formatDownloads(model.likes)}</span>}
                     </div>
                   </div>
                   {isExpanded ? (
@@ -287,7 +265,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                       </div>
                     )}
                     {variants.map((variant, idx) => {
-                      const dlKey = `${repoId}/${variant.filename}`;
+                      const dlKey = `${repoId}:${variant.quantization}`;
                       const isStarting = downloading.has(dlKey);
                       const isRecommended = idx === recommendedIndex;
 
@@ -308,6 +286,11 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                               <span className="text-xs text-text-muted">
                                 {formatBytes(variant.size_bytes)}
                               </span>
+                              {variant.description && (
+                                <span className="text-xs text-text-muted italic">
+                                  {variant.description}
+                                </span>
+                              )}
                               {isRecommended && (
                                 <span className="inline-flex items-center gap-1 text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">
                                   <Star className="w-3 h-3" />
@@ -320,7 +303,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                             variant="outline"
                             size="sm"
                             disabled={isStarting}
-                            onClick={() => startDownload(repoId, variant.filename)}
+                            onClick={() => startDownload(repoId, variant.quantization)}
                           >
                             {isStarting ? (
                               <Loader2 className="w-3 h-3 animate-spin" />

@@ -1,14 +1,15 @@
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use axum::{
-    extract::Path,
+    extract::{Path, Query},
     http::StatusCode,
     routing::{delete, get, post},
     Json, Router,
 };
 use goose::config::paths::Paths;
 use goose::providers::local_inference::{
-    hf_models::{get_repo_gguf_files, resolve_model_spec, search_gguf_models, HfGgufFile},
+    available_inference_memory_bytes, hf_models,
+    hf_models::{resolve_model_spec, HfGgufFile, HfModelInfo, HfQuantVariant},
     local_model_registry::{
         display_name_from_repo, get_registry, is_featured_model, model_id_from_repo,
         parse_model_spec, LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus,
@@ -197,93 +198,69 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
     Ok(Json(models))
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct HfSearchResult {
-    pub id: String,
-    pub author: String,
-    pub name: String,
-    pub downloads: u64,
-    pub likes: u64,
+#[derive(Debug, Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RepoVariantsResponse {
+    pub variants: Vec<HfQuantVariant>,
+    pub recommended_index: Option<usize>,
 }
 
 #[utoipa::path(
     get,
     path = "/local-inference/search",
     params(
-        ("q" = String, Query, description = "Search query")
+        ("q" = String, Query, description = "Search query"),
+        ("limit" = Option<usize>, Query, description = "Max results")
     ),
     responses(
-        (status = 200, description = "Search results", body = Vec<HfSearchResult>)
+        (status = 200, description = "Search results", body = Vec<HfModelInfo>),
+        (status = 500, description = "Search failed")
     )
 )]
 pub async fn search_hf_models(
-    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> Result<Json<Vec<HfSearchResult>>, ErrorResponse> {
-    let query = params.get("q").cloned().unwrap_or_default();
-
-    let results = search_gguf_models(&query, 20)
+    Query(params): Query<SearchQuery>,
+) -> Result<Json<Vec<HfModelInfo>>, ErrorResponse> {
+    let limit = params.limit.unwrap_or(20).min(50);
+    let results = hf_models::search_gguf_models(&params.q, limit)
         .await
-        .map_err(|e| ErrorResponse::internal(format!("HF search failed: {}", e)))?;
-
-    let search_results: Vec<HfSearchResult> = results
-        .into_iter()
-        .map(|m| HfSearchResult {
-            id: m.repo_id.clone(),
-            author: m.author,
-            name: m.model_name,
-            downloads: m.downloads,
-            likes: 0, // HfModelInfo doesn't have likes
-        })
-        .collect();
-
-    Ok(Json(search_results))
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct HfQuantVariant {
-    pub filename: String,
-    pub size_bytes: u64,
-    pub quantization: String,
-    pub download_url: String,
-    pub quality_rank: u32,
+        .map_err(|e| ErrorResponse::internal(format!("Search failed: {}", e)))?;
+    Ok(Json(results))
 }
 
 #[utoipa::path(
     get,
     path = "/local-inference/repo/{author}/{repo}/files",
     responses(
-        (status = 200, description = "GGUF files in the repo", body = Vec<HfQuantVariant>)
+        (status = 200, description = "GGUF files in the repo", body = RepoVariantsResponse)
     )
 )]
 pub async fn get_repo_files(
     Path((author, repo)): Path<(String, String)>,
-) -> Result<Json<Vec<HfQuantVariant>>, ErrorResponse> {
+) -> Result<Json<RepoVariantsResponse>, ErrorResponse> {
     let repo_id = format!("{}/{}", author, repo);
-    let files = get_repo_gguf_files(&repo_id)
+    let variants = hf_models::get_repo_gguf_variants(&repo_id)
         .await
-        .map_err(|e| ErrorResponse::internal(format!("Failed to fetch files: {}", e)))?;
+        .map_err(|e| ErrorResponse::internal(format!("Failed to fetch repo files: {}", e)))?;
 
-    let variants: Vec<HfQuantVariant> = files
-        .into_iter()
-        .map(|f| HfQuantVariant {
-            filename: f.filename,
-            size_bytes: f.size_bytes,
-            quantization: f.quantization,
-            download_url: f.download_url,
-            quality_rank: 0,
-        })
-        .collect();
+    let runtime = InferenceRuntime::get_or_init();
+    let available_memory = available_inference_memory_bytes(&runtime);
+    let recommended_index = hf_models::recommend_variant(&variants, available_memory);
 
-    Ok(Json(variants))
+    Ok(Json(RepoVariantsResponse {
+        variants,
+        recommended_index,
+    }))
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct DownloadModelRequest {
     /// Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
-    pub spec: Option<String>,
-    /// Alternative: provide repo_id and filename separately
-    pub repo_id: Option<String>,
-    pub filename: Option<String>,
+    pub spec: String,
 }
 
 #[utoipa::path(
@@ -298,34 +275,13 @@ pub struct DownloadModelRequest {
 pub async fn download_hf_model(
     Json(req): Json<DownloadModelRequest>,
 ) -> Result<(StatusCode, Json<String>), ErrorResponse> {
-    let (repo_id, quantization, hf_file) = if let Some(spec) = &req.spec {
-        // Parse spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
-        let (_repo, file) = resolve_model_spec(spec)
-            .await
-            .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
+    // Parse spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
+    let (repo_id, quantization) = parse_model_spec(&req.spec)
+        .ok_or_else(|| ErrorResponse::bad_request("Invalid spec format"))?;
 
-        let (repo, quant) = parse_model_spec(spec)
-            .ok_or_else(|| ErrorResponse::bad_request("Invalid spec format"))?;
-
-        (repo.to_string(), quant.to_string(), file)
-    } else if let (Some(repo_id), Some(filename)) = (&req.repo_id, &req.filename) {
-        // Get file info from repo
-        let files = get_repo_gguf_files(repo_id)
-            .await
-            .map_err(|e| ErrorResponse::internal(format!("Failed to fetch files: {}", e)))?;
-
-        let file = files
-            .into_iter()
-            .find(|f| f.filename == *filename)
-            .ok_or_else(|| ErrorResponse::not_found("File not found in repo"))?;
-
-        let quantization = file.quantization.clone();
-        (repo_id.clone(), quantization, file)
-    } else {
-        return Err(ErrorResponse::bad_request(
-            "Must provide either 'spec' or both 'repo_id' and 'filename'",
-        ));
-    };
+    let (_repo, hf_file) = resolve_model_spec(&req.spec)
+        .await
+        .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
 
     let model_id = model_id_from_repo(&repo_id, &quantization);
     let local_path = Paths::in_data_dir("models").join(&hf_file.filename);

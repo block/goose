@@ -233,15 +233,10 @@ export type DictationProviderStatus = {
 };
 
 export type DownloadModelRequest = {
-    filename?: string | null;
-    /**
-     * Alternative: provide repo_id and filename separately
-     */
-    repo_id?: string | null;
     /**
      * Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
      */
-    spec?: string | null;
+    spec: string;
 };
 
 export type DownloadProgress = {
@@ -486,20 +481,16 @@ export type HfModelInfo = {
     repo_id: string;
 };
 
+/**
+ * A quantization variant — groups sharded files into one logical entry.
+ */
 export type HfQuantVariant = {
+    description: string;
     download_url: string;
     filename: string;
     quality_rank: number;
     quantization: string;
     size_bytes: number;
-};
-
-export type HfSearchResult = {
-    author: string;
-    downloads: number;
-    id: string;
-    likes: number;
-    name: string;
 };
 
 export type Icon = {
@@ -1005,6 +996,11 @@ export type RedactedThinkingContent = {
 export type RemoveExtensionRequest = {
     name: string;
     session_id: string;
+};
+
+export type RepoVariantsResponse = {
+    recommended_index?: number | null;
+    variants: Array<HfQuantVariant>;
 };
 
 export type ResourceContents = {
@@ -3128,7 +3124,7 @@ export type GetRepoFilesResponses = {
     /**
      * GGUF files in the repo
      */
-    200: Array<HfQuantVariant>;
+    200: RepoVariantsResponse;
 };
 
 export type GetRepoFilesResponse = GetRepoFilesResponses[keyof GetRepoFilesResponses];
@@ -3141,15 +3137,26 @@ export type SearchHfModelsData = {
          * Search query
          */
         q: string;
+        /**
+         * Max results
+         */
+        limit?: number | null;
     };
     url: '/local-inference/search';
+};
+
+export type SearchHfModelsErrors = {
+    /**
+     * Search failed
+     */
+    500: unknown;
 };
 
 export type SearchHfModelsResponses = {
     /**
      * Search results
      */
-    200: Array<HfSearchResult>;
+    200: Array<HfModelInfo>;
 };
 
 export type SearchHfModelsResponse = SearchHfModelsResponses[keyof SearchHfModelsResponses];

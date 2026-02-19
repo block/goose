@@ -106,10 +106,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
 
     try {
       await downloadHfModel({
-        body: {
-          repo_id: model.repo_id,
-          filename: model.filename,
-        },
+        body: { spec: model.id },
       });
     } catch (error) {
       console.error('Failed to start download:', error);
