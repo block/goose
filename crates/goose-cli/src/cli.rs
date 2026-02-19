@@ -863,6 +863,16 @@ enum Command {
         #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
         bin_name: String,
     },
+
+    #[command(
+        name = "validate-extensions",
+        about = "Validate a bundled-extensions.json file",
+        hide = true
+    )]
+    ValidateExtensions {
+        #[arg(help = "Path to the bundled-extensions.json file")]
+        file: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -955,6 +965,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
         Some(Command::Completion { .. }) => "completion",
+        Some(Command::ValidateExtensions { .. }) => "validate-extensions",
         None => "default_session",
     }
 }
@@ -1059,7 +1070,7 @@ async fn handle_interactive_session(
     };
 
     tracing::info!(
-        counter.goose.session_starts = 1,
+        monotonic_counter.goose.session_starts = 1,
         session_type,
         interactive = true,
         "Session started"
@@ -1136,7 +1147,7 @@ async fn log_session_completion(
         .unwrap_or((0, 0));
 
     tracing::info!(
-        counter.goose.session_completions = 1,
+        monotonic_counter.goose.session_completions = 1,
         session_type,
         exit_type,
         duration_ms = session_duration.as_millis() as u64,
@@ -1146,14 +1157,14 @@ async fn log_session_completion(
     );
 
     tracing::info!(
-        counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+        monotonic_counter.goose.session_duration_ms = session_duration.as_millis() as u64,
         session_type,
         "Session duration"
     );
 
     if total_tokens > 0 {
         tracing::info!(
-            counter.goose.session_tokens = total_tokens,
+            monotonic_counter.goose.session_tokens = total_tokens,
             session_type,
             "Session tokens"
         );
@@ -1236,7 +1247,7 @@ fn parse_run_input(
             }
 
             tracing::info!(
-                counter.goose.recipe_runs = 1,
+                monotonic_counter.goose.recipe_runs = 1,
                 recipe_name = %recipe_display_name,
                 recipe_version = %recipe_version,
                 session_type = "recipe",
@@ -1323,7 +1334,7 @@ async fn handle_run_command(
         let session_type = if recipe.is_some() { "recipe" } else { "run" };
 
         tracing::info!(
-            counter.goose.session_starts = 1,
+            monotonic_counter.goose.session_starts = 1,
             session_type,
             interactive = false,
             "Headless session started"
@@ -1437,7 +1448,7 @@ pub async fn cli() -> anyhow::Result<()> {
 
     let command_name = get_command_name(&cli.command);
     tracing::info!(
-        counter.goose.cli_commands = 1,
+        monotonic_counter.goose.cli_commands = 1,
         command = command_name,
         "CLI command executed"
     );
@@ -1507,7 +1518,7 @@ pub async fn cli() -> anyhow::Result<()> {
             canary,
             reconfigure,
         }) => {
-            crate::commands::update::update(canary, reconfigure)?;
+            crate::commands::update::update(canary, reconfigure).await?;
             Ok(())
         }
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
@@ -1519,6 +1530,19 @@ pub async fn cli() -> anyhow::Result<()> {
             no_auth,
         }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        Some(Command::ValidateExtensions { file }) => {
+            use goose::agents::validate_extensions::validate_bundled_extensions;
+            match validate_bundled_extensions(&file) {
+                Ok(msg) => {
+                    println!("{msg}");
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         None => handle_default_session().await,
     }
 }

@@ -23,8 +23,17 @@ run_test() {
     cp "$TEST_FILE" "$testdir/test-content.txt"
     prompt="read ./test-content.txt and output its contents exactly"
   else
-    echo "$TEST_CONTENT" > "$testdir/input.txt"
-    prompt="Use the text_editor view command to read ./input.txt, then output this file's contents in UPPERCASE. Do NOT use any other tool in Developer"
+    # Write two files with unique random tokens. Validation checks that text_editor
+    # was used and that both tokens appear in the output, proving the model actually
+    # read the files (random tokens can't be guessed or hallucinated).
+    local token_a="smoke-alpha-$RANDOM"
+    local token_b="smoke-bravo-$RANDOM"
+    echo "$token_a" > "$testdir/part-a.txt"
+    echo "$token_b" > "$testdir/part-b.txt"
+    # Store tokens so validation can check them
+    echo "$token_a" > "$testdir/.token_a"
+    echo "$token_b" > "$testdir/.token_b"
+    prompt="Use the text_editor view command to read ./part-a.txt and ./part-b.txt, then reply with ONLY the contents of both files, one per line, nothing else. Do NOT use any other tool in Developer."
   fi
 
   (
@@ -40,12 +49,17 @@ run_test() {
       echo "failure|test content not found by model" > "$result_file"
     fi
   else
-    if ! grep -q "text_editor | developer" "$output_file"; then
+    local token_a token_b
+    token_a=$(cat "$testdir/.token_a")
+    token_b=$(cat "$testdir/.token_b")
+    if ! grep -qE "(text_editor \| developer)|(▸.*text_editor.*developer)" "$output_file"; then
       echo "failure|model did not use text_editor tool" > "$result_file"
-    elif ! grep -q "TEST-CONTENT-ABC123" "$output_file"; then
-      echo "failure|model did not return uppercased file content" > "$result_file"
+    elif ! grep -q "$token_a" "$output_file"; then
+      echo "failure|model did not return contents of part-a.txt ($token_a)" > "$result_file"
+    elif ! grep -q "$token_b" "$output_file"; then
+      echo "failure|model did not return contents of part-b.txt ($token_b)" > "$result_file"
     else
-      echo "success|model read and uppercased file content" > "$result_file"
+      echo "success|model read and returned both file contents" > "$result_file"
     fi
   fi
 

@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.23.0"
+version = "1.24.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -15,7 +15,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.15.0", features = ["schemars", "auth"] }
+rmcp = { version = "0.16", features = ["schemars", "auth"] }
 anyhow = "1.0"
 async-stream = "0.3"
 async-trait = "0.1"
@@ -38,7 +38,7 @@ lru = "0.16"
 once_cell = "1.20"
 rand = "0.8"
 regex = "1.12"
-reqwest = { version = "0.12.28", default-features = false, features = ["multipart"] }
+reqwest = { version = "0.13", default-features = false, features = ["multipart", "form"] }
 schemars = { default-features = false, version = "1.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -62,3 +62,9 @@ wiremock = "0.6"
 serial_test = "3.2.0"
 test-case = "3.3.1"
 url = "2.5.8"
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["metrics"] }
+opentelemetry-otlp = "0.31"
+opentelemetry-appender-tracing = "0.31"
+opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
+tracing-opentelemetry = "0.32"

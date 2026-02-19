@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { substituteParameters } from '../providerUtils';
+import { substituteParameters } from '../parameterSubstitution';
 
-describe('providerUtils', () => {
+describe('parameterSubstitution', () => {
   describe('substituteParameters', () => {
     it('should substitute simple parameters', () => {
       const text = 'Hello {{name}}, welcome to {{app}}!';
@@ -83,12 +83,12 @@ describe('providerUtils', () => {
     it('should handle complex substitution scenario', () => {
       const text = `
         Welcome {{user_name}}!
-        
+
         Your account details:
         - ID: {{user_id}}
         - Email: {{user_email}}
         - App: {{app_name}}
-        
+
         Thank you for using {{app_name}}!
       `;
 
@@ -102,12 +102,12 @@ describe('providerUtils', () => {
       const result = substituteParameters(text, params);
       const expected = `
         Welcome John Doe!
-        
+
         Your account details:
         - ID: 12345
         - Email: john@example.com
         - App: MyApp
-        
+
         Thank you for using MyApp!
       `;
 

@@ -120,9 +120,7 @@ function McpAppWrapper({
 
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
   const toolResult =
-    resultWithMeta?.status === 'success' && resultWithMeta.value
-      ? resultWithMeta.value
-      : undefined;
+    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
@@ -518,7 +516,7 @@ function ToolCallView({
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
-    const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+    const args = (toolCall.arguments ?? {}) as Record<string, ToolCallArgumentValue>;
     const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {

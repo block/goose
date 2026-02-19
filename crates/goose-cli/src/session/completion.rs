@@ -410,10 +410,7 @@ impl Hinter for GooseCompleter {
             }
             HintStatus::Default => {
                 let newline_key = super::input::get_newline_key().to_ascii_uppercase();
-                Some(format!(
-                    "Press Enter to send, Ctrl-{} for new line",
-                    newline_key
-                ))
+                Some(format!("Enter to send · Ctrl+{} newline", newline_key))
             }
         }
     }

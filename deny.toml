@@ -1,4 +1,5 @@
 [advisories]
+
 # Deny yanked crates to catch supply chain issues early.
 yanked = "deny"
 # Emulate cargo-audit which only checks vulnerabilities and yanked crates, not unmaintained/unsound.

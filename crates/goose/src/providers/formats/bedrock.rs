@@ -264,13 +264,12 @@ fn to_bedrock_document(
         Some((name, "txt")) => (name, bedrock::DocumentFormat::Txt),
         Some((name, "csv")) => (name, bedrock::DocumentFormat::Csv),
         Some((name, "md")) => (name, bedrock::DocumentFormat::Md),
-        Some((name, "html")) => (name, bedrock::DocumentFormat::Html),
         _ => return Ok(None), // Not a supported document type
     };
 
     // Since we can't use the full path (due to character limit and also Bedrock does not accept `/` etc.),
     // and Bedrock wants document names to be unique, we're adding `tool_use_id` as a prefix to make
-    // document names unique.
+    // document names unique
     let name = format!("{tool_use_id}-{name}");
 
     Ok(Some(

@@ -27,7 +27,7 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
 dirs = { workspace = true }
-reqwest = { workspace = true, features = ["rustls-tls-native-roots", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"], default-features = false }
+reqwest = { workspace = true, features = ["rustls", "json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"], default-features = false }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -52,14 +52,12 @@ webbrowser = { workspace = true }
 lazy_static = "1.5.0"
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-tracing-opentelemetry = "0.28"
-opentelemetry = "0.27"
-opentelemetry-appender-tracing = "0.27"
-opentelemetry_sdk = { version = "0.27", features = ["rt-tokio", "metrics"] }
-opentelemetry-otlp = { version = "0.27", features = [
-    "http-proto",
-    "reqwest-client",
-] }
+tracing-opentelemetry = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry-appender-tracing = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry-stdout = { workspace = true }
 keyring = { version = "3.6.2", features = [
     "apple-native",
     "windows-native",
@@ -92,7 +90,7 @@ aws-sdk-bedrockruntime = "=1.120.0"
 aws-sdk-sagemakerruntime = "1.62.0"
 
 # For GCP Vertex AI provider auth
-jsonwebtoken = { version = "10.3.0", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 
 blake3 = "1.5"
 fs2 = { workspace = true }

@@ -34,6 +34,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const isHubView = !sessionId;
 
   useEffect(() => {
+    setIsSessionExtensionsLoaded(false);
+    setSessionExtensions([]);
+  }, [sessionId]);
+
+  useEffect(() => {
     const handleExtensionsLoaded = () => {
       setRefreshTrigger((prev) => prev + 1);
     };
@@ -53,8 +58,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     };
   }, []);
 
-  // Fetch session-specific extensions or use global defaults
   useEffect(() => {
+    if (refreshTrigger === 0 && !isOpen) {
+      return;
+    }
+
     const fetchExtensions = async () => {
       if (!sessionId) {
         return;
@@ -75,7 +83,6 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }
     };
 
-    setIsSessionExtensionsLoaded(false);
     fetchExtensions();
   }, [sessionId, isOpen, refreshTrigger]);
 

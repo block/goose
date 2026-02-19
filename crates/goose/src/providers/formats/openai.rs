@@ -53,6 +53,7 @@ struct Delta {
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
+    #[serde(alias = "reasoning")]
     reasoning_content: Option<String>,
 }
 
@@ -82,7 +83,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
-        let mut reasoning_text: Option<String> = None;
+        let mut reasoning_text = String::new();
 
         for content in &message.content {
             match content {
@@ -116,7 +117,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     continue;
                 }
                 MessageContent::Reasoning(r) => {
-                    reasoning_text = Some(r.text.clone());
+                    reasoning_text.push_str(&r.text);
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -278,15 +279,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(null);
         }
 
-        // DeepSeek requires reasoning_content field when tool_calls are present
-        // Set it to the captured reasoning text, or empty string if not present
-        if converted.get("tool_calls").is_some() {
-            let reasoning = reasoning_text.unwrap_or_default();
-            converted["reasoning_content"] = json!(reasoning);
-        } else if let Some(reasoning) = reasoning_text {
-            if !reasoning.is_empty() {
-                converted["reasoning_content"] = json!(reasoning);
-            }
+        // Include reasoning_content only when non-empty.
+        // Kimi rejects empty reasoning_content (""), so we must omit it entirely
+        // when there's no reasoning to send.
+        if !reasoning_text.is_empty() {
+            converted["reasoning_content"] = json!(reasoning_text);
         }
 
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
@@ -342,8 +339,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 
     let mut content = Vec::new();
 
-    // Capture reasoning_content if present (for DeepSeek reasoning models)
-    if let Some(reasoning_content) = original.get("reasoning_content") {
+    // Capture reasoning content if present (DeepSeek uses "reasoning_content", vLLM uses "reasoning")
+    let reasoning_value = original
+        .get("reasoning_content")
+        .or_else(|| original.get("reasoning"));
+    if let Some(reasoning_content) = reasoning_value {
         if let Some(reasoning_str) = reasoning_content.as_str() {
             if !reasoning_str.is_empty() {
                 content.push(MessageContent::reasoning(reasoning_str));
@@ -542,6 +542,7 @@ where
         use futures::StreamExt;
 
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
+        let mut accumulated_reasoning_content = String::new();
 
         'outer: while let Some(response) = stream.next().await {
             if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
@@ -561,6 +562,9 @@ where
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
                     accumulated_reasoning.extend(details.iter().cloned());
+                }
+                if let Some(rc) = &chunk.choices[0].delta.reasoning_content {
+                    accumulated_reasoning_content.push_str(rc);
                 }
             }
 
@@ -602,6 +606,9 @@ where
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
                                         accumulated_reasoning.extend(details.iter().cloned());
                                     }
+                                    if let Some(rc) = &tool_chunk.choices[0].delta.reasoning_content {
+                                        accumulated_reasoning_content.push_str(rc);
+                                    }
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
@@ -642,6 +649,10 @@ where
                 };
 
                 let mut contents = Vec::new();
+                if !accumulated_reasoning_content.is_empty() {
+                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
+                    accumulated_reasoning_content.clear();
+                }
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
 
@@ -1489,7 +1500,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1529,7 +1540,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1570,7 +1581,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(

@@ -24,7 +24,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { checkServerStatus, startGoosed } from './goosed';
+import { checkServerStatus } from './goosed';
+import { startGoosed } from './goosed';
+import { createClient, createConfig } from './api/client';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -44,7 +46,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { Client, createClient, createConfig } from './api/client';
+import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
@@ -509,14 +511,26 @@ const createChat = async (
   const serverSecret = getServerSecret(settings);
 
   const goosedResult = await startGoosed({
-    app,
     serverSecret,
     dir: dir || os.homedir(),
     env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
     externalGoosed: settings.externalGoosed,
+    isPackaged: app.isPackaged,
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+    logger: log,
   });
 
-  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
+  app.on('will-quit', async () => {
+    log.info('App quitting, terminating goosed server');
+    await goosedResult.cleanup();
+  });
+
+  const {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+  } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -569,6 +583,8 @@ const createChat = async (
       .catch((err) => log.info('failed to install react dev tools:', err));
   }
 
+  // Re-create the client with Electron's net.fetch so requests to the local
+  // self-signed HTTPS server go through the session's certificate handling.
   const goosedClient = createClient(
     createConfig({
       baseUrl,

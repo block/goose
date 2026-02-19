@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.23.0"
+    "version": "1.24.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -741,6 +741,36 @@
         }
       }
     },
+    "/config/canonical-model-info": {
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_canonical_model_info",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelInfoQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Model information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/check_provider": {
       "post": {
         "tags": [
@@ -1091,36 +1121,6 @@
           },
           "400": {
             "description": "Invalid request"
-          }
-        }
-      }
-    },
-    "/config/pricing": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "get_pricing",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PricingQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Model pricing data retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PricingResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -3588,6 +3588,10 @@
             "type": "boolean",
             "description": "Whether this key should be configured using OAuth device code flow\nWhen true, the provider's configure_oauth() method will be called instead of prompting for manual input"
           },
+          "primary": {
+            "type": "boolean",
+            "description": "Whether this key should be shown prominently during provider setup\n(onboarding, settings modal, CLI configure)"
+          },
           "required": {
             "type": "boolean",
             "description": "Whether this key is required for the provider to function"
@@ -5261,10 +5265,6 @@
             "nullable": true,
             "minimum": 0
           },
-          "fast_model": {
-            "type": "string",
-            "nullable": true
-          },
           "max_tokens": {
             "type": "integer",
             "format": "int32",
@@ -5334,6 +5334,89 @@
           }
         }
       },
+      "ModelInfoData": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model",
+          "context_limit",
+          "currency"
+        ],
+        "properties": {
+          "cache_read_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "cache_write_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "context_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string"
+          },
+          "input_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_token_cost": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelInfoQuery": {
+        "type": "object",
+        "required": [
+          "provider",
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          }
+        }
+      },
+      "ModelInfoResponse": {
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "model_info": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ModelInfoData"
+              }
+            ],
+            "nullable": true
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -5394,74 +5477,6 @@
           "microphone": {
             "type": "boolean",
             "description": "Request microphone access (maps to Permission Policy `microphone` feature)"
-          }
-        }
-      },
-      "PricingData": {
-        "type": "object",
-        "required": [
-          "provider",
-          "model",
-          "input_token_cost",
-          "output_token_cost",
-          "currency"
-        ],
-        "properties": {
-          "context_length": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true,
-            "minimum": 0
-          },
-          "currency": {
-            "type": "string"
-          },
-          "input_token_cost": {
-            "type": "number",
-            "format": "double"
-          },
-          "model": {
-            "type": "string"
-          },
-          "output_token_cost": {
-            "type": "number",
-            "format": "double"
-          },
-          "provider": {
-            "type": "string"
-          }
-        }
-      },
-      "PricingQuery": {
-        "type": "object",
-        "required": [
-          "provider",
-          "model"
-        ],
-        "properties": {
-          "model": {
-            "type": "string"
-          },
-          "provider": {
-            "type": "string"
-          }
-        }
-      },
-      "PricingResponse": {
-        "type": "object",
-        "required": [
-          "pricing",
-          "source"
-        ],
-        "properties": {
-          "pricing": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PricingData"
-            }
-          },
-          "source": {
-            "type": "string"
           }
         }
       },
@@ -6800,7 +6815,8 @@
         "type": "string",
         "enum": [
           "thinkingMessage",
-          "inlineMessage"
+          "inlineMessage",
+          "creditsExhausted"
         ]
       },
       "TaskSupport": {

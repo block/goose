@@ -70,6 +70,11 @@ pub async fn run() -> Result<()> {
         .serve(app.into_make_service())
         .await?;
 
+    if goose::otel::otlp::is_otlp_initialized() {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        goose::otel::otlp::shutdown_otlp();
+    }
+
     info!("server shutdown complete");
     Ok(())
 }

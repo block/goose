@@ -3,6 +3,7 @@ use axum::http::{HeaderMap, HeaderName};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
 use futures::{future, FutureExt};
+use once_cell::sync::Lazy;
 use rmcp::service::{ClientInitializeError, ServiceError};
 use rmcp::transport::streamable_http_client::{
     AuthRequiredError, StreamableHttpClientTransportConfig, StreamableHttpError,
@@ -33,7 +34,7 @@ use super::tool_execution::ToolCallResult;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
-use crate::agents::mcp_client::{McpClient, McpClientTrait};
+use crate::agents::mcp_client::{GooseMcpClientCapabilities, McpClient, McpClientTrait};
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
@@ -49,7 +50,13 @@ use rmcp::transport::auth::AuthClient;
 use schemars::_private::NoSerialize;
 use serde_json::Value;
 
-type McpClientBox = Arc<Mutex<Box<dyn McpClientTrait>>>;
+type McpClientBox = Arc<dyn McpClientTrait>;
+
+static RE_ENV_BRACES: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}").expect("valid regex"));
+
+static RE_ENV_SIMPLE: Lazy<regex::Regex> =
+    Lazy::new(|| regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex"));
 
 struct Extension {
     pub config: ExtensionConfig,
@@ -92,6 +99,10 @@ impl Extension {
     }
 }
 
+pub struct ExtensionManagerCapabilities {
+    pub mcpui: bool,
+}
+
 /// Manages goose extensions / MCP clients and their interactions
 pub struct ExtensionManager {
     extensions: Mutex<HashMap<String, Extension>>,
@@ -99,6 +110,8 @@ pub struct ExtensionManager {
     provider: SharedProvider,
     tools_cache: Mutex<Option<Arc<Vec<Tool>>>>,
     tools_cache_version: AtomicU64,
+    client_name: String,
+    capabilities: ExtensionManagerCapabilities,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -214,6 +227,8 @@ async fn child_process_client(
     provider: SharedProvider,
     working_dir: Option<&PathBuf>,
     docker_container: Option<String>,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -251,6 +266,8 @@ async fn child_process_client(
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT)),
         provider,
         docker_container,
+        client_name,
+        capabilities,
     )
     .await;
 
@@ -346,9 +363,7 @@ pub(crate) async fn merge_environments(
 pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>) -> String {
     let mut result = value.to_string();
 
-    let re_braces =
-        regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}").expect("valid regex");
-    for cap in re_braces.captures_iter(value) {
+    for cap in RE_ENV_BRACES.captures_iter(value) {
         if let Some(var_name) = cap.get(1) {
             if let Some(env_value) = env_map.get(var_name.as_str()) {
                 result = result.replace(&cap[0], env_value);
@@ -356,8 +371,8 @@ pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>
         }
     }
 
-    let re_simple = regex::Regex::new(r"\$([A-Za-z_][A-Za-z0-9_]*)").expect("valid regex");
-    for cap in re_simple.captures_iter(&result.clone()) {
+    let snapshot = result.clone();
+    for cap in RE_ENV_SIMPLE.captures_iter(&snapshot) {
         if let Some(var_name) = cap.get(1) {
             if !value.contains(&format!("${{{}}}", var_name.as_str())) {
                 if let Some(env_value) = env_map.get(var_name.as_str()) {
@@ -379,6 +394,8 @@ async fn create_streamable_http_client(
     headers: &HashMap<String, String>,
     name: &str,
     provider: SharedProvider,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut default_headers = HeaderMap::new();
 
@@ -410,7 +427,14 @@ async fn create_streamable_http_client(
     let timeout_duration =
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
 
-    let client_res = McpClient::connect(transport, timeout_duration, provider.clone()).await;
+    let client_res = McpClient::connect(
+        transport,
+        timeout_duration,
+        provider.clone(),
+        client_name.clone(),
+        capabilities.clone(),
+    )
+    .await;
 
     if extract_auth_error(&client_res).is_some() {
         let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
@@ -433,7 +457,14 @@ async fn create_streamable_http_client(
             },
         );
         Ok(Box::new(
-            McpClient::connect(transport, timeout_duration, provider).await?,
+            McpClient::connect(
+                transport,
+                timeout_duration,
+                provider,
+                client_name,
+                capabilities,
+            )
+            .await?,
         ))
     } else {
         Ok(Box::new(client_res?))
@@ -444,6 +475,8 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        client_name: String,
+        capabilities: ExtensionManagerCapabilities,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -454,13 +487,20 @@ impl ExtensionManager {
             provider,
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
+            client_name,
+            capabilities,
         }
     }
 
     #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
-        Self::new(Arc::new(Mutex::new(None)), session_manager)
+        Self::new(
+            Arc::new(Mutex::new(None)),
+            session_manager,
+            "goose-cli".to_string(),
+            ExtensionManagerCapabilities { mcpui: false },
+        )
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
@@ -495,10 +535,6 @@ impl ExtensionManager {
             return Ok(());
         }
 
-        // Resolve working_dir: explicit > current_dir
-        let effective_working_dir =
-            working_dir.unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
         let mut temp_dir = None;
 
         let client: Box<dyn McpClientTrait> = match &config {
@@ -522,14 +558,88 @@ impl ExtensionManager {
                     .iter()
                     .map(|(k, v)| (k.clone(), substitute_env_vars(v, &all_envs)))
                     .collect();
+                let capability = GooseMcpClientCapabilities {
+                    mcpui: self.capabilities.mcpui,
+                };
+
                 create_streamable_http_client(
                     uri,
                     *timeout,
                     &resolved_headers,
                     name,
                     self.provider.clone(),
+                    self.client_name.clone(),
+                    capability,
                 )
                 .await?
+            }
+            ExtensionConfig::Builtin { name, timeout, .. } => {
+                let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
+                let normalized_name = name_to_key(name);
+                let extension_fn =
+                    get_builtin_extension(normalized_name.as_str()).ok_or_else(|| {
+                        ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
+                    })?;
+
+                if let Some(container) = container {
+                    let container_id = container.id();
+                    tracing::info!(
+                        container = %container_id,
+                        builtin = %name,
+                        "Starting builtin extension inside Docker container"
+                    );
+                    let normalized_name = name_to_key(name);
+                    let command = Command::new("docker").configure(|command| {
+                        command
+                            .arg("exec")
+                            .arg("-i")
+                            .arg(container_id)
+                            .arg("goose")
+                            .arg("mcp")
+                            .arg(&normalized_name);
+                    });
+
+                    let effective_working_dir = working_dir
+                        .clone()
+                        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+                    let capabilities = GooseMcpClientCapabilities {
+                        mcpui: self.capabilities.mcpui,
+                    };
+
+                    let client = child_process_client(
+                        command,
+                        timeout,
+                        self.provider.clone(),
+                        Some(&effective_working_dir),
+                        Some(container_id.to_string()),
+                        self.client_name.clone(),
+                        capabilities,
+                    )
+                    .await?;
+                    Box::new(client)
+                } else {
+                    // Non-containerized builtin runs in-process via duplex channels.
+                    // Working directory is passed per-request via call_tool metadata, not here.
+                    let (server_read, client_write) = tokio::io::duplex(65536);
+                    let (client_read, server_write) = tokio::io::duplex(65536);
+                    extension_fn(server_read, server_write);
+
+                    let capabilities = GooseMcpClientCapabilities {
+                        mcpui: self.capabilities.mcpui,
+                    };
+
+                    Box::new(
+                        McpClient::connect(
+                            (client_read, client_write),
+                            timeout_duration,
+                            self.provider.clone(),
+                            self.client_name.clone(),
+                            capabilities,
+                        )
+                        .await?,
+                    )
+                }
             }
             ExtensionConfig::Stdio {
                 cmd,
@@ -573,64 +683,23 @@ impl ExtensionManager {
                     })
                 };
 
+                let effective_working_dir = working_dir
+                    .clone()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+                let capabilities = GooseMcpClientCapabilities {
+                    mcpui: self.capabilities.mcpui,
+                };
                 let client = child_process_client(
                     command,
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    self.client_name.clone(),
+                    capabilities,
                 )
                 .await?;
                 Box::new(client)
-            }
-            ExtensionConfig::Builtin { name, timeout, .. } => {
-                let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let normalized_name = name_to_key(name);
-                let extension_fn =
-                    get_builtin_extension(normalized_name.as_str()).ok_or_else(|| {
-                        ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
-                    })?;
-
-                if let Some(container) = container {
-                    let container_id = container.id();
-                    tracing::info!(
-                        container = %container_id,
-                        builtin = %name,
-                        "Starting builtin extension inside Docker container"
-                    );
-                    let normalized_name = name_to_key(name);
-                    let command = Command::new("docker").configure(|command| {
-                        command
-                            .arg("exec")
-                            .arg("-i")
-                            .arg(container_id)
-                            .arg("goose")
-                            .arg("mcp")
-                            .arg(&normalized_name);
-                    });
-
-                    let client = child_process_client(
-                        command,
-                        timeout,
-                        self.provider.clone(),
-                        Some(&effective_working_dir),
-                        Some(container_id.to_string()),
-                    )
-                    .await?;
-                    Box::new(client)
-                } else {
-                    let (server_read, client_write) = tokio::io::duplex(65536);
-                    let (client_read, server_write) = tokio::io::duplex(65536);
-                    extension_fn(server_read, server_write);
-                    Box::new(
-                        McpClient::connect(
-                            (client_read, client_write),
-                            timeout_duration,
-                            self.provider.clone(),
-                        )
-                        .await?,
-                    )
-                }
             }
             ExtensionConfig::Platform { name, .. } => {
                 let normalized_key = name_to_key(name);
@@ -663,12 +732,23 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
+                // Compute working_dir for InlinePython (runs as child process via uvx)
+                let effective_working_dir = working_dir
+                    .clone()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+                let capabilities = GooseMcpClientCapabilities {
+                    mcpui: self.capabilities.mcpui,
+                };
+
                 let client = child_process_client(
                     command,
                     timeout,
                     self.provider.clone(),
                     Some(&effective_working_dir),
                     container.map(|c| c.id().to_string()),
+                    self.client_name.clone(),
+                    capabilities,
                 )
                 .await?;
 
@@ -686,7 +766,7 @@ impl ExtensionManager {
         let mut extensions = self.extensions.lock().await;
         extensions.insert(
             sanitized_name,
-            Extension::new(config, Arc::new(Mutex::new(client)), server_info, temp_dir),
+            Extension::new(config, Arc::from(client), server_info, temp_dir),
         );
         drop(extensions);
         self.invalidate_tools_cache_and_bump_version().await;
@@ -711,17 +791,17 @@ impl ExtensionManager {
     }
 
     /// Get extensions info for building the system prompt
-    pub async fn get_extensions_info(&self) -> Vec<ExtensionInfo> {
+    pub async fn get_extensions_info(&self, working_dir: &std::path::Path) -> Vec<ExtensionInfo> {
+        let working_dir_str = working_dir.to_string_lossy();
         self.extensions
             .lock()
             .await
             .iter()
             .map(|(name, ext)| {
-                ExtensionInfo::new(
-                    name,
-                    ext.get_instructions().unwrap_or_default().as_str(),
-                    ext.supports_resources(),
-                )
+                let instructions = ext.get_instructions().unwrap_or_default();
+                let instructions =
+                    instructions.replace(goose_mcp::WORKING_DIR_PLACEHOLDER, &working_dir_str);
+                ExtensionInfo::new(name, &instructions, ext.supports_resources())
             })
             .collect()
     }
@@ -857,8 +937,7 @@ impl ExtensionManager {
             let ext_name = name.clone();
             async move {
                 let mut tools = Vec::new();
-                let client_guard = client.lock().await;
-                let mut client_tools = match client_guard
+                let mut client_tools = match client
                     .list_tools(session_id, None, cancel_token.clone())
                     .await
                 {
@@ -908,7 +987,7 @@ impl ExtensionManager {
                         break;
                     }
 
-                    client_tools = match client_guard
+                    client_tools = match client
                         .list_tools(session_id, client_tools.next_cursor, cancel_token.clone())
                         .await
                     {
@@ -1060,8 +1139,7 @@ impl ExtensionManager {
             .await
             .ok_or(ErrorData::new(ErrorCode::INVALID_PARAMS, error_msg, None))?;
 
-        let client_guard = client.lock().await;
-        client_guard
+        client
             .read_resource(session_id, uri, cancellation_token)
             .await
             .map_err(|_| {
@@ -1088,9 +1166,7 @@ impl ExtensionManager {
         };
 
         for (extension_name, client) in extensions_to_check {
-            let client_guard = client.lock().await;
-
-            match client_guard
+            match client
                 .list_resources(session_id, None, CancellationToken::default())
                 .await
             {
@@ -1127,8 +1203,7 @@ impl ExtensionManager {
                 )
             })?;
 
-        let client_guard = client.lock().await;
-        client_guard
+        client
             .list_resources(session_id, None, cancellation_token)
             .await
             .map_err(|e| {
@@ -1302,7 +1377,7 @@ impl ExtensionManager {
 
         let arguments = tool_call.arguments.clone();
         let client = resolved.client.clone();
-        let notifications_receiver = client.lock().await.subscribe().await;
+        let notifications_receiver = client.subscribe().await;
         let session_id = session_id.to_string();
         let actual_tool_name = resolved.actual_tool_name;
         let working_dir_str = working_dir.map(|p| p.to_string_lossy().to_string());
@@ -1314,8 +1389,7 @@ impl ExtensionManager {
                 session_id,
                 working_dir_str
             );
-            let client_guard = client.lock().await;
-            client_guard
+            client
                 .call_tool(
                     &session_id,
                     &actual_tool_name,
@@ -1355,8 +1429,7 @@ impl ExtensionManager {
                 )
             })?;
 
-        let client_guard = client.lock().await;
-        client_guard
+        client
             .list_prompts(session_id, None, cancellation_token)
             .await
             .map_err(|e| {
@@ -1430,8 +1503,7 @@ impl ExtensionManager {
             .await
             .ok_or_else(|| anyhow::anyhow!("Extension {} not found", extension_name))?;
 
-        let client_guard = client.lock().await;
-        client_guard
+        client
             .get_prompt(session_id, name, arguments, cancellation_token)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to get prompt: {}", e))
@@ -1535,8 +1607,7 @@ impl ExtensionManager {
         };
 
         for (name, client) in platform_clients {
-            let client_guard = client.lock().await;
-            if let Some(moim_content) = client_guard.get_moim(session_id).await {
+            if let Some(moim_content) = client.get_moim(session_id).await {
                 tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
                 content.push('\n');
                 content.push_str(&moim_content);
@@ -1702,24 +1773,15 @@ mod tests {
 
         // Add some mock clients using the helper method
         extension_manager
-            .add_mock_extension(
-                "test_client".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("test_client".to_string(), Arc::new(MockClient {}))
             .await;
 
         extension_manager
-            .add_mock_extension(
-                "__cli__ent__".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("__cli__ent__".to_string(), Arc::new(MockClient {}))
             .await;
 
         extension_manager
-            .add_mock_extension(
-                "client 🚀".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("client 🚀".to_string(), Arc::new(MockClient {}))
             .await;
 
         let tool_call = CallToolRequestParams {
@@ -1847,7 +1909,7 @@ mod tests {
         extension_manager
             .add_mock_extension_with_tools(
                 "test_extension".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                Arc::new(MockClient {}),
                 available_tools,
             )
             .await;
@@ -1877,7 +1939,7 @@ mod tests {
         extension_manager
             .add_mock_extension_with_tools(
                 "test_extension".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                Arc::new(MockClient {}),
                 vec![], // Empty available_tools means all tools are available by default
             )
             .await;
@@ -1909,7 +1971,7 @@ mod tests {
         extension_manager
             .add_mock_extension_with_tools(
                 "test_extension".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
+                Arc::new(MockClient {}),
                 available_tools,
             )
             .await;
@@ -2013,10 +2075,7 @@ mod tests {
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
 
         extension_manager
-            .add_mock_extension(
-                "ext_a".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_a".to_string(), Arc::new(MockClient {}))
             .await;
 
         let tools_after_first = extension_manager
@@ -2031,10 +2090,7 @@ mod tests {
         assert!(!tool_names.iter().any(|n| n.starts_with("ext_b__")));
 
         extension_manager
-            .add_mock_extension(
-                "ext_b".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_b".to_string(), Arc::new(MockClient {}))
             .await;
 
         let tools_after_second = extension_manager
@@ -2056,16 +2112,10 @@ mod tests {
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
 
         extension_manager
-            .add_mock_extension(
-                "ext_a".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_a".to_string(), Arc::new(MockClient {}))
             .await;
         extension_manager
-            .add_mock_extension(
-                "ext_b".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_b".to_string(), Arc::new(MockClient {}))
             .await;
 
         let tools_before = extension_manager
@@ -2094,16 +2144,10 @@ mod tests {
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
 
         extension_manager
-            .add_mock_extension(
-                "ext_a".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_a".to_string(), Arc::new(MockClient {}))
             .await;
         extension_manager
-            .add_mock_extension(
-                "ext_b".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_b".to_string(), Arc::new(MockClient {}))
             .await;
 
         let tools = extension_manager
@@ -2123,16 +2167,10 @@ mod tests {
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
 
         extension_manager
-            .add_mock_extension(
-                "ext_a".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_a".to_string(), Arc::new(MockClient {}))
             .await;
         extension_manager
-            .add_mock_extension(
-                "ext_b".to_string(),
-                Arc::new(Mutex::new(Box::new(MockClient {}))),
-            )
+            .add_mock_extension("ext_b".to_string(), Arc::new(MockClient {}))
             .await;
 
         let tools = extension_manager

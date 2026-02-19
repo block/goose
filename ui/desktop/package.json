@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "description": "Goose App",
   "engines": {
     "node": "^24.10.0",
@@ -35,11 +35,15 @@
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config vitest.integration.config.ts",
+    "test:integration:debug": "DEBUG=1 vitest run --config vitest.integration.config.ts",
     "prepare": "husky",
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "dependencies": {
-    "@mcp-ui/client": "^6.0.0",
+    "goose-acp-types": "file:../acp",
+    "@mcp-ui/client": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.0.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.11",

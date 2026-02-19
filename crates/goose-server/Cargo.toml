@@ -38,7 +38,7 @@ thiserror = { workspace = true }
 clap = { workspace = true }
 serde_yaml = { workspace = true }
 utoipa = { workspace = true, features = ["axum_extras", "chrono"] }
-reqwest = { workspace = true, features = ["json", "rustls-tls", "blocking", "multipart", "system-proxy"], default-features = false }
+reqwest = { workspace = true, features = ["json", "rustls", "blocking", "multipart", "system-proxy"], default-features = false }
 tokio-util = { workspace = true }
 serde_path_to_error = "0.1.20"
 tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }

@@ -15,6 +15,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Permissions for SLSA attestation, AWS OIDC codesigning, and release creation
+permissions:
+  id-token: write      # Required for Sigstore OIDC signing and AWS OIDC codesigning
+  contents: write      # Required for creating releases and by actions/checkout
+  actions: read        # Required by bundle-desktop-windows.yml reusable workflow
+  attestations: write  # Required for SLSA build provenance attestations
+
 jobs:
   # ------------------------------------
   # 1) Prepare Version
@@ -100,12 +107,25 @@ jobs:
     needs: [build-cli, install-script, bundle-desktop, bundle-desktop-linux, bundle-desktop-windows]
     permissions:
       contents: write
+      id-token: write      # Required for Sigstore OIDC signing
+      attestations: write  # Required for SLSA build provenance attestations
 
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           merge-multiple: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f  # v3.2.0
+        with:
+          subject-path: |
+            goose-*.tar.bz2
+            Goose*.zip
+            *.deb
+            *.rpm
+            *.flatpak
+            download_cli.sh
 
       # Create/update the canary release
       - name: Release canary

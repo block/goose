@@ -74,10 +74,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 Let's use the Browserbase extension to gather information about trending MCP-related repositories on GitHub.
 
-:::info LLM
-Claude 4 Sonnet was used for this task.
-:::
-
 ### goose Prompt
 
 ```
