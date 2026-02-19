@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, error, info};
+use tracing::{info};
 use utoipa::ToSchema;
 
 fn partial_path_for(destination: &Path) -> PathBuf {
@@ -104,7 +104,6 @@ impl DownloadManager {
     ) -> Result<()> {
         info!(model_id = %model_id, url = %url, destination = ?destination, "Starting model download");
 
-        // Initialize progress
         {
             let mut downloads = self
                 .downloads
@@ -181,18 +180,14 @@ impl DownloadManager {
         downloads: &DownloadMap,
         model_id: &str,
     ) -> Result<(), anyhow::Error> {
-        debug!(url = %url, model_id = %model_id, "Initiating HTTP request for download");
         let client = reqwest::Client::new();
         let mut response = client.get(url).send().await?;
 
         if !response.status().is_success() {
-            error!(url = %url, status = %response.status(), "HTTP request failed");
             anyhow::bail!("Failed to download: HTTP {}", response.status());
         }
 
         let total_bytes = response.content_length().unwrap_or(0);
-        info!(model_id = %model_id, total_bytes = total_bytes, "Download started, receiving chunks");
-
         {
             if let Ok(mut downloads) = downloads.lock() {
                 if let Some(progress) = downloads.get_mut(model_id) {
@@ -228,7 +223,6 @@ impl DownloadManager {
             file.write_all(&chunk).await?;
             bytes_downloaded += chunk.len() as u64;
 
-            // Update progress
             let elapsed = start_time.elapsed().as_secs_f64();
             let speed_bps = if elapsed > 0.0 {
                 Some((bytes_downloaded as f64 / elapsed) as u64)

@@ -20,6 +20,7 @@ interface DownloadProgress {
   total_bytes: number;
   progress_percent: number;
   speed_bps: number;
+  eta_seconds?: number | null;
   status: string;
 }
 
@@ -129,7 +130,7 @@ export const LocalInferenceSettings = () => {
       try {
         const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
         if (response.data) {
-          const { status, bytes_downloaded, total_bytes, speed_bps } = response.data;
+          const { status, bytes_downloaded, total_bytes, speed_bps, eta_seconds } = response.data;
           const progress_percent = total_bytes > 0 ? (bytes_downloaded / total_bytes) * 100 : 0;
 
           if (status === 'completed' || status === 'failed') {
@@ -153,6 +154,7 @@ export const LocalInferenceSettings = () => {
                 total_bytes,
                 progress_percent,
                 speed_bps: speed_bps || 0,
+                eta_seconds,
                 status,
               });
               return next;
@@ -337,7 +339,17 @@ export const LocalInferenceSettings = () => {
                       {formatSize(progress.bytes_downloaded)} / {formatSize(progress.total_bytes)} (
                       {progress.progress_percent.toFixed(0)}%)
                     </span>
-                    {progress.speed_bps > 0 && <span>{formatSize(progress.speed_bps)}/s</span>}
+                    <span className="flex gap-2">
+                      {progress.eta_seconds != null && progress.eta_seconds > 0 && (
+                        <span>
+                          {progress.eta_seconds < 60
+                            ? `${Math.round(progress.eta_seconds)}s`
+                            : `${Math.round(progress.eta_seconds / 60)}m`}{' '}
+                          remaining
+                        </span>
+                      )}
+                      {progress.speed_bps > 0 && <span>{formatSize(progress.speed_bps)}/s</span>}
+                    </span>
                   </div>
                 </div>
               );
