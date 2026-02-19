@@ -388,6 +388,58 @@ describe('identifyWorkBlocks', () => {
     // Tool call suppression at rendering layer prevents the flash
   });
 
+  // --- Non-regression: streaming text leak (keep final answer suppressed) ---
+  // During streaming with multiple assistant messages, the last message often has
+  // text content before tool calls arrive. Without suppression, this gets selected
+  // as the "final answer" and renders outside the work block — causing content to
+  // flash in and out as tool requests arrive.
+
+  it('NR: multi-message streaming keeps ALL messages collapsed (no premature final answer)', () => {
+    // Scenario: assistant made 2 tool calls, now streaming a 3rd message with text
+    const messages = [
+      textMsg('user', 'Analyze the code'),
+      toolRequestMsg('shell'),
+      toolResponseMsg('shell', 'file list'),
+      toolRequestMsg('read_file'),
+      toolResponseMsg('read_file', 'file contents'),
+      textMsg('assistant', 'I see the issue, let me fix it...'), // streaming text — NOT final answer yet
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
+
+    // ALL messages should be in the block (no final answer during streaming)
+    expect(result.has(1)).toBe(true);
+    expect(result.has(2)).toBe(true);
+    expect(result.has(3)).toBe(true);
+    expect(result.has(4)).toBe(true);
+    expect(result.has(5)).toBe(true); // the text message stays inside the block
+
+    const block = result.get(1)!;
+    expect(block.finalIndex).toBe(-1);
+    expect(block.isStreaming).toBe(true);
+    // The text-only message at index 5 is an intermediate, not a final answer
+    expect(block.intermediateIndices).toContain(5);
+  });
+
+  it('NR: multi-message streaming with text+tools keeps everything collapsed', () => {
+    // Scenario: assistant streamed text, then tool request appeared on same message
+    const messages = [
+      textMsg('user', 'Fix the bug'),
+      toolRequestMsg('shell'),
+      toolResponseMsg('shell', 'error output'),
+      toolRequestAndTextMsg('read_file', 'Let me read the file...'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], true);
+
+    // All messages in block, no final answer
+    expect(result.has(1)).toBe(true);
+    expect(result.has(2)).toBe(true);
+    expect(result.has(3)).toBe(true);
+
+    const block = result.get(1)!;
+    expect(block.finalIndex).toBe(-1);
+    expect(block.isStreaming).toBe(true);
+  });
+
   // --- Non-regression: dual WorkBlockIndicator (74b5de97) ---
   // The pending indicator was showing alongside a streaming work block because
   // tool-response user messages at the end of the array made lastMessage.role === 'user'.

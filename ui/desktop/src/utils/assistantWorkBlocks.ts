@@ -147,37 +147,42 @@ export function identifyWorkBlocks(
     }
 
     // Find the "final answer" — the message to show outside the collapsed block.
-    // Strategy: prefer a clean text-only message, but accept a message with both
-    // text and tool calls if no pure text message exists.
-    // Always search regardless of streaming state.
+    // During streaming with multiple assistant messages, keep everything collapsed
+    // (finalIndex = -1) because the LLM often outputs text before adding tool
+    // calls — prematurely selecting a "final answer" causes content to flash in
+    // and out of the work block. Single-message streaming runs still use normal
+    // detection (the rendering layer handles tool-call suppression via
+    // suppressToolCalls prop).
+    const skipFinalAnswerDuringStreaming = isLastRunStreaming && assistantIndices.length > 1;
     let finalAnswerIdx = -1;
-    let textWithToolsIdx = -1;
 
-    for (let i = assistantIndices.length - 1; i >= 0; i--) {
-      const idx = assistantIndices[i];
-      const msg = messages[idx];
+    if (!skipFinalAnswerDuringStreaming) {
+      // Strategy: prefer a clean text-only message, but accept a message with both
+      // text and tool calls if no pure text message exists.
+      let textWithToolsIdx = -1;
 
-      if (!hasDisplayText(msg)) continue;
-      if (hasToolConfirmation(msg) || hasElicitation(msg)) continue;
+      for (let i = assistantIndices.length - 1; i >= 0; i--) {
+        const idx = assistantIndices[i];
+        const msg = messages[idx];
 
-      if (!hasToolRequests(msg)) {
-        // Best case: pure text, no tool requests
-        finalAnswerIdx = idx;
-        break;
-      } else if (textWithToolsIdx === -1) {
-        // Fallback: has text AND tool requests — still a valid answer
-        textWithToolsIdx = idx;
+        if (!hasDisplayText(msg)) continue;
+        if (hasToolConfirmation(msg) || hasElicitation(msg)) continue;
+
+        if (!hasToolRequests(msg)) {
+          // Best case: pure text, no tool requests
+          finalAnswerIdx = idx;
+          break;
+        } else if (textWithToolsIdx === -1) {
+          // Fallback: has text AND tool requests — still a valid answer
+          textWithToolsIdx = idx;
+        }
+      }
+
+      // Use text-with-tools fallback if no pure text answer found
+      if (finalAnswerIdx === -1 && textWithToolsIdx !== -1) {
+        finalAnswerIdx = textWithToolsIdx;
       }
     }
-
-    // Use text-with-tools fallback if no pure text answer found
-    if (finalAnswerIdx === -1 && textWithToolsIdx !== -1) {
-      finalAnswerIdx = textWithToolsIdx;
-    }
-
-    // If no message with display text was found at all, keep everything collapsed
-    // (finalIndex = -1). The WorkBlockIndicator will show "Worked on N steps".
-    // For streaming runs, also keep finalIndex as -1 ("no final answer yet").
 
     // Count total tool calls across intermediate messages
     let totalToolCalls = 0;
