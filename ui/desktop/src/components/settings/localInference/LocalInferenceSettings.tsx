@@ -261,11 +261,6 @@ export const LocalInferenceSettings = () => {
                           </span>
                         )}
                       </div>
-                      {model.context_limit && (
-                        <p className="text-xs text-text-muted mt-0.5">
-                          {(model.context_limit / 1000).toFixed(0)}K context
-                        </p>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -376,11 +371,6 @@ export const LocalInferenceSettings = () => {
                         </span>
                       )}
                     </div>
-                    {model.context_limit && (
-                      <p className="text-xs text-text-muted mt-0.5">
-                        {(model.context_limit / 1000).toFixed(0)}K context
-                      </p>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Button

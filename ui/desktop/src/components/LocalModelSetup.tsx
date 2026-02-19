@@ -272,10 +272,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                     )}
                   </div>
                   <p className="text-text-muted text-xs sm:text-sm mt-1">
-                    {formatSize(recommended.size_bytes)} •{' '}
-                    {recommended.context_limit
-                      ? `${(recommended.context_limit / 1000).toFixed(0)}K context`
-                      : 'Standard context'}
+                    {formatSize(recommended.size_bytes)}
                   </p>
                 </div>
               </div>

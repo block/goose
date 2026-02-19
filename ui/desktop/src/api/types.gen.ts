@@ -559,7 +559,6 @@ export type LoadedProvider = {
 };
 
 export type LocalModelResponse = {
-    context_limit?: number | null;
     display_name: string;
     filename: string;
     id: string;

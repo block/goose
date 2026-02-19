@@ -5239,12 +5239,6 @@
           "settings"
         ],
         "properties": {
-          "context_limit": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true,
-            "minimum": 0
-          },
           "display_name": {
             "type": "string"
           },

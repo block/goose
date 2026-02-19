@@ -45,7 +45,7 @@ pub struct LocalModelResponse {
     pub size_bytes: u64,
     pub status: ModelDownloadStatus,
     pub recommended: bool,
-    pub context_limit: Option<u32>,
+
     pub settings: ModelSettings,
 }
 
@@ -126,7 +126,6 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
     )
 )]
 pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorResponse> {
-    // Ensure featured models are in registry
     ensure_featured_models_in_registry().await?;
 
     let recommended_id = {
@@ -159,7 +158,6 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
             RegistryDownloadStatus::Downloaded => ModelDownloadStatus::Downloaded,
         };
 
-        // Get actual file size if downloaded and entry size is 0
         let size_bytes = if entry.size_bytes > 0 {
             entry.size_bytes
         } else if entry.local_path.exists() {
@@ -179,12 +177,10 @@ pub async fn list_local_models() -> Result<Json<Vec<LocalModelResponse>>, ErrorR
             size_bytes,
             status,
             recommended: recommended_id == entry.id,
-            context_limit: None,
             settings: entry.settings.clone(),
         });
     }
 
-    // Sort: downloaded first, then by display_name
     models.sort_by(|a, b| {
         let a_downloaded = matches!(a.status, ModelDownloadStatus::Downloaded);
         let b_downloaded = matches!(b.status, ModelDownloadStatus::Downloaded);
@@ -275,7 +271,6 @@ pub struct DownloadModelRequest {
 pub async fn download_hf_model(
     Json(req): Json<DownloadModelRequest>,
 ) -> Result<(StatusCode, Json<String>), ErrorResponse> {
-    // Parse spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
     let (repo_id, quantization) = parse_model_spec(&req.spec)
         .ok_or_else(|| ErrorResponse::bad_request("Invalid spec format"))?;
 
@@ -287,7 +282,6 @@ pub async fn download_hf_model(
     let local_path = Paths::in_data_dir("models").join(&hf_file.filename);
     let download_url = hf_file.download_url.clone();
 
-    // Create registry entry
     let entry = LocalModelEntry {
         id: model_id.clone(),
         display_name: display_name_from_repo(&repo_id, &quantization),
@@ -309,7 +303,6 @@ pub async fn download_hf_model(
             .map_err(|e| handle_internal_error(e))?;
     }
 
-    // Start download
     let dm = goose::dictation::download_manager::get_download_manager();
     dm.download_model(
         format!("{}-model", model_id),
@@ -371,7 +364,6 @@ pub async fn get_local_model_download_progress(
         }));
     }
 
-    // Check if the model file exists (download completed)
     let registry = get_registry()
         .lock()
         .map_err(|_| ErrorResponse::internal("Failed to acquire registry lock"))?;
@@ -443,13 +435,11 @@ pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCo
         entry.local_path.clone()
     };
 
-    // Delete the file
     if local_path.exists() {
         std::fs::remove_file(&local_path)
             .map_err(|e| ErrorResponse::internal(format!("Failed to delete: {}", e)))?;
     }
 
-    // Remove from registry if not a featured model
     if !is_featured_model(&model_id) {
         let mut registry = get_registry()
             .lock()
