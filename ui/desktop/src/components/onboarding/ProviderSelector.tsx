@@ -12,6 +12,9 @@ import CustomProviderForm from '../settings/providers/modal/subcomponents/forms/
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Gift, Key, Plus } from 'lucide-react';
 
+const FREE_CREDITS = 'free-credits';
+const OWN_PROVIDER = 'own-provider';
+
 type SelectedPath = 'free-credits' | 'own-provider' | null;
 
 interface ProviderOption {
@@ -72,13 +75,13 @@ export default function ProviderSelector({
   };
 
   const handleFreeCreditClick = () => {
-    setSelectedPath('free-credits');
+    setSelectedPath(FREE_CREDITS);
     setSelectedOption(null);
     onFirstSelection?.();
   };
 
   const handleOwnProviderClick = () => {
-    setSelectedPath('own-provider');
+    setSelectedPath(OWN_PROVIDER);
   };
 
   const handleProviderSelect = (option: ProviderOption | null) => {
@@ -102,9 +105,9 @@ export default function ProviderSelector({
         <div
           onClick={handleFreeCreditClick}
           className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
-            selectedPath === 'free-credits'
+            selectedPath === FREE_CREDITS
               ? 'border-blue-400 bg-background-muted'
-              : selectedPath === 'own-provider'
+              : selectedPath === OWN_PROVIDER
                 ? 'border-border-default bg-background-muted opacity-60'
                 : 'border-border-default bg-background-muted hover:border-blue-400'
           }`}
@@ -120,9 +123,9 @@ export default function ProviderSelector({
         <div
           onClick={handleOwnProviderClick}
           className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
-            selectedPath === 'own-provider'
+            selectedPath === OWN_PROVIDER
               ? 'border-blue-400 bg-background-muted'
-              : selectedPath === 'free-credits'
+              : selectedPath === FREE_CREDITS
                 ? 'border-border-default bg-background-muted opacity-60'
                 : 'border-border-default bg-background-muted hover:border-blue-400'
           }`}
@@ -135,13 +138,13 @@ export default function ProviderSelector({
         </div>
       </div>
 
-      {selectedPath === 'free-credits' && (
+      {selectedPath === FREE_CREDITS && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
           <FreeCreditCards onConfigured={onConfigured} />
         </div>
       )}
 
-      {selectedPath === 'own-provider' && (
+      {selectedPath === OWN_PROVIDER && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="mb-4">
             <Select
