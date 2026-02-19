@@ -260,8 +260,9 @@ pub fn render_message(message: &Message, debug: bool) {
                     }
                 }
             }
-            _ => {
-                println!("WARNING: Message content type could not be rendered");
+            MessageContent::ToolConfirmationRequest(_)
+            | MessageContent::FrontendToolRequest(_) => {
+                eprintln!("WARNING: Message content type could not be rendered");
             }
         }
     }
@@ -347,9 +348,10 @@ pub fn render_message_streaming(
                     }
                 }
             }
-            _ => {
+            MessageContent::ToolConfirmationRequest(_)
+            | MessageContent::FrontendToolRequest(_) => {
                 flush_markdown_buffer(buffer, theme);
-                println!("WARNING: Message content type could not be rendered");
+                eprintln!("WARNING: Message content type could not be rendered");
             }
         }
     }
