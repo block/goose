@@ -272,14 +272,6 @@ impl Default for PolicyStore {
 
 fn default_rules() -> Vec<PolicyRule> {
     vec![
-        PolicyRuleBuilder::new("deny-guest-management")
-            .description("Guests cannot manage agents or configuration")
-            .priority(100)
-            .deny()
-            .actions(vec!["manage:*".to_string()])
-            .auth_methods(vec!["guest".to_string()])
-            .reason("Authentication required for management operations")
-            .build(),
         PolicyRuleBuilder::new("allow-execute")
             .description("All authenticated users can execute agents")
             .priority(50)
@@ -293,6 +285,19 @@ fn default_rules() -> Vec<PolicyRule> {
             .actions(vec!["read:*".to_string()])
             .build(),
     ]
+}
+
+/// Restrictive rules for multi-tenant deployments where auth is configured.
+/// Add these via the control plane API when OIDC is enabled.
+pub fn guest_management_deny_rule() -> PolicyRule {
+    PolicyRuleBuilder::new("deny-guest-management")
+        .description("Guests cannot manage agents or configuration")
+        .priority(100)
+        .deny()
+        .actions(vec!["manage:*".to_string()])
+        .auth_methods(vec!["guest".to_string()])
+        .reason("Authentication required for management operations")
+        .build()
 }
 
 #[cfg(test)]
@@ -324,8 +329,22 @@ mod tests {
     }
 
     #[test]
-    fn test_guest_denied_management() {
+    fn test_guest_allowed_management_by_default() {
+        // Default rules no longer deny guest management (local desktop mode).
+        // The deny rule must be added explicitly via guest_management_deny_rule().
         let engine = PolicyEngine::new(default_rules());
+        let guest = make_guest();
+        assert_eq!(
+            engine.evaluate(&guest, "manage:agents", "agent:x"),
+            PolicyDecision::Abstain
+        );
+    }
+
+    #[test]
+    fn test_guest_denied_management_when_rule_added() {
+        let mut rules = default_rules();
+        rules.push(guest_management_deny_rule());
+        let engine = PolicyEngine::new(rules);
         let guest = make_guest();
         assert!(matches!(
             engine.evaluate(&guest, "manage:agents", "agent:x"),
@@ -482,8 +501,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_policy_store() {
+    async fn test_policy_store_default_allows_guest() {
         let store = PolicyStore::new();
+        let engine = store.engine_for(None).await;
+        let guest = make_guest();
+        // Default rules don't deny guests — local desktop mode
+        assert_eq!(
+            engine.evaluate(&guest, "manage:agents", "agent:x"),
+            PolicyDecision::Abstain
+        );
+    }
+
+    #[tokio::test]
+    async fn test_policy_store_with_guest_deny() {
+        let store = PolicyStore::new();
+        store.add_rule(guest_management_deny_rule()).await;
         let engine = store.engine_for(None).await;
         let guest = make_guest();
         assert!(matches!(
@@ -512,7 +544,8 @@ mod tests {
     #[tokio::test]
     async fn test_remove_rule() {
         let store = PolicyStore::new();
-        // Before removal: guest is denied management
+        // Add the deny rule explicitly, then remove it
+        store.add_rule(guest_management_deny_rule()).await;
         let engine = store.engine_for(None).await;
         let guest = make_guest();
         assert!(matches!(
