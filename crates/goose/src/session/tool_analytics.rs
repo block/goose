@@ -522,8 +522,8 @@ impl<'a> ToolAnalyticsStore<'a> {
             SELECT
                 COALESCE(s.provider_name, 'unknown') as provider,
                 COUNT(DISTINCT s.id) as session_count,
-                AVG(COALESCE(s.total_tokens, 0)) as avg_tokens,
-                AVG(COALESCE(mc.msg_count, 0)) as avg_messages
+                CAST(AVG(COALESCE(s.total_tokens, 0)) AS REAL) as avg_tokens,
+                CAST(AVG(COALESCE(mc.msg_count, 0)) AS REAL) as avg_messages
             FROM sessions s
             LEFT JOIN (
                 SELECT session_id, COUNT(*) as msg_count
@@ -542,8 +542,8 @@ impl<'a> ToolAnalyticsStore<'a> {
         let avg_stats: (Option<f64>, Option<f64>) = sqlx::query_as(
             r#"
             SELECT
-                AVG(COALESCE(mc.msg_count, 0)),
-                AVG(COALESCE(s.total_tokens, 0))
+                CAST(AVG(COALESCE(mc.msg_count, 0)) AS REAL),
+                CAST(AVG(COALESCE(s.total_tokens, 0)) AS REAL)
             FROM sessions s
             LEFT JOIN (
                 SELECT session_id, COUNT(*) as msg_count
@@ -793,8 +793,8 @@ impl<'a> ToolAnalyticsStore<'a> {
                 AVG(COALESCE(
                     julianday(s.updated_at) - julianday(s.created_at), 0
                 ) * 86400) as avg_duration_secs,
-                AVG(mc.msg_count) as avg_messages,
-                AVG(COALESCE(s.total_tokens, 0)) as avg_tokens,
+                CAST(AVG(mc.msg_count) AS REAL) as avg_messages,
+                CAST(AVG(COALESCE(s.total_tokens, 0)) AS REAL) as avg_tokens,
                 0.0 as placeholder,
                 0 as placeholder2
             FROM sessions s
@@ -919,7 +919,7 @@ impl<'a> ToolAnalyticsStore<'a> {
                 date(s.created_at) as day,
                 COUNT(DISTINCT s.id) as sessions,
                 AVG(COALESCE(julianday(s.updated_at) - julianday(s.created_at), 0) * 86400) as avg_duration,
-                AVG(mc.msg_count) as avg_messages
+                CAST(AVG(mc.msg_count) AS REAL) as avg_messages
             FROM sessions s
             INNER JOIN (
                 SELECT session_id, COUNT(*) as msg_count
@@ -943,8 +943,8 @@ impl<'a> ToolAnalyticsStore<'a> {
                 COALESCE(s.provider_name, 'unknown') as provider,
                 COUNT(DISTINCT s.id) as sessions,
                 AVG(COALESCE(julianday(s.updated_at) - julianday(s.created_at), 0) * 86400) as avg_duration,
-                AVG(mc.msg_count) as avg_messages,
-                AVG(COALESCE(s.total_tokens, 0)) as avg_tokens
+                CAST(AVG(mc.msg_count) AS REAL) as avg_messages,
+                CAST(AVG(COALESCE(s.total_tokens, 0)) AS REAL) as avg_tokens
             FROM sessions s
             INNER JOIN (
                 SELECT session_id, COUNT(*) as msg_count
