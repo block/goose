@@ -55,145 +55,66 @@ struct QuantInfo {
     quality_rank: u8,
 }
 
+const QUANT_TABLE: &[(&str, &str, u8)] = &[
+    ("IQ1_S", "Extremely small, very low quality", 1),
+    ("IQ1_M", "Extremely small, very low quality", 2),
+    ("IQ2_XXS", "Very small, low quality", 3),
+    ("IQ2_XS", "Very small, low quality", 4),
+    ("IQ2_S", "Very small, low quality", 5),
+    ("IQ2_M", "Very small, low quality", 6),
+    ("Q2_K", "Small, low quality", 7),
+    ("Q2_K_S", "Small, low quality", 7),
+    ("IQ3_XXS", "Very small, moderate quality loss", 8),
+    ("IQ3_XS", "Small, moderate quality loss", 9),
+    ("IQ3_S", "Small, moderate quality loss", 9),
+    ("Q3_K_S", "Small, moderate quality loss", 10),
+    ("IQ3_M", "Small, moderate quality loss", 11),
+    ("Q3_K_M", "Small, balanced quality/size", 12),
+    ("Q3_K_L", "Medium-small, decent quality", 13),
+    ("IQ4_XS", "Medium, good quality", 14),
+    ("IQ4_NL", "Medium, good quality", 15),
+    ("Q4_0", "Medium, good quality", 16),
+    ("Q4_1", "Medium, good quality", 17),
+    ("Q4_K_S", "Medium, good quality/size balance", 18),
+    (
+        "Q4_K_M",
+        "Medium, recommended balance of quality and size",
+        19,
+    ),
+    ("Q5_0", "Medium-large, high quality", 20),
+    ("Q5_1", "Medium-large, high quality", 21),
+    ("Q5_K_S", "Medium-large, high quality", 22),
+    ("Q5_K_M", "Medium-large, very high quality", 23),
+    ("Q6_K", "Large, near-lossless quality", 24),
+    ("Q8_0", "Large, near-lossless quality", 25),
+    ("F16", "Full size, original quality (16-bit)", 26),
+    ("BF16", "Full size, original quality (bfloat16)", 27),
+    ("F32", "Full size, original quality (32-bit)", 28),
+    (
+        "MXFP4_MOE",
+        "Medium, mixed-precision 4-bit for MoE models",
+        18,
+    ),
+    ("TQ1_0", "Tiny, ternary quantization", 1),
+    ("Q2_K_XL", "Extended-layer variant", 15),
+    ("Q3_K_XL", "Extended-layer variant", 15),
+    ("Q4_K_XL", "Extended-layer variant", 15),
+    ("Q2_K_L", "Small, low quality (large variant)", 8),
+    ("Q4_K_L", "Medium, good quality (large variant)", 20),
+];
+
 fn quant_info(quant: &str) -> QuantInfo {
-    match quant {
-        "IQ1_S" => QuantInfo {
-            description: "Extremely small, very low quality",
-            quality_rank: 1,
-        },
-        "IQ1_M" => QuantInfo {
-            description: "Extremely small, very low quality",
-            quality_rank: 2,
-        },
-        "IQ2_XXS" => QuantInfo {
-            description: "Very small, low quality",
-            quality_rank: 3,
-        },
-        "IQ2_XS" => QuantInfo {
-            description: "Very small, low quality",
-            quality_rank: 4,
-        },
-        "IQ2_S" => QuantInfo {
-            description: "Very small, low quality",
-            quality_rank: 5,
-        },
-        "IQ2_M" => QuantInfo {
-            description: "Very small, low quality",
-            quality_rank: 6,
-        },
-        "Q2_K" | "Q2_K_S" => QuantInfo {
-            description: "Small, low quality",
-            quality_rank: 7,
-        },
-        "IQ3_XXS" => QuantInfo {
-            description: "Very small, moderate quality loss",
-            quality_rank: 8,
-        },
-        "IQ3_XS" | "IQ3_S" => QuantInfo {
-            description: "Small, moderate quality loss",
-            quality_rank: 9,
-        },
-        "Q3_K_S" => QuantInfo {
-            description: "Small, moderate quality loss",
-            quality_rank: 10,
-        },
-        "IQ3_M" => QuantInfo {
-            description: "Small, moderate quality loss",
-            quality_rank: 11,
-        },
-        "Q3_K_M" => QuantInfo {
-            description: "Small, balanced quality/size",
-            quality_rank: 12,
-        },
-        "Q3_K_L" => QuantInfo {
-            description: "Medium-small, decent quality",
-            quality_rank: 13,
-        },
-        "IQ4_XS" => QuantInfo {
-            description: "Medium, good quality",
-            quality_rank: 14,
-        },
-        "IQ4_NL" => QuantInfo {
-            description: "Medium, good quality",
-            quality_rank: 15,
-        },
-        "Q4_0" => QuantInfo {
-            description: "Medium, good quality",
-            quality_rank: 16,
-        },
-        "Q4_1" => QuantInfo {
-            description: "Medium, good quality",
-            quality_rank: 17,
-        },
-        "Q4_K_S" => QuantInfo {
-            description: "Medium, good quality/size balance",
-            quality_rank: 18,
-        },
-        "Q4_K_M" => QuantInfo {
-            description: "Medium, recommended balance of quality and size",
-            quality_rank: 19,
-        },
-        "Q5_0" => QuantInfo {
-            description: "Medium-large, high quality",
-            quality_rank: 20,
-        },
-        "Q5_1" => QuantInfo {
-            description: "Medium-large, high quality",
-            quality_rank: 21,
-        },
-        "Q5_K_S" => QuantInfo {
-            description: "Medium-large, high quality",
-            quality_rank: 22,
-        },
-        "Q5_K_M" => QuantInfo {
-            description: "Medium-large, very high quality",
-            quality_rank: 23,
-        },
-        "Q6_K" => QuantInfo {
-            description: "Large, near-lossless quality",
-            quality_rank: 24,
-        },
-        "Q8_0" => QuantInfo {
-            description: "Large, near-lossless quality",
-            quality_rank: 25,
-        },
-        "F16" => QuantInfo {
-            description: "Full size, original quality (16-bit)",
-            quality_rank: 26,
-        },
-        "BF16" => QuantInfo {
-            description: "Full size, original quality (bfloat16)",
-            quality_rank: 27,
-        },
-        "F32" => QuantInfo {
-            description: "Full size, original quality (32-bit)",
-            quality_rank: 28,
-        },
-        "MXFP4_MOE" => QuantInfo {
-            description: "Medium, mixed-precision 4-bit for MoE models",
-            quality_rank: 18,
-        },
-        "TQ1_0" => QuantInfo {
-            description: "Tiny, ternary quantization",
-            quality_rank: 1,
-        },
-        "Q2_K_XL" | "Q3_K_XL" | "Q4_K_XL" => QuantInfo {
-            description: "Extended-layer variant",
-            quality_rank: 15,
-        },
-        "Q2_K_L" => QuantInfo {
-            description: "Small, low quality (large variant)",
-            quality_rank: 8,
-        },
-        "Q4_K_L" => QuantInfo {
-            description: "Medium, good quality (large variant)",
-            quality_rank: 20,
-        },
-        _ => QuantInfo {
+    QUANT_TABLE
+        .iter()
+        .find(|(name, _, _)| *name == quant)
+        .map(|(_, description, quality_rank)| QuantInfo {
+            description,
+            quality_rank: *quality_rank,
+        })
+        .unwrap_or(QuantInfo {
             description: "",
             quality_rank: 15,
-        },
-    }
+        })
 }
 
 pub fn parse_quantization_from_filename(filename: &str) -> String {

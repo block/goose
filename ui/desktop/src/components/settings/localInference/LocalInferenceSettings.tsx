@@ -186,6 +186,7 @@ export const LocalInferenceSettings = () => {
   };
 
   const handleDeleteModel = async (modelId: string) => {
+    if (!window.confirm('Delete this model? You can re-download it later.')) return;
     try {
       await deleteLocalModel({ path: { model_id: modelId } });
       await loadModels();

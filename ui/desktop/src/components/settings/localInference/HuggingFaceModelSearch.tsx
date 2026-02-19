@@ -110,7 +110,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       }
     } catch (e) {
       console.error('Search failed:', e);
-      setError('Search failed. Check console for details.');
+      setError('Search failed. Please try again.');
     } finally {
       setSearching(false);
     }

@@ -405,7 +405,8 @@ pub async fn cancel_local_model_download(
 
     let download_id = format!("{}-model", model_id);
     let dm = goose::dictation::download_manager::get_download_manager();
-    let _ = dm.cancel_download(&download_id);
+    dm.cancel_download(&download_id)
+        .map_err(|_| ErrorResponse::not_found("No active download"))?;
 
     Ok(StatusCode::OK)
 }

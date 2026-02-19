@@ -44,7 +44,6 @@ pub enum ConfigError {
     InvalidRange(String, String),
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,

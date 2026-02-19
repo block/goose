@@ -17,67 +17,20 @@ use rmcp::model::Tool;
 use utoipa::ToSchema;
 
 use once_cell::sync::Lazy;
+use regex::Regex;
 use std::ops::{Add, AddAssign};
 use std::pin::Pin;
+use std::sync::LazyLock;
 use std::sync::Mutex;
 
 fn strip_xml_tags(text: &str) -> String {
-    let mut result = String::with_capacity(text.len());
-    let mut chars = text.char_indices().peekable();
-
-    while let Some((i, ch)) = chars.next() {
-        if ch != '<' {
-            result.push(ch);
-            continue;
-        }
-
-        let mut tag_name = String::new();
-        let tag_start = i;
-        let mut found_close = false;
-        let mut bad_char = None;
-
-        for (_, tc) in chars.by_ref() {
-            if tc == '>' {
-                found_close = true;
-                break;
-            }
-            if tc.is_ascii_alphanumeric() || tc == '_' {
-                tag_name.push(tc);
-            } else {
-                bad_char = Some(tc);
-                break;
-            }
-        }
-
-        if !found_close || tag_name.is_empty() {
-            result.push('<');
-            result.push_str(&tag_name);
-            if found_close {
-                result.push('>');
-            } else if let Some(bc) = bad_char {
-                result.push(bc);
-            }
-            continue;
-        }
-
-        let close_tag = format!("</{tag_name}>");
-        let after_open_tag = text.get(tag_start..).unwrap_or("");
-        let content_start = after_open_tag.find('>').map(|p| p + 1).unwrap_or(0);
-        let after_content = after_open_tag.get(content_start..).unwrap_or("");
-
-        if let Some(close_pos) = after_content.find(&close_tag) {
-            let skip_to = tag_start + content_start + close_pos + close_tag.len();
-            while chars.peek().is_some_and(|(idx, _)| *idx < skip_to) {
-                chars.next();
-            }
-        } else {
-            result.push('<');
-            result.push_str(&tag_name);
-            result.push('>');
-        }
-    }
-
-    result
+    static BLOCK_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?s)<([a-zA-Z][a-zA-Z0-9_]*)[^>]*>.*?</[a-zA-Z][a-zA-Z0-9_]*>").unwrap()
+    });
+    static TAG_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"</?[a-zA-Z][a-zA-Z0-9_]*[^>]*>").unwrap());
+    let pass1 = BLOCK_RE.replace_all(text, "");
+    TAG_RE.replace_all(&pass1, "").into_owned()
 }
 
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
@@ -778,11 +731,25 @@ mod tests {
         assert_eq!(strip_xml_tags("before<t>mid</t>after"), "beforeafter");
         assert_eq!(strip_xml_tags("<a>x</a><b>y</b>z"), "z");
         assert_eq!(strip_xml_tags("no tags here"), "no tags here");
-        assert_eq!(strip_xml_tags("<unclosed>content"), "<unclosed>content");
         assert_eq!(strip_xml_tags("a < b > c"), "a < b > c");
         assert_eq!(strip_xml_tags("<think>über</think>ok"), "ok");
+        assert_eq!(strip_xml_tags("<think>日本語</think>hello"), "hello");
         assert_eq!(strip_xml_tags(""), "");
         assert_eq!(strip_xml_tags("<>stuff</>"), "<>stuff</>");
+        // attributes
+        assert_eq!(
+            strip_xml_tags(r#"<think class="deep">reasoning</think>answer"#),
+            "answer"
+        );
+        // self-closing tags
+        assert_eq!(strip_xml_tags("<br/>self closing"), "self closing");
+        // orphan closing tags
+        assert_eq!(strip_xml_tags("orphan </think> tag"), "orphan  tag");
+        // multiline content
+        assert_eq!(
+            strip_xml_tags("<think>\nline1\nline2\n</think>result"),
+            "result"
+        );
     }
 
     #[test]

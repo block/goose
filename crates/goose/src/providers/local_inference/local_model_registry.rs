@@ -165,6 +165,13 @@ impl LocalModelEntry {
         self.local_path.exists()
     }
 
+    /// Check if model is currently downloading
+    pub fn is_downloading(&self) -> bool {
+        let download_id = format!("{}-model", self.id);
+        let manager = get_download_manager();
+        manager.get_progress(&download_id).is_some()
+    }
+
     /// Get the download status of this model
     pub fn download_status(&self) -> ModelDownloadStatus {
         if self.local_path.exists() {
@@ -249,10 +256,10 @@ impl LocalModelRegistry {
             }
         }
 
-        // Remove non-downloaded, non-featured models
+        // Remove non-downloaded, non-featured, non-downloading models
         let before_len = self.models.len();
         self.models
-            .retain(|m| m.is_downloaded() || is_featured_model(&m.id));
+            .retain(|m| m.is_downloaded() || m.is_downloading() || is_featured_model(&m.id));
         if self.models.len() != before_len {
             changed = true;
         }
