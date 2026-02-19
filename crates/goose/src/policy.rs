@@ -1,8 +1,72 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::identity::{AuthMethod, UserIdentity};
+
+/// Security posture for the Goose instance.
+///
+/// - **Local** (default): no restrictions, everything allowed. Best UX for solo use.
+/// - **Team**: guests cannot manage config/agents. Shared server with basic auth.
+/// - **Enterprise**: full policy enforcement + OIDC + tenant isolation + audit.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SecurityMode {
+    #[default]
+    Local,
+    Team,
+    Enterprise,
+}
+
+impl fmt::Display for SecurityMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Local => write!(f, "local"),
+            Self::Team => write!(f, "team"),
+            Self::Enterprise => write!(f, "enterprise"),
+        }
+    }
+}
+
+impl SecurityMode {
+    /// Parse from string (config value). Unknown values fall back to Local.
+    pub fn from_str_lossy(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "team" => Self::Team,
+            "enterprise" => Self::Enterprise,
+            _ => Self::Local,
+        }
+    }
+
+    /// Auto-detect from environment when not explicitly configured.
+    ///
+    /// Priority: explicit `GOOSE_SECURITY_MODE` env → infer from env signals.
+    /// - OIDC issuer URL set → Enterprise
+    /// - Non-default secret key → Team
+    /// - Otherwise → Local
+    pub fn detect() -> Self {
+        if let Ok(val) = std::env::var("GOOSE_SECURITY_MODE") {
+            return Self::from_str_lossy(&val);
+        }
+
+        let has_oidc = std::env::var("GOOSE_OIDC_ISSUER_URL")
+            .map(|v| !v.is_empty())
+            .unwrap_or(false);
+        if has_oidc {
+            return Self::Enterprise;
+        }
+
+        let has_secret = std::env::var("GOOSE_SERVER__SECRET_KEY")
+            .map(|v| !v.is_empty() && v != "test")
+            .unwrap_or(false);
+        if has_secret {
+            return Self::Team;
+        }
+
+        Self::Local
+    }
+}
 
 /// Result of evaluating a policy rule against a request.
 #[derive(Debug, Clone, PartialEq)]
@@ -218,18 +282,30 @@ impl PolicyRuleBuilder {
     }
 }
 
-/// Thread-safe policy store with default rules and per-tenant overrides.
+/// Thread-safe policy store with mode-aware default rules and per-tenant overrides.
 pub struct PolicyStore {
+    mode: SecurityMode,
     global_rules: Arc<RwLock<Vec<PolicyRule>>>,
     tenant_overrides: Arc<RwLock<HashMap<String, Vec<PolicyRule>>>>,
 }
 
 impl PolicyStore {
+    /// Create a store with `Local` mode (permissive, no restrictions).
     pub fn new() -> Self {
+        Self::for_mode(SecurityMode::Local)
+    }
+
+    /// Create a store with rules appropriate for the given security mode.
+    pub fn for_mode(mode: SecurityMode) -> Self {
         Self {
-            global_rules: Arc::new(RwLock::new(default_rules())),
+            mode,
+            global_rules: Arc::new(RwLock::new(rules_for_mode(mode))),
             tenant_overrides: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub fn mode(&self) -> SecurityMode {
+        self.mode
     }
 
     pub async fn add_rule(&self, rule: PolicyRule) {
@@ -270,25 +346,51 @@ impl Default for PolicyStore {
     }
 }
 
-fn default_rules() -> Vec<PolicyRule> {
-    vec![
+/// Build the rule set for a given security mode.
+fn rules_for_mode(mode: SecurityMode) -> Vec<PolicyRule> {
+    let mut rules = vec![
         PolicyRuleBuilder::new("allow-execute")
-            .description("All authenticated users can execute agents")
+            .description("All users can execute agents")
             .priority(50)
             .allow()
             .actions(vec!["execute:*".to_string()])
             .build(),
         PolicyRuleBuilder::new("allow-read")
-            .description("All users can read public resources")
+            .description("All users can read resources")
             .priority(50)
             .allow()
             .actions(vec!["read:*".to_string()])
             .build(),
-    ]
+    ];
+
+    match mode {
+        SecurityMode::Local => {
+            // No restrictions — everything allowed for best solo UX.
+        }
+        SecurityMode::Team => {
+            // Guests cannot manage config/agents on shared servers.
+            rules.push(guest_management_deny_rule());
+        }
+        SecurityMode::Enterprise => {
+            // Full restrictions: guests blocked, require explicit role grants.
+            rules.push(guest_management_deny_rule());
+            rules.push(
+                PolicyRuleBuilder::new("deny-guest-execute")
+                    .description("Guests cannot execute agents in enterprise mode")
+                    .priority(100)
+                    .deny()
+                    .actions(vec!["execute:*".to_string()])
+                    .auth_methods(vec!["guest".to_string()])
+                    .reason("Authentication required")
+                    .build(),
+            );
+        }
+    }
+
+    rules
 }
 
-/// Restrictive rules for multi-tenant deployments where auth is configured.
-/// Add these via the control plane API when OIDC is enabled.
+/// Deny rule for guest management — used by Team and Enterprise modes.
 pub fn guest_management_deny_rule() -> PolicyRule {
     PolicyRuleBuilder::new("deny-guest-management")
         .description("Guests cannot manage agents or configuration")
@@ -332,7 +434,7 @@ mod tests {
     fn test_guest_allowed_management_by_default() {
         // Default rules no longer deny guest management (local desktop mode).
         // The deny rule must be added explicitly via guest_management_deny_rule().
-        let engine = PolicyEngine::new(default_rules());
+        let engine = PolicyEngine::new(rules_for_mode(SecurityMode::Local));
         let guest = make_guest();
         assert_eq!(
             engine.evaluate(&guest, "manage:agents", "agent:x"),
@@ -342,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_guest_denied_management_when_rule_added() {
-        let mut rules = default_rules();
+        let mut rules = rules_for_mode(SecurityMode::Local);
         rules.push(guest_management_deny_rule());
         let engine = PolicyEngine::new(rules);
         let guest = make_guest();
@@ -354,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_guest_can_execute() {
-        let engine = PolicyEngine::new(default_rules());
+        let engine = PolicyEngine::new(rules_for_mode(SecurityMode::Local));
         let guest = make_guest();
         assert_eq!(
             engine.evaluate(&guest, "execute:agent", "agent:x"),
@@ -364,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_oidc_user_can_execute() {
-        let engine = PolicyEngine::new(default_rules());
+        let engine = PolicyEngine::new(rules_for_mode(SecurityMode::Local));
         let user = make_oidc_user(None);
         assert_eq!(
             engine.evaluate(&user, "execute:agent", "agent:x"),

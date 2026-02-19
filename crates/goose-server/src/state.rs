@@ -17,7 +17,7 @@ use goose::agents::extension_registry::ExtensionRegistry;
 use goose::agents::ExtensionLoadResult;
 use goose::audit::AuditLogger;
 use goose::oidc::OidcValidator;
-use goose::policy::PolicyStore;
+use goose::policy::{PolicyStore, SecurityMode};
 use goose::quotas::QuotaManager;
 use goose::session_token::SessionTokenStore;
 
@@ -67,7 +67,7 @@ impl AppState {
                 uuid::Uuid::new_v4().to_string(),
                 &goose::config::paths::Paths::data_dir(),
             )),
-            policy_store: Arc::new(PolicyStore::new()),
+            policy_store: Arc::new(PolicyStore::for_mode(SecurityMode::detect())),
             audit_logger: Arc::new(AuditLogger::new()),
             quota_manager: Arc::new(QuotaManager::new()),
         }))
