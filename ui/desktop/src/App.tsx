@@ -18,6 +18,7 @@ import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
 import LoginView from './components/pages/LoginView';
 import WelcomePage from './components/pages/WelcomePage';
 import { ErrorUI } from './components/shared/ErrorBoundary';
+import { TooltipProvider } from './components/ui/atoms/Tooltip';
 import { AuthProvider } from './hooks/useAuth';
 import { setupAuthInterceptor } from './lib/authInterceptor';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
@@ -728,13 +729,15 @@ export default function App() {
   return (
     <ThemeProvider>
       <ModelAndProviderProvider>
-        <HashRouter>
-          <AuthProvider>
-            <AppInner />
-          </AuthProvider>
-        </HashRouter>
-        <AnnouncementModal />
-        <TelemetryOptOutModal controlled={false} />
+        <TooltipProvider>
+          <HashRouter>
+            <AuthProvider>
+              <AppInner />
+            </AuthProvider>
+          </HashRouter>
+          <AnnouncementModal />
+          <TelemetryOptOutModal controlled={false} />
+        </TooltipProvider>
       </ModelAndProviderProvider>
     </ThemeProvider>
   );
