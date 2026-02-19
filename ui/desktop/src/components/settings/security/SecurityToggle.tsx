@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Switch } from '../../ui/atoms/switch';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { trackSettingToggled } from '../../../utils/analytics';
 
 interface SecurityConfig {

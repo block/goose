@@ -9,7 +9,7 @@ import {
   splitCmdAndArgs,
   DEFAULT_EXTENSION_TIMEOUT,
 } from './utils';
-import type { FixedExtensionEntry } from '../../ConfigContext';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 
 describe('Extension Utils', () => {
   beforeEach(() => {

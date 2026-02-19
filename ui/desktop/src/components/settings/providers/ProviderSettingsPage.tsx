@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from '../../ui/atoms/scroll-area';
 import BackButton from '../../ui/molecules/BackButton';
 import ProviderGrid from './ProviderGrid';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import type { ProviderDetails } from '../../../api';
 import { createNavigationHandler } from '../../../utils/navigationUtils';
 

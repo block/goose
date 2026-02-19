@@ -1,6 +1,6 @@
 import { Sliders, Bot } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
+import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
 import type { View } from '../../../../utils/navigationUtils';
@@ -10,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../ui/molecules/dropdown-menu';
-import { useCurrentModelInfo } from '../../../BaseChat';
-import { useConfig } from '../../../ConfigContext';
+import { useCurrentModelInfo } from '../../../chat/BaseChat';
+import { useConfig } from '../../../../contexts/ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
 import type { Alert } from '../../../alerts';

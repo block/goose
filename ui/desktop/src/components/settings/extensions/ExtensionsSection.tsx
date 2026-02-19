@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Button } from '../../ui/atoms/button';
 import { Plus } from 'lucide-react';
 import { GPSIcon } from '../../ui/atoms/icons';
-import { useConfig } from '../../ConfigContext';
-import type { FixedExtensionEntry } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 import ExtensionList from './subcomponents/ExtensionList';
 import ExtensionModal from './modal/ExtensionModal';
 import {

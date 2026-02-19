@@ -5,8 +5,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './comp
 import Copy from './components/icons/Copy';
 import { startNewSession } from './sessions';
 import { useNavigation } from './hooks/useNavigation';
-import { GroupedExtensionLoadingToast } from './components/GroupedExtensionLoadingToast';
-import type { ExtensionLoadingStatus } from './components/GroupedExtensionLoadingToast';
+import { GroupedExtensionLoadingToast } from './components/shared/GroupedExtensionLoadingToast';
+import type { ExtensionLoadingStatus } from './components/shared/GroupedExtensionLoadingToast';
 import { getInitialWorkingDir } from './utils/workingDir';
 
 export interface ToastServiceOptions {

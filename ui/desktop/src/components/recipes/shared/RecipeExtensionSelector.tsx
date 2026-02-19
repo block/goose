@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ExtensionConfig } from '../../../api';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { Input } from '../../ui/atoms/input';
 import { Switch } from '../../ui/atoms/switch';
 import { formatExtensionName } from '../../settings/extensions/subcomponents/ExtensionList';

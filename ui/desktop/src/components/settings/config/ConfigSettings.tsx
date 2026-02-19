@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Input } from '../../ui/atoms/input';
 import { Button } from '../../ui/atoms/button';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { cn } from '../../../utils';
 import { Save, RotateCcw, FileText, Settings } from 'lucide-react';
 import { toastSuccess, toastError } from '../../../toasts';

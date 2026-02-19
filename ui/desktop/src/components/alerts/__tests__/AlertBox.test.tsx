@@ -6,7 +6,7 @@ import { AlertType } from '../types';
 import type { Alert } from '../types';
 
 // Mock the ConfigContext
-vi.mock('../../ConfigContext', () => ({
+vi.mock('../../../contexts/ConfigContext', () => ({
   useConfig: () => ({
     read: vi.fn().mockResolvedValue(0.8),
   }),

@@ -11,7 +11,7 @@ import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
 import { getDefaultFormData, createExtensionConfig } from '../settings/extensions/utils';
 import type { ExtensionFormData } from '../settings/extensions/utils';
 import { activateExtensionDefault } from '../settings/extensions';
-import { useConfig } from '../ConfigContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import { SearchView } from '../conversation/SearchView';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 

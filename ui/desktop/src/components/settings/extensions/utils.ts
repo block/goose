@@ -1,4 +1,4 @@
-import type { FixedExtensionEntry } from '../../ConfigContext';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 import type { ExtensionConfig } from '../../../api/types.gen';
 import { parse as parseShellQuote, quote as quoteShell } from 'shell-quote';
 

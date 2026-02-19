@@ -4,7 +4,7 @@ import { Button } from '../ui/atoms/button';
 import { Goose } from '../icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../../updates';
 import { toastService } from '../../toasts';
-import { useConfig } from '../ConfigContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import { trackTelemetryPreference } from '../../utils/analytics';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';

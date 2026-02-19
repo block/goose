@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useConfig } from '../ConfigContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import {
   checkOllamaStatus,
   getOllamaDownloadUrl,

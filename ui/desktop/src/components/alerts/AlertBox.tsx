@@ -6,7 +6,7 @@ import { errorMessage } from '../../utils/conversionUtils';
 import { AlertType } from './types';
 import type { Alert } from './types';
 import { upsertConfig } from '../../api';
-import { useConfig } from '../ConfigContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import { Button } from '../ui/atoms/button';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {

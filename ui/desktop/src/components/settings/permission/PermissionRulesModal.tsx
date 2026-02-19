@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
-import { useConfig } from '../../ConfigContext';
-import type { FixedExtensionEntry } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
 import { Button } from '../../ui/atoms/button';

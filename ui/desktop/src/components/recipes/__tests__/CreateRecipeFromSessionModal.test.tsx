@@ -17,7 +17,7 @@ vi.mock('../../../recipe/recipe_management', () => ({
   saveRecipe: vi.fn(),
 }));
 
-vi.mock('../../ConfigContext', () => ({
+vi.mock('../../../contexts/ConfigContext', () => ({
   useConfig: () => ({
     extensionsList: [],
     getExtensions: vi.fn().mockResolvedValue([]),

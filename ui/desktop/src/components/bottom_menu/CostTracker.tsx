@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useModelAndProvider } from '../ModelAndProviderContext';
+import { useModelAndProvider } from '../../contexts/ModelAndProviderContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
 import { fetchModelPricing } from '../../utils/pricing';

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/atoms/input';
-import { useConfig } from '../../../../../ConfigContext';
+import { useConfig } from '../../../../../../contexts/ConfigContext';
 import type { ProviderDetails, ConfigKey } from '../../../../../../api';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/molecules/collapsible';
 

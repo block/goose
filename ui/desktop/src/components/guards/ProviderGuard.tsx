@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useConfig } from '../ConfigContext';
-import WelcomeGooseLogo from '../WelcomeGooseLogo';
+import { useConfig } from '../../contexts/ConfigContext';
+import WelcomeGooseLogo from '../branding/WelcomeGooseLogo';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;

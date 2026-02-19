@@ -5,7 +5,7 @@ import type { Recipe, Parameter } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
-import type { ExtensionConfig } from '../ConfigContext';
+import type { ExtensionConfig } from '../../contexts/ConfigContext';
 import { Button } from '../ui/atoms/button';
 import type { Settings } from '../../api';
 

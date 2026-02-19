@@ -75,7 +75,7 @@ vi.mock('./utils/ollamaDetection', () => ({
 }));
 
 // Mock the ConfigContext module
-vi.mock('./components/ConfigContext', () => ({
+vi.mock('./contexts/ConfigContext', () => ({
   useConfig: () => ({
     read: vi.fn().mockResolvedValue(null),
     update: vi.fn(),
@@ -93,7 +93,7 @@ vi.mock("./components/bottom_menu/BottomMenuExtensionSelection", () => ({
   BottomMenuExtensionSelection: () => <div data-testid="mock-extensions">Extensions</div>,
 }));
 // Mock other components to simplify testing
-vi.mock('./components/ErrorBoundary', () => ({
+vi.mock('./components/shared/ErrorBoundary', () => ({
   ErrorUI: ({ error }: { error: Error }) => <div>Error: {error.message}</div>,
 }));
 
@@ -134,7 +134,7 @@ vi.mock('./components/guards/ProviderGuard', () => ({
   },
 }));
 
-vi.mock('./components/ModelAndProviderContext', () => ({
+vi.mock('./contexts/ModelAndProviderContext', () => ({
   ModelAndProviderProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useModelAndProvider: () => ({
     provider: null,
@@ -164,7 +164,7 @@ vi.mock('./contexts/ChatContext', () => ({
   DEFAULT_CHAT_TITLE: 'New Chat', // Keep this from HEAD
 }));
 
-vi.mock('./components/ui/ConfirmationModal', () => ({
+vi.mock('./components/ui/molecules/ConfirmationModal', () => ({
   ConfirmationModal: () => null,
 }));
 
@@ -172,7 +172,7 @@ vi.mock('react-toastify', () => ({
   ToastContainer: () => null,
 }));
 
-vi.mock('./components/GoosehintsModal', () => ({
+vi.mock('./components/settings/chat/GoosehintsModal', () => ({
   GoosehintsModal: () => null,
 }));
 

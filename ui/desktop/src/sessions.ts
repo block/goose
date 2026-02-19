@@ -6,7 +6,7 @@ import {
   clearExtensionOverrides,
   hasExtensionOverrides,
 } from './store/extensionOverrides';
-import type { FixedExtensionEntry } from './components/ConfigContext';
+import type { FixedExtensionEntry } from './contexts/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe } from './recipe';
 import type { Recipe } from './recipe';

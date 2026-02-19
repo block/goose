@@ -1,5 +1,5 @@
 import type { ExtensionConfig } from '../../../api/types.gen';
-import type { FixedExtensionEntry } from '../../ConfigContext';
+import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 import bundledExtensionsData from './bundled-extensions.json';
 import { nameToKey } from './utils';
 

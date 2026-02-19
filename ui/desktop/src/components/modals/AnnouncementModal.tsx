@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from '../ui/molecules/BaseModal';
-import MarkdownContent from '../MarkdownContent';
+import MarkdownContent from '../messages/MarkdownContent';
 import { ANNOUNCEMENTS_ENABLED } from '../../updates';
 import packageJson from '../../../package.json';
 import { getAnnouncementContent } from '../../../announcements/content';

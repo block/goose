@@ -1,6 +1,6 @@
 import { Card } from '../ui/molecules/card';
-import GooseLogo from '../GooseLogo';
-import MarkdownContent from '../MarkdownContent';
+import GooseLogo from '../branding/GooseLogo';
+import MarkdownContent from '../messages/MarkdownContent';
 import { substituteParameters } from '../../utils/providerUtils';
 
 interface RecipeActivitiesProps {

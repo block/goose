@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useModelAndProvider } from '../components/ModelAndProviderContext';
+import { useModelAndProvider } from '../contexts/ModelAndProviderContext';
 import { fetchModelPricing } from '../utils/pricing';
 import type { Session } from '../api';
 

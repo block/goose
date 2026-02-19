@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/molecules/dialog';
-import ProgressiveMessageList from '../ProgressiveMessageList';
+import ProgressiveMessageList from '../chat/ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
 import BackButton from '../ui/molecules/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';

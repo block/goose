@@ -3,18 +3,18 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from '../GooseSidebar/AppSidebar';
 import type { View, ViewOptions } from '../../utils/navigationUtils';
 import { Sidebar, SidebarInset, SidebarProvider } from '../ui/molecules/sidebar';
-import ChatSessionsContainer from '../ChatSessionsContainer';
+import ChatSessionsContainer from '../chat/ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 import type { UserInput } from '../../types/message';
 import { ReasoningDetailProvider } from '../../contexts/ReasoningDetailContext';
-import ReasoningDetailPanel from '../ReasoningDetailPanel';
+import ReasoningDetailPanel from '../messages/ReasoningDetailPanel';
 import { UnifiedInputProvider, useUnifiedInput } from '../../contexts/UnifiedInputContext';
-import ChatInput from '../ChatInput';
+import ChatInput from '../chat/ChatInput';
 import { ChatState } from '../../types/chatState';
 import { useNavigation } from '../../hooks/useNavigation';
 import { startNewSession } from '../../sessions';
 import { getInitialWorkingDir } from '../../utils/workingDir';
-import { UserAvatarMenu } from '../UserAvatarMenu';
+import { UserAvatarMenu } from '../shared/UserAvatarMenu';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{

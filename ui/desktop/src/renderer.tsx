@@ -1,7 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
-import { ConfigProvider } from './components/ConfigContext';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { ConfigProvider } from './contexts/ConfigContext';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import SuspenseLoader from './suspense-loader';
 import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';

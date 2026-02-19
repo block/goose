@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
 
 export const ModeSection = () => {

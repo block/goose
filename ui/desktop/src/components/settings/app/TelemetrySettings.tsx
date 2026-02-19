@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Switch } from '../../ui/atoms/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../modals/TelemetryOptOutModal';
 import { toastService } from '../../../toasts';

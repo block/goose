@@ -2,7 +2,7 @@ import {
   initializeBundledExtensions,
   syncBundledExtensions,
 } from '../components/settings/extensions';
-import type { ExtensionConfig, FixedExtensionEntry } from '../components/ConfigContext';
+import type { ExtensionConfig, FixedExtensionEntry } from '../contexts/ConfigContext';
 import { updateAgentProvider, updateFromSession } from '../api';
 import type { Recipe } from '../api';
 

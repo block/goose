@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { View } from '../../../utils/navigationUtils';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import {
   UNKNOWN_PROVIDER_MSG,
   UNKNOWN_PROVIDER_TITLE,
   useModelAndProvider,
-} from '../../ModelAndProviderContext';
+} from '../../../contexts/ModelAndProviderContext';
 import { toastError } from '../../../toasts';
 
 import { Card, CardContent } from '../../ui/molecules/card';

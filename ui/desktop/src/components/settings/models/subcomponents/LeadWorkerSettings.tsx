@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useConfig } from '../../../ConfigContext';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
+import { useConfig } from '../../../../contexts/ConfigContext';
+import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContext';
 import { Button } from '../../../ui/atoms/button';
 import { Select } from '../../../ui/molecules/Select';
 import { Input } from '../../../ui/atoms/input';

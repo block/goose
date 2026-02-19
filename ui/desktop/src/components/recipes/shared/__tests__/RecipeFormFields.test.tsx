@@ -6,7 +6,7 @@ import { useForm } from '@tanstack/react-form';
 import { RecipeFormFields, extractTemplateVariables } from '../RecipeFormFields';
 import { type RecipeFormData } from '../recipeFormSchema';
 
-vi.mock('../../../ConfigContext', () => ({
+vi.mock('../../../../contexts/ConfigContext', () => ({
   useConfig: () => ({
     extensionsList: [],
     getExtensions: vi.fn().mockResolvedValue([]),

@@ -11,8 +11,8 @@ import {
 } from 'react-router-dom';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
-import { ErrorUI } from './components/ErrorBoundary';
-import { ExtensionInstallModal } from './components/ExtensionInstallModal';
+import { ErrorUI } from './components/shared/ErrorBoundary';
+import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
 import { ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/modals/AnnouncementModal';
 import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
@@ -46,8 +46,8 @@ import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import LauncherView from './components/pages/LauncherView';
 
 import 'react-toastify/dist/ReactToastify.css';
-import { useConfig } from './components/ConfigContext';
-import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
+import { useConfig } from './contexts/ConfigContext';
+import { ModelAndProviderProvider } from './contexts/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 

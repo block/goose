@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { getDictationConfig } from '../../../api';
 import type { DictationProvider, DictationProviderStatus } from '../../../api';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { Input } from '../../ui/atoms/input';
 import { Button } from '../../ui/atoms/button';
 import { trackSettingToggled } from '../../../utils/analytics';

@@ -9,7 +9,7 @@ import {
 } from './dialog';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Button } from '../atoms/button';
-import MarkdownContent from '../../MarkdownContent';
+import MarkdownContent from '../../messages/MarkdownContent';
 import { cn } from '../../../utils';
 
 interface RecipeWarningModalProps {

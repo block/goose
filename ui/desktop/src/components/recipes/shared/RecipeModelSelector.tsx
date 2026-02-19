@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Select } from '../../ui/molecules/Select';
 import { Input } from '../../ui/atoms/input';
-import { useConfig } from '../../ConfigContext';
+import { useConfig } from '../../../contexts/ConfigContext';
 import { fetchModelsForProviders } from '../../settings/models/modelInterface';
 
 interface RecipeModelSelectorProps {

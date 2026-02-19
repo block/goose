@@ -11,7 +11,7 @@ import { Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
-import { useModelAndProvider } from '../../ModelAndProviderContext';
+import { useModelAndProvider } from '../../../contexts/ModelAndProviderContext';
 import type { View } from '../../../utils/navigationUtils';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {

@@ -14,7 +14,7 @@ const mockUpsert = vi.fn();
 const mockRemove = vi.fn();
 const mockGetProviders = vi.fn();
 
-vi.mock('../../../ConfigContext', () => ({
+vi.mock('../../../../contexts/ConfigContext', () => ({
   useConfig: () => ({
     read: mockRead,
     upsert: mockUpsert,
@@ -24,7 +24,7 @@ vi.mock('../../../ConfigContext', () => ({
 }));
 
 // Minimal mock for useModelAndProvider
-vi.mock('../../../ModelAndProviderContext', () => ({
+vi.mock('../../../../contexts/ModelAndProviderContext', () => ({
   useModelAndProvider: () => ({
     currentModel: null,
   }),

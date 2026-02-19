@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { useConfig } from '../ConfigContext';
-import WelcomeGooseLogo from '../WelcomeGooseLogo';
+import { useConfig } from '../../contexts/ConfigContext';
+import WelcomeGooseLogo from '../branding/WelcomeGooseLogo';
 import { ProviderCard } from '../settings/providers/subcomponents/ProviderCard';
 import ProviderConfigurationModal from '../settings/providers/modal/ProviderConfiguationModal';
 import type { ProviderDetails } from '../../api';

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Tornado } from 'lucide-react';
 import { all_goose_modes, ModeSelectionItem } from '../settings/mode/ModeSelectionItem';
-import { useConfig } from '../ConfigContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import {
   DropdownMenu,
   DropdownMenuContent,

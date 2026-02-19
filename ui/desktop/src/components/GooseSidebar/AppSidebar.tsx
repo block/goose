@@ -43,10 +43,10 @@ import { deleteSession, listSessions, updateSessionName } from '../../api';
 import type { Session } from '../../api';
 import { resumeSession, startNewSession, shouldShowNewChatTitle } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
-import { SessionIndicators } from '../SessionIndicators';
+import { SessionIndicators } from '../shared/SessionIndicators';
 import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
 import { getInitialWorkingDir } from '../../utils/workingDir';
-import { useConfig } from '../ConfigContext';
+import { useConfig } from '../../contexts/ConfigContext';
 import { InlineEditText } from '../common/InlineEditText';
 import { useProjectPreferences } from '../../hooks/useProjectPreferences';
 
