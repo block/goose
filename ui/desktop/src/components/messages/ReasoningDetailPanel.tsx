@@ -6,9 +6,14 @@ import GooseMessage from '../chat/GooseMessage';
 import { ScrollArea } from '../ui/atoms/scroll-area';
 import MarkdownContent from './MarkdownContent';
 
+// Stable empty Map to avoid creating new identity on every render
+const EMPTY_TOOL_NOTIFICATIONS = new Map();
+const NOOP = () => {};
+
 export default function ReasoningDetailPanel() {
   const { detail, panelDetail, isOpen, closeDetail } = useReasoningDetail();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const rafId = useRef<number | null>(null);
 
   const isWorkBlock = panelDetail?.type === 'workblock';
   const isReasoning = panelDetail?.type === 'reasoning' || (!panelDetail && detail);
@@ -20,11 +25,21 @@ export default function ReasoningDetailPanel() {
 
   const title = isWorkBlock ? panelDetail.data.title || 'Work Block' : detail?.title || 'Details';
 
-  // Auto-scroll to bottom during live streaming
+  // Auto-scroll during streaming using rAF to avoid smooth-scroll + Radix reflow loop
   useEffect(() => {
-    if (isLiveStreaming && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (!isLiveStreaming) return;
+
+    const tick = () => {
+      bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      rafId.current = requestAnimationFrame(tick);
+    };
+
+    rafId.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    };
   }, [isLiveStreaming]);
 
   return (
@@ -88,8 +103,8 @@ export default function ReasoningDetailPanel() {
                         sessionId={panelDetail.data.sessionId || ''}
                         message={msg}
                         messages={panelDetail.data.messages}
-                        append={() => {}}
-                        toolCallNotifications={new Map()}
+                        append={NOOP}
+                        toolCallNotifications={EMPTY_TOOL_NOTIFICATIONS}
                         isStreaming={isWorkBlockStreaming && isLastMsg}
                       />
                     </div>
