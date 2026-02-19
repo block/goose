@@ -66,11 +66,52 @@ function describeToolCall(name: string, args: Record<string, unknown>): string {
 }
 
 /**
- * Extract a one-liner from the last tool call in the work block messages.
- * Prefers tool call descriptions (e.g. "editing src/App.tsx") over raw assistant text.
+ * Extract the first meaningful sentence from a text block.
+ * Strips markdown/HTML, splits on sentence boundaries, and truncates.
+ */
+function firstSentence(text: string, maxLen = 100): string {
+  const clean = text
+    .replace(/<[^>]*>/g, '') // strip HTML
+    .replace(/```[\s\S]*?```/g, '') // strip code blocks
+    .replace(/`[^`]+`/g, '') // strip inline code
+    .replace(/#{1,6}\s+/g, '') // strip markdown headings
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1') // strip bold/italic
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // strip links
+    .replace(/\n+/g, ' ') // collapse newlines
+    .trim();
+  if (!clean) return '';
+
+  // Split on sentence boundaries: . ! ? or — followed by space/end
+  const match = clean.match(/^(.+?[.!?:—])(?:\s|$)/);
+  const sentence = match ? match[1].trim() : clean;
+  return sentence.length > maxLen ? `${sentence.slice(0, maxLen - 1)}…` : sentence;
+}
+
+/**
+ * Extract a one-liner summarizing the current work block thinking.
+ *
+ * Priority:
+ *   1. Latest assistant text (first sentence) — captures the LLM's *intent*
+ *      (e.g. "Let me fix the render loop" / "Now I'll update the context")
+ *   2. Last tool call description — mechanical fallback when no text exists
+ *      (e.g. "editing src/App.tsx" / "running npm install")
  */
 function extractOneLiner(messages: Message[]): string {
-  // First, try the last tool request — gives actionable descriptions
+  // Primary: latest assistant text — the LLM's explanation of what it's doing
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'assistant') continue;
+    // Search text content items (skip toolRequest items)
+    for (let j = msg.content.length - 1; j >= 0; j--) {
+      const c = msg.content[j];
+      if (c.type === 'text' && c.text?.trim()) {
+        const sentence = firstSentence(c.text);
+        if (sentence.length >= 10) return sentence;
+      }
+    }
+  }
+
+  // Fallback: last tool call description
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== 'assistant') continue;
@@ -82,20 +123,8 @@ function extractOneLiner(messages: Message[]): string {
           | undefined;
         if (toolCall?.status === 'success' && toolCall.value?.name) {
           const desc = describeToolCall(toolCall.value.name, toolCall.value.arguments || {});
-          return desc.length > 120 ? `${desc.slice(0, 117)}…` : desc;
+          return desc.length > 100 ? `${desc.slice(0, 97)}…` : desc;
         }
-      }
-    }
-  }
-
-  // Fallback: last assistant text (truncated)
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg.role !== 'assistant') continue;
-    for (const c of msg.content) {
-      if (c.type === 'text' && c.text?.trim()) {
-        const clean = c.text.replace(/<[^>]*>/g, '').trim();
-        return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
       }
     }
   }
