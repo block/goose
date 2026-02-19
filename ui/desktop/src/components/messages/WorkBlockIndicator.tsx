@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Message } from '../../api';
 import { useReasoningDetail, type WorkBlockDetail } from '../../contexts/ReasoningDetailContext';
 import FlyingBird from '../branding/FlyingBird';
@@ -52,7 +52,6 @@ function describeToolCall(name: string, args: Record<string, unknown>): string {
         return `${toolName === 'create_app' ? 'creating' : 'updating'} app ${str(args.name)}`;
       break;
     default: {
-      // Generic fallback: "Tool Name" + first string arg value
       const display = snakeToTitle(toolName);
       const firstStr = Object.values(args).find((v) => typeof v === 'string');
       if (firstStr) {
@@ -66,29 +65,12 @@ function describeToolCall(name: string, args: Record<string, unknown>): string {
 }
 
 /**
- * Extract the first meaningful sentence from a text block.
- * Strips markdown/HTML, splits on sentence boundaries, and truncates.
+ * Extract the last tool call description from messages.
+ *
+ * Tool calls are discrete events — they appear all at once (not streamed
+ * word-by-word), making them the most stable signal for "what Goose is doing."
  */
-function firstSentence(text: string, maxLen = 100): string {
-  const clean = text
-    .replace(/<[^>]*>/g, '') // strip HTML
-    .replace(/```[\s\S]*?```/g, '') // strip code blocks
-    .replace(/`[^`]+`/g, '') // strip inline code
-    .replace(/#{1,6}\s+/g, '') // strip markdown headings
-    .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1') // strip bold/italic
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // strip links
-    .replace(/\n+/g, ' ') // collapse newlines
-    .trim();
-  if (!clean) return '';
-
-  // Split on sentence boundaries: . ! ? or — followed by space/end
-  const match = clean.match(/^(.+?[.!?:—])(?:\s|$)/);
-  const sentence = match ? match[1].trim() : clean;
-  return sentence.length > maxLen ? `${sentence.slice(0, maxLen - 1)}…` : sentence;
-}
-
-/** Extract the last tool call description from messages */
-function extractToolDescription(messages: Message[]): string {
+function extractLastToolDescription(messages: Message[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== 'assistant') continue;
@@ -106,102 +88,6 @@ function extractToolDescription(messages: Message[]): string {
     }
   }
   return '';
-}
-
-/** Extract the latest complete assistant sentence */
-function extractThinkingSentence(messages: Message[]): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg.role !== 'assistant') continue;
-    for (let j = msg.content.length - 1; j >= 0; j--) {
-      const c = msg.content[j];
-      if (c.type === 'text' && c.text?.trim()) {
-        const sentence = firstSentence(c.text);
-        if (sentence.length >= 10) return sentence;
-      }
-    }
-  }
-  return '';
-}
-
-/**
- * Hook that stabilizes the one-liner during streaming.
- *
- * During streaming, the raw value changes on every token. This hook:
- *  - Immediately shows tool call descriptions (they appear all at once)
- *  - Only updates the thinking sentence when it looks *complete*
- *    (ends with punctuation) and differs from what's currently shown
- *  - Holds the current value for a minimum duration to prevent flicker
- *  - On streaming end, shows the final value immediately
- */
-function useStableOneLiner(messages: Message[], isStreaming: boolean): string {
-  const toolDesc = useMemo(() => extractToolDescription(messages), [messages]);
-  const thinkingSentence = useMemo(() => extractThinkingSentence(messages), [messages]);
-  const toolCount = useMemo(() => {
-    let count = 0;
-    for (const msg of messages) {
-      for (const c of msg.content) {
-        if (c.type === 'toolRequest') count++;
-      }
-    }
-    return count;
-  }, [messages]);
-
-  const [stableValue, setStableValue] = useState('');
-  const prevToolCountRef = useRef(0);
-  const lastUpdateRef = useRef(0);
-
-  // When NOT streaming, show the final computed value immediately
-  useEffect(() => {
-    if (!isStreaming) {
-      const final = thinkingSentence || toolDesc;
-      setStableValue(final);
-      prevToolCountRef.current = toolCount;
-    }
-  }, [isStreaming, thinkingSentence, toolDesc, toolCount]);
-
-  // During streaming: update on meaningful changes only
-  useEffect(() => {
-    if (!isStreaming) return;
-
-    const now = Date.now();
-
-    // A new tool call appeared → show its description immediately
-    if (toolCount > prevToolCountRef.current) {
-      prevToolCountRef.current = toolCount;
-      if (toolDesc) {
-        setStableValue(toolDesc);
-        lastUpdateRef.current = now;
-        return;
-      }
-    }
-
-    // The thinking sentence looks complete (ends with punctuation)
-    // and differs from what we're showing → update with minimum hold time
-    const isComplete = /[.!?:—]$/.test(thinkingSentence);
-    const MIN_HOLD_MS = 1500;
-    const elapsed = now - lastUpdateRef.current;
-
-    if (isComplete && thinkingSentence && elapsed >= MIN_HOLD_MS) {
-      setStableValue((prev) => {
-        // Only update if meaningfully different (not just a prefix extension)
-        if (thinkingSentence !== prev && !thinkingSentence.startsWith(prev.slice(0, -1))) {
-          return thinkingSentence;
-        }
-        return prev;
-      });
-      lastUpdateRef.current = now;
-      return;
-    }
-
-    // If we still have nothing to show, use whatever we have
-    if (!stableValue && (thinkingSentence || toolDesc)) {
-      setStableValue(thinkingSentence || toolDesc);
-      lastUpdateRef.current = now;
-    }
-  }, [isStreaming, toolDesc, thinkingSentence, toolCount, stableValue]);
-
-  return stableValue;
 }
 
 function countToolCalls(messages: Message[]): number {
@@ -238,7 +124,8 @@ export default function WorkBlockIndicator({
 
   const hasAutoOpened = useRef(false);
 
-  const oneLiner = useStableOneLiner(messages, isStreaming);
+  // Tool-call-only one-liner: stable, discrete, never streams word-by-word
+  const oneLiner = useMemo(() => extractLastToolDescription(messages), [messages]);
   const toolCount = useMemo(() => countToolCalls(messages), [messages]);
 
   const isActive =
