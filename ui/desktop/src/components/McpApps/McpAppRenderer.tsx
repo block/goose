@@ -42,6 +42,8 @@ import {
   McpAppToolResult,
   DimensionLayout,
   OnDisplayModeChange,
+  SamplingCreateMessageParams,
+  SamplingCreateMessageResponse,
 } from './types';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
@@ -191,6 +193,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
   switch (action.type) {
     case 'FETCH_RESOURCE':
+      if (state.status === 'ready') return state;
       return { status: 'loading_resource', html, meta };
 
     case 'RESOURCE_LOADED':
@@ -437,81 +440,157 @@ export default function McpAppRenderer({
 
   const { resolvedTheme } = useTheme();
 
-  const initialState: AppState = cachedHtml
-    ? { status: 'loading_sandbox', html: cachedHtml, meta: DEFAULT_META }
-    : { status: 'idle' };
+  // Survive StrictMode remounts — replay cached results instead of re-fetching,
+  // which prevents the iframe from being torn down and recreated (visible flicker).
+  // Declared before useReducer so the lazy initializer can read them.
+  const fetchedDataRef = useRef<{ html: string; meta: ResourceMeta } | null>(null);
+  const sandboxUrlRef = useRef<{ url: string; csp: McpUiResourceCsp | null } | null>(null);
 
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, dispatch] = useReducer(appReducer, undefined, (): AppState => {
+    // On StrictMode remount, skip straight to ready if we have all cached data.
+    if (fetchedDataRef.current && sandboxUrlRef.current) {
+      return {
+        status: 'ready',
+        html: fetchedDataRef.current.html,
+        meta: fetchedDataRef.current.meta,
+        sandboxUrl: new URL(sandboxUrlRef.current.url),
+        sandboxCsp: sandboxUrlRef.current.csp,
+      };
+    }
+    if (cachedHtml) {
+      return { status: 'loading_sandbox', html: cachedHtml, meta: DEFAULT_META };
+    }
+    return { status: 'idle' };
+  });
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
+  const [apiHost, setApiHost] = useState<string | null>(null);
+  const [secretKey, setSecretKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.electron.getGoosedHostPort().then(setApiHost);
+    window.electron.getSecretKey().then(setSecretKey);
+  }, []);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
   // replaces HTML only if the server returns different content.
+  //
+  // Retries with exponential backoff when the fetch fails (e.g. the extension hasn't
+  // finished loading yet, causing a transient 500). Cached HTML skips retries since
+  // the app can render immediately with the cached version.
   useEffect(() => {
     if (!sessionId) return;
 
+    // On StrictMode remount, replay the cached result instead of re-fetching.
+    if (fetchedDataRef.current) {
+      const { html: cachedResult, meta: cachedMeta } = fetchedDataRef.current;
+      dispatch({ type: 'RESOURCE_LOADED', html: cachedResult, meta: cachedMeta });
+      return;
+    }
+
+    const MAX_RETRIES = 5;
+    const BASE_DELAY_MS = 500;
+    let cancelled = false;
+
     const fetchResourceData = async () => {
       dispatch({ type: 'FETCH_RESOURCE' });
-      try {
-        const response = await readResource({
-          body: {
-            session_id: sessionId,
-            uri: resourceUri,
-            extension_name: extensionName,
-          },
-        });
 
-        if (response.data) {
-          const content = response.data;
-          const rawMeta = content._meta as
-            | {
-                ui?: {
-                  csp?: McpUiResourceCsp;
-                  permissions?: McpUiResourcePermissions;
-                  prefersBorder?: boolean;
-                };
-              }
-            | undefined;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (cancelled) return;
 
-          dispatch({
-            type: 'RESOURCE_LOADED',
-            html: content.text ?? cachedHtml ?? null,
-            meta: {
+        try {
+          const response = await readResource({
+            body: {
+              session_id: sessionId,
+              uri: resourceUri,
+              extension_name: extensionName,
+            },
+          });
+
+          if (cancelled) return;
+
+          if (response.data) {
+            const content = response.data;
+            const rawMeta = content._meta as
+              | {
+                  ui?: {
+                    csp?: McpUiResourceCsp;
+                    permissions?: McpUiResourcePermissions;
+                    prefersBorder?: boolean;
+                  };
+                }
+              | undefined;
+
+            const resolvedHtml = content.text ?? cachedHtml ?? null;
+            const resolvedMeta = {
               csp: rawMeta?.ui?.csp || null,
               // todo: pass permissions to SDK once it supports sendSandboxResourceReady
               // https://github.com/MCP-UI-Org/mcp-ui/issues/180
               permissions: null,
               prefersBorder: rawMeta?.ui?.prefersBorder ?? true,
-            },
+            };
+
+            if (resolvedHtml) {
+              fetchedDataRef.current = { html: resolvedHtml, meta: resolvedMeta };
+            }
+            dispatch({ type: 'RESOURCE_LOADED', html: resolvedHtml, meta: resolvedMeta });
+            return;
+          }
+        } catch (err) {
+          if (cancelled) return;
+
+          const isLastAttempt = attempt === MAX_RETRIES;
+
+          if (!isLastAttempt && !cachedHtml) {
+            const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+            console.warn(
+              `[McpAppRenderer] Resource fetch attempt ${attempt + 1}/${MAX_RETRIES + 1} failed, retrying in ${delay}ms:`,
+              err
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          console.error('[McpAppRenderer] Error fetching resource:', err);
+          if (cachedHtml) {
+            console.warn('Failed to fetch fresh resource, using cached version:', err);
+          }
+          dispatch({
+            type: 'RESOURCE_FAILED',
+            message: errorMessage(err, 'Failed to load resource'),
           });
+          return;
         }
-      } catch (err) {
-        console.error('[McpAppRenderer] Error fetching resource:', err);
-        if (cachedHtml) {
-          console.warn('Failed to fetch fresh resource, using cached version:', err);
-        }
-        dispatch({
-          type: 'RESOURCE_FAILED',
-          message: errorMessage(err, 'Failed to load resource'),
-        });
       }
     };
 
     fetchResourceData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
   // Create the sandbox proxy URL once we have HTML and metadata.
-  // Fetched only once — recreating the proxy would destroy iframe state.
+  // On StrictMode remount, reuse the cached URL to avoid recreating the proxy
+  // (which would destroy iframe state and cause a visible flicker).
   const pendingCsp = state.status === 'loading_sandbox' ? state.meta.csp : null;
   useEffect(() => {
     if (state.status !== 'loading_sandbox') return;
 
+    if (sandboxUrlRef.current) {
+      const { url, csp } = sandboxUrlRef.current;
+      dispatch({ type: 'SANDBOX_READY', sandboxUrl: url, sandboxCsp: csp });
+      return;
+    }
+
     fetchMcpAppProxyUrl(pendingCsp).then((url) => {
       if (url) {
+        sandboxUrlRef.current = { url, csp: pendingCsp };
         dispatch({ type: 'SANDBOX_READY', sandboxUrl: url, sandboxCsp: pendingCsp });
       } else {
         dispatch({ type: 'SANDBOX_FAILED', message: 'Failed to initialize sandbox proxy' });
@@ -658,16 +737,38 @@ export default function McpAppRenderer({
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
-      // todo: handle `sampling/createMessage` per https://github.com/block/goose/pull/7039
       if (request.method === 'sampling/createMessage') {
-        return { status: 'success' as const };
+        if (!sessionId || !apiHost || !secretKey) {
+          throw new Error('Session not initialized for sampling request');
+        }
+        const { messages, systemPrompt, maxTokens } =
+          request.params as unknown as SamplingCreateMessageParams;
+        const response = await fetch(`${apiHost}/sessions/${sessionId}/sampling/message`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': secretKey,
+          },
+          body: JSON.stringify({
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            systemPrompt,
+            maxTokens,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`Sampling request failed: ${response.statusText}`);
+        }
+        return (await response.json()) as SamplingCreateMessageResponse;
       }
       return {
         status: 'error' as const,
         message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
       };
     },
-    []
+    [sessionId, apiHost, secretKey]
   );
 
   const handleError = useCallback((err: Error) => {

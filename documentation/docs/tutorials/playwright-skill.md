@@ -52,13 +52,13 @@ npx skills add https://github.com/microsoft/playwright-cli --skill playwright-cl
 
 6. You'll get a confirmation of the installation, choose `Yes` to proceed
 
-### Enable Skills Extension
-In goose, enable the [Skills extension](/docs/mcp/skills-mcp) to load Agent Skills within sessions.
+### Enable Summon Extension
+In goose, enable the [Summon extension](/docs/mcp/summon-mcp) to load Agent Skills within sessions.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
-    extensionName="Skills"
+    extensionName="Summon"
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -77,7 +77,7 @@ In goose, enable the [Skills extension](/docs/mcp/skills-mcp) to load Agent Skil
   │
   ◆  Enable extensions: (use "space" to toggle and "enter" to submit)
   // highlight-start    
-  │  ● skills
+  │  ● summon
   // highlight-end
   |
   └  Extension settings updated successfully
@@ -224,6 +224,6 @@ Getting started with the Playwright CLI agent skill is easy and opens up powerfu
 
 ## Resources
 
-- [Skills Extension Documentation](/docs/mcp/skills-mcp)
+- [Summon Extension Documentation](/docs/mcp/summon-mcp)
 - [Using Skills Guide](/docs/guides/context-engineering/using-skills) - Learn how to create and use skills with goose
 - [Playwright CLI GitHub](https://github.com/microsoft/playwright-cli)
