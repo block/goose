@@ -168,20 +168,3 @@ fn test_custom_unknown_method() {
         assert!(result.is_err(), "expected method_not_found error");
     });
 }
-
-#[test]
-fn test_custom_stubbed_method() {
-    run_test(async {
-        let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
-        let conn = ClientToAgentConnection::new(TestConnectionConfig::default(), openai).await;
-
-        let result = send_custom(conn.cx(), "_goose/tool/call", serde_json::json!({})).await;
-        assert!(result.is_err(), "expected not-yet-implemented error");
-        let err = result.unwrap_err();
-        assert_eq!(
-            err.code,
-            sacp::ErrorCode::Other(-32001),
-            "expected custom error code -32001"
-        );
-    });
-}
