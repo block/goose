@@ -1,6 +1,6 @@
 import { isUIResource } from '@mcp-ui/client';
 import { ChevronRight, FlaskConical } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { CallToolResponse, Content, EmbeddedResource } from '../../api';
 import { AppEvents } from '../../constants/events';
 import type {
@@ -118,9 +118,9 @@ function McpAppWrapper({
       ? requestWithMeta.toolCall.value.arguments
       : undefined;
 
-  const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
+  const toolInput = React.useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
 
-  const toolResult = useMemo(() => {
+  const toolResult = React.useMemo(() => {
     if (!toolResponse) return undefined;
     const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
     if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
@@ -489,46 +489,50 @@ function ToolCallView({
       ? 'error'
       : 'success';
 
-  // Tool call timing tracking
-  const [startTime, setStartTime] = useState<number | null>(null);
+  // Tool call timing tracking — use ref to avoid re-render loops
+  const startTimeRef = React.useRef<number | null>(null);
+  if (!toolResponse && startTimeRef.current === null) {
+    startTimeRef.current = Date.now();
+  }
 
-  // Track when tool call starts (when there's no response yet)
-  useEffect(() => {
-    if (!toolResponse && startTime === null) {
-      setStartTime(Date.now());
-    }
-  }, [toolResponse, startTime]);
-
-  const toolResults =
-    loadingStatus === 'success' && toolResponse?.toolResult
-      ? getToolResultContent(toolResponse.toolResult)
-      : [];
-
-  const logs = notifications
-    ?.filter((notification) => {
-      const message = notification.message as { method?: string };
-      return message.method === 'notifications/message';
-    })
-    .map(logToString);
-
-  const progress = notifications
-    ?.filter((notification) => {
-      const message = notification.message as { method?: string };
-      return message.method === 'notifications/progress';
-    })
-    .map(notificationToProgress)
-    .reduce((map, item) => {
-      const key = item.progressToken;
-      if (!map.has(key)) {
-        map.set(key, []);
-      }
-      map.get(key)?.push(item);
-      return map;
-    }, new Map<string, Progress[]>());
-
-  const progressEntries = [...(progress?.values() || [])].map(
-    (entries) => entries.sort((a, b) => b.progress - a.progress)[0]
+  const toolResults = React.useMemo(
+    () =>
+      loadingStatus === 'success' && toolResponse?.toolResult
+        ? getToolResultContent(toolResponse.toolResult)
+        : [],
+    [loadingStatus, toolResponse?.toolResult]
   );
+
+  const logs = React.useMemo(
+    () =>
+      notifications
+        ?.filter((notification) => {
+          const message = notification.message as { method?: string };
+          return message.method === 'notifications/message';
+        })
+        .map(logToString),
+    [notifications]
+  );
+
+  const progressEntries = React.useMemo(() => {
+    const progress = notifications
+      ?.filter((notification) => {
+        const message = notification.message as { method?: string };
+        return message.method === 'notifications/progress';
+      })
+      .map(notificationToProgress)
+      .reduce((map, item) => {
+        const key = item.progressToken;
+        if (!map.has(key)) {
+          map.set(key, []);
+        }
+        map.get(key)?.push(item);
+        return map;
+      }, new Map<string, Progress[]>());
+    return [...(progress?.values() || [])].map(
+      (entries) => entries.sort((a, b) => b.progress - a.progress)[0]
+    );
+  }, [notifications]);
 
   const isRenderingProgress =
     loadingStatus === 'loading' && (progressEntries.length > 0 || (logs || []).length > 0);

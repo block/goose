@@ -1,11 +1,5 @@
-// TooltipWrapper.tsx
 import type React from 'react';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '../../../../ui/atoms/Tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../ui/atoms/Tooltip';
 
 interface TooltipWrapperProps {
   children: React.ReactNode;
@@ -23,13 +17,11 @@ export function TooltipWrapper({
   className = '',
 }: TooltipWrapperProps) {
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
-        <TooltipContent side={side} align={align} className={className}>
-          {typeof tooltipContent === 'string' ? <p>{tooltipContent}</p> : tooltipContent}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side={side} align={align} className={className}>
+        {typeof tooltipContent === 'string' ? <p>{tooltipContent}</p> : tooltipContent}
+      </TooltipContent>
+    </Tooltip>
   );
 }
