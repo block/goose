@@ -10,7 +10,6 @@ use inference_context::LoadedModel;
 use native_path::run_native_tool_path;
 use tool_parsing::compact_tools_json;
 
-use crate::config::paths::Paths;
 use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
@@ -29,13 +28,11 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
 use rmcp::model::{RawContent, Role, Tool};
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex as StdMutex, Weak};
 use tokio::sync::Mutex;
-use utoipa::ToSchema;
 use uuid::Uuid;
 
 const SHELL_TOOL: &str = "developer__shell";
@@ -101,89 +98,11 @@ impl InferenceRuntime {
 }
 
 const PROVIDER_NAME: &str = "local";
-const DEFAULT_MODEL: &str = "llama-3.2-1b";
+const DEFAULT_MODEL: &str = "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M";
 
 pub const LOCAL_LLM_MODEL_CONFIG_KEY: &str = "LOCAL_LLM_MODEL";
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, ToSchema, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum ModelTier {
-    Tiny,
-    Small,
-    Medium,
-    Large,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct LocalLlmModel {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub size_mb: u32,
-    pub context_limit: usize,
-    pub url: &'static str,
-    pub description: &'static str,
-    pub tier: ModelTier,
-}
-
-const LOCAL_LLM_MODELS: &[LocalLlmModel] = &[
-    LocalLlmModel {
-        id: "llama-3.2-1b",
-        name: "Llama 3.2 1B Instruct",
-        size_mb: 700,
-        context_limit: 4096,
-        url: "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-        description: "Fastest, CPU-optimized for quick responses",
-        tier: ModelTier::Tiny,
-    },
-    LocalLlmModel {
-        id: "llama-3.2-3b",
-        name: "Llama 3.2 3B Instruct",
-        size_mb: 2000,
-        context_limit: 8192,
-        url: "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
-        description: "Good balance of speed and quality for laptops",
-        tier: ModelTier::Small,
-    },
-    LocalLlmModel {
-        id: "hermes-2-pro-7b",
-        name: "Hermes 2 Pro Llama-3 7B",
-        size_mb: 4500,
-        context_limit: 8192,
-        url: "https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF/resolve/main/Hermes-2-Pro-Llama-3-8B-Q4_K_M.gguf",
-        description: "High quality for desktops with GPU",
-        tier: ModelTier::Medium,
-    },
-    LocalLlmModel {
-        id: "mistral-small-22b",
-        name: "Mistral Small 22B Instruct",
-        size_mb: 13000,
-        context_limit: 32768,
-        url: "https://huggingface.co/bartowski/Mistral-Small-Instruct-2409-GGUF/resolve/main/Mistral-Small-Instruct-2409-Q4_K_M.gguf",
-        description: "Highest quality with long context support",
-        tier: ModelTier::Large,
-    },
-];
-
-impl LocalLlmModel {
-    pub fn local_path(&self) -> PathBuf {
-        Paths::in_data_dir("models").join(format!("{}.gguf", self.id))
-    }
-
-    pub fn is_downloaded(&self) -> bool {
-        self.local_path().exists()
-    }
-}
-
-pub fn available_local_models() -> &'static [LocalLlmModel] {
-    LOCAL_LLM_MODELS
-}
-
-pub fn get_local_model(id: &str) -> Option<&'static LocalLlmModel> {
-    LOCAL_LLM_MODELS.iter().find(|m| m.id == id)
-}
-
-/// Resolve model path, context limit, and settings for any model ID — checks registry first,
-/// then falls back to the hardcoded featured list.
+/// Resolve model path, context limit, and settings for a model ID from the registry.
 pub fn resolve_model_path(
     model_id: &str,
 ) -> Option<(
@@ -193,7 +112,6 @@ pub fn resolve_model_path(
 )> {
     use crate::providers::local_inference::local_model_registry::get_registry;
 
-    // Check registry first (covers both HF-downloaded and migrated legacy models)
     if let Ok(registry) = get_registry().lock() {
         if let Some(entry) = registry.get_model(model_id) {
             let ctx = entry.settings.context_size.unwrap_or(0) as usize;
@@ -201,14 +119,7 @@ pub fn resolve_model_path(
         }
     }
 
-    // Fall back to hardcoded featured list
-    get_local_model(model_id).map(|m| {
-        (
-            m.local_path(),
-            m.context_limit,
-            crate::providers::local_inference::local_model_registry::ModelSettings::default(),
-        )
-    })
+    None
 }
 
 pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
@@ -241,18 +152,34 @@ pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
     }
 }
 
-pub fn recommend_local_model(runtime: &InferenceRuntime) -> &'static str {
-    let effective_memory_mb = available_inference_memory_bytes(runtime) / (1024 * 1024);
+pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
+    use local_model_registry::{get_registry, is_featured_model, FEATURED_MODELS};
 
-    if effective_memory_mb >= 16_000 {
-        "mistral-small-22b"
-    } else if effective_memory_mb >= 6_000 {
-        "hermes-2-pro-7b"
-    } else if effective_memory_mb >= 3_000 {
-        "llama-3.2-3b"
-    } else {
-        "llama-3.2-1b"
+    let available_memory = available_inference_memory_bytes(runtime);
+
+    if let Ok(registry) = get_registry().lock() {
+        let mut models: Vec<_> = registry
+            .list_models()
+            .iter()
+            .filter(|m| is_featured_model(&m.id) && m.size_bytes > 0)
+            .collect();
+        models.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+
+        // Return largest that fits in available memory
+        for model in &models {
+            if available_memory >= model.size_bytes {
+                return model.id.clone();
+            }
+        }
+
+        // If nothing fits, return smallest
+        if let Some(smallest) = models.last() {
+            return smallest.id.clone();
+        }
     }
+
+    // Fallback to first featured model
+    FEATURED_MODELS[0].to_string()
 }
 
 fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
@@ -508,10 +435,10 @@ impl ProviderDef for LocalInferenceProvider {
         use crate::providers::local_inference::local_model_registry::get_registry;
 
         let mut known_models: Vec<&str> = vec![
-            "llama-3.2-1b",
-            "llama-3.2-3b",
-            "hermes-2-pro-7b",
-            "mistral-small-22b",
+            "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
+            "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
+            "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
+            "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
         ];
 
         // Add any registry models not already in the featured list
@@ -561,16 +488,11 @@ impl Provider for LocalInferenceProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         use crate::providers::local_inference::local_model_registry::get_registry;
 
-        let mut all_models: Vec<String> = available_local_models()
-            .iter()
-            .map(|m| m.id.to_string())
-            .collect();
+        let mut all_models: Vec<String> = Vec::new();
 
         if let Ok(registry) = get_registry().lock() {
             for entry in registry.list_models() {
-                if !all_models.contains(&entry.id) {
-                    all_models.push(entry.id.clone());
-                }
+                all_models.push(entry.id.clone());
             }
         }
 

@@ -232,6 +232,13 @@ export type DictationProviderStatus = {
     uses_provider_config: boolean;
 };
 
+export type DownloadModelRequest = {
+    /**
+     * Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
+     */
+    spec: string;
+};
+
 export type DownloadProgress = {
     /**
      * Bytes downloaded so far
@@ -446,16 +453,6 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
     prd?: string | null;
 };
 
-export type HfDownloadRequest = {
-    filename?: string | null;
-    repo_id?: string | null;
-    spec?: string | null;
-};
-
-export type HfDownloadResponse = {
-    model_id: string;
-};
-
 /**
  * A single downloadable GGUF file (used internally and for downloads).
  */
@@ -551,28 +548,16 @@ export type LoadedProvider = {
     is_editable: boolean;
 };
 
-export type LocalLlmModel = {
-    context_limit: number;
-    description: string;
-    id: string;
-    name: string;
-    size_mb: number;
-    tier: ModelTier;
-    url: string;
-};
-
 export type LocalModelResponse = {
-    context_limit: number;
-    description: string;
+    display_name: string;
+    filename: string;
     id: string;
-    name: string;
-    size_mb: number;
-    tier: ModelTier;
-    url: string;
-} & {
-    downloaded: boolean;
-    featured: boolean;
+    quantization: string;
     recommended: boolean;
+    repo_id: string;
+    settings: ModelSettings;
+    size_bytes: number;
+    status: ModelDownloadStatus;
 };
 
 /**
@@ -702,6 +687,18 @@ export type ModelConfig = {
     toolshim_model?: string | null;
 };
 
+export type ModelDownloadStatus = {
+    state: 'NotDownloaded';
+} | {
+    bytes_downloaded: number;
+    progress_percent: number;
+    speed_bps?: number | null;
+    state: 'Downloading';
+    total_bytes: number;
+} | {
+    state: 'Downloaded';
+};
+
 /**
  * Information about a model's capabilities
  */
@@ -754,8 +751,6 @@ export type ModelInfoResponse = {
     source: string;
 };
 
-export type ModelListItem = LocalModelResponse | RegistryModelResponse;
-
 export type ModelSettings = {
     context_size?: number | null;
     flash_attention?: boolean | null;
@@ -772,8 +767,6 @@ export type ModelSettings = {
     use_jinja?: boolean;
     use_mlock?: boolean;
 };
-
-export type ModelTier = 'tiny' | 'small' | 'medium' | 'large';
 
 export type ParseRecipeRequest = {
     content: string;
@@ -987,18 +980,6 @@ export type RecipeToYamlResponse = {
 
 export type RedactedThinkingContent = {
     data: string;
-};
-
-export type RegistryModelResponse = {
-    display_name: string;
-    downloaded: boolean;
-    featured: boolean;
-    filename: string;
-    id: string;
-    quantization: string;
-    repo_id: string;
-    settings: ModelSettings;
-    size_bytes: number;
 };
 
 export type RemoveExtensionRequest = {
@@ -2955,7 +2936,7 @@ export type StartTetrateSetupResponses = {
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
 
 export type DownloadHfModelData = {
-    body: HfDownloadRequest;
+    body: DownloadModelRequest;
     path?: never;
     query?: never;
     url: '/local-inference/download';
@@ -2966,17 +2947,13 @@ export type DownloadHfModelErrors = {
      * Invalid request
      */
     400: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
 };
 
 export type DownloadHfModelResponses = {
     /**
      * Download started
      */
-    202: HfDownloadResponse;
+    202: string;
 };
 
 export type DownloadHfModelResponse = DownloadHfModelResponses[keyof DownloadHfModelResponses];
@@ -2992,7 +2969,7 @@ export type ListLocalModelsResponses = {
     /**
      * List of available local LLM models
      */
-    200: Array<ModelListItem>;
+    200: Array<LocalModelResponse>;
 };
 
 export type ListLocalModelsResponse = ListLocalModelsResponses[keyof ListLocalModelsResponses];
@@ -3008,13 +2985,9 @@ export type DeleteLocalModelData = {
 
 export type DeleteLocalModelErrors = {
     /**
-     * Model not found or not downloaded
+     * Model not found
      */
     404: unknown;
-    /**
-     * Failed to delete model
-     */
-    500: unknown;
 };
 
 export type DeleteLocalModelResponses = {
@@ -3035,7 +3008,7 @@ export type CancelLocalModelDownloadData = {
 
 export type CancelLocalModelDownloadErrors = {
     /**
-     * Download not found
+     * No active download
      */
     404: unknown;
 };
@@ -3058,7 +3031,7 @@ export type GetLocalModelDownloadProgressData = {
 
 export type GetLocalModelDownloadProgressErrors = {
     /**
-     * Download not found
+     * No active download
      */
     404: unknown;
 };
@@ -3071,33 +3044,6 @@ export type GetLocalModelDownloadProgressResponses = {
 };
 
 export type GetLocalModelDownloadProgressResponse = GetLocalModelDownloadProgressResponses[keyof GetLocalModelDownloadProgressResponses];
-
-export type DownloadLocalModelData = {
-    body?: never;
-    path: {
-        model_id: string;
-    };
-    query?: never;
-    url: '/local-inference/models/{model_id}/download';
-};
-
-export type DownloadLocalModelErrors = {
-    /**
-     * Model not found or download already in progress
-     */
-    400: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type DownloadLocalModelResponses = {
-    /**
-     * Download started
-     */
-    202: unknown;
-};
 
 export type GetModelSettingsData = {
     body?: never;
@@ -3163,16 +3109,9 @@ export type GetRepoFilesData = {
     url: '/local-inference/repo/{author}/{repo}/files';
 };
 
-export type GetRepoFilesErrors = {
-    /**
-     * Failed to fetch repo files
-     */
-    500: unknown;
-};
-
 export type GetRepoFilesResponses = {
     /**
-     * GGUF quantization variants in repo
+     * GGUF files in the repo
      */
     200: RepoVariantsResponse;
 };

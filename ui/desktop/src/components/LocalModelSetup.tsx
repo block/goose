@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useConfig } from './ConfigContext';
 import {
   listLocalModels,
-  downloadLocalModel,
+  downloadHfModel,
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
   type DownloadProgress,
@@ -24,7 +24,10 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
 };
 
-const formatSize = (mb: number): string => (mb >= 1024 ? `${(mb / 1024).toFixed(1)}GB` : `${mb}MB`);
+const formatSize = (bytes: number): string => {
+  const mb = bytes / (1024 * 1024);
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)}GB` : `${mb.toFixed(0)}MB`;
+};
 
 type SetupPhase = 'loading' | 'select' | 'downloading' | 'error';
 
@@ -52,12 +55,9 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
       try {
         const response = await listLocalModels();
         if (response.data) {
-          const featured = response.data.filter(
-            (m): m is LocalModelResponse => 'tier' in m
-          );
-          setModels(featured);
+          setModels(response.data);
 
-          const alreadyDownloaded = featured.find((m) => m.downloaded);
+          const alreadyDownloaded = response.data.find((m) => m.status.state === 'Downloaded');
           if (alreadyDownloaded) {
             setSelectedModelId(alreadyDownloaded.id);
           } else {
@@ -91,8 +91,15 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
     setDownloadProgress(null);
     setErrorMessage(null);
 
+    const model = models.find((m) => m.id === modelId);
+    if (!model) {
+      setErrorMessage('Model not found');
+      setPhase('error');
+      return;
+    }
+
     try {
-      await downloadLocalModel({ path: { model_id: modelId } });
+      await downloadHfModel({ body: { spec: model.id } });
     } catch (error) {
       console.error('Failed to start download:', error);
       setErrorMessage('Failed to start download. Please try again.');
@@ -147,7 +154,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
     if (!selectedModelId) return;
     const model = models.find((m) => m.id === selectedModelId);
     if (!model) return;
-    if (model.downloaded) {
+    if (model.status.state === 'Downloaded') {
       await finishSetup(model.id);
     } else {
       await startDownload(model.id);
@@ -232,17 +239,16 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-text-default text-sm sm:text-base">
-                      {recommended.name}
+                      {recommended.display_name}
                     </span>
-                    {recommended.downloaded && (
+                    {recommended.status.state === 'Downloaded' && (
                       <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
                         Ready
                       </span>
                     )}
                   </div>
-                  <p className="text-text-muted text-sm mt-1">{recommended.description}</p>
                   <p className="text-text-muted text-xs mt-1">
-                    {formatSize(recommended.size_mb)} download · {recommended.context_limit.toLocaleString()} token context
+                    {formatSize(recommended.size_bytes)}
                   </p>
                 </div>
               </div>
@@ -288,15 +294,14 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-text-default text-sm">{model.name}</span>
-                            <span className="text-xs text-text-muted">{formatSize(model.size_mb)}</span>
-                            {model.downloaded && (
+                            <span className="font-medium text-text-default text-sm">{model.display_name}</span>
+                            <span className="text-xs text-text-muted">{formatSize(model.size_bytes)}</span>
+                            {model.status.state === 'Downloaded' && (
                               <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
                                 Ready
                               </span>
                             )}
                           </div>
-                          <p className="text-text-muted text-xs mt-0.5">{model.description}</p>
                         </div>
                       </div>
                     </div>
@@ -312,10 +317,10 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             disabled={!selectedModelId}
             className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-background-muted/80"
           >
-            {selectedModel?.downloaded
-              ? `Use ${selectedModel.name}`
+            {selectedModel?.status.state === 'Downloaded'
+              ? `Use ${selectedModel.display_name}`
               : selectedModel
-                ? `Download ${selectedModel.name} (${formatSize(selectedModel.size_mb)})`
+                ? `Download ${selectedModel.display_name} (${formatSize(selectedModel.size_bytes)})`
                 : 'Select a model'}
           </button>
 
@@ -333,7 +338,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         <div className="space-y-6">
           <div className="border border-border-subtle rounded-xl p-5 sm:p-6 bg-background-default">
             <p className="font-medium text-text-default text-sm sm:text-base mb-4">
-              Downloading {selectedModel.name}
+              Downloading {selectedModel.display_name}
             </p>
 
             {downloadProgress ? (

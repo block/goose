@@ -1837,7 +1837,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HfDownloadRequest"
+                "$ref": "#/components/schemas/DownloadModelRequest"
               }
             }
           },
@@ -1847,18 +1847,15 @@
           "202": {
             "description": "Download started",
             "content": {
-              "application/json": {
+              "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/HfDownloadResponse"
+                  "type": "string"
                 }
               }
             }
           },
           "400": {
             "description": "Invalid request"
-          },
-          "500": {
-            "description": "Internal server error"
           }
         }
       }
@@ -1877,7 +1874,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ModelListItem"
+                    "$ref": "#/components/schemas/LocalModelResponse"
                   }
                 }
               }
@@ -1907,10 +1904,7 @@
             "description": "Model deleted"
           },
           "404": {
-            "description": "Model not found or not downloaded"
-          },
-          "500": {
-            "description": "Failed to delete model"
+            "description": "Model not found"
           }
         }
       }
@@ -1943,34 +1937,7 @@
             }
           },
           "404": {
-            "description": "Download not found"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "super::routes::local_inference"
-        ],
-        "operationId": "download_local_model",
-        "parameters": [
-          {
-            "name": "model_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Download started"
-          },
-          "400": {
-            "description": "Model not found or download already in progress"
-          },
-          "500": {
-            "description": "Internal server error"
+            "description": "No active download"
           }
         }
       },
@@ -1994,7 +1961,7 @@
             "description": "Download cancelled"
           },
           "404": {
-            "description": "Download not found"
+            "description": "No active download"
           }
         }
       }
@@ -2102,7 +2069,7 @@
         ],
         "responses": {
           "200": {
-            "description": "GGUF quantization variants in repo",
+            "description": "GGUF files in the repo",
             "content": {
               "application/json": {
                 "schema": {
@@ -2110,9 +2077,6 @@
                 }
               }
             }
-          },
-          "500": {
-            "description": "Failed to fetch repo files"
           }
         }
       }
@@ -4292,6 +4256,18 @@
           }
         }
       },
+      "DownloadModelRequest": {
+        "type": "object",
+        "required": [
+          "spec"
+        ],
+        "properties": {
+          "spec": {
+            "type": "string",
+            "description": "Model spec like \"bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M\""
+          }
+        }
+      },
       "DownloadProgress": {
         "type": "object",
         "required": [
@@ -4926,34 +4902,6 @@
           }
         ]
       },
-      "HfDownloadRequest": {
-        "type": "object",
-        "properties": {
-          "filename": {
-            "type": "string",
-            "nullable": true
-          },
-          "repo_id": {
-            "type": "string",
-            "nullable": true
-          },
-          "spec": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "HfDownloadResponse": {
-        "type": "object",
-        "required": [
-          "model_id"
-        ],
-        "properties": {
-          "model_id": {
-            "type": "string"
-          }
-        }
-      },
       "HfGgufFile": {
         "type": "object",
         "description": "A single downloadable GGUF file (used internally and for downloads).",
@@ -5233,104 +5181,50 @@
           }
         }
       },
-      "LocalLlmModel": {
+      "LocalModelResponse": {
         "type": "object",
         "required": [
           "id",
-          "name",
-          "size_mb",
-          "context_limit",
-          "url",
-          "description",
-          "tier"
+          "display_name",
+          "repo_id",
+          "filename",
+          "quantization",
+          "size_bytes",
+          "status",
+          "recommended",
+          "settings"
         ],
         "properties": {
-          "context_limit": {
-            "type": "integer",
-            "minimum": 0
+          "display_name": {
+            "type": "string"
           },
-          "description": {
+          "filename": {
             "type": "string"
           },
           "id": {
             "type": "string"
           },
-          "name": {
+          "quantization": {
             "type": "string"
           },
-          "size_mb": {
+          "recommended": {
+            "type": "boolean"
+          },
+          "repo_id": {
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/ModelSettings"
+          },
+          "size_bytes": {
             "type": "integer",
-            "format": "int32",
+            "format": "int64",
             "minimum": 0
           },
-          "tier": {
-            "$ref": "#/components/schemas/ModelTier"
-          },
-          "url": {
-            "type": "string"
+          "status": {
+            "$ref": "#/components/schemas/ModelDownloadStatus"
           }
         }
-      },
-      "LocalModelResponse": {
-        "allOf": [
-          {
-            "type": "object",
-            "required": [
-              "id",
-              "name",
-              "size_mb",
-              "context_limit",
-              "url",
-              "description",
-              "tier"
-            ],
-            "properties": {
-              "context_limit": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "description": {
-                "type": "string"
-              },
-              "id": {
-                "type": "string"
-              },
-              "name": {
-                "type": "string"
-              },
-              "size_mb": {
-                "type": "integer",
-                "format": "int32",
-                "minimum": 0
-              },
-              "tier": {
-                "$ref": "#/components/schemas/ModelTier"
-              },
-              "url": {
-                "type": "string"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "downloaded",
-              "recommended",
-              "featured"
-            ],
-            "properties": {
-              "downloaded": {
-                "type": "boolean"
-              },
-              "featured": {
-                "type": "boolean"
-              },
-              "recommended": {
-                "type": "boolean"
-              }
-            }
-          }
-        ]
       },
       "McpAppResource": {
         "type": "object",
@@ -5852,6 +5746,78 @@
           }
         }
       },
+      "ModelDownloadStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "NotDownloaded"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "progress_percent",
+              "bytes_downloaded",
+              "total_bytes",
+              "state"
+            ],
+            "properties": {
+              "bytes_downloaded": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "progress_percent": {
+                "type": "number",
+                "format": "float"
+              },
+              "speed_bps": {
+                "type": "integer",
+                "format": "int64",
+                "nullable": true,
+                "minimum": 0
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "Downloading"
+                ]
+              },
+              "total_bytes": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "state"
+            ],
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "Downloaded"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "state"
+        }
+      },
       "ModelInfo": {
         "type": "object",
         "description": "Information about a model's capabilities",
@@ -5976,16 +5942,6 @@
           }
         }
       },
-      "ModelListItem": {
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/LocalModelResponse"
-          },
-          {
-            "$ref": "#/components/schemas/RegistryModelResponse"
-          }
-        ]
-      },
       "ModelSettings": {
         "type": "object",
         "properties": {
@@ -6050,15 +6006,6 @@
             "type": "boolean"
           }
         }
-      },
-      "ModelTier": {
-        "type": "string",
-        "enum": [
-          "tiny",
-          "small",
-          "medium",
-          "large"
-        ]
       },
       "ParseRecipeRequest": {
         "type": "object",
@@ -6630,51 +6577,6 @@
         "properties": {
           "data": {
             "type": "string"
-          }
-        }
-      },
-      "RegistryModelResponse": {
-        "type": "object",
-        "required": [
-          "id",
-          "display_name",
-          "repo_id",
-          "filename",
-          "quantization",
-          "size_bytes",
-          "downloaded",
-          "featured",
-          "settings"
-        ],
-        "properties": {
-          "display_name": {
-            "type": "string"
-          },
-          "downloaded": {
-            "type": "boolean"
-          },
-          "featured": {
-            "type": "boolean"
-          },
-          "filename": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "quantization": {
-            "type": "string"
-          },
-          "repo_id": {
-            "type": "string"
-          },
-          "settings": {
-            "$ref": "#/components/schemas/ModelSettings"
-          },
-          "size_bytes": {
-            "type": "integer",
-            "format": "int64",
-            "minimum": 0
           }
         }
       },
