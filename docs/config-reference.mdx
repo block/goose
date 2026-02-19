@@ -1,0 +1,327 @@
+# Goose Configuration Reference
+
+> Complete reference for `~/.config/goose/config.yaml` settings.
+> All values are optional — Goose works out of the box with zero configuration.
+
+---
+
+## Quick Start
+
+```yaml
+# Minimal config — just set your AI provider
+GOOSE_PROVIDER: openai
+GOOSE_MODEL: gpt-4o
+```
+
+---
+
+## Provider Configuration
+
+### Built-in Providers
+
+Set the provider and model at the top level of `config.yaml`:
+
+```yaml
+GOOSE_PROVIDER: <provider-name>
+GOOSE_MODEL: <model-name>
+```
+
+| Provider | `GOOSE_PROVIDER` | Example Models | Auth Key |
+|----------|-----------------|----------------|----------|
+| OpenAI | `openai` | `gpt-4o`, `o1` | `OPENAI_API_KEY` |
+| Anthropic | `anthropic` | `claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
+| Azure OpenAI | `azure` | `gpt-4o`, `gpt-5.2` | `AZURE_OPENAI_API_KEY` |
+| Google | `google` | `gemini-2.0-flash` | `GOOGLE_API_KEY` |
+| Ollama | `ollama` | `llama3.2` | (none — local) |
+| OpenRouter | `openrouter` | any | `OPENROUTER_API_KEY` |
+| Databricks | `databricks` | `dbrx-instruct` | `DATABRICKS_TOKEN` |
+| AWS Bedrock | `bedrock` | `anthropic.claude-3` | AWS credentials |
+
+### Azure OpenAI (native)
+
+```yaml
+GOOSE_PROVIDER: azure
+GOOSE_MODEL: gpt-5.2
+```
+
+Secrets (keyring or `secrets.yaml`):
+```yaml
+AZURE_OPENAI_API_KEY: <your-key>
+AZURE_OPENAI_ENDPOINT: https://<resource>.cognitiveservices.azure.com
+AZURE_OPENAI_DEPLOYMENT_NAME: gpt-5.2
+AZURE_OPENAI_API_VERSION: 2024-05-01-preview   # optional, defaults to 2024-10-21
+```
+
+### Custom Providers
+
+Create a JSON file in `~/.config/goose/custom_providers/`:
+
+```bash
+# File: ~/.config/goose/custom_providers/custom_my-provider.json
+```
+
+```json
+{
+  "name": "My Custom Provider",
+  "description": "Claude via Azure Anthropic endpoint",
+  "engine": "anthropic",
+  "base_url": "https://my-endpoint.services.ai.azure.com/anthropic",
+  "api_key_env": "MY_CUSTOM_API_KEY",
+  "default_model": "claude-opus-4-6",
+  "context_limit": 200000,
+  "models": [
+    { "name": "claude-opus-4-6", "context_limit": 200000 }
+  ],
+  "supported_features": { "streaming": true }
+}
+```
+
+Then reference it:
+```yaml
+GOOSE_PROVIDER: custom_my-provider    # matches filename: custom_<id>.json
+GOOSE_MODEL: claude-opus-4-6
+```
+
+| Engine | Value | Use When |
+|--------|-------|----------|
+| OpenAI-compatible | `openai` | Any OpenAI-compatible API |
+| Anthropic | `anthropic` | Anthropic API or Azure Anthropic |
+| Ollama | `ollama` | Local Ollama-compatible server |
+
+---
+
+## Secrets Storage
+
+Secrets are resolved in order:
+1. **Environment variables** (uppercase key name)
+2. **System keyring** (`gnome-keyring` / `secret-tool` on Linux, Keychain on macOS)
+3. **`~/.config/goose/secrets.yaml`** (fallback when `GOOSE_DISABLE_KEYRING` is set)
+
+### Using the keyring (recommended)
+
+```bash
+# Store a secret
+echo -n "sk-your-key" | secret-tool store --label="goose OPENAI_API_KEY" service goose key OPENAI_API_KEY
+
+# List stored secrets
+secret-tool search service goose
+
+# Delete a secret
+secret-tool clear service goose key OPENAI_API_KEY
+```
+
+### Using secrets.yaml (alternative)
+
+```bash
+export GOOSE_DISABLE_KEYRING=1
+```
+
+```yaml
+# ~/.config/goose/secrets.yaml
+OPENAI_API_KEY: sk-your-key
+ANTHROPIC_API_KEY: sk-ant-your-key
+```
+
+> ⚠️ `secrets.yaml` is stored in plaintext. Prefer the keyring for production use.
+
+---
+
+## Security Mode
+
+Controls authentication and authorization policy enforcement.
+
+```yaml
+GOOSE_SECURITY_MODE: local    # local | team | enterprise
+```
+
+### Modes
+
+| Mode | Default? | Who Can Manage | Auth Required | Policy |
+|------|----------|---------------|---------------|--------|
+| **`local`** | ✅ Yes | Everyone (guest) | No | Permissive — all allowed |
+| **`team`** | No | Authenticated users only | For management ops | Guest can read + execute, denied management |
+| **`enterprise`** | No | Role-based (OIDC) | For everything | Guest denied management + execution |
+
+### Auto-detection
+
+If `GOOSE_SECURITY_MODE` is not set, the mode is inferred from environment:
+
+| Condition | Detected Mode |
+|-----------|---------------|
+| `GOOSE_OIDC_ISSUER_URL` is set | `enterprise` |
+| `GOOSE_SERVER__SECRET_KEY` is set (and ≠ `"test"`) | `team` |
+| Neither | `local` |
+
+### Environment variable override
+
+```bash
+export GOOSE_SECURITY_MODE=team
+```
+
+---
+
+## Authentication
+
+### Guest Mode (default)
+
+No configuration needed. All users are guests with full access. This is the default
+for local desktop use.
+
+### OIDC Provider (preset)
+
+```yaml
+auth:
+  provider: azure              # google | azure | github | gitlab | auth0 | okta | aws
+  tenant: <your-tenant-id>    # varies by provider (see table below)
+  client_id: <your-client-id>
+  client_secret: <optional>   # for confidential clients
+```
+
+| Provider | `provider` value | `tenant` meaning | Example |
+|----------|-----------------|------------------|---------|
+| Google | `google` | — (not needed) | — |
+| Azure AD | `azure` | Azure tenant ID | `a1b2c3d4-...` |
+| GitHub | `github` | — (not needed) | — |
+| GitLab | `gitlab` | GitLab hostname | `gitlab.example.com` |
+| Auth0 | `auth0` | Auth0 domain | `myapp.auth0.com` |
+| Okta | `okta` | Okta domain | `dev-123456.okta.com` |
+| AWS Cognito | `aws` | `region:pool-id` | `us-east-1:abc-123` |
+
+#### Provider aliases
+
+Some providers accept alternative names:
+- `microsoft`, `entra`, `aad` → `azure`
+- `cognito` → `aws`
+
+### OIDC Provider (custom)
+
+For providers not in the preset list, or for full control:
+
+```yaml
+auth:
+  oidc:
+    issuer: https://accounts.google.com
+    audience: your-client-id
+    client_secret: optional-secret        # for confidential clients
+    tenant_claim: tid                      # JWT claim for tenant ID
+    group_claim: groups                    # JWT claim for group membership
+    required_groups:                       # restrict to specific groups
+      - engineering
+      - admins
+```
+
+> **Note**: If both `provider` and `oidc` are specified, `oidc` takes precedence.
+
+### How it works
+
+1. Server reads `auth:` from `config.yaml` at startup
+2. Registers the OIDC provider with the `OidcValidator`
+3. Frontend detects OIDC is available via `GET /auth/status`
+4. Login page shows OIDC provider button(s)
+5. User authenticates via browser redirect → callback → JWT
+6. JWT validated server-side on every request
+
+---
+
+## Extensions
+
+Extensions are configured under the `extensions:` key:
+
+```yaml
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    timeout: 300
+
+  my-custom-mcp:
+    enabled: true
+    type: sse
+    uri: http://localhost:3001/sse
+    description: "My custom MCP server"
+    display_name: "Custom Extension"
+
+  my-stdio-ext:
+    enabled: true
+    type: stdio
+    cmd: /usr/local/bin/my-mcp-server
+    args:
+      - --port
+      - "3002"
+    env_keys:
+      - MY_API_KEY
+```
+
+### Extension types
+
+| Type | Value | Description |
+|------|-------|-------------|
+| Built-in | `builtin` | Ships with Goose (developer, etc.) |
+| Platform | `platform` | Managed by the platform |
+| SSE | `sse` | Remote MCP server via Server-Sent Events |
+| Stdio | `stdio` | Local MCP server via stdin/stdout |
+
+---
+
+## Full Example
+
+```yaml
+# Provider
+GOOSE_PROVIDER: custom_claude-opus-4-6
+GOOSE_MODEL: claude-opus-4-6
+
+# Security (optional — defaults to 'local')
+# GOOSE_SECURITY_MODE: team
+
+# Auth (optional — defaults to guest)
+# auth:
+#   provider: azure
+#   tenant: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+#   client_id: your-app-client-id
+
+# Extensions
+extensions:
+  developer:
+    enabled: true
+    type: builtin
+    timeout: 300
+
+  skills:
+    enabled: true
+    type: platform
+    bundled: true
+
+  extensionmanager:
+    display_name: Extension Manager
+    enabled: true
+    type: platform
+    bundled: true
+```
+
+---
+
+## File Locations
+
+| File | Purpose |
+|------|---------|
+| `~/.config/goose/config.yaml` | Main configuration |
+| `~/.config/goose/secrets.yaml` | Secrets fallback (when keyring disabled) |
+| `~/.config/goose/custom_providers/*.json` | Custom AI provider definitions |
+| `~/.config/goose/.goosehints` | Global goosehints |
+| `.goosehints` | Per-project goosehints (in project root) |
+
+---
+
+## Environment Variables
+
+These override config.yaml values:
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `GOOSE_PROVIDER` | AI provider name | (none — must be set) |
+| `GOOSE_MODEL` | Model name | Provider default |
+| `GOOSE_SECURITY_MODE` | Security mode | `local` (auto-detected) |
+| `GOOSE_DISABLE_KEYRING` | Use `secrets.yaml` instead of keyring | (unset = use keyring) |
+| `GOOSE_SERVER__SECRET_KEY` | Server secret key | `test` |
+| `GOOSE_OIDC_ISSUER_URL` | OIDC issuer (triggers enterprise mode) | (unset) |
+| `GOOSE_WORKING_DIR` | Default working directory | Current directory |
