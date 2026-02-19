@@ -1,5 +1,6 @@
-import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
+// biome-ignore lint/style/useImportType: React must be imported before Radix UI primitives
 import * as React from 'react';
+import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 
 type ScrollBehavior = 'auto' | 'smooth';
 
@@ -158,33 +159,41 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
       }
     }, [isAtBottom, setFollowing, setScrolled]);
 
-    // Auto-scroll when content changes and user is following
+    // Auto-scroll when content changes and user is following.
+    // Uses ResizeObserver on the viewport's scroll container instead of
+    // depending on `children` (which is a new reference every render and
+    // can trigger infinite setState loops via Radix's internal setRef).
     React.useEffect(() => {
       if (!autoScroll || !viewportRef.current) return;
 
       const viewport = viewportRef.current;
-      const currentScrollHeight = viewport.scrollHeight;
+      // The actual scrollable content is the first child of the Radix viewport
+      const scrollContent = viewport.firstElementChild;
+      if (!scrollContent) return;
 
-      if (
-        currentScrollHeight > lastScrollHeightRef.current &&
-        isFollowingRef.current &&
-        !userScrolledUpRef.current &&
-        !isActivelyScrollingRef.current
-      ) {
-        requestAnimationFrame(() => {
-          if (viewportRef.current && !isActivelyScrollingRef.current) {
-            viewportRef.current.scrollTo({
-              top: viewportRef.current.scrollHeight,
-              behavior: 'smooth',
-            });
-          }
-        });
-      }
+      const observer = new ResizeObserver(() => {
+        const currentScrollHeight = viewport.scrollHeight;
+        if (
+          currentScrollHeight > lastScrollHeightRef.current &&
+          isFollowingRef.current &&
+          !userScrolledUpRef.current &&
+          !isActivelyScrollingRef.current
+        ) {
+          requestAnimationFrame(() => {
+            if (viewportRef.current && !isActivelyScrollingRef.current) {
+              viewportRef.current.scrollTo({
+                top: viewportRef.current.scrollHeight,
+                behavior: 'smooth',
+              });
+            }
+          });
+        }
+        lastScrollHeightRef.current = currentScrollHeight;
+      });
 
-      lastScrollHeightRef.current = currentScrollHeight;
-      // children is intentionally in deps to trigger auto-scroll on content changes
-      // biome-ignore lint/correctness/useExhaustiveDependencies: children drives content-change detection for auto-scroll
-    }, [children, autoScroll]);
+      observer.observe(scrollContent);
+      return () => observer.disconnect();
+    }, [autoScroll]);
 
     // Add scroll event listener
     React.useEffect(() => {
