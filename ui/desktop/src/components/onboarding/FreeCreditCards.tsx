@@ -86,7 +86,7 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
   return (
     <div>
       <div className="p-4 border rounded-xl bg-background-muted">
-        <p className="text-xs text-text-muted mb-4">Choose a provider to get started.</p>
+        <p className="text-sm text-text-muted mb-4">Choose a provider to get started.</p>
 
         <div className="flex flex-col gap-3">
           {/* Tetrate */}
@@ -97,7 +97,7 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
             <div className="flex items-start justify-between mb-1">
               <div className="flex items-center gap-2">
                 <Tetrate className="w-5 h-5 text-text-default" />
-                <span className="font-medium text-text-default text-sm">
+                <span className="font-medium text-text-default text-base">
                   Agent Router by Tetrate
                 </span>
               </div>
@@ -105,7 +105,7 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
                 <ChevronRight />
               </div>
             </div>
-            <p className="text-text-muted text-xs">
+            <p className="text-text-muted text-sm">
               Access multiple AI models with automatic setup. Sign up to receive $10 credit.
             </p>
           </div>
@@ -120,13 +120,13 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
                 <span className="w-5 h-5 flex items-center justify-center text-text-default text-xs font-bold">
                   N
                 </span>
-                <span className="font-medium text-text-default text-sm">NanoGPT</span>
+                <span className="font-medium text-text-default text-base">NanoGPT</span>
               </div>
               <div className="text-text-muted group-hover:text-text-default transition-colors">
                 <ChevronRight />
               </div>
             </div>
-            <p className="text-text-muted text-xs">
+            <p className="text-text-muted text-sm">
               Sign up to receive 60M free tokens for 7 days.
             </p>
           </div>
