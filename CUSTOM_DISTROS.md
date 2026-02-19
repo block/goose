@@ -273,9 +273,8 @@ You are an AI assistant called [YourName], created by [YourCompany].
    - Feature visibility
 
 5. **Align packaging and updater names** when rebranding:
-   - Update `ui/desktop/package.json` (`productName`, description, and bundle/debug scripts if they assume old app names)
-   - Update Linux desktop templates (`ui/desktop/forge.deb.desktop`, `ui/desktop/forge.rpm.desktop`) to match executable/icon names
-   - Update updater asset matching in `ui/desktop/src/utils/githubUpdater.ts` so release artifact names match your published bundles
+   - Update static branding metadata in `ui/desktop/package.json` (`productName`, description) and Linux desktop templates (`ui/desktop/forge.deb.desktop`, `ui/desktop/forge.rpm.desktop`)
+
    - Set build/release environment variables consistently:
      - `GITHUB_OWNER` and `GITHUB_REPO` for publisher + updater repository lookup
      - `GOOSE_BUNDLE_NAME` for bundle/debug scripts and updater asset naming (defaults to `Goose`)
