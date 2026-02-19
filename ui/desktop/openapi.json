@@ -6345,6 +6345,7 @@
       "AuthStatusResponse": {
         "type": "object",
         "required": [
+          "security_mode",
           "oidc_enabled",
           "provider_count",
           "issuers"
@@ -6362,6 +6363,9 @@
           "provider_count": {
             "type": "integer",
             "minimum": 0
+          },
+          "security_mode": {
+            "type": "string"
           }
         }
       },

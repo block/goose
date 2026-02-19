@@ -23,6 +23,8 @@ interface OidcProvider {
   audience: string;
 }
 
+type SecurityMode = 'local' | 'team' | 'enterprise';
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -30,6 +32,7 @@ interface AuthState {
   isLoading: boolean;
   authRequired: boolean;
   oidcProviders: OidcProvider[];
+  securityMode: SecurityMode;
   error: string | null;
 }
 
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
     authRequired: false,
     oidcProviders: [],
+    securityMode: 'local',
     error: null,
   });
 
@@ -102,6 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const { data: status } = await apiAuthStatus();
+        const mode = (status?.security_mode ?? 'local') as SecurityMode;
+
         if (!status?.oidc_enabled && status?.provider_count === 0) {
           // Auth not configured — skip auth
           setState((prev) => ({
@@ -109,6 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
             authRequired: false,
             isAuthenticated: true,
+            securityMode: mode,
           }));
           return;
         }
@@ -149,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 isLoading: false,
                 authRequired: true,
                 oidcProviders: providers,
+                securityMode: mode,
                 error: null,
               });
               // Schedule refresh based on stored expiry
@@ -172,6 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           isLoading: false,
           authRequired: true,
+          securityMode: mode,
           oidcProviders: providers,
         }));
       } catch {
@@ -244,6 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isLoading: false,
             authRequired: true,
             oidcProviders: state.oidcProviders,
+            securityMode: state.securityMode,
             error: null,
           });
           navigate('/', { replace: true });

@@ -255,6 +255,7 @@ export type AuthStatusResponse = {
     issuers: Array<string>;
     oidc_enabled: boolean;
     provider_count: number;
+    security_mode: string;
 };
 
 export type Author = {

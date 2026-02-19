@@ -5,6 +5,7 @@ use axum::{
     Json, Router,
 };
 use goose::oidc::OidcProviderConfig;
+use goose::policy::SecurityMode;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -56,6 +57,7 @@ pub struct RemoveOidcProviderRequest {
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct AuthStatusResponse {
+    pub security_mode: String,
     pub oidc_enabled: bool,
     pub provider_count: usize,
     pub issuers: Vec<String>,
@@ -141,6 +143,7 @@ pub async fn remove_oidc_provider(
 pub async fn auth_status(State(state): State<Arc<AppState>>) -> Json<AuthStatusResponse> {
     let providers = state.oidc_validator.list_providers().await;
     Json(AuthStatusResponse {
+        security_mode: SecurityMode::detect().to_string(),
         oidc_enabled: !providers.is_empty(),
         provider_count: providers.len(),
         issuers: providers.iter().map(|p| p.issuer.clone()).collect(),
@@ -185,6 +188,7 @@ mod tests {
             .await
             .unwrap();
         let status: AuthStatusResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(status.security_mode, "local");
         assert!(!status.oidc_enabled);
         assert_eq!(status.provider_count, 0);
     }

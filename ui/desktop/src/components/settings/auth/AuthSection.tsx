@@ -1,21 +1,22 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { Button } from '../../ui/atoms/button';
 import { Input } from '../../ui/atoms/input';
 import { Separator } from '../../ui/atoms/separator';
-import { Switch } from '../../ui/atoms/switch';
-import { LoadingState } from '../../ui/design-system/LoadingState';
-import { Shield, LogOut, Key, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
 
 function formatIssuerName(issuer: string): string {
-  if (issuer.includes('accounts.google.com')) return 'Google';
-  if (issuer.includes('github.com')) return 'GitHub';
-  if (issuer.includes('login.microsoftonline.com') || issuer.includes('sts.windows.net'))
-    return 'Microsoft Azure';
-  if (issuer.includes('okta.com')) return 'Okta';
-  if (issuer.includes('auth0.com')) return 'Auth0';
-  if (issuer.includes('gitlab.com')) return 'GitLab';
-  if (issuer.includes('cognito')) return 'AWS Cognito';
+  const known: Record<string, string> = {
+    'accounts.google.com': 'Google',
+    'github.com': 'GitHub',
+    'login.microsoftonline.com': 'Azure AD',
+    'dev-': 'Okta',
+    'okta.com': 'Okta',
+    'auth0.com': 'Auth0',
+    'cognito-idp': 'AWS Cognito',
+  };
+  for (const [pattern, name] of Object.entries(known)) {
+    if (issuer.includes(pattern)) return name;
+  }
   try {
     return new URL(issuer).hostname;
   } catch {
@@ -23,188 +24,213 @@ function formatIssuerName(issuer: string): string {
   }
 }
 
-export default function AuthSection() {
-  const {
-    user,
-    isAuthenticated,
-    authRequired,
-    oidcProviders,
-    loginWithApiKey,
-    loginWithOidc,
-    logout,
-    isLoading,
-  } = useAuth();
-
-  const [apiKey, setApiKey] = useState('');
-  const [apiKeyError, setApiKeyError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleApiKeySubmit = useCallback(async () => {
-    if (!apiKey.trim()) return;
-    setIsSubmitting(true);
-    setApiKeyError('');
-    try {
-      await loginWithApiKey(apiKey.trim());
-      setApiKey('');
-    } catch (err) {
-      setApiKeyError(err instanceof Error ? err.message : 'Authentication failed');
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [apiKey, loginWithApiKey]);
-
-  const handleOidcLogin = useCallback(
-    async (issuer: string) => {
-      try {
-        await loginWithOidc(issuer);
-      } catch (err) {
-        setApiKeyError(err instanceof Error ? err.message : 'SSO login failed');
-      }
+function ModeBadge({ mode }: { mode: string }) {
+  const config: Record<string, { label: string; color: string }> = {
+    local: { label: 'Local', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+    team: { label: 'Team', color: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+    enterprise: {
+      label: 'Enterprise',
+      color: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
     },
-    [loginWithOidc]
+  };
+  const { label, color } = config[mode] ?? config.local;
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${color}`}>
+      {label}
+    </span>
   );
+}
 
-  if (isLoading) {
-    return <LoadingState variant="spinner" />;
-  }
+function AuthStatusCard() {
+  const { user, isAuthenticated, securityMode } = useAuth();
 
   return (
-    <div className="space-y-6">
-      {/* Current Auth Status */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-text-default flex items-center gap-2">
-          <Shield className="h-4 w-4" />
-          Authentication Status
-        </h3>
-        <div className="rounded-lg border border-border-default p-4 bg-background-muted/30">
-          {isAuthenticated && user ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-                <div>
-                  <p className="text-sm font-medium text-text-default">
-                    {user.name || user.id}
-                  </p>
-                  <p className="text-xs text-text-muted">
-                    {user.auth_method === 'guest'
-                      ? 'Guest (no auth)'
-                      : `Authenticated via ${user.auth_method}`}
-                  </p>
-                </div>
-              </div>
-              {user.auth_method !== 'guest' && (
-                <Button variant="outline" size="sm" onClick={logout}>
-                  <LogOut className="h-3.5 w-3.5" />
-                  Sign Out
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-text-muted" />
-              <div>
-                <p className="text-sm font-medium text-text-default">Not authenticated</p>
-                <p className="text-xs text-text-muted">
-                  {authRequired
-                    ? 'Authentication is required to use Goose'
-                    : 'Authentication is optional — running in local mode'}
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-card-foreground">Status</h3>
+        <ModeBadge mode={securityMode} />
       </div>
-
-      <Separator />
-
-      {/* SSO / OIDC Providers */}
-      {oidcProviders && oidcProviders.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium text-text-default flex items-center gap-2">
-            <ExternalLink className="h-4 w-4" />
-            Single Sign-On (SSO)
-          </h3>
-          <p className="text-xs text-text-muted">
-            Sign in with your organization&apos;s identity provider
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {oidcProviders.map((provider) => (
-              <Button
-                key={provider.issuer}
-                variant="outline"
-                size="default"
-                className="justify-start gap-2"
-                onClick={() => handleOidcLogin(provider.issuer)}
-                disabled={isAuthenticated && user?.auth_method !== 'guest'}
-              >
-                <ExternalLink className="h-4 w-4 shrink-0" />
-                <span className="truncate">{formatIssuerName(provider.issuer)}</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* API Key Auth */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-text-default flex items-center gap-2">
-          <Key className="h-4 w-4" />
-          API Key Authentication
-        </h3>
-        <p className="text-xs text-text-muted">
-          Authenticate with a Goose API key for programmatic access
-        </p>
-        <div className="flex gap-2">
-          <Input
-            type="password"
-            placeholder="Enter API key..."
-            value={apiKey}
-            onChange={(e) => {
-              setApiKey(e.target.value);
-              setApiKeyError('');
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && handleApiKeySubmit()}
-            disabled={isSubmitting}
-            className="flex-1"
+      <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <div
+            className={`h-2 w-2 rounded-full ${isAuthenticated ? 'bg-emerald-400' : 'bg-yellow-400'}`}
           />
-          <Button
-            variant="default"
-            size="default"
-            onClick={handleApiKeySubmit}
-            disabled={!apiKey.trim() || isSubmitting}
-          >
-            {isSubmitting ? 'Verifying...' : 'Authenticate'}
-          </Button>
+          <span className="text-sm text-card-foreground">
+            {isAuthenticated ? 'Authenticated' : 'Not authenticated'}
+          </span>
         </div>
-        {apiKeyError && (
-          <p className="text-xs text-red-500 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            {apiKeyError}
-          </p>
+        {user && (
+          <>
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Identity:</span> {user.name || user.id}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              <span className="font-medium">Method:</span> {user.auth_method}
+            </div>
+            {user.tenant && (
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Tenant:</span> {user.tenant}
+              </div>
+            )}
+          </>
         )}
       </div>
+    </div>
+  );
+}
 
-      <Separator />
+function ApiKeyCard() {
+  const { loginWithApiKey, isAuthenticated, user, error } = useAuth();
+  const [apiKey, setApiKey] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-      {/* Auth Requirements Info */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-text-default">Authentication Mode</h3>
-        <div className="rounded-lg border border-border-default p-3 bg-background-muted/30">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-text-default">
-                {authRequired ? 'Enterprise Mode' : 'Local Mode'}
-              </p>
-              <p className="text-xs text-text-muted">
-                {authRequired
-                  ? 'Authentication is required by your organization'
-                  : 'Running locally — authentication is optional'}
-              </p>
+  const isApiKeyAuth = user?.auth_method === 'api_key';
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiKey.trim()) return;
+    setSubmitting(true);
+    try {
+      await loginWithApiKey(apiKey);
+      setApiKey('');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-card-foreground">API Key</h3>
+      <p className="text-xs text-muted-foreground">
+        Authenticate with a shared secret key. Used in all deployment modes.
+      </p>
+      {isAuthenticated && isApiKeyAuth ? (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+          <div className="h-2 w-2 rounded-full bg-emerald-400" />
+          <span className="text-xs text-emerald-400">Connected via API key</span>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-2">
+          <Input
+            type="password"
+            placeholder="Enter API key"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            className="text-sm"
+          />
+          {error && error.includes('Login failed') && (
+            <p className="text-xs text-red-400">{error}</p>
+          )}
+          <Button type="submit" variant="outline" size="sm" disabled={!apiKey.trim() || submitting}>
+            {submitting ? 'Authenticating...' : 'Authenticate'}
+          </Button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function OidcCard() {
+  const { oidcProviders, loginWithOidc, isAuthenticated, user, securityMode } = useAuth();
+
+  if (securityMode === 'local') return null;
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-card-foreground">Single Sign-On (OIDC)</h3>
+      <p className="text-xs text-muted-foreground">
+        Sign in with your organization's identity provider.
+        {securityMode === 'enterprise' && ' Managed by your enterprise admin.'}
+      </p>
+      {oidcProviders.length === 0 ? (
+        <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+          <p className="text-xs text-muted-foreground">
+            No OIDC providers configured.
+            {securityMode === 'team'
+              ? ' Add a provider via the server configuration.'
+              : ' Contact your enterprise administrator.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {isAuthenticated && user?.auth_method === 'oidc' && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
+              <div className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="text-xs text-emerald-400">
+                Signed in via {user.name || 'SSO'}
+              </span>
             </div>
-            <Switch checked={authRequired} disabled variant="mono" />
+          )}
+          {oidcProviders.map((provider) => (
+            <Button
+              key={provider.issuer}
+              variant="outline"
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => loginWithOidc(provider.issuer)}
+              disabled={isAuthenticated && user?.auth_method === 'oidc'}
+            >
+              Sign in with {formatIssuerName(provider.issuer)}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EnterpriseCard() {
+  const { securityMode, user } = useAuth();
+
+  if (securityMode !== 'enterprise') return null;
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-card-foreground">Enterprise</h3>
+      <p className="text-xs text-muted-foreground">
+        Enterprise-managed settings. These values are set by your administrator.
+      </p>
+      <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-2">
+        {user?.tenant && (
+          <div className="text-xs text-muted-foreground">
+            <span className="font-medium">Tenant:</span> {user.tenant}
           </div>
+        )}
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium">Policies:</span> Managed by control plane
+        </div>
+        <div className="text-xs text-muted-foreground">
+          <span className="font-medium">Quotas:</span> Managed by control plane
         </div>
       </div>
+    </div>
+  );
+}
+
+function SignOutCard() {
+  const { isAuthenticated, logout } = useAuth();
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <div className="pt-2">
+      <Button variant="outline" size="sm" onClick={logout} className="text-red-400 hover:text-red-300">
+        Sign out
+      </Button>
+    </div>
+  );
+}
+
+export default function AuthSection() {
+  return (
+    <div className="space-y-6">
+      <AuthStatusCard />
+      <Separator />
+      <ApiKeyCard />
+      <OidcCard />
+      <EnterpriseCard />
+      <Separator />
+      <SignOutCard />
     </div>
   );
 }
