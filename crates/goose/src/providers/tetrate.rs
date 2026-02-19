@@ -1,7 +1,10 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
-use super::openai_compatible::{handle_status_openai_compat, stream_openai_compat};
+use super::openai_compatible::{
+    handle_response_openai_compat, handle_status_openai_compat, map_http_error_to_provider_error,
+    stream_openai_compat,
+};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
@@ -13,9 +16,12 @@ use futures::future::BoxFuture;
 use crate::model::ModelConfig;
 use crate::providers::formats::openai::create_request;
 use rmcp::model::Tool;
+use serde_json::Value;
 
 const TETRATE_PROVIDER_NAME: &str = "tetrate";
-// Tetrate Agent Router Service can run many models, we suggest the default
+pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
+pub const TETRATE_BILLING_URL: &str = "https://router.tetrate.ai/billing";
+
 pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "claude-opus-4-1",
     "claude-3-7-sonnet-latest",
@@ -28,7 +34,6 @@ pub const TETRATE_KNOWN_MODELS: &[&str] = &[
     "gpt-5-nano",
     "gpt-4.1",
 ];
-pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
 
 #[derive(serde::Serialize)]
 pub struct TetrateProvider {
@@ -44,7 +49,6 @@ impl TetrateProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("TETRATE_API_KEY")?;
-        // API host for LLM endpoints (/v1/chat/completions, /v1/models)
         let host: String = config
             .get_param("TETRATE_HOST")
             .unwrap_or_else(|_| "https://api.router.tetrate.ai".to_string());
@@ -60,6 +64,27 @@ impl TetrateProvider {
             supports_streaming: true,
             name: TETRATE_PROVIDER_NAME.to_string(),
         })
+    }
+
+    fn enrich_credits_error(err: ProviderError) -> ProviderError {
+        match err {
+            ProviderError::CreditsExhausted { details, .. } => ProviderError::CreditsExhausted {
+                details,
+                top_up_url: Some(TETRATE_BILLING_URL.to_string()),
+            },
+            other => other,
+        }
+    }
+
+    fn error_from_tetrate_error_payload(payload: Value) -> ProviderError {
+        let code = payload
+            .get("error")
+            .and_then(|e| e.get("code"))
+            .and_then(|c| c.as_u64())
+            .unwrap_or(500) as u16;
+        let status = reqwest::StatusCode::from_u16(code)
+            .unwrap_or(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
+        Self::enrich_credits_error(map_http_error_to_provider_error(status, Some(payload)))
     }
 }
 
@@ -130,7 +155,34 @@ impl Provider for TetrateProvider {
                     .api_client
                     .response_post(Some(session_id), "v1/chat/completions", &payload)
                     .await?;
-                handle_status_openai_compat(resp).await
+                let resp = handle_status_openai_compat(resp)
+                    .await
+                    .map_err(Self::enrich_credits_error)?;
+
+                let is_json = resp
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .map(|v| v.to_ascii_lowercase())
+                    .is_some_and(|v| v.contains("json"));
+
+                if is_json {
+                    // Streaming responses should be SSE; when we get JSON instead, parse it to map
+                    // explicit error payloads and otherwise fail as a protocol mismatch.
+                    let body = handle_response_openai_compat(resp)
+                        .await
+                        .map_err(Self::enrich_credits_error)?;
+                    if body.get("error").is_some() {
+                        return Err(Self::error_from_tetrate_error_payload(body));
+                    }
+
+                    return Err(ProviderError::ExecutionError(
+                        "Expected streaming response but received non-streaming payload"
+                            .to_string(),
+                    ));
+                }
+
+                Ok(resp)
             })
             .await
             .inspect_err(|e| {
@@ -140,69 +192,96 @@ impl Provider for TetrateProvider {
         stream_openai_compat(response, log)
     }
 
-    /// Fetch supported models from Tetrate Agent Router Service API (only models with tool support)
+    /// Fetch supported models from Tetrate Agent Router Service API
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        // Use the existing api_client which already has authentication configured
-        let response = match self
+        let response = self
             .api_client
-            .request(None, "v1/models")
-            .response_get()
+            .response_get(None, "v1/models")
             .await
-        {
-            Ok(response) => response,
-            Err(e) => {
-                return Err(ProviderError::ExecutionError(format!(
-                    "Failed to fetch models from Tetrate API: {}. Please check your API key and account at {}",
-                    e, TETRATE_DOC_URL
-                )));
-            }
-        };
+            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let json = handle_response_openai_compat(response).await?;
 
-        let json: serde_json::Value = response.json().await.map_err(|e| {
-            ProviderError::ExecutionError(format!(
-                "Failed to parse Tetrate API response: {}. Please check your API key and account at {}",
-                e, TETRATE_DOC_URL
-            ))
-        })?;
-
-        // Check for error in response
-        if let Some(err_obj) = json.get("error") {
-            let msg = err_obj
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::ExecutionError(format!(
-                "Tetrate API error: {}. Please check your API key and account at {}",
-                msg, TETRATE_DOC_URL
-            )));
+        // Tetrate can return errors in 200 OK responses, so check explicitly
+        if json.get("error").is_some() {
+            return Err(Self::error_from_tetrate_error_payload(json));
         }
 
-        // The response format from /v1/models is expected to be OpenAI-compatible
-        // It should have a "data" field with an array of model objects
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::ExecutionError(format!(
-                "Tetrate API response missing 'data' field. Please check your API key and account at {}",
-                TETRATE_DOC_URL
-            ))
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
         })?;
-
-        let mut models: Vec<String> = data
+        let mut models: Vec<String> = arr
             .iter()
-            .filter_map(|model| {
-                let id = model.get("id").and_then(|v| v.as_str())?;
-                let supports_computer_use = model
-                    .get("supports_computer_use")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false);
-                if supports_computer_use {
-                    Some(id.to_string())
-                } else {
-                    None
-                }
-            })
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
             .collect();
-
         models.sort();
         Ok(models)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn enrich_adds_dashboard_url() {
+        let err = ProviderError::CreditsExhausted {
+            details: "out of credits".to_string(),
+            top_up_url: None,
+        };
+        match TetrateProvider::enrich_credits_error(err) {
+            ProviderError::CreditsExhausted { top_up_url, .. } => {
+                assert_eq!(
+                    top_up_url.as_deref(),
+                    Some("https://router.tetrate.ai/billing")
+                );
+            }
+            _ => panic!("Expected CreditsExhausted variant"),
+        }
+    }
+
+    #[test]
+    fn enrich_passes_through_other_errors() {
+        let err = ProviderError::ServerError("boom".to_string());
+        assert!(matches!(
+            TetrateProvider::enrich_credits_error(err),
+            ProviderError::ServerError(_)
+        ));
+    }
+
+    #[test]
+    fn error_payload_maps_credits_and_adds_billing_url() {
+        let payload = json!({
+            "error": {
+                "code": 402,
+                "message": "Insufficient credits"
+            }
+        });
+        match TetrateProvider::error_from_tetrate_error_payload(payload) {
+            ProviderError::CreditsExhausted {
+                details,
+                top_up_url,
+            } => {
+                assert!(details.contains("Insufficient credits"));
+                assert_eq!(top_up_url.as_deref(), Some(TETRATE_BILLING_URL));
+            }
+            other => panic!("Expected CreditsExhausted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn error_payload_maps_authentication() {
+        let payload = json!({
+            "error": {
+                "code": 401,
+                "message": "Invalid API key"
+            }
+        });
+        match TetrateProvider::error_from_tetrate_error_payload(payload) {
+            ProviderError::Authentication(msg) => {
+                assert!(msg.contains("Invalid API key"));
+            }
+            other => panic!("Expected Authentication, got {other:?}"),
+        }
     }
 }

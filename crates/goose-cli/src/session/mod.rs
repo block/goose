@@ -45,7 +45,8 @@ use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -967,6 +968,7 @@ impl CliSession {
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
+        let mut prompted_credits_urls: HashSet<String> = HashSet::new();
         let mut thinking_header_shown = false;
 
         use futures::StreamExt;
@@ -1041,6 +1043,11 @@ impl CliSession {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
                                     output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
+                                    maybe_open_credits_top_up_url(
+                                        &message,
+                                        interactive,
+                                        &mut prompted_credits_urls,
+                                    );
                                 }
                             }
                         }
@@ -1449,6 +1456,37 @@ impl CliSession {
 
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
+    }
+}
+
+fn maybe_open_credits_top_up_url(
+    message: &Message,
+    interactive: bool,
+    prompted_credits_urls: &mut HashSet<String>,
+) {
+    if !interactive || !std::io::stdout().is_terminal() {
+        return;
+    }
+
+    let Some(url) = output::get_credits_top_up_url(message) else {
+        return;
+    };
+
+    if !prompted_credits_urls.insert(url.clone()) {
+        return;
+    }
+
+    let should_open = cliclack::confirm("Open the top-up URL in your browser?")
+        .initial_value(false)
+        .interact()
+        .unwrap_or(false);
+
+    if should_open && webbrowser::open(&url).is_err() {
+        output::render_text(
+            "Could not open browser automatically. Visit the URL above.",
+            Some(Color::Yellow),
+            true,
+        );
     }
 }
 
