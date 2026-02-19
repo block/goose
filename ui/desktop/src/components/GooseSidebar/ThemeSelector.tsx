@@ -1,6 +1,6 @@
 import React from 'react';
 import { Moon, Sliders, Sun } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface ThemeSelectorProps {

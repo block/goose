@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { Input } from '../../../../../ui/input';
+import { Input } from '../../../../../ui/atoms/input';
 import { useConfig } from '../../../../../ConfigContext';
 import type { ProviderDetails, ConfigKey } from '../../../../../../api';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/molecules/collapsible';
 
 type ValidationErrors = Record<string, string>;
 

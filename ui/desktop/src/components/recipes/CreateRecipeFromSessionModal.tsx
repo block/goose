@@ -3,7 +3,7 @@ import { useForm } from '@tanstack/react-form';
 import type { Recipe } from '../../recipe';
 import { Geese } from '../icons/Geese';
 import { X, Save, Play, Loader2 } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import type { RecipeFormData } from './shared/recipeFormSchema';
 import { createRecipe } from '../../api/sdk.gen';

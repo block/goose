@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '../../../../ui/button';
+import { Button } from '../../../../ui/atoms/button';
 import clsx from 'clsx';
 import { TooltipWrapper } from './TooltipWrapper';
 import { Check, Rocket, Sliders } from 'lucide-react';

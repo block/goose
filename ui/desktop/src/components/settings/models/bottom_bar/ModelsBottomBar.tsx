@@ -9,7 +9,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../../../ui/dropdown-menu';
+} from '../../../ui/molecules/dropdown-menu';
 import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';

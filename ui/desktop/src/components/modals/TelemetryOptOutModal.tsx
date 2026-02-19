@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BaseModal } from '../ui/BaseModal';
-import { Button } from '../ui/button';
+import { BaseModal } from '../ui/molecules/BaseModal';
+import { Button } from '../ui/atoms/button';
 import { Goose } from '../icons/Goose';
 import { TELEMETRY_UI_ENABLED } from '../../updates';
 import { toastService } from '../../toasts';

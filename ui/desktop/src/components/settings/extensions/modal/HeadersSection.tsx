@@ -1,7 +1,7 @@
 import React from 'react';
-import { Button } from '../../../ui/button';
+import { Button } from '../../../ui/atoms/button';
 import { Plus, X } from 'lucide-react';
-import { Input } from '../../../ui/input';
+import { Input } from '../../../ui/atoms/input';
 import { cn } from '../../../../utils';
 
 interface HeadersSectionProps {

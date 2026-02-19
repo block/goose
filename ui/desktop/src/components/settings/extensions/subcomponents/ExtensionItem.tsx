@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import kebabCase from 'lodash/kebabCase';
-import { Switch } from '../../../ui/switch';
+import { Switch } from '../../../ui/atoms/switch';
 import { Gear } from '../../../icons';
 import type { FixedExtensionEntry } from '../../../ConfigContext';
 import { getSubtitle, getFriendlyTitle } from './ExtensionList';
-import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/molecules/card';
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;

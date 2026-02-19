@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Switch } from '../../ui/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Switch } from '../../ui/atoms/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import { useConfig } from '../../ConfigContext';
 import { TELEMETRY_UI_ENABLED } from '../../../updates';
 import TelemetryOptOutModal from '../../modals/TelemetryOptOutModal';

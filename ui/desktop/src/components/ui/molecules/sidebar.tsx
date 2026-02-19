@@ -6,14 +6,14 @@ import { cva } from 'class-variance-authority';
 import type { VariantProps } from 'class-variance-authority';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 
-import { cn } from '../../utils';
-import { Button } from './button';
-import { Input } from './input';
-import { Separator } from './separator';
+import { cn } from '../../../utils';
+import { Button } from '../atoms/button';
+import { Input } from '../atoms/input';
+import { Separator } from '../atoms/separator';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './sheet';
-import { Skeleton } from './skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './Tooltip';
-import { useIsMobile } from '../../hooks/use-mobile';
+import { Skeleton } from '../atoms/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../atoms/Tooltip';
+import { useIsMobile } from '../../../hooks/use-mobile';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;

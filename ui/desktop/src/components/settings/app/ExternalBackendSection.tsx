@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Switch } from '../../ui/switch';
-import { Input } from '../../ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Switch } from '../../ui/atoms/switch';
+import { Input } from '../../ui/atoms/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import { AlertCircle } from 'lucide-react';
 import type { ExternalGoosedConfig } from '../../../utils/settings';
 import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';

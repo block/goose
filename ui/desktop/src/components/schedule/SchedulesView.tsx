@@ -11,8 +11,8 @@ import {
   inspectRunningJob,
 } from '../../schedule';
 import type { ScheduledJob } from '../../schedule';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
+import { Card } from '../ui/molecules/card';
+import { Button } from '../ui/atoms/button';
 import { TrashIcon } from '../icons/TrashIcon';
 import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from 'lucide-react';
 import { ScheduleModal } from './ScheduleModal';

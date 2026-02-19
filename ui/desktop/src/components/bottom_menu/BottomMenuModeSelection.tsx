@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+} from '../ui/molecules/dropdown-menu';
 import { trackModeChanged } from '../../utils/analytics';
 
 export const BottomMenuModeSelection = () => {

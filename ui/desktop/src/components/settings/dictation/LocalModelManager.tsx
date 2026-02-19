@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Download, Trash2, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 import { useConfig } from '../../ConfigContext';
 import {
   listModels,

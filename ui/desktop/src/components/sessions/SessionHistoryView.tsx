@@ -12,10 +12,10 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { resumeSession } from '../../sessions';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 import { toast } from 'react-toastify';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { ScrollArea } from '../ui/scroll-area';
+import { ScrollArea } from '../ui/atoms/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { createSharedSession } from '../../sharedSessions';
 import { errorMessage } from '../../utils/conversionUtils';
@@ -26,11 +26,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../ui/dialog';
+} from '../ui/molecules/dialog';
 import ProgressiveMessageList from '../ProgressiveMessageList';
 import { SearchView } from '../conversation/SearchView';
-import BackButton from '../ui/BackButton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
+import BackButton from '../ui/molecules/BackButton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
 import type { Message, Session } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
 

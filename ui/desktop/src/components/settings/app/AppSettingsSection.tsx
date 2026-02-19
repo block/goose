@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { Switch } from '../../ui/switch';
-import { Button } from '../../ui/button';
+import { Switch } from '../../ui/atoms/switch';
+import { Button } from '../../ui/atoms/button';
 import { Settings } from 'lucide-react';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
 import UpdateSection from './UpdateSection';
 import TunnelSection from '../tunnel/TunnelSection';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Clock, Send, GripVertical, Zap, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 import type { ImageData } from '../types/message';
 
 export interface QueuedMessage {

@@ -7,8 +7,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from './ui/dialog';
-import { Button } from './ui/button';
+} from './ui/molecules/dialog';
+import { Button } from './ui/atoms/button';
 import { extractExtensionName } from './settings/extensions/utils';
 import { addExtensionFromDeepLink } from './settings/extensions/deeplink';
 import type { ExtensionConfig } from '../api/types.gen';

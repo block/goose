@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 import { Plus } from 'lucide-react';
-import { GPSIcon } from '../../ui/icons';
+import { GPSIcon } from '../../ui/atoms/icons';
 import { useConfig } from '../../ConfigContext';
 import type { FixedExtensionEntry } from '../../ConfigContext';
 import ExtensionList from './subcomponents/ExtensionList';

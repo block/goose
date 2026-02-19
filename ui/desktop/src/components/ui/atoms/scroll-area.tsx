@@ -3,7 +3,7 @@ import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 
 type ScrollBehavior = 'auto' | 'smooth';
 
-import { cn } from '../../utils';
+import { cn } from '../../../utils';
 
 export interface ScrollAreaHandle {
   scrollToBottom: () => void;

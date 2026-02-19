@@ -4,7 +4,7 @@ import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
 import { GoosehintsSection } from './GoosehintsSection';
 import { SpellcheckToggle } from './SpellcheckToggle';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 
 export default function ChatSettingsSection() {
   return (

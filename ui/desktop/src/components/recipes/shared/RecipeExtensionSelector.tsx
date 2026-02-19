@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { ExtensionConfig } from '../../../api';
 import { useConfig } from '../../ConfigContext';
-import { Input } from '../../ui/input';
-import { Switch } from '../../ui/switch';
+import { Input } from '../../ui/atoms/input';
+import { Switch } from '../../ui/atoms/switch';
 import { formatExtensionName } from '../../settings/extensions/subcomponents/ExtensionList';
 
 interface RecipeExtensionSelectorProps {

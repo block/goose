@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/molecules/collapsible';
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 import { startNewSession } from '../sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { formatExtensionErrorMessage } from '../utils/extensionErrorUtils';

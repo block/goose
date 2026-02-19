@@ -6,7 +6,7 @@ import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
 import type { ExtensionConfig } from '../ConfigContext';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 import type { Settings } from '../../api';
 
 import { RecipeFormFields } from './shared/RecipeFormFields';

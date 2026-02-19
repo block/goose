@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bot } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/molecules/dropdown-menu';
 import { listBuiltinAgents, orchestratorStatus } from '../../api';
 
 interface AgentInfo {

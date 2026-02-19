@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Card } from '../../ui/card';
-import { Button } from '../../ui/button';
+import { Card } from '../../ui/molecules/card';
+import { Button } from '../../ui/atoms/button';
 import { ModeSelectionItem } from './ModeSelectionItem';
 import type { GooseMode } from './ModeSelectionItem';
 

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 
 interface SetupModalProps {
   title: string;

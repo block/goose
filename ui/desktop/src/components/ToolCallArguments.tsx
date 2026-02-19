@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import MarkdownContent from './MarkdownContent';
-import Expand from './ui/Expand';
+import Expand from './ui/atoms/Expand';
 
 export type ToolCallArgumentValue =
   | string

@@ -3,8 +3,8 @@ import { ChevronDown } from 'lucide-react';
 import { getDictationConfig } from '../../../api';
 import type { DictationProvider, DictationProviderStatus } from '../../../api';
 import { useConfig } from '../../ConfigContext';
-import { Input } from '../../ui/input';
-import { Button } from '../../ui/button';
+import { Input } from '../../ui/atoms/input';
+import { Button } from '../../ui/atoms/button';
 import { trackSettingToggled } from '../../../utils/analytics';
 import { LocalModelManager } from './LocalModelManager';
 

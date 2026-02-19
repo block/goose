@@ -3,7 +3,7 @@ import { ToolIconWithStatus } from './ToolCallStatusIndicator';
 import type { ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 import { ToolCallArguments } from './ToolCallArguments';
 import type { ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -14,7 +14,7 @@ import type {
   ToolConfirmationData,
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
-import type { LoadingStatus } from './ui/Dot';
+import type { LoadingStatus } from './ui/atoms/Dot';
 import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';

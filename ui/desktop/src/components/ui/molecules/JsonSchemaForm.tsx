@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { Input } from './input';
-import { Button } from './button';
+import { Input } from '../atoms/input';
+import { Button } from '../atoms/button';
 
 interface JsonSchemaProperty {
   type?: string;

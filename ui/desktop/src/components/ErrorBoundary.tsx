@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 import { AlertTriangle } from 'lucide-react';
 import { errorMessage } from '../utils/conversionUtils';
 import { trackErrorWithContext, trackEvent, getErrorType } from '../utils/analytics';

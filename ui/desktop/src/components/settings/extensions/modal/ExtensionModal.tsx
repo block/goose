@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Button } from '../../../ui/button';
+import { Button } from '../../../ui/atoms/button';
 import {
   Dialog,
   DialogContent,
@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../../ui/dialog';
+} from '../../../ui/molecules/dialog';
 import type { ExtensionFormData } from '../utils';
 import EnvVarsSection from './EnvVarsSection';
 import HeadersSection from './HeadersSection';
@@ -16,7 +16,7 @@ import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
 import { upsertConfig } from '../../../../api';
-import { ConfirmationModal } from '../../../ui/ConfirmationModal';
+import { ConfirmationModal } from '../../../ui/molecules/ConfirmationModal';
 
 interface ExtensionModalProps {
   title: string;

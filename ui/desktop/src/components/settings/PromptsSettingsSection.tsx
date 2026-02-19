@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getPrompt, getPrompts, resetPrompt, savePrompt } from '../../api';
 import type { PromptContentResponse, Template } from '../../api';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/molecules/card';
+import { Button } from '../ui/atoms/button';
 import { AlertTriangle, RotateCcw, ArrowLeft } from 'lucide-react';
 import { toast } from 'react-toastify';
 

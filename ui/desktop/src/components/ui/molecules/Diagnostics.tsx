@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { AlertTriangle, Download, Github } from 'lucide-react';
-import { Button } from './button';
-import { toastError } from '../../toasts';
-import { diagnostics, systemInfo } from '../../api';
+import { Button } from '../atoms/button';
+import { toastError } from '../../../toasts';
+import { diagnostics, systemInfo } from '../../../api';
 
 interface DiagnosticsModalProps {
   isOpen: boolean;

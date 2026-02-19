@@ -6,7 +6,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../../ui/dialog';
+} from '../../../ui/molecules/dialog';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import type { ConfigInput } from './subcomponents/forms/DefaultProviderSetupForm';
 import ProviderSetupActions from './subcomponents/ProviderSetupActions';
@@ -18,7 +18,7 @@ import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { removeCustomProvider, configureProviderOauth } from '../../../../api';
 import type { ProviderDetails } from '../../../../api';
-import { Button } from '../../../../components/ui/button';
+import { Button } from '../../../../components/ui/atoms/button';
 
 const formatErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {

@@ -7,7 +7,7 @@ import { AlertType } from './types';
 import type { Alert } from './types';
 import { upsertConfig } from '../../api';
 import { useConfig } from '../ConfigContext';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
   [AlertType.Error]: <IoIosCloseCircle className="h-5 w-5" />,

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Input } from '../../ui/input';
+import { Input } from '../../ui/atoms/input';
 import { Check, Lock, Loader2, AlertCircle } from 'lucide-react';
-import { Switch } from '../../ui/switch';
-import { Button } from '../../ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Switch } from '../../ui/atoms/switch';
+import { Button } from '../../ui/atoms/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import { trackSettingToggled } from '../../../utils/analytics';
 
 export default function SessionSharingSection() {

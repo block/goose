@@ -1,8 +1,8 @@
 import React from 'react';
 import { MessageSquare, AlertCircle } from 'lucide-react';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
+import { Card } from '../ui/molecules/card';
+import { Button } from '../ui/atoms/button';
+import { ScrollArea } from '../ui/atoms/scroll-area';
 import MarkdownContent from '../MarkdownContent';
 import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';

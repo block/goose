@@ -5,9 +5,9 @@ import WelcomeGooseLogo from '../WelcomeGooseLogo';
 import { ProviderCard } from '../settings/providers/subcomponents/ProviderCard';
 import ProviderConfigurationModal from '../settings/providers/modal/ProviderConfiguationModal';
 import type { ProviderDetails } from '../../api';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Separator } from '../ui/separator';
+import { Button } from '../ui/atoms/button';
+import { Input } from '../ui/atoms/input';
+import { Separator } from '../ui/atoms/separator';
 import { Shield, Key, ChevronRight, Check, LogIn, Loader2 } from 'lucide-react';
 
 /* ─── Auth provider helpers ────────────────────────────────────── */

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { BaseModal } from '../ui/BaseModal';
+import { BaseModal } from '../ui/molecules/BaseModal';
 import MarkdownContent from '../MarkdownContent';
 import { ANNOUNCEMENTS_ENABLED } from '../../updates';
 import packageJson from '../../../package.json';
 import { getAnnouncementContent } from '../../../announcements/content';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 
 interface AnnouncementMeta {
   id: string;

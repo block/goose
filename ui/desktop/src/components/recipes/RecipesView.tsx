@@ -18,9 +18,9 @@ import {
   ChevronRight,
   GitBranch,
 } from 'lucide-react';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
-import { Skeleton } from '../ui/skeleton';
+import { Card } from '../ui/molecules/card';
+import { Button } from '../ui/atoms/button';
+import { Skeleton } from '../ui/atoms/skeleton';
 import { PageShell } from '../Layout/PageShell';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
@@ -38,7 +38,7 @@ import { generateDeepLink, encodeRecipe, stripEmptyExtensions } from '../../reci
 import type { Recipe } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/molecules/dialog';
 import { SearchView } from '../conversation/SearchView';
 import cronstrue from 'cronstrue';
 import { getInitialWorkingDir } from '../../utils/workingDir';
@@ -58,7 +58,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from '../ui/dropdown-menu';
+} from '../ui/molecules/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
 import { AppEvents } from '../../constants/events';

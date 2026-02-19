@@ -1,9 +1,9 @@
 import React, { useEffect, useCallback } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { Button } from './button';
+import { Button } from '../atoms/button';
 import type { VariantProps } from 'class-variance-authority';
-import { buttonVariants } from './button';
-import { cn } from '../../utils';
+import { buttonVariants } from '../atoms/button';
+import { cn } from '../../../utils';
 
 interface BackButtonProps extends VariantProps<typeof buttonVariants> {
   onClick?: () => void;

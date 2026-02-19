@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Input } from '../../ui/input';
+import { Input } from '../../ui/atoms/input';
 
 interface ConversationLimitsDropdownProps {
   maxTurns: number;

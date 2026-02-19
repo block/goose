@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ActionRequired } from '../api';
-import JsonSchemaForm from './ui/JsonSchemaForm';
-import type { JsonSchema } from './ui/JsonSchemaForm';
+import JsonSchemaForm from './ui/molecules/JsonSchemaForm';
+import type { JsonSchema } from './ui/molecules/JsonSchemaForm';
 
 const ELICITATION_TIMEOUT_SECONDS = 300;
 

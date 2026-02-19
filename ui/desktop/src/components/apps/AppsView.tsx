@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 import { Download, Play, Upload } from 'lucide-react';
 import { exportApp, importApp, listApps } from '../../api';
 import type { GooseApp } from '../../api';

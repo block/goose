@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 import type { KeyboardShortcuts } from '../../../utils/settings';
 import { getShortcutLabel, formatShortcut } from './KeyboardShortcutsSection';
 

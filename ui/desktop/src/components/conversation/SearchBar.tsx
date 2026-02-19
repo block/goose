@@ -3,7 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
 import debounce from 'lodash/debounce';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 
 /**
  * Props for the SearchBar component

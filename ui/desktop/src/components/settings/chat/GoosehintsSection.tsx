@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 import { FolderKey } from 'lucide-react';
 import { GoosehintsModal } from './GoosehintsModal';
 

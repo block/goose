@@ -9,7 +9,7 @@ import {
 } from '../../ModelAndProviderContext';
 import { toastError } from '../../../toasts';
 
-import { Card, CardContent } from '../../ui/card';
+import { Card, CardContent } from '../../ui/molecules/card';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;

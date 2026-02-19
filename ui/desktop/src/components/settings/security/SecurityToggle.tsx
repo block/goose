@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Switch } from '../../ui/switch';
+import { Switch } from '../../ui/atoms/switch';
 import { useConfig } from '../../ConfigContext';
 import { trackSettingToggled } from '../../../utils/analytics';
 

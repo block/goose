@@ -1,5 +1,5 @@
 import type { SyntheticEvent } from 'react';
-import { Button } from '../../../../ui/button';
+import { Button } from '../../../../ui/atoms/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import type { ConfigKey } from '../../../../../api';
 

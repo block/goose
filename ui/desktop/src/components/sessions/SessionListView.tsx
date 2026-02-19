@@ -16,19 +16,19 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
+import { Card } from '../ui/molecules/card';
+import { Button } from '../ui/atoms/button';
+import { ScrollArea } from '../ui/atoms/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
 import { PageShell } from '../Layout/PageShell';
 import { groupSessionsByDate, groupSessionsByProjectThenDate, type DateGroup, type ProjectGroup } from '../../utils/dateUtils';
 import { errorMessage } from '../../utils/conversionUtils';
-import { Skeleton } from '../ui/skeleton';
+import { Skeleton } from '../ui/atoms/skeleton';
 import { toast } from 'react-toastify';
-import { ConfirmationModal } from '../ui/ConfirmationModal';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
+import { ConfirmationModal } from '../ui/molecules/ConfirmationModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
 import {
   deleteSession,
   exportSession,

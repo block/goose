@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
 import { useConfig } from '../../ConfigContext';
 import type { FixedExtensionEntry } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);

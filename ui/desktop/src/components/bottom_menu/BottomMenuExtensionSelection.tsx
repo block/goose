@@ -1,9 +1,9 @@
 import { AppEvents } from '../../constants/events';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Puzzle } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { Input } from '../ui/input';
-import { Switch } from '../ui/switch';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/molecules/dropdown-menu';
+import { Input } from '../ui/atoms/input';
+import { Switch } from '../ui/atoms/switch';
 import { useConfig } from '../ConfigContext';
 import type { FixedExtensionEntry } from '../ConfigContext';
 import { toastService } from '../../toasts';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Switch } from '../../ui/switch';
+import { Switch } from '../../ui/atoms/switch';
 
 export const SpellcheckToggle = () => {
   const [enabled, setEnabled] = useState(true);

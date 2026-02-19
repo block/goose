@@ -1,4 +1,4 @@
-import { Card } from '../ui/card';
+import { Card } from '../ui/molecules/card';
 import GooseLogo from '../GooseLogo';
 import MarkdownContent from '../MarkdownContent';
 import { substituteParameters } from '../../utils/providerUtils';

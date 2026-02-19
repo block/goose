@@ -8,9 +8,9 @@ import {
   DialogOverlay,
 } from './dialog';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Button } from './button';
-import MarkdownContent from '../MarkdownContent';
-import { cn } from '../../utils';
+import { Button } from '../atoms/button';
+import MarkdownContent from '../../MarkdownContent';
+import { cn } from '../../../utils';
 
 interface RecipeWarningModalProps {
   isOpen: boolean;

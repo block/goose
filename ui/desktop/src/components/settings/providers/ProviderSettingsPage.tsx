@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ScrollArea } from '../../ui/scroll-area';
-import BackButton from '../../ui/BackButton';
+import { ScrollArea } from '../../ui/atoms/scroll-area';
+import BackButton from '../../ui/molecules/BackButton';
 import ProviderGrid from './ProviderGrid';
 import { useConfig } from '../../ConfigContext';
 import type { ProviderDetails } from '../../../api';

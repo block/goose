@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Input } from '../../ui/input';
-import { Button } from '../../ui/button';
+import { Input } from '../../ui/atoms/input';
+import { Button } from '../../ui/atoms/button';
 import { useConfig } from '../../ConfigContext';
 import { cn } from '../../../utils';
 import { Save, RotateCcw, FileText, Settings } from 'lucide-react';
 import { toastSuccess, toastError } from '../../../toasts';
 import { getUiNames, providerPrefixes } from '../../../utils/configUtils';
 import type { ConfigData, ConfigValue } from '../../../types/config';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '../../ui/dialog';
+} from '../../ui/molecules/dialog';
 import { errorMessage } from '../../../utils/conversionUtils';
 
 export default function ConfigSettings() {

@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { detectProvider } from '../api';
 import { Key } from './icons/Key';
 import { ArrowRight } from './icons/ArrowRight';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 
 interface ApiKeyTesterProps {
   onSuccess: (provider: string, model: string, apiKey: string) => void;

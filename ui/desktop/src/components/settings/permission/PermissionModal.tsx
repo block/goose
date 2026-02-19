@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import { getTools, upsertPermissions } from '../../../api';
 import type { PermissionLevel, ToolInfo } from '../../../api';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-} from '../../ui/dropdown-menu';
+} from '../../ui/molecules/dropdown-menu';
 import { useChatContext } from '../../../contexts/ChatContext';
 
 function getFirstSentence(text: string): string {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 interface InstructionsEditorProps {

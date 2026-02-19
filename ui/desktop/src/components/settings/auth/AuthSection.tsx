@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { Button } from '../../ui/button';
-import { Input } from '../../ui/input';
-import { Separator } from '../../ui/separator';
-import { Switch } from '../../ui/switch';
+import { Button } from '../../ui/atoms/button';
+import { Input } from '../../ui/atoms/input';
+import { Separator } from '../../ui/atoms/separator';
+import { Switch } from '../../ui/atoms/switch';
 import { LoadingState } from '../../ui/design-system/LoadingState';
 import { Shield, LogOut, Key, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
 

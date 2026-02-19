@@ -8,7 +8,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-} from '../ui/dialog';
+} from '../ui/molecules/dialog';
 import type { SpawnInstanceRequest } from '../../lib/instances';
 import { providers as fetchProviders, getProviderModels } from '../../api';
 import type { ProviderDetails } from '../../api';

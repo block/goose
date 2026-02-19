@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button } from '../ui/button';
+import { Button } from '../ui/atoms/button';
 
 export default function RecipeActivityEditor({
   activities = [],

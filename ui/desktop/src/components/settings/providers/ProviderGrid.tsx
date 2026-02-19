@@ -8,7 +8,7 @@ import type {
   UpdateCustomProviderRequest,
 } from '../../../api';
 import { Plus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/molecules/dialog';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../ModelAndProviderContext';

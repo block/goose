@@ -8,11 +8,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../../ui/dialog';
-import { Button } from '../../../ui/button';
+} from '../../../ui/molecules/dialog';
+import { Button } from '../../../ui/atoms/button';
 import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
-import { Input } from '../../../ui/input';
-import { Select } from '../../../ui/Select';
+import { Input } from '../../../ui/atoms/input';
+import { Select } from '../../../ui/molecules/Select';
 import { useConfig } from '../../../ConfigContext';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';

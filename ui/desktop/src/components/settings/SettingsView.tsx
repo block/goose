@@ -1,5 +1,5 @@
 import type { View, ViewOptions } from '../../utils/navigationUtils';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/atoms/tabs';
 import ModelsSection from './models/ModelsSection';
 import SessionSharingSection from './sessions/SessionSharingSection';
 import ExternalBackendSection from './app/ExternalBackendSection';

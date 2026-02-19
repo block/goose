@@ -34,8 +34,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
-} from '../ui/sidebar';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+} from '../ui/molecules/sidebar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/molecules/collapsible';
 import { Gear } from '../icons';
 import type { View, ViewOptions } from '../../utils/navigationUtils';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '../../contexts/ChatContext';

@@ -1,4 +1,4 @@
-import { Input } from '../../../ui/input';
+import { Input } from '../../../ui/atoms/input';
 
 interface ExtensionConfigFieldsProps {
   type: 'stdio' | 'sse' | 'streamable_http' | 'builtin';

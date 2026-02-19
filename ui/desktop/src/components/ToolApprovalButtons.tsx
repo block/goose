@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 import { confirmToolAction } from '../api';
 import type { Permission } from '../api';
 

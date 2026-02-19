@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { Parameter } from '../recipe';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 import { getInitialWorkingDir } from '../utils/workingDir';
 
 interface ParameterInputModalProps {

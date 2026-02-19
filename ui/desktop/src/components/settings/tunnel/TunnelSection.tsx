@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Button } from '../../ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { Button } from '../../ui/atoms/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/molecules/dialog';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Loader2,

@@ -1,4 +1,4 @@
-import { Input } from '../../../ui/input';
+import { Input } from '../../../ui/atoms/input';
 
 interface ExtensionTimeoutFieldProps {
   timeout: number;

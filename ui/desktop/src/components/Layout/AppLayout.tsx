@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from '../GooseSidebar/AppSidebar';
 import type { View, ViewOptions } from '../../utils/navigationUtils';
-import { Sidebar, SidebarInset, SidebarProvider } from '../ui/sidebar';
+import { Sidebar, SidebarInset, SidebarProvider } from '../ui/molecules/sidebar';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 import type { UserInput } from '../../types/message';

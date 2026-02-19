@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { X, Brain, Wrench } from 'lucide-react';
 import { useReasoningDetail } from '../contexts/ReasoningDetailContext';
 import MarkdownContent from './MarkdownContent';
-import { ScrollArea } from './ui/scroll-area';
+import { ScrollArea } from './ui/atoms/scroll-area';
 import { cn } from '../utils';
 import GooseMessage from './GooseMessage';
 

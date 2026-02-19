@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Input } from '../../../../../ui/input';
-import { Select } from '../../../../../ui/Select';
-import { Button } from '../../../../../ui/button';
+import { Input } from '../../../../../ui/atoms/input';
+import { Select } from '../../../../../ui/molecules/Select';
+import { Button } from '../../../../../ui/atoms/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
 import type { UpdateCustomProviderRequest } from '../../../../../../api';
 import { Trash2, AlertTriangle } from 'lucide-react';

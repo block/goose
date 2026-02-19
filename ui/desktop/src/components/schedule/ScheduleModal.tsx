@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { FormEvent } from 'react';
-import { Card } from '../ui/card';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+import { Card } from '../ui/molecules/card';
+import { Button } from '../ui/atoms/button';
+import { Input } from '../ui/atoms/input';
 import type { ScheduledJob } from '../../schedule';
 import { CronPicker } from './CronPicker';
 import { parseDeeplink, parseRecipeFromFile } from '../../recipe';

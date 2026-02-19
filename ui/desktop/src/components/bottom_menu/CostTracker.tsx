@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { CoinIcon } from '../icons';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
 import { fetchModelPricing } from '../../utils/pricing';
 import type { PricingData } from '../../api';
 

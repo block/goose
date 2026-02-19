@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FolderDot } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/Tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
 import { updateWorkingDir } from '../../api';
 import { toast } from 'react-toastify';
 import { AppEvents } from '../../constants/events';

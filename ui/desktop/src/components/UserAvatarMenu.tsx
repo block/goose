@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { LogIn, LogOut, Settings, Shield, User } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { Button } from './ui/button';
+import { Button } from './ui/atoms/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,7 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from './ui/dropdown-menu';
+} from './ui/molecules/dropdown-menu';
 
 function getInitials(name: string): string {
   return name

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '../ui/button';
-import { ScrollArea } from '../ui/scroll-area';
-import BackButton from '../ui/BackButton';
-import { Card } from '../ui/card';
+import { Button } from '../ui/atoms/button';
+import { ScrollArea } from '../ui/atoms/scroll-area';
+import BackButton from '../ui/molecules/BackButton';
+import { Card } from '../ui/molecules/card';
 import {
   getScheduleSessions,
   runScheduleNow,

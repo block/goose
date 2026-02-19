@@ -1,7 +1,7 @@
 import { toast } from 'react-toastify';
 import type { ToastOptions } from 'react-toastify';
-import { Button } from './components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/Tooltip';
+import { Button } from './components/ui/atoms/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './components/ui/atoms/Tooltip';
 import Copy from './components/icons/Copy';
 import { startNewSession } from './sessions';
 import { useNavigation } from './hooks/useNavigation';

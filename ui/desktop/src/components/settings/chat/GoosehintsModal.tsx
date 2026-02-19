@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Button } from '../../ui/button';
+import { Button } from '../../ui/atoms/button';
 import { Check } from '../../icons';
 import {
   Dialog,
@@ -8,7 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../ui/dialog';
+} from '../../ui/molecules/dialog';
 
 const HelpText = () => (
   <div className="text-sm flex-col space-y-4 text-text-muted">

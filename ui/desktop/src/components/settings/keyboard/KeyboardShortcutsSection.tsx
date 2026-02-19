@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
-import { Button } from '../../ui/button';
-import { Switch } from '../../ui/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/molecules/card';
+import { Button } from '../../ui/atoms/button';
+import { Switch } from '../../ui/atoms/switch';
 import { ShortcutRecorder } from './ShortcutRecorder';
 import { defaultKeyboardShortcuts } from '../../../utils/settings';
 import type { KeyboardShortcuts } from '../../../utils/settings';
