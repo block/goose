@@ -6,7 +6,7 @@ import { cn } from '../../utils';
 import { Badge } from '../ui/atoms/Badge';
 import { StatusDot } from '../ui/atoms/StatusDot';
 import { ScrollArea } from '../ui/atoms/scroll-area';
-import { ActivityStep } from '../ui/molecules/ActivityStep';
+import { ActivityStep, ThinkingEntry } from '../ui/molecules/ActivityStep';
 import MarkdownContent from './MarkdownContent';
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -66,22 +66,87 @@ function describeToolArgs(name: string, args: Record<string, unknown>): string {
   return display;
 }
 
-interface ActivityEntry {
-  kind: 'tool' | 'thinking';
+// ── Activity Entry types ────────────────────────────────────────────
+
+export interface ToolActivityEntry {
+  kind: 'tool';
   id: string;
-  toolName?: string;
+  toolName: string;
+  description: string;
+  isActive: boolean;
+  toolArgs?: Record<string, unknown>;
+  toolResult?: string;
+  isError: boolean;
+  errorMessage?: string;
+}
+
+interface ThinkingActivityEntry {
+  kind: 'thinking';
+  id: string;
   description: string;
   isActive: boolean;
 }
 
-/** Extract first complete sentence from text, stripping markdown. */
+type ActivityEntry = ToolActivityEntry | ThinkingActivityEntry;
+
+// ── Tool response pairing ───────────────────────────────────────────
+
+type ToolResponseInfo = { resultText: string; isError: boolean; errorMessage?: string };
+type ToolResponseMap = Map<string, ToolResponseInfo>;
+
+export function buildToolResponseMap(messages: Message[]): ToolResponseMap {
+  const map: ToolResponseMap = new Map();
+
+  for (const msg of messages) {
+    if (msg.role !== 'user') continue;
+    if (!Array.isArray(msg.content)) continue;
+
+    for (const c of msg.content) {
+      if (typeof c !== 'object' || c === null || !('type' in c)) continue;
+      if ((c as { type: string }).type !== 'toolResponse') continue;
+
+      const resp = c as {
+        id?: string;
+        toolResult?: {
+          status?: string;
+          value?: { content?: Array<{ text?: string }> };
+        };
+      };
+
+      const id = resp.id;
+      if (!id) continue;
+
+      const status = resp.toolResult?.status;
+      const isError = status === 'error';
+      const contentArr = resp.toolResult?.value?.content || [];
+
+      const textParts: string[] = [];
+      for (const item of contentArr) {
+        if (item && typeof item.text === 'string') {
+          textParts.push(item.text);
+        }
+      }
+
+      const resultText = textParts.join('\n');
+      map.set(id, {
+        resultText,
+        isError,
+        errorMessage: isError ? resultText : undefined,
+      });
+    }
+  }
+
+  return map;
+}
+
+// ── Extract activity entries ────────────────────────────────────────
+
 function firstSentence(text: string): string | null {
   const cleaned = text
     .replace(/```[\s\S]*?```/g, '')
     .replace(/[#*_`~>]/g, '')
     .replace(/\n+/g, ' ')
     .trim();
-  // Split on sentence-ending punctuation
   const match = cleaned.match(/^(.+?[.!?:—])\s/);
   const sentence = match ? match[1].trim() : null;
   if (sentence && sentence.length > 5) {
@@ -90,9 +155,9 @@ function firstSentence(text: string): string | null {
   return null;
 }
 
-/** Extract a compact list of activity entries from work block messages. */
-function extractActivityEntries(messages: Message[], isStreaming: boolean): ActivityEntry[] {
+export function extractActivityEntries(messages: Message[], isStreaming: boolean): ActivityEntry[] {
   const entries: ActivityEntry[] = [];
+  const responseMap = buildToolResponseMap(messages);
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -105,22 +170,19 @@ function extractActivityEntries(messages: Message[], isStreaming: boolean): Acti
     const isStreamingMsg = isStreaming && isLastMsg;
 
     const hasToolRequest = content.some(
-      (c) => typeof c === 'object' && c !== null && 'type' in c && c.type === 'toolRequest'
+      (c) =>
+        typeof c === 'object' && c !== null && 'type' in c && (c as { type: string }).type === 'toolRequest'
     );
 
     for (const c of content) {
       if (typeof c !== 'object' || c === null || !('type' in c)) continue;
+      const cTyped = c as { type: string; text?: string; id?: string; toolCall?: unknown };
 
-      if (c.type === 'text' && hasToolRequest) {
-        const text = 'text' in c && typeof c.text === 'string' ? c.text.trim() : '';
+      if (cTyped.type === 'text' && hasToolRequest) {
+        const text = typeof cTyped.text === 'string' ? cTyped.text.trim() : '';
 
-        if (isStreamingMsg) {
-          // During streaming, the text is partial — skip to avoid flickering.
-          // A "Thinking…" placeholder is shown via the active tool spinner.
-          continue;
-        }
+        if (isStreamingMsg) continue;
 
-        // Completed message — extract first complete sentence
         if (text.length > 10) {
           const sentence = firstSentence(text);
           if (sentence) {
@@ -134,26 +196,29 @@ function extractActivityEntries(messages: Message[], isStreaming: boolean): Acti
         }
       }
 
-      if (c.type === 'toolRequest') {
-        const toolCall = (
-          c as {
-            toolCall?: {
-              status?: string;
-              value?: { name?: string; arguments?: Record<string, unknown> };
-            };
-          }
-        ).toolCall;
+      if (cTyped.type === 'toolRequest') {
+        const toolCall = cTyped.toolCall as {
+          status?: string;
+          value?: { name?: string; arguments?: Record<string, unknown> };
+        } | undefined;
+        const requestId = cTyped.id;
         const name = toolCall?.value?.name || 'unknown';
         const args = (toolCall?.value?.arguments || {}) as Record<string, unknown>;
         const isPending = !toolCall?.status || toolCall.status === 'pending';
         const isActive = isStreamingMsg && isPending;
 
+        const pairedResponse = requestId ? responseMap.get(requestId) : undefined;
+
         entries.push({
           kind: 'tool',
-          id: `tool-${(c as { id?: string }).id || `${i}-${entries.length}`}`,
+          id: `tool-${requestId || `${i}-${entries.length}`}`,
           toolName: name,
           description: describeToolArgs(name, args),
           isActive,
+          toolArgs: args,
+          toolResult: pairedResponse?.resultText,
+          isError: pairedResponse?.isError ?? false,
+          errorMessage: pairedResponse?.errorMessage,
         });
       }
     }
@@ -169,34 +234,31 @@ export default function ReasoningDetailPanel() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const rafId = useRef<number | null>(null);
 
-  const isWorkBlock = panelDetail?.type === 'workblock';
-  const isReasoning = panelDetail?.type === 'reasoning' || (!panelDetail && detail);
+  const isWorkBlock = panelDetail !== null && panelDetail.type === 'workblock';
+  const isReasoning = panelDetail !== null && panelDetail.type === 'reasoning';
 
-  const isWorkBlockStreaming = isWorkBlock && (panelDetail.data.isStreaming ?? false);
-  const isReasoningStreaming = isReasoning && detail?.title === 'Thinking...';
-  const isLiveStreaming = isWorkBlockStreaming || isReasoningStreaming;
+  const workBlockData = isWorkBlock ? panelDetail.data : null;
+  const reasoningData = isReasoning ? panelDetail.data : null;
 
-  const title = isWorkBlock ? panelDetail.data.title || 'Activity' : detail?.title || 'Details';
+  const isLiveStreaming = workBlockData?.isStreaming ?? false;
+
+  const title = workBlockData
+    ? workBlockData.title || 'Work Block'
+    : detail?.title || 'Reasoning';
 
   const showAgentBadge =
-    isWorkBlock &&
-    panelDetail.data.showAgentBadge !== false &&
-    panelDetail.data.agentName &&
-    panelDetail.data.agentName !== 'Goose' &&
-    panelDetail.data.agentName !== 'Goose Agent';
+    workBlockData && workBlockData.agentName && workBlockData.agentName !== 'default';
 
-  // Extract compact activity entries from messages
   const activityEntries = useMemo(() => {
-    if (!isWorkBlock || !panelDetail.data.messages) return [];
-    return extractActivityEntries(panelDetail.data.messages, isWorkBlockStreaming);
-  }, [isWorkBlock, panelDetail, isWorkBlockStreaming]);
+    if (!workBlockData) return [];
+    return extractActivityEntries(workBlockData.messages, !!isLiveStreaming);
+  }, [workBlockData, isLiveStreaming]);
 
-  // Auto-scroll during streaming
   useEffect(() => {
     if (!isLiveStreaming || !bottomRef.current) return;
 
     const scroll = () => {
-      bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       rafId.current = requestAnimationFrame(scroll);
     };
     rafId.current = requestAnimationFrame(scroll);
@@ -237,11 +299,11 @@ export default function ReasoningDetailPanel() {
                 />
               )}
               <h3 className="text-sm font-medium text-text-default truncate">{title}</h3>
-              {showAgentBadge && (
+              {showAgentBadge && workBlockData && (
                 <Badge variant="default" size="sm" className="ml-1">
-                  {panelDetail.data.agentName}
-                  {panelDetail.data.modeName && panelDetail.data.modeName !== 'default'
-                    ? ` / ${panelDetail.data.modeName}`
+                  {workBlockData.agentName}
+                  {workBlockData.modeName && workBlockData.modeName !== 'default'
+                    ? ` / ${workBlockData.modeName}`
                     : ''}
                 </Badge>
               )}
@@ -257,41 +319,38 @@ export default function ReasoningDetailPanel() {
 
           {/* Content */}
           <ScrollArea className="flex-1 min-h-0">
-            {isWorkBlock && panelDetail.data.messages ? (
+            {workBlockData ? (
               <div className="px-3 py-2 space-y-0.5">
-                {/* Status bar */}
-                {panelDetail.data.toolCount > 0 && (
+                {workBlockData.toolCount > 0 && (
                   <div className="flex items-center gap-2 text-xs text-text-muted px-2 py-1.5 mb-1 border-b border-border-default">
-                    <StatusDot status={isWorkBlockStreaming ? 'active' : 'completed'} />
+                    <StatusDot status={isLiveStreaming ? 'active' : 'completed'} />
                     <span>
-                      {panelDetail.data.toolCount} tool
-                      {panelDetail.data.toolCount !== 1 ? 's' : ''} used
+                      {workBlockData.toolCount} tool
+                      {workBlockData.toolCount !== 1 ? 's' : ''} used
                     </span>
                   </div>
                 )}
                 {activityEntries.map((entry) =>
                   entry.kind === 'thinking' ? (
-                    <div
-                      key={entry.id}
-                      className="px-2 py-1 text-xs text-text-muted/70 italic truncate"
-                      title={entry.description}
-                    >
-                      {entry.description}
-                    </div>
+                    <ThinkingEntry key={entry.id} text={entry.description} />
                   ) : (
                     <ActivityStep
                       key={entry.id}
                       description={entry.description}
                       toolName={entry.toolName}
                       isActive={entry.isActive}
+                      toolArgs={entry.toolArgs}
+                      toolResult={entry.toolResult}
+                      isError={entry.isError}
+                      errorMessage={entry.errorMessage}
                     />
                   )
                 )}
                 <div ref={bottomRef} />
               </div>
-            ) : isReasoning && detail ? (
+            ) : reasoningData ? (
               <div className="text-sm text-text-muted/90 px-4 py-4">
-                <MarkdownContent content={detail.content} />
+                <MarkdownContent content={detail?.content ?? ''} />
                 <div ref={bottomRef} />
               </div>
             ) : null}
