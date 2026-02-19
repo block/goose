@@ -238,14 +238,15 @@ async fn serve_guest_html(
                 "strict-origin".parse().unwrap(),
             );
             if !csp.is_empty() {
-                headers.insert(
-                    header::CONTENT_SECURITY_POLICY,
-                    csp.parse().unwrap(),
-                );
+                headers.insert(header::CONTENT_SECURITY_POLICY, csp.parse().unwrap());
             }
             response
         }
-        None => (StatusCode::NOT_FOUND, "Guest content not found or already consumed").into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            "Guest content not found or already consumed",
+        )
+            .into_response(),
     }
 }
 
