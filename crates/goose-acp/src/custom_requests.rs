@@ -20,7 +20,6 @@ pub struct CustomMethodSchema {
 }
 
 /// Add an extension to an active session.
-/// Method: `_agent/extensions/add`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct AddExtensionRequest {
     pub session_id: String,
@@ -29,7 +28,6 @@ pub struct AddExtensionRequest {
 }
 
 /// Remove an extension from an active session.
-/// Method: `_agent/extensions/remove`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RemoveExtensionRequest {
     pub session_id: String,
@@ -37,7 +35,6 @@ pub struct RemoveExtensionRequest {
 }
 
 /// List all tools available in a session.
-/// Method: `_agent/tools`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetToolsRequest {
     pub session_id: String,
@@ -50,7 +47,6 @@ pub struct GetToolsResponse {
 }
 
 /// Read a resource from an extension.
-/// Method: `_agent/resource/read`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ReadResourceRequest {
     pub session_id: String,
@@ -65,7 +61,6 @@ pub struct ReadResourceResponse {
 }
 
 /// Update the working directory for a session.
-/// Method: `_agent/working_dir/update`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct UpdateWorkingDirRequest {
     pub session_id: String,
@@ -73,7 +68,6 @@ pub struct UpdateWorkingDirRequest {
 }
 
 /// Get a session by ID.
-/// Method: `_session/get`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct GetSessionRequest {
     pub session_id: String,
@@ -89,21 +83,18 @@ pub struct GetSessionResponse {
 }
 
 /// List all sessions.
-/// Method: `_session/list`
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct ListSessionsResponse {
     pub sessions: Vec<serde_json::Value>,
 }
 
 /// Delete a session.
-/// Method: `_session/delete`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DeleteSessionRequest {
     pub session_id: String,
 }
 
 /// Export a session as a JSON string.
-/// Method: `_session/export`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ExportSessionRequest {
     pub session_id: String,
@@ -115,7 +106,6 @@ pub struct ExportSessionResponse {
 }
 
 /// Import a session from a JSON string.
-/// Method: `_session/import`
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ImportSessionRequest {
     pub data: String,
@@ -128,7 +118,6 @@ pub struct ImportSessionResponse {
 }
 
 /// List configured extensions and any warnings.
-/// Method: `_config/extensions`
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct GetExtensionsResponse {
     /// Array of ExtensionEntry objects with `enabled` flag and config details.
