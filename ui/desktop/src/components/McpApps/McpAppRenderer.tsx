@@ -325,14 +325,14 @@ export default function McpAppRenderer({
     const minY = PIP_HEIGHT + PIP_MARGIN_BOTTOM - window.innerHeight;
     const maxY = PIP_MARGIN_BOTTOM;
     return {
-      x: Math.max(minX, Math.min(maxX, pos.x)),
-      y: Math.max(minY, Math.min(maxY, pos.y)),
+      x: minX > maxX ? 0 : Math.max(minX, Math.min(maxX, pos.x)),
+      y: minY > maxY ? 0 : Math.max(minY, Math.min(maxY, pos.y)),
     };
   }, []);
 
   const handlePipPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     const { x, y } = pipPositionRef.current;
     pipDragRef.current = { startX: e.clientX, startY: e.clientY, originX: x, originY: y };
   }, []);
@@ -921,6 +921,7 @@ export default function McpAppRenderer({
               onClick={() => changeDisplayMode('pip')}
               className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
               title="Picture-in-Picture"
+              aria-label="Picture-in-Picture"
             >
               <PictureInPicture2 size={16} />
             </button>
@@ -930,6 +931,7 @@ export default function McpAppRenderer({
             onClick={() => changeDisplayMode('inline')}
             className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
             title="Exit fullscreen (Esc)"
+            aria-label="Exit fullscreen"
           >
             <X size={16} />
           </button>
@@ -945,6 +947,7 @@ export default function McpAppRenderer({
               onClick={() => changeDisplayMode('fullscreen')}
               className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
               title="Fullscreen"
+              aria-label="Fullscreen"
             >
               <Maximize2 size={14} />
             </button>
@@ -953,6 +956,7 @@ export default function McpAppRenderer({
             onClick={() => changeDisplayMode('inline')}
             className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
             title="Close"
+            aria-label="Close"
           >
             <X size={14} />
           </button>
@@ -968,6 +972,7 @@ export default function McpAppRenderer({
             onClick={() => changeDisplayMode('fullscreen')}
             className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
             title="Fullscreen"
+            aria-label="Fullscreen"
           >
             <Maximize2 size={14} />
           </button>
@@ -977,6 +982,7 @@ export default function McpAppRenderer({
             onClick={() => changeDisplayMode('pip')}
             className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
             title="Picture-in-Picture"
+            aria-label="Picture-in-Picture"
           >
             <PictureInPicture2 size={14} />
           </button>
@@ -987,13 +993,14 @@ export default function McpAppRenderer({
 
   const isFullscreen = activeDisplayMode === 'fullscreen';
   const isPip = activeDisplayMode === 'pip';
-  const isInline = !isFullscreen && !isPip;
+  const isFillsViewport = isFullscreen || isStandalone;
+  const isInline = !isFillsViewport && !isPip;
 
   // Single stable container — CSS switches between inline/fullscreen/pip positioning.
   // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
     'mcp-app-container bg-background-default [&_iframe]:!w-full',
-    isFullscreen && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
+    isFillsViewport && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
     isPip &&
       'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default shadow-2xl',
     isInline && 'group/mcp-app relative overflow-hidden',
@@ -1003,7 +1010,7 @@ export default function McpAppRenderer({
   );
 
   const containerStyle: React.CSSProperties = {
-    ...(isFullscreen
+    ...(isFillsViewport
       ? {}
       : isPip
         ? {
