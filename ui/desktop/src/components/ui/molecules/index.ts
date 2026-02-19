@@ -1,5 +1,6 @@
 // Molecules — composed UI components
 
+export { ActivityStep, type ActivityStepProps } from './ActivityStep';
 export { default as BackButton } from './BackButton';
 export { BaseModal } from './BaseModal';
 export { ConfirmationModal } from './ConfirmationModal';
