@@ -114,6 +114,7 @@ impl ServerHandler for TutorialServer {
                 name: "goose-tutorial".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },
@@ -185,7 +186,7 @@ mod tests {
         let server = TutorialServer::new();
 
         let params = LoadTutorialParams {
-            name: "non-existent-tutorial".to_string(),
+            name: "nonexistent-tutorial".to_string(),
         };
 
         let result = server.load_tutorial(Parameters(params)).await;

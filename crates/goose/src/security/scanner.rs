@@ -27,6 +27,7 @@ struct DetailedScanResult {
     confidence: f32,
     pattern_matches: Vec<PatternMatch>,
     ml_confidence: Option<f32>,
+    used_pattern_detection: bool,
 }
 
 pub struct PromptInjectionScanner {
@@ -160,9 +161,9 @@ impl PromptInjectionScanner {
             tool_confidence = %tool_result.confidence,
             context_confidence = ?context_result.ml_confidence,
             final_confidence = %final_confidence,
-            has_command_ml = tool_result.ml_confidence.is_some(),
-            has_prompt_ml = context_result.ml_confidence.is_some(),
-            has_patterns = !tool_result.pattern_matches.is_empty(),
+            used_command_ml = tool_result.ml_confidence.is_some(),
+            used_prompt_ml = context_result.ml_confidence.is_some(),
+            used_pattern_detection = tool_result.used_pattern_detection,
             threshold = %threshold,
             malicious = final_confidence >= threshold,
             "Security analysis complete"
@@ -172,6 +173,7 @@ impl PromptInjectionScanner {
             confidence: final_confidence,
             pattern_matches: tool_result.pattern_matches,
             ml_confidence: tool_result.ml_confidence,
+            used_pattern_detection: tool_result.used_pattern_detection,
         };
 
         Ok(ScanResult {
@@ -191,6 +193,7 @@ impl PromptInjectionScanner {
                     confidence: ml_confidence,
                     pattern_matches: Vec::new(),
                     ml_confidence: Some(ml_confidence),
+                    used_pattern_detection: false,
                 });
             }
         }
@@ -200,6 +203,7 @@ impl PromptInjectionScanner {
             confidence: pattern_confidence,
             pattern_matches,
             ml_confidence: None,
+            used_pattern_detection: true,
         })
     }
 
@@ -211,6 +215,7 @@ impl PromptInjectionScanner {
                 confidence: 0.0,
                 pattern_matches: Vec::new(),
                 ml_confidence: None,
+                used_pattern_detection: false,
             });
         };
 
@@ -219,6 +224,7 @@ impl PromptInjectionScanner {
                 confidence: 0.0,
                 pattern_matches: Vec::new(),
                 ml_confidence: None,
+                used_pattern_detection: false,
             });
         }
 
@@ -237,6 +243,7 @@ impl PromptInjectionScanner {
             confidence: max_confidence,
             pattern_matches: Vec::new(),
             ml_confidence: Some(max_confidence),
+            used_pattern_detection: false,
         })
     }
 
@@ -350,6 +357,15 @@ impl PromptInjectionScanner {
     }
 
     fn extract_tool_content(&self, tool_call: &CallToolRequestParams) -> String {
+        if let Some(cmd_str) = tool_call
+            .arguments
+            .as_ref()
+            .and_then(|args| args.get("command"))
+            .and_then(|v| v.as_str())
+        {
+            return cmd_str.to_string();
+        }
+
         let mut s = format!("Tool: {}", tool_call.name);
         if let Some(args) = &tool_call.arguments {
             if let Ok(json) = serde_json::to_string(args) {

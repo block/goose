@@ -9,7 +9,6 @@ use axum::{
 use include_dir::{include_dir, Dir};
 use minijinja::{context, Environment};
 use serde::Deserialize;
-use std::net::SocketAddr;
 use tokio::sync::oneshot;
 
 static TEMPLATES_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/config/signup_tetrate/templates");
@@ -20,14 +19,13 @@ struct CallbackQuery {
     error: Option<String>,
 }
 
-/// Run the callback server on localhost:3000
+/// Run the callback server using the provided listener.
 pub async fn run_callback_server(
+    listener: tokio::net::TcpListener,
     code_tx: oneshot::Sender<String>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> Result<()> {
     let app = Router::new().route("/", get(handle_callback));
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    let listener = tokio::net::TcpListener::bind(addr).await?;
     let state = std::sync::Arc::new(tokio::sync::Mutex::new(Some(code_tx)));
 
     axum::serve(listener, app.with_state(state.clone()).into_make_service())

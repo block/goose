@@ -4,7 +4,10 @@ sidebar_position: 50
 sidebar_label: Subagents
 ---
 
-Subagents are independent instances that execute tasks while keeping your main conversation clean and focused. They bring process isolation and context preservation by offloading work to separate instances. Think of them as temporary assistants that handle specific jobs without cluttering your chat with tool execution details.
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+Subagents are independent instances that execute tasks while keeping your main conversation clean and focused. Think of them as temporary assistants that handle specific jobs, bringing process isolation and context preservation by offloading work to separate instances.
 
 <details>
   <summary>Subagents Walkthrough</summary>
@@ -38,6 +41,31 @@ You can run multiple subagents sequentially or in parallel.
 |------|-------------|------------------|---------|
 | **Sequential** (Default) | Tasks execute one after another | "first...then", "after" | `"First analyze the code, then generate documentation"` |
 | **Parallel** | Tasks execute simultaneously | "parallel", "simultaneously", "at the same time", "concurrently" | `"Create three HTML templates in parallel"` |
+
+## Monitoring Subagent Activity
+
+When goose delegates work to a subagent, you can see the subagent's tool calls in real-time. This transparency helps you understand what the subagent is doing and verify it's on the right track.
+
+<Tabs groupId="interface">
+  <TabItem value="desktop" label="goose Desktop" default>
+    Subagent tool calls appear as expandable sections within the conversation. Click to expand and see the full details of each tool call, including:
+    - The tool name being invoked
+    - Arguments passed to the tool
+    - Tool output and results
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    Subagent tool calls are displayed inline with visual indicators showing the tool name and extension. For example:
+
+    ```text
+    [subagent:16] text_editor | developer
+    ```
+
+    Each tool call shows:
+    - The subagent identifier (e.g., `subagent:16`)
+    - The tool name (e.g., `text_editor`)
+    - The extension providing the tool (e.g., `developer`)
+  </TabItem>
+</Tabs>
 
 :::info
 If a subagent fails or times out (5-minute default), you will receive no output from that subagent. For parallel execution, if any subagent fails, you get results only from the successful ones.
@@ -348,7 +376,7 @@ import agentCoordination from '@site/blog/2025-08-14-agent-coordination-patterns
       title: 'Tutorial: Using Subagents',
       description: 'Spin up a team of subagents to build a fully functional app',
       thumbnailUrl: 'https://block.github.io/goose/assets/images/tutorial-using-subagents-ef265627024db73e73d80e5799ed0c1a.png',
-      linkUrl: '/docs/tutorials/subagents',
+      linkUrl: '/goose/docs/tutorials/subagents',
       date: '2026-01-27',
       duration: '1 hour'
     },

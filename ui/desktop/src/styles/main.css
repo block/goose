@@ -74,7 +74,7 @@
   --border-info: var(--color-blue-200);
 
   --text-default: var(--color-neutral-800);
-  --text-muted: var(--color-neutral-400);
+  --text-muted: var(--color-neutral-600);
   --text-inverse: var(--color-white);
   --text-danger: var(--color-red-200);
   --text-success: var(--color-green-200);
@@ -126,7 +126,7 @@
   --border-info: var(--color-blue-100);
 
   --text-default: var(--color-white);
-  --text-muted: var(--color-neutral-400);
+  --text-muted: var(--color-neutral-300);
   --text-inverse: var(--color-black);
   --text-danger: var(--color-red-100);
   --text-success: var(--color-green-100);

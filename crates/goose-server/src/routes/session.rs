@@ -11,7 +11,6 @@ use axum::{
 };
 use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
-use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionInsights;
 use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
@@ -247,7 +246,9 @@ async fn update_session_user_recipe_values(
                     status,
                 })?;
             if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, false).await {
-                agent.extend_system_prompt(prompt).await;
+                agent
+                    .extend_system_prompt("recipe".to_string(), prompt)
+                    .await;
             }
             Ok(Json(UpdateSessionUserRecipeValuesResponse { recipe }))
         }
@@ -479,10 +480,10 @@ async fn get_session_extensions(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Try to get session-specific extensions, fall back to global config
-    let extensions = EnabledExtensionsState::from_extension_data(&session.extension_data)
-        .map(|state| state.extensions)
-        .unwrap_or_else(goose::config::get_enabled_extensions);
+    let extensions = EnabledExtensionsState::extensions_or_default(
+        Some(&session.extension_data),
+        goose::config::Config::global(),
+    );
 
     Ok(Json(SessionExtensionsResponse { extensions }))
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { errorMessage } from '../utils/conversionUtils';
+import { errorMessage, formatErrorForLogging } from '../utils/conversionUtils';
 import { trackErrorWithContext, trackEvent, getErrorType } from '../utils/analytics';
 
 function getCurrentPage(): string {
@@ -10,7 +10,8 @@ function getCurrentPage(): string {
 
 // Capture unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
-  window.electron.logInfo(`[UNHANDLED REJECTION] ${event.reason}`);
+  const reasonStr = formatErrorForLogging(event.reason);
+  window.electron.logInfo(`[UNHANDLED REJECTION] ${reasonStr}`);
   trackErrorWithContext(event.reason, {
     component: 'global',
     page: getCurrentPage(),

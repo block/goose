@@ -9,6 +9,7 @@ export type SidebarFilterOption = {
 export type SidebarFilterGroup = {
   title: string;
   options: SidebarFilterOption[];
+  maxHeight?: string;
 };
 
 interface SidebarFilterProps {
@@ -33,30 +34,46 @@ export function SidebarFilter({ groups, selectedValues, onChange }: SidebarFilte
           <h3 className="text-lg font-medium mb-4 text-textProminent">
             {group.title}
           </h3>
-          <div className="space-y-2">
-            {group.options.map((option) => (
-              <label
-                key={option.value}
-                className="flex items-center justify-between group cursor-pointer"
-              >
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={(selectedValues[group.title] || []).includes(option.value)}
-                    onChange={() => toggleValue(group.title, option.value)}
-                    className="form-checkbox h-4 w-4 text-purple-600 transition duration-150 ease-in-out"
-                  />
-                  <span className="ml-2 text-sm text-textStandard group-hover:text-textProminent">
-                    {option.label}
-                  </span>
-                </div>
-                {option.count !== undefined && (
-                  <span className="text-sm text-textSubtle">
-                    {option.count}
-                  </span>
-                )}
-              </label>
-            ))}
+          <div className="relative">
+            <div 
+              className={cn(
+                "space-y-2",
+                group.maxHeight,
+                group.maxHeight && "scrollbar-visible"
+              )}
+            >
+              {group.options.map((option) => (
+                <label
+                  key={option.value}
+                  className="flex items-center justify-between group cursor-pointer"
+                >
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={(selectedValues[group.title] || []).includes(option.value)}
+                      onChange={() => toggleValue(group.title, option.value)}
+                      className="form-checkbox h-4 w-4 text-purple-600 transition duration-150 ease-in-out"
+                    />
+                    <span className="ml-2 text-sm text-textStandard group-hover:text-textProminent">
+                      {option.label}
+                    </span>
+                  </div>
+                  {option.count !== undefined && (
+                    <span className="text-sm text-textSubtle">
+                      {option.count}
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+            {group.maxHeight && (
+              <div 
+                className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
+                style={{
+                  background: 'linear-gradient(to top, var(--ifm-background-color, #ffffff) 0%, transparent 100%)'
+                }}
+              />
+            )}
           </div>
         </div>
       ))}

@@ -18,13 +18,11 @@ use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::model::ModelConfig;
-use goose::prompt_template::render_template;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
-use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, Session};
+use goose::session::{EnabledExtensionsState, ExtensionState, Session};
 use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
@@ -32,7 +30,7 @@ use goose::{
 use rmcp::model::{CallToolRequestParams, Content};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -255,18 +253,27 @@ async fn start_agent(
     }
 
     if let Some(recipe) = original_recipe {
-        manager
-            .update(&session.id)
-            .recipe(Some(recipe))
-            .apply()
-            .await
-            .map_err(|err| {
-                error!("Failed to update session with recipe: {}", err);
-                ErrorResponse {
-                    message: format!("Failed to update session with recipe: {}", err),
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
+        let mut update = manager.update(&session.id).recipe(Some(recipe.clone()));
+
+        if let Some(ref settings) = recipe.settings {
+            if let Some(ref provider) = settings.goose_provider {
+                update = update.provider_name(provider);
+
+                if let Some(ref model) = settings.goose_model {
+                    if let Ok(model_config) = ModelConfig::new(model) {
+                        update = update.model_config(model_config);
+                    }
                 }
-            })?;
+            }
+        }
+
+        update.apply().await.map_err(|err| {
+            error!("Failed to update session with recipe: {}", err);
+            ErrorResponse {
+                message: format!("Failed to update session with recipe: {}", err),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+            }
+        })?;
     }
 
     // Refetch session to get all updates
@@ -420,10 +427,6 @@ async fn update_from_session(
             message: format!("Failed to get session: {}", err),
             status: StatusCode::INTERNAL_SERVER_ERROR,
         })?;
-    let context: HashMap<&str, Value> = HashMap::new();
-    let desktop_prompt =
-        render_template("desktop_prompt.md", &context).expect("Prompt should render");
-    let mut update_prompt = desktop_prompt;
     if let Some(recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             &recipe,
@@ -433,11 +436,13 @@ async fn update_from_session(
         {
             Ok(Some(recipe)) => {
                 if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    update_prompt = prompt;
+                    agent
+                        .extend_system_prompt("recipe".to_string(), prompt)
+                        .await;
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - use default prompt
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
@@ -447,7 +452,6 @@ async fn update_from_session(
             }
         }
     }
-    agent.extend_system_prompt(update_prompt).await;
 
     Ok(StatusCode::OK)
 }
@@ -545,15 +549,22 @@ async fn update_agent_provider(
                 format!("Invalid model config: {}", e),
             )
         })?
+        .with_canonical_limits(&payload.provider)
         .with_context_limit(payload.context_limit)
         .with_request_params(payload.request_params);
 
-    let new_provider = create(&payload.provider, model_config).await.map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            format!("Failed to create {} provider: {}", &payload.provider, e),
-        )
-    })?;
+    let extensions =
+        EnabledExtensionsState::for_session(state.session_manager(), &payload.session_id, config)
+            .await;
+
+    let new_provider = create(&payload.provider, model_config, extensions)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to create {} provider: {}", &payload.provider, e),
+            )
+        })?;
 
     agent
         .update_provider(new_provider, &payload.session_id)
@@ -707,11 +718,6 @@ async fn restart_agent_internal(
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;
 
-    let context: HashMap<&str, Value> = HashMap::new();
-    let desktop_prompt =
-        render_template("desktop_prompt.md", &context).expect("Prompt should render");
-    let mut update_prompt = desktop_prompt;
-
     if let Some(ref recipe) = session.recipe {
         match build_recipe_with_parameter_values(
             recipe,
@@ -721,11 +727,13 @@ async fn restart_agent_internal(
         {
             Ok(Some(recipe)) => {
                 if let Some(prompt) = apply_recipe_to_agent(&agent, &recipe, true).await {
-                    update_prompt = prompt;
+                    agent
+                        .extend_system_prompt("recipe".to_string(), prompt)
+                        .await;
                 }
             }
             Ok(None) => {
-                // Recipe has missing parameters - use default prompt
+                // Recipe has missing parameters
             }
             Err(e) => {
                 return Err(ErrorResponse {
@@ -735,7 +743,6 @@ async fn restart_agent_internal(
             }
         }
     }
-    agent.extend_system_prompt(update_prompt).await;
 
     Ok(extension_results)
 }

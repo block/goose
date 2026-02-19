@@ -5,15 +5,12 @@
 _a local, extensible, open source AI agent that automates engineering tasks_
 
 <p align="center">
-  <a href="https://opensource.org/licenses/Apache-2.0">
-    <img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg">
-  </a>
-  <a href="https://discord.gg/goose-oss">
-    <img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord">
-  </a>
-  <a href="https://github.com/block/goose/actions/workflows/ci.yml">
-     <img src="https://img.shields.io/github/actions/workflow/status/block/goose/ci.yml?branch=main" alt="CI">
-  </a>
+  <a href="https://opensource.org/licenses/Apache-2.0"
+    ><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <a href="https://discord.gg/goose-oss"
+    ><img src="https://img.shields.io/discord/1287729918100246654?logo=discord&logoColor=white&label=Join+Us&color=blueviolet" alt="Discord"></a>
+  <a href="https://github.com/block/goose/actions/workflows/ci.yml"
+     ><img src="https://img.shields.io/github/actions/workflow/status/block/goose/ci.yml?branch=main" alt="CI"></a>
 </p>
 </div>
 
@@ -32,6 +29,7 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Documentation](https://block.github.io/goose/docs/category/getting-started)
 - [Responsible AI-Assisted Coding Guide](https://github.com/block/goose/blob/main/HOWTOAI.md)
 - [Governance](https://github.com/block/goose/blob/main/GOVERNANCE.md)
+- [Custom Distributions](https://github.com/block/goose/blob/main/CUSTOM_DISTROS.md) - build your own goose distro with preconfigured providers, extensions, and branding
 
 ## Need Help?
 - [Diagnostics & Reporting](https://block.github.io/goose/docs/troubleshooting/diagnostics-and-reporting)

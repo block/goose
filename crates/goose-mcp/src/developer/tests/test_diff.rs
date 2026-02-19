@@ -206,7 +206,7 @@ new file mode 100644
 +new"#;
 
         let history = Arc::new(Mutex::new(HashMap::new()));
-        // For non-existent files, apply_diff will try to apply the patch
+        // For nonexistent files, apply_diff will try to apply the patch
         // which should fail since the file doesn't exist
         let result = apply_diff(&file_path, diff, &history).await;
 

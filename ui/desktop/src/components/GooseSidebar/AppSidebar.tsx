@@ -437,14 +437,16 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     } else {
       isCreatingSessionRef.current = true;
       try {
-        await startNewSession('', setView, getInitialWorkingDir());
+        await startNewSession('', setView, getInitialWorkingDir(), {
+          allExtensions: configContext.extensionsList,
+        });
       } finally {
         setTimeout(() => {
           isCreatingSessionRef.current = false;
         }, 1000);
       }
     }
-  }, [setView, clearUnread]);
+  }, [setView, clearUnread, configContext.extensionsList]);
 
   useEffect(() => {
     const handleTriggerNewChat = () => {

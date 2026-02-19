@@ -62,7 +62,7 @@ In goose, we use a structured RPI workflow using recipes to systematically tackl
 │                           RPI WORKFLOW                                       │
 ├─────────────────────────────────────────────────────────────────────────────-┤
 │                                                                              │
-│  /research_codebase "topic"                                                           │
+│  /research_codebase "topic"                                                  │
 │       │                                                                      │
 │       ├──► Spawns parallel sub-agents:                                       │
 │       │    • find_files (rpi-codebase-locator)                               │
@@ -71,7 +71,7 @@ In goose, we use a structured RPI workflow using recipes to systematically tackl
 │       │                                                                      │
 │       └──► Output: thoughts/research/YYYY-MM-DD-HHmm-topic.md                │
 │                                                                              │
-│  /create_plan "feature/task"                                                        │
+│  /create_plan "feature/task"                                                 │
 │       │                                                                      │
 │       ├──► Reads research docs                                               │
 │       ├──► Asks clarifying questions                                         │
@@ -79,7 +79,7 @@ In goose, we use a structured RPI workflow using recipes to systematically tackl
 │       │                                                                      │
 │       └──► Output: thoughts/plans/YYYY-MM-DD-HHmm-description.md             │
 │                                                                              │
-│  /implement_plan "plan path"                                                      │
+│  /implement_plan "plan path"                                                 │
 │       │                                                                      │
 │       ├──► Executes phase by phase                                           │
 │       ├──► Runs verification after each phase                                │
@@ -87,7 +87,7 @@ In goose, we use a structured RPI workflow using recipes to systematically tackl
 │       │                                                                      │
 │       └──► Working code                                                      │
 │                                                                              │
-│  /iterate_plan "plan path" + feedback                                             │
+│  /iterate_plan "plan path" + feedback                                        │
 │       │                                                                      │
 │       ├──► Researches only what changed                                      │
 │       ├──► Updates the plan surgically                                       │

@@ -94,8 +94,6 @@ The following default templates can be customized.
 | [apps_create.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/apps_create.md) | Prompt for generating new standalone apps (in development) | Desktop only |
 | [apps_iterate.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/apps_iterate.md) | Prompt for updating existing standalone apps (in development) | Desktop only |
 | [compaction.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/compaction.md) | Prompt for summarizing conversation history when context limits are reached | Desktop and CLI |
-| [desktop_prompt.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/desktop_prompt.md) | Context about the user interface and available features | Desktop only |
-| [desktop_recipe_instruction.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/desktop_recipe_instruction.md) | Instructions for executing recipes | Desktop only |
 | [permission_judge.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/permission_judge.md) | Prompt for analyzing tool operations for read-only detection | Desktop and CLI |
 | [plan.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/plan.md) | Instructions for creating detailed, actionable plans with clarifying questions | CLI only |
 | [recipe.md](https://github.com/block/goose/blob/main/crates/goose/src/prompts/recipe.md) | Prompt for generating recipe files from conversations | Desktop and CLI |
@@ -112,6 +110,15 @@ Templates use [Jinja2](https://jinja.palletsprojects.com/) syntax for dynamic co
 - `{% for item in list %}...{% endfor %}` - Loops over items
 
 Check out the default templates (linked to from the [table](#available-prompt-templates) above) to find common variables, such as `{{ extensions }}` and `{{ hints }}`.
+
+#### Escaping Template Variables
+
+If you need to include literal variable syntax in your templates without substitution, wrap it in single quotes:
+
+```markdown
+This will substitute: {{ variable }}
+This will appear literally: {{'{{variable}}'}}
+```
 
 :::warning
 Be careful when modifying template variables, as incorrect changes can break functionality. Test your changes in a new session to ensure they work as expected.

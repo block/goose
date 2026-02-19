@@ -8,12 +8,12 @@ use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
-use crate::agents::code_execution_extension::EXTENSION_NAME as CODE_EXECUTION_EXTENSION;
-use crate::agents::skills_extension::EXTENSION_NAME as SKILLS_EXTENSION;
-use crate::agents::subagent_tool::SUBAGENT_TOOL_NAME;
+use crate::agents::platform_extensions::code_execution;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
-use crate::providers::base::{stream_from_single_message, MessageStream, Provider, ProviderUsage};
+#[cfg(test)]
+use crate::providers::base::stream_from_single_message;
+use crate::providers::base::{MessageStream, Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::providers::toolshim::{
     augment_message_with_tool_calls, convert_tool_messages_to_text,
@@ -31,9 +31,12 @@ async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>)
         return error;
     }
 
-    let Ok(Some(models)) = provider.fetch_recommended_models().await else {
+    let Ok(models) = provider.fetch_recommended_models().await else {
         return error;
     };
+    if models.is_empty() {
+        return error;
+    }
 
     ProviderError::RequestFailed(format!(
         "{}. Available models for this provider: {}",
@@ -145,15 +148,15 @@ impl Agent {
 
         let code_execution_active = self
             .extension_manager
-            .is_extension_enabled(CODE_EXECUTION_EXTENSION)
+            .is_extension_enabled(code_execution::EXTENSION_NAME)
             .await;
         if code_execution_active {
-            let code_exec_prefix = format!("{CODE_EXECUTION_EXTENSION}__");
-            let skills_prefix = format!("{SKILLS_EXTENSION}__");
             tools.retain(|tool| {
-                tool.name.starts_with(&code_exec_prefix)
-                    || tool.name.starts_with(&skills_prefix)
-                    || tool.name == SUBAGENT_TOOL_NAME
+                if let Some(owner) = crate::agents::extension_manager::get_tool_owner(tool) {
+                    crate::agents::extension_manager::is_first_class_extension(&owner)
+                } else {
+                    false
+                }
             });
         }
 
@@ -161,7 +164,10 @@ impl Agent {
         tools.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Prepare system prompt
-        let extensions_info = self.extension_manager.get_extensions_info().await;
+        let extensions_info = self
+            .extension_manager
+            .get_extensions_info(working_dir)
+            .await;
         let (extension_count, tool_count) = self
             .extension_manager
             .get_extension_and_tool_counts(session_id)
@@ -179,7 +185,6 @@ impl Agent {
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
-            .with_enable_subagents(self.subagents_enabled(session_id).await)
             .build();
 
         // Handle toolshim if enabled
@@ -229,35 +234,18 @@ impl Agent {
 
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
-        let stream_result = if provider.supports_streaming() {
-            debug!("WAITING_LLM_STREAM_START");
-            let result = provider
-                .stream(
-                    session_id,
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &tools,
-                )
-                .await;
-            debug!("WAITING_LLM_STREAM_END");
-            result
-        } else {
-            debug!("WAITING_LLM_START");
-            let complete_result = provider
-                .complete(
-                    session_id,
-                    system_prompt.as_str(),
-                    messages_for_provider.messages(),
-                    &tools,
-                )
-                .await;
-            debug!("WAITING_LLM_END");
-
-            match complete_result {
-                Ok((message, usage)) => Ok(stream_from_single_message(message, usage)),
-                Err(e) => Err(e),
-            }
-        };
+        let model_config = provider.get_model_config();
+        debug!("WAITING_LLM_STREAM_START");
+        let stream_result = provider
+            .stream(
+                &model_config,
+                session_id,
+                system_prompt.as_str(),
+                messages_for_provider.messages(),
+                &tools,
+            )
+            .await;
+        debug!("WAITING_LLM_STREAM_END");
 
         // If there was an error creating the stream, return a stream that yields that error
         let mut stream = match stream_result {
@@ -462,18 +450,17 @@ mod tests {
             self.model_config.clone()
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &ModelConfig,
+            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
-        ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-            Ok((
-                Message::assistant().with_text("ok"),
-                ProviderUsage::new("mock".to_string(), Usage::default()),
-            ))
+        ) -> Result<MessageStream, ProviderError> {
+            let message = Message::assistant().with_text("ok");
+            let usage = ProviderUsage::new("mock".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
         }
     }
 

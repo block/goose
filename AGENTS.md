@@ -28,8 +28,7 @@ just record-mcp-tests        # record MCP
 ### Lint/Format
 ```bash
 cargo fmt
-./scripts/clippy-lint.sh
-cargo clippy --fix
+cargo clippy --all-targets -- -D warnings
 ```
 
 ### UI
@@ -63,7 +62,7 @@ ui/desktop/           # Electron app
 # 3. cargo fmt
 # 4. cargo build
 # 5. cargo test -p <crate>
-# 6. ./scripts/clippy-lint.sh
+# 6. cargo clippy --all-targets -- -D warnings
 # 7. [if server] just generate-openapi
 ```
 
@@ -92,7 +91,7 @@ Logging: Clean up existing logs, don't add more unless for errors or security ev
 Never: Edit ui/desktop/openapi.json manually
 Never: Edit Cargo.toml use cargo add
 Never: Skip cargo fmt
-Never: Merge without ./scripts/clippy-lint.sh
+Never: Merge without running clippy
 Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
 
 ## Entry Points

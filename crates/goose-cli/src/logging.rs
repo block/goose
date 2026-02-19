@@ -1,16 +1,13 @@
 use anyhow::{Context, Result};
-use std::sync::Arc;
 use std::sync::Once;
-use tokio::sync::Mutex;
 use tracing_appender::rolling::Rotation;
 use tracing_subscriber::{
     filter::LevelFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer,
     Registry,
 };
 
-use goose::tracing::{langfuse_layer, otlp_layer};
-use goose_bench::bench_session::BenchAgentError;
-use goose_bench::error_capture::ErrorCaptureLayer;
+use goose::otel::otlp;
+use goose::tracing::langfuse_layer;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
@@ -20,26 +17,13 @@ static INIT: Once = Once::new();
 /// - File-based logging with JSON formatting (DEBUG level)
 /// - No console output (all logs go to files only)
 /// - Optional Langfuse integration (DEBUG level)
-/// - Optional error capture layer for benchmarking
-pub fn setup_logging(
-    name: Option<&str>,
-    error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
-) -> Result<()> {
-    setup_logging_internal(name, error_capture, false)
+pub fn setup_logging(name: Option<&str>) -> Result<()> {
+    setup_logging_internal(name, false)
 }
 
 /// Internal function that allows bypassing the Once check for testing
-fn setup_logging_internal(
-    name: Option<&str>,
-    error_capture: Option<Arc<Mutex<Vec<BenchAgentError>>>>,
-    force: bool,
-) -> Result<()> {
+fn setup_logging_internal(name: Option<&str>, force: bool) -> Result<()> {
     let mut result = Ok(());
-
-    // Register the error vector if provided
-    if let Some(errors) = error_capture {
-        ErrorCaptureLayer::register_error_vector(errors);
-    }
 
     let mut setup = || {
         result = (|| {
@@ -84,31 +68,8 @@ fn setup_logging_internal(
                 // Console logging disabled for CLI - all logs go to files only
             ];
 
-            // Only add ErrorCaptureLayer if not in test mode
             if !force {
-                layers.push(ErrorCaptureLayer::new().boxed());
-            }
-
-            if !force {
-                if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) =
-                    otlp_layer::init_otlp()
-                {
-                    layers.push(
-                        otlp_tracing_layer
-                            .with_filter(otlp_layer::create_otlp_tracing_filter())
-                            .boxed(),
-                    );
-                    layers.push(
-                        otlp_metrics_layer
-                            .with_filter(otlp_layer::create_otlp_metrics_filter())
-                            .boxed(),
-                    );
-                    layers.push(
-                        otlp_logs_layer
-                            .with_filter(otlp_layer::create_otlp_logs_filter())
-                            .boxed(),
-                    );
-                }
+                layers.extend(otlp::init_otlp_layers(goose::config::Config::global()));
             }
 
             if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {

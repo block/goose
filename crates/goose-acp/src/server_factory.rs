@@ -1,27 +1,14 @@
 use anyhow::Result;
-use goose::config::paths::Paths;
-use goose::config::Config;
-use goose::model::ModelConfig;
-use goose::providers::create;
+use goose::providers::provider_registry::ProviderConstructor;
 use std::sync::Arc;
 use tracing::info;
 
-use crate::server::{AcpServerConfig, GooseAcpAgent};
+use crate::server::GooseAcpAgent;
 
 pub struct AcpServerFactoryConfig {
     pub builtins: Vec<String>,
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
-}
-
-impl Default for AcpServerFactoryConfig {
-    fn default() -> Self {
-        Self {
-            builtins: vec!["developer".to_string()],
-            data_dir: Paths::data_dir(),
-            config_dir: Paths::config_dir(),
-        }
-    }
 }
 
 pub struct AcpServer {
@@ -34,44 +21,37 @@ impl AcpServer {
     }
 
     pub async fn create_agent(&self) -> Result<Arc<GooseAcpAgent>> {
-        let global_config = Config::global();
+        let config_path = self
+            .config
+            .config_dir
+            .join(goose::config::base::CONFIG_YAML_NAME);
+        let config = goose::config::Config::new(&config_path, "goose")?;
 
-        let provider_name: String = global_config
-            .get_goose_provider()
-            .map_err(|e| anyhow::anyhow!("No provider configured: {}", e))?;
-
-        let model_name: String = global_config
-            .get_goose_model()
-            .map_err(|e| anyhow::anyhow!("No model configured: {}", e))?;
-
-        let model_config = ModelConfig {
-            request_params: None,
-            model_name: model_name.clone(),
-            context_limit: None,
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            fast_model: None,
-        };
-
-        let provider = create(&provider_name, model_config).await?;
-        let goose_mode = global_config
+        let goose_mode = config
             .get_goose_mode()
             .unwrap_or(goose::config::GooseMode::Auto);
+        let disable_session_naming = config.get_goose_disable_session_naming().unwrap_or(false);
 
-        let acp_config = AcpServerConfig {
-            provider,
-            builtins: self.config.builtins.clone(),
-            data_dir: self.config.data_dir.clone(),
-            config_dir: self.config.config_dir.clone(),
+        let config_dir = self.config.config_dir.clone();
+        let provider_factory: ProviderConstructor = Arc::new(move |model_config, extensions| {
+            let config_dir = config_dir.clone();
+            Box::pin(async move {
+                let config_path = config_dir.join(goose::config::base::CONFIG_YAML_NAME);
+                let config = goose::config::Config::new(&config_path, "goose")?;
+                let provider_name = config.get_goose_provider()?;
+                goose::providers::create(&provider_name, model_config, extensions).await
+            })
+        });
+
+        let agent = GooseAcpAgent::new(
+            provider_factory,
+            self.config.builtins.clone(),
+            self.config.data_dir.clone(),
+            self.config.config_dir.clone(),
             goose_mode,
-            disable_session_naming: global_config
-                .get_goose_disable_session_naming()
-                .unwrap_or(false),
-        };
-
-        let agent = GooseAcpAgent::with_config(acp_config).await?;
+            disable_session_naming,
+        )
+        .await?;
         info!("Created new ACP agent");
 
         Ok(Arc::new(agent))

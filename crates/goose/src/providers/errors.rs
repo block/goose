@@ -2,7 +2,7 @@ use reqwest::StatusCode;
 use std::time::Duration;
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, Clone, PartialEq)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
     Authentication(String),
@@ -30,6 +30,12 @@ pub enum ProviderError {
 
     #[error("Unsupported operation: {0}")]
     NotImplemented(String),
+
+    #[error("Credits exhausted: {details}")]
+    CreditsExhausted {
+        details: String,
+        top_up_url: Option<String>,
+    },
 }
 
 impl ProviderError {
@@ -43,6 +49,7 @@ impl ProviderError {
             ProviderError::ExecutionError(_) => "execution",
             ProviderError::UsageError(_) => "usage",
             ProviderError::NotImplemented(_) => "not_implemented",
+            ProviderError::CreditsExhausted { .. } => "credits_exhausted",
         }
     }
 }

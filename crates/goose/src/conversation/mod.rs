@@ -159,7 +159,7 @@ impl<'a> IntoIterator for &'a Conversation {
     }
 }
 
-/// Fix a conversation that we're about to send to an LLM. So the last and first
+/// Fix a conversation that we're about to send to an LLM. So the first and last
 /// messages should always be from the user.
 pub fn fix_conversation(conversation: Conversation) -> (Conversation, Vec<String>) {
     let all_messages = conversation.messages();

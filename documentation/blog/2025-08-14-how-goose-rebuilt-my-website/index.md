@@ -13,7 +13,7 @@ A website to me is a corner of the internet where I can be who I am, share my wo
 
 ## Going Back to My Roots
 
-When I say I was a nerdy blog creator for other people, I mean I was living in the deep-end of HTML and CSS. It was a hobby where I got to create super-customized websites for other nerds like myself on the internet. So it was really bugging me to have a website today that was basically :poopemoji: personified. No character, no style of my own, just a minimal generic layout I was paying a monthly subscription for just to avoid complete embarassment. It's been a decade at least since then, and I was NOT in the mood to sit here and relearn pieces to create a website structure from scratch. I had all the pieces in my drafts, just needed structure.
+When I say I was a nerdy blog creator for other people, I mean I was living in the deep-end of HTML and CSS. It was a hobby where I got to create super-customized websites for other nerds like myself on the internet. So it was really bugging me to have a website today that was basically :poopemoji: personified. No character, no style of my own, just a minimal generic layout I was paying a monthly subscription for just to avoid complete embarrassment. It's been a decade at least since then, and I was NOT in the mood to sit here and relearn pieces to create a website structure from scratch. I had all the pieces in my drafts, just needed structure.
 
 ## The 404 Challenge That Started It All
 
@@ -39,7 +39,7 @@ goose was helping me resolve what felt like an age-old problem, and made it so s
 2. **Review** the site and ask goose to edit or create any pages I needed
 3. **Write content** to fill the different pages of my website (my favorite part)
 
-Then boom, my website was done. No wrestling ancient memories from my mind to relearn CSS, no debugging issues caused by a responsive hover effect I thought was cool at 2 AM, no troubles at all. Goose handled everything. It started with a simple structure, used the styling it came up with from the 404 day challenge, and made changes as I asked for them in conversation. My website went from being embarrasingly empty to being wonderfully designed and easy to edit in *minutes*.
+Then boom, my website was done. No wrestling ancient memories from my mind to relearn CSS, no debugging issues caused by a responsive hover effect I thought was cool at 2 AM, no troubles at all. Goose handled everything. It started with a simple structure, used the styling it came up with from the 404 day challenge, and made changes as I asked for them in conversation. My website went from being embarrassingly empty to being wonderfully designed and easy to edit in *minutes*.
 
 ## Always Use Git
 

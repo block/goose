@@ -133,7 +133,7 @@
   --ifm-navbar-link-hover-color: var(--text-subtle);
   --ifm-link-color: var(--green-for-lightbg);
 
-  /* video adnomition */
+  /* video admonition */
   --ifm-color-video-alert-contrast-background: #edfbf8;
   --ifm-color-video-alert-contrast-foreground: #01523e;
   --ifm-color-video-alert-border: #25c2a0;
@@ -178,7 +178,7 @@
   --button-primary-background: var(--constant-white);
   --ifm-link-color: var(--green-for-darkbg);
 
-  /* video adnomition */
+  /* video admonition */
   --ifm-color-video-alert-contrast-background: #336e62;
   --ifm-color-video-alert-contrast-foreground: rgb(216 251 216);
   --ifm-color-video-alert-border: #99d5c5;
@@ -462,4 +462,34 @@ html, body {
 main {
   max-width: 100%;
   overflow-x: hidden;
+}
+
+/* Custom scrollbar for filter sections */
+.scrollbar-visible {
+  overflow-y: auto;
+}
+
+.scrollbar-visible::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background-color: var(--grey-80);
+  border-radius: 3px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background-color: var(--grey-60);
+}
+
+[data-theme="dark"] .scrollbar-visible::-webkit-scrollbar-thumb {
+  background-color: var(--dark-grey-45);
+}
+
+[data-theme="dark"] .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background-color: var(--dark-grey-60);
 }

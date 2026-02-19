@@ -9,15 +9,13 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
-use super::base::{MessageStream, Provider, ProviderUsage, Usage};
+use super::base::{MessageStream, Provider};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{ImageFormat, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
-};
+use crate::providers::formats::openai::{create_request, response_to_streaming_message};
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -74,45 +72,7 @@ impl Provider for OpenAiCompatibleProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = self.build_request(model_config, system, messages, tools, false)?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        let completions_path = format!("{}chat/completions", self.completions_prefix);
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(session_id, &completions_path, &payload)
-                    .await?;
-                handle_response_openai_compat(resp).await
-            })
-            .await?;
-
-        let response_model = get_model(&response);
-        let message = response_to_message(&response)
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        log.write(&response, Some(&usage))?;
-
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
             .response_get(None, "models")
@@ -128,33 +88,27 @@ impl Provider for OpenAiCompatibleProvider {
             return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        let data = json.get("data").and_then(|v| v.as_array());
-        match data {
-            Some(arr) => {
-                let mut models: Vec<String> = arr
-                    .iter()
-                    .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-                    .collect();
-                models.sort();
-                Ok(Some(models))
-            }
-            None => Ok(None),
-        }
-    }
-
-    fn supports_streaming(&self) -> bool {
-        true
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed("Missing 'data' array in models response".to_string())
+        })?;
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(models)
     }
 
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = self.build_request(&self.model, system, messages, tools, true)?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let payload = self.build_request(model_config, system, messages, tools, true)?;
+        let mut log = RequestLog::start(model_config, &payload)?;
 
         let completions_path = format!("{}chat/completions", self.completions_prefix);
         let response = self
@@ -222,6 +176,10 @@ pub fn map_http_error_to_provider_error(
         StatusCode::NOT_FOUND => {
             ProviderError::RequestFailed(format!("Resource not found (404): {}", extract_message()))
         }
+        StatusCode::PAYMENT_REQUIRED => ProviderError::CreditsExhausted {
+            details: extract_message(),
+            top_up_url: None,
+        },
         StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
             let payload_str = extract_message();
@@ -296,4 +254,68 @@ pub fn stream_openai_compat(
             yield (message, usage);
         }
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use test_case::test_case;
+
+    #[test_case(
+        StatusCode::PAYMENT_REQUIRED,
+        Some(json!({"error": {"message": "Insufficient credits to complete this request"}})),
+        "CreditsExhausted"
+        ; "402 with payload"
+    )]
+    #[test_case(
+        StatusCode::PAYMENT_REQUIRED,
+        None,
+        "CreditsExhausted"
+        ; "402 without payload"
+    )]
+    #[test_case(
+        StatusCode::TOO_MANY_REQUESTS,
+        Some(json!({"error": {"message": "Rate limit exceeded"}})),
+        "RateLimitExceeded"
+        ; "429 rate limit"
+    )]
+    #[test_case(
+        StatusCode::UNAUTHORIZED,
+        None,
+        "Authentication"
+        ; "401 unauthorized"
+    )]
+    #[test_case(
+        StatusCode::BAD_REQUEST,
+        Some(json!({"error": {"message": "This request exceeds the maximum context length"}})),
+        "ContextLengthExceeded"
+        ; "400 context length"
+    )]
+    #[test_case(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        None,
+        "ServerError"
+        ; "500 server error"
+    )]
+    fn http_status_maps_to_expected_error(
+        status: StatusCode,
+        payload: Option<Value>,
+        expected_variant: &str,
+    ) {
+        let err = map_http_error_to_provider_error(status, payload);
+        let actual = err.telemetry_type();
+        let expected_telemetry = match expected_variant {
+            "CreditsExhausted" => "credits_exhausted",
+            "RateLimitExceeded" => "rate_limit",
+            "Authentication" => "auth",
+            "ContextLengthExceeded" => "context_length",
+            "ServerError" => "server",
+            other => panic!("Unknown variant: {other}"),
+        };
+        assert_eq!(
+            actual, expected_telemetry,
+            "Expected {expected_variant}, got error: {err:?}"
+        );
+    }
 }

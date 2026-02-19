@@ -41,7 +41,7 @@ This is an electron forge app, using vite and react.js. `goosed` runs as multi p
 ## Building for different platforms
 
 ### macOS
-`npm run bundle:default` will give you a goose.app/zip which is signed/notarized but only if you setup the env vars as per `forge.config.ts` (you can empty out the section on osxSign if you don't want to sign it) - this will have all defaults.
+`npm run bundle:default` will give you a goose.app/zip which is signed/notarized but only if you set up the env vars as per `forge.config.ts` (you can empty out the section on osxSign if you don't want to sign it) - this will have all defaults.
 
 `npm run bundle:preconfigured` will make a goose.app/zip signed and notarized, but use the following:
 

@@ -1,4 +1,3 @@
-pub mod bench;
 pub mod configure;
 pub mod info;
 pub mod model;

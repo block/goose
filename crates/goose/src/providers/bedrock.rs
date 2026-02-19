@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+};
 use super::errors::ProviderError;
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -275,14 +277,17 @@ impl ProviderDef for BedrockProvider {
             BEDROCK_KNOWN_MODELS.to_vec(),
             BEDROCK_DOC_LINK,
             vec![
-                ConfigKey::new("AWS_PROFILE", false, false, Some("default")),
-                ConfigKey::new("AWS_REGION", false, false, None),
-                ConfigKey::new("AWS_BEARER_TOKEN_BEDROCK", false, true, None),
+                ConfigKey::new("AWS_PROFILE", false, false, Some("default"), true),
+                ConfigKey::new("AWS_REGION", false, false, None, true),
+                ConfigKey::new("AWS_BEARER_TOKEN_BEDROCK", false, true, None, true),
             ],
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -301,18 +306,27 @@ impl Provider for BedrockProvider {
         self.model.clone()
     }
 
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
+    }
+
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let model_name = model_config.model_name.clone();
 
         let (bedrock_message, bedrock_usage) = self
@@ -339,7 +353,10 @@ impl Provider for BedrockProvider {
         )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-        Ok((message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }
 

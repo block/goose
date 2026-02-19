@@ -369,9 +369,6 @@ export function useChatStream({
 
       const isNewSession = sessionId && sessionId.match(/^\d{8}_\d{6}$/);
       if (isNewSession) {
-        console.log(
-          'useChatStream: Message stream finished for new session, emitting message-stream-finished event'
-        );
         window.dispatchEvent(new CustomEvent(AppEvents.MESSAGE_STREAM_FINISHED));
       }
 
@@ -436,6 +433,7 @@ export function useChatStream({
           },
         },
       });
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
       onSessionLoaded?.();
       return;
     }
@@ -463,6 +461,7 @@ export function useChatStream({
         const extensionResults = resumeData?.extension_results;
 
         showExtensionLoadResults(extensionResults);
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
 
         dispatch({
           type: 'SESSION_LOADED',
@@ -591,6 +590,7 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             user_message: newMessage,
+            ...(hasExistingMessages && { conversation_so_far: currentState.messages }),
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -751,55 +751,40 @@ export function useChatStream({
           });
 
           if (sessionResponse.data?.conversation) {
-            const updatedMessages = [...sessionResponse.data.conversation];
+            const truncatedMessages = [...sessionResponse.data.conversation];
+            const updatedUserMessage = createUserMessage(newContent);
 
-            if (updatedMessages.length > 0) {
-              const lastMessage = updatedMessages[updatedMessages.length - 1];
-              if (lastMessage.role === 'user') {
-                lastMessage.content = [{ type: 'text', text: newContent }];
-
-                for (const content of message.content) {
-                  if (content.type === 'image') {
-                    lastMessage.content.push(content);
-                  }
-                }
-
-                dispatch({ type: 'SET_MESSAGES', payload: updatedMessages });
-                dispatch({ type: 'START_STREAMING' });
-                abortControllerRef.current = new AbortController();
-
-                try {
-                  const placeholderMessage = createUserMessage(newContent);
-
-                  const { stream } = await reply({
-                    body: {
-                      session_id: targetSessionId,
-                      user_message: placeholderMessage,
-                    },
-                    throwOnError: true,
-                    signal: abortControllerRef.current.signal,
-                  });
-
-                  await streamFromResponse(
-                    stream,
-                    updatedMessages,
-                    dispatch,
-                    onFinish,
-                    targetSessionId
-                  );
-                } catch (error) {
-                  if (error instanceof Error && error.name === 'AbortError') {
-                    dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
-                  } else {
-                    throw error;
-                  }
-                }
-                return;
+            for (const content of message.content) {
+              if (content.type === 'image') {
+                updatedUserMessage.content.push(content);
               }
             }
 
-            dispatch({ type: 'SET_MESSAGES', payload: sessionResponse.data.conversation });
-            await handleSubmit({ msg: newContent, images: [] });
+            const messagesForUI = [...truncatedMessages, updatedUserMessage];
+            dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
+            dispatch({ type: 'START_STREAMING' });
+
+            abortControllerRef.current = new AbortController();
+
+            try {
+              const { stream } = await reply({
+                body: {
+                  session_id: targetSessionId,
+                  user_message: updatedUserMessage,
+                  conversation_so_far: truncatedMessages,
+                },
+                throwOnError: true,
+                signal: abortControllerRef.current.signal,
+              });
+
+              await streamFromResponse(stream, messagesForUI, dispatch, onFinish, targetSessionId);
+            } catch (error) {
+              if (error instanceof Error && error.name === 'AbortError') {
+                dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
+              } else {
+                throw error;
+              }
+            }
           } else {
             await handleSubmit({ msg: newContent, images: [] });
           }

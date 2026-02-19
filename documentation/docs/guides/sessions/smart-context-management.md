@@ -45,6 +45,10 @@ When you reach the auto-compaction threshold:
 You can customize how goose summarizes conversations during compaction by editing the `compaction.md` [prompt template](/docs/guides/prompt-templates).
 :::
 
+:::tip Tool Output Summarization
+To help maintain efficient context usage, goose summarizes older tool call outputs in the background while keeping recent calls in full detail. By default, this happens when you have more than 10 tool calls in a session. For advanced tuning, see [`GOOSE_TOOL_CALL_CUTOFF`](/docs/guides/environment-variables#session-management).
+:::
+
 ### Manual Compaction
 You can also trigger compaction manually before reaching context or token limits:
 

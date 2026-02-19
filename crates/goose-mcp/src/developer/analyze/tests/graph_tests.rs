@@ -42,7 +42,7 @@ fn test_circular_dependency() {
 fn test_empty_graph() {
     let graph = CallGraph::new();
 
-    // Should return empty results for non-existent symbols
+    // Should return empty results for nonexistent symbols
     let chains = graph.find_incoming_chains("nonexistent", 2);
     assert!(chains.is_empty());
 

@@ -395,11 +395,15 @@ impl ProviderDef for GithubCopilotProvider {
                 true,
                 true,
                 None,
+                false,
             )],
         )
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
+    fn from_env(
+        model: ModelConfig,
+        _extensions: Vec<crate::config::ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
 }
@@ -414,88 +418,88 @@ impl Provider for GithubCopilotProvider {
         self.model.clone()
     }
 
-    fn supports_streaming(&self) -> bool {
-        GITHUB_COPILOT_STREAM_MODELS
-            .iter()
-            .any(|prefix| self.model.model_name.starts_with(prefix))
-    }
-
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(
-            model_config,
-            system,
-            messages,
-            tools,
-            &ImageFormat::OpenAi,
-            false,
-        )?;
-        let mut log = RequestLog::start(model_config, &payload)?;
-
-        // Make request with retry
-        let response = self
-            .with_retry(|| async {
-                let mut payload_clone = payload.clone();
-                self.post(session_id, &mut payload_clone).await
-            })
-            .await?;
-        let response = handle_response_openai_compat(response).await?;
-
-        let response = promote_tool_choice(response);
-
-        // Parse response
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let payload = create_request(
-            &self.model,
-            system,
-            messages,
-            tools,
-            &ImageFormat::OpenAi,
-            true,
-        )?;
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        // Check if this model supports streaming
+        let supports_streaming = GITHUB_COPILOT_STREAM_MODELS
+            .iter()
+            .any(|prefix| model_config.model_name.starts_with(prefix));
 
-        let response = self
-            .with_retry(|| async {
-                let mut payload_clone = payload.clone();
-                let resp = self.post(Some(session_id), &mut payload_clone).await?;
-                handle_status_openai_compat(resp).await
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+        if supports_streaming {
+            // Use streaming API
+            let payload = create_request(
+                model_config,
+                system,
+                messages,
+                tools,
+                &ImageFormat::OpenAi,
+                true,
+            )?;
+            let mut log = RequestLog::start(model_config, &payload)?;
 
-        stream_openai_compat(response, log)
+            let response = self
+                .with_retry(|| async {
+                    let mut payload_clone = payload.clone();
+                    let resp = self.post(Some(session_id), &mut payload_clone).await?;
+                    handle_status_openai_compat(resp).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            stream_openai_compat(response, log)
+        } else {
+            // Use non-streaming API and wrap result
+            let session_id_opt = if session_id.is_empty() {
+                None
+            } else {
+                Some(session_id)
+            };
+            let payload = create_request(
+                model_config,
+                system,
+                messages,
+                tools,
+                &ImageFormat::OpenAi,
+                false,
+            )?;
+            let mut log = RequestLog::start(model_config, &payload)?;
+
+            // Make request with retry
+            let response = self
+                .with_retry(|| async {
+                    let mut payload_clone = payload.clone();
+                    self.post(session_id_opt, &mut payload_clone).await
+                })
+                .await?;
+            let response = handle_response_openai_compat(response).await?;
+
+            let response = promote_tool_choice(response);
+
+            // Parse response
+            let message = response_to_message(&response)?;
+            let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
+                tracing::debug!("Failed to get usage data");
+                Usage::default()
+            });
+            let response_model = get_model(&response);
+            log.write(&response, Some(&usage))?;
+
+            Ok(super::base::stream_from_single_message(
+                message,
+                ProviderUsage::new(response_model, usage),
+            ))
+        }
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let (endpoint, token) = self.get_api_info().await?;
         let url = format!("{}/models", endpoint);
 
@@ -515,10 +519,11 @@ impl Provider for GithubCopilotProvider {
 
         let json: serde_json::Value = response.json().await?;
 
-        let arr = match json.get("data").and_then(|v| v.as_array()) {
-            Some(arr) => arr,
-            None => return Ok(None),
-        };
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed(
+                "Missing 'data' array in GitHub Copilot models response".to_string(),
+            )
+        })?;
         let mut models: Vec<String> = arr
             .iter()
             .filter_map(|m| {
@@ -532,7 +537,7 @@ impl Provider for GithubCopilotProvider {
             })
             .collect();
         models.sort();
-        Ok(Some(models))
+        Ok(models)
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {

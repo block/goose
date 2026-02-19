@@ -46,7 +46,7 @@ already have one. This includes any necessary build tools or dependencies.
 - Always check the reference SDK for typing and correct usage
 - Python: Initialize a project using `uv init $PROJECT NAME`
 - Python: Use `uv add` for all python package management, to keep `pyproject.toml` up to date
-- Typescript: Initialize a project using `npm init -y`
+- TypeScript: Initialize a project using `npm init -y`
 - Kotlin: Use the following `gradle init` command to initialize:
   ```bash
     gradle init \
@@ -223,7 +223,7 @@ Help users test their MCP extension using these steps:
 Instruct users to start a goose session with their extension.
 
 **Important**: You cannot start the goose session for them, as it is interactive. You will have to let them
-know to start it in a terminal. Make sure you include instructions on how to setup the environment
+know to start it in a terminal. Make sure you include instructions on how to set up the environment
 
 ```bash
 # Python example
@@ -388,12 +388,12 @@ When users encounter issues:
 
 3. Always use the reference implementations:
 
-   - Always clone the relevant SDK repo before starting with basic steup
+   - Always clone the relevant SDK repo before starting with basic setup
    - After cloning the relevant SDK, find and `cat` the `README.md` for context
    - Use ripgrep to find specific examples within the reference
    - Reference real implementations rather than making assumptions
 
-4. When building the project, if any compliation or type issues occur, _always_ check the reference SDK before making a fix.
+4. When building the project, if any compilation or type issues occur, _always_ check the reference SDK before making a fix.
 
 5. When helping with implementations:
 

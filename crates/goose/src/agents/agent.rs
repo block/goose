@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -14,16 +15,14 @@ use super::platform_tools;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
 use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
-use crate::agents::extension_manager::{get_parameter_names, ExtensionManager};
-use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
+use crate::agents::extension_manager::{
+    get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
+};
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
 use crate::agents::retry::{RetryManager, RetryResult};
-use crate::agents::subagent_task_config::TaskConfig;
-use crate::agents::subagent_tool::{
-    create_subagent_tool, handle_subagent_tool, SUBAGENT_TOOL_NAME,
-};
 use crate::agents::types::{FrontendTool, SessionConfig, SharedProvider, ToolResultReceiver};
 use crate::config::permission::PermissionManager;
 use crate::config::{get_enabled_extensions, Config, GooseMode};
@@ -42,11 +41,11 @@ use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::Provider;
 use crate::providers::errors::ProviderError;
-use crate::recipe::{Author, Recipe, Response, Settings, SubRecipe};
+use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
-use crate::session::{Session, SessionManager, SessionType};
+use crate::session::{Session, SessionManager};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
@@ -88,6 +87,21 @@ pub struct ExtensionLoadResult {
     pub error: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub enum GoosePlatform {
+    GooseDesktop,
+    GooseCli,
+}
+
+impl fmt::Display for GoosePlatform {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GoosePlatform::GooseCli => write!(f, "goose-cli"),
+            GoosePlatform::GooseDesktop => write!(f, "goose-desktop"),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AgentConfig {
     pub session_manager: Arc<SessionManager>,
@@ -95,6 +109,7 @@ pub struct AgentConfig {
     pub scheduler_service: Option<Arc<dyn SchedulerTrait>>,
     pub goose_mode: GooseMode,
     pub disable_session_naming: bool,
+    pub goose_platform: GoosePlatform,
 }
 
 impl AgentConfig {
@@ -104,6 +119,7 @@ impl AgentConfig {
         scheduler_service: Option<Arc<dyn SchedulerTrait>>,
         goose_mode: GooseMode,
         disable_session_naming: bool,
+        goose_platform: GoosePlatform,
     ) -> Self {
         Self {
             session_manager,
@@ -111,6 +127,7 @@ impl AgentConfig {
             scheduler_service,
             goose_mode,
             disable_session_naming,
+            goose_platform,
         }
     }
 }
@@ -121,7 +138,6 @@ pub struct Agent {
     pub config: AgentConfig,
 
     pub extension_manager: Arc<ExtensionManager>,
-    pub(super) sub_recipes: Mutex<HashMap<String, SubRecipe>>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
     pub(super) frontend_tools: Mutex<HashMap<String, FrontendTool>>,
     pub(super) frontend_instructions: Mutex<Option<String>>,
@@ -195,6 +211,7 @@ impl Agent {
             Config::global()
                 .get_goose_disable_session_naming()
                 .unwrap_or(false),
+            GoosePlatform::GooseCli,
         ))
     }
 
@@ -204,13 +221,22 @@ impl Agent {
         let (tool_tx, tool_rx) = mpsc::channel(32);
         let provider = Arc::new(Mutex::new(None));
 
+        let goose_platform = config.goose_platform.clone();
+        let capabilities = match config.goose_platform {
+            GoosePlatform::GooseDesktop => ExtensionManagerCapabilities { mcpui: true },
+            GoosePlatform::GooseCli => ExtensionManagerCapabilities { mcpui: false },
+        };
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         Self {
             provider: provider.clone(),
             config,
-            extension_manager: Arc::new(ExtensionManager::new(provider.clone(), session_manager)),
-            sub_recipes: Mutex::new(HashMap::new()),
+            extension_manager: Arc::new(ExtensionManager::new(
+                provider.clone(),
+                session_manager,
+                goose_platform.to_string(),
+                capabilities,
+            )),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),
             frontend_instructions: Mutex::new(None),
@@ -449,26 +475,15 @@ impl Agent {
         let created_final_output_tool = FinalOutputTool::new(response);
         let final_output_system_prompt = created_final_output_tool.system_prompt();
         *final_output_tool = Some(created_final_output_tool);
-        self.extend_system_prompt(final_output_system_prompt).await;
-    }
-
-    pub async fn add_sub_recipes(&self, sub_recipes_to_add: Vec<SubRecipe>) {
-        let mut sub_recipes = self.sub_recipes.lock().await;
-        for sr in sub_recipes_to_add {
-            sub_recipes.insert(sr.name.clone(), sr);
-        }
+        self.extend_system_prompt("final_output".to_string(), final_output_system_prompt)
+            .await;
     }
 
     pub async fn apply_recipe_components(
         &self,
-        sub_recipes: Option<Vec<SubRecipe>>,
         response: Option<Response>,
         include_final_output: bool,
     ) {
-        if let Some(sub_recipes) = sub_recipes {
-            self.add_sub_recipes(sub_recipes).await;
-        }
-
         if include_final_output {
             if let Some(response) = response {
                 self.add_final_output_tool(response).await;
@@ -485,17 +500,11 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
-        // Prevent subagents from creating other subagents
-        if session.session_type == SessionType::SubAgent && tool_call.name == SUBAGENT_TOOL_NAME {
-            return (
-                request_id,
-                Err(ErrorData::new(
-                    ErrorCode::INVALID_REQUEST,
-                    "Subagents cannot create other subagents".to_string(),
-                    None,
-                )),
-            );
-        }
+        let input_summary = serde_json::json!({
+            "tool": tool_call.name,
+            "arguments": tool_call.arguments,
+        });
+        tracing::Span::current().record("input", tracing::field::display(&input_summary));
 
         if tool_call.name == PLATFORM_MANAGE_SCHEDULE_TOOL_NAME {
             let arguments = tool_call
@@ -531,49 +540,7 @@ impl Agent {
         }
 
         debug!("WAITING_TOOL_START: {}", tool_call.name);
-        let result: ToolCallResult = if tool_call.name == SUBAGENT_TOOL_NAME {
-            let provider = match self.provider().await {
-                Ok(p) => p,
-                Err(_) => {
-                    return (
-                        request_id,
-                        Err(ErrorData::new(
-                            ErrorCode::INTERNAL_ERROR,
-                            "Provider is required".to_string(),
-                            None,
-                        )),
-                    );
-                }
-            };
-
-            let extensions = self.get_extension_configs().await;
-
-            let max_turns_from_recipe = session
-                .recipe
-                .as_ref()
-                .and_then(|r| r.settings.as_ref())
-                .and_then(|s| s.max_turns);
-
-            let task_config =
-                TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
-                    .with_max_turns(max_turns_from_recipe);
-            let sub_recipes = self.sub_recipes.lock().await.clone();
-
-            let arguments = tool_call
-                .arguments
-                .clone()
-                .map(Value::Object)
-                .unwrap_or(Value::Object(serde_json::Map::new()));
-
-            handle_subagent_tool(
-                &self.config,
-                arguments,
-                task_config,
-                sub_recipes,
-                session.working_dir.clone(),
-                cancellation_token,
-            )
-        } else if self.is_frontend_tool(&tool_call.name).await {
+        let result: ToolCallResult = if self.is_frontend_tool(&tool_call.name).await {
             // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -711,7 +678,7 @@ impl Agent {
                     }
 
                     match agent_ref
-                        .add_extension(config_clone, &session_id_clone)
+                        .add_extension_inner(config_clone, &session_id_clone)
                         .await
                     {
                         Ok(_) => ExtensionLoadResult {
@@ -733,10 +700,40 @@ impl Agent {
             })
             .collect::<Vec<_>>();
 
-        futures::future::join_all(extension_futures).await
+        let results = futures::future::join_all(extension_futures).await;
+
+        // Persist once after all extensions are loaded
+        if results.iter().any(|r| r.success) {
+            if let Err(e) = self.persist_extension_state(&session_id).await {
+                warn!("Failed to persist extension state after bulk load: {}", e);
+            }
+        }
+
+        results
     }
 
     pub async fn add_extension(
+        &self,
+        extension: ExtensionConfig,
+        session_id: &str,
+    ) -> ExtensionResult<()> {
+        self.add_extension_inner(extension, session_id).await?;
+
+        // Persist extension state after successful add
+        self.persist_extension_state(session_id)
+            .await
+            .map_err(|e| {
+                error!("Failed to persist extension state: {}", e);
+                crate::agents::extension::ExtensionError::SetupError(format!(
+                    "Failed to persist extension state: {}",
+                    e
+                ))
+            })?;
+
+        Ok(())
+    }
+
+    async fn add_extension_inner(
         &self,
         extension: ExtensionConfig,
         session_id: &str,
@@ -783,47 +780,17 @@ impl Agent {
             _ => {
                 let container = self.container.lock().await;
                 self.extension_manager
-                    .add_extension(extension.clone(), working_dir, container.as_ref())
+                    .add_extension(
+                        extension.clone(),
+                        working_dir,
+                        container.as_ref(),
+                        Some(session_id),
+                    )
                     .await?;
             }
         }
 
-        // Persist extension state after successful add
-        self.persist_extension_state(session_id)
-            .await
-            .map_err(|e| {
-                error!("Failed to persist extension state: {}", e);
-                crate::agents::extension::ExtensionError::SetupError(format!(
-                    "Failed to persist extension state: {}",
-                    e
-                ))
-            })?;
-
         Ok(())
-    }
-
-    pub async fn subagents_enabled(&self, session_id: &str) -> bool {
-        if self.config.goose_mode != GooseMode::Auto {
-            return false;
-        }
-        let context = self.extension_manager.get_context();
-        if matches!(
-            context
-                .session_manager
-                .get_session(session_id, false)
-                .await
-                .ok()
-                .map(|session| session.session_type),
-            Some(SessionType::SubAgent)
-        ) {
-            return false;
-        }
-        !self
-            .extension_manager
-            .list_extensions()
-            .await
-            .map(|ext| ext.is_empty())
-            .unwrap_or(true)
     }
 
     pub async fn list_tools(&self, session_id: &str, extension_name: Option<String>) -> Vec<Tool> {
@@ -833,7 +800,6 @@ impl Agent {
             .await
             .unwrap_or_default();
 
-        let subagents_enabled = self.subagents_enabled(session_id).await;
         if (extension_name.is_none() || extension_name.as_deref() == Some("platform"))
             && self.config.scheduler_service.is_some()
         {
@@ -843,12 +809,6 @@ impl Agent {
         if extension_name.is_none() {
             if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                 prefixed_tools.push(final_output_tool.tool());
-            }
-
-            if subagents_enabled {
-                let sub_recipes = self.sub_recipes.lock().await;
-                let sub_recipes_vec: Vec<_> = sub_recipes.values().cloned().collect();
-                prefixed_tools.push(create_subagent_tool(&sub_recipes_vec));
             }
         }
 
@@ -891,7 +851,10 @@ impl Agent {
         }
     }
 
-    #[instrument(skip(self, user_message, session_config), fields(user_message))]
+    #[instrument(
+        skip(self, user_message, session_config),
+        fields(user_message, trace_input)
+    )]
     pub async fn reply(
         &self,
         user_message: Message,
@@ -899,6 +862,10 @@ impl Agent {
         cancel_token: Option<CancellationToken>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
+
+        let message_text_for_trace = user_message.as_concat_text();
+        tracing::Span::current().record("user_message", message_text_for_trace.as_str());
+        tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
@@ -1112,7 +1079,6 @@ impl Agent {
             goose_mode,
             initial_messages,
         } = context;
-        let reply_span = tracing::Span::current();
         self.reset_retry_attempts().await;
 
         let provider = self.provider().await?;
@@ -1132,10 +1098,12 @@ impl Agent {
 
         let working_dir = session.working_dir.clone();
         Ok(Box::pin(async_stream::try_stream! {
-            let _ = reply_span.enter();
+            let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
+            let _stream_guard = reply_stream_span.enter();
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
             let mut compaction_attempts = 0;
+            let mut last_assistant_text = String::new();
 
             loop {
                 if is_token_cancelled(&cancel_token) {
@@ -1236,6 +1204,10 @@ impl Agent {
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
+                                    let text = filtered_response.as_concat_text();
+                                    if !text.is_empty() {
+                                        last_assistant_text = text;
+                                    }
                                     messages_to_add.push(response.clone());
                                     continue;
                                 }
@@ -1425,8 +1397,9 @@ impl Agent {
                                     }
                                 }
 
-                                // Preserve thinking content from the original response
+                                // Preserve thinking/reasoning content from the original response
                                 // Gemini (and other thinking models) require thinking to be echoed back
+                                // Kimi/DeepSeek require reasoning_content on assistant tool call messages
                                 let thinking_content: Vec<MessageContent> = response.content.iter()
                                     .filter(|c| matches!(c, MessageContent::Thinking(_)))
                                     .cloned()
@@ -1440,10 +1413,25 @@ impl Agent {
                                     messages_to_add.push(thinking_msg);
                                 }
 
+                                // Collect reasoning content to attach to tool request messages
+                                let reasoning_content: Vec<MessageContent> = response.content.iter()
+                                    .filter(|c| matches!(c, MessageContent::Reasoning(_)))
+                                    .cloned()
+                                    .collect();
+
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
-                                        let request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()))
+                                        let mut request_msg = Message::assistant()
+                                            .with_id(format!("msg_{}", Uuid::new_v4()));
+
+                                        // Attach reasoning content to EVERY split tool request message.
+                                        // Providers like Kimi require reasoning_content on all assistant
+                                        // messages with tool_calls when thinking mode is enabled.
+                                        for rc in &reasoning_content {
+                                            request_msg = request_msg.with_content(rc.clone());
+                                        }
+
+                                        request_msg = request_msg
                                             .with_tool_request_with_metadata(
                                                 request.id.clone(),
                                                 request.tool_call.clone(),
@@ -1511,6 +1499,29 @@ impl Agent {
                                     break;
                                 }
                             }
+                        }
+                        Err(ref provider_err @ ProviderError::CreditsExhausted { details: _, ref top_up_url }) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+
+                            let user_msg = if top_up_url.is_some() {
+                                "Please add credits to your account, then resend your message to continue.".to_string()
+                            } else {
+                                "Please check your account with your provider to add more credits, then resend your message to continue.".to_string()
+                            };
+
+                            let notification_data = serde_json::json!({
+                                "top_up_url": top_up_url,
+                            });
+
+                            yield AgentEvent::Message(
+                                Message::assistant().with_system_notification_with_data(
+                                    SystemNotificationType::CreditsExhausted,
+                                    user_msg,
+                                    notification_data,
+                                )
+                            );
+                            break;
                         }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
@@ -1606,12 +1617,16 @@ impl Agent {
 
                 tokio::task::yield_now().await;
             }
+
+            if !last_assistant_text.is_empty() {
+                tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
+            }
         }))
     }
 
-    pub async fn extend_system_prompt(&self, instruction: String) {
+    pub async fn extend_system_prompt(&self, key: String, instruction: String) {
         let mut prompt_manager = self.prompt_manager.lock().await;
-        prompt_manager.add_system_prompt_extra(instruction);
+        prompt_manager.add_system_prompt_extra(key, instruction);
     }
 
     pub async fn update_provider(
@@ -1652,13 +1667,18 @@ impl Agent {
             None => {
                 let model_name = config
                     .get_goose_model()
-                    .map_err(|_| anyhow!("Could not configure agent: missing model"))?;
+                    .ok()
+                    .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
                 crate::model::ModelConfig::new(&model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
+                    .with_canonical_limits(&provider_name)
             }
         };
 
-        let provider = crate::providers::create(&provider_name, model_config)
+        let extensions =
+            EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
+
+        let provider = crate::providers::create(&provider_name, model_config, extensions)
             .await
             .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 
@@ -1750,7 +1770,15 @@ impl Agent {
     ) -> Result<Recipe> {
         tracing::info!("Starting recipe creation with {} messages", messages.len());
 
-        let extensions_info = self.extension_manager.get_extensions_info().await;
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await?;
+        let extensions_info = self
+            .extension_manager
+            .get_extensions_info(&session.working_dir)
+            .await;
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
         let (extension_count, tool_count) = self
             .extension_manager
@@ -1799,6 +1827,15 @@ impl Agent {
         );
 
         tracing::info!("Calling provider to generate recipe content");
+        let model_config = {
+            let provider_guard = self.provider.lock().await;
+            let provider = provider_guard.as_ref().ok_or_else(|| {
+                let error = anyhow!("Provider not available during recipe creation");
+                tracing::error!("{}", error);
+                error
+            })?;
+            provider.get_model_config()
+        };
         let (result, _usage) = self
             .provider
             .lock()
@@ -1809,7 +1846,13 @@ impl Agent {
                 tracing::error!("{}", error);
                 error
             })?
-            .complete(session_id, &system_prompt, messages.messages(), &tools)
+            .complete(
+                &model_config,
+                session_id,
+                &system_prompt,
+                messages.messages(),
+                &tools,
+            )
             .await
             .map_err(|e| {
                 tracing::error!("Provider completion failed during recipe creation: {}", e);

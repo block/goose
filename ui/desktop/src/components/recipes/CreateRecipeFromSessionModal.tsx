@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { Recipe } from '../../recipe';
+import { Recipe, encodeRecipe, stripEmptyExtensions } from '../../recipe';
 import { Geese } from '../icons/Geese';
 import { X, Save, Play, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -182,19 +182,20 @@ export default function CreateRecipeFromSessionModal({
             : undefined,
       };
 
-      let recipeId = await saveRecipe(recipe, null);
+      await saveRecipe(recipe, null);
 
       onRecipeCreated?.(recipe);
       onClose();
 
       if (runAfterSave) {
+        const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe));
         window.electron.createChatWindow(
           undefined,
           undefined,
           undefined,
           undefined,
           undefined,
-          recipeId
+          encodedRecipe
         );
       }
     } catch (error) {

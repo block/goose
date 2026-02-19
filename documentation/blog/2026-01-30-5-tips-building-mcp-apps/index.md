@@ -26,7 +26,7 @@ Here's an example flow of what happens when goose renders a cocktail recipe UI:
 
 1. You ask the LLM "Show me a margarita recipe".
 2. The LLM calls the `get-cocktail` tool with the right parameters. This tool has a UI resource link in `_meta.ui.resourceUri` pointing to the resource containing the HTML.
-3. The client then uses the Uri to fetch the MCP resource. This resource contains the HTML content of the view.
+3. The client then uses the URI to fetch the MCP resource. This resource contains the HTML content of the view.
 4. The HTML is then loaded into the iFrame directly in the chat interface, rendering the cocktail recipe.
 
 ![MCP Apps flow diagram showing how UI renders](mcp-app-flow.png)

@@ -14,32 +14,32 @@ workspace = true
 rmcp = { workspace = true, features = ["server", "client", "transport-io", "macros"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-tokio-stream = { version = "0.1", features = ["io-util"] }
+tokio-stream = { workspace = true, features = ["io-util"] }
 tracing = { workspace = true }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tracing-appender = "0.2"
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing-appender = { workspace = true }
 url = { workspace = true }
 base64 = { workspace = true }
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true }
 serde_json = { workspace = true }
-schemars = "1.0"
-shellexpand = "3.1.0"
-indoc = "2.0.5"
+schemars = { workspace = true }
+shellexpand = { workspace = true }
+indoc = { workspace = true }
 xcap = "=0.4.0"
-reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots", "system-proxy"], default-features = false }
-chrono = { version = "0.4.38", features = ["serde"] }
+reqwest = { workspace = true, features = ["json", "rustls", "system-proxy"], default-features = false }
+chrono = { workspace = true }
 etcetera = { workspace = true }
-tempfile = "3.8"
-include_dir = "0.7.4"
+tempfile = { workspace = true }
+include_dir = { workspace = true }
 regex = { workspace = true }
-once_cell = "1.20.2"
+once_cell = { workspace = true }
 ignore = { workspace = true }
 lopdf = "0.36.0"
 docx-rs = "0.4.7"
 image = { version = "0.24.9", features = ["jpeg"] }
 umya-spreadsheet = "2.2.3"
 which = {workspace = true}
-lru = "0.16"
+lru = { workspace = true }
 tree-sitter = "0.26"
 tree-sitter-python = "0.25"
 tree-sitter-rust = "0.24"
@@ -55,7 +55,7 @@ libc = "0.2"
 # for fuzzy patch matching. Current crate has limited maintenance (single maintainer,
 # ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
 mpatch = "=0.2.0"
-tokio-util = "0.7.16"
+tokio-util = { workspace = true }
 
 [dev-dependencies]
 serial_test = { workspace = true }

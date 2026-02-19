@@ -6,6 +6,14 @@ import { useForm } from '@tanstack/react-form';
 import { RecipeFormFields, extractTemplateVariables } from '../RecipeFormFields';
 import { type RecipeFormData } from '../recipeFormSchema';
 
+vi.mock('../../../ConfigContext', () => ({
+  useConfig: () => ({
+    extensionsList: [],
+    getExtensions: vi.fn().mockResolvedValue([]),
+    getProviders: vi.fn().mockResolvedValue([]),
+  }),
+}));
+
 const expandAdvancedSection = async (user: ReturnType<typeof userEvent.setup>) => {
   const advancedTrigger = screen.getByRole('button', { name: /advanced options/i });
   const activitiesField = screen.queryByText('Activities');
@@ -24,6 +32,9 @@ describe('RecipeFormFields', () => {
       activities: [],
       parameters: [],
       jsonSchema: '',
+      model: undefined,
+      provider: undefined,
+      extensions: undefined,
       ...initialValues,
     };
 
@@ -275,6 +286,9 @@ describe('RecipeFormFields', () => {
             activities: [],
             parameters: [],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -368,6 +382,9 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -535,6 +552,9 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -608,6 +628,9 @@ describe('RecipeFormFields', () => {
               },
             ],
             jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
           } as RecipeFormData,
           onSubmit: async ({ value }) => {
             console.log('Form submitted:', value);
@@ -845,6 +868,136 @@ describe('RecipeFormFields', () => {
       `;
       const result = extractTemplateVariables(content);
       expect(result).toEqual(['user_name', 'user_id', 'email_address', 'app_name']);
+    });
+  });
+
+  describe('Model and Extension Selection', () => {
+    it('renders model and extension selectors in advanced options', async () => {
+      const user = userEvent.setup();
+      render(<TestWrapper />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('Provider (Optional)')).toBeInTheDocument();
+      expect(screen.getByText('Extensions (Optional)')).toBeInTheDocument();
+    });
+
+    it('allows selecting provider and model', async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: {
+            title: 'Test Recipe',
+            description: 'Test',
+            instructions: 'Test',
+            prompt: 'Test',
+            activities: [],
+            parameters: [],
+            jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
+          } as RecipeFormData,
+          onSubmit: async ({ value }) => {
+            onSubmit(value);
+          },
+        });
+
+        return <RecipeFormFields form={form} />;
+      };
+
+      render(<TestComponent />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('Provider (Optional)')).toBeInTheDocument();
+    });
+
+    it('allows selecting extensions', async () => {
+      const user = userEvent.setup();
+      const TestComponent = () => {
+        const form = useForm({
+          defaultValues: {
+            title: 'Test Recipe',
+            description: 'Test',
+            instructions: 'Test',
+            prompt: 'Test',
+            activities: [],
+            parameters: [],
+            jsonSchema: '',
+            model: undefined,
+            provider: undefined,
+            extensions: undefined,
+          } as RecipeFormData,
+          onSubmit: async ({ value }) => {
+            console.log('Form submitted:', value);
+          },
+        });
+
+        return <RecipeFormFields form={form} />;
+      };
+
+      render(<TestComponent />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('Extensions (Optional)')).toBeInTheDocument();
+    });
+
+    it('pre-fills model and provider from initial values', async () => {
+      const user = userEvent.setup();
+      const initialValues: Partial<RecipeFormData> = {
+        title: 'Test Recipe',
+        description: 'Test',
+        instructions: 'Test',
+        prompt: 'Test',
+        model: 'gpt-4o',
+        provider: 'openai',
+      };
+
+      const TestComponent = () => {
+        const form = useTestForm(initialValues);
+        return <RecipeFormFields form={form} />;
+      };
+
+      render(<TestComponent />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('Provider (Optional)')).toBeInTheDocument();
+    });
+
+    it('pre-fills extensions from initial values', async () => {
+      const user = userEvent.setup();
+      const initialValues: Partial<RecipeFormData> = {
+        title: 'Test Recipe',
+        description: 'Test',
+        instructions: 'Test',
+        prompt: 'Test',
+        extensions: [
+          {
+            type: 'builtin',
+            name: 'developer',
+            display_name: 'Developer',
+            timeout: 300,
+            bundled: true,
+            description: 'Developer extension',
+          },
+        ],
+      };
+
+      const TestComponent = () => {
+        const form = useTestForm(initialValues);
+        return <RecipeFormFields form={form} />;
+      };
+
+      render(<TestComponent />);
+
+      await expandAdvancedSection(user);
+
+      expect(screen.getByText('Extensions (Optional)')).toBeInTheDocument();
+      expect(screen.getByText('1 extension selected')).toBeInTheDocument();
     });
   });
 });

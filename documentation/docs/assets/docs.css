@@ -29,7 +29,7 @@ body {
 }
 
 /* Reduce the space between the term and definition in a definition list
-   Reads better for flags and their documention in CLI options lists */
+   Reads better for flags and their documentation in CLI options lists */
 .md-typeset dd {
     margin-top: 0.125em;
 }

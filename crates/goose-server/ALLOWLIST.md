@@ -1,4 +1,4 @@
-IMPORTANT: currently GOOSE_ALLOWLIST is used in main.ts in ui/desktop, and not in goose-server. The following is for reference in case it is used on the server side for launch time enforcement.
+IMPORTANT: currently GOOSE_ALLOWLIST is used in main.ts in ui/desktop, and not in goose-server. The following is for reference when it is used on the server side for launch time enforcement.
 
 # goose Extension Allowlist
 
@@ -31,7 +31,7 @@ export GOOSE_ALLOWLIST_WARNING=true
 ```
 
 
-When this environment variable is set to `true` (case insensitive), the allowlist check will be bypassed and all commands will be allowed, even if the `GOOSE_ALLOWLIST` environment variable is set.
+When this environment variable is set to `true` (case-insensitive), the allowlist check will be bypassed and all commands will be allowed, even if the `GOOSE_ALLOWLIST` environment variable is set.
 
 ## Allowlist File Format
 

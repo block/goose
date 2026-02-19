@@ -55,10 +55,6 @@ Let goose complete its tasks without interruption - avoid using your mouse or ke
 
 In this example, I'll show you how goose can multitask, handling everything from system controls and music playback to web research and data organization.
 
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
-
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
    1. Open a new session in goose Desktop

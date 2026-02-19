@@ -95,7 +95,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           predefinedModels.forEach((model) => {
             options.push({
               value: model.name, // Use name for switching
-              label: model.alias || model.name, // Use alias for display, fallback to name
+              label: model.alias || model.name, // Use alias for display, fall back to name
               provider: model.provider,
             });
           });

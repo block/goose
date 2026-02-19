@@ -12,7 +12,7 @@ use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, ImageContent, JsonObject, RawAudioContent,
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
-    TextContent, Tool, ToolAnnotations,
+    TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
 use utoipa::{OpenApi, ToSchema};
 
@@ -21,8 +21,9 @@ use goose::config::declarative_providers::{
 };
 use goose::conversation::message::{
     ActionRequired, ActionRequiredData, FrontendToolRequest, Message, MessageContent,
-    MessageMetadata, RedactedThinkingContent, SystemNotificationContent, SystemNotificationType,
-    ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest, ToolResponse,
+    MessageMetadata, ReasoningContent, RedactedThinkingContent, SystemNotificationContent,
+    SystemNotificationType, ThinkingContent, TokenState, ToolConfirmationRequest, ToolRequest,
+    ToolResponse,
 };
 
 use crate::routes::recipe_utils::RecipeManifest;
@@ -319,6 +320,8 @@ derive_utoipa!(RawEmbeddedResource as RawEmbeddedResourceSchema);
 derive_utoipa!(RawResource as RawResourceSchema);
 derive_utoipa!(Tool as ToolSchema);
 derive_utoipa!(ToolAnnotations as ToolAnnotationsSchema);
+derive_utoipa!(ToolExecution as ToolExecutionSchema);
+derive_utoipa!(TaskSupport as TaskSupportSchema);
 derive_utoipa!(Annotations as AnnotationsSchema);
 derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
@@ -354,7 +357,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::check_provider,
         super::routes::config_management::set_config_provider,
         super::routes::config_management::configure_provider_oauth,
-        super::routes::config_management::get_pricing,
+        super::routes::config_management::get_canonical_model_info,
         super::routes::prompts::get_prompts,
         super::routes::prompts::get_prompt,
         super::routes::prompts::save_prompt,
@@ -440,9 +443,9 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::config_management::UpdateCustomProviderRequest,
         super::routes::config_management::CheckProviderRequest,
         super::routes::config_management::SetProviderRequest,
-        super::routes::config_management::PricingQuery,
-        super::routes::config_management::PricingResponse,
-        super::routes::config_management::PricingData,
+        super::routes::config_management::ModelInfoQuery,
+        super::routes::config_management::ModelInfoResponse,
+        super::routes::config_management::ModelInfoData,
         super::routes::prompts::PromptsListResponse,
         super::routes::prompts::PromptContentResponse,
         super::routes::prompts::SavePromptRequest,
@@ -478,6 +481,7 @@ derive_utoipa!(Icon as IconSchema);
         ActionRequiredData,
         ThinkingContent,
         RedactedThinkingContent,
+        ReasoningContent,
         FrontendToolRequest,
         ResourceContentsSchema,
         SystemNotificationType,
@@ -497,6 +501,8 @@ derive_utoipa!(Icon as IconSchema);
         RecipeManifest,
         ToolSchema,
         ToolAnnotationsSchema,
+        ToolExecutionSchema,
+        TaskSupportSchema,
         ToolInfo,
         PermissionLevel,
         Permission,

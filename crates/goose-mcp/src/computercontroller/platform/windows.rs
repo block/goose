@@ -1,4 +1,5 @@
 use super::SystemAutomation;
+use crate::subprocess::SubprocessExt;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -12,6 +13,8 @@ impl SystemAutomation for WindowsAutomation {
             .arg("-Command")
             .arg(script)
             .env("GOOSE_TERMINAL", "1")
+            .env("AGENT", "goose")
+            .set_no_window()
             .output()?;
 
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
