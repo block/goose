@@ -4452,6 +4452,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "shellexpand",
+ "similar",
  "tempfile",
  "tokio",
  "tokio-stream",

@@ -4,7 +4,7 @@ use common_tests::fixtures::server::ClientToAgentConnection;
 use common_tests::{
     run_config_mcp, run_initialize_without_provider, run_load_model, run_model_list, run_model_set,
     run_permission_persistence, run_prompt_basic, run_prompt_codemode, run_prompt_image,
-    run_prompt_mcp,
+    run_prompt_mcp, run_text_editor_write_acp,
 };
 
 #[test]
@@ -55,4 +55,9 @@ fn test_prompt_image() {
 #[test]
 fn test_prompt_mcp() {
     run_test(async { run_prompt_mcp::<ClientToAgentConnection>().await });
+}
+
+#[test]
+fn test_text_editor_write_acp() {
+    run_test(async { run_text_editor_write_acp::<ClientToAgentConnection>().await });
 }

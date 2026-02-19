@@ -428,3 +428,56 @@ pub async fn run_prompt_mcp<C: Connection>() {
     assert_eq!(output.text, FAKE_CODE);
     expected_session_id.assert_matches(&session.session_id().0);
 }
+
+pub async fn run_text_editor_write_acp<C: Connection>() {
+    let expected_session_id = ExpectedSessionId::default();
+
+    let prompt = "Write hello to /tmp/acp_test_write.txt";
+
+    let openai = OpenAiFixture::new(
+        vec![
+            (
+                prompt.to_string(),
+                include_str!("../test_data/openai_text_editor_write.txt"),
+            ),
+            (
+                "Successfully wrote to".to_string(),
+                include_str!("../test_data/openai_text_editor_final.txt"),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let test_file = std::path::Path::new("/tmp/acp_test_write.txt");
+    if test_file.exists() {
+        std::fs::remove_file(test_file).ok();
+    }
+
+    let config = TestConnectionConfig {
+        builtins: vec!["developer".to_string()],
+        ..Default::default()
+    };
+
+    let mut conn = C::new(config, openai).await;
+    let (mut session, _) = conn.new_session().await;
+    expected_session_id.set(session.session_id().0.to_string());
+
+    let output = session.prompt(prompt, PermissionDecision::AllowOnce).await;
+
+    assert!(
+        !test_file.exists(),
+        "File should NOT be written directly to disk in ACP mode"
+    );
+
+    assert!(
+        output
+            .write_requests
+            .iter()
+            .any(|p| p.to_string_lossy().contains("acp_test_write.txt")),
+        "Should have sent a WriteTextFileRequest for acp_test_write.txt, got: {:?}",
+        output.write_requests
+    );
+
+    expected_session_id.assert_matches(&session.session_id().0);
+}
