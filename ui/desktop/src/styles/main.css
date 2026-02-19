@@ -877,10 +877,50 @@ p > code.bg-inline-code {
 }
 
 /* ==========================================================================
-   MCP App Display Mode Transitions (FLIP animation)
+   MCP App Display Mode Entrance Animations
    ========================================================================== */
 
-.mcp-app-container.is-flipping {
-  /* During FLIP animation, disable pointer events to prevent interaction glitches */
-  pointer-events: none;
+@keyframes mcp-enter-pip {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translate(12px, -12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mcp-enter-fullscreen {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes mcp-enter-inline {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.mcp-app-container.mcp-enter-pip {
+  animation: mcp-enter-pip 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.mcp-app-container.mcp-enter-fullscreen {
+  animation: mcp-enter-fullscreen 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.mcp-app-container.mcp-enter-inline {
+  animation: mcp-enter-inline 180ms cubic-bezier(0.2, 0, 0, 1) both;
 }

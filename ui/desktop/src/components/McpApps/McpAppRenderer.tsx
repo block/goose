@@ -24,7 +24,7 @@ import type {
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
-import { GripHorizontal, Maximize2, Minimize2, PictureInPicture2, X } from 'lucide-react';
+import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
@@ -264,13 +264,13 @@ export default function McpAppRenderer({
   // size the placeholder and landing target correctly on return.
   const inlineHeightRef = useRef(DEFAULT_IFRAME_HEIGHT);
 
-  // Track in-flight FLIP animation so we can cancel it if a new mode change
-  // fires before the previous one finishes (prevents stale onfinish callbacks).
-  const flipAnimationRef = useRef<Animation | null>(null);
-
   // Cache iframe contentWindows for O(1) message source matching instead of
   // scanning querySelectorAll('iframe') on every postMessage event.
   const iframeWindowsRef = useRef<Set<Window>>(new Set());
+
+  // Track the entrance animation class so we can clean it up on the next mode change.
+  const enterAnimRef = useRef<string | null>(null);
+  const fullscreenCloseRef = useRef<HTMLButtonElement>(null);
 
   const changeDisplayMode = useCallback(
     (mode: GooseDisplayMode) => {
@@ -282,60 +282,28 @@ export default function McpAppRenderer({
         inlineHeightRef.current = el.getBoundingClientRect().height || DEFAULT_IFRAME_HEIGHT;
       }
 
-      // Cancel any in-flight FLIP animation
-      if (flipAnimationRef.current) {
-        flipAnimationRef.current.cancel();
-        flipAnimationRef.current = null;
-        el?.classList.remove('is-flipping');
+      // Remove any previous entrance animation class
+      if (enterAnimRef.current && el) {
+        el.classList.remove(enterAnimRef.current);
+        enterAnimRef.current = null;
       }
-
-      // FLIP: capture First rect before state change
-      const first = el?.getBoundingClientRect();
 
       setActiveDisplayMode(mode);
       onDisplayModeChange?.(mode);
 
-      // FLIP: after React re-renders, compute Invert and Play
-      if (el && first && !prefersReducedMotion) {
+      // Apply a lightweight entrance animation to the incoming mode.
+      // The outgoing mode disappears instantly; only the new state animates in.
+      if (el && !prefersReducedMotion && mode !== activeDisplayMode) {
+        const animClass =
+          mode === 'pip'
+            ? 'mcp-enter-pip'
+            : mode === 'fullscreen'
+              ? 'mcp-enter-fullscreen'
+              : 'mcp-enter-inline';
+
         requestAnimationFrame(() => {
-          const last = el.getBoundingClientRect();
-
-          const dx = first.left - last.left;
-          const dy = first.top - last.top;
-          const sw = first.width / last.width;
-          const sh = first.height / last.height;
-
-          if (dx === 0 && dy === 0 && sw === 1 && sh === 1) return;
-
-          el.classList.add('is-flipping');
-          const anim = el.animate(
-            [
-              {
-                transformOrigin: 'top left',
-                transform: `translate(${dx}px, ${dy}px) scale(${sw}, ${sh})`,
-                borderRadius: '12px',
-              },
-              {
-                transformOrigin: 'top left',
-                transform: 'none',
-                borderRadius: mode === 'pip' ? '12px' : mode === 'inline' ? '8px' : '0px',
-              },
-            ],
-            {
-              duration: 300,
-              easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
-              fill: 'none',
-            }
-          );
-          flipAnimationRef.current = anim;
-          const cleanup = () => {
-            el.classList.remove('is-flipping');
-            if (flipAnimationRef.current === anim) {
-              flipAnimationRef.current = null;
-            }
-          };
-          anim.onfinish = cleanup;
-          anim.oncancel = cleanup;
+          el.classList.add(animClass);
+          enterAnimRef.current = animClass;
         });
       }
     },
@@ -438,7 +406,9 @@ export default function McpAppRenderer({
         }
       }
 
-      // Handle app-initiated display mode requests
+      // Handle app-initiated display mode requests.
+      // Only allow modes the host supports — effective modes aren't available
+      // yet during initialize, so fall back to the full host list.
       if (data.method === 'ui/request-display-mode' && data.params?.mode) {
         const requested = data.params.mode as McpUiDisplayMode;
         if (AVAILABLE_DISPLAY_MODES.includes(requested)) {
@@ -454,6 +424,7 @@ export default function McpAppRenderer({
   // Escape key exits fullscreen
   useEffect(() => {
     if (activeDisplayMode !== 'fullscreen') return;
+    fullscreenCloseRef.current?.focus();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') changeDisplayMode('inline');
     };
@@ -830,6 +801,13 @@ export default function McpAppRenderer({
     };
   }, [readySandboxUrl, meta.permissions, mcpUiCsp]);
 
+  // Intersect what the host supports with what the app declared.
+  // Only offer modes that both sides agree on.
+  const effectiveDisplayModes = useMemo((): McpUiDisplayMode[] => {
+    if (!appDeclaredModes) return [];
+    return AVAILABLE_DISPLAY_MODES.filter((m) => appDeclaredModes.includes(m));
+  }, [appDeclaredModes]);
+
   const hostContext = useMemo((): McpUiHostContext => {
     const context: McpUiHostContext = {
       // todo: toolInfo: {}
@@ -838,7 +816,9 @@ export default function McpAppRenderer({
       displayMode: activeDisplayMode as McpUiDisplayMode,
       availableDisplayModes: isStandalone
         ? [activeDisplayMode as McpUiDisplayMode]
-        : AVAILABLE_DISPLAY_MODES,
+        : effectiveDisplayModes.length > 0
+          ? effectiveDisplayModes
+          : AVAILABLE_DISPLAY_MODES,
       containerDimensions: getContainerDimensions(
         activeDisplayMode,
         containerWidth,
@@ -861,7 +841,7 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, activeDisplayMode, isStandalone, containerWidth, containerHeight]);
+  }, [resolvedTheme, activeDisplayMode, isStandalone, containerWidth, containerHeight, effectiveDisplayModes]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
@@ -926,13 +906,8 @@ export default function McpAppRenderer({
     );
   };
 
-  // Host-side display mode control buttons.
-  // Only show controls for modes the app declared support for (via appCapabilities.availableDisplayModes).
-  // If the app hasn't initialized yet (appDeclaredModes === null), don't show controls.
-  // Never show controls in standalone mode or error state.
-  const appSupportsFullscreen =
-    appDeclaredModes !== null && appDeclaredModes.includes('fullscreen');
-  const appSupportsPip = appDeclaredModes !== null && appDeclaredModes.includes('pip');
+  const appSupportsFullscreen = effectiveDisplayModes.includes('fullscreen');
+  const appSupportsPip = effectiveDisplayModes.includes('pip');
   const showControls = !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip);
 
   const renderDisplayModeControls = () => {
@@ -951,11 +926,12 @@ export default function McpAppRenderer({
             </button>
           )}
           <button
+            ref={fullscreenCloseRef}
             onClick={() => changeDisplayMode('inline')}
             className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
             title="Exit fullscreen (Esc)"
           >
-            <Minimize2 size={16} />
+            <X size={16} />
           </button>
         </div>
       );
@@ -1017,7 +993,7 @@ export default function McpAppRenderer({
   // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
     'mcp-app-container bg-background-default [&_iframe]:!w-full',
-    isFullscreen && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
+    isFullscreen && 'fixed inset-0 z-[1000] overflow-auto [&_iframe]:!h-full',
     isPip &&
       'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default shadow-2xl',
     isInline && 'group/mcp-app relative overflow-hidden',
