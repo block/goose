@@ -1568,11 +1568,7 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_subagent_session(
-                working_dir,
-                description.clone(),
-                session_id.to_string(),
-            )
+            .create_subagent_session(working_dir, description.clone(), session_id.to_string())
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
 

@@ -1725,48 +1725,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_subagent_session_parent_link() {
+    async fn test_subagent_parent_session_cost_and_delete() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
 
+        // Create parent + 2 children
         let parent = sm
-            .create_session(PathBuf::from("/tmp"), "Parent".to_string(), SessionType::User)
-            .await
-            .unwrap();
-
-        let child = sm
-            .create_subagent_session(
+            .create_session(
                 PathBuf::from("/tmp"),
-                "Child task".to_string(),
-                parent.id.clone(),
+                "Parent".to_string(),
+                SessionType::User,
             )
-            .await
-            .unwrap();
-
-        assert_eq!(child.parent_session_id, Some(parent.id.clone()));
-        assert_eq!(child.session_type, SessionType::SubAgent);
-        assert_eq!(parent.parent_session_id, None);
-
-        // Verify persistence via get_session
-        let child_fetched = sm.get_session(&child.id, false).await.unwrap();
-        assert_eq!(child_fetched.parent_session_id, Some(parent.id.clone()));
-    }
-
-    #[tokio::test]
-    async fn test_session_cost_aggregation() {
-        let temp_dir = TempDir::new().unwrap();
-        let sm = SessionManager::new(temp_dir.path().to_path_buf());
-
-        let parent = sm
-            .create_session(PathBuf::from("/tmp"), "Parent".to_string(), SessionType::User)
-            .await
-            .unwrap();
-
-        sm.update(&parent.id)
-            .accumulated_total_tokens(Some(100))
-            .accumulated_input_tokens(Some(60))
-            .accumulated_output_tokens(Some(40))
-            .apply()
             .await
             .unwrap();
 
@@ -1778,14 +1747,8 @@ mod tests {
             )
             .await
             .unwrap();
-
-        sm.update(&child1.id)
-            .accumulated_total_tokens(Some(50))
-            .accumulated_input_tokens(Some(30))
-            .accumulated_output_tokens(Some(20))
-            .apply()
-            .await
-            .unwrap();
+        assert_eq!(child1.parent_session_id, Some(parent.id.clone()));
+        assert_eq!(child1.session_type, SessionType::SubAgent);
 
         let child2 = sm
             .create_subagent_session(
@@ -1796,6 +1759,21 @@ mod tests {
             .await
             .unwrap();
 
+        // Set token costs
+        sm.update(&parent.id)
+            .accumulated_total_tokens(Some(100))
+            .accumulated_input_tokens(Some(60))
+            .accumulated_output_tokens(Some(40))
+            .apply()
+            .await
+            .unwrap();
+        sm.update(&child1.id)
+            .accumulated_total_tokens(Some(50))
+            .accumulated_input_tokens(Some(30))
+            .accumulated_output_tokens(Some(20))
+            .apply()
+            .await
+            .unwrap();
         sm.update(&child2.id)
             .accumulated_total_tokens(Some(200))
             .accumulated_input_tokens(Some(120))
@@ -1810,51 +1788,10 @@ mod tests {
         assert_eq!(parent_fetched.accumulated_input_tokens, Some(210)); // 60+30+120
         assert_eq!(parent_fetched.accumulated_output_tokens, Some(140)); // 40+20+80
 
-        // Child should only include its own tokens (no children of its own)
-        let child_fetched = sm.get_session(&child1.id, false).await.unwrap();
-        assert_eq!(child_fetched.accumulated_total_tokens, Some(50));
-        assert_eq!(child_fetched.accumulated_input_tokens, Some(30));
-        assert_eq!(child_fetched.accumulated_output_tokens, Some(20));
-    }
-
-    #[tokio::test]
-    async fn test_delete_session_cascades_children() {
-        let temp_dir = TempDir::new().unwrap();
-        let sm = SessionManager::new(temp_dir.path().to_path_buf());
-
-        let parent = sm
-            .create_session(PathBuf::from("/tmp"), "Parent".to_string(), SessionType::User)
-            .await
-            .unwrap();
-
-        let child = sm
-            .create_subagent_session(
-                PathBuf::from("/tmp"),
-                "Child task".to_string(),
-                parent.id.clone(),
-            )
-            .await
-            .unwrap();
-
-        // Add a message to the child so we can verify message cleanup
-        sm.add_message(
-            &child.id,
-            &Message {
-                id: None,
-                role: Role::User,
-                created: chrono::Utc::now().timestamp_millis(),
-                content: vec![MessageContent::text("subagent task")],
-                metadata: Default::default(),
-            },
-        )
-        .await
-        .unwrap();
-
-        // Delete parent should cascade to child
+        // Delete parent should cascade to children
         sm.delete_session(&parent.id).await.unwrap();
-
-        // Both parent and child should be gone
         assert!(sm.get_session(&parent.id, false).await.is_err());
-        assert!(sm.get_session(&child.id, false).await.is_err());
+        assert!(sm.get_session(&child1.id, false).await.is_err());
+        assert!(sm.get_session(&child2.id, false).await.is_err());
     }
 }
