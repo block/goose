@@ -43,10 +43,8 @@ export const LocalInferenceSettings = () => {
     try {
       const response = await listLocalModels();
       if (response.data) {
-        // All models from the API are featured or downloaded
         setFeaturedModels(response.data);
 
-        // Start polling for any models that are already downloading
         response.data.forEach((model) => {
           if (model.status.state === 'Downloading') {
             const status = model.status;
@@ -128,7 +126,6 @@ export const LocalInferenceSettings = () => {
             // Refresh model list and auto-select if completed
             await loadModels();
             if (status === 'completed') {
-              // Auto-select the freshly downloaded model
               await selectModel(modelId);
             }
           } else {
@@ -176,7 +173,6 @@ export const LocalInferenceSettings = () => {
       await deleteLocalModel({ path: { model_id: modelId } });
       const updatedModels = await loadModels();
 
-      // If we deleted the selected model, select another downloaded model
       if (selectedModelId === modelId && updatedModels) {
         const remainingDownloaded = updatedModels.filter(
           (m) => m.id !== modelId && m.status.state === 'Downloaded'
