@@ -150,39 +150,38 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
     }
   };
 
-  const startDownload = async (repoId: string, filename: string) => {
-    const key = `${repoId}/${filename}`;
-    setDownloading((prev) => new Set(prev).add(key));
+  const startDownload = async (repoId: string, quantization: string) => {
+    const spec = `${repoId}:${quantization}`;
+    setDownloading((prev) => new Set(prev).add(spec));
     try {
       const response = await downloadHfModel({
-        body: { repo_id: repoId, filename },
+        body: { spec },
       });
       if (response.data) {
-        onDownloadStarted(response.data.model_id);
-      } else {
-        console.error('Download error:', response.error);
+        onDownloadStarted(response.data);
       }
     } catch (e) {
       console.error('Download failed:', e);
     } finally {
       setDownloading((prev) => {
         const next = new Set(prev);
-        next.delete(key);
+        next.delete(spec);
         return next;
       });
     }
   };
 
   const startDirectDownload = async () => {
-    if (!directSpec.trim()) return;
-    const key = `direct:${directSpec}`;
+    const spec = directSpec.trim();
+    if (!spec) return;
+    const key = `direct:${spec}`;
     setDownloading((prev) => new Set(prev).add(key));
     try {
       const response = await downloadHfModel({
-        body: { spec: directSpec.trim() },
+        body: { spec },
       });
       if (response.data) {
-        onDownloadStarted(response.data.model_id);
+        onDownloadStarted(response.data);
         setDirectSpec('');
       }
     } catch (e) {
@@ -261,7 +260,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                       </div>
                     )}
                     {variants.map((variant, idx) => {
-                      const dlKey = `${model.repo_id}/${variant.filename}`;
+                      const dlKey = `${model.repo_id}:${variant.quantization}`;
                       const isStarting = downloading.has(dlKey);
                       const isRecommended = idx === recommendedIndex;
 
@@ -299,7 +298,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                             variant="outline"
                             size="sm"
                             disabled={isStarting}
-                            onClick={() => startDownload(model.repo_id, variant.filename)}
+                            onClick={() => startDownload(model.repo_id, variant.quantization)}
                           >
                             {isStarting ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
