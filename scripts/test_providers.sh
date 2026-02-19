@@ -23,9 +23,9 @@ run_test() {
     cp "$TEST_FILE" "$testdir/test-content.txt"
     prompt="read ./test-content.txt and output its contents exactly"
   else
-    # Write two files with unique tokens, ask model to read both and combine them.
-    # This tests tool use (must call text_editor twice) and proves the model actually
-    # read the file contents (must output both tokens which only exist in those files).
+    # Write two files with unique random tokens. Validation checks that text_editor
+    # was used and that both tokens appear in the output, proving the model actually
+    # read the files (random tokens can't be guessed or hallucinated).
     local token_a="smoke-alpha-$RANDOM"
     local token_b="smoke-bravo-$RANDOM"
     echo "$token_a" > "$testdir/part-a.txt"
