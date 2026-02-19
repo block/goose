@@ -547,17 +547,8 @@ fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
     }
 
     let thinking_level_str = model_config
-        .request_params
-        .as_ref()
-        .and_then(|params| params.get("thinking_level"))
-        .and_then(|v| v.as_str())
+        .get_config_param::<String>("thinking_level", "GEMINI3_THINKING_LEVEL")
         .map(|s| s.to_lowercase())
-        .or_else(|| {
-            crate::config::Config::global()
-                .get_param::<String>("gemini3_thinking_level")
-                .ok()
-                .map(|s| s.to_lowercase())
-        })
         .unwrap_or_else(|| "low".to_string());
 
     let thinking_level = match thinking_level_str.as_str() {
