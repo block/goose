@@ -39,7 +39,7 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
           <Plus className="w-8 h-8 text-gray-400 mb-2" />
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
             <div className="font-medium">Add Provider</div>
-            <div className="text-xs text-gray-500 mt-1">From catalog or manual setup</div>
+            <div className="text-xs text-gray-500 mt-1">From template or manual setup</div>
           </div>
         </div>
       }
