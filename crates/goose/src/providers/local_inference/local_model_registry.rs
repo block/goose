@@ -1,5 +1,5 @@
 use crate::config::paths::Paths;
-use crate::dictation::download_manager::{get_download_manager, DownloadStatus};
+use crate::download_manager::{get_download_manager, DownloadStatus};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

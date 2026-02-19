@@ -322,7 +322,7 @@ fn send_emulator_action(
             let tool_call = CallToolRequestParams {
                 meta: None,
                 task: None,
-                name: Cow::Owned(SHELL_TOOL.to_string()),
+                name: Cow::Borrowed(SHELL_TOOL),
                 arguments: Some(args),
             };
             let mut message = Message::assistant();
@@ -346,7 +346,7 @@ fn send_emulator_action(
             let tool_call = CallToolRequestParams {
                 meta: None,
                 task: None,
-                name: Cow::Owned(CODE_EXECUTION_TOOL.to_string()),
+                name: Cow::Borrowed(CODE_EXECUTION_TOOL),
                 arguments: Some(args),
             };
             let mut message = Message::assistant();

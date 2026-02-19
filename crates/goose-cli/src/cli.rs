@@ -1520,7 +1520,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             }
 
             // Download
-            let manager = goose::dictation::download_manager::get_download_manager();
+            let manager = goose::download_manager::get_download_manager();
             manager
                 .download_model(
                     format!("{}-model", model_id),
@@ -1535,7 +1535,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             loop {
                 if let Some(progress) = manager.get_progress(&format!("{}-model", model_id)) {
                     match progress.status {
-                        goose::dictation::download_manager::DownloadStatus::Downloading => {
+                        goose::download_manager::DownloadStatus::Downloading => {
                             print!(
                                 "\r  {:.1}% ({:.0}MB / {:.0}MB)",
                                 progress.progress_percent,
@@ -1545,15 +1545,15 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                             use std::io::Write;
                             std::io::stdout().flush().ok();
                         }
-                        goose::dictation::download_manager::DownloadStatus::Completed => {
+                        goose::download_manager::DownloadStatus::Completed => {
                             println!("\nDownloaded: {} (id: {})", display_name, model_id);
                             break;
                         }
-                        goose::dictation::download_manager::DownloadStatus::Failed => {
+                        goose::download_manager::DownloadStatus::Failed => {
                             let err = progress.error.unwrap_or_default();
                             anyhow::bail!("Download failed: {}", err);
                         }
-                        goose::dictation::download_manager::DownloadStatus::Cancelled => {
+                        goose::download_manager::DownloadStatus::Cancelled => {
                             println!("\nDownload cancelled.");
                             break;
                         }

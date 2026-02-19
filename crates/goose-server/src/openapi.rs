@@ -4,7 +4,7 @@ use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
-use goose::dictation::download_manager::{DownloadProgress, DownloadStatus};
+use goose::download_manager::{DownloadProgress, DownloadStatus};
 use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};

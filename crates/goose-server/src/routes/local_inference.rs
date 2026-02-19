@@ -7,7 +7,7 @@ use axum::{
     Json, Router,
 };
 use goose::config::paths::Paths;
-use goose::dictation::download_manager::{get_download_manager, DownloadProgress};
+use goose::download_manager::{get_download_manager, DownloadProgress};
 use goose::providers::local_inference::hf_models::{self, HfModelInfo, HfQuantVariant};
 use goose::providers::local_inference::{
     available_inference_memory_bytes,
@@ -433,7 +433,7 @@ pub async fn update_model_settings(
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {
-    goose::dictation::download_manager::cleanup_partial_downloads(&Paths::in_data_dir("models"));
+    goose::download_manager::cleanup_partial_downloads(&Paths::in_data_dir("models"));
 
     Router::new()
         .route("/local-inference/models", get(list_local_models))
