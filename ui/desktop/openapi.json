@@ -6379,6 +6379,10 @@
             "format": "int32",
             "nullable": true
           },
+          "parent_session_id": {
+            "type": "string",
+            "nullable": true
+          },
           "provider_name": {
             "type": "string",
             "nullable": true

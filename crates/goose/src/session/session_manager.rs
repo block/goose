@@ -92,6 +92,13 @@ pub struct Session {
     pub model_config: Option<ModelConfig>,
     #[serde(default)]
     pub parent_session_id: Option<String>,
+    /// Accumulated tokens from child subagent sessions (computed, not stored in DB)
+    #[serde(default)]
+    pub children_accumulated_total_tokens: Option<i32>,
+    #[serde(default)]
+    pub children_accumulated_input_tokens: Option<i32>,
+    #[serde(default)]
+    pub children_accumulated_output_tokens: Option<i32>,
 }
 
 pub struct SessionUpdateBuilder<'a> {
@@ -433,6 +440,9 @@ impl Default for Session {
             provider_name: None,
             model_config: None,
             parent_session_id: None,
+            children_accumulated_total_tokens: None,
+            children_accumulated_input_tokens: None,
+            children_accumulated_output_tokens: None,
         }
     }
 }
@@ -498,6 +508,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             provider_name: row.try_get("provider_name").ok().flatten(),
             model_config,
             parent_session_id: row.try_get("parent_session_id").ok().flatten(),
+            children_accumulated_total_tokens: None,
+            children_accumulated_input_tokens: None,
+            children_accumulated_output_tokens: None,
         })
     }
 }
@@ -1001,7 +1014,7 @@ impl SessionStorage {
             session.message_count = count;
         }
 
-        // Roll child subagent token costs into the parent's accumulated totals
+        // Populate children's accumulated tokens (computed, not stored)
         let child_tokens = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>)>(
             r#"
             SELECT
@@ -1016,22 +1029,19 @@ impl SessionStorage {
         .fetch_one(pool)
         .await?;
 
-        if let Some(child_total) = child_tokens.0 {
-            if child_total > 0 {
-                let base = session.accumulated_total_tokens.unwrap_or(0) as i64;
-                session.accumulated_total_tokens = Some((base + child_total) as i32);
+        if let Some(total) = child_tokens.0 {
+            if total > 0 {
+                session.children_accumulated_total_tokens = Some(total as i32);
             }
         }
-        if let Some(child_input) = child_tokens.1 {
-            if child_input > 0 {
-                let base = session.accumulated_input_tokens.unwrap_or(0) as i64;
-                session.accumulated_input_tokens = Some((base + child_input) as i32);
+        if let Some(input) = child_tokens.1 {
+            if input > 0 {
+                session.children_accumulated_input_tokens = Some(input as i32);
             }
         }
-        if let Some(child_output) = child_tokens.2 {
-            if child_output > 0 {
-                let base = session.accumulated_output_tokens.unwrap_or(0) as i64;
-                session.accumulated_output_tokens = Some((base + child_output) as i32);
+        if let Some(output) = child_tokens.2 {
+            if output > 0 {
+                session.children_accumulated_output_tokens = Some(output as i32);
             }
         }
 
@@ -1333,7 +1343,6 @@ impl SessionStorage {
             .execute(&mut *tx)
             .await?;
 
-        // Delete the session itself and its messages
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
             .execute(&mut *tx)
@@ -1782,11 +1791,12 @@ mod tests {
             .await
             .unwrap();
 
-        // get_session should roll child costs into parent's accumulated tokens
+        // Parent's own tokens are unchanged, children's tokens are separate
         let parent_fetched = sm.get_session(&parent.id, false).await.unwrap();
-        assert_eq!(parent_fetched.accumulated_total_tokens, Some(350)); // 100+50+200
-        assert_eq!(parent_fetched.accumulated_input_tokens, Some(210)); // 60+30+120
-        assert_eq!(parent_fetched.accumulated_output_tokens, Some(140)); // 40+20+80
+        assert_eq!(parent_fetched.accumulated_total_tokens, Some(100));
+        assert_eq!(parent_fetched.children_accumulated_total_tokens, Some(250)); // 50+200
+        assert_eq!(parent_fetched.children_accumulated_input_tokens, Some(150)); // 30+120
+        assert_eq!(parent_fetched.children_accumulated_output_tokens, Some(100)); // 20+80
 
         // Delete parent should cascade to children
         sm.delete_session(&parent.id).await.unwrap();
