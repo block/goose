@@ -24,8 +24,6 @@ pub use computercontroller::ComputerControllerServer;
 pub use developer::rmcp_developer::DeveloperServer;
 pub use developer::rmcp_developer::WORKING_DIR_PLACEHOLDER;
 pub use memory::MemoryServer;
-#[cfg(target_os = "macos")]
-pub use peekaboo::PeekabooServer;
 pub use tutorial::TutorialServer;
 
 /// Type definition for a function that spawns and serves a builtin extension server
@@ -58,21 +56,11 @@ macro_rules! builtin {
 }
 
 pub static BUILTIN_EXTENSIONS: Lazy<HashMap<&'static str, SpawnServerFn>> = Lazy::new(|| {
-    let mut map = HashMap::from([
+    HashMap::from([
         builtin!(developer, DeveloperServer),
         builtin!(autovisualiser, AutoVisualiserRouter),
         builtin!(computercontroller, ComputerControllerServer),
         builtin!(memory, MemoryServer),
         builtin!(tutorial, TutorialServer),
-    ]);
-
-    #[cfg(target_os = "macos")]
-    {
-        map.insert(
-            builtin!(peekaboo, PeekabooServer).0,
-            builtin!(peekaboo, PeekabooServer).1,
-        );
-    }
-
-    map
+    ])
 });

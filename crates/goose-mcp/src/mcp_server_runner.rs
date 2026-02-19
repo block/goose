@@ -9,7 +9,6 @@ pub enum McpCommand {
     ComputerController,
     Developer,
     Memory,
-    Peekaboo,
     Tutorial,
 }
 
@@ -22,7 +21,6 @@ impl FromStr for McpCommand {
             "computercontroller" => Ok(McpCommand::ComputerController),
             "developer" => Ok(McpCommand::Developer),
             "memory" => Ok(McpCommand::Memory),
-            "peekaboo" => Ok(McpCommand::Peekaboo),
             "tutorial" => Ok(McpCommand::Tutorial),
             _ => Err(format!("Invalid command: {}", s)),
         }
@@ -36,7 +34,6 @@ impl McpCommand {
             McpCommand::ComputerController => "computercontroller",
             McpCommand::Developer => "developer",
             McpCommand::Memory => "memory",
-            McpCommand::Peekaboo => "peekaboo",
             McpCommand::Tutorial => "tutorial",
         }
     }

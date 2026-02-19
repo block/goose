@@ -12,8 +12,6 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use goose::agents::validate_extensions;
 use goose::config::paths::Paths;
-#[cfg(target_os = "macos")]
-use goose_mcp::PeekabooServer;
 use goose_mcp::{
     mcp_server_runner::{serve, McpCommand},
     AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
@@ -67,12 +65,6 @@ async fn main() -> anyhow::Result<()> {
                             .bash_env_file(Some(bash_env)),
                     )
                     .await?
-                }
-                #[cfg(target_os = "macos")]
-                McpCommand::Peekaboo => serve(PeekabooServer::new()).await?,
-                #[cfg(not(target_os = "macos"))]
-                McpCommand::Peekaboo => {
-                    anyhow::bail!("Peekaboo is only available on macOS");
                 }
             }
         }
