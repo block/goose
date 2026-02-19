@@ -12,11 +12,26 @@ use utoipa::ToSchema;
 
 use handler::GatewayHandler;
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlatformUser {
     pub platform: String,
     pub user_id: String,
     pub display_name: Option<String>,
+}
+
+impl PartialEq for PlatformUser {
+    fn eq(&self, other: &Self) -> bool {
+        self.platform == other.platform && self.user_id == other.user_id
+    }
+}
+
+impl Eq for PlatformUser {}
+
+impl std::hash::Hash for PlatformUser {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.platform.hash(state);
+        self.user_id.hash(state);
+    }
 }
 
 #[derive(Debug, Clone)]

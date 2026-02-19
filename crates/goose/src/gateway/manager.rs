@@ -61,15 +61,15 @@ pub struct GatewayManager {
 }
 
 impl GatewayManager {
-    pub fn new(agent_manager: Arc<AgentManager>) -> Self {
+    pub fn new(agent_manager: Arc<AgentManager>) -> anyhow::Result<Self> {
         let db_path = Paths::data_dir().join("gateway").join("pairings.db");
-        let pairing_store = Arc::new(PairingStore::new(&db_path));
+        let pairing_store = Arc::new(PairingStore::new(&db_path)?);
 
-        Self {
+        Ok(Self {
             gateways: RwLock::new(HashMap::new()),
             pairing_store,
             agent_manager,
-        }
+        })
     }
 
     #[allow(dead_code)]

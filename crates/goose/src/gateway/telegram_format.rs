@@ -76,12 +76,12 @@ fn collapse_newlines(text: &str) -> String {
     let mut chars = text.chars().peekable();
 
     while let Some(ch) = chars.next() {
-        if !in_pre && ch == '<' {
+        if ch == '<' {
             let rest: String = chars.clone().take(4).collect();
-            if rest.starts_with("pre>") || rest.starts_with("pre ") {
+            if !in_pre && (rest.starts_with("pre>") || rest.starts_with("pre ")) {
                 in_pre = true;
             }
-            if rest.starts_with("/pre") {
+            if in_pre && rest.starts_with("/pre") {
                 in_pre = false;
             }
             result.push(ch);
@@ -106,6 +106,7 @@ fn escape_html(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 #[cfg(test)]
@@ -231,7 +232,7 @@ That's all!"#;
         assert!(html.contains("1. "));
         assert!(html.contains("2. "));
         assert!(html.contains("<pre><code>"));
-        assert!(html.contains("print(\"hello\")"));
+        assert!(html.contains("print(&quot;hello&quot;)"));
         assert!(html.contains("<a href="));
         assert!(html.contains("<blockquote>"));
         assert!(html.contains("That's all!"));

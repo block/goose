@@ -51,7 +51,7 @@ impl AppState {
 
         let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
-        let gateway_manager = Arc::new(GatewayManager::new(agent_manager.clone()));
+        let gateway_manager = Arc::new(GatewayManager::new(agent_manager.clone())?);
 
         Ok(Arc::new(Self {
             agent_manager,

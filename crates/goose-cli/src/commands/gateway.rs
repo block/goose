@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 pub async fn handle_gateway_status() -> Result<()> {
     let agent_manager = AgentManager::instance().await?;
-    let gateway_manager = Arc::new(GatewayManager::new(agent_manager));
+    let gateway_manager = Arc::new(GatewayManager::new(agent_manager)?);
     let statuses = gateway_manager.status().await;
 
     if statuses.is_empty() {
@@ -39,7 +39,7 @@ pub async fn handle_gateway_start(
     platform_config: serde_json::Value,
 ) -> Result<()> {
     let agent_manager = AgentManager::instance().await?;
-    let gateway_manager = Arc::new(GatewayManager::new(agent_manager));
+    let gateway_manager = Arc::new(GatewayManager::new(agent_manager)?);
 
     let mut config = goose::gateway::GatewayConfig {
         gateway_type,
@@ -60,7 +60,7 @@ pub async fn handle_gateway_start(
 
 pub async fn handle_gateway_stop(gateway_type: String) -> Result<()> {
     let agent_manager = AgentManager::instance().await?;
-    let gateway_manager = Arc::new(GatewayManager::new(agent_manager));
+    let gateway_manager = Arc::new(GatewayManager::new(agent_manager)?);
     gateway_manager.stop_gateway(&gateway_type).await?;
     println!("Gateway '{}' stopped.", gateway_type);
     Ok(())
@@ -68,7 +68,7 @@ pub async fn handle_gateway_stop(gateway_type: String) -> Result<()> {
 
 pub async fn handle_gateway_pair(gateway_type: String) -> Result<()> {
     let agent_manager = AgentManager::instance().await?;
-    let gateway_manager = Arc::new(GatewayManager::new(agent_manager));
+    let gateway_manager = Arc::new(GatewayManager::new(agent_manager)?);
     let (code, expires_at) = gateway_manager.generate_pairing_code(&gateway_type).await?;
 
     let expires = chrono::DateTime::from_timestamp(expires_at, 0)

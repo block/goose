@@ -14,9 +14,9 @@ pub struct PairingStore {
 }
 
 impl PairingStore {
-    pub fn new(db_path: &Path) -> Self {
+    pub fn new(db_path: &Path) -> anyhow::Result<Self> {
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent).expect("Failed to create pairing database directory");
+            std::fs::create_dir_all(parent)?;
         }
 
         let options = SqliteConnectOptions::new()
@@ -27,11 +27,11 @@ impl PairingStore {
 
         let pool = SqlitePoolOptions::new().connect_lazy_with(options);
 
-        Self {
+        Ok(Self {
             pairings: RwLock::new(HashMap::new()),
             pool,
             initialized: OnceCell::new(),
-        }
+        })
     }
 
     async fn ensure_initialized(&self) -> anyhow::Result<&Pool<Sqlite>> {
@@ -343,7 +343,7 @@ mod tests {
     #[tokio::test]
     async fn test_pairing_lifecycle() {
         let tmp = TempDir::new().unwrap();
-        let store = PairingStore::new(&tmp.path().join("test.db"));
+        let store = PairingStore::new(&tmp.path().join("test.db")).unwrap();
         let user = test_user("telegram", "12345");
 
         let state = store.get(&user).await.unwrap();
@@ -381,7 +381,7 @@ mod tests {
     #[tokio::test]
     async fn test_pending_code_flow() {
         let tmp = TempDir::new().unwrap();
-        let store = PairingStore::new(&tmp.path().join("test.db"));
+        let store = PairingStore::new(&tmp.path().join("test.db")).unwrap();
 
         let expires = chrono::Utc::now().timestamp() + 300;
         store
@@ -399,7 +399,7 @@ mod tests {
     #[tokio::test]
     async fn test_expired_code() {
         let tmp = TempDir::new().unwrap();
-        let store = PairingStore::new(&tmp.path().join("test.db"));
+        let store = PairingStore::new(&tmp.path().join("test.db")).unwrap();
 
         let expired = chrono::Utc::now().timestamp() - 10;
         store
@@ -427,7 +427,7 @@ mod tests {
         let user = test_user("discord", "user42");
 
         {
-            let store = PairingStore::new(&db_path);
+            let store = PairingStore::new(&db_path).unwrap();
             store
                 .set(
                     &user,
@@ -440,7 +440,7 @@ mod tests {
                 .unwrap();
         }
 
-        let store2 = PairingStore::new(&db_path);
+        let store2 = PairingStore::new(&db_path).unwrap();
         let state = store2.get(&user).await.unwrap();
         match state {
             PairingState::Paired { session_id, .. } => assert_eq!(session_id, "s-42"),
@@ -451,7 +451,7 @@ mod tests {
     #[tokio::test]
     async fn test_remove_all_for_platform() {
         let tmp = TempDir::new().unwrap();
-        let store = PairingStore::new(&tmp.path().join("test.db"));
+        let store = PairingStore::new(&tmp.path().join("test.db")).unwrap();
 
         let tg1 = test_user("telegram", "111");
         let tg2 = test_user("telegram", "222");
