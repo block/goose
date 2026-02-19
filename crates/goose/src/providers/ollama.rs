@@ -19,7 +19,7 @@ use futures::TryStreamExt;
 use regex::Regex;
 use reqwest::Response;
 use rmcp::model::Tool;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::time::Duration;
 use tokio::pin;
 use tokio_stream::StreamExt;
@@ -47,6 +47,33 @@ pub struct OllamaProvider {
     model: ModelConfig,
     supports_streaming: bool,
     name: String,
+}
+fn resolve_ollama_num_ctx(model_config: &ModelConfig) -> Option<usize> {
+    let config = crate::config::Config::global();
+    let input_limit = match config.get_param::<usize>("GOOSE_INPUT_LIMIT") {
+        Ok(limit) if limit > 0 => Some(limit),
+        Ok(_) => None,
+        Err(crate::config::ConfigError::NotFound(_)) => None,
+        Err(e) => {
+            tracing::warn!("Invalid GOOSE_INPUT_LIMIT value: {}", e);
+            None
+        }
+    };
+
+    input_limit.or(model_config.context_limit)
+}
+
+fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
+    let Some(limit) = resolve_ollama_num_ctx(model_config) else {
+        return;
+    };
+
+    if let Some(obj) = payload.as_object_mut() {
+        let options = obj.entry("options").or_insert_with(|| json!({}));
+        if let Some(options_obj) = options.as_object_mut() {
+            options_obj.insert("num_ctx".to_string(), json!(limit));
+        }
+    }
 }
 
 impl OllamaProvider {
@@ -228,7 +255,7 @@ impl Provider for OllamaProvider {
             tools
         };
 
-        let payload = create_request(
+        let mut payload = create_request(
             model_config,
             system,
             messages,
@@ -236,6 +263,7 @@ impl Provider for OllamaProvider {
             &ImageFormat::OpenAi,
             true,
         )?;
+        apply_ollama_options(&mut payload, model_config);
         let mut log = RequestLog::start(model_config, &payload)?;
 
         let response = self
@@ -351,4 +379,41 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
             yield (message, usage);
         }
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_ollama_options_uses_input_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", Some("8192"))]);
+        let model_config = ModelConfig::new("qwen3")
+            .unwrap()
+            .with_context_limit(Some(16_000));
+        let mut payload = json!({});
+        apply_ollama_options(&mut payload, &model_config);
+        assert_eq!(payload["options"]["num_ctx"], 8192);
+    }
+
+    #[test]
+    fn test_apply_ollama_options_falls_back_to_context_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
+        let model_config = ModelConfig::new("qwen3")
+            .unwrap()
+            .with_context_limit(Some(12_000));
+        let mut payload = json!({});
+        apply_ollama_options(&mut payload, &model_config);
+        assert_eq!(payload["options"]["num_ctx"], 12_000);
+    }
+
+    #[test]
+    fn test_apply_ollama_options_skips_when_no_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
+        let mut model_config = ModelConfig::new("qwen3").unwrap();
+        model_config.context_limit = None;
+        let mut payload = json!({});
+        apply_ollama_options(&mut payload, &model_config);
+        assert!(payload.get("options").is_none());
+    }
 }

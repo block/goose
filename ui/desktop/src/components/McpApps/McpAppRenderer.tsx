@@ -24,7 +24,7 @@ import type {
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -39,11 +39,59 @@ import {
   McpAppToolInput,
   McpAppToolInputPartial,
   McpAppToolResult,
+  DimensionLayout,
 } from './types';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
 
 const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
+
+const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
+  inline: { width: 'fixed', height: 'unbounded' },
+  fullscreen: { width: 'fixed', height: 'fixed' },
+  standalone: { width: 'fixed', height: 'fixed' },
+  pip: { width: 'fixed', height: 'fixed' },
+  // sidecar: { width: 'fixed', height: 'flexible' }, // example on how to use flexible layout
+};
+
+function getContainerDimensions(
+  displayMode: GooseDisplayMode,
+  measuredWidth: number,
+  measuredHeight: number
+): McpUiHostContext['containerDimensions'] {
+  const layout = DISPLAY_MODE_LAYOUTS[displayMode] ?? DISPLAY_MODE_LAYOUTS.inline;
+
+  // Only require a measurement for axes that are fixed or flexible (unbounded axes are omitted).
+  if (
+    (layout.width !== 'unbounded' && measuredWidth <= 0) ||
+    (layout.height !== 'unbounded' && measuredHeight <= 0)
+  )
+    return undefined;
+
+  const widthDimension = (() => {
+    switch (layout.width) {
+      case 'fixed':
+        return { width: measuredWidth };
+      case 'flexible':
+        return { maxWidth: measuredWidth };
+      case 'unbounded':
+        return {};
+    }
+  })();
+
+  const heightDimension = (() => {
+    switch (layout.height) {
+      case 'fixed':
+        return { height: measuredHeight };
+      case 'flexible':
+        return { maxHeight: measuredHeight };
+      case 'unbounded':
+        return {};
+    }
+  })();
+
+  return { ...widthDimension, ...heightDimension };
+}
 
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
@@ -195,8 +243,10 @@ export default function McpAppRenderer({
 
   const [state, dispatch] = useReducer(appReducer, initialState);
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
-  // null = fluid (100% width), number = explicit width from app
-  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
@@ -383,22 +433,28 @@ export default function McpAppRenderer({
     []
   );
 
-  /**
-   * Height: non-positive values are ignored (keeps previous height).
-   * Width: if provided, container uses that width (capped at 100%);
-   * if omitted or non-positive, container is fluid (100%).
-   */
-  const handleSizeChanged = useCallback(
-    ({ height, width }: McpUiSizeChangedNotification['params']) => {
-      if (height !== undefined && height > 0) {
-        setIframeHeight(height);
+  const handleSizeChanged = useCallback(({ height }: McpUiSizeChangedNotification['params']) => {
+    if (height !== undefined && height > 0) {
+      setIframeHeight(height);
+    }
+  }, []);
+
+  // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setContainerWidth((prev) => (prev !== Math.round(width) ? Math.round(width) : prev));
+        setContainerHeight((prev) => (prev !== Math.round(height) ? Math.round(height) : prev));
       }
-      if (width !== undefined) {
-        setIframeWidth(width > 0 ? width : null);
-      }
-    },
-    []
-  );
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
@@ -453,7 +509,7 @@ export default function McpAppRenderer({
       displayMode: displayMode as McpUiDisplayMode,
       availableDisplayModes:
         displayMode === 'standalone' ? [displayMode as McpUiDisplayMode] : AVAILABLE_DISPLAY_MODES,
-      // todo: containerDimensions: {} (depends on displayMode)
+      containerDimensions: getContainerDimensions(displayMode, containerWidth, containerHeight),
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: navigator.userAgent,
@@ -471,7 +527,7 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, displayMode]);
+  }, [resolvedTheme, displayMode, containerWidth, containerHeight]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
@@ -537,8 +593,7 @@ export default function McpAppRenderer({
   };
 
   const containerClasses = cn(
-    'bg-background-default overflow-hidden',
-    iframeWidth === null && '[&_iframe]:!w-full',
+    'bg-background-default overflow-hidden [&_iframe]:!w-full',
     isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
     !isError && !isExpandedView && 'mt-6 mb-2',
     !isError && !isExpandedView && meta.prefersBorder && 'border border-border-default rounded-lg'
@@ -547,13 +602,12 @@ export default function McpAppRenderer({
   const containerStyle = isExpandedView
     ? { width: '100%', height: '100%' }
     : {
-        width: iframeWidth !== null ? `${iframeWidth}px` : '100%',
-        maxWidth: '100%',
+        width: '100%',
         height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
       };
 
   return (
-    <div className={containerClasses} style={containerStyle}>
+    <div ref={containerRef} className={containerClasses} style={containerStyle}>
       {renderContent()}
     </div>
   );

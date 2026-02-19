@@ -969,6 +969,7 @@ impl CliSession {
         let cancel_token_clone = cancel_token.clone();
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
         let mut prompted_credits_urls: HashSet<String> = HashSet::new();
+        let mut thinking_header_shown = false;
 
         use futures::StreamExt;
         loop {
@@ -1041,7 +1042,7 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message_streaming(&message, &mut markdown_buffer, self.debug);
+                                    output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
                                     maybe_open_credits_top_up_url(
                                         &message,
                                         interactive,
