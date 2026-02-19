@@ -39,7 +39,7 @@ export const LocalInferenceSettings = () => {
   const downloadSectionRef = useRef<HTMLDivElement>(null);
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
 
-  const loadModels = useCallback(async () => {
+  const loadModels = useCallback(async (): Promise<LocalModelResponse[] | undefined> => {
     try {
       const response = await listLocalModels();
       if (response.data) {
@@ -64,10 +64,12 @@ export const LocalInferenceSettings = () => {
             pollDownloadProgress(model.id);
           }
         });
+        return response.data;
       }
     } catch (error) {
       console.error('Failed to load models:', error);
     }
+    return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -172,7 +174,17 @@ export const LocalInferenceSettings = () => {
     if (!window.confirm('Delete this model? You can re-download it later.')) return;
     try {
       await deleteLocalModel({ path: { model_id: modelId } });
-      await loadModels();
+      const updatedModels = await loadModels();
+
+      // If we deleted the selected model, select another downloaded model
+      if (selectedModelId === modelId && updatedModels) {
+        const remainingDownloaded = updatedModels.filter(
+          (m) => m.id !== modelId && m.status.state === 'Downloaded'
+        );
+        if (remainingDownloaded.length > 0) {
+          selectModel(remainingDownloaded[0].id);
+        }
+      }
     } catch (error) {
       console.error('Failed to delete model:', error);
     }
