@@ -168,10 +168,11 @@ export default function DefaultProviderSetupForm({
     ));
   };
 
-  let aboveFoldParameters = parameters.filter((p) => p.required);
-  let belowFoldParameters = parameters.filter((p) => !p.required);
-  if (aboveFoldParameters.length === 0) {
-    aboveFoldParameters = belowFoldParameters;
+  let aboveFoldParameters = parameters.filter((p) => p.primary);
+  let belowFoldParameters = parameters.filter((p) => !p.primary);
+
+  if (aboveFoldParameters.length === 0 && parameters.length > 0) {
+    aboveFoldParameters = parameters;
     belowFoldParameters = [];
   }
 

@@ -9,7 +9,9 @@ use aws_sdk_sagemakerruntime::Client as SageMakerClient;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
@@ -282,9 +284,9 @@ impl ProviderDef for SageMakerTgiProvider {
             vec![SAGEMAKER_TGI_DEFAULT_MODEL],
             SAGEMAKER_TGI_DOC_LINK,
             vec![
-                ConfigKey::new("SAGEMAKER_ENDPOINT_NAME", false, false, None),
-                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1")),
-                ConfigKey::new("AWS_PROFILE", true, false, Some("default")),
+                ConfigKey::new("SAGEMAKER_ENDPOINT_NAME", true, false, None, true),
+                ConfigKey::new("AWS_REGION", true, false, Some("us-east-1"), true),
+                ConfigKey::new("AWS_PROFILE", true, false, Some("default"), true),
             ],
         )
     }
@@ -311,14 +313,19 @@ impl Provider for SageMakerTgiProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        session_id: Option<&str>,
         model_config: &ModelConfig,
+        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
+    ) -> Result<MessageStream, ProviderError> {
+        let session_id = if session_id.is_empty() {
+            None
+        } else {
+            Some(session_id)
+        };
         let model_name = &model_config.model_name;
 
         let request_payload = self.create_tgi_request(system, messages).map_err(|e| {
@@ -351,6 +358,9 @@ impl Provider for SageMakerTgiProvider {
         )?;
 
         let provider_usage = ProviderUsage::new(model_name.to_string(), usage);
-        Ok((message, provider_usage))
+        Ok(super::base::stream_from_single_message(
+            message,
+            provider_usage,
+        ))
     }
 }

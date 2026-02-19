@@ -53,6 +53,7 @@ struct Delta {
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
+    #[serde(alias = "reasoning")]
     reasoning_content: Option<String>,
 }
 
@@ -338,8 +339,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 
     let mut content = Vec::new();
 
-    // Capture reasoning_content if present (for DeepSeek reasoning models)
-    if let Some(reasoning_content) = original.get("reasoning_content") {
+    // Capture reasoning content if present (DeepSeek uses "reasoning_content", vLLM uses "reasoning")
+    let reasoning_value = original
+        .get("reasoning_content")
+        .or_else(|| original.get("reasoning"));
+    if let Some(reasoning_content) = reasoning_value {
         if let Some(reasoning_str) = reasoning_content.as_str() {
             if !reasoning_str.is_empty() {
                 content.push(MessageContent::reasoning(reasoning_str));
@@ -1496,7 +1500,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1536,7 +1540,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
@@ -1577,7 +1581,7 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
         };
         let request = create_request(
