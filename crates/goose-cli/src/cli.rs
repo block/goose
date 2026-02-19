@@ -659,6 +659,42 @@ enum RecipeCommand {
 }
 
 #[derive(Subcommand)]
+enum ModelCommand {
+    /// List available models
+    #[command(about = "List available models from configured provider")]
+    List {
+        /// Filter models by name (case-insensitive substring match)
+        #[arg(help = "Filter models containing this string")]
+        filter: Option<String>,
+
+        /// Filter by provider name
+        #[arg(
+            long = "provider",
+            value_name = "NAME",
+            help = "Only show models from this provider"
+        )]
+        provider: Option<String>,
+
+        /// Show models from all providers, not just configured
+        #[arg(short, long, help = "Show models from all providers")]
+        all: bool,
+
+        /// Show verbose output with context info
+        #[arg(short, long, help = "Show additional columns (context)")]
+        verbose: bool,
+
+        /// Output format (text, json)
+        #[arg(
+            long = "format",
+            value_name = "FORMAT",
+            help = "Output format: text (default), json",
+            default_value = "text"
+        )]
+        format: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum Command {
     /// Configure goose settings
     #[command(about = "Configure goose settings")]
