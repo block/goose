@@ -61,7 +61,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
           if (alreadyDownloaded) {
             setSelectedModelId(alreadyDownloaded.id);
           } else {
-            const recommended = featured.find((m) => m.recommended);
+            const recommended = response.data.find((m: LocalModelResponse) => m.recommended);
             if (recommended) setSelectedModelId(recommended.id);
           }
         }
