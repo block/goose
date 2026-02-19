@@ -5653,7 +5653,6 @@
       },
       "ProviderCatalogEntry": {
         "type": "object",
-        "description": "Provider catalog entry for API responses",
         "required": [
           "id",
           "name",
@@ -5774,7 +5773,6 @@
       },
       "ProviderTemplate": {
         "type": "object",
-        "description": "Provider template for auto-filling custom provider form",
         "required": [
           "id",
           "name",

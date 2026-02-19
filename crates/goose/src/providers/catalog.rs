@@ -43,13 +43,17 @@ impl ProviderFormat {
             ProviderFormat::Ollama => "ollama",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for ProviderFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "openai" | "openai_compatible" => Some(ProviderFormat::OpenAI),
-            "anthropic" | "anthropic_compatible" => Some(ProviderFormat::Anthropic),
-            "ollama" | "ollama_compatible" => Some(ProviderFormat::Ollama),
-            _ => None,
+            "openai" | "openai_compatible" => Ok(ProviderFormat::OpenAI),
+            "anthropic" | "anthropic_compatible" => Ok(ProviderFormat::Anthropic),
+            "ollama" | "ollama_compatible" => Ok(ProviderFormat::Ollama),
+            _ => Err(format!("unknown provider format: {}", s)),
         }
     }
 }

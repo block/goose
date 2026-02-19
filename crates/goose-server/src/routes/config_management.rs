@@ -794,7 +794,7 @@ pub async fn get_provider_catalog(
 ) -> Result<Json<Vec<ProviderCatalogEntry>>, ErrorResponse> {
     let format_str = params.get("format").map(|s| s.as_str()).unwrap_or("openai");
 
-    let format = ProviderFormat::from_str(format_str).ok_or_else(|| {
+    let format = format_str.parse::<ProviderFormat>().map_err(|_| {
         ErrorResponse::bad_request(format!(
             "Invalid format '{}'. Must be one of: openai, anthropic, ollama",
             format_str

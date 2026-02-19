@@ -758,9 +758,6 @@ export type PromptsListResponse = {
     prompts: Array<Template>;
 };
 
-/**
- * Provider catalog entry for API responses
- */
 export type ProviderCatalogEntry = {
     api_url: string;
     doc_url: string;
@@ -818,9 +815,6 @@ export type ProviderMetadata = {
     name: string;
 };
 
-/**
- * Provider template for auto-filling custom provider form
- */
 export type ProviderTemplate = {
     api_url: string;
     doc_url: string;
