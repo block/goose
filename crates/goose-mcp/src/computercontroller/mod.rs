@@ -880,7 +880,10 @@ impl ComputerControllerServer {
             - Shell scripting for system control
             - X11/Wayland window management
             - D-Bus for system services
+            - File and system management
             - Desktop environment control (GNOME, KDE, etc.)
+            - Process management and monitoring
+            - System settings and configurations
 
             Can be combined with screenshot tool for visual task assistance.
         "
