@@ -44,10 +44,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         for msg_content in &message.content {
             match msg_content {
                 MessageContent::Text(text) => {
-                    content.push(json!({
-                        TYPE_FIELD: TEXT_TYPE,
-                        TEXT_TYPE: text.text
-                    }));
+                    if !text.text.trim().is_empty() {
+                        content.push(json!({
+                            TYPE_FIELD: TEXT_TYPE,
+                            TEXT_TYPE: text.text
+                        }));
+                    }
                 }
                 MessageContent::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
