@@ -993,7 +993,7 @@ export default function McpAppRenderer({
   // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
     'mcp-app-container bg-background-default [&_iframe]:!w-full',
-    isFullscreen && 'fixed inset-0 z-[1000] overflow-auto [&_iframe]:!h-full',
+    isFullscreen && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
     isPip &&
       'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default shadow-2xl',
     isInline && 'group/mcp-app relative overflow-hidden',
