@@ -1,4 +1,12 @@
-import { createContext, type ReactNode, useCallback, useContext, useRef, useState } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { Message } from '../api';
 
 export interface ReasoningDetail {
@@ -50,10 +58,14 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
   const [panelDetail, setPanelDetail] = useState<PanelDetail | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const isOpenRef = useRef(false);
+  // Ref mirrors panelDetail so callbacks stay stable (no panelDetail in deps)
+  const panelDetailRef = useRef<PanelDetail | null>(null);
 
   const openDetail = useCallback((newDetail: ReasoningDetail) => {
     setDetail(newDetail);
-    setPanelDetail({ type: 'reasoning', data: newDetail });
+    const pd: PanelDetail = { type: 'reasoning', data: newDetail };
+    setPanelDetail(pd);
+    panelDetailRef.current = pd;
     setIsOpen(true);
     isOpenRef.current = true;
   }, []);
@@ -64,36 +76,40 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
     setTimeout(() => {
       setDetail(null);
       setPanelDetail(null);
+      panelDetailRef.current = null;
     }, 300);
   }, []);
 
   const toggleDetail = useCallback(
     (newDetail: ReasoningDetail) => {
-      if (isOpenRef.current && detail?.messageId === newDetail.messageId) {
+      if (isOpenRef.current && panelDetailRef.current?.data.messageId === newDetail.messageId) {
         closeDetail();
       } else {
         openDetail(newDetail);
       }
     },
-    [detail?.messageId, openDetail, closeDetail]
+    [openDetail, closeDetail]
   );
 
   const toggleWorkBlock = useCallback(
     (workBlock: WorkBlockDetail) => {
+      const cur = panelDetailRef.current;
       if (
         isOpenRef.current &&
-        panelDetail?.type === 'workblock' &&
-        panelDetail.data.messageId === workBlock.messageId
+        cur?.type === 'workblock' &&
+        cur.data.messageId === workBlock.messageId
       ) {
         closeDetail();
       } else {
         setDetail(null);
-        setPanelDetail({ type: 'workblock', data: workBlock });
+        const pd: PanelDetail = { type: 'workblock', data: workBlock };
+        setPanelDetail(pd);
+        panelDetailRef.current = pd;
         setIsOpen(true);
         isOpenRef.current = true;
       }
     },
-    [panelDetail, closeDetail]
+    [closeDetail]
   );
 
   const updateContent = useCallback((content: string) => {
@@ -103,27 +119,51 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
   const updateWorkBlock = useCallback((workBlock: WorkBlockDetail) => {
     setPanelDetail((prev) => {
       if (prev?.type === 'workblock' && prev.data.messageId === workBlock.messageId) {
-        return { type: 'workblock', data: workBlock };
+        // Compare by value — messages array is recreated every render by the parent
+        // (.map() in ProgressiveMessageList), so reference equality always fails.
+        // Length + toolCount + isStreaming are sufficient change detectors during streaming.
+        const d = prev.data;
+        if (
+          d.messages.length === workBlock.messages.length &&
+          d.toolCount === workBlock.toolCount &&
+          d.isStreaming === workBlock.isStreaming
+        ) {
+          return prev; // same content → no re-render
+        }
+        const pd: PanelDetail = { type: 'workblock', data: workBlock };
+        panelDetailRef.current = pd;
+        return pd;
       }
       return prev;
     });
   }, []);
 
+  const value = useMemo(
+    () => ({
+      detail,
+      panelDetail,
+      isOpen,
+      openDetail,
+      closeDetail,
+      toggleDetail,
+      toggleWorkBlock,
+      updateContent,
+      updateWorkBlock,
+    }),
+    [
+      detail,
+      panelDetail,
+      isOpen,
+      openDetail,
+      closeDetail,
+      toggleDetail,
+      toggleWorkBlock,
+      updateContent,
+      updateWorkBlock,
+    ]
+  );
+
   return (
-    <ReasoningDetailContext.Provider
-      value={{
-        detail,
-        panelDetail,
-        isOpen,
-        openDetail,
-        closeDetail,
-        toggleDetail,
-        toggleWorkBlock,
-        updateContent,
-        updateWorkBlock,
-      }}
-    >
-      {children}
-    </ReasoningDetailContext.Provider>
+    <ReasoningDetailContext.Provider value={value}>{children}</ReasoningDetailContext.Provider>
   );
 }

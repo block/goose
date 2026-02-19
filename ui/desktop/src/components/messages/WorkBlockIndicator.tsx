@@ -1,5 +1,5 @@
 import { ChevronRight } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Message } from '../../api';
 import { useReasoningDetail, type WorkBlockDetail } from '../../contexts/ReasoningDetailContext';
 import FlyingBird from '../branding/FlyingBird';
@@ -7,7 +7,6 @@ import GooseLogo from '../branding/GooseLogo';
 
 /**
  * Extract a one-liner summary from the last assistant message with text content.
- * Used as a preview in the collapsed work block indicator.
  */
 function extractOneLiner(messages: Message[]): string {
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -63,17 +62,34 @@ export default function WorkBlockIndicator({
   const isActive =
     isOpen && panelDetail?.type === 'workblock' && panelDetail.data.messageId === blockId;
 
-  const buildDetail = (): WorkBlockDetail => ({
-    title: isStreaming ? 'Goose is working on it…' : `Worked on ${messages.length} steps`,
-    messageId: blockId,
+  // Refs keep latest values accessible from effects without adding deps
+  const latestRef = useRef({
     messages,
     toolCount,
     isStreaming,
-    agentName,
-    modeName,
-    sessionId,
-    toolCallNotifications: toolCallNotifications as Map<string, unknown[]> | undefined,
+    toolCallNotifications,
+    isActive,
   });
+  latestRef.current = { messages, toolCount, isStreaming, toolCallNotifications, isActive };
+
+  const buildDetail = useCallback(
+    (): WorkBlockDetail => ({
+      title: latestRef.current.isStreaming
+        ? 'Goose is working on it…'
+        : `Worked on ${latestRef.current.messages.length} steps`,
+      messageId: blockId,
+      messages: latestRef.current.messages,
+      toolCount: latestRef.current.toolCount,
+      isStreaming: latestRef.current.isStreaming,
+      agentName,
+      modeName,
+      sessionId,
+      toolCallNotifications: latestRef.current.toolCallNotifications as
+        | Map<string, unknown[]>
+        | undefined,
+    }),
+    [blockId, agentName, modeName, sessionId]
+  );
 
   const handleClick = () => {
     toggleWorkBlock(buildDetail());
@@ -85,14 +101,17 @@ export default function WorkBlockIndicator({
       hasAutoOpened.current = true;
       toggleWorkBlock(buildDetail());
     }
-  }, [isStreaming, messages.length, buildDetail, toggleWorkBlock]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isStreaming, messages.length, toggleWorkBlock, buildDetail]);
 
-  // Live-update the panel content when messages change during streaming
+  // Live-update the panel content when messages or tool count change during streaming.
+  // messages.length and toolCount are value-based change detectors — they trigger
+  // this effect when content meaningfully changes. buildDetail reads from latestRef.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length and toolCount are intentional change detectors
   useEffect(() => {
-    if (isActive && isStreaming && updateWorkBlock) {
+    if (isActive && isStreaming) {
       updateWorkBlock(buildDetail());
     }
-  }, [isStreaming, isActive, buildDetail, updateWorkBlock]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [messages.length, toolCount, isStreaming, isActive, updateWorkBlock, buildDetail]);
 
   // Auto-close the panel when streaming ends so the final answer is visible
   const prevStreamingRef = useRef(isStreaming);
@@ -109,6 +128,7 @@ export default function WorkBlockIndicator({
   return (
     <div className="py-1.5 px-2">
       <button
+        type="button"
         onClick={handleClick}
         className={`
           flex items-center gap-2.5 px-3 py-2.5 rounded-lg w-full text-left
