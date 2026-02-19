@@ -1,0 +1,114 @@
+---
+title: Neighborhoods Extension
+description: Add Neighborhoods as a goose Extension
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+
+This tutorial covers how to add the Neighborhoods extension to goose, enabling you to discover nearby restaurants, browse menus, and place takeout orders through natural conversation. Sellers are US-based.
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+  [Launch the installer](goose://extension?url=https%3A%2F%2Fconnect.squareup.com%2Fv2%2Fmcp%2Fneighborhood&id=neighborhood&name=Neighborhoods&description=Discover%20nearby%20restaurants%2C%20browse%20menus%2C%20and%20place%20takeout%20orders%20through%20natural%20conversation.)
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+  **Command**
+  ```sh
+  goose session --with-remote-extension "https://connect.squareup.com/v2/mcp/neighborhood"
+  ```
+  </TabItem>
+</Tabs>
+:::
+
+## Configuration
+
+No local setup or API keys required. Neighborhoods connects to a remote service hosted by Square.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    <GooseDesktopInstaller
+      extensionId="neighborhood"
+      extensionName="Neighborhoods"
+      description="Discover nearby restaurants, browse menus, and place takeout orders through natural conversation."
+      type="http"
+      url="https://connect.squareup.com/v2/mcp/neighborhood"
+    />
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Neighborhoods"
+      description="Discover nearby restaurants, browse menus, and place takeout orders through natural conversation."
+      type="http"
+      url="https://connect.squareup.com/v2/mcp/neighborhood"
+    />
+  </TabItem>
+</Tabs>
+
+## Example Usage
+
+Neighborhoods is most powerful when goose combines it with context from your day — your schedule, your goals, your dietary needs. Instead of just searching for food, you can ask goose to reason about what to eat based on what you're doing.
+
+### Finding a meal that fits your activity
+
+#### goose Prompt
+```
+Use the neighborhood extension for this. I'm looking to get lunch today.
+I'm at 375 W Broadway in New York. I'm playing tennis later tonight.
+Could you suggest some options so I can play well?
+```
+
+#### goose Output
+
+```
+Here are some restaurants near 375 W Broadway in SoHo! For pre-tennis fuel,
+I'd recommend these options:
+
+Best picks for athletic performance:
+
+Kale & Things - Perfect for a healthy, nutrient-dense meal with greens and
+lean proteins to give you sustained energy without feeling heavy
+
+Simply Natural Grill House NY (684 Broadway) - Great for grilled proteins
+and wholesome meals that'll fuel your game
+
+Ba'al Falafel (71 Sullivan St) - Mediterranean food with falafel, hummus,
+and fresh veggies provides good carbs and protein
+
+Tips for eating before tennis:
+
+- Eat 2-3 hours before playing to allow digestion
+- Focus on complex carbs + lean protein (avoid heavy, fatty foods)
+- Stay hydrated - consider grabbing a drink from Steam & Sip or Drip Drop Café
+
+Would you like me to pull up the menu for any of these restaurants so you can
+see what they offer? Kale & Things sounds like it could be ideal for your
+pre-match meal!
+```
+
+### Pairing with your calendar
+
+Combine Neighborhoods with a calendar extension to plan meals around your schedule:
+
+#### goose Prompt
+```
+Check my calendar for today and find somewhere I can grab a quick
+pickup lunch before my 1pm meeting. I'm near Union Square.
+```
+
+### Tracking what you eat
+
+Pair Neighborhoods with a database or health-tracking extension to close the loop:
+
+#### goose Prompt
+```
+Order me a chicken bowl from that place on Sullivan St, and log the
+macros to my food diary.
+```
+
+:::tip
+Neighborhoods becomes even more useful when combined with other goose extensions. Try pairing it with your calendar, a database, or a health-tracking tool to make food decisions that fit your whole day.
+:::
