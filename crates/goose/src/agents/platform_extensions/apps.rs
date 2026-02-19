@@ -293,10 +293,16 @@ impl AppsManagerClient {
         let mut model_config = provider.get_model_config();
         model_config.max_tokens = Some(16384);
 
-        let (response, _usage) = provider
+        let (response, usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
+
+        if let (Some(output), Some(max)) = (usage.usage.output_tokens, model_config.max_tokens) {
+            if output >= max {
+                return Err("App content generation was truncated because the response hit the token limit. Try simplifying your app description.".to_string());
+            }
+        }
 
         extract_tool_response(&response, "create_app_content")
     }
@@ -327,10 +333,16 @@ impl AppsManagerClient {
         let mut model_config = provider.get_model_config();
         model_config.max_tokens = Some(16384);
 
-        let (response, _usage) = provider
+        let (response, usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
+
+        if let (Some(output), Some(max)) = (usage.usage.output_tokens, model_config.max_tokens) {
+            if output >= max {
+                return Err("App content update was truncated because the response hit the token limit. Try requesting smaller changes.".to_string());
+            }
+        }
 
         extract_tool_response(&response, "update_app_content")
     }
@@ -679,4 +691,77 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
     }
 
     Err(format!("LLM did not call the required tool: {}", tool_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::MessageContent;
+
+    #[test]
+    fn extract_tool_response_fails_on_truncated_response() {
+        let truncated_args: JsonObject = serde_json::from_value(serde_json::json!({
+            "name": "my-app",
+            "description": "A test app",
+            "width": 800,
+            "height": 600,
+            "resizable": true
+        }))
+        .unwrap();
+
+        let tool_call = Ok(rmcp::model::CallToolRequestParams {
+            meta: None,
+            task: None,
+            name: "create_app_content".to_string().into(),
+            arguments: Some(truncated_args),
+        });
+
+        let msg = Message::new(
+            rmcp::model::Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::tool_request("call_1", tool_call)],
+        );
+
+        let result: Result<CreateAppContentResponse, String> =
+            extract_tool_response(&msg, "create_app_content");
+        assert!(result.is_err());
+        assert!(
+            result.as_ref().unwrap_err().contains("missing field"),
+            "Expected 'missing field' error, got: {}",
+            result.unwrap_err()
+        );
+    }
+
+    #[test]
+    fn extract_tool_response_succeeds_with_complete_response() {
+        let complete_args: JsonObject = serde_json::from_value(serde_json::json!({
+            "name": "my-app",
+            "description": "A test app",
+            "html": "<html><body>Hello</body></html>",
+            "width": 800,
+            "height": 600,
+            "resizable": true
+        }))
+        .unwrap();
+
+        let tool_call = Ok(rmcp::model::CallToolRequestParams {
+            meta: None,
+            task: None,
+            name: "create_app_content".to_string().into(),
+            arguments: Some(complete_args),
+        });
+
+        let msg = Message::new(
+            rmcp::model::Role::Assistant,
+            chrono::Utc::now().timestamp(),
+            vec![MessageContent::tool_request("call_1", tool_call)],
+        );
+
+        let result: Result<CreateAppContentResponse, String> =
+            extract_tool_response(&msg, "create_app_content");
+        assert!(result.is_ok());
+        let content = result.unwrap();
+        assert_eq!(content.name, "my-app");
+        assert_eq!(content.html, "<html><body>Hello</body></html>");
+    }
 }
