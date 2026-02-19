@@ -1,17 +1,47 @@
+//! Tool call emulation for models without native tool-calling support.
+//!
+//! The model is prompted to emit shell commands as `$ command` on a new line and
+//! code blocks as `` ```execute `` fenced blocks. A streaming parser detects these
+//! patterns and converts them into tool-call messages.
+//!
+//! # Known false-positive scenarios
+//!
+//! Because detection is purely text-based, the parser can misinterpret model output:
+//!
+//! - **`$` at line start in explanatory text.** If the model writes a line starting
+//!   with `$` as an example (e.g. "$ is the jQuery selector"), it will be treated as
+//!   a shell command. Mid-sentence `$` (e.g. "costs $50") is safe — only `\n$` or
+//!   `$` at the very start of output triggers command detection.
+//!
+//! - **`` ```execute `` in explanatory code fences.** If the model uses this exact
+//!   fence tag in prose, the content will be executed. Standard `` ```js `` or
+//!   `` ```python `` fences are not affected.
+//!
+//! These are inherent to text-based tool emulation. Models with native tool-calling
+//! support should use the `inference_native_tools` path instead.
+
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::errors::ProviderError;
-use crate::providers::utils::RequestLog;
-use llama_cpp_2::model::{AddBos, LlamaChatMessage};
+use llama_cpp_2::model::AddBos;
 use rmcp::model::{CallToolRequestParams, Tool};
 use serde_json::json;
 use std::borrow::Cow;
 use uuid::Uuid;
 
-use super::inference_context::{
-    create_and_prefill_context, generation_loop, validate_and_compute_context, LoadedModel,
+use super::inference_engine::{
+    create_and_prefill_context, generation_loop, validate_and_compute_context, GenerationContext,
     TokenAction,
 };
-use super::{finalize_usage, InferenceRuntime, StreamSender, CODE_EXECUTION_TOOL, SHELL_TOOL};
+use super::{finalize_usage, StreamSender, CODE_EXECUTION_TOOL, SHELL_TOOL};
+
+/// Bytes to hold back from streaming in code mode: length of `` ```execute\n ``
+/// plus the preceding `\n`, so the parser doesn't emit text that turns out to be
+/// the start of an execute fence.
+const HOLD_BACK_CODE_MODE: usize = 12;
+
+/// Bytes to hold back from streaming without code mode: length of `\n$`, so the
+/// parser doesn't emit text that turns out to be the start of a shell command.
+const HOLD_BACK_SHELL_ONLY: usize = 2;
 
 pub(super) fn load_tiny_model_prompt() -> String {
     use std::env;
@@ -39,7 +69,7 @@ pub(super) fn load_tiny_model_prompt() -> String {
     });
 
     crate::prompt_template::render_template("tiny_model_system.md", &context).unwrap_or_else(|e| {
-        eprintln!("WARNING: Failed to load tiny_model_system.md: {:?}", e);
+        tracing::warn!("Failed to load tiny_model_system.md: {:?}", e);
         "You are Goose, an AI assistant. You can execute shell commands by starting lines with $."
             .to_string()
     })
@@ -213,9 +243,11 @@ impl StreamingEmulatorParser {
                     } else if self.buffer.starts_with('$') && self.buffer.len() == chunk.len() {
                         self.state = ParserState::InCommand;
                     } else {
-                        // Hold back a small tail in case it's the start of
-                        // a ``` fence or a \n$ command prefix.
-                        let hold_back = if self.code_mode_enabled { 12 } else { 2 };
+                        let hold_back = if self.code_mode_enabled {
+                            HOLD_BACK_CODE_MODE
+                        } else {
+                            HOLD_BACK_SHELL_ONLY
+                        };
                         let char_count = self.buffer.chars().count();
                         if char_count > hold_back && !self.buffer.ends_with('\n') {
                             let mut chars = self.buffer.chars();
@@ -329,43 +361,38 @@ fn send_emulator_action(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run_emulator_path(
-    loaded: &LoadedModel,
-    runtime: &InferenceRuntime,
-    chat_messages: &[LlamaChatMessage],
-    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
-    context_limit: usize,
+pub(super) fn generate_with_emulated_tools(
+    ctx: &mut GenerationContext<'_>,
     code_mode_enabled: bool,
-    model_name: String,
-    message_id: &str,
-    tx: &StreamSender,
-    log: &mut RequestLog,
 ) -> Result<(), ProviderError> {
-    let prompt = loaded
+    let prompt = ctx
+        .loaded
         .model
-        .apply_chat_template(&loaded.template, chat_messages, true)
+        .apply_chat_template(&ctx.loaded.template, ctx.chat_messages, true)
         .map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to apply chat template: {}", e))
         })?;
 
-    let tokens = loaded
+    let tokens = ctx
+        .loaded
         .model
         .str_to_token(&prompt, AddBos::Never)
-        .map_err(|e| ProviderError::ExecutionError(format!("Failed to tokenize prompt: {}", e)))?;
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
     let (prompt_token_count, effective_ctx) =
-        validate_and_compute_context(loaded, runtime, tokens.len(), context_limit, settings)?;
-    let mut ctx = create_and_prefill_context(loaded, runtime, &tokens, effective_ctx, settings)?;
+        validate_and_compute_context(ctx.loaded, ctx.runtime, tokens.len(), ctx.context_limit, ctx.settings)?;
+    let mut llama_ctx = create_and_prefill_context(ctx.loaded, ctx.runtime, &tokens, effective_ctx, ctx.settings)?;
 
+    let message_id = ctx.message_id;
+    let tx = ctx.tx;
     let mut emulator_parser = StreamingEmulatorParser::new(code_mode_enabled);
     let mut tool_call_emitted = false;
     let mut send_failed = false;
 
     let output_token_count = generation_loop(
-        &loaded.model,
-        &mut ctx,
-        settings,
+        &ctx.loaded.model,
+        &mut llama_ctx,
+        ctx.settings,
         prompt_token_count,
         effective_ctx,
         |piece| {
@@ -400,13 +427,255 @@ pub(super) fn run_emulator_path(
     }
 
     let provider_usage = finalize_usage(
-        log,
-        model_name,
+        ctx.log,
+        std::mem::take(&mut ctx.model_name),
         "emulator",
         prompt_token_count,
         output_token_count,
         None,
     );
-    let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
+    let _ = ctx.tx.blocking_send(Ok((None, Some(provider_usage))));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Collect all actions from feeding chunks through the parser, then flushing.
+    fn parse_chunks(chunks: &[&str], code_mode: bool) -> Vec<EmulatorAction> {
+        let mut parser = StreamingEmulatorParser::new(code_mode);
+        let mut actions = Vec::new();
+        for chunk in chunks {
+            actions.extend(parser.process_chunk(chunk));
+        }
+        actions.extend(parser.flush());
+        actions
+    }
+
+    fn parse_all(input: &str, code_mode: bool) -> Vec<EmulatorAction> {
+        parse_chunks(&[input], code_mode)
+    }
+
+    fn assert_text(action: &EmulatorAction, expected: &str) {
+        match action {
+            EmulatorAction::Text(t) => assert_eq!(t.trim(), expected.trim(), "text mismatch"),
+            other => panic!("expected Text, got {:?}", action_label(other)),
+        }
+    }
+
+    fn assert_shell(action: &EmulatorAction, expected: &str) {
+        match action {
+            EmulatorAction::ShellCommand(cmd) => assert_eq!(cmd, expected, "shell command mismatch"),
+            other => panic!("expected ShellCommand, got {:?}", action_label(other)),
+        }
+    }
+
+    fn assert_execute(action: &EmulatorAction, expected: &str) {
+        match action {
+            EmulatorAction::ExecuteCode(code) => {
+                assert_eq!(code.trim(), expected.trim(), "execute code mismatch")
+            }
+            other => panic!("expected ExecuteCode, got {:?}", action_label(other)),
+        }
+    }
+
+    fn action_label(a: &EmulatorAction) -> &'static str {
+        match a {
+            EmulatorAction::Text(_) => "Text",
+            EmulatorAction::ShellCommand(_) => "ShellCommand",
+            EmulatorAction::ExecuteCode(_) => "ExecuteCode",
+        }
+    }
+
+    #[test]
+    fn plain_text_no_tools() {
+        let actions = parse_all("Hello, world!", false);
+        // Hold-back may split text across actions; concatenate all text
+        let all_text: String = actions
+            .iter()
+            .map(|a| match a {
+                EmulatorAction::Text(t) => t.as_str(),
+                _ => panic!("expected only Text actions"),
+            })
+            .collect();
+        assert_eq!(all_text.trim(), "Hello, world!");
+    }
+
+    #[test]
+    fn single_shell_command() {
+        let actions = parse_all("$ ls -la\n", false);
+        assert_eq!(actions.len(), 1);
+        assert_shell(&actions[0], "ls -la");
+    }
+
+    #[test]
+    fn text_then_shell_command() {
+        let actions = parse_all("Let me check:\n$ ls -la\n", false);
+        assert!(actions.len() >= 2);
+        assert_text(&actions[0], "Let me check:");
+        assert_shell(&actions[actions.len() - 1], "ls -la");
+    }
+
+    #[test]
+    fn shell_command_at_start_of_output() {
+        let actions = parse_all("$ whoami\n", false);
+        assert_eq!(actions.len(), 1);
+        assert_shell(&actions[0], "whoami");
+    }
+
+    #[test]
+    fn shell_command_without_trailing_newline() {
+        // Flush should handle unterminated command
+        let actions = parse_all("$ whoami", false);
+        assert_eq!(actions.len(), 1);
+        assert_shell(&actions[0], "whoami");
+    }
+
+    #[test]
+    fn dollar_sign_mid_sentence_is_not_command() {
+        let actions = parse_all("It costs $50 per month", false);
+        for action in &actions {
+            assert!(
+                matches!(action, EmulatorAction::Text(_)),
+                "mid-sentence $ should not trigger a shell command"
+            );
+        }
+        let all_text: String = actions
+            .iter()
+            .filter_map(|a| match a {
+                EmulatorAction::Text(t) => Some(t.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(all_text.trim(), "It costs $50 per month");
+    }
+
+    #[test]
+    fn execute_block() {
+        let input = "Here's the code:\n```execute\nconsole.log('hi');\n```\n";
+        let actions = parse_all(input, true);
+        assert!(actions.len() >= 2);
+        assert_text(&actions[0], "Here's the code:");
+        assert_execute(&actions[actions.len() - 1], "console.log('hi');");
+    }
+
+    #[test]
+    fn execute_block_not_detected_without_code_mode() {
+        let input = "```execute\nconsole.log('hi');\n```\n";
+        let actions = parse_all(input, false);
+        // Should be treated as plain text
+        for action in &actions {
+            assert!(matches!(action, EmulatorAction::Text(_)));
+        }
+    }
+
+    #[test]
+    fn dollar_split_across_chunks() {
+        // The \n and $ arrive in separate chunks
+        let actions = parse_chunks(&["Let me check\n", "$ ls -la\n"], false);
+        let shells: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ShellCommand(_)))
+            .collect();
+        assert_eq!(shells.len(), 1);
+        assert_shell(shells[0], "ls -la");
+    }
+
+    #[test]
+    fn execute_fence_split_across_chunks() {
+        let actions = parse_chunks(
+            &["Here:\n```ex", "ecute\nlet x = 1;\n", "```\n"],
+            true,
+        );
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ExecuteCode(_)))
+            .collect();
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
+    }
+
+    #[test]
+    fn multiple_commands_on_separate_lines() {
+        // In practice, generation stops after the first tool call. But the
+        // parser should detect commands separated by \n$ when fed as chunks.
+        let actions = parse_chunks(&["Here:\n$ cd /tmp\n", "Done.\n$ ls\n"], false);
+        let shells: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ShellCommand(_)))
+            .collect();
+        assert_eq!(shells.len(), 2);
+        assert_shell(shells[0], "cd /tmp");
+        assert_shell(shells[1], "ls");
+    }
+
+    #[test]
+    fn regular_code_fence_not_treated_as_execute() {
+        let input = "```python\nprint('hi')\n```\n";
+        let actions = parse_all(input, true);
+        for action in &actions {
+            assert!(
+                matches!(action, EmulatorAction::Text(_)),
+                "regular code fence should be text"
+            );
+        }
+    }
+
+    #[test]
+    fn empty_command_ignored() {
+        let actions = parse_all("$\n", false);
+        // Empty command after $ should not produce a ShellCommand
+        let shells: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ShellCommand(_)))
+            .collect();
+        assert_eq!(shells.len(), 0);
+    }
+
+    #[test]
+    fn token_by_token_streaming() {
+        // Simulate LLM generating one token at a time
+        let input = "$ echo hello\n";
+        let chars: Vec<String> = input.chars().map(|c| c.to_string()).collect();
+        let chunks: Vec<&str> = chars.iter().map(|s| s.as_str()).collect();
+        let actions = parse_chunks(&chunks, false);
+        let shells: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ShellCommand(_)))
+            .collect();
+        assert_eq!(shells.len(), 1);
+        assert_shell(shells[0], "echo hello");
+    }
+
+    #[test]
+    fn execute_block_with_multiline_code() {
+        let input = "```execute\nasync function run() {\n  const r = await Developer.shell({ command: \"ls\" });\n  return r;\n}\n```\n";
+        let actions = parse_all(input, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ExecuteCode(_)))
+            .collect();
+        assert_eq!(executes.len(), 1);
+        match executes[0] {
+            EmulatorAction::ExecuteCode(code) => {
+                assert!(code.contains("async function run()"));
+                assert!(code.contains("Developer.shell"));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn unclosed_execute_block_flushed() {
+        // Model stops generating mid-block
+        let input = "```execute\nlet x = 1;";
+        let actions = parse_all(input, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ExecuteCode(_)))
+            .collect();
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
+    }
 }

@@ -99,16 +99,12 @@ pub const FEATURED_MODELS: &[&str] = &[
     "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
 ];
 
-/// Parse a model spec like "author/repo:quantization" into (repo_id, quantization).
-pub fn parse_model_spec(spec: &str) -> Option<(&str, &str)> {
-    spec.rsplit_once(':')
-}
-
 /// Check if a model ID corresponds to a featured model.
 pub fn is_featured_model(model_id: &str) -> bool {
+    use super::hf_models::parse_model_spec;
     FEATURED_MODELS.iter().any(|spec| {
-        if let Some((repo_id, quant)) = parse_model_spec(spec) {
-            model_id_from_repo(repo_id, quant) == model_id
+        if let Ok((repo_id, quant)) = parse_model_spec(spec) {
+            model_id_from_repo(&repo_id, &quant) == model_id
         } else {
             false
         }

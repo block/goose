@@ -14,7 +14,7 @@ use goose::providers::local_inference::{
     hf_models::{resolve_model_spec, HfGgufFile},
     local_model_registry::{
         display_name_from_repo, get_registry, is_featured_model, model_id_from_repo,
-        parse_model_spec, LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus,
+        LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus,
         ModelSettings, FEATURED_MODELS,
     },
     recommend_local_model,
@@ -54,12 +54,12 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
     let mut entries_to_add = Vec::new();
 
     for spec in FEATURED_MODELS {
-        let (repo_id, quantization) = match parse_model_spec(spec) {
-            Some(parts) => parts,
-            None => continue,
+        let (repo_id, quantization) = match hf_models::parse_model_spec(spec) {
+            Ok(parts) => parts,
+            Err(_) => continue,
         };
 
-        let model_id = model_id_from_repo(repo_id, quantization);
+        let model_id = model_id_from_repo(&repo_id, &quantization);
 
         {
             let registry = get_registry()
@@ -94,10 +94,10 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
 
         entries_to_add.push(LocalModelEntry {
             id: model_id,
-            display_name: display_name_from_repo(repo_id, quantization),
-            repo_id: repo_id.to_string(),
+            display_name: display_name_from_repo(&repo_id, &quantization),
+            repo_id,
             filename: hf_file.filename,
-            quantization: quantization.to_string(),
+            quantization,
             local_path,
             source_url: hf_file.download_url,
             settings: ModelSettings::default(),
@@ -259,23 +259,23 @@ pub struct DownloadModelRequest {
 pub async fn download_hf_model(
     Json(req): Json<DownloadModelRequest>,
 ) -> Result<(StatusCode, Json<String>), ErrorResponse> {
-    let (repo_id, quantization) = parse_model_spec(&req.spec)
-        .ok_or_else(|| ErrorResponse::bad_request("Invalid spec format"))?;
+    let (repo_id, quantization) = hf_models::parse_model_spec(&req.spec)
+        .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec format: {e}")))?;
 
     let (_repo, hf_file) = resolve_model_spec(&req.spec)
         .await
         .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
 
-    let model_id = model_id_from_repo(repo_id, quantization);
+    let model_id = model_id_from_repo(&repo_id, &quantization);
     let local_path = Paths::in_data_dir("models").join(&hf_file.filename);
     let download_url = hf_file.download_url.clone();
 
     let entry = LocalModelEntry {
         id: model_id.clone(),
-        display_name: display_name_from_repo(repo_id, quantization),
-        repo_id: repo_id.to_string(),
+        display_name: display_name_from_repo(&repo_id, &quantization),
+        repo_id,
         filename: hf_file.filename,
-        quantization: quantization.to_string(),
+        quantization,
         local_path: local_path.clone(),
         source_url: download_url.clone(),
         settings: ModelSettings::default(),

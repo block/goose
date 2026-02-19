@@ -1,42 +1,32 @@
 use crate::conversation::message::Message;
 use crate::providers::errors::ProviderError;
-use crate::providers::utils::RequestLog;
-use llama_cpp_2::model::{AddBos, LlamaChatMessage};
+use llama_cpp_2::model::AddBos;
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 
-use super::inference_context::{
+use super::inference_engine::{
     create_and_prefill_context, estimate_max_context_for_memory, generation_loop,
-    validate_and_compute_context, LoadedModel, TokenAction,
+    validate_and_compute_context, GenerationContext, TokenAction,
 };
 use super::tool_parsing::{
     extract_tool_call_messages, extract_xml_tool_call_messages, safe_stream_end,
     split_content_and_tool_calls, split_content_and_xml_tool_calls,
 };
-use super::{finalize_usage, InferenceRuntime, StreamSender};
+use super::finalize_usage;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run_native_tool_path(
-    loaded: &LoadedModel,
-    runtime: &InferenceRuntime,
-    chat_messages: &[LlamaChatMessage],
+pub(super) fn generate_with_native_tools(
+    ctx: &mut GenerationContext<'_>,
     oai_messages_json: &Option<String>,
     full_tools_json: Option<&str>,
     compact_tools: Option<&str>,
-    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
-    context_limit: usize,
-    model_name: String,
-    message_id: &str,
-    tx: &StreamSender,
-    log: &mut RequestLog,
 ) -> Result<(), ProviderError> {
     let min_generation_headroom = 512;
-    let n_ctx_train = loaded.model.n_ctx_train() as usize;
-    let memory_max_ctx = estimate_max_context_for_memory(&loaded.model, runtime);
-    let context_cap = if let Some(ctx_size) = settings.context_size {
+    let n_ctx_train = ctx.loaded.model.n_ctx_train() as usize;
+    let memory_max_ctx = estimate_max_context_for_memory(&ctx.loaded.model, ctx.runtime);
+    let context_cap = if let Some(ctx_size) = ctx.settings.context_size {
         ctx_size as usize
     } else {
-        let base = if context_limit > 0 {
-            context_limit
+        let base = if ctx.context_limit > 0 {
+            ctx.context_limit
         } else {
             n_ctx_train
         };
@@ -65,13 +55,13 @@ pub(super) fn run_native_tool_path(
                 add_eos: false,
                 parse_tool_calls: true,
             };
-            loaded
+            ctx.loaded
                 .model
-                .apply_chat_template_oaicompat(&loaded.template, &params)
+                .apply_chat_template_oaicompat(&ctx.loaded.template, &params)
         } else {
-            loaded.model.apply_chat_template_with_tools_oaicompat(
-                &loaded.template,
-                chat_messages,
+            ctx.loaded.model.apply_chat_template_with_tools_oaicompat(
+                &ctx.loaded.template,
+                ctx.chat_messages,
                 tools,
                 None,
                 true,
@@ -81,7 +71,8 @@ pub(super) fn run_native_tool_path(
 
     let template_result = match apply_template(full_tools_json) {
         Ok(r) => {
-            let token_count = loaded
+            let token_count = ctx
+                .loaded
                 .model
                 .str_to_token(&r.prompt, AddBos::Never)
                 .map(|t| t.len())
@@ -97,27 +88,30 @@ pub(super) fn run_native_tool_path(
         })?,
     };
 
-    let _ = log.write(
+    let _ = ctx.log.write(
         &serde_json::json!({"applied_prompt": &template_result.prompt}),
         None,
     );
 
-    let tokens = loaded
+    let tokens = ctx
+        .loaded
         .model
         .str_to_token(&template_result.prompt, AddBos::Never)
-        .map_err(|e| ProviderError::ExecutionError(format!("Failed to tokenize prompt: {}", e)))?;
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
     let (prompt_token_count, effective_ctx) =
-        validate_and_compute_context(loaded, runtime, tokens.len(), context_limit, settings)?;
-    let mut ctx = create_and_prefill_context(loaded, runtime, &tokens, effective_ctx, settings)?;
+        validate_and_compute_context(ctx.loaded, ctx.runtime, tokens.len(), ctx.context_limit, ctx.settings)?;
+    let mut llama_ctx = create_and_prefill_context(ctx.loaded, ctx.runtime, &tokens, effective_ctx, ctx.settings)?;
 
+    let message_id = ctx.message_id;
+    let tx = ctx.tx;
     let mut generated_text = String::new();
     let mut streamed_len: usize = 0;
 
     let output_token_count = generation_loop(
-        &loaded.model,
-        &mut ctx,
-        settings,
+        &ctx.loaded.model,
+        &mut llama_ctx,
+        ctx.settings,
         prompt_token_count,
         effective_ctx,
         |piece| {
@@ -192,13 +186,13 @@ pub(super) fn run_native_tool_path(
     }
 
     let provider_usage = finalize_usage(
-        log,
-        model_name,
+        ctx.log,
+        std::mem::take(&mut ctx.model_name),
         "native",
         prompt_token_count,
         output_token_count,
         Some(("generated_text", &generated_text)),
     );
-    let _ = tx.blocking_send(Ok((None, Some(provider_usage))));
+    let _ = ctx.tx.blocking_send(Ok((None, Some(provider_usage))));
     Ok(())
 }

@@ -159,9 +159,6 @@ path = "examples/agent.rs"
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
 
-[[example]]
-name = "test_local_provider"
-path = "examples/test_local_provider.rs"
 
 [[bin]]
 name = "build_canonical_models"

@@ -1,11 +1,25 @@
 use crate::providers::errors::ProviderError;
+use crate::providers::local_inference::local_model_registry::ModelSettings;
+use crate::providers::utils::RequestLog;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::{LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::sampling::LlamaSampler;
 use std::num::NonZeroU32;
 
-use super::InferenceRuntime;
+use super::{InferenceRuntime, StreamSender};
+
+pub(super) struct GenerationContext<'a> {
+    pub loaded: &'a LoadedModel,
+    pub runtime: &'a InferenceRuntime,
+    pub chat_messages: &'a [LlamaChatMessage],
+    pub settings: &'a ModelSettings,
+    pub context_limit: usize,
+    pub model_name: String,
+    pub message_id: &'a str,
+    pub tx: &'a StreamSender,
+    pub log: &'a mut RequestLog,
+}
 
 pub(super) struct LoadedModel {
     pub model: LlamaModel,

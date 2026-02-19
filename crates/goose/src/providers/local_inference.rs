@@ -1,13 +1,14 @@
-mod emulator;
 pub mod hf_models;
-mod inference_context;
+mod inference_engine;
 pub mod local_model_registry;
-mod native_path;
+mod inference_emulated_tools;
+mod inference_native_tools;
 mod tool_parsing;
 
-use emulator::{build_emulator_tool_description, load_tiny_model_prompt, run_emulator_path};
-use inference_context::LoadedModel;
-use native_path::run_native_tool_path;
+use inference_engine::LoadedModel;
+use inference_emulated_tools::{build_emulator_tool_description, load_tiny_model_prompt, generate_with_emulated_tools};
+use inference_engine::GenerationContext;
+use inference_native_tools::generate_with_native_tools;
 use tool_parsing::compact_tools_json;
 
 use crate::config::ExtensionConfig;
@@ -27,7 +28,7 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType};
-use rmcp::model::{RawContent, Role, Tool};
+use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -62,10 +63,18 @@ impl InferenceRuntime {
         if let Some(runtime) = guard.upgrade() {
             return runtime;
         }
+        // Safety invariant: the Weak::upgrade() check and LlamaBackend::init()
+        // both execute inside this same mutex guard, so there is no window where
+        // another thread could drop the Arc and re-enter concurrently.
+        // BackendAlreadyInitialized therefore means LlamaBackend::drop() did not
+        // reset the C library's init flag — a llama-cpp-rs bug, not a race.
         let backend = match LlamaBackend::init() {
             Ok(b) => b,
             Err(llama_cpp_2::LlamaCppError::BackendAlreadyInitialized) => {
-                panic!("LlamaBackend already initialized but Weak was dead — should be impossible")
+                unreachable!(
+                    "LlamaBackend already initialized but Weak was dead; \
+                     the mutex guard prevents concurrent re-init"
+                )
             }
             Err(e) => panic!("Failed to init llama backend: {}", e),
         };
@@ -183,100 +192,29 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
 }
 
 fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
+    use crate::providers::formats::openai::format_messages;
+    use crate::providers::utils::ImageFormat;
+
     let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
-
-    for msg in messages {
-        let role_str = match msg.role {
-            Role::User => "user",
-            Role::Assistant => "assistant",
-        };
-
-        // Collect text parts, tool calls (assistant), and tool results (user)
-        let mut text_parts = Vec::new();
-        let mut tool_calls = Vec::new();
-        let mut tool_results = Vec::new();
-
-        for content in &msg.content {
-            match content {
-                MessageContent::Text(t) => {
-                    if !t.text.trim().is_empty() {
-                        text_parts.push(t.text.clone());
-                    }
-                }
-                MessageContent::ToolRequest(req) => {
-                    if let Ok(call) = &req.tool_call {
-                        let args_str = call
-                            .arguments
-                            .as_ref()
-                            .and_then(|a| serde_json::to_string(a).ok())
-                            .unwrap_or_else(|| "{}".to_string());
-                        tool_calls.push(json!({
-                            "id": req.id,
-                            "type": "function",
-                            "function": {
-                                "name": call.name,
-                                "arguments": args_str,
-                            }
-                        }));
-                    }
-                }
-                MessageContent::ToolResponse(resp) => {
-                    let result_text = match &resp.tool_result {
-                        Ok(result) => result
-                            .content
-                            .iter()
-                            .filter_map(|c| match c.raw {
-                                RawContent::Text(ref t) => Some(t.text.as_str()),
-                                _ => None,
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n"),
-                        Err(e) => format!("Error: {e}"),
-                    };
-                    tool_results.push((resp.id.clone(), result_text));
-                }
-                _ => {}
-            }
-        }
-
-        // Emit assistant message: may have text content + tool_calls
-        if role_str == "assistant" {
-            if !tool_calls.is_empty() {
-                let mut assistant_msg = json!({
-                    "role": "assistant",
-                    "tool_calls": tool_calls,
-                });
-                let text = text_parts.join("\n");
-                if !text.is_empty() {
-                    assistant_msg["content"] = Value::String(text);
-                }
-                arr.push(assistant_msg);
-            } else {
-                let text = text_parts.join("\n");
-                if !text.is_empty() {
-                    arr.push(json!({"role": "assistant", "content": text}));
-                }
-            }
-        } else {
-            // User messages: emit tool results as separate "tool" role messages,
-            // and any text as a regular user message.
-            let text = text_parts.join("\n");
-            if !text.is_empty() {
-                arr.push(json!({"role": "user", "content": text}));
-            }
-            for (tool_call_id, result_text) in tool_results {
-                arr.push(json!({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": result_text,
-                }));
-            }
-        }
-    }
-
+    arr.extend(format_messages(messages, &ImageFormat::OpenAi));
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
 
+/// Convert a message into plain text for the emulator path's chat history.
+///
+/// This is the emulator-path counterpart of [`format_messages`] used by the native
+/// path. It reconstructs the text-based tool syntax that the emulator prompt teaches
+/// the model:
+///
+/// - `ToolRequest` with a `"command"` argument → `$ command`
+/// - `ToolRequest` with a `"code"` argument → `` ```execute\n…\n``` ``
+/// - `ToolResponse` → `Command output:\n…`
+///
+/// Only `developer__shell` and `code_execution__execute` style tool calls are
+/// recognized (by argument shape, not tool name). Tool calls from other extensions
+/// (e.g. custom MCP tools made by a native-tool-calling model earlier in the
+/// conversation) are silently dropped, since the emulator path has no syntax to
+/// represent them.
 fn extract_text_content(msg: &Message) -> String {
     let mut parts = Vec::new();
 
@@ -404,7 +342,7 @@ impl LocalInferenceProvider {
             params = params.with_use_mlock(true);
         }
         let model = LlamaModel::load_from_file(backend, &model_path, &params)
-            .map_err(|e| ProviderError::ExecutionError(format!("Failed to load model: {}", e)))?;
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
         let template = match model.chat_template(None) {
             Ok(t) => t,
@@ -534,9 +472,7 @@ impl Provider for LocalInferenceProvider {
                     Self::load_model_sync(&runtime_for_load, &model_id, &settings_for_load)
                 })
                 .await
-                .map_err(|e| {
-                    ProviderError::ExecutionError(format!("Model load task failed: {}", e))
-                })??;
+                .map_err(|e| ProviderError::ExecutionError(e.to_string()))??;
                 *model_lock = Some(loaded);
             }
         }
@@ -567,7 +503,6 @@ impl Provider for LocalInferenceProvider {
                 )?,
             ];
 
-        // Check if Code Mode extension is available
         let code_mode_enabled = tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
 
         if use_emulator && !tools.is_empty() {
@@ -634,10 +569,9 @@ impl Provider for LocalInferenceProvider {
         });
 
         let mut log = RequestLog::start(&self.model_config, &log_payload).map_err(|e| {
-            ProviderError::ExecutionError(format!("Failed to start request log: {e}"))
+            ProviderError::ExecutionError(e.to_string())
         })?;
 
-        // Channel for streaming tokens from blocking thread to async stream
         let (tx, mut rx) = tokio::sync::mpsc::channel::<
             Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
         >(32);
@@ -672,33 +606,26 @@ impl Provider for LocalInferenceProvider {
 
             let message_id = Uuid::new_v4().to_string();
 
+            let mut gen_ctx = GenerationContext {
+                loaded,
+                runtime: &runtime,
+                chat_messages: &chat_messages,
+                settings: &settings,
+                context_limit,
+                model_name,
+                message_id: &message_id,
+                tx: &tx,
+                log: &mut log,
+            };
+
             let result = if use_emulator {
-                run_emulator_path(
-                    loaded,
-                    &runtime,
-                    &chat_messages,
-                    &settings,
-                    context_limit,
-                    code_mode_enabled,
-                    model_name,
-                    &message_id,
-                    &tx,
-                    &mut log,
-                )
+                generate_with_emulated_tools(&mut gen_ctx, code_mode_enabled)
             } else {
-                run_native_tool_path(
-                    loaded,
-                    &runtime,
-                    &chat_messages,
+                generate_with_native_tools(
+                    &mut gen_ctx,
                     &oai_messages_json,
                     full_tools_json.as_deref(),
                     compact_tools.as_deref(),
-                    &settings,
-                    context_limit,
-                    model_name,
-                    &message_id,
-                    &tx,
-                    &mut log,
                 )
             };
 
