@@ -370,14 +370,9 @@ impl ProviderDef for LocalInferenceProvider {
     where
         Self: Sized,
     {
-        use crate::providers::local_inference::local_model_registry::get_registry;
+        use crate::providers::local_inference::local_model_registry::{get_registry, FEATURED_MODELS};
 
-        let mut known_models: Vec<&str> = vec![
-            "bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M",
-            "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M",
-            "bartowski/Hermes-2-Pro-Mistral-7B-GGUF:Q4_K_M",
-            "bartowski/Mistral-Small-24B-Instruct-2501-GGUF:Q4_K_M",
-        ];
+        let mut known_models: Vec<&str> = FEATURED_MODELS.to_vec();
 
         // Add any registry models not already in the featured list
         let mut dynamic_models = Vec::new();
