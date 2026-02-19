@@ -171,6 +171,7 @@ export default function ResponseQualityTab() {
   const [data, setData] = useState<ResponseQualityMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const c = useChartColors();
 
   const fetchData = useCallback(async () => {
     try {
@@ -194,7 +195,6 @@ export default function ResponseQualityTab() {
 
   const score = qualityScore(data);
   const errorRate = data.total_sessions > 0 ? data.sessions_with_errors / data.total_sessions : 0;
-  const c = useChartColors();
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-120px)]">

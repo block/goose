@@ -520,12 +520,17 @@ impl<'a> ToolAnalyticsStore<'a> {
         let provider_stats: Vec<(String, i64, f64, f64)> = sqlx::query_as(
             r#"
             SELECT
-                COALESCE(provider_name, 'unknown') as provider,
-                COUNT(*) as session_count,
-                AVG(COALESCE(total_tokens, 0)) as avg_tokens,
-                AVG(COALESCE(message_count, 0)) as avg_messages
-            FROM sessions
-            WHERE created_at > datetime('now', '-' || ? || ' days')
+                COALESCE(s.provider_name, 'unknown') as provider,
+                COUNT(DISTINCT s.id) as session_count,
+                AVG(COALESCE(s.total_tokens, 0)) as avg_tokens,
+                AVG(COALESCE(mc.msg_count, 0)) as avg_messages
+            FROM sessions s
+            LEFT JOIN (
+                SELECT session_id, COUNT(*) as msg_count
+                FROM messages
+                GROUP BY session_id
+            ) mc ON mc.session_id = s.id
+            WHERE s.created_at > datetime('now', '-' || ? || ' days')
             GROUP BY provider
             ORDER BY session_count DESC
             "#,
@@ -537,10 +542,15 @@ impl<'a> ToolAnalyticsStore<'a> {
         let avg_stats: (Option<f64>, Option<f64>) = sqlx::query_as(
             r#"
             SELECT
-                AVG(COALESCE(message_count, 0)),
-                AVG(COALESCE(total_tokens, 0))
-            FROM sessions
-            WHERE created_at > datetime('now', '-' || ? || ' days')
+                AVG(COALESCE(mc.msg_count, 0)),
+                AVG(COALESCE(s.total_tokens, 0))
+            FROM sessions s
+            LEFT JOIN (
+                SELECT session_id, COUNT(*) as msg_count
+                FROM messages
+                GROUP BY session_id
+            ) mc ON mc.session_id = s.id
+            WHERE s.created_at > datetime('now', '-' || ? || ' days')
             "#,
         )
         .bind(days)
@@ -775,21 +785,26 @@ impl<'a> ToolAnalyticsStore<'a> {
 
     /// Get response quality proxy metrics from session patterns
     pub async fn get_response_quality(&self, days: i32) -> Result<ResponseQualityMetrics> {
-        // Overall session metrics
+        // Overall session metrics (message_count computed via subquery since it's not a column)
         let overall: (i64, Option<f64>, Option<f64>, Option<f64>, f64, i64) = sqlx::query_as(
             r#"
             SELECT
                 COUNT(*) as total_sessions,
                 AVG(COALESCE(
-                    julianday(updated_at) - julianday(created_at), 0
+                    julianday(s.updated_at) - julianday(s.created_at), 0
                 ) * 86400) as avg_duration_secs,
-                AVG(COALESCE(message_count, 0)) as avg_messages,
-                AVG(COALESCE(total_tokens, 0)) as avg_tokens,
+                AVG(mc.msg_count) as avg_messages,
+                AVG(COALESCE(s.total_tokens, 0)) as avg_tokens,
                 0.0 as placeholder,
                 0 as placeholder2
-            FROM sessions
-            WHERE created_at > datetime('now', '-' || ? || ' days')
-              AND message_count > 0
+            FROM sessions s
+            INNER JOIN (
+                SELECT session_id, COUNT(*) as msg_count
+                FROM messages
+                GROUP BY session_id
+                HAVING COUNT(*) > 0
+            ) mc ON mc.session_id = s.id
+            WHERE s.created_at > datetime('now', '-' || ? || ' days')
             "#,
         )
         .bind(days)
@@ -897,17 +912,22 @@ impl<'a> ToolAnalyticsStore<'a> {
         .fetch_one(self.pool)
         .await?;
 
-        // Daily quality trend
+        // Daily quality trend (join messages to compute message count)
         let daily: Vec<(String, i64, f64, f64)> = sqlx::query_as(
             r#"
             SELECT
-                date(created_at) as day,
-                COUNT(*) as sessions,
-                AVG(COALESCE(julianday(updated_at) - julianday(created_at), 0) * 86400) as avg_duration,
-                AVG(COALESCE(message_count, 0)) as avg_messages
-            FROM sessions
-            WHERE created_at > datetime('now', '-' || ? || ' days')
-              AND message_count > 0
+                date(s.created_at) as day,
+                COUNT(DISTINCT s.id) as sessions,
+                AVG(COALESCE(julianday(s.updated_at) - julianday(s.created_at), 0) * 86400) as avg_duration,
+                AVG(mc.msg_count) as avg_messages
+            FROM sessions s
+            INNER JOIN (
+                SELECT session_id, COUNT(*) as msg_count
+                FROM messages
+                GROUP BY session_id
+                HAVING COUNT(*) > 0
+            ) mc ON mc.session_id = s.id
+            WHERE s.created_at > datetime('now', '-' || ? || ' days')
             GROUP BY day
             ORDER BY day ASC
             "#,
@@ -916,18 +936,23 @@ impl<'a> ToolAnalyticsStore<'a> {
         .fetch_all(self.pool)
         .await?;
 
-        // Quality by provider
+        // Quality by provider (join messages to compute message count)
         let by_provider: Vec<(String, i64, f64, f64, f64)> = sqlx::query_as(
             r#"
             SELECT
-                COALESCE(provider_name, 'unknown') as provider,
-                COUNT(*) as sessions,
-                AVG(COALESCE(julianday(updated_at) - julianday(created_at), 0) * 86400) as avg_duration,
-                AVG(COALESCE(message_count, 0)) as avg_messages,
-                AVG(COALESCE(total_tokens, 0)) as avg_tokens
-            FROM sessions
-            WHERE created_at > datetime('now', '-' || ? || ' days')
-              AND message_count > 0
+                COALESCE(s.provider_name, 'unknown') as provider,
+                COUNT(DISTINCT s.id) as sessions,
+                AVG(COALESCE(julianday(s.updated_at) - julianday(s.created_at), 0) * 86400) as avg_duration,
+                AVG(mc.msg_count) as avg_messages,
+                AVG(COALESCE(s.total_tokens, 0)) as avg_tokens
+            FROM sessions s
+            INNER JOIN (
+                SELECT session_id, COUNT(*) as msg_count
+                FROM messages
+                GROUP BY session_id
+                HAVING COUNT(*) > 0
+            ) mc ON mc.session_id = s.id
+            WHERE s.created_at > datetime('now', '-' || ? || ' days')
             GROUP BY provider
             ORDER BY sessions DESC
             "#,

@@ -270,7 +270,6 @@ export default function AuthSection() {
           <span className="text-xs text-muted-foreground">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 mr-1.5 align-middle" />
             Signed in{user?.name ? ` as ${user.name}` : ''}
-            {user?.email ? ` (${user.email})` : ''}
           </span>
           <Button variant="ghost" size="sm" onClick={logout} className="h-6 text-[11px] text-red-400 hover:text-red-300">
             Sign out
