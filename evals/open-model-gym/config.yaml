@@ -96,8 +96,4 @@ matrix:
 
   # Multi-turn: goose and pi only (opencode doesn't support session continuation)
   - scenario: multi-turn-edit
-<<<<<<< Updated upstream
     runners: [pi, goose]
-=======
-    runners: [goose-full]
->>>>>>> Stashed changes

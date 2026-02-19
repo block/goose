@@ -339,9 +339,6 @@ pub struct DownloadProgressResponse {
 pub async fn get_local_model_download_progress(
     Path(model_id): Path<String>,
 ) -> Result<Json<DownloadProgressResponse>, ErrorResponse> {
-    let model_id = urlencoding::decode(&model_id)
-        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
-        .into_owned();
 
     let download_id = format!("{}-model", model_id);
     debug!(
@@ -399,9 +396,6 @@ pub async fn get_local_model_download_progress(
 pub async fn cancel_local_model_download(
     Path(model_id): Path<String>,
 ) -> Result<StatusCode, ErrorResponse> {
-    let model_id = urlencoding::decode(&model_id)
-        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
-        .into_owned();
 
     let download_id = format!("{}-model", model_id);
     let dm = goose::dictation::download_manager::get_download_manager();
@@ -420,9 +414,6 @@ pub async fn cancel_local_model_download(
     )
 )]
 pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCode, ErrorResponse> {
-    let model_id = urlencoding::decode(&model_id)
-        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
-        .into_owned();
 
     let local_path = {
         let registry = get_registry()
@@ -464,9 +455,6 @@ pub async fn delete_local_model(Path(model_id): Path<String>) -> Result<StatusCo
 pub async fn get_model_settings(
     Path(model_id): Path<String>,
 ) -> Result<Json<ModelSettings>, ErrorResponse> {
-    let model_id = urlencoding::decode(&model_id)
-        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
-        .into_owned();
 
     let registry = get_registry()
         .lock()
@@ -494,9 +482,6 @@ pub async fn update_model_settings(
     Path(model_id): Path<String>,
     Json(settings): Json<ModelSettings>,
 ) -> Result<Json<ModelSettings>, ErrorResponse> {
-    let model_id = urlencoding::decode(&model_id)
-        .map_err(|_| ErrorResponse::bad_request("Invalid model_id encoding"))?
-        .into_owned();
 
     let mut registry = get_registry()
         .lock()
