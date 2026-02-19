@@ -266,6 +266,7 @@ export default function McpAppRenderer({
 
   // Cache iframe contentWindows for O(1) message source matching instead of
   // scanning querySelectorAll('iframe') on every postMessage event.
+  // eslint-disable-next-line no-undef
   const iframeWindowsRef = useRef<Set<Window>>(new Set());
 
   // Track the entrance animation class so we can clean it up on the next mode change.
@@ -396,6 +397,7 @@ export default function McpAppRenderer({
     const handleMessage = (e: MessageEvent) => {
       const data = e.data;
       if (!data || typeof data !== 'object') return;
+      // eslint-disable-next-line no-undef
       if (!e.source || !iframeWindowsRef.current.has(e.source as Window)) return;
 
       // Extract app's declared display modes from ui/initialize
