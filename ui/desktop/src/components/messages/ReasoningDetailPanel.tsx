@@ -74,6 +74,22 @@ interface ActivityEntry {
   isActive: boolean;
 }
 
+/** Extract first complete sentence from text, stripping markdown. */
+function firstSentence(text: string): string | null {
+  const cleaned = text
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/[#*_`~>]/g, '')
+    .replace(/\n+/g, ' ')
+    .trim();
+  // Split on sentence-ending punctuation
+  const match = cleaned.match(/^(.+?[.!?:—])\s/);
+  const sentence = match ? match[1].trim() : null;
+  if (sentence && sentence.length > 5) {
+    return sentence.length > 120 ? `${sentence.slice(0, 117)}…` : sentence;
+  }
+  return null;
+}
+
 /** Extract a compact list of activity entries from work block messages. */
 function extractActivityEntries(messages: Message[], isStreaming: boolean): ActivityEntry[] {
   const entries: ActivityEntry[] = [];
@@ -85,7 +101,9 @@ function extractActivityEntries(messages: Message[], isStreaming: boolean): Acti
     const content = msg.content;
     if (!Array.isArray(content)) continue;
 
-    // Extract thinking text (only if there's also a tool call — pure text is the final answer)
+    const isLastMsg = i === messages.length - 1;
+    const isStreamingMsg = isStreaming && isLastMsg;
+
     const hasToolRequest = content.some(
       (c) => typeof c === 'object' && c !== null && 'type' in c && c.type === 'toolRequest'
     );
@@ -95,18 +113,21 @@ function extractActivityEntries(messages: Message[], isStreaming: boolean): Acti
 
       if (c.type === 'text' && hasToolRequest) {
         const text = 'text' in c && typeof c.text === 'string' ? c.text.trim() : '';
+
+        if (isStreamingMsg) {
+          // During streaming, the text is partial — skip to avoid flickering.
+          // A "Thinking…" placeholder is shown via the active tool spinner.
+          continue;
+        }
+
+        // Completed message — extract first complete sentence
         if (text.length > 10) {
-          // Extract first sentence as thinking summary
-          const cleaned = text
-            .replace(/```[\s\S]*?```/g, '')
-            .replace(/[#*_`~>]/g, '')
-            .trim();
-          const firstLine = cleaned.split(/[.\n]/)[0]?.trim();
-          if (firstLine && firstLine.length > 5) {
+          const sentence = firstSentence(text);
+          if (sentence) {
             entries.push({
               kind: 'thinking',
               id: `think-${msg.id || i}`,
-              description: firstLine.length > 120 ? `${firstLine.slice(0, 117)}…` : firstLine,
+              description: sentence,
               isActive: false,
             });
           }
@@ -124,9 +145,8 @@ function extractActivityEntries(messages: Message[], isStreaming: boolean): Acti
         ).toolCall;
         const name = toolCall?.value?.name || 'unknown';
         const args = (toolCall?.value?.arguments || {}) as Record<string, unknown>;
-        const isLastMsg = i === messages.length - 1;
         const isPending = !toolCall?.status || toolCall.status === 'pending';
-        const isActive = isStreaming && isLastMsg && isPending;
+        const isActive = isStreamingMsg && isPending;
 
         entries.push({
           kind: 'tool',
