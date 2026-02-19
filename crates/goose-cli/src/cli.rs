@@ -1527,7 +1527,6 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     file.download_url,
                     local_path,
                     None,
-                    None,
                 )
                 .await?;
 

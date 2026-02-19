@@ -257,13 +257,16 @@ pub async fn download_model(Path(model_id): Path<String>) -> Result<StatusCode, 
         .ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
 
     let manager = get_download_manager();
+    let model_id_for_config = model.id.to_string();
     manager
         .download_model(
             model.id.to_string(),
             model.url.to_string(),
             model.local_path(),
-            Some(whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY.to_string()),
-            Some(model.id.to_string()),
+            Some(Box::new(move || {
+                let _ = goose::config::Config::global()
+                    .set_param(whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY, model_id_for_config);
+            })),
         )
         .await
         .map_err(convert_error)?;

@@ -99,8 +99,7 @@ impl DownloadManager {
         model_id: String,
         url: String,
         destination: PathBuf,
-        config_key: Option<String>,
-        config_value: Option<String>,
+        on_complete: Option<Box<dyn FnOnce() + Send + 'static>>,
     ) -> Result<()> {
         info!(model_id = %model_id, url = %url, destination = ?destination, "Starting model download");
         {
@@ -152,9 +151,8 @@ impl DownloadManager {
                         }
                     }
 
-                    // Set config if provided
-                    if let (Some(key), Some(value)) = (config_key, config_value) {
-                        let _ = crate::config::Config::global().set_param(&key, value);
+                    if let Some(callback) = on_complete {
+                        callback();
                     }
                 }
                 Err(e) => {

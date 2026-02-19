@@ -297,7 +297,6 @@ pub async fn download_hf_model(
         download_url,
         local_path,
         None,
-        None,
     )
     .await
     .map_err(|e| ErrorResponse::internal(format!("Download failed: {}", e)))?;
