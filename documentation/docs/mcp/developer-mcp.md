@@ -174,12 +174,16 @@ The Developer extension provides these tools:
 
 ### Environment Variables in Shell Commands
 
-Shell commands executed by the `shell` tool have access to environment variables from your session. This includes:
+Shell commands executed by the `shell` tool inherit the environment of the running goose process. This typically includes:
 - System variables like `PATH`, `HOME`, and `USER`
-- Environment variables from your terminal session (including any you've exported)
-- Session-specific variables like `AGENT_SESSION_ID` for [session-isolated workflows](/docs/guides/environment-variables#using-session-ids-in-workflows)
+- Environment variables present in the process that launched goose (for example, your terminal's environment when you start goose from a shell)
+- Session-specific variables injected by goose, such as `AGENT_SESSION_ID` for [session-isolated workflows](/docs/guides/environment-variables#using-session-ids-in-workflows)
 
 This enables workflows that depend on environment configuration, such as authenticated CLI operations and build processes.
+
+:::info
+goose Desktop or launcher-based starts may use a different environment and may not load your shell startup files.
+:::
 
 :::warning Sensitive Information
 Environment variables may contain sensitive values like API keys and tokens (e.g., `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`).
