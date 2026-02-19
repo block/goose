@@ -132,6 +132,8 @@ async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string
 
 const PIP_WIDTH = 400;
 const PIP_HEIGHT = 300;
+const PIP_MARGIN_RIGHT = 16;
+const PIP_MARGIN_BOTTOM = 140;
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -342,18 +344,19 @@ export default function McpAppRenderer({
 
   // PiP drag state
   const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
+  const pipPositionRef = useRef(pipPosition);
   const pipDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+
+  useEffect(() => {
+    pipPositionRef.current = pipPosition;
+  }, [pipPosition]);
 
   const handlePipPointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    pipDragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      originX: pipPosition.x,
-      originY: pipPosition.y,
-    };
-  }, [pipPosition]);
+    const { x, y } = pipPositionRef.current;
+    pipDragRef.current = { startX: e.clientX, startY: e.clientY, originX: x, originY: y };
+  }, []);
 
   const handlePipPointerMove = useCallback((e: React.PointerEvent) => {
     if (!pipDragRef.current) return;
@@ -365,8 +368,24 @@ export default function McpAppRenderer({
     });
   }, []);
 
-  const handlePipPointerUp = useCallback(() => {
+  const handlePipPointerUp = useCallback((e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     pipDragRef.current = null;
+  }, []);
+
+  const handlePipKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 32 : 8;
+    let dx = 0;
+    let dy = 0;
+    switch (e.key) {
+      case 'ArrowUp': dy = -step; break;
+      case 'ArrowDown': dy = step; break;
+      case 'ArrowLeft': dx = -step; break;
+      case 'ArrowRight': dx = step; break;
+      default: return;
+    }
+    e.preventDefault();
+    setPipPosition((prev) => ({ x: prev.x + dx, y: prev.y + dy }));
   }, []);
 
   // Cache iframe contentWindows for O(1) source matching via MutationObserver.
@@ -954,9 +973,9 @@ export default function McpAppRenderer({
       );
     }
 
-    // Inline mode — show controls on hover
+    // Inline mode — show controls on hover or keyboard focus
     return (
-      <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover/mcp-app:opacity-100">
+      <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover/mcp-app:opacity-100 focus-within:opacity-100">
         {appSupportsFullscreen && (
           <button
             onClick={() => changeDisplayMode('fullscreen')}
@@ -1003,8 +1022,8 @@ export default function McpAppRenderer({
         ? {
             width: `${PIP_WIDTH}px`,
             height: `${PIP_HEIGHT}px`,
-            right: `${16 - pipPosition.x}px`,
-            bottom: `${16 - pipPosition.y}px`,
+            right: `${PIP_MARGIN_RIGHT - pipPosition.x}px`,
+            bottom: `${PIP_MARGIN_BOTTOM - pipPosition.y}px`,
           }
         : {
             width: '100%',
@@ -1039,12 +1058,16 @@ export default function McpAppRenderer({
       {/* Stable app container — never unmounted, only repositioned via CSS */}
       <div ref={containerRef} className={cn(containerClasses, isPip && 'group/pip')} style={containerStyle}>
         {isPip && (
-          <div className="pointer-events-none sticky top-1 z-20 flex h-0 items-start justify-between px-1 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100">
+          <div className="pointer-events-none sticky top-1 z-20 flex h-0 items-start justify-between px-1 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
             <div
+              role="button"
+              tabIndex={0}
+              aria-label="Move Picture-in-Picture window (use arrow keys)"
               className="pointer-events-auto cursor-grab rounded-md bg-black/50 p-1 text-white backdrop-blur-sm hover:bg-black/70 active:cursor-grabbing"
               onPointerDown={handlePipPointerDown}
               onPointerMove={handlePipPointerMove}
               onPointerUp={handlePipPointerUp}
+              onKeyDown={handlePipKeyDown}
             >
               <GripHorizontal size={14} />
             </div>
