@@ -1160,65 +1160,6 @@ impl GooseAcpAgent {
         })
     }
 
-    #[custom_method("tool/call")]
-    async fn on_tool_call(
-        &self,
-        _req: serde_json::Value,
-    ) -> Result<serde_json::Value, sacp::Error> {
-        Err(sacp::Error::new(-32001, "tool/call not yet implemented"))
-    }
-
-    #[custom_method("provider/update")]
-    async fn on_provider_update(
-        &self,
-        _req: serde_json::Value,
-    ) -> Result<serde_json::Value, sacp::Error> {
-        Err(sacp::Error::new(
-            -32001,
-            "provider/update not yet implemented",
-        ))
-    }
-
-    #[custom_method("container/set")]
-    async fn on_container_set(
-        &self,
-        _req: serde_json::Value,
-    ) -> Result<serde_json::Value, sacp::Error> {
-        Err(sacp::Error::new(
-            -32001,
-            "container/set not yet implemented",
-        ))
-    }
-
-    #[custom_method("apps/list")]
-    async fn on_apps_list(&self) -> Result<serde_json::Value, sacp::Error> {
-        Err(sacp::Error::new(-32001, "apps/list not yet implemented"))
-    }
-
-    #[custom_method("apps/export")]
-    async fn on_apps_export(
-        &self,
-        _req: serde_json::Value,
-    ) -> Result<serde_json::Value, sacp::Error> {
-        Err(sacp::Error::new(-32001, "apps/export not yet implemented"))
-    }
-
-    #[custom_method("apps/import")]
-    async fn on_apps_import(
-        &self,
-        _req: serde_json::Value,
-    ) -> Result<serde_json::Value, sacp::Error> {
-        Err(sacp::Error::new(-32001, "apps/import not yet implemented"))
-    }
-
-    #[custom_method("config/providers")]
-    async fn on_config_providers(&self) -> Result<serde_json::Value, sacp::Error> {
-        Err(sacp::Error::new(
-            -32001,
-            "config/providers not yet implemented",
-        ))
-    }
-
     async fn get_agent_for_session(&self, session_id: &str) -> Result<Arc<Agent>, sacp::Error> {
         self.sessions
             .lock()

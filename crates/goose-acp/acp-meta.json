@@ -54,41 +54,6 @@
       "method": "config/extensions",
       "requestType": null,
       "responseType": "GetExtensionsResponse"
-    },
-    {
-      "method": "tool/call",
-      "requestType": null,
-      "responseType": null
-    },
-    {
-      "method": "provider/update",
-      "requestType": null,
-      "responseType": null
-    },
-    {
-      "method": "container/set",
-      "requestType": null,
-      "responseType": null
-    },
-    {
-      "method": "apps/list",
-      "requestType": null,
-      "responseType": null
-    },
-    {
-      "method": "apps/export",
-      "requestType": null,
-      "responseType": null
-    },
-    {
-      "method": "apps/import",
-      "requestType": null,
-      "responseType": null
-    },
-    {
-      "method": "config/providers",
-      "requestType": null,
-      "responseType": null
     }
   ]
 }
