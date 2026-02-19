@@ -300,54 +300,84 @@ impl<'a> ToolAnalyticsStore<'a> {
         Ok(stats)
     }
 
-    /// Get per-tool error counts by joining request IDs with response IDs
+    /// Get per-tool error counts using a two-step approach to avoid O(n²) CTE cross-joins.
+    /// Step 1: Collect error response IDs (small set).
+    /// Step 2: Look up those IDs in tool requests to get tool names.
     async fn get_per_tool_errors(
         &self,
         days: i32,
     ) -> Result<std::collections::HashMap<String, i64>> {
-        // Join tool requests with their responses via matching IDs
-        let rows: Vec<(String, i64)> = sqlx::query_as(
+        // Step 1: Get (session_id, response_id) pairs for error responses — typically small
+        let error_ids: Vec<(String, String)> = sqlx::query_as(
             r#"
-            WITH tool_requests AS (
-                SELECT
-                    m.session_id,
-                    json_extract(je.value, '$.id') as request_id,
-                    json_extract(je.value, '$.toolCall.value.name') as tool_name
-                FROM messages m, json_each(m.content_json) je
-                WHERE m.role = 'assistant'
-                  AND json_extract(je.value, '$.type') = 'toolRequest'
-                  AND json_extract(je.value, '$.toolCall.value.name') IS NOT NULL
-                  AND m.created_timestamp > unixepoch() - (? * 86400)
-            ),
-            tool_responses AS (
-                SELECT
-                    m.session_id,
-                    json_extract(je.value, '$.id') as response_id,
-                    CASE
-                        WHEN json_extract(je.value, '$.toolResult.value.isError') = 1 THEN 1
-                        WHEN json_extract(je.value, '$.toolResult.error') IS NOT NULL THEN 1
-                        ELSE 0
-                    END as is_error
-                FROM messages m, json_each(m.content_json) je
-                WHERE m.role = 'user'
-                  AND json_extract(je.value, '$.type') = 'toolResponse'
-                  AND m.created_timestamp > unixepoch() - (? * 86400)
-            )
             SELECT
-                tr.tool_name,
-                SUM(tres.is_error) as error_count
-            FROM tool_requests tr
-            JOIN tool_responses tres ON tr.request_id = tres.response_id AND tr.session_id = tres.session_id
-            WHERE tres.is_error > 0
-            GROUP BY tr.tool_name
+                m.session_id,
+                json_extract(je.value, '$.id') as response_id
+            FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'user'
+              AND json_extract(je.value, '$.type') = 'toolResponse'
+              AND (
+                  json_extract(je.value, '$.toolResult.value.isError') = 1
+                  OR json_extract(je.value, '$.toolResult.error') IS NOT NULL
+              )
+              AND m.created_timestamp > unixepoch() - (? * 86400)
             "#,
         )
-        .bind(days)
         .bind(days)
         .fetch_all(self.pool)
         .await?;
 
-        Ok(rows.into_iter().collect())
+        if error_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        // Step 2: Look up tool names for those specific IDs
+        // Build a set of (session_id, request_id) to match against
+        let id_set: std::collections::HashSet<(&str, &str)> = error_ids
+            .iter()
+            .map(|(sid, rid)| (sid.as_str(), rid.as_str()))
+            .collect();
+
+        // Fetch all tool requests from sessions that had errors
+        let session_ids: Vec<&str> = error_ids.iter().map(|(s, _)| s.as_str()).collect();
+        let session_ids_dedup: std::collections::HashSet<&str> =
+            session_ids.into_iter().collect();
+        let placeholders: String = session_ids_dedup.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+
+        let query = format!(
+            r#"
+            SELECT
+                m.session_id,
+                json_extract(je.value, '$.id') as request_id,
+                json_extract(je.value, '$.toolCall.value.name') as tool_name
+            FROM messages m, json_each(m.content_json) je
+            WHERE m.role = 'assistant'
+              AND json_extract(je.value, '$.type') = 'toolRequest'
+              AND json_extract(je.value, '$.toolCall.value.name') IS NOT NULL
+              AND m.session_id IN ({})
+              AND m.created_timestamp > unixepoch() - (? * 86400)
+            "#,
+            placeholders
+        );
+
+        let mut qb = sqlx::query_as::<_, (String, String, String)>(&query);
+        for sid in &session_ids_dedup {
+            qb = qb.bind(*sid);
+        }
+        qb = qb.bind(days);
+
+        let requests: Vec<(String, String, String)> = qb.fetch_all(self.pool).await?;
+
+        // Match error response IDs to request IDs in Rust (O(n) with HashSet)
+        let mut error_map: std::collections::HashMap<String, i64> =
+            std::collections::HashMap::new();
+        for (session_id, request_id, tool_name) in &requests {
+            if id_set.contains(&(session_id.as_str(), request_id.as_str())) {
+                *error_map.entry(tool_name.clone()).or_insert(0) += 1;
+            }
+        }
+
+        Ok(error_map)
     }
 
     /// Get daily tool activity
