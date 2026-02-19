@@ -5,10 +5,90 @@ import { useReasoningDetail, type WorkBlockDetail } from '../../contexts/Reasoni
 import FlyingBird from '../branding/FlyingBird';
 import GooseLogo from '../branding/GooseLogo';
 
+/** Convert snake_case to Title Case */
+function snakeToTitle(s: string): string {
+  return s
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/** Extract the tool name (after last __) from a fully-qualified name like "developer__shell" */
+function getToolName(fullName: string): string {
+  const parts = fullName.split('__');
+  return parts[parts.length - 1] || fullName;
+}
+
+/** Build a concise description of a tool call (e.g. "editing src/App.tsx") */
+function describeToolCall(name: string, args: Record<string, unknown>): string {
+  const toolName = getToolName(name);
+  const str = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v));
+
+  switch (toolName) {
+    case 'text_editor':
+      if (args.command === 'write' && args.path) return `writing ${str(args.path)}`;
+      if (args.command === 'view' && args.path) return `reading ${str(args.path)}`;
+      if (args.command === 'str_replace' && args.path) return `editing ${str(args.path)}`;
+      if (args.command === 'insert' && args.path) return `inserting in ${str(args.path)}`;
+      if (args.path) return `${str(args.command)} ${str(args.path)}`;
+      break;
+    case 'shell':
+      if (args.command) {
+        const cmd = str(args.command);
+        return `running ${cmd.length > 80 ? `${cmd.slice(0, 77)}…` : cmd}`;
+      }
+      break;
+    case 'analyze':
+      if (args.path) return `analyzing ${str(args.path)}`;
+      break;
+    case 'image_processor':
+      if (args.path) return `processing image ${str(args.path)}`;
+      break;
+    case 'screen_capture':
+      return args.window_title ? `capturing "${str(args.window_title)}"` : 'capturing screen';
+    case 'create_app':
+    case 'iterate_app':
+      if (args.name)
+        return `${toolName === 'create_app' ? 'creating' : 'updating'} app ${str(args.name)}`;
+      break;
+    default: {
+      // Generic fallback: "Tool Name" + first string arg value
+      const display = snakeToTitle(toolName);
+      const firstStr = Object.values(args).find((v) => typeof v === 'string');
+      if (firstStr) {
+        const val = str(firstStr);
+        return `${display}: ${val.length > 60 ? `${val.slice(0, 57)}…` : val}`;
+      }
+      return display;
+    }
+  }
+  return snakeToTitle(toolName);
+}
+
 /**
- * Extract a one-liner summary from the last assistant message with text content.
+ * Extract a one-liner from the last tool call in the work block messages.
+ * Prefers tool call descriptions (e.g. "editing src/App.tsx") over raw assistant text.
  */
 function extractOneLiner(messages: Message[]): string {
+  // First, try the last tool request — gives actionable descriptions
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'assistant') continue;
+    for (let j = msg.content.length - 1; j >= 0; j--) {
+      const c = msg.content[j];
+      if (c.type === 'toolRequest') {
+        const toolCall = c.toolCall as
+          | { status?: string; value?: { name?: string; arguments?: Record<string, unknown> } }
+          | undefined;
+        if (toolCall?.status === 'success' && toolCall.value?.name) {
+          const desc = describeToolCall(toolCall.value.name, toolCall.value.arguments || {});
+          return desc.length > 120 ? `${desc.slice(0, 117)}…` : desc;
+        }
+      }
+    }
+  }
+
+  // Fallback: last assistant text (truncated)
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== 'assistant') continue;

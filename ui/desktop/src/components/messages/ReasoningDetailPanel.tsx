@@ -79,6 +79,7 @@ export default function ReasoningDetailPanel() {
               )}
             </div>
             <button
+              type="button"
               onClick={closeDetail}
               className="p-1 rounded-md hover:bg-background-muted transition-colors shrink-0 cursor-pointer"
             >
@@ -106,6 +107,7 @@ export default function ReasoningDetailPanel() {
                         append={NOOP}
                         toolCallNotifications={EMPTY_TOOL_NOTIFICATIONS}
                         isStreaming={isWorkBlockStreaming && isLastMsg}
+                        suppressToolCalls
                       />
                     </div>
                   );
