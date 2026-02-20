@@ -1399,12 +1399,7 @@ impl ExtensionManager {
                 owned_ctx.working_dir,
             );
             client
-                .call_tool(
-                    &owned_ctx,
-                    &actual_tool_name,
-                    arguments,
-                    cancellation_token,
-                )
+                .call_tool(&owned_ctx, &actual_tool_name, arguments, cancellation_token)
                 .await
                 .map_err(|e| match e {
                     ServiceError::McpError(error_data) => error_data,

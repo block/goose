@@ -892,7 +892,8 @@ pub async fn text_editor_replace(
 
     save_file_history(path, file_history)?;
 
-    let (normalized_content, response) = text_editor_replace_inmem(path, &content, old_str, new_str)?;
+    let (normalized_content, response) =
+        text_editor_replace_inmem(path, &content, old_str, new_str)?;
 
     std::fs::write(path, &normalized_content).map_err(|e| {
         ErrorData::new(

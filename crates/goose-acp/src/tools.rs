@@ -1,4 +1,4 @@
-use std::{cell::LazyCell, fmt::Display, future::Future, path::PathBuf};
+use std::{fmt::Display, future::Future, path::PathBuf, sync::LazyLock};
 
 use agent_client_protocol_schema::{
     CreateTerminalRequest, Diff, ReadTextFileRequest, SessionId, SessionNotification,
@@ -74,7 +74,7 @@ macro_rules! schema {
     };
 }
 
-const TOOL_DEFS: LazyCell<Vec<Tool>> = LazyCell::new(|| {
+static TOOL_DEFS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
     vec![
         Tool::new("read", "Read files", schema!(ReadParams)),
         Tool::new("write", "Write files", schema!(WriteParams)),
@@ -257,7 +257,7 @@ impl AcpTools {
             &path,
             content.as_str(),
             params.position,
-            &params.new_str.as_str(),
+            params.new_str.as_str(),
         )
         .map_err(|_| ServiceError::McpError(ErrorData::internal_error("failed to insert", None)))?;
         self.update_tool_call(
@@ -378,19 +378,17 @@ impl McpClientTrait for AcpTools {
             "shell" => handle_tool_call(|p| self.shell(ctx, p), args).await,
             _ => Err(invalid_request("tool not found")),
         }
-        .and_then(|res| {
+        .inspect(|_| {
             self.update_tool_call(
                 ctx,
                 ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
-            );
-            Ok(res)
+            )
         })
-        .or_else(|err| {
+        .inspect_err(|_| {
             self.update_tool_call(
                 ctx,
                 ToolCallUpdateFields::new().status(ToolCallStatus::Failed),
-            );
-            Err(err)
+            )
         })
     }
 

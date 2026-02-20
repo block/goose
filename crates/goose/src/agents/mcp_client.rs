@@ -604,7 +604,12 @@ impl McpClientTrait for McpClient {
         });
 
         let result = self
-            .send_request_with_context(&ctx.session_id, ctx.working_dir_str(), request, cancel_token)
+            .send_request_with_context(
+                &ctx.session_id,
+                ctx.working_dir_str(),
+                request,
+                cancel_token,
+            )
             .await;
 
         match result? {
