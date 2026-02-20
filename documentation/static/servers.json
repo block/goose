@@ -761,6 +761,7 @@
     "id": "neighborhood",
     "name": "Neighborhood",
     "description": "Discover nearby restaurants, browse menus, and place takeout orders through natural conversation. Sellers are US-based.",
+    "type": "streamable-http",
     "url": "https://connect.squareup.com/v2/mcp/neighborhood",
     "link": "",
     "installation_notes": "No local setup required. This extension connects to a remote service. Use the install button or run the command below.",
