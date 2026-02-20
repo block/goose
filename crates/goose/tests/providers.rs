@@ -160,9 +160,14 @@ impl ProviderTester {
             .as_ref()
             .expect("tool_call should be Ok")
             .clone();
+        let ctx = goose::agents::ToolCallContext::new(
+            session_id.to_string(),
+            None,
+            Some("test-id".to_string()),
+        );
         let result = self
             .extension_manager
-            .dispatch_tool_call(session_id, params, None, CancellationToken::new())
+            .dispatch_tool_call(&ctx, params, CancellationToken::new())
             .await
             .expect("dispatch failed")
             .result

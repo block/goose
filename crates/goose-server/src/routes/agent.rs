@@ -952,14 +952,10 @@ async fn call_tool(
         arguments,
     };
 
+    let ctx = goose::agents::ToolCallContext::new(payload.session_id.clone(), None, None);
     let tool_result = agent
         .extension_manager
-        .dispatch_tool_call(
-            &payload.session_id,
-            tool_call,
-            None,
-            CancellationToken::default(),
-        )
+        .dispatch_tool_call(&ctx, tool_call, CancellationToken::default())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

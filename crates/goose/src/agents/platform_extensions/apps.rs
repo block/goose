@@ -1,5 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
 use crate::goose_apps::McpAppResource;
@@ -536,12 +537,12 @@ impl McpClientTrait for AppsManagerClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let result = match name {
             "list_apps" => self.handle_list_apps(arguments).await,
             "create_app" => self.handle_create_app(session_id, arguments).await,

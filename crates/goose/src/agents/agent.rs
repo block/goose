@@ -539,22 +539,25 @@ impl Agent {
             };
         }
 
+        let ctx = super::tool_execution::ToolCallContext::new(
+            session.id.clone(),
+            Some(session.working_dir.clone()),
+            Some(request_id.clone()),
+        );
+
         debug!("WAITING_TOOL_START: {}", tool_call.name);
         let result: ToolCallResult = if self.is_frontend_tool(&tool_call.name).await {
-            // For frontend tools, return an error indicating we need frontend execution
             ToolCallResult::from(Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Frontend tool execution required".to_string(),
                 None,
             )))
         } else {
-            // Clone the result to ensure no references to extension_manager are returned
             let result = self
                 .extension_manager
                 .dispatch_tool_call(
-                    &session.id,
+                    &ctx,
                     tool_call.clone(),
-                    Some(session.working_dir.as_path()),
                     cancellation_token.unwrap_or_default(),
                 )
                 .await;
@@ -563,7 +566,6 @@ impl Agent {
                     "tool_execution_failed",
                     &format!("{}: {}", tool_call.name, e),
                 );
-                // Try to downcast to ErrorData to avoid double wrapping
                 let error_data = e.downcast::<ErrorData>().unwrap_or_else(|e| {
                     ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None)
                 });

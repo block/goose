@@ -1,4 +1,5 @@
 use crate::action_required_manager::ActionRequiredManager;
+use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
 use rmcp::model::{
@@ -49,10 +50,9 @@ pub trait McpClientTrait: Send + Sync {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error>;
 
@@ -587,10 +587,9 @@ impl McpClientTrait for McpClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let request = ClientRequest::CallToolRequest(CallToolRequest {
@@ -605,7 +604,7 @@ impl McpClientTrait for McpClient {
         });
 
         let result = self
-            .send_request_with_context(session_id, working_dir, request, cancel_token)
+            .send_request_with_context(&ctx.session_id, ctx.working_dir_str(), request, cancel_token)
             .await;
 
         match result? {
