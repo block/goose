@@ -482,15 +482,22 @@ impl GooseAcpAgent {
             Err(_) => ToolCallStatus::Failed,
         };
 
-        let content = build_tool_call_content(&tool_response.tool_result);
-
-        let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
+        let tool_request = session.tool_requests.get(&tool_response.id);
+        let locations = if let Some(tool_request) = tool_request {
             extract_tool_locations(tool_request, tool_response)
         } else {
             Vec::new()
         };
 
-        let mut fields = ToolCallUpdateFields::new().status(status).content(content);
+        let mut fields = ToolCallUpdateFields::new().status(status);
+        let is_acp_tool = tool_request
+            .and_then(|req| req.tool_call.as_ref().ok())
+            // TODO: something more robust here
+            .is_some_and(|req| req.name == "shell");
+        if !is_acp_tool {
+            let content = build_tool_call_content(&tool_response.tool_result);
+            fields = fields.content(content);
+        }
         if !locations.is_empty() {
             fields = fields.locations(locations);
         }
