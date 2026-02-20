@@ -1,107 +1,61 @@
-export type {
-  CspMetadata,
-  PermissionsMetadata,
-  CallToolResponse as ToolResult,
-} from '../../api/types.gen';
+import type {
+  McpUiToolInputNotification,
+  McpUiToolInputPartialNotification,
+  McpUiToolCancelledNotification,
+  McpUiDisplayMode,
+} from '@modelcontextprotocol/ext-apps/app-bridge';
+import type { Content } from '../../api';
 
-export type ContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'image'; data: string; mimeType: string }
-  | {
-      type: 'resource';
-      resource: { uri: string; mimeType?: string; text?: string; blob?: string };
-    };
+/**
+ * Space-separated sandbox tokens for iframe permissions.
+ * @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#sandbox
+ */
+export type SandboxPermissions = string;
 
-export type McpMethodParams = {
-  'ui/open-link': { url: string };
-  'ui/message': { role: 'user'; content: ContentBlock[] };
-  'tools/call': { name: string; arguments?: Record<string, unknown> };
-  'resources/read': { uri: string };
-  'notifications/message': { level?: string; logger?: string; data: unknown };
-  ping: Record<string, never>;
+export type GooseDisplayMode = McpUiDisplayMode | 'standalone';
+
+/**
+ * Per the ext-apps spec, each axis is independently:
+ *   fixed     – sends width/height (host controls, view fills it)
+ *   flexible  – sends maxWidth/maxHeight (view controls, up to max; host resizes via size-changed)
+ *   unbounded – field omitted (view controls with no limit; host resizes via size-changed)
+ */
+export type DimensionMode = 'fixed' | 'flexible' | 'unbounded';
+
+export interface DimensionLayout {
+  width: DimensionMode;
+  height: DimensionMode;
+}
+
+/**
+ * Tool input from the message stream.
+ * McpAppRenderer extracts `.arguments` when passing to the SDK's AppRenderer.
+ */
+export type McpAppToolInput = McpUiToolInputNotification['params'];
+
+export type McpAppToolInputPartial = McpUiToolInputPartialNotification['params'];
+
+export type McpAppToolCancelled = McpUiToolCancelledNotification['params'];
+
+export type McpAppToolResult = {
+  content: Content[];
+  structuredContent?: unknown;
 };
 
-export type McpMethodResponse = {
-  'ui/open-link': { status: string; message: string };
-  'ui/message': Record<string, never>;
-  'tools/call': {
-    content: unknown[];
-    isError: boolean;
-    structuredContent?: Record<string, unknown>;
-  };
-  'resources/read': { contents: unknown[] };
-  'notifications/message': Record<string, never>;
-  ping: Record<string, never>;
+export type SamplingMessage = {
+  role: 'user' | 'assistant';
+  content: { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 };
 
-export interface JsonRpcRequest {
-  jsonrpc: '2.0';
-  id?: string | number;
-  method: string;
-  params?: Record<string, unknown>;
-}
+export type SamplingCreateMessageParams = {
+  messages: SamplingMessage[];
+  systemPrompt?: string;
+  maxTokens?: number;
+};
 
-export interface JsonRpcNotification {
-  jsonrpc: '2.0';
-  method: string;
-  params?: Record<string, unknown>;
-}
-
-export interface JsonRpcResponse {
-  jsonrpc: '2.0';
-  id: string | number;
-  result?: unknown;
-  error?: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
-}
-
-export type JsonRpcMessage = JsonRpcRequest | JsonRpcNotification | JsonRpcResponse;
-
-export interface HostContext {
-  toolInfo?: {
-    id?: string | number;
-    tool: {
-      name: string;
-      description?: string;
-      inputSchema?: Record<string, unknown>;
-    };
-  };
-  theme: 'light' | 'dark';
-  displayMode: 'inline' | 'fullscreen' | 'standalone';
-  availableDisplayModes: ('inline' | 'fullscreen' | 'standalone')[];
-  viewport: {
-    width: number;
-    height: number;
-    maxHeight: number;
-    maxWidth: number;
-  };
-  locale: string;
-  timeZone: string;
-  userAgent: string;
-  platform: 'web' | 'desktop' | 'mobile';
-  deviceCapabilities: {
-    touch: boolean;
-    hover: boolean;
-  };
-  safeAreaInsets: {
-    top: number;
-    right: number;
-    bottom: number;
-    left: number;
-  };
-}
-
-export interface ToolInput {
-  arguments: Record<string, unknown>;
-}
-
-export interface ToolInputPartial {
-  arguments: Record<string, unknown>;
-}
-
-export interface ToolCancelled {
-  reason?: string;
-}
+export type SamplingCreateMessageResponse = {
+  model: string;
+  stopReason: string;
+  role: 'assistant';
+  content: { type: 'text'; text: string };
+};

@@ -6,7 +6,7 @@
 # Platform Build Strategy:
 #  - Linux: Uses Ubuntu runner with cross-compilation
 #  - macOS: Uses macOS runner with cross-compilation
-#  - Windows: Uses Ubuntu runner with Docker cross-compilation (same as desktop build)
+#  - Windows: Uses Windows runner with native MSVC build
 on:
   workflow_call:
     inputs:
@@ -56,20 +56,19 @@ jobs:
           # Windows builds (only x86_64 supported)
           - os: windows
             architecture: x86_64
-            target-suffix: pc-windows-gnu
-            build-on: ubuntu-latest
+            target-suffix: pc-windows-msvc
+            build-on: windows-latest
             use-cross: false
-            use-docker: true
 
     steps:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
         with:
           ref: ${{ inputs.ref }}
-          fetch-depth: 0
 
       - name: Update version in Cargo.toml
         if: ${{ inputs.version != '' }}
+        shell: bash
         run: |
           sed -i.bak 's/^version = ".*"/version = "'${{ inputs.version }}'"/' Cargo.toml
           rm -f Cargo.toml.bak
@@ -85,10 +84,10 @@ jobs:
           key: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
 
       - name: Cache Cargo artifacts (Windows)
-        if: matrix.use-docker
+        if: matrix.os == 'windows'
         uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5  # v2.8.2
         with:
-          key: ${{ matrix.architecture }}-${{ matrix.target-suffix }}
+          key: windows-msvc-cli
 
       - name: Build CLI (Linux/macOS)
         if: matrix.use-cross
@@ -110,110 +109,28 @@ jobs:
           export CC="${{ matrix.cc || ''}}"
           cross build --release --target ${TARGET} -p goose-cli
 
-      - name: Build CLI (Windows)
-        if: matrix.use-docker
+      - name: Setup Rust (Windows)
+        if: matrix.os == 'windows'
+        shell: bash
         run: |
-          echo "🚀 Building Windows CLI executable with enhanced GitHub Actions caching..."
+          rustup show
+          rustup target add x86_64-pc-windows-msvc
 
-          # Create cache directories
-          mkdir -p ~/.cargo/registry ~/.cargo/git
+      - name: Build CLI (Windows)
+        if: matrix.os == 'windows'
+        shell: bash
+        run: |
+          echo "🚀 Building Windows CLI executable..."
+          cargo build --release --target x86_64-pc-windows-msvc -p goose-cli
 
-          # Use enhanced caching with GitHub Actions cache mounts
-          docker run --rm \
-            -v "$(pwd)":/usr/src/myapp \
-            -v "$HOME/.cargo/registry":/usr/local/cargo/registry \
-            -v "$HOME/.cargo/git":/usr/local/cargo/git \
-            -w /usr/src/myapp \
-            rust:latest \
-            bash -c "
-              set -e
-              echo '=== Setting up Rust environment with caching ==='
-              export CARGO_HOME=/usr/local/cargo
-              export PATH=/usr/local/cargo/bin:\$PATH
-
-              # Check if Windows target is already installed in cache
-              if rustup target list --installed | grep -q x86_64-pc-windows-gnu; then
-                echo '✅ Windows cross-compilation target already installed'
-              else
-                echo '📦 Installing Windows cross-compilation target...'
-                rustup target add x86_64-pc-windows-gnu
-              fi
-
-              echo '=== Setting up build dependencies ==='
-              apt-get update
-              apt-get install -y mingw-w64 protobuf-compiler cmake time
-
-              echo '=== Setting up cross-compilation environment ==='
-              export CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc
-              export CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++
-              export AR_x86_64_pc_windows_gnu=x86_64-w64-mingw32-ar
-              export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
-              export PKG_CONFIG_ALLOW_CROSS=1
-              export PROTOC=/usr/bin/protoc
-
-              echo '=== Optimized Cargo configuration ==='
-              mkdir -p .cargo
-              echo '[build]' > .cargo/config.toml
-              echo 'jobs = 4' >> .cargo/config.toml
-              echo '' >> .cargo/config.toml
-              echo '[target.x86_64-pc-windows-gnu]' >> .cargo/config.toml
-              echo 'linker = \"x86_64-w64-mingw32-gcc\"' >> .cargo/config.toml
-              echo '' >> .cargo/config.toml
-              echo '[net]' >> .cargo/config.toml
-              echo 'git-fetch-with-cli = true' >> .cargo/config.toml
-              echo 'retry = 3' >> .cargo/config.toml
-              echo '' >> .cargo/config.toml
-              echo '[profile.release]' >> .cargo/config.toml
-              echo 'codegen-units = 1' >> .cargo/config.toml
-              echo 'lto = false' >> .cargo/config.toml
-              echo 'panic = \"abort\"' >> .cargo/config.toml
-              echo 'debug = false' >> .cargo/config.toml
-              echo 'opt-level = 2' >> .cargo/config.toml
-              echo '' >> .cargo/config.toml
-              echo '[registries.crates-io]' >> .cargo/config.toml
-              echo 'protocol = \"sparse\"' >> .cargo/config.toml
-
-              echo '=== Building with cached dependencies ==='
-              # Check if we have cached build artifacts
-              if [ -d target/x86_64-pc-windows-gnu/release/deps ] && [ \"\$(ls -A target/x86_64-pc-windows-gnu/release/deps)\" ]; then
-                echo '✅ Found cached build artifacts, performing incremental build...'
-                CARGO_INCREMENTAL=1
-              else
-                echo '🔨 No cached artifacts found, performing full build...'
-                CARGO_INCREMENTAL=0
-              fi
-
-              echo '🔨 Building Windows CLI executable...'
-              CARGO_INCREMENTAL=\$CARGO_INCREMENTAL \
-              CARGO_NET_RETRY=3 \
-              CARGO_HTTP_TIMEOUT=60 \
-              RUST_BACKTRACE=1 \
-              cargo build --release --target x86_64-pc-windows-gnu -p goose-cli --jobs 4
-
-              echo '=== Copying Windows runtime DLLs ==='
-              GCC_DIR=\$(ls -d /usr/lib/gcc/x86_64-w64-mingw32/*/ | head -n 1)
-              cp \"\$GCC_DIR/libstdc++-6.dll\" target/x86_64-pc-windows-gnu/release/
-              cp \"\$GCC_DIR/libgcc_s_seh-1.dll\" target/x86_64-pc-windows-gnu/release/
-              cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll target/x86_64-pc-windows-gnu/release/
-
-              echo '✅ Build completed successfully!'
-              ls -la target/x86_64-pc-windows-gnu/release/
-            "
-
-          sudo chown -R $USER:$USER target/
-
-          # Verify build succeeded
-          if [ ! -f "./target/x86_64-pc-windows-gnu/release/goose.exe" ]; then
+          if [ ! -f "./target/x86_64-pc-windows-msvc/release/goose.exe" ]; then
             echo "❌ Windows CLI binary not found."
-            ls -la ./target/x86_64-pc-windows-gnu/release/ || echo "Release directory doesn't exist"
+            ls -la ./target/x86_64-pc-windows-msvc/release/ || echo "Release directory doesn't exist"
             exit 1
           fi
 
           echo "✅ Windows CLI binary found!"
-          ls -la ./target/x86_64-pc-windows-gnu/release/goose.exe
-
-          echo "✅ Windows runtime DLLs:"
-          ls -la ./target/x86_64-pc-windows-gnu/release/*.dll
+          ls -la ./target/x86_64-pc-windows-msvc/release/goose.exe
 
       - name: Package CLI (Linux/macOS)
         if: matrix.use-cross
@@ -233,22 +150,17 @@ jobs:
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
 
       - name: Package CLI (Windows)
-        if: matrix.use-docker
+        if: matrix.os == 'windows'
+        shell: bash
         run: |
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
 
-          # Create a directory for the package contents
           mkdir -p "target/${TARGET}/release/goose-package"
 
-          # Copy the goose binary
           cp "target/${TARGET}/release/goose.exe" "target/${TARGET}/release/goose-package/"
 
-          # Copy Windows runtime DLLs
-          cp "target/${TARGET}/release/"*.dll "target/${TARGET}/release/goose-package/"
-
-          # Create the zip archive with binary and DLLs
           cd "target/${TARGET}/release"
-          zip -r "goose-${TARGET}.zip" goose-package/
+          7z a -tzip "goose-${TARGET}.zip" goose-package/
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
 
       - name: Upload CLI artifact

@@ -26,6 +26,7 @@ interface ModelAndProviderContextType {
   getCurrentModelDisplayName: () => Promise<string>;
   getCurrentProviderDisplayName: () => Promise<string>; // Gets provider display name from subtext
   refreshCurrentModelAndProvider: () => Promise<void>;
+  setProviderAndModel: (provider: string, model: string) => void;
 }
 
 interface ModelAndProviderProviderProps {
@@ -173,6 +174,11 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     }
   }, [getCurrentModelAndProvider]);
 
+  const setProviderAndModel = useCallback((provider: string, model: string) => {
+    setCurrentProvider(provider);
+    setCurrentModel(model);
+  }, []);
+
   // Load initial model and provider on mount
   useEffect(() => {
     refreshCurrentModelAndProvider();
@@ -189,6 +195,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelDisplayName,
       getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
+      setProviderAndModel,
     }),
     [
       currentModel,
@@ -200,6 +207,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
       getCurrentModelDisplayName,
       getCurrentProviderDisplayName,
       refreshCurrentModelAndProvider,
+      setProviderAndModel,
     ]
   );
 

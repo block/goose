@@ -15,5 +15,5 @@ name = "capture"
 path = "src/bin/capture.rs"
 
 [dependencies]
-clap = { version = "4.5.44", features = ["derive"] }
+clap = { workspace = true }
 serde_json = { workspace = true }

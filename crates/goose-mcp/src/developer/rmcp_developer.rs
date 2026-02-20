@@ -18,16 +18,27 @@ use rmcp::{
     tool, tool_handler, tool_router, RoleServer, ServerHandler,
 };
 
-/// Header name for passing working directory through MCP request metadata
 const WORKING_DIR_HEADER: &str = "agent-working-dir";
+const SESSION_ID_HEADER: &str = "agent-session-id";
 
-/// Extract working directory from MCP request metadata
+pub const WORKING_DIR_PLACEHOLDER: &str = "{{WORKING_DIR}}";
+
 fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
     meta.0
         .get(WORKING_DIR_HEADER)
         .and_then(|v| v.as_str())
         .filter(|s| !s.is_empty())
+        .filter(|s| !s.contains('\0'))
         .map(PathBuf::from)
+}
+
+fn extract_session_id_from_meta(meta: &Meta) -> Option<String> {
+    meta.0
+        .get(SESSION_ID_HEADER)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .filter(|s| !s.contains('\0'))
+        .map(String::from)
 }
 
 use serde::{Deserialize, Serialize};
@@ -233,8 +244,6 @@ pub struct DeveloperServer {
 impl ServerHandler for DeveloperServer {
     #[allow(clippy::too_many_lines)]
     fn get_info(&self) -> ServerInfo {
-        // Get base instructions and working directory
-        let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
         let in_container = Self::is_definitely_container();
 
@@ -259,7 +268,7 @@ impl ServerHandler for DeveloperServer {
                 {container_info}
                 "#,
                 os=os,
-                cwd=cwd.to_string_lossy(),
+                cwd=WORKING_DIR_PLACEHOLDER,
                 container_info=if in_container { "container: true" } else { "" },
             },
             _ => {
@@ -286,7 +295,7 @@ impl ServerHandler for DeveloperServer {
             {container_info}
                 "#,
                 os=os,
-                cwd=cwd.to_string_lossy(),
+                cwd=WORKING_DIR_PLACEHOLDER,
                 shell=shell_info,
                 container_info=if in_container { "container: true" } else { "" },
                 }
@@ -418,6 +427,7 @@ impl ServerHandler for DeveloperServer {
                 name: "goose-developer".to_string(),
                 version: env!("CARGO_PKG_VERSION").to_owned(),
                 title: None,
+                description: None,
                 icons: None,
                 website_url: None,
             },
@@ -887,6 +897,7 @@ impl DeveloperServer {
         let request_id = context.id;
 
         let working_dir = extract_working_dir_from_meta(&context.meta);
+        let session_id = extract_session_id_from_meta(&context.meta);
 
         // Validate the shell command
         self.validate_shell_command(command)?;
@@ -901,7 +912,13 @@ impl DeveloperServer {
 
         // Execute the command and capture output
         let output_result = self
-            .execute_shell_command(command, &peer, cancellation_token.clone(), working_dir)
+            .execute_shell_command(
+                command,
+                &peer,
+                cancellation_token.clone(),
+                working_dir,
+                session_id,
+            )
             .await;
 
         // Clean up the process from tracking
@@ -986,6 +1003,7 @@ impl DeveloperServer {
         peer: &rmcp::service::Peer<RoleServer>,
         cancellation_token: CancellationToken,
         working_dir: Option<PathBuf>,
+        session_id: Option<String>,
     ) -> Result<String, ErrorData> {
         let mut shell_config = ShellConfig::default();
         let shell_name = std::path::Path::new(&shell_config.executable)
@@ -1000,6 +1018,12 @@ impl DeveloperServer {
                     env_file.clone().into_os_string(),
                 ))
             }
+        }
+
+        if let Some(sid) = session_id {
+            shell_config
+                .envs
+                .push((OsString::from("AGENT_SESSION_ID"), OsString::from(sid)));
         }
 
         let mut command = configure_shell_command(&shell_config, command, working_dir.as_deref());
@@ -1741,6 +1765,25 @@ mod tests {
             .as_text()
             .unwrap();
         assert!(user_content.text.contains("Hello, world!"));
+
+        // The assistant-audience content must be extractable via as_text()
+        let assistant_content = view_result
+            .content
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::Assistant))
+            })
+            .expect("view should return content with Assistant audience");
+        assert!(
+            assistant_content.as_text().is_some(),
+            "assistant content must be RawContent::Text, not Resource"
+        );
+        assert!(assistant_content
+            .as_text()
+            .unwrap()
+            .text
+            .contains("Hello, world!"));
     }
 
     #[tokio::test]

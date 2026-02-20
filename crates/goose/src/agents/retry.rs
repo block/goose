@@ -6,6 +6,8 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
+use crate::subprocess::SubprocessExt;
+
 use crate::agents::types::SessionConfig;
 use crate::agents::types::{
     RetryConfig, SuccessCheck, DEFAULT_ON_FAILURE_TIMEOUT_SECONDS, DEFAULT_RETRY_TIMEOUT_SECONDS,
@@ -233,13 +235,17 @@ pub async fn execute_shell_command(
             let mut cmd = Command::new("cmd");
             cmd.args(["/C", command]);
             cmd.env("GOOSE_TERMINAL", "1");
+            cmd.env("AGENT", "goose");
             cmd
         } else {
             let mut cmd = Command::new("sh");
             cmd.args(["-c", command]);
             cmd.env("GOOSE_TERMINAL", "1");
+            cmd.env("AGENT", "goose");
             cmd
         };
+
+        cmd.set_no_window();
 
         let output = cmd
             .stdout(Stdio::piped())

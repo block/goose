@@ -88,11 +88,7 @@ export const SwitchModelModal = ({
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
   );
-  // Only use currentModel if we're not switching to a different provider
-  // Otherwise, let the auto-select logic pick an appropriate model for the new provider
-  const [model, setModel] = useState<string>(
-    initialProvider && initialProvider !== currentProvider ? '' : currentModel || ''
-  );
+  const [model, setModel] = useState<string>(currentModel || '');
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -172,12 +168,10 @@ export const SwitchModelModal = ({
       }
 
       await changeModel(sessionId, modelObj);
+      onModelSelected?.(modelObj.name);
 
       trackModelChanged(modelObj.provider || '', modelObj.name);
 
-      if (onModelSelected) {
-        onModelSelected(modelObj.name);
-      }
       onClose();
     }
   };
@@ -212,8 +206,7 @@ export const SwitchModelModal = ({
     // Load providers for manual model selection
     (async () => {
       try {
-        // Force refresh if initialProvider is set (OAuth flow needs fresh data)
-        const providersResponse = await getProviders(!!initialProvider);
+        const providersResponse = await getProviders(false);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -282,7 +275,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read, initialProvider]);
+  }, [getProviders, usePredefinedModels, read]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
@@ -493,7 +486,36 @@ export const SwitchModelModal = ({
 
               {provider && (
                 <>
-                  {providerErrors[provider] ? (
+                  {provider === 'local' &&
+                  !loadingModels &&
+                  filteredModelOptions.flatMap((g) => g.options).filter((o) => o.value !== 'custom')
+                    .length === 0 ? (
+                    /* Show special UI for local provider when no models are downloaded */
+                    <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                            Local models need to be downloaded first
+                          </h3>
+                          <div className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                            To use local inference, you need to download a model to your computer
+                            first. Go to Settings → Models to manage local models.
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setView('settings');
+                            onClose();
+                          }}
+                          className="self-start border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        >
+                          Go to Settings
+                        </Button>
+                      </div>
+                    </div>
+                  ) : providerErrors[provider] ? (
                     /* Show error message when provider failed to connect */
                     <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
                       <div className="flex items-start">

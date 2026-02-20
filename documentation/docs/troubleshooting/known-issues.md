@@ -133,20 +133,22 @@ To resolve:
 
 #### Container and Keyring Issues
 
-If you're running goose in Docker containers or Linux environments without keyring support, authentication may fail with keyring errors like:
+goose tries to use the system keyring (typically via Secret Service over DBus) to securely store your GitHub Copilot token. In containerized or headless environments, DBus and/or a desktop keyring service may not be available (and some setups fail with X11-based DBus autolaunch errors), so keyring access can fail.
+
+If you're running goose in Docker containers or Linux environments without keyring support, goose may automatically fall back to [file-based secret storage](#keyring-cannot-be-accessed-automatic-fallback).
+
+If you still receive authentication/keyring errors like the following, goose was not able to fall back automatically. This can happen if goose doesn’t recognize the keyring failure as an access issue, or if the error is unrelated to keyring access.
 ```
-Failed to save token: Failed to access keyring: Platform secure storage failure: DBus error: Using X11 for dbus-daemon autolaunch was disabled at compile time
+Failed to save token: Failed to access keyring: <error message>
 ```
 
-goose tries to use the system keyring (which requires DBus and X11) to securely store your GitHub token, but these aren't available in containerized or headless environments.
-
-To resolve:
-
-Use the `GOOSE_DISABLE_KEYRING` environment variable to tell goose to store secrets in files instead. This example sets the variable only while executing the `goose configure` command:
+To resolve this (or to proactively force file-based secret storage), set `GOOSE_DISABLE_KEYRING` to any value. This example sets it only while running `goose configure`:
 
 ```bash
 GOOSE_DISABLE_KEYRING=1 goose configure
 ```
+
+If you prefer not to store secrets in `secrets.yaml`, set the token via environment variables instead.
 
 See [Keychain/Keyring Errors](#keychainkeyring-errors) for more details on keyring alternatives.
 
@@ -161,7 +163,7 @@ This warning helps protect against inadvertently executing potentially harmful r
 ---
 ### Uninstall goose or Remove Cached Data
 
-You may need to uninstall goose or clear existing data before re-installing. goose stores data in different locations depending on your operating system. Secrets, such as API keys, are stored exclusively in the system keychain/keyring.
+You may need to uninstall goose or clear existing data before re-installing. goose stores data in different locations depending on your operating system. Secrets, such as API keys, are stored in the system keychain/keyring by default (or in `secrets.yaml` when file-based secret storage is in use).
 
 #### macOS
 
@@ -231,8 +233,7 @@ rmdir /s /q "%LOCALAPPDATA%\Block\goose"
 
 ### Keychain/Keyring Errors
 
-goose tries to use the system keyring to store secrets. In environments where there is no keyring support, you may
-see an error like:
+goose tries to use the system keyring (keychain on macOS) to store secrets by default. In environments where the keyring cannot be accessed (or there is no keyring support), you may see an error like:
 
 ```bash
 Error Failed to access secure storage (keyring): Platform secure storage failure: DBus error: The name org.freedesktop.secrets was not provided by any .service files
@@ -240,42 +241,72 @@ Please check your system keychain and run 'goose configure' again.
 If your system is unable to use the keyring, please try setting secret key(s) via environment variables.
 ```
 
-In this case, you will need to set your provider specific environment variable(s), which can be found at [Supported LLM Providers][configure-llm-provider].
+In some cases, goose may automatically fall back to file-based secret storage. See [Keyring Cannot Be Accessed (Automatic Fallback)](#keyring-cannot-be-accessed-automatic-fallback).
 
-You can set them either by doing:
-* `export GOOGLE_API_KEY=$YOUR_KEY_HERE` - for the duration of your session
-* in your `~/.bashrc` or `~/.zshrc` - (or equivalents) so it persists on new shell each new session
+If you still receive keyring errors, use one of the following options:
 
-Then select the `No` option when prompted to save the value to your keyring.
+- **Set provider-specific environment variable(s)**, which can be found at [Supported LLM Providers][configure-llm-provider].
+  - For the duration of your session: `export GOOGLE_API_KEY=$YOUR_KEY_HERE`
+  - To persist across new shells: add it to your `~/.bashrc` or `~/.zshrc` (or equivalents)
 
-```bash
-$ goose configure
+    Then select the `No` option when prompted to save the value to your keyring.
 
-Welcome to goose! Let's get you set up with a provider.
-  you can rerun this command later to update your configuration
+  ```bash
+  $ goose configure
 
-┌   goose-configure
-│
-◇  Which model provider should we use?
-│  Google Gemini
-│
-◇  GOOGLE_API_KEY is set via environment variable
-│
-◇  Would you like to save this value to your keyring?
-│  No
-│
-◇  Enter a model from that provider:
-│  gemini-2.0-flash-exp
-```
+  Welcome to goose! Let's get you set up with a provider.
+    you can rerun this command later to update your configuration
 
-You may also use the `GOOSE_DISABLE_KEYRING` environment variable, which disables the system keyring for secret storage. Set to any value (e.g., "1", "true", "yes"), to disable. The actual value doesn't matter, only whether the variable is set.
+  ┌   goose-configure
+  │
+  ◇  Which model provider should we use?
+  │  Google Gemini
+  │
+  ◇  GOOGLE_API_KEY is set via environment variable
+  │
+  ◇  Would you like to save this value to your keyring?
+  │  No
+  │
+  ◇  Enter a model from that provider:
+  │  gemini-2.0-flash-exp
+  ```
 
-When the keyring is disabled, secrets are stored here:
+- **If you need to disable the keyring**, set `GOOSE_DISABLE_KEYRING` to any value to force file-based secret storage. The actual value doesn't matter, only whether the variable is set.
 
-* macOS/Linux: `~/.config/goose/secrets.yaml`
-* Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
+  This example sets it only while running `goose configure`:
+
+  ```bash
+  GOOSE_DISABLE_KEYRING=1 goose configure
+  ```
+
+When the keyring is disabled (or cannot be accessed and goose falls back to file-based secret storage), secrets are stored here:
+
+- macOS/Linux: `~/.config/goose/secrets.yaml`
+- Windows: `%APPDATA%\Block\goose\config\secrets.yaml`
+
+See [Configuration Files](/docs/guides/config-files) for details.
 
 ---
+
+### Keyring Cannot Be Accessed (Automatic Fallback)
+
+goose uses the system keyring (keychain on macOS) to store secrets by default. If the keyring cannot be accessed, goose may fall back to file-based secret storage.
+
+In this case, you may see a warning like the following in logs:
+
+```text
+Keyring unavailable. Using file storage for secrets.
+```
+
+Automatic fallback only applies to the current goose process. When you start a new session, goose will try to use the keyring again.
+
+If you need to force file-based secret storage (for example, in containers or headless environments), set `GOOSE_DISABLE_KEYRING` to any value:
+
+```bash
+GOOSE_DISABLE_KEYRING=1 goose configure
+```
+
+See [Configuration Files](/docs/guides/config-files) for `secrets.yaml` details.
 
 ### Package Runners
 
@@ -412,6 +443,38 @@ This likely means that the local host address is not accessible from WSL.
     ```
     
 If you still encounter a `failed to connect` error, you can try using WSL's [Mirrored Networking](https://learn.microsoft.com/en-us/windows/wsl/networking#mirrored-mode-networking) setting if you using Windows 11 22H2 or higher 
+
+---
+
+### Corporate Proxy or Firewall Issues
+
+If you're behind a corporate proxy or firewall and goose cannot connect to your LLM provider, you may see errors like:
+
+```
+error sending request for url (https://api.openai.com/...)
+failed to connect to api.openai.com
+```
+
+goose supports HTTP/HTTPS proxy configuration through standard environment variables and system proxy settings. Environment variables take precedence when both are configured.
+
+**Solution:**
+
+1. **Configure [proxy environment variables](/docs/guides/environment-variables#network-configuration):**
+   ```bash
+   export HTTPS_PROXY="http://proxy.company.com:8080"
+   export NO_PROXY="localhost,127.0.0.1,.internal"
+   ```
+
+2. **Or use system proxy settings:**
+   - **macOS**: System Settings → Network → [select connection] → Details → Proxies
+   - **Windows**: Settings → Network & Internet → Proxy
+
+3. **Restart goose** after configuring proxy settings
+
+If you continue to experience connection issues, verify:
+- Your proxy URL and port are correct
+- You have authentication credentials if required (format: `http://username:password@proxy:port`)
+- Your proxy allows HTTPS connections to your LLM provider's domain
 
 ---
 

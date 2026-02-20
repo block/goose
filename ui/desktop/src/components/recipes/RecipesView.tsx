@@ -32,7 +32,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, Recipe, stripEmptyExtensions } from '../../recipe';
+import { generateDeepLink, encodeRecipe, Recipe, stripEmptyExtensions } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -165,15 +165,16 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChatInNewWindow = (recipeId: string) => {
+  const handleStartRecipeChatInNewWindow = async (recipe: Recipe) => {
     try {
+      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe) as Recipe);
       window.electron.createChatWindow(
         undefined,
         getInitialWorkingDir(),
         undefined,
         undefined,
         'pair',
-        recipeId
+        encodedRecipe
       );
       trackRecipeStarted(true, undefined, true);
     } catch (error) {
@@ -521,7 +522,7 @@ export default function RecipesView() {
           <Button
             onClick={(e) => {
               e.stopPropagation();
-              handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+              handleStartRecipeChatInNewWindow(recipe);
             }}
             variant="outline"
             size="sm"

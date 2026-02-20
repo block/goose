@@ -34,18 +34,19 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const isHubView = !sessionId;
 
   useEffect(() => {
-    const handleSessionLoaded = () => {
-      setTimeout(() => {
-        setRefreshTrigger((prev) => prev + 1);
-      }, 500);
+    setIsSessionExtensionsLoaded(false);
+    setSessionExtensions([]);
+  }, [sessionId]);
+
+  useEffect(() => {
+    const handleExtensionsLoaded = () => {
+      setRefreshTrigger((prev) => prev + 1);
     };
 
-    window.addEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
-    window.addEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
+    window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
 
     return () => {
-      window.removeEventListener(AppEvents.SESSION_CREATED, handleSessionLoaded);
-      window.removeEventListener(AppEvents.MESSAGE_STREAM_FINISHED, handleSessionLoaded);
+      window.removeEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
     };
   }, []);
 
@@ -57,8 +58,11 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     };
   }, []);
 
-  // Fetch session-specific extensions or use global defaults
   useEffect(() => {
+    if (refreshTrigger === 0 && !isOpen) {
+      return;
+    }
+
     const fetchExtensions = async () => {
       if (!sessionId) {
         return;
@@ -79,7 +83,6 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }
     };
 
-    setIsSessionExtensionsLoaded(false);
     fetchExtensions();
   }, [sessionId, isOpen, refreshTrigger]);
 

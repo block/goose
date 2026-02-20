@@ -142,7 +142,7 @@ If you're new to Rust, configure your AI tool to help you learn:
 This is a Rust project using cargo workspaces.
 - Follow existing error handling patterns using anyhow::Result
 - Use async/await for I/O operations
-- Follow the project's clippy lints (see clippy-baselines/)
+- Follow the project's clippy lints (see clippy.toml)
 - Run cargo fmt before committing
 ```
 
@@ -240,7 +240,7 @@ cargo build -p goose-mcp
 cargo test -p goose-mcp
 
 # Run clippy
-./scripts/clippy-lint.sh
+cargo clippy --all-targets -- -D warnings
 ```
 
 ### Example 2: Fixing a Rust Compiler Error

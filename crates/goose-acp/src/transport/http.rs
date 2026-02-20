@@ -18,6 +18,7 @@ use crate::server_factory::AcpServer;
 
 pub(crate) struct HttpState {
     server: Arc<AcpServer>,
+    // Keyed by acp_session_id: a connection-scoped UUID serving many Goose sessions.
     sessions: RwLock<HashMap<String, TransportSession>>,
 }
 
@@ -38,24 +39,19 @@ impl HttpState {
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-        let session_id = agent.create_session().await.map_err(|e| {
-            error!("Failed to create ACP session: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        let acp_session_id = uuid::Uuid::new_v4().to_string();
 
+        let read_stream = ReceiverToAsyncRead::new(to_agent_rx);
+        let write_stream = SenderToAsyncWrite::new(from_agent_tx);
+        let fut = crate::server::serve(agent, read_stream.compat(), write_stream.compat_write());
         let handle = tokio::spawn(async move {
-            let read_stream = ReceiverToAsyncRead::new(to_agent_rx);
-            let write_stream = SenderToAsyncWrite::new(from_agent_tx);
-
-            if let Err(e) =
-                crate::server::serve(agent, read_stream.compat(), write_stream.compat_write()).await
-            {
+            if let Err(e) = fut.await {
                 error!("ACP session error: {}", e);
             }
         });
 
         self.sessions.write().await.insert(
-            session_id.clone(),
+            acp_session_id.clone(),
             TransportSession {
                 to_agent_tx,
                 from_agent_rx: Arc::new(Mutex::new(from_agent_rx)),
@@ -63,24 +59,24 @@ impl HttpState {
             },
         );
 
-        info!(session_id = %session_id, "Session created");
-        Ok(session_id)
+        info!(acp_session_id = %acp_session_id, "Session created");
+        Ok(acp_session_id)
     }
 
-    async fn has_session(&self, session_id: &str) -> bool {
-        self.sessions.read().await.contains_key(session_id)
+    async fn has_session(&self, acp_session_id: &str) -> bool {
+        self.sessions.read().await.contains_key(acp_session_id)
     }
 
-    async fn remove_session(&self, session_id: &str) {
-        if let Some(session) = self.sessions.write().await.remove(session_id) {
+    async fn remove_session(&self, acp_session_id: &str) {
+        if let Some(session) = self.sessions.write().await.remove(acp_session_id) {
             session.handle.abort();
-            info!(session_id = %session_id, "Session removed");
+            info!(acp_session_id = %acp_session_id, "Session removed");
         }
     }
 
-    async fn send_message(&self, session_id: &str, message: String) -> Result<(), StatusCode> {
+    async fn send_message(&self, acp_session_id: &str, message: String) -> Result<(), StatusCode> {
         let sessions = self.sessions.read().await;
-        let session = sessions.get(session_id).ok_or(StatusCode::NOT_FOUND)?;
+        let session = sessions.get(acp_session_id).ok_or(StatusCode::NOT_FOUND)?;
         session
             .to_agent_tx
             .send(message)
@@ -90,10 +86,10 @@ impl HttpState {
 
     async fn get_receiver(
         &self,
-        session_id: &str,
+        acp_session_id: &str,
     ) -> Result<Arc<Mutex<mpsc::Receiver<String>>>, StatusCode> {
         let sessions = self.sessions.read().await;
-        let session = sessions.get(session_id).ok_or(StatusCode::NOT_FOUND)?;
+        let session = sessions.get(acp_session_id).ok_or(StatusCode::NOT_FOUND)?;
         Ok(session.from_agent_rx.clone())
     }
 }
@@ -107,8 +103,8 @@ fn create_sse_stream(
         while let Some(msg) = rx.recv().await {
             yield Ok::<_, Infallible>(axum::response::sse::Event::default().data(msg));
         }
-        if let Some((state, session_id)) = cleanup {
-            state.remove_session(&session_id).await;
+        if let Some((state, acp_session_id)) = cleanup {
+            state.remove_session(&acp_session_id).await;
         }
     };
 
@@ -120,48 +116,48 @@ fn create_sse_stream(
 }
 
 async fn handle_initialize(state: Arc<HttpState>, json_message: &Value) -> Response {
-    let new_session_id = match state.create_session().await {
+    let acp_session_id = match state.create_session().await {
         Ok(id) => id,
         Err(status) => return status.into_response(),
     };
 
     let message_str = serde_json::to_string(json_message).unwrap();
-    if let Err(status) = state.send_message(&new_session_id, message_str).await {
-        state.remove_session(&new_session_id).await;
+    if let Err(status) = state.send_message(&acp_session_id, message_str).await {
+        state.remove_session(&acp_session_id).await;
         return status.into_response();
     }
 
-    let receiver = match state.get_receiver(&new_session_id).await {
+    let receiver = match state.get_receiver(&acp_session_id).await {
         Ok(r) => r,
         Err(status) => {
-            state.remove_session(&new_session_id).await;
+            state.remove_session(&acp_session_id).await;
             return status.into_response();
         }
     };
 
-    let sse = create_sse_stream(receiver, Some((state.clone(), new_session_id.clone())));
+    let sse = create_sse_stream(receiver, Some((state.clone(), acp_session_id.clone())));
     let mut response = sse.into_response();
     response
         .headers_mut()
-        .insert(HEADER_SESSION_ID, new_session_id.parse().unwrap());
+        .insert(HEADER_SESSION_ID, acp_session_id.parse().unwrap());
     response
 }
 
 async fn handle_request(
     state: Arc<HttpState>,
-    session_id: String,
+    acp_session_id: String,
     json_message: &Value,
 ) -> Response {
-    if !state.has_session(&session_id).await {
+    if !state.has_session(&acp_session_id).await {
         return (StatusCode::NOT_FOUND, "Session not found").into_response();
     }
 
     let message_str = serde_json::to_string(json_message).unwrap();
-    if let Err(status) = state.send_message(&session_id, message_str).await {
+    if let Err(status) = state.send_message(&acp_session_id, message_str).await {
         return status.into_response();
     }
 
-    let receiver = match state.get_receiver(&session_id).await {
+    let receiver = match state.get_receiver(&acp_session_id).await {
         Ok(r) => r,
         Err(status) => return status.into_response(),
     };
@@ -171,15 +167,15 @@ async fn handle_request(
 
 async fn handle_notification_or_response(
     state: Arc<HttpState>,
-    session_id: String,
+    acp_session_id: String,
     json_message: &Value,
 ) -> Response {
-    if !state.has_session(&session_id).await {
+    if !state.has_session(&acp_session_id).await {
         return (StatusCode::NOT_FOUND, "Session not found").into_response();
     }
 
     let message_str = serde_json::to_string(json_message).unwrap();
-    if let Err(status) = state.send_message(&session_id, message_str).await {
+    if let Err(status) = state.send_message(&acp_session_id, message_str).await {
         return status.into_response();
     }
 
@@ -206,7 +202,7 @@ pub(crate) async fn handle_post(
             .into_response();
     }
 
-    let session_id = get_session_id(&request);
+    let acp_session_id = get_session_id(&request);
 
     let body_bytes = match request.into_body().collect().await {
         Ok(collected) => collected.to_bytes(),
@@ -235,7 +231,7 @@ pub(crate) async fn handle_post(
     if is_initialize_request(&json_message) {
         handle_initialize(state.clone(), &json_message).await
     } else if is_jsonrpc_request(&json_message) {
-        let Some(id) = session_id else {
+        let Some(id) = acp_session_id else {
             return (
                 StatusCode::BAD_REQUEST,
                 "Bad Request: Acp-Session-Id header required",
@@ -244,7 +240,7 @@ pub(crate) async fn handle_post(
         };
         handle_request(state.clone(), id, &json_message).await
     } else if is_jsonrpc_notification(&json_message) || is_jsonrpc_response(&json_message) {
-        let Some(id) = session_id else {
+        let Some(id) = acp_session_id else {
             return (
                 StatusCode::BAD_REQUEST,
                 "Bad Request: Acp-Session-Id header required",
@@ -266,7 +262,7 @@ pub(crate) async fn handle_get(state: Arc<HttpState>, request: Request<Body>) ->
             .into_response();
     }
 
-    let session_id = match get_session_id(&request) {
+    let acp_session_id = match get_session_id(&request) {
         Some(id) => id,
         None => {
             return (
@@ -277,11 +273,11 @@ pub(crate) async fn handle_get(state: Arc<HttpState>, request: Request<Body>) ->
         }
     };
 
-    if !state.has_session(&session_id).await {
+    if !state.has_session(&acp_session_id).await {
         return (StatusCode::NOT_FOUND, "Session not found").into_response();
     }
 
-    let receiver = match state.get_receiver(&session_id).await {
+    let receiver = match state.get_receiver(&acp_session_id).await {
         Ok(r) => r,
         Err(status) => return status.into_response(),
     };
@@ -306,7 +302,7 @@ pub(crate) async fn handle_delete(
     State(state): State<Arc<HttpState>>,
     request: Request<Body>,
 ) -> Response {
-    let session_id = match get_session_id(&request) {
+    let acp_session_id = match get_session_id(&request) {
         Some(id) => id,
         None => {
             return (
@@ -317,10 +313,10 @@ pub(crate) async fn handle_delete(
         }
     };
 
-    if !state.has_session(&session_id).await {
+    if !state.has_session(&acp_session_id).await {
         return (StatusCode::NOT_FOUND, "Session not found").into_response();
     }
 
-    state.remove_session(&session_id).await;
+    state.remove_session(&acp_session_id).await;
     StatusCode::ACCEPTED.into_response()
 }

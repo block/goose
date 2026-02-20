@@ -44,6 +44,8 @@ export default function HeadersSection({
     const keyEmpty = !newKey.trim();
     const valueEmpty = !newValue.trim();
     const keyHasSpaces = newKey.includes(' ');
+    const normalizedNewKey = newKey.trim().toLowerCase();
+    const isDuplicate = headers.some((h) => h.key.trim().toLowerCase() === normalizedNewKey);
 
     if (keyEmpty || valueEmpty) {
       setInvalidFields({
@@ -60,6 +62,15 @@ export default function HeadersSection({
         value: false,
       });
       setValidationError('Header name cannot contain spaces');
+      return;
+    }
+
+    if (isDuplicate) {
+      setInvalidFields({
+        key: true,
+        value: false,
+      });
+      setValidationError('A header with this name already exists');
       return;
     }
 

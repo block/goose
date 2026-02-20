@@ -10,13 +10,13 @@ use crate::state::AppState;
 use anyhow::Result;
 use axum::http::StatusCode;
 use goose::agents::Agent;
-use goose::prompt_template::render_template;
-use goose::recipe::build_recipe::{build_recipe_from_template, RecipeError};
+use goose::recipe::build_recipe::{
+    build_recipe_from_template, resolve_sub_recipe_path, RecipeError,
+};
 use goose::recipe::local_recipes::{get_recipe_library_dir, list_local_recipes};
 use goose::recipe::validate_recipe::validate_recipe_template_from_content;
 use goose::recipe::Recipe;
 use serde::Serialize;
-use serde_json::Value;
 use tracing::error;
 use utoipa::ToSchema;
 
@@ -46,12 +46,22 @@ pub fn short_id_from_path(path: &str) -> String {
 pub fn get_all_recipes_manifests() -> Result<Vec<RecipeManifest>> {
     let recipes_with_path = list_local_recipes()?;
     let mut recipe_manifests_with_path = Vec::new();
-    for (file_path, recipe) in recipes_with_path {
+    for (file_path, mut recipe) in recipes_with_path {
         let Ok(last_modified) = fs::metadata(file_path.clone())
             .map(|m| chrono::DateTime::<chrono::Utc>::from(m.modified().unwrap()).to_rfc3339())
         else {
             continue;
         };
+
+        if let Some(recipe_dir) = file_path.parent() {
+            if let Some(ref mut sub_recipes) = recipe.sub_recipes {
+                for sr in sub_recipes.iter_mut() {
+                    if let Ok(resolved) = resolve_sub_recipe_path(&sr.path, recipe_dir) {
+                        sr.path = resolved;
+                    }
+                }
+            }
+        }
 
         let manifest_with_path = RecipeManifest {
             id: short_id_from_path(file_path.to_string_lossy().as_ref()),
@@ -128,10 +138,22 @@ pub async fn get_recipe_file_path_by_id(
 pub async fn load_recipe_by_id(state: &AppState, id: &str) -> Result<Recipe, ErrorResponse> {
     let path = get_recipe_file_path_by_id(state, id).await?;
 
-    Recipe::from_file_path(&path).map_err(|err| ErrorResponse {
+    let mut recipe = Recipe::from_file_path(&path).map_err(|err| ErrorResponse {
         message: format!("Failed to load recipe: {}", err),
         status: StatusCode::INTERNAL_SERVER_ERROR,
-    })
+    })?;
+
+    if let Some(recipe_dir) = path.parent() {
+        if let Some(ref mut sub_recipes) = recipe.sub_recipes {
+            for sr in sub_recipes.iter_mut() {
+                if let Ok(resolved) = resolve_sub_recipe_path(&sr.path, recipe_dir) {
+                    sr.path = resolved;
+                }
+            }
+        }
+    }
+
+    Ok(recipe)
 }
 
 pub async fn build_recipe_with_parameter_values(
@@ -163,16 +185,8 @@ pub async fn apply_recipe_to_agent(
     include_final_output_tool: bool,
 ) -> Option<String> {
     agent
-        .apply_recipe_components(
-            recipe.sub_recipes.clone(),
-            recipe.response.clone(),
-            include_final_output_tool,
-        )
+        .apply_recipe_components(recipe.response.clone(), include_final_output_tool)
         .await;
 
-    recipe.instructions.as_ref().map(|instructions| {
-        let mut context: HashMap<&str, Value> = HashMap::new();
-        context.insert("recipe_instructions", Value::String(instructions.clone()));
-        render_template("desktop_recipe_instruction.md", &context).expect("Prompt should render")
-    })
+    recipe.instructions.as_ref().cloned()
 }

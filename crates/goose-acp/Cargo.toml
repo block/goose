@@ -11,6 +11,10 @@ description.workspace = true
 name = "goose-acp-server"
 path = "src/bin/server.rs"
 
+[[bin]]
+name = "generate-acp-schema"
+path = "src/bin/generate_acp_schema.rs"
+
 [lints]
 workspace = true
 
@@ -19,9 +23,10 @@ goose = { path = "../goose" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
+agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
-tokio-util = { version = "0.7.15", features = ["compat", "rt"] }
+tokio-util = { workspace = true, features = ["compat", "rt"] }
 tracing = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
@@ -30,21 +35,24 @@ fs-err = "3"
 url = { workspace = true }
 
 # HTTP server dependencies
-axum = { version = "0.8", features = ["ws"] }
-clap = { version = "4", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
-tower-http = { version = "0.6", features = ["cors"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-async-stream = "0.3.6"
-bytes = "1.11.0"
+axum = { workspace = true, features = ["ws"] }
+clap = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tower-http = { workspace = true, features = ["cors"] }
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+async-stream = { workspace = true }
+bytes = { workspace = true }
 http-body-util = "0.1.3"
-uuid = { version = "1.11", features = ["v7"] }
+uuid = { workspace = true, features = ["v7"] }
+schemars = { workspace = true, features = ["derive"] }
+goose-acp-macros = { version = "1.24.0", path = "../goose-acp-macros" }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
-async-trait = "0.1.89"
+async-trait = { workspace = true }
+goose-test-support = { path = "../goose-test-support" }
 wiremock = { workspace = true }
-tempfile = "3"
+tempfile = { workspace = true }
 test-case = { workspace = true }
-axum = "0.8"
+axum = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }

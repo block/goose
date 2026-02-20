@@ -2,12 +2,13 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 // Patterns for normalizing version numbers and stripping suffixes
-static NORMALIZE_VERSION_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-(\d)-(\d)(-|$)").unwrap());
+static NORMALIZE_VERSION_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-(\d)-(\d)(-|@|$)").unwrap());
 
 static STRIP_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
     vec![
         Regex::new(r"-latest$").unwrap(),
         Regex::new(r"-\d{8}$").unwrap(),
+        Regex::new(r"@\d{8}$").unwrap(),
         Regex::new(r"-\d{4}$").unwrap(),
         Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap(),
         Regex::new(r"-bedrock$").unwrap(),
@@ -57,8 +58,21 @@ pub fn map_to_canonical_model(
 ) -> Option<String> {
     let registry_provider = map_provider_name(provider);
 
+    if provider == "gcp_vertex_ai" {
+        let normalized_model = strip_version_suffix(model);
+        if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
+            return Some(canonical.id.clone());
+        }
+        if let Some(canonical) = registry.get(registry_provider, model) {
+            return Some(canonical.id.clone());
+        }
+        if model.starts_with("gemini-") {
+            return None;
+        }
+    }
+
     // For normal providers (anthropic, openai, google, openrouter, etc.), just do direct lookup
-    if !is_meta_provider(provider) {
+    if !is_meta_provider(provider) && provider != "gcp_vertex_ai" {
         let normalized_model = strip_version_suffix(model);
         if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
             return Some(canonical.id.clone());
@@ -67,10 +81,10 @@ pub fn map_to_canonical_model(
         if let Some(canonical) = registry.get(registry_provider, model) {
             return Some(canonical.id.clone());
         }
-        return None;
+        // If direct lookup failed, fall through to inference logic below
     }
 
-    // For hosting/meta-providers do string matching magic to figure out the real provider and model
+    // For hosting/meta-providers (or unknown providers), do string matching magic to figure out the real provider and model
     let model_stripped = strip_common_prefixes(model);
 
     if let Some(swapped) = swap_claude_word_order(&model_stripped) {
@@ -473,6 +487,40 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("databricks", "x-ai-grok-3", r),
             Some("x-ai/grok-3".to_string())
+        );
+
+        // === GCP Vertex AI ===
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "gemini-2.5-flash", r),
+            Some("google-vertex/gemini-2.5-flash".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "gemini-2.5-pro", r),
+            Some("google-vertex/gemini-2.5-pro".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "claude-3-5-sonnet", r),
+            Some("anthropic/claude-3.5-sonnet".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "claude-sonnet-4@20250514", r),
+            Some("anthropic/claude-sonnet-4".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "claude-3-5-haiku@20241022", r),
+            Some("anthropic/claude-3.5-haiku".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "claude-sonnet-4-5@20250929", r),
+            Some("anthropic/claude-sonnet-4.5".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "claude-opus-4-5@20251101", r),
+            Some("anthropic/claude-opus-4.5".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("gcp_vertex_ai", "claude-haiku-4-5@20251001", r),
+            Some("anthropic/claude-haiku-4.5".to_string())
         );
     }
 }

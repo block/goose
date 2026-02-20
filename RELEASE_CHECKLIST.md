@@ -1,6 +1,6 @@
 # goose Release Manual Testing Checklist
 
-## Version: _____
+## Version: {{VERSION}}
 
 Make a copy of this document for each version and check off as steps are verified.
 
@@ -100,6 +100,12 @@ recipe:
   - [ ] Use: `goose://extension?cmd=npx&arg=-y&arg=%40upstash%2Fcontext7-mcp&id=context7&name=Context7&description=Use%20up-to-date%20code%20and%20docs&env=TEST_ACCESS_TOKEN`
   - [ ] Extension page should load with env variables modal showing
   - [ ] Allow form input and saving extension
+
+## Speech-to-Text (Local Model)
+
+- [ ] Go to Settings > Chat > Voice dictation provider and select the small model
+- [ ] Run a quick test that speech-to-text is working (click the mic button, speak, verify transcription)
+- [ ] Also try OpenAI using your OpenAI key
 
 ## Settings
 

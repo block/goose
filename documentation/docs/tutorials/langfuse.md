@@ -13,7 +13,7 @@ This tutorial covers how to integrate goose with Langfuse to monitor your goose 
 
 ## Set up Langfuse
 
-Sign up for Langfuse Cloud [here](https://cloud.langfuse.com) or self-host Langfuse [Docker Compose](https://langfuse.com/self-hosting/local) to get your Langfuse API keys.
+[Sign up for Langfuse Cloud](https://cloud.langfuse.com) or self-host Langfuse [Docker Compose](https://langfuse.com/self-hosting/local) to get your Langfuse API keys.
 
 ## Configure goose to Connect to Langfuse
 

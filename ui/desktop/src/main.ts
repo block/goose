@@ -23,12 +23,13 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { checkServerStatus, startGoosed } from './goosed';
+import { checkServerStatus } from './goosed';
+import { startGoosed } from './goosed';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName, errorMessage } from './utils/conversionUtils';
+import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
 import type { Settings } from './utils/settings';
 import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
@@ -43,7 +44,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { Client, createClient, createConfig } from './api/client';
+import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
@@ -157,7 +158,6 @@ if (process.platform !== 'darwin') {
               undefined,
               deeplinkData?.config,
               scheduledJobId || undefined,
-              undefined,
               deeplinkData?.parameters
             );
           });
@@ -258,7 +258,6 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
       undefined,
       deeplinkData?.config,
       scheduledJobId || undefined,
-      undefined,
       deeplinkData?.parameters
     );
     pendingDeepLink = null;
@@ -297,7 +296,6 @@ app.on('open-url', async (_event, url) => {
         undefined,
         deeplinkData?.config,
         scheduledJobId || undefined,
-        undefined,
         deeplinkData?.parameters
       );
       windowDeeplinkURL = null;
@@ -480,21 +478,33 @@ const createChat = async (
   viewType?: string,
   recipeDeeplink?: string, // Raw deeplink decoded on server
   scheduledJobId?: string, // Scheduled job ID if applicable
-  recipeId?: string,
   recipeParameters?: Record<string, string> // Recipe parameter values from deeplink URL
 ) => {
   const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
   const goosedResult = await startGoosed({
-    app,
     serverSecret,
     dir: dir || os.homedir(),
     env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
     externalGoosed: settings.externalGoosed,
+    isPackaged: app.isPackaged,
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+    logger: log,
   });
 
-  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
+  app.on('will-quit', async () => {
+    log.info('App quitting, terminating goosed server');
+    await goosedResult.cleanup();
+  });
+
+  const {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+    client: goosedClient,
+  } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -528,7 +538,6 @@ const createChat = async (
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
-          recipeId: recipeId,
           recipeDeeplink: recipeDeeplink,
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
@@ -548,15 +557,6 @@ const createChat = async (
       .catch((err) => log.info('failed to install react dev tools:', err));
   }
 
-  const goosedClient = createClient(
-    createConfig({
-      baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': serverSecret,
-      },
-    })
-  );
   goosedClients.set(mainWindow.id, goosedClient);
 
   const serverReady = await checkServerStatus(goosedClient, errorLog);
@@ -711,24 +711,13 @@ const createChat = async (
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (
-    appPath === '/' &&
-    (recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
-  ) {
+  if (appPath === '/' && (recipeDeeplink !== undefined || initialMessage)) {
     appPath = '/pair';
   }
 
   let searchParams = new URLSearchParams();
   if (resumeSessionId) {
     searchParams.set('resumeSessionId', resumeSessionId);
-    if (appPath === '/') {
-      appPath = '/pair';
-    }
-  }
-  // Only add recipeId to URL for the non-deeplink case (saved recipes launched from UI)
-  // For deeplinks, the recipe object is passed via appConfig, not URL params
-  if (recipeId) {
-    searchParams.set('recipeId', recipeId);
     if (appPath === '/') {
       appPath = '/pair';
     }
@@ -1064,7 +1053,6 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
       undefined,
       deeplinkData?.config,
       undefined,
-      undefined,
       deeplinkData?.parameters
     );
   }
@@ -1133,12 +1121,12 @@ const handleFatalError = (error: Error) => {
 };
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  console.error('Uncaught Exception:', formatErrorForLogging(error));
   handleFatalError(error);
 });
 
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Rejection:', error);
+  console.error('Unhandled Rejection:', formatErrorForLogging(error));
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
@@ -2035,13 +2023,13 @@ async function appMain() {
 
   ipcMain.on(
     'create-chat-window',
-    (event, query, dir, version, resumeSessionId, viewType, recipeId) => {
+    (event, query, dir, version, resumeSessionId, viewType, recipeDeeplink) => {
       if (!dir?.trim()) {
         const recentDirs = loadRecentDirs();
         dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
       }
 
-      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
+      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeDeeplink;
 
       if (isFromLauncher) {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -2069,9 +2057,9 @@ async function appMain() {
         version,
         resumeSessionId,
         viewType,
+        recipeDeeplink,
         undefined,
-        undefined,
-        recipeId
+        undefined
       );
     }
   );

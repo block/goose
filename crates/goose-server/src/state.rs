@@ -1,8 +1,11 @@
 use axum::http::StatusCode;
-use goose::builtin_extension::register_builtin_extensions;
+use goose::builtin_extension::{register_builtin_extension, register_builtin_extensions};
+use goose::config::paths::Paths;
 use goose::execution::manager::AgentManager;
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
+use goose_mcp::DeveloperServer;
+use rmcp::ServiceExt;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -11,6 +14,7 @@ use tokio::task::JoinHandle;
 
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
+use goose::providers::local_inference::InferenceRuntime;
 
 type ExtensionLoadingTasks =
     Arc<Mutex<HashMap<String, Arc<Mutex<Option<JoinHandle<Vec<ExtensionLoadResult>>>>>>>>;
@@ -23,11 +27,28 @@ pub struct AppState {
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
     pub tunnel_manager: Arc<TunnelManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
+    pub inference_runtime: Arc<InferenceRuntime>,
+}
+
+fn spawn_developer(r: tokio::io::DuplexStream, w: tokio::io::DuplexStream) {
+    let bash_env = Paths::config_dir().join(".bash_env");
+    let server = DeveloperServer::new()
+        .extend_path_with_shell(true)
+        .bash_env_file(Some(bash_env));
+    tokio::spawn(async move {
+        match server.serve((r, w)).await {
+            Ok(running) => {
+                let _ = running.waiting().await;
+            }
+            Err(e) => tracing::error!(builtin = "developer", error = %e, "server error"),
+        }
+    });
 }
 
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
         register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
+        register_builtin_extension("developer", spawn_developer);
 
         let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
@@ -38,6 +59,7 @@ impl AppState {
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
             tunnel_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
+            inference_runtime: InferenceRuntime::get_or_init(),
         }))
     }
 

@@ -99,10 +99,11 @@ function generateWebUrl(filePath: string): string {
   return `${baseUrl}/${urlPath}`;
 }
 
-function getPreview(content: string, maxLength: number = 200): string {
+function getPreview(content: string, maxLength: number = 1000): string {
   const withoutFrontmatter = content.replace(/^---[\s\S]*?---\n/, "");
   const lines = withoutFrontmatter.split("\n");
-  let preview = "";
+  const contentLines: string[] = [];
+  let currentLength = 0;
 
   for (const line of lines) {
     const cleanLine = line
@@ -116,19 +117,23 @@ function getPreview(content: string, maxLength: number = 200): string {
       !cleanLine.startsWith("import") &&
       !cleanLine.startsWith("export")
     ) {
-      preview = cleanLine;
-      break;
+      if (currentLength + cleanLine.length > maxLength) {
+        const remaining = maxLength - currentLength;
+        if (remaining > 0) {
+          contentLines.push(cleanLine.substring(0, remaining) + "...");
+        }
+        break;
+      }
+      contentLines.push(cleanLine);
+      currentLength += cleanLine.length + 1;
     }
   }
 
-  if (preview.length > maxLength) {
-    preview = preview.substring(0, maxLength) + "...";
-  }
-
+  const preview = contentLines.join("\n");
   return preview || "(No preview available)";
 }
 
-export function searchDocs(query: string, limit: number = 5): SearchResult[] {
+export function searchDocs(query: string, limit: number = 15): SearchResult[] {
   const search = initializeSearch();
   const results = search.search(query).slice(0, limit);
 

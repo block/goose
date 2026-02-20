@@ -1,4 +1,4 @@
-use crate::agents::extension_manager_extension::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
+use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::config::permission::PermissionLevel;
 use crate::config::{GooseMode, PermissionManager};
 use crate::conversation::message::{Message, ToolRequest};

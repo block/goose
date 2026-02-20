@@ -16,9 +16,9 @@ export const aiTools = {
       limit: z
         .number()
         .optional()
-        .describe("Maximum number of results to return (default 5)"),
+        .describe("Maximum number of results to return (default 15)"),
     }),
-    execute: async ({ query, limit = 5 }) => {
+    execute: async ({ query, limit = 15 }) => {
       const results = searchDocs(query, limit);
       logger.verbose(
         `Searched docs for "${query}", found ${results.length} results`,
@@ -42,7 +42,7 @@ export const aiTools = {
       filePaths: z
         .union([z.string(), z.array(z.string())])
         .describe(
-          "Path or array of paths to documentation files (example: 'quickstart.md' or ['guides/managing-projects.md', 'api/overview.md'])",
+          "Path or array of paths to documentation files (example: 'quickstart.md' or ['guides/managing-projects.md', 'mcp/asana-mcp.md'])",
         ),
       startLine: z
         .number()
@@ -51,9 +51,9 @@ export const aiTools = {
       lineCount: z
         .number()
         .optional()
-        .describe("Number of lines to show (default 100)"),
+        .describe("Number of lines to show (default 1500)"),
     }),
-    execute: async ({ filePaths, startLine = 0, lineCount = 100 }) => {
+    execute: async ({ filePaths, startLine = 0, lineCount = 1500 }) => {
       try {
         const result = viewDocs(filePaths, startLine, lineCount);
         const count = Array.isArray(filePaths) ? filePaths.length : 1;

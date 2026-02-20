@@ -1,3 +1,4 @@
+use crate::subprocess::SubprocessExt;
 use chrono;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -134,6 +135,7 @@ impl AzureAuth {
                 "--resource",
                 "https://cognitiveservices.azure.com",
             ])
+            .set_no_window()
             .output()
             .await
             .map_err(|e| AuthError::TokenExchange(format!("Failed to execute Azure CLI: {}", e)))?;

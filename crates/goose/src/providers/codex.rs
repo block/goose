@@ -10,16 +10,18 @@ use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
+};
 use super::errors::ProviderError;
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::{CodexCommand, CodexReasoningEffort, CodexSkipGitCheck};
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
-use crate::config::{Config, GooseMode};
+use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::subprocess::configure_command_no_window;
+use crate::subprocess::configure_subprocess;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -50,48 +52,11 @@ pub struct CodexProvider {
     reasoning_effort: String,
     /// Whether to skip git repo check
     skip_git_check: bool,
+    /// CLI config overrides for MCP servers
+    mcp_config_overrides: Vec<String>,
 }
 
 impl CodexProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let config = Config::global();
-        let command: String = config.get_codex_command().unwrap_or_default().into();
-        let resolved_command = SearchPaths::builder().with_npm().resolve(&command)?;
-
-        // Get reasoning effort from config, default to "high"
-        let reasoning_effort = config
-            .get_codex_reasoning_effort()
-            .map(String::from)
-            .unwrap_or_else(|_| "high".to_string());
-
-        // Validate reasoning effort
-        let reasoning_effort =
-            if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
-                reasoning_effort
-            } else {
-                tracing::warn!(
-                    "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
-                    reasoning_effort,
-                    model.model_name
-                );
-                "high".to_string()
-            };
-
-        // Get skip_git_check from config, default to false
-        let skip_git_check = config
-            .get_codex_skip_git_check()
-            .map(|s| s.to_lowercase() == "true")
-            .unwrap_or(false);
-
-        Ok(Self {
-            command: resolved_command,
-            model,
-            name: CODEX_PROVIDER_NAME.to_string(),
-            reasoning_effort,
-            skip_git_check,
-        })
-    }
-
     fn supports_reasoning_effort(model_name: &str, reasoning_effort: &str) -> bool {
         if !CODEX_REASONING_LEVELS.contains(&reasoning_effort) {
             return false;
@@ -155,7 +120,7 @@ impl CodexProvider {
         }
 
         let mut cmd = Command::new(&self.command);
-        configure_command_no_window(&mut cmd);
+        configure_subprocess(&mut cmd);
 
         // Propagate extended PATH so the codex subprocess can find Node.js
         // and other dependencies (especially when launched from the desktop app
@@ -178,6 +143,10 @@ impl CodexProvider {
             "model_reasoning_effort=\"{}\"",
             self.reasoning_effort
         ));
+
+        for override_config in &self.mcp_config_overrides {
+            cmd.arg("-c").arg(override_config);
+        }
 
         // JSON output format for structured parsing
         cmd.arg("--json");
@@ -442,51 +411,6 @@ impl CodexProvider {
 
         Ok((message, usage))
     }
-
-    /// Generate a simple session description without calling subprocess
-    fn generate_simple_session_description(
-        &self,
-        messages: &[Message],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Extract the first user message text
-        let description = messages
-            .iter()
-            .find(|m| m.role == Role::User)
-            .and_then(|m| {
-                m.content.iter().find_map(|c| match c {
-                    MessageContent::Text(text_content) => Some(&text_content.text),
-                    _ => None,
-                })
-            })
-            .map(|text| {
-                // Take first few words, limit to 4 words
-                text.split_whitespace()
-                    .take(4)
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
-            .unwrap_or_else(|| "Simple task".to_string());
-
-        if std::env::var("GOOSE_CODEX_DEBUG").is_ok() {
-            println!("=== CODEX PROVIDER DEBUG ===");
-            println!("Generated simple session description: {}", description);
-            println!("Skipped subprocess call for session description");
-            println!("============================");
-        }
-
-        let message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(description.clone())],
-        );
-
-        let usage = Usage::default();
-
-        Ok((
-            message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
-        ))
-    }
 }
 
 /// Builds the text prompt and extracts images to temp files in a single pass.
@@ -578,7 +502,92 @@ fn prepare_input(
     Ok((prompt, temp_files))
 }
 
-#[async_trait]
+fn toml_quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{0008}' => out.push_str("\\b"),
+            '\u{000C}' => out.push_str("\\f"),
+            c if c.is_control() => {
+                // TOML \uXXXX for other control characters
+                for unit in c.encode_utf16(&mut [0; 2]) {
+                    out.push_str(&format!("\\u{:04X}", unit));
+                }
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+// Codex CLI only supports inline `-c key=value` TOML overrides — no file-based
+// config merging. Resolved secrets (from env_keys/keystore) in envs/headers end
+// up in process argv, visible via `ps`. Claude Code avoids this by writing to a
+// temp file with 0o600 permissions.
+// Tracking: https://github.com/openai/codex/issues/2628
+fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
+    let mut overrides = Vec::new();
+    for extension in extensions {
+        match extension {
+            ExtensionConfig::StreamableHttp { uri, headers, .. } => {
+                let key = extension.key();
+                overrides.push(format!("mcp_servers.{}.url={}", key, toml_quote(uri)));
+                if !headers.is_empty() {
+                    let mut hkeys: Vec<_> = headers.keys().collect();
+                    hkeys.sort();
+                    let entries: Vec<_> = hkeys
+                        .iter()
+                        .map(|k| format!("{} = {}", toml_quote(k), toml_quote(&headers[*k])))
+                        .collect();
+                    overrides.push(format!(
+                        "mcp_servers.{}.http_headers={{{}}}",
+                        key,
+                        entries.join(", ")
+                    ));
+                }
+            }
+            ExtensionConfig::Stdio {
+                cmd, args, envs, ..
+            } => {
+                let key = extension.key();
+                overrides.push(format!("mcp_servers.{}.command={}", key, toml_quote(cmd)));
+                if !args.is_empty() {
+                    let items: Vec<_> = args.iter().map(|a| toml_quote(a)).collect();
+                    overrides.push(format!("mcp_servers.{}.args=[{}]", key, items.join(", ")));
+                }
+                let env_map = envs.get_env();
+                if !env_map.is_empty() {
+                    let mut ekeys: Vec<_> = env_map.keys().collect();
+                    ekeys.sort();
+                    let entries: Vec<_> = ekeys
+                        .iter()
+                        .map(|k| {
+                            format!("{} = {}", toml_quote(k), toml_quote(&env_map[k.as_str()]))
+                        })
+                        .collect();
+                    overrides.push(format!(
+                        "mcp_servers.{}.env={{{}}}",
+                        key,
+                        entries.join(", ")
+                    ));
+                }
+            }
+            ExtensionConfig::Sse { name, .. } => {
+                tracing::debug!(name, "skipping SSE extension, migrate to streamable_http");
+            }
+            _ => {}
+        }
+    }
+    overrides
+}
+
 impl ProviderDef for CodexProvider {
     type Provider = Self;
 
@@ -591,15 +600,62 @@ impl ProviderDef for CodexProvider {
             CODEX_KNOWN_MODELS.to_vec(),
             CODEX_DOC_URL,
             vec![
-                ConfigKey::from_value_type::<CodexCommand>(true, false),
-                ConfigKey::from_value_type::<CodexReasoningEffort>(false, false),
-                ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false),
+                ConfigKey::from_value_type::<CodexCommand>(true, false, true),
+                ConfigKey::from_value_type::<CodexReasoningEffort>(false, false, true),
+                ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false, true),
             ],
         )
+        .with_unlisted_models()
     }
 
-    fn from_env(model: ModelConfig) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+    fn from_env(
+        model: ModelConfig,
+        extensions: Vec<ExtensionConfig>,
+    ) -> BoxFuture<'static, Result<Self::Provider>> {
+        Box::pin(async move {
+            let config = Config::global();
+            let command: String = config.get_codex_command().unwrap_or_default().into();
+            let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
+
+            // Get reasoning effort from config, default to "high"
+            let reasoning_effort = config
+                .get_codex_reasoning_effort()
+                .map(String::from)
+                .unwrap_or_else(|_| "high".to_string());
+
+            // Validate reasoning effort
+            let reasoning_effort =
+                if Self::supports_reasoning_effort(&model.model_name, &reasoning_effort) {
+                    reasoning_effort
+                } else {
+                    tracing::warn!(
+                        "Invalid CODEX_REASONING_EFFORT '{}' for model '{}', using 'high'",
+                        reasoning_effort,
+                        model.model_name
+                    );
+                    "high".to_string()
+                };
+
+            // Get skip_git_check from config, default to false
+            let skip_git_check = config
+                .get_codex_skip_git_check()
+                .map(|s| s.to_lowercase() == "true")
+                .unwrap_or(false);
+
+            let mut resolved = Vec::with_capacity(extensions.len());
+            for ext in extensions {
+                resolved.push(ext.resolve(config).await?);
+            }
+
+            Ok(Self {
+                command: resolved_command,
+                model,
+                name: CODEX_PROVIDER_NAME.to_string(),
+                reasoning_effort,
+                skip_git_check,
+                mcp_config_overrides: codex_mcp_config_overrides(&resolved),
+            })
+        })
     }
 }
 
@@ -617,17 +673,23 @@ impl Provider for CodexProvider {
         skip(self, model_config, system, messages, tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
         model_config: &ModelConfig,
+        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if this is a session description request
-        if system.contains("four words or less") || system.contains("4 words or less") {
-            return self.generate_simple_session_description(messages);
+    ) -> Result<MessageStream, ProviderError> {
+        if super::cli_common::is_session_description_request(system) {
+            let (message, provider_usage) = super::cli_common::generate_simple_session_description(
+                &model_config.model_name,
+                messages,
+            )?;
+            return Ok(super::base::stream_from_single_message(
+                message,
+                provider_usage,
+            ));
         }
 
         let lines = self.execute_command(system, messages, tools).await?;
@@ -656,26 +718,25 @@ impl Provider for CodexProvider {
             ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
         })?;
 
-        Ok((
+        let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);
+        Ok(super::base::stream_from_single_message(
             message,
-            ProviderUsage::new(model_config.model_name.clone(), usage),
+            provider_usage,
         ))
     }
 
-    async fn fetch_supported_models(&self) -> Result<Option<Vec<String>>, ProviderError> {
-        Ok(Some(
-            CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect(),
-        ))
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::extension::Envs;
+    use goose_test_support::TEST_IMAGE_B64;
+    use std::collections::HashMap;
     use test_case::test_case;
-
-    /// 1x1 transparent PNG, base64-encoded.
-    const TINY_PNG_B64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=";
 
     #[test]
     fn test_codex_metadata() {
@@ -690,13 +751,103 @@ mod tests {
             .any(|m| m.name == CODEX_DEFAULT_MODEL));
     }
 
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: "lookup".into(),
+            cmd: "node".into(),
+            args: vec!["server.js".into()],
+            envs: Envs::new([("API_KEY".into(), "secret".into())].into()),
+            env_keys: vec![],
+            description: "Lookup".into(),
+            timeout: Some(30),
+            bundled: None,
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.lookup.command="node""#,
+            r#"mcp_servers.lookup.args=["server.js"]"#,
+            r#"mcp_servers.lookup.env={"API_KEY" = "secret"}"#,
+        ]
+        ; "stdio_converts_to_mcp_overrides"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "lookup".into(),
+            description: String::new(),
+            uri: "http://localhost/mcp".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::from([("Authorization".into(), "Bearer token".into())]),
+            timeout: None,
+            bundled: Some(false),
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.lookup.url="http://localhost/mcp""#,
+            r#"mcp_servers.lookup.http_headers={"Authorization" = "Bearer token"}"#,
+        ]
+        ; "streamable_http_converts_to_mcp_overrides"
+    )]
+    #[test_case(
+        ExtensionConfig::StreamableHttp {
+            name: "mcp_kiwi_com".into(),
+            description: String::new(),
+            uri: "https://mcp.kiwi.com".into(),
+            envs: Envs::default(),
+            env_keys: vec![],
+            headers: HashMap::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.mcp_kiwi_com.url="https://mcp.kiwi.com""#,
+        ]
+        ; "resolved_name_used_as_key_http"
+    )]
+    #[test_case(
+        ExtensionConfig::Stdio {
+            name: "my-server".into(),
+            cmd: "/usr/bin/my-server".into(),
+            args: vec![],
+            envs: Envs::default(),
+            env_keys: vec![],
+            description: String::new(),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        },
+        &[
+            r#"mcp_servers.my-server.command="/usr/bin/my-server""#,
+        ]
+        ; "resolved_name_used_as_key_stdio"
+    )]
+    fn test_codex_mcp_overrides(config: ExtensionConfig, expected: &[&str]) {
+        let overrides = codex_mcp_config_overrides(&[config]);
+        let expected: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+        assert_eq!(overrides, expected);
+    }
+
+    #[test_case("simple", r#""simple""# ; "no_special_chars")]
+    #[test_case(r#"back\slash"#, r#""back\\slash""# ; "backslash")]
+    #[test_case(r#"has"quote"#, r#""has\"quote""# ; "double_quote")]
+    #[test_case("line\nbreak", r#""line\nbreak""# ; "newline")]
+    #[test_case("tab\there", r#""tab\there""# ; "tab")]
+    #[test_case("cr\rhere", r#""cr\rhere""# ; "carriage_return")]
+    #[test_case("bell\u{0008}here", r#""bell\bhere""# ; "backspace")]
+    #[test_case("ff\u{000C}here", r#""ff\fhere""# ; "form_feed")]
+    #[test_case("null\u{0000}here", r#""null\u0000here""# ; "null_control_char")]
+    fn test_toml_quote(input: &str, expected: &str) {
+        assert_eq!(toml_quote(input), expected);
+    }
+
     #[test_case("image/png", ".png" ; "png image")]
     #[test_case("image/jpeg", ".jpg" ; "jpeg image")]
     fn test_prepare_input_image(mime: &str, expected_ext: &str) {
         let dir = tempfile::tempdir().unwrap();
         let messages = vec![Message::user()
             .with_text("Describe")
-            .with_image(TINY_PNG_B64, mime)];
+            .with_image(TEST_IMAGE_B64, mime)];
         let (_prompt, temp_files) = prepare_input("", &messages, dir.path()).unwrap();
         assert_eq!(temp_files.len(), 1);
         let path = temp_files[0].path();
@@ -714,7 +865,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let messages = vec![Message::user()
             .with_text("Describe")
-            .with_image(TINY_PNG_B64, mime)];
+            .with_image(TEST_IMAGE_B64, mime)];
         let err = prepare_input("", &messages, dir.path()).unwrap_err();
         assert!(
             err.to_string().contains("Unsupported image MIME type"),
@@ -770,6 +921,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec!["Hello, world!".to_string()];
@@ -789,6 +941,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         // Test with actual Codex CLI output format
@@ -821,6 +974,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines: Vec<String> = vec![];
@@ -868,6 +1022,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![
@@ -892,6 +1047,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![
@@ -963,6 +1119,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines: Vec<String> = lines.iter().map(|s| s.to_string()).collect();
@@ -978,6 +1135,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![
@@ -998,14 +1156,6 @@ mod tests {
 
     #[test]
     fn test_session_description_generation() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
-
         let messages = vec![Message::new(
             Role::User,
             chrono::Utc::now().timestamp(),
@@ -1014,12 +1164,15 @@ mod tests {
             )],
         )];
 
-        let result = provider.generate_simple_session_description(&messages);
+        let result = crate::providers::cli_common::generate_simple_session_description(
+            "gpt-5.2-codex",
+            &messages,
+        );
         assert!(result.is_ok());
 
-        let (message, _usage) = result.unwrap();
+        let (message, usage) = result.unwrap();
+        assert_eq!(usage.model, "gpt-5.2-codex");
         if let MessageContent::Text(text) = &message.content[0] {
-            // Should be truncated to 4 words
             let word_count = text.text.split_whitespace().count();
             assert!(word_count <= 4);
         } else {
@@ -1029,17 +1182,12 @@ mod tests {
 
     #[test]
     fn test_session_description_empty_messages() {
-        let provider = CodexProvider {
-            command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
-            name: "codex".to_string(),
-            reasoning_effort: "high".to_string(),
-            skip_git_check: false,
-        };
-
         let messages: Vec<Message> = vec![];
 
-        let result = provider.generate_simple_session_description(&messages);
+        let result = crate::providers::cli_common::generate_simple_session_description(
+            "gpt-5.2-codex",
+            &messages,
+        );
         assert!(result.is_ok());
 
         let (message, _usage) = result.unwrap();
@@ -1077,6 +1225,7 @@ mod tests {
             name: "codex".to_string(),
             reasoning_effort: "high".to_string(),
             skip_git_check: false,
+            mcp_config_overrides: Vec::new(),
         };
 
         let lines = vec![

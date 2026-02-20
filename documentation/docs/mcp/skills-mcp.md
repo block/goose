@@ -8,6 +8,10 @@ import TabItem from '@theme/TabItem';
 import { PlatformExtensionNote } from '@site/src/components/PlatformExtensionNote';
 import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
 
+:::caution Deprecated
+This extension has been deprecated and is only available in v1.16.0 - v1.24.0. For v1.25.0+, see the [Summon extension](/docs/mcp/summon-mcp).
+:::
+
 The Skills extension loads *skills* &mdash; reusable sets of instructions that teach goose how to perform specific tasks or follow particular workflows.
 
 goose automatically discovers skills at startup and uses them when relevant to your request. goose loads skills from `.agents/skills/` in your project directory and `~/.config/agents/skills/` globally, making skills portable across different AI coding agents. To learn about creating skills and how goose uses them, see [Using Skills](/docs/guides/context-engineering/using-skills).

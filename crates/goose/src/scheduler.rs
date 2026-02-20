@@ -739,9 +739,8 @@ async fn execute_job(
     let config = Config::global();
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
-    let model_config = crate::model::ModelConfig::new(&model_name)?;
-
-    let agent_provider = create(&provider_name, model_config).await?;
+    let model_config =
+        crate::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
 
     let session = agent
         .config
@@ -753,12 +752,13 @@ async fn execute_job(
         )
         .await?;
 
-    agent.update_provider(agent_provider, &session.id).await?;
-
     let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
-    for ext in extensions {
+    for ext in &extensions {
         agent.add_extension(ext.clone(), &session.id).await?;
     }
+
+    let agent_provider = create(&provider_name, model_config, extensions).await?;
+    agent.update_provider(agent_provider, &session.id).await?;
 
     let mut jobs_guard = jobs.lock().await;
     if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {

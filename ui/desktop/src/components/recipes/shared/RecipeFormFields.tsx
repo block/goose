@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Parameter } from '../../../recipe';
 import { ChevronDown } from 'lucide-react';
+import { ExtensionConfig } from '../../../api';
 
 import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
@@ -9,6 +10,8 @@ import InstructionsEditor from './InstructionsEditor';
 import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/collapsible';
 import { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
+import { RecipeModelSelector } from './RecipeModelSelector';
+import { RecipeExtensionSelector } from './RecipeExtensionSelector';
 
 // Type for field API to avoid linting issues - use any to bypass complex type constraints
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -149,7 +152,12 @@ export function RecipeFormFields({
     const hasActivities = Boolean(values.activities && values.activities.length > 0);
     const hasParameters = Boolean(values.parameters && values.parameters.length > 0);
     const hasJsonSchema = Boolean(values.jsonSchema && values.jsonSchema.trim());
-    return hasActivities || hasParameters || hasJsonSchema;
+    const hasModel = Boolean(values.model && values.model.trim());
+    const hasProvider = Boolean(values.provider && values.provider.trim());
+    const hasExtensions = Boolean(values.extensions && values.extensions.length > 0);
+    return (
+      hasActivities || hasParameters || hasJsonSchema || hasModel || hasProvider || hasExtensions
+    );
   }, []);
 
   const [advancedOpen, setAdvancedOpen] = useState(() => checkHasAdvancedData(form.state.values));
@@ -324,8 +332,10 @@ export function RecipeFormFields({
               advancedOpen ? 'rotate-0' : '-rotate-90'
             }`}
           />
-          <span className="text-sm font-medium text-text-default">Advanced Options</span>
-          <span className="text-xs text-text-muted">Activities, parameters, response schema</span>
+          <span className="text-sm font-medium text-textStandard">Advanced Options</span>
+          <span className="text-xs text-textSubtle">
+            Activities, parameters, model, extensions, response schema
+          </span>
         </CollapsibleTrigger>
 
         <CollapsibleContent className="mt-4 space-y-4 pl-6 border-l-2 border-border-default ml-2">
@@ -460,6 +470,34 @@ export function RecipeFormFields({
             }}
           </form.Field>
 
+          {/* Model and Provider Fields */}
+          <form.Field name="provider">
+            {(providerField: FormFieldApi<string | undefined>) => (
+              <form.Field name="model">
+                {(modelField: FormFieldApi<string | undefined>) => (
+                  <RecipeModelSelector
+                    selectedProvider={providerField.state.value}
+                    selectedModel={modelField.state.value}
+                    onProviderChange={(provider) => providerField.handleChange(provider)}
+                    onModelChange={(model) => modelField.handleChange(model)}
+                  />
+                )}
+              </form.Field>
+            )}
+          </form.Field>
+
+          {/* Extensions Field */}
+          <form.Field name="extensions">
+            {(field: FormFieldApi<ExtensionConfig[] | undefined>) => (
+              <RecipeExtensionSelector
+                selectedExtensions={field.state.value || []}
+                onExtensionsChange={(extensions) =>
+                  field.handleChange(extensions.length > 0 ? extensions : undefined)
+                }
+              />
+            )}
+          </form.Field>
+
           {/* JSON Schema Field */}
           <form.Field name="jsonSchema">
             {(field: FormFieldApi<string | undefined>) => (
@@ -485,7 +523,9 @@ export function RecipeFormFields({
                 {field.state.value && field.state.value.trim() && (
                   <div
                     className={`border rounded-lg p-3 bg-background-muted ${
-                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-default'
+                      field.state.meta.errors.length > 0
+                        ? 'border-red-500'
+                        : 'border-border-default'
                     }`}
                   >
                     <pre className="text-xs font-mono text-text-default whitespace-pre-wrap break-words max-h-32 overflow-y-auto">

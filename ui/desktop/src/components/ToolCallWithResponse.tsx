@@ -1,7 +1,7 @@
 import { AppEvents } from '../constants/events';
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -116,16 +116,11 @@ function McpAppWrapper({
       ? requestWithMeta.toolCall.value.arguments
       : undefined;
 
-  const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
+  const toolInput = { arguments: toolArguments || {} };
 
-  const toolResult = useMemo(() => {
-    if (!toolResponse) return undefined;
-    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
-    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      return resultWithMeta.value;
-    }
-    return undefined;
-  }, [toolResponse]);
+  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  const toolResult =
+    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
@@ -140,12 +135,6 @@ function McpAppWrapper({
         sessionId={sessionId}
         append={append}
       />
-      <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
-        <FlaskConical className="mr-2" size={20} />
-        <div className="text-sm font-sans">
-          MCP Apps are experimental and may change at any time.
-        </div>
-      </div>
     </div>
   );
 }
@@ -527,7 +516,7 @@ function ToolCallView({
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
-    const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+    const args = (toolCall.arguments ?? {}) as Record<string, ToolCallArgumentValue>;
     const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {

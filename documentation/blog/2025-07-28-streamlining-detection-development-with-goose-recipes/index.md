@@ -7,7 +7,7 @@ authors:
 
 ![blog cover](goose-recipes-detection-development-cover.png)
 
-Creating effective security detections in Panther traditionally requires deep knowledge of detection logic, testing frameworks, and development workflows. The detection engineering team at Block has streamlined this process by building Goose recipes that automate the entire detection creation lifecycle from initial repository setup to pull request creation.
+Creating effective security detections in Panther traditionally requires deep knowledge of detection logic, testing frameworks, and development workflows. The detection engineering team at Block has streamlined this process by building Goose recipes that automate the entire detection creation lifecycle from initial repository set up to pull request creation.
 
 This blog post explores how to leverage Goose's [recipe](https://block.github.io/goose/docs/guides/recipes/) and [subrecipe](https://block.github.io/goose/docs/guides/recipes/subrecipes) system to create new detections in Panther with minimal manual intervention, ensuring consistency, quality, and adherence to team standards.
 

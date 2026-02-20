@@ -109,7 +109,7 @@ const FeatureQuotes: FeatureQuote[] = [
     testimonial:
       "My sister had been asking me for months to help her build a Google Docs extension but I kept putting it off. Today, we hopped on FaceTime and built one in just 30 minutes with Goose!",
   }
-  //Cant find Kristens github
+  //Can't find Kristen's github
   // {
   //   name: "Kristen Anderson",
   //   github: "https://github.com/",

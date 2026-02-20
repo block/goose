@@ -100,7 +100,7 @@ Currently, the tool approval feature is still a work in progress. I actually got
 
 The RPI method felt like a superpower, even if it didn't magically delete every bug from the project. There is a big difference between fighting a hallucination and fighting a real technical challenge.
 
-When I didn't use RPI, goose hallucinated non-existent endpoints and tried to build a complex MCP server when a simple HTTP API was all we needed. Those are the kinds of bugs that waste hours because you are chasing ghosts.
+When I didn't use RPI, goose hallucinated nonexistent endpoints and tried to build a complex MCP server when a simple HTTP API was all we needed. Those are the kinds of bugs that waste hours because you are chasing ghosts.
 
 ![Before RPI: Debugging failures and hallucinations](failure-screenshot.png)
 

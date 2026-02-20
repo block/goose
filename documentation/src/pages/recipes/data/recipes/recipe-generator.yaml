@@ -29,7 +29,7 @@ prompt: |
    - key: example_parameter
      input_type: string or number
      requirement: required or optional
-     description: Description of the paramater.
+     description: Description of the parameter.
  ```
  
  Important notes:

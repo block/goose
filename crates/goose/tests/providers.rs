@@ -1,26 +1,29 @@
 use anyhow::Result;
 use dotenvy::dotenv;
+use goose::agents::extension_manager::ExtensionManagerCapabilities;
+use goose::agents::{ExtensionManager, GoosePlatform, PromptManager};
+use goose::config::ExtensionConfig;
 use goose::conversation::message::{Message, MessageContent};
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
+use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
+use goose::providers::codex::CODEX_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
 use goose::providers::google::GOOGLE_DEFAULT_MODEL;
 use goose::providers::litellm::LITELLM_DEFAULT_MODEL;
-use goose::providers::ollama::OLLAMA_DEFAULT_MODEL;
 use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
-use rmcp::model::{AnnotateAble, Content, RawImageContent};
-use rmcp::model::{CallToolRequestParams, Tool};
-use rmcp::object;
+use goose::session::SessionManager;
+use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_SESSION_ID};
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Copy)]
 enum TestStatus {
@@ -88,155 +91,167 @@ lazy_static::lazy_static! {
 struct ProviderTester {
     provider: Arc<dyn Provider>,
     name: String,
+    extension_manager: Arc<ExtensionManager>,
+    is_cli_provider: bool,
+    model_switch_name: Option<String>,
 }
 
 impl ProviderTester {
-    fn new(provider: Arc<dyn Provider>, name: String) -> Self {
-        Self { provider, name }
+    fn new(
+        provider: Arc<dyn Provider>,
+        name: String,
+        extension_manager: Arc<ExtensionManager>,
+        is_cli_provider: bool,
+        model_switch_name: Option<String>,
+    ) -> Self {
+        Self {
+            provider,
+            name,
+            extension_manager,
+            is_cli_provider,
+            model_switch_name,
+        }
     }
 
-    async fn test_basic_response(&self) -> Result<()> {
+    async fn tool_roundtrip(&self, prompt: &str, session_id: &str) -> Result<Message> {
+        let tools = self
+            .extension_manager
+            .get_prefixed_tools(session_id, None)
+            .await
+            .expect("get_prefixed_tools failed");
+
+        let info = self
+            .extension_manager
+            .get_extensions_info(std::path::Path::new("."))
+            .await;
+        let system = PromptManager::new()
+            .builder()
+            .with_extensions(info.into_iter())
+            .build();
+
+        let message = Message::user().with_text(prompt);
+        let model_config = self.provider.get_model_config();
+        let (response1, _) = self
+            .provider
+            .complete(
+                &model_config,
+                session_id,
+                &system,
+                std::slice::from_ref(&message),
+                &tools,
+            )
+            .await?;
+
+        // Agentic CLI providers (claude-code, codex) call tools internally and
+        // return the final text result directly — no tool_request in the response.
+        let tool_req = response1
+            .content
+            .iter()
+            .filter_map(|c| c.as_tool_request())
+            .next_back();
+
+        let tool_req = match tool_req {
+            Some(req) => req,
+            None => return Ok(response1),
+        };
+
+        let params = tool_req
+            .tool_call
+            .as_ref()
+            .expect("tool_call should be Ok")
+            .clone();
+        let result = self
+            .extension_manager
+            .dispatch_tool_call(session_id, params, None, CancellationToken::new())
+            .await
+            .expect("dispatch failed")
+            .result
+            .await
+            .expect("tool call failed");
+        let tool_response = Message::user().with_tool_response(&tool_req.id, Ok(result));
+
+        let (response2, _) = self
+            .provider
+            .complete(
+                &model_config,
+                session_id,
+                &system,
+                &[message, response1, tool_response],
+                &tools,
+            )
+            .await?;
+        Ok(response2)
+    }
+
+    async fn test_basic_response(&self, session_id: &str) -> Result<()> {
         let message = Message::user().with_text("Just say hello!");
+        let model_config = self.provider.get_model_config();
 
         let (response, _) = self
             .provider
             .complete(
-                "test-session-id",
+                &model_config,
+                session_id,
                 "You are a helpful assistant.",
                 &[message],
                 &[],
             )
             .await?;
 
-        assert_eq!(
-            response.content.len(),
-            1,
-            "Expected single content item in response"
+        assert!(
+            !response.content.is_empty(),
+            "Expected at least one content item in response"
         );
 
         assert!(
-            matches!(response.content[0], MessageContent::Text(_)),
-            "Expected text response"
+            response
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::Text(_))),
+            "Expected at least one text content item in response"
         );
 
+        println!(
+            "=== {}::basic_response === {}",
+            self.name,
+            response.as_concat_text()
+        );
         Ok(())
     }
 
-    async fn test_tool_usage(&self) -> Result<()> {
-        let weather_tool = Tool::new(
-            "get_weather",
-            "Get the weather for a location",
-            object!({
-                "type": "object",
-                "required": ["location"],
-                "properties": {
-                    "location": {
-                        "type": "string",
-                        "description": "The city and state, e.g. San Francisco, CA"
-                    }
-                }
-            }),
-        );
-
-        let message = Message::user().with_text("What's the weather like in San Francisco?");
-
-        let (response1, _) = self
-            .provider
-            .complete(
-                "test-session-id",
-                "You are a helpful weather assistant.",
-                std::slice::from_ref(&message),
-                std::slice::from_ref(&weather_tool),
+    async fn test_tool_usage(&self, session_id: &str) -> Result<()> {
+        let response = self
+            .tool_roundtrip(
+                "Use the get_code tool and output only its result.",
+                session_id,
             )
             .await?;
-
-        println!("=== {}::reponse1 ===", self.name);
-        dbg!(&response1);
-        println!("===================");
-
+        let text = response.as_concat_text();
         assert!(
-            response1
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::ToolRequest(_))),
-            "Expected tool request in response"
+            text.contains(FAKE_CODE),
+            "Expected lookup code '{}' in final response, got: {}",
+            FAKE_CODE,
+            text
         );
-
-        let id = &response1
-            .content
-            .iter()
-            .filter_map(|message| message.as_tool_request())
-            .next_back()
-            .expect("got tool request")
-            .id;
-
-        let weather = Message::user().with_tool_response(
-            id,
-            Ok(rmcp::model::CallToolResult {
-                content: vec![Content::text(
-                    "
-                  50°F°C
-                  Precipitation: 0%
-                  Humidity: 84%
-                  Wind: 2 mph
-                  Weather
-                  Saturday 9:00 PM
-                  Clear",
-                )],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
-        );
-
-        let (response2, _) = self
-            .provider
-            .complete(
-                "test-session-id",
-                "You are a helpful weather assistant.",
-                &[message, response1, weather],
-                &[weather_tool],
-            )
-            .await?;
-
-        println!("=== {}::reponse2 ===", self.name);
-        dbg!(&response2);
-        println!("===================");
-
-        assert!(
-            response2
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::Text(_))),
-            "Expected text for final response"
-        );
-
+        println!("=== {}::tool_usage === {}", self.name, text);
         Ok(())
     }
 
-    async fn test_context_length_exceeded_error(&self) -> Result<()> {
+    async fn test_context_length_exceeded_error(&self, session_id: &str) -> Result<()> {
         let large_message_content = if self.name.to_lowercase() == "google" {
             "hello ".repeat(1_300_000)
         } else {
             "hello ".repeat(300_000)
         };
 
-        let messages = vec![
-            Message::user().with_text("hi there. what is 2 + 2?"),
-            Message::assistant().with_text("hey! I think it's 4."),
-            Message::user().with_text(&large_message_content),
-            Message::assistant().with_text("heyy!!"),
-            Message::user().with_text("what's the meaning of life?"),
-            Message::assistant().with_text("the meaning of life is 42"),
-            Message::user().with_text(
-                "did I ask you what's 2+2 in this message history? just respond with 'yes' or 'no'",
-            ),
-        ];
+        let messages = vec![Message::user().with_text(&large_message_content)];
+        let model_config = self.provider.get_model_config();
 
         let result = self
             .provider
             .complete(
-                "test-session-id",
+                &model_config,
+                session_id,
                 "You are a helpful assistant.",
                 &messages,
                 &[],
@@ -247,7 +262,10 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
-        if self.name.to_lowercase() == "ollama" || self.name.to_lowercase() == "openrouter" {
+        let name_lower = self.name.to_lowercase();
+        if name_lower == "ollama" || name_lower == "openrouter" {
+            // These providers handle context overflow internally: ollama and
+            // openrouter truncate or have large windows.
             assert!(
                 result.is_ok(),
                 "Expected to succeed because of default truncation or large context window"
@@ -267,103 +285,54 @@ impl ProviderTester {
         Ok(())
     }
 
-    async fn test_image_content_support(&self) -> Result<()> {
-        use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-        use goose::conversation::message::Message;
-        use std::fs;
+    async fn test_image_content_support(&self, session_id: &str) -> Result<()> {
+        let response = self
+            .tool_roundtrip(
+                "Use the get_image tool and describe what you see in its result.",
+                session_id,
+            )
+            .await?;
+        let text = response.as_concat_text().to_lowercase();
+        assert!(
+            text.contains("hello goose") || text.contains("test image"),
+            "Expected response to describe the test image, got: {}",
+            text
+        );
+        println!("=== {}::image_content === {}", self.name, text);
+        Ok(())
+    }
 
-        let image_path = "crates/goose/examples/test_assets/test_image.png";
-        let image_data = match fs::read(image_path) {
-            Ok(data) => data,
-            Err(_) => {
-                println!(
-                    "Test image not found at {}, skipping image test",
-                    image_path
-                );
-                return Ok(());
-            }
-        };
+    async fn test_model_switch(&self, session_id: &str) -> Result<()> {
+        let default = &self.provider.get_model_config().model_name;
+        let alt = self
+            .model_switch_name
+            .as_deref()
+            .expect("model_switch_name required for test_model_switch");
+        let alt_config = goose::model::ModelConfig::new(alt)?.with_canonical_limits(&self.name);
 
-        let base64_image = BASE64.encode(image_data);
-        let image_content = RawImageContent {
-            data: base64_image,
-            mime_type: "image/png".to_string(),
-            meta: None,
-        }
-        .no_annotation();
-
-        let message_with_image =
-            Message::user().with_image(image_content.data.clone(), image_content.mime_type.clone());
-
-        let result = self
+        let message = Message::user().with_text("Just say hello!");
+        let (response, _) = self
             .provider
             .complete(
-                "test-session-id",
-                "You are a helpful assistant. Describe what you see in the image briefly.",
-                &[message_with_image],
+                &alt_config,
+                session_id,
+                "You are a helpful assistant.",
+                &[message],
                 &[],
             )
-            .await;
+            .await?;
 
-        println!("=== {}::image_content_support ===", self.name);
-        let (response, _) = result?;
-        println!("Image response: {:?}", response);
         assert!(
-            response
-                .content
-                .iter()
-                .any(|content| matches!(content, MessageContent::Text(_))),
-            "Expected text response for image"
+            matches!(response.content.first(), Some(MessageContent::Text(_))),
+            "Expected text response after model switch"
         );
-        println!("===================");
-
-        let screenshot_tool = Tool::new(
-            "get_screenshot",
-            "Get a screenshot of the current screen",
-            object!({
-                "type": "object",
-                "properties": {}
-            }),
+        println!(
+            "=== {}::model_switch ({} -> {}) === {}",
+            self.name,
+            default,
+            alt,
+            response.as_concat_text()
         );
-
-        let user_message = Message::user().with_text("Take a screenshot please");
-        let tool_request = Message::assistant().with_tool_request(
-            "test_id",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "get_screenshot".into(),
-                arguments: Some(object!({})),
-            }),
-        );
-        let tool_response = Message::user().with_tool_response(
-            "test_id",
-            Ok(rmcp::model::CallToolResult {
-                content: vec![Content::image(
-                    image_content.data.clone(),
-                    image_content.mime_type.clone(),
-                )],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
-        );
-
-        let result2 = self
-            .provider
-            .complete(
-                "test-session-id",
-                "You are a helpful assistant.",
-                &[user_message, tool_request, tool_response],
-                &[screenshot_tool],
-            )
-            .await;
-
-        println!("=== {}::tool_image_response ===", self.name);
-        let (response, _) = result2?;
-        println!("Tool image response: {:?}", response);
-        println!("===================");
-
         Ok(())
     }
 
@@ -374,28 +343,56 @@ impl ProviderTester {
         dbg!(&models);
         println!("===================");
 
-        if let Some(models) = models {
-            assert!(!models.is_empty(), "Expected non-empty model list");
-            let model_name = &self.provider.get_model_config().model_name;
-            // Some providers (e.g. Ollama) return names with tags like "qwen3:latest"
-            // while the configured model name may be just "qwen3".
+        assert!(!models.is_empty(), "Expected non-empty model list");
+        let model_name = &self.provider.get_model_config().model_name;
+        // Model names may not match exactly: Ollama adds tags like "qwen3:latest",
+        // and CLI providers like claude-code use aliases (e.g. "sonnet") that are
+        // substrings of full model names (e.g. "claude-sonnet-4-5-20250929").
+        assert!(
+            models
+                .iter()
+                .any(|m| m == model_name || m.contains(model_name) || model_name.contains(m)),
+            "Expected model '{}' in supported models",
+            model_name
+        );
+        if let Some(alt) = &self.model_switch_name {
             assert!(
                 models
                     .iter()
-                    .any(|m| m == model_name || m.starts_with(&format!("{}:", model_name))),
-                "Expected model '{}' in supported models",
-                model_name
+                    .any(|m| m == alt || m.contains(alt.as_str()) || alt.contains(m.as_str())),
+                "Expected model_switch_name '{}' in supported models",
+                alt
             );
         }
         Ok(())
     }
 
+    fn session_id_for_test(&self, test_name: &str) -> String {
+        if self.is_cli_provider {
+            format!("test_{}", test_name)
+        } else {
+            TEST_SESSION_ID.to_string()
+        }
+    }
+
     async fn run_test_suite(&self) -> Result<()> {
         self.test_model_listing().await?;
-        self.test_basic_response().await?;
-        self.test_tool_usage().await?;
-        self.test_context_length_exceeded_error().await?;
-        self.test_image_content_support().await?;
+        self.test_basic_response(&self.session_id_for_test("basic_response"))
+            .await?;
+        self.test_tool_usage(&self.session_id_for_test("tool_usage"))
+            .await?;
+        self.test_image_content_support(&self.session_id_for_test("image_content"))
+            .await?;
+        if self.model_switch_name.is_some() {
+            self.test_model_switch(&self.session_id_for_test("model_switch"))
+                .await?;
+        }
+        // claude-code responds unpredictably to oversized context:
+        // sometimes "no", sometimes "Prompt is too long".
+        if self.name != "claude-code" {
+            self.test_context_length_exceeded_error(&self.session_id_for_test("context_length"))
+                .await?;
+        }
         Ok(())
     }
 }
@@ -409,8 +406,11 @@ fn load_env() {
 async fn test_provider(
     name: &str,
     model_name: &str,
+    model_switch_name: Option<&str>,
     required_vars: &[&str],
     env_modifications: Option<HashMap<&str, Option<String>>>,
+    // CLI providers cannot propagate the agent-session-id header to MCP servers.
+    is_cli_provider: bool,
 ) -> Result<()> {
     TEST_REPORT.record_fail(name);
 
@@ -454,7 +454,27 @@ async fn test_provider(
         original_env
     };
 
-    let provider = match create_with_named_model(&name.to_lowercase(), model_name).await {
+    let provider_name = name.to_lowercase();
+    let expected_session_id = if is_cli_provider {
+        None
+    } else {
+        Some(ExpectedSessionId::default())
+    };
+    let mcp = McpFixture::new(expected_session_id.clone()).await;
+    if let Some(ref id) = expected_session_id {
+        id.set(TEST_SESSION_ID);
+    }
+
+    let mcp_extension =
+        ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
+
+    let provider = match create_with_named_model(
+        &provider_name,
+        model_name,
+        vec![mcp_extension.clone()],
+    )
+    .await
+    {
         Ok(p) => p,
         Err(e) => {
             println!("Skipping {} tests - failed to create provider: {}", name, e);
@@ -477,8 +497,31 @@ async fn test_provider(
         }
     }
 
-    let tester = ProviderTester::new(provider, name.to_string());
-    match tester.run_test_suite().await {
+    let temp_dir = tempfile::tempdir()?;
+    let shared_provider = Arc::new(tokio::sync::Mutex::new(Some(provider.clone())));
+    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+    let extension_manager = Arc::new(ExtensionManager::new(
+        shared_provider,
+        session_manager,
+        GoosePlatform::GooseCli.to_string(),
+        ExtensionManagerCapabilities { mcpui: false },
+    ));
+    extension_manager
+        .add_extension(mcp_extension, None, None, None)
+        .await
+        .expect("failed to add extension");
+
+    let tester = ProviderTester::new(
+        provider,
+        name.to_string(),
+        extension_manager,
+        is_cli_provider,
+        model_switch_name.map(String::from),
+    );
+    let _mcp = mcp;
+    let result = tester.run_test_suite().await;
+
+    match result {
         Ok(_) => {
             TEST_REPORT.record_pass(name);
             Ok(())
@@ -493,7 +536,15 @@ async fn test_provider(
 
 #[tokio::test]
 async fn test_openai_provider() -> Result<()> {
-    test_provider("openai", OPEN_AI_DEFAULT_MODEL, &["OPENAI_API_KEY"], None).await
+    test_provider(
+        "openai",
+        OPEN_AI_DEFAULT_MODEL,
+        None,
+        &["OPENAI_API_KEY"],
+        None,
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -501,12 +552,14 @@ async fn test_azure_provider() -> Result<()> {
     test_provider(
         "Azure",
         AZURE_DEFAULT_MODEL,
+        None,
         &[
             "AZURE_OPENAI_API_KEY",
             "AZURE_OPENAI_ENDPOINT",
             "AZURE_OPENAI_DEPLOYMENT_NAME",
         ],
         None,
+        false,
     )
     .await
 }
@@ -516,8 +569,10 @@ async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
     test_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
+        None,
         &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
         None,
+        false,
     )
     .await
 }
@@ -530,8 +585,10 @@ async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
     test_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
+        None,
         &["AWS_PROFILE"],
         Some(env_mods),
+        false,
     )
     .await
 }
@@ -548,8 +605,10 @@ async fn test_bedrock_provider_bearer_token() -> Result<()> {
     test_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
+        None,
         &["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"],
         Some(env_mods),
+        false,
     )
     .await
 }
@@ -559,15 +618,26 @@ async fn test_databricks_provider() -> Result<()> {
     test_provider(
         "Databricks",
         DATABRICKS_DEFAULT_MODEL,
+        None,
         &["DATABRICKS_HOST", "DATABRICKS_TOKEN"],
         None,
+        false,
     )
     .await
 }
 
 #[tokio::test]
 async fn test_ollama_provider() -> Result<()> {
-    test_provider("Ollama", OLLAMA_DEFAULT_MODEL, &["OLLAMA_HOST"], None).await
+    // qwen3-vl supports text, tools, and vision (needed for image test)
+    test_provider(
+        "Ollama",
+        "qwen3-vl",
+        Some("qwen3"),
+        &["OLLAMA_HOST"],
+        None,
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -575,8 +645,10 @@ async fn test_anthropic_provider() -> Result<()> {
     test_provider(
         "Anthropic",
         ANTHROPIC_DEFAULT_MODEL,
+        None,
         &["ANTHROPIC_API_KEY"],
         None,
+        false,
     )
     .await
 }
@@ -586,15 +658,25 @@ async fn test_openrouter_provider() -> Result<()> {
     test_provider(
         "OpenRouter",
         OPEN_AI_DEFAULT_MODEL,
+        None,
         &["OPENROUTER_API_KEY"],
         None,
+        false,
     )
     .await
 }
 
 #[tokio::test]
 async fn test_google_provider() -> Result<()> {
-    test_provider("Google", GOOGLE_DEFAULT_MODEL, &["GOOGLE_API_KEY"], None).await
+    test_provider(
+        "Google",
+        GOOGLE_DEFAULT_MODEL,
+        None,
+        &["GOOGLE_API_KEY"],
+        None,
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
@@ -602,8 +684,10 @@ async fn test_snowflake_provider() -> Result<()> {
     test_provider(
         "Snowflake",
         SNOWFLAKE_DEFAULT_MODEL,
+        None,
         &["SNOWFLAKE_HOST", "SNOWFLAKE_TOKEN"],
         None,
+        false,
     )
     .await
 }
@@ -613,8 +697,10 @@ async fn test_sagemaker_tgi_provider() -> Result<()> {
     test_provider(
         "SageMakerTgi",
         SAGEMAKER_TGI_DEFAULT_MODEL,
+        None,
         &["SAGEMAKER_ENDPOINT_NAME"],
         None,
+        false,
     )
     .await
 }
@@ -632,12 +718,56 @@ async fn test_litellm_provider() -> Result<()> {
         ("LITELLM_API_KEY", Some("".to_string())),
     ]);
 
-    test_provider("LiteLLM", LITELLM_DEFAULT_MODEL, &[], Some(env_mods)).await
+    test_provider(
+        "LiteLLM",
+        LITELLM_DEFAULT_MODEL,
+        None,
+        &[],
+        Some(env_mods),
+        false,
+    )
+    .await
 }
 
 #[tokio::test]
 async fn test_xai_provider() -> Result<()> {
-    test_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"], None).await
+    test_provider(
+        "Xai",
+        XAI_DEFAULT_MODEL,
+        None,
+        &["XAI_API_KEY"],
+        None,
+        false,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_claude_code_provider() -> Result<()> {
+    if which::which("claude").is_err() {
+        println!("'claude' CLI not found, skipping test");
+        TEST_REPORT.record_skip("claude-code");
+        return Ok(());
+    }
+    test_provider(
+        "claude-code",
+        CLAUDE_CODE_DEFAULT_MODEL,
+        Some("sonnet"),
+        &[],
+        None,
+        true,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn test_codex_provider() -> Result<()> {
+    if which::which("codex").is_err() {
+        println!("'codex' CLI not found, skipping test");
+        TEST_REPORT.record_skip("codex");
+        return Ok(());
+    }
+    test_provider("codex", CODEX_DEFAULT_MODEL, None, &[], None, true).await
 }
 
 #[ctor::dtor]

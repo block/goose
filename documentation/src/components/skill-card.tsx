@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import Link from "@docusaurus/Link";
-import { Check } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import type { Skill } from "@site/src/pages/skills/types";
 
 function generateInstallCommand(repoUrl: string, skillId: string): string {
@@ -54,10 +54,10 @@ export function SkillCard({ skill }: { skill: Skill }) {
               {skill.description}
             </p>
 
-            {/* Tags */}
+            {/* Tags - show max 4 on card, rest visible on detail page */}
             {skill.tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {skill.tags.map((tag, index) => (
+                {skill.tags.slice(0, 4).map((tag, index) => (
                   <span
                     key={index}
                     className="inline-flex items-center h-7 px-3 rounded-full border border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 text-xs font-medium"
@@ -87,46 +87,37 @@ export function SkillCard({ skill }: { skill: Skill }) {
           </div>
 
           {/* Footer with actions */}
-          <div className="flex justify-between items-center pt-6 mt-2 border-t border-zinc-100 dark:border-zinc-800">
-            {/* Install button */}
-            <div className="relative group">
-              <button
-                onClick={handleCopyInstall}
-                className={`text-sm font-medium px-3 py-1 rounded cursor-pointer flex items-center gap-1.5 transition-colors ${
-                  copied
-                    ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                    : "text-zinc-700 bg-zinc-200 dark:bg-zinc-700 dark:text-white dark:hover:bg-zinc-600 hover:bg-zinc-300"
-                }`}
-              >
+          <div className="flex flex-col gap-3 pt-6 mt-2 border-t border-zinc-100 dark:border-zinc-800">
+            {/* Install command display */}
+            <div
+              onClick={handleCopyInstall}
+              className="flex items-center gap-2 -mx-2 px-2 py-1 rounded cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors group"
+            >
+              <code className="flex-1 text-xs font-mono text-zinc-600 dark:text-zinc-400 truncate">
+                <span className="text-zinc-400 dark:text-zinc-500">$</span> {generateInstallCommand(skill.repoUrl, skill.id)}
+              </code>
+              <span className="flex-shrink-0 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
                 {copied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5" />
-                    Copied!
-                  </>
+                  <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
                 ) : (
-                  "Copy Install"
+                  <Copy className="h-4 w-4" />
                 )}
-              </button>
-
+              </span>
             </div>
 
-            {/* View Source link - always show, links to Agent-Skills repo */}
-            <a
-              href={skill.viewSourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-purple-600 hover:underline dark:text-purple-400"
-              onClick={(e) => e.stopPropagation()}
-            >
-              View Source →
-            </a>
-
-            {/* Author */}
-            {skill.author && (
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                by {skill.author}
+            {/* View Details and Author */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                View Details →
               </span>
-            )}
+
+              {/* Author */}
+              {skill.author && (
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  by {skill.author}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </Link>

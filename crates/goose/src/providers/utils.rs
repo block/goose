@@ -528,7 +528,7 @@ mod tests {
         let text = format!("Here is a fake image {}", fake_png_path.to_str().unwrap());
         assert_eq!(detect_image_path(&text), None);
 
-        // Test with non-existent file
+        // Test with nonexistent file
         let text = "Here is a fake.png that doesn't exist";
         assert_eq!(detect_image_path(text), None);
 
@@ -573,7 +573,7 @@ mod tests {
             .to_string()
             .contains("not a valid image"));
 
-        // Test non-existent file
+        // Test nonexistent file
         let result = load_image_file("nonexistent.png");
         assert!(result.is_err());
 

@@ -1,19 +1,30 @@
 use super::{
-    map_permission_response, spawn_acp_server_in_process, PermissionDecision, PermissionMapping,
-    Session, TestOutput, TestSessionConfig,
+    map_permission_response, spawn_acp_server_in_process, Connection, PermissionDecision,
+    PermissionMapping, Session, TestConnectionConfig, TestOutput,
 };
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    ContentBlock, InitializeRequest, NewSessionRequest, PromptRequest, ProtocolVersion,
-    RequestPermissionRequest, SessionNotification, SessionUpdate, StopReason, TextContent,
-    ToolCallStatus,
+    ContentBlock, InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest,
+    PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionModelState,
+    SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallStatus,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Notify;
-use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+pub struct ClientToAgentConnection {
+    cx: JrConnectionCx<ClientToAgent>,
+    // MCP servers from config, consumed by the first new_session call.
+    pending_mcp_servers: Vec<McpServer>,
+    updates: Arc<Mutex<Vec<SessionNotification>>>,
+    permission: Arc<Mutex<PermissionDecision>>,
+    notify: Arc<Notify>,
+    permission_manager: Arc<PermissionManager>,
+    _openai: super::OpenAiFixture,
+    _temp_dir: Option<tempfile::TempDir>,
+}
 
 pub struct ClientToAgentSession {
     cx: JrConnectionCx<ClientToAgent>,
@@ -21,16 +32,20 @@ pub struct ClientToAgentSession {
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
-    permission_manager: Arc<PermissionManager>,
-    // Keep the OpenAI mock server alive for the lifetime of the session.
-    _openai: super::OpenAiFixture,
-    // Keep the temp dir alive so test data/permissions persist during the session.
-    _temp_dir: Option<tempfile::TempDir>,
+}
+
+impl ClientToAgentConnection {
+    #[allow(dead_code)]
+    pub fn cx(&self) -> &JrConnectionCx<ClientToAgent> {
+        &self.cx
+    }
 }
 
 #[async_trait]
-impl Session for ClientToAgentSession {
-    async fn new(config: TestSessionConfig, openai: super::OpenAiFixture) -> Self {
+impl Connection for ClientToAgentConnection {
+    type Session = ClientToAgentSession;
+
+    async fn new(config: TestConnectionConfig, openai: super::OpenAiFixture) -> Self {
         let (data_root, temp_dir) = match config.data_root.as_os_str().is_empty() {
             true => {
                 let temp_dir = tempfile::tempdir().unwrap();
@@ -39,11 +54,12 @@ impl Session for ClientToAgentSession {
             false => (config.data_root.clone(), None),
         };
 
-        let (client_read, client_write, _handle, permission_manager) = spawn_acp_server_in_process(
+        let (transport, _handle, permission_manager) = spawn_acp_server_in_process(
             openai.uri(),
             &config.builtins,
             data_root.as_path(),
             config.goose_mode,
+            config.provider_factory,
         )
         .await;
 
@@ -51,21 +67,14 @@ impl Session for ClientToAgentSession {
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
 
-        let transport = sacp::ByteStreams::new(client_write.compat_write(), client_read.compat());
-
-        let (cx, session_id) = {
+        let cx = {
             let updates_clone = updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
-            let mcp_servers_clone = config.mcp_servers.clone();
 
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
-            let session_id_holder: Arc<Mutex<Option<sacp::schema::SessionId>>> =
-                Arc::new(Mutex::new(None));
-
             let cx_holder_clone = cx_holder.clone();
-            let session_id_holder_clone = session_id_holder.clone();
 
             let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
 
@@ -102,27 +111,14 @@ impl Session for ClientToAgentSession {
                     .connect_to(transport)
                     .unwrap()
                     .run_until({
-                        let mcp_servers = mcp_servers_clone;
                         let cx_holder = cx_holder_clone;
-                        let session_id_holder = session_id_holder_clone;
                         move |cx: JrConnectionCx<ClientToAgent>| async move {
                             cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
                                 .block_task()
                                 .await
                                 .unwrap();
 
-                            let work_dir = tempfile::tempdir().unwrap();
-                            let session = cx
-                                .send_request(
-                                    NewSessionRequest::new(work_dir.path())
-                                        .mcp_servers(mcp_servers),
-                                )
-                                .block_task()
-                                .await
-                                .unwrap();
-
                             *cx_holder.lock().unwrap() = Some(cx.clone());
-                            *session_id_holder.lock().unwrap() = Some(session.session_id);
                             let _ = ready_tx.send(());
 
                             std::future::pending::<Result<(), sacp::Error>>().await
@@ -136,15 +132,13 @@ impl Session for ClientToAgentSession {
             });
 
             ready_rx.await.unwrap();
-
             let cx = cx_holder.lock().unwrap().take().unwrap();
-            let session_id = session_id_holder.lock().unwrap().take().unwrap();
-            (cx, session_id)
+            cx
         };
 
         Self {
             cx,
-            session_id,
+            pending_mcp_servers: config.mcp_servers,
             updates,
             permission,
             notify,
@@ -154,8 +148,46 @@ impl Session for ClientToAgentSession {
         }
     }
 
-    fn id(&self) -> &sacp::schema::SessionId {
-        &self.session_id
+    async fn new_session(&mut self) -> (ClientToAgentSession, Option<SessionModelState>) {
+        let work_dir = tempfile::tempdir().unwrap();
+        let mcp_servers = std::mem::take(&mut self.pending_mcp_servers);
+        let response = self
+            .cx
+            .send_request(NewSessionRequest::new(work_dir.path()).mcp_servers(mcp_servers))
+            .block_task()
+            .await
+            .unwrap();
+        let session = ClientToAgentSession {
+            cx: self.cx.clone(),
+            session_id: response.session_id.clone(),
+            updates: self.updates.clone(),
+            permission: self.permission.clone(),
+            notify: self.notify.clone(),
+        };
+        (session, response.models)
+    }
+
+    async fn load_session(
+        &mut self,
+        session_id: &str,
+    ) -> (ClientToAgentSession, Option<SessionModelState>) {
+        self.updates.lock().unwrap().clear();
+        let work_dir = tempfile::tempdir().unwrap();
+        let session_id = sacp::schema::SessionId::new(session_id.to_string());
+        let response = self
+            .cx
+            .send_request(LoadSessionRequest::new(session_id.clone(), work_dir.path()))
+            .block_task()
+            .await
+            .unwrap();
+        let session = ClientToAgentSession {
+            cx: self.cx.clone(),
+            session_id,
+            updates: self.updates.clone(),
+            permission: self.permission.clone(),
+            notify: self.notify.clone(),
+        };
+        (session, response.models)
     }
 
     fn reset_openai(&self) {
@@ -165,6 +197,13 @@ impl Session for ClientToAgentSession {
     fn reset_permissions(&self) {
         self.permission_manager.remove_extension("");
     }
+}
+
+#[async_trait]
+impl Session for ClientToAgentSession {
+    fn session_id(&self) -> &sacp::schema::SessionId {
+        &self.session_id
+    }
 
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput {
         *self.permission.lock().unwrap() = decision;
@@ -173,7 +212,7 @@ impl Session for ClientToAgentSession {
         let response = self
             .cx
             .send_request(PromptRequest::new(
-                self.id().clone(),
+                self.session_id.clone(),
                 vec![ContentBlock::Text(TextContent::new(text))],
             ))
             .block_task()
@@ -197,6 +236,19 @@ impl Session for ClientToAgentSession {
         }
 
         TestOutput { text, tool_status }
+    }
+
+    // HACK: sacp doesn't support session/set_model yet, so we send it as untyped JSON.
+    async fn set_model(&self, model_id: &str) {
+        let msg = sacp::UntypedMessage::new(
+            "session/set_model",
+            serde_json::json!({
+                "sessionId": self.session_id.0,
+                "modelId": model_id
+            }),
+        )
+        .unwrap();
+        self.cx.send_request(msg).block_task().await.unwrap();
     }
 }
 

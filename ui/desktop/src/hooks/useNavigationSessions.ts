@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { listSessions } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
+import { useConfig } from '../components/ConfigContext';
 import { useNavigation } from './useNavigation';
 import { startNewSession, resumeSession, shouldShowNewChatTitle } from '../sessions';
 import { getInitialWorkingDir } from '../utils/workingDir';
@@ -22,6 +23,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
+  const { extensionsList } = useConfig();
   const setView = useNavigation();
 
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
@@ -151,7 +153,9 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
     } else {
       isCreatingSessionRef.current = true;
       try {
-        await startNewSession('', setView, getInitialWorkingDir());
+        await startNewSession('', setView, getInitialWorkingDir(), {
+          allExtensions: extensionsList,
+        });
       } finally {
         setTimeout(() => {
           isCreatingSessionRef.current = false;
@@ -159,7 +163,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       }
     }
     onNavigate?.();
-  }, [setView, onNavigate]);
+  }, [setView, onNavigate, extensionsList]);
 
   const handleSessionClick = useCallback(
     (sessionId: string) => {

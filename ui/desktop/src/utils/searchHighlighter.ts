@@ -33,7 +33,7 @@ export class SearchHighlighter {
       z-index: 1;
     `;
 
-    // Find scroll container (look for our custom data attribute first, then fallback to radix)
+    // Find scroll container (look for our custom data attribute first, then fall back to radix)
     const searchScrollArea = container.closest('[data-search-scroll-area]');
     this.scrollContainer =
       searchScrollArea?.querySelector('[data-radix-scroll-area-viewport]') ||

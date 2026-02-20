@@ -74,9 +74,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 Let's use the AgentQL extension to gather and structure tech conference data to help plan speaking engagements. 
 
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
 
 ### goose Prompt
 

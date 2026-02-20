@@ -1,4 +1,4 @@
-import { Sliders, Bot } from 'lucide-react';
+import { Sliders, Bot, Settings } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
@@ -13,8 +13,11 @@ import {
 import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
+import { getModelDisplayName } from '../predefinedModelsUtils';
 import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
+import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
+import { ScrollArea } from '../../../ui/scroll-area';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
@@ -29,19 +32,14 @@ export default function ModelsBottomBar({
   setView,
   alerts,
 }: ModelsBottomBarProps) {
-  const {
-    currentModel,
-    currentProvider,
-    getCurrentModelAndProviderForDisplay,
-    getCurrentModelDisplayName,
-    getCurrentProviderDisplayName,
-  } = useModelAndProvider();
+  const { currentModel, currentProvider } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('Select Model');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
+  const [isLocalModelSettingsOpen, setIsLocalModelSettingsOpen] = useState(false);
   const [isLeadWorkerActive, setIsLeadWorkerActive] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
 
@@ -62,7 +60,6 @@ export default function ModelsBottomBar({
   // Refresh lead/worker status when modal closes
   const handleLeadWorkerModalClose = () => {
     setIsLeadWorkerModalOpen(false);
-    // Refresh the lead/worker status after modal closes
     const checkLeadWorker = async () => {
       try {
         const leadModel = await read('GOOSE_LEAD_MODEL', false);
@@ -78,8 +75,6 @@ export default function ModelsBottomBar({
     checkLeadWorker();
   };
 
-  // Since currentModelInfo.mode is not working, let's determine mode differently
-  // We'll need to get the lead model and compare it with the current model
   const [leadModelName, setLeadModelName] = useState<string>('');
   const [currentActiveModel, setCurrentActiveModel] = useState<string>('');
 
@@ -111,20 +106,16 @@ export default function ModelsBottomBar({
       ? currentModelInfo.model
       : currentModel || providerDefaultModel || displayModelName;
 
-  // Update display provider when current provider changes
   useEffect(() => {
-    if (currentProvider) {
-      (async () => {
-        const providerDisplayName = await getCurrentProviderDisplayName();
-        if (providerDisplayName) {
-          setDisplayProvider(providerDisplayName);
-        } else {
-          const modelProvider = await getCurrentModelAndProviderForDisplay();
-          setDisplayProvider(modelProvider.provider);
-        }
-      })();
-    }
-  }, [currentProvider, getCurrentProviderDisplayName, getCurrentModelAndProviderForDisplay]);
+    if (!currentProvider) return;
+    getProviderMetadata(currentProvider, getProviders)
+      .then((metadata) => {
+        setDisplayProvider(metadata.display_name || currentProvider);
+      })
+      .catch(() => {
+        setDisplayProvider(currentProvider);
+      });
+  }, [currentProvider, currentModel, getProviders]);
 
   // Fetch provider default model when provider changes and no current model
   useEffect(() => {
@@ -139,18 +130,14 @@ export default function ModelsBottomBar({
         }
       })();
     } else if (currentModel) {
-      // Clear provider default when we have a current model
       setProviderDefaultModel(null);
     }
   }, [currentProvider, currentModel, getProviders]);
 
-  // Update display model name when current model changes
   useEffect(() => {
-    (async () => {
-      const displayName = await getCurrentModelDisplayName();
-      setDisplayModelName(displayName);
-    })();
-  }, [currentModel, getCurrentModelDisplayName]);
+    if (!currentModel) return;
+    setDisplayModelName(getModelDisplayName(currentModel));
+  }, [currentModel]);
 
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
@@ -181,6 +168,12 @@ export default function ModelsBottomBar({
             <span>Lead/Worker Settings</span>
             <Sliders className="ml-auto h-4 w-4" />
           </DropdownMenuItem>
+          {currentProvider === 'local' && currentModel && (
+            <DropdownMenuItem onClick={() => setIsLocalModelSettingsOpen(true)}>
+              <span>Local Model Settings</span>
+              <Settings className="ml-auto h-4 w-4" />
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -195,6 +188,27 @@ export default function ModelsBottomBar({
       {isLeadWorkerModalOpen ? (
         <LeadWorkerSettings isOpen={isLeadWorkerModalOpen} onClose={handleLeadWorkerModalClose} />
       ) : null}
+
+      {isLocalModelSettingsOpen && currentModel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background-default rounded-lg shadow-lg w-[480px] max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
+              <h3 className="text-sm font-medium text-text-default">
+                Local Model Settings — {getModelDisplayName(currentModel)}
+              </h3>
+              <button
+                onClick={() => setIsLocalModelSettingsOpen(false)}
+                className="text-text-muted hover:text-text-default text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <ScrollArea className="flex-1 px-4 py-3 overflow-y-auto max-h-[calc(80vh-52px)]">
+              <ModelSettingsPanel modelId={currentModel} />
+            </ScrollArea>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

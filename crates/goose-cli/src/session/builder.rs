@@ -3,14 +3,13 @@ use crate::cli::StreamableHttpOptions;
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::{Agent, Container};
-use goose::config::get_enabled_extensions;
+use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{get_all_extensions, Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -337,6 +336,242 @@ async fn load_extensions(
     agent_ptr
 }
 
+struct ResolvedProviderConfig {
+    provider_name: String,
+    model_name: String,
+    model_config: goose::model::ModelConfig,
+}
+
+fn resolve_provider_and_model(
+    session_config: &SessionBuilderConfig,
+    config: &Config,
+    saved_provider: Option<String>,
+    saved_model_config: Option<goose::model::ModelConfig>,
+) -> ResolvedProviderConfig {
+    let recipe_settings = session_config
+        .recipe
+        .as_ref()
+        .and_then(|r| r.settings.as_ref());
+
+    let provider_name = session_config
+        .provider
+        .clone()
+        .or(saved_provider)
+        .or_else(|| recipe_settings.and_then(|s| s.goose_provider.clone()))
+        .or_else(|| config.get_goose_provider().ok())
+        .expect("No provider configured. Run 'goose configure' first");
+
+    let model_name = session_config
+        .model
+        .clone()
+        .or_else(|| saved_model_config.as_ref().map(|mc| mc.model_name.clone()))
+        .or_else(|| recipe_settings.and_then(|s| s.goose_model.clone()))
+        .or_else(|| config.get_goose_model().ok())
+        .expect("No model configured. Run 'goose configure' first");
+
+    let model_config = if session_config.resume
+        && saved_model_config
+            .as_ref()
+            .is_some_and(|mc| mc.model_name == model_name)
+    {
+        let mut config = saved_model_config.unwrap();
+        if let Some(temp) = recipe_settings.and_then(|s| s.temperature) {
+            config = config.with_temperature(Some(temp));
+        }
+        config
+    } else {
+        let temperature = recipe_settings.and_then(|s| s.temperature);
+        goose::model::ModelConfig::new(&model_name)
+            .unwrap_or_else(|e| {
+                output::render_error(&format!("Failed to create model configuration: {}", e));
+                process::exit(1);
+            })
+            .with_canonical_limits(&provider_name)
+            .with_temperature(temperature)
+    };
+
+    ResolvedProviderConfig {
+        provider_name,
+        model_name,
+        model_config,
+    }
+}
+
+async fn resolve_session_id(
+    session_config: &SessionBuilderConfig,
+    session_manager: &goose::session::session_manager::SessionManager,
+) -> String {
+    if session_config.no_session {
+        let working_dir = std::env::current_dir().expect("Could not get working directory");
+        let session = session_manager
+            .create_session(working_dir, "CLI Session".to_string(), SessionType::Hidden)
+            .await
+            .expect("Could not create session");
+        session.id
+    } else if session_config.resume {
+        if let Some(ref session_id) = session_config.session_id {
+            match session_manager.get_session(session_id, false).await {
+                Ok(_) => session_id.clone(),
+                Err(_) => {
+                    output::render_error(&format!(
+                        "Cannot resume session {} - no such session exists",
+                        style(session_id).cyan()
+                    ));
+                    process::exit(1);
+                }
+            }
+        } else {
+            match session_manager.list_sessions().await {
+                Ok(sessions) if !sessions.is_empty() => sessions[0].id.clone(),
+                _ => {
+                    output::render_error("Cannot resume - no previous sessions found");
+                    process::exit(1);
+                }
+            }
+        }
+    } else {
+        session_config.session_id.clone().unwrap()
+    }
+}
+
+async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interactive: bool) {
+    let session = agent
+        .config
+        .session_manager
+        .get_session(session_id, false)
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to read session metadata: {}", e));
+            process::exit(1);
+        });
+
+    let current_workdir = std::env::current_dir().expect("Failed to get current working directory");
+    if current_workdir == session.working_dir {
+        return;
+    }
+
+    if interactive {
+        let change_workdir = cliclack::confirm(format!(
+            "{} The original working directory of this session was set to {}. \
+             Your current directory is {}. \
+             Do you want to switch back to the original working directory?",
+            style("WARNING:").yellow(),
+            style(session.working_dir.display()).cyan(),
+            style(current_workdir.display()).cyan(),
+        ))
+        .initial_value(true)
+        .interact()
+        .expect("Failed to get user input");
+
+        if change_workdir {
+            if !session.working_dir.exists() {
+                output::render_error(&format!(
+                    "Cannot switch to original working directory - {} no longer exists",
+                    style(session.working_dir.display()).cyan()
+                ));
+            } else if let Err(e) = std::env::set_current_dir(&session.working_dir) {
+                output::render_error(&format!(
+                    "Failed to switch to original working directory: {}",
+                    e
+                ));
+            }
+        }
+    } else {
+        eprintln!(
+            "{}",
+            style(format!(
+                "Warning: Working directory differs from session (current: {}, session: {}). \
+                 Staying in current directory.",
+                current_workdir.display(),
+                session.working_dir.display()
+            ))
+            .yellow()
+        );
+    }
+}
+
+async fn collect_extension_configs(
+    agent: &Agent,
+    session_config: &SessionBuilderConfig,
+    recipe: Option<&Recipe>,
+    session_id: &str,
+) -> Result<Vec<ExtensionConfig>, ExtensionError> {
+    let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
+        EnabledExtensionsState::for_session(
+            &agent.config.session_manager,
+            session_id,
+            Config::global(),
+        )
+        .await
+    } else if session_config.no_profile {
+        Vec::new()
+    } else {
+        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
+    };
+
+    let cli_flag_extensions = parse_cli_flag_extensions(
+        &session_config.extensions,
+        &session_config.streamable_http_extensions,
+        &session_config.builtins,
+    );
+
+    let mut all: Vec<ExtensionConfig> = configured_extensions;
+    all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
+
+    Ok(all)
+}
+
+async fn resolve_and_load_extensions(
+    agent: Agent,
+    extensions: Vec<ExtensionConfig>,
+    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
+    interactive: bool,
+    session_id: &str,
+) -> Arc<Agent> {
+    for warning in goose::config::get_warnings() {
+        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
+    }
+
+    let extensions_to_load: Vec<(String, ExtensionConfig)> = extensions
+        .into_iter()
+        .map(|cfg| (cfg.name(), cfg))
+        .collect();
+
+    load_extensions(
+        agent,
+        extensions_to_load,
+        provider_for_debug,
+        interactive,
+        session_id,
+    )
+    .await
+}
+
+async fn configure_session_prompts(
+    session: &CliSession,
+    config: &Config,
+    session_config: &SessionBuilderConfig,
+    session_id: &str,
+) {
+    if let Err(e) = session.agent.persist_extension_state(session_id).await {
+        tracing::warn!("Failed to save extension state: {}", e);
+    }
+
+    if let Some(ref additional_prompt) = session_config.additional_system_prompt {
+        session
+            .agent
+            .extend_system_prompt("additional".to_string(), additional_prompt.clone())
+            .await;
+    }
+
+    let system_prompt_file: Option<String> = config.get_param("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();
+    if let Some(ref path) = system_prompt_file {
+        let override_prompt =
+            std::fs::read_to_string(path).expect("Failed to read system prompt file");
+        session.agent.override_system_prompt(override_prompt).await;
+    }
+}
+
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
@@ -362,52 +597,37 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         (None, None)
     };
 
+    let resolved =
+        resolve_provider_and_model(&session_config, config, saved_provider, saved_model_config);
+
     let recipe = session_config.recipe.as_ref();
-    let recipe_settings = recipe.and_then(|r| r.settings.as_ref());
-
-    let provider_name = session_config
-        .provider
-        .or(saved_provider)
-        .or_else(|| recipe_settings.and_then(|s| s.goose_provider.clone()))
-        .or_else(|| config.get_goose_provider().ok())
-        .expect("No provider configured. Run 'goose configure' first");
-
-    let model_name = session_config
-        .model
-        .or_else(|| saved_model_config.as_ref().map(|mc| mc.model_name.clone()))
-        .or_else(|| recipe_settings.and_then(|s| s.goose_model.clone()))
-        .or_else(|| config.get_goose_model().ok())
-        .expect("No model configured. Run 'goose configure' first");
-
-    let model_config = if session_config.resume
-        && saved_model_config
-            .as_ref()
-            .is_some_and(|mc| mc.model_name == model_name)
-    {
-        let mut config = saved_model_config.unwrap();
-        if let Some(temp) = recipe_settings.and_then(|s| s.temperature) {
-            config = config.with_temperature(Some(temp));
-        }
-        config
-    } else {
-        let temperature = recipe_settings.and_then(|s| s.temperature);
-        goose::model::ModelConfig::new(&model_name)
-            .unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to create model configuration: {}", e));
-                process::exit(1);
-            })
-            .with_temperature(temperature)
-    };
 
     agent
-        .apply_recipe_components(
-            recipe.and_then(|r| r.sub_recipes.clone()),
-            recipe.and_then(|r| r.response.clone()),
-            true,
-        )
+        .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
         .await;
 
-    let new_provider = match create(&provider_name, model_config).await {
+    let session_id = resolve_session_id(&session_config, &session_manager).await;
+
+    if session_config.resume {
+        handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
+    }
+
+    let extensions_for_provider =
+        match collect_extension_configs(&agent, &session_config, recipe, &session_id).await {
+            Ok(exts) => exts,
+            Err(e) => {
+                output::render_error(&format!("Failed to collect extensions: {}", e));
+                process::exit(1);
+            }
+        };
+
+    let new_provider = match create(
+        &resolved.provider_name,
+        resolved.model_config,
+        extensions_for_provider.clone(),
+    )
+    .await
+    {
         Ok(provider) => provider,
         Err(e) => {
             output::render_error(&format!(
@@ -430,40 +650,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             worker_model
         );
     } else {
-        tracing::info!("🤖 Using model: {}", model_name);
+        tracing::info!("🤖 Using model: {}", resolved.model_name);
     }
-
-    let session_id: String = if session_config.no_session {
-        let working_dir = std::env::current_dir().expect("Could not get working directory");
-        let session = session_manager
-            .create_session(working_dir, "CLI Session".to_string(), SessionType::Hidden)
-            .await
-            .expect("Could not create session");
-        session.id
-    } else if session_config.resume {
-        if let Some(session_id) = session_config.session_id {
-            match session_manager.get_session(&session_id, false).await {
-                Ok(_) => session_id,
-                Err(_) => {
-                    output::render_error(&format!(
-                        "Cannot resume session {} - no such session exists",
-                        style(&session_id).cyan()
-                    ));
-                    process::exit(1);
-                }
-            }
-        } else {
-            match session_manager.list_sessions().await {
-                Ok(sessions) if !sessions.is_empty() => sessions[0].id.clone(),
-                _ => {
-                    output::render_error("Cannot resume - no previous sessions found");
-                    process::exit(1);
-                }
-            }
-        }
-    } else {
-        session_config.session_id.unwrap()
-    };
 
     agent
         .update_provider(new_provider, &session_id)
@@ -473,97 +661,27 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         });
 
-    if session_config.resume {
-        let session = agent
-            .config
-            .session_manager
-            .get_session(&session_id, false)
+    if let Some(recipe) = session_config.recipe.clone() {
+        if let Err(e) = session_manager
+            .update(&session_id)
+            .recipe(Some(recipe))
+            .apply()
             .await
-            .unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to read session metadata: {}", e));
-                process::exit(1);
-            });
-
-        let current_workdir =
-            std::env::current_dir().expect("Failed to get current working directory");
-        if current_workdir != session.working_dir {
-            if session_config.interactive {
-                let change_workdir = cliclack::confirm(format!("{} The original working directory of this session was set to {}. Your current directory is {}. Do you want to switch back to the original working directory?", style("WARNING:").yellow(), style(session.working_dir.display()).cyan(), style(current_workdir.display()).cyan()))
-                        .initial_value(true)
-                        .interact().expect("Failed to get user input");
-
-                if change_workdir {
-                    if !session.working_dir.exists() {
-                        output::render_error(&format!(
-                            "Cannot switch to original working directory - {} no longer exists",
-                            style(session.working_dir.display()).cyan()
-                        ));
-                    } else if let Err(e) = std::env::set_current_dir(&session.working_dir) {
-                        output::render_error(&format!(
-                            "Failed to switch to original working directory: {}",
-                            e
-                        ));
-                    }
-                }
-            } else {
-                eprintln!(
-                    "{}",
-                    style(format!(
-                        "Warning: Working directory differs from session (current: {}, session: {}). Staying in current directory.",
-                        current_workdir.display(),
-                        session.working_dir.display()
-                    ))
-                    .yellow()
-                );
-            }
+        {
+            tracing::warn!("Failed to store recipe on session: {}", e);
         }
     }
 
-    // Setup extensions for the agent
-    // Extensions need to be added after the session is created because we change directory when resuming a session
-
-    for warning in goose::config::get_warnings() {
-        eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
-    }
-
-    let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
-        agent
-            .config
-            .session_manager
-            .get_session(&session_id, false)
-            .await
-            .ok()
-            .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
-            .map(|state| state.extensions)
-            .unwrap_or_else(get_enabled_extensions)
-    } else if session_config.no_profile {
-        Vec::new()
-    } else {
-        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
-    };
-
-    let cli_flag_extensions_to_load = parse_cli_flag_extensions(
-        &session_config.extensions,
-        &session_config.streamable_http_extensions,
-        &session_config.builtins,
-    );
-
-    let mut extensions_to_load: Vec<(String, ExtensionConfig)> = configured_extensions
-        .iter()
-        .map(|cfg| (cfg.name(), cfg.clone()))
-        .collect();
-    extensions_to_load.extend(cli_flag_extensions_to_load);
-
-    let agent_ptr = load_extensions(
+    // Extensions are loaded after session creation because we may change directory when resuming
+    let agent_ptr = resolve_and_load_extensions(
         agent,
-        extensions_to_load,
+        extensions_for_provider,
         Arc::clone(&provider_for_display),
         session_config.interactive,
         &session_id,
     )
     .await;
 
-    // Determine editor mode
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")
         .ok()
@@ -590,38 +708,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     )
     .await;
 
-    if let Err(e) = session
-        .agent
-        .persist_extension_state(&session_id.clone())
-        .await
-    {
-        tracing::warn!("Failed to save extension state: {}", e);
-    }
+    configure_session_prompts(&session, config, &session_config, &session_id).await;
 
-    // Add CLI-specific system prompt extension
-    session
-        .agent
-        .extend_system_prompt(super::prompt::get_cli_prompt())
-        .await;
-
-    if let Some(additional_prompt) = session_config.additional_system_prompt {
-        session.agent.extend_system_prompt(additional_prompt).await;
-    }
-
-    // Only override system prompt if a system override exists
-    let system_prompt_file: Option<String> = config.get_param("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();
-    if let Some(ref path) = system_prompt_file {
-        let override_prompt =
-            std::fs::read_to_string(path).expect("Failed to read system prompt file");
-        session.agent.override_system_prompt(override_prompt).await;
-    }
-
-    // Display session information unless in quiet mode
     if !session_config.quiet {
         output::display_session_info(
             session_config.resume,
-            &provider_name,
-            &model_name,
+            &resolved.provider_name,
+            &resolved.model_name,
             &Some(session_id),
             Some(&provider_for_display),
         );
