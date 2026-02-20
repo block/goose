@@ -134,7 +134,7 @@ const MarkdownCode = memo(
     { inline, className, children, ...props }: CodeProps,
     ref: React.Ref<HTMLElement>
   ) {
-    const match = /language-(\w+)/.exec(className || '');
+    const match = /language-([\w-]+)/.exec(className || '');
     if (!inline && match) {
       const lang = match[1];
       if (lang === 'json-render' || lang === 'jsonrender') {
