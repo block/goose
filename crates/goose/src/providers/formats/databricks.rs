@@ -231,17 +231,13 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
     reorder_tool_image_messages(result)
 }
 
-/// Reorder messages so that user image messages (created by format_tool_response
-/// for images that can't be embedded in tool content) don't interrupt consecutive
-/// tool message groups. Providers that proxy to Anthropic require all tool results
-/// grouped together immediately after the assistant message.
+/// Prevent image messages from interrupting consecutive tool message groups.
 fn reorder_tool_image_messages(messages: Vec<DatabricksMessage>) -> Vec<DatabricksMessage> {
     let mut result = Vec::with_capacity(messages.len());
     let mut deferred_images: Vec<DatabricksMessage> = Vec::new();
 
     for msg in messages {
         if msg.role == "tool" {
-            // Tool messages always go through immediately
             result.push(msg);
         } else if msg.role == "user"
             && msg.tool_call_id.is_none()
@@ -249,10 +245,8 @@ fn reorder_tool_image_messages(messages: Vec<DatabricksMessage>) -> Vec<Databric
             && (result.last().is_some_and(|m: &DatabricksMessage| m.role == "tool")
                 || !deferred_images.is_empty())
         {
-            // User image message between tool messages — defer it
             deferred_images.push(msg);
         } else {
-            // Non-tool, non-deferred message — flush any deferred images first
             result.append(&mut deferred_images);
             result.push(msg);
         }
@@ -1699,6 +1693,21 @@ mod tests {
         );
         assert_eq!(tool_call["custom_field"], "custom_value");
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_image_in_tool_response_does_not_break_tool_grouping() -> anyhow::Result<()> {
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("t1", Ok(CallToolRequestParams { meta: None, task: None, name: "tool".into(), arguments: None }))
+                .with_tool_request("t2", Ok(CallToolRequestParams { meta: None, task: None, name: "tool".into(), arguments: None })),
+            Message::user().with_tool_response("t1", Ok(CallToolResult { content: vec![Content::text("ok")], structured_content: None, is_error: Some(false), meta: None })),
+            Message::user().with_tool_response("t2", Ok(CallToolResult { content: vec![Content::text("ok"), Content::image("abc", "image/png")], structured_content: None, is_error: Some(false), meta: None })),
+        ];
+        let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi))?;
+        let roles: Vec<&str> = spec.as_array().unwrap().iter().map(|m| m["role"].as_str().unwrap()).collect();
+        assert_eq!(roles, vec!["assistant", "tool", "tool", "user"]);
         Ok(())
     }
 }

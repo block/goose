@@ -296,10 +296,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
     reorder_tool_image_messages(messages_spec)
 }
 
-/// Reorder messages so that user image messages (created by tool response handling
-/// for images that can't be embedded in tool content) don't interrupt consecutive
-/// tool message groups. Providers that proxy to Anthropic require all tool results
-/// grouped together immediately after the assistant message.
+/// Prevent image messages from interrupting consecutive tool message groups.
 fn reorder_tool_image_messages(messages: Vec<Value>) -> Vec<Value> {
     let mut result = Vec::with_capacity(messages.len());
     let mut deferred_images: Vec<Value> = Vec::new();
@@ -2097,6 +2094,21 @@ data: [DONE]"#;
         assert!(spec[0]["tool_calls"].is_array());
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_image_in_tool_response_does_not_break_tool_grouping() -> anyhow::Result<()> {
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("t1", Ok(CallToolRequestParams { meta: None, task: None, name: "tool".into(), arguments: None }))
+                .with_tool_request("t2", Ok(CallToolRequestParams { meta: None, task: None, name: "tool".into(), arguments: None })),
+            Message::user().with_tool_response("t1", Ok(CallToolResult { content: vec![Content::text("ok")], structured_content: None, is_error: Some(false), meta: None })),
+            Message::user().with_tool_response("t2", Ok(CallToolResult { content: vec![Content::text("ok"), Content::image("abc", "image/png")], structured_content: None, is_error: Some(false), meta: None })),
+        ];
+        let spec = format_messages(&messages, &ImageFormat::OpenAi);
+        let roles: Vec<&str> = spec.iter().map(|m| m["role"].as_str().unwrap()).collect();
+        assert_eq!(roles, vec!["assistant", "tool", "tool", "user"]);
         Ok(())
     }
 }
