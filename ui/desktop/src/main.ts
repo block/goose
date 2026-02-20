@@ -48,6 +48,7 @@ import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { t } from './i18n';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -338,7 +339,7 @@ app.on('open-url', async (_event, url) => {
 app.on('will-finish-launching', () => {
   if (process.platform === 'darwin') {
     app.setAboutPanelOptions({
-      applicationName: 'Goose',
+      applicationName: t('main_process.app_name', 'Goose'),
       applicationVersion: app.getVersion(),
     });
   }
@@ -393,8 +394,10 @@ async function handleFileOpen(filePath: string) {
 
     // Show user-friendly error notification
     new Notification({
-      title: 'Goose',
-      body: `Could not open directory: ${path.basename(filePath)}`,
+      title: t('main_process.app_name', 'Goose'),
+      body: t('main_process.notification_open_dir_failed', 'Could not open directory: {name}', {
+        name: path.basename(filePath),
+      }),
     }).show();
   }
 }
@@ -448,6 +451,14 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
+const resolveGoosePathRoot = (): string | undefined => {
+  const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
+  if (pathRoot) {
+    return expandTilde(pathRoot);
+  }
+  return undefined;
+};
+
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
 const getServerSecret = (settings: Settings): string => {
@@ -465,6 +476,7 @@ let appConfig = {
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
+  GOOSE_PATH_ROOT: resolveGoosePathRoot(),
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -495,7 +507,9 @@ const createChat = async (
   const goosedResult = await startGoosed({
     serverSecret,
     dir: dir || os.homedir(),
-    env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
+    env: {
+      GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+    },
     externalGoosed: settings.externalGoosed,
     isPackaged: app.isPackaged,
     resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
@@ -575,10 +589,17 @@ const createChat = async (
     if (isUsingExternalBackend) {
       const response = dialog.showMessageBoxSync({
         type: 'error',
-        title: 'External Backend Unreachable',
-        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
-        detail: 'The external goosed server may not be running.',
-        buttons: ['Disable External Backend & Retry', 'Quit'],
+        title: t('main_process.external_backend_unreachable_title', 'External Backend Unreachable'),
+        message: t(
+          'main_process.external_backend_unreachable_message',
+          'Could not connect to external backend at {url}',
+          { url: settings.externalGoosed?.url ?? '' }
+        ),
+        detail: t('main_process.external_backend_unreachable_detail', 'The external goosed server may not be running.'),
+        buttons: [
+          t('main_process.button_disable_external_backend_retry', 'Disable External Backend & Retry'),
+          t('main_process.button_quit', 'Quit'),
+        ],
         defaultId: 0,
         cancelId: 1,
       });
@@ -595,10 +616,10 @@ const createChat = async (
     } else {
       dialog.showMessageBoxSync({
         type: 'error',
-        title: 'Goose Failed to Start',
-        message: 'The backend server failed to start.',
+        title: t('main_process.start_failed_title', 'Goose Failed to Start'),
+        message: t('main_process.start_failed_message', 'The backend server failed to start.'),
         detail: errorLog.join('\n'),
-        buttons: ['OK'],
+        buttons: [t('main_process.button_ok', 'OK')],
       });
     }
     app.quit();
@@ -625,7 +646,7 @@ const createChat = async (
       if (params.misspelledWord) {
         menu.append(
           new MenuItem({
-            label: 'Add to dictionary',
+            label: t('main_process.context_add_to_dictionary', 'Add to dictionary'),
             click: () =>
               mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
           })
@@ -639,14 +660,14 @@ const createChat = async (
     if (params.selectionText) {
       menu.append(
         new MenuItem({
-          label: 'Cut',
+          label: t('main_process.context_cut', 'Cut'),
           accelerator: 'CmdOrCtrl+X',
           role: 'cut',
         })
       );
       menu.append(
         new MenuItem({
-          label: 'Copy',
+          label: t('main_process.context_copy', 'Copy'),
           accelerator: 'CmdOrCtrl+C',
           role: 'copy',
         })
@@ -657,7 +678,7 @@ const createChat = async (
     if (params.isEditable) {
       menu.append(
         new MenuItem({
-          label: 'Paste',
+          label: t('main_process.context_paste', 'Paste'),
           accelerator: 'CmdOrCtrl+V',
           role: 'paste',
         })
@@ -1771,7 +1792,7 @@ async function appMain() {
   if (process.platform === 'darwin') {
     const dockMenu = Menu.buildFromTemplate([
       {
-        label: 'New Window',
+        label: t('main_process.dock_new_window', 'New Window'),
         click: () => {
           createNewWindow(app);
         },
@@ -1784,14 +1805,16 @@ async function appMain() {
 
   const shortcuts = getKeyboardShortcuts(settings);
 
-  const appMenu = menu?.items.find((item) => item.label === 'Goose');
+  const appMenu = menu?.items.find(
+    (item) => item.label === t('main_process.app_name', 'Goose')
+  );
   if (appMenu?.submenu) {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
     if (shortcuts.settings) {
       appMenu.submenu.insert(
         1,
         new MenuItem({
-          label: 'Settings',
+          label: t('main_process.menu_settings', 'Settings'),
           accelerator: shortcuts.settings,
           click() {
             const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -1809,7 +1832,7 @@ async function appMain() {
 
     const findSubmenu = Menu.buildFromTemplate([
       {
-        label: 'Find…',
+        label: t('main_process.menu_find_ellipsis', 'Find…'),
         accelerator: shortcuts.find || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -1817,7 +1840,7 @@ async function appMain() {
         },
       },
       {
-        label: 'Find Next',
+        label: t('main_process.menu_find_next', 'Find Next'),
         accelerator: shortcuts.findNext || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -1825,7 +1848,7 @@ async function appMain() {
         },
       },
       {
-        label: 'Find Previous',
+        label: t('main_process.menu_find_previous', 'Find Previous'),
         accelerator: shortcuts.findPrevious || undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -1833,7 +1856,7 @@ async function appMain() {
         },
       },
       {
-        label: 'Use Selection for Find',
+        label: t('main_process.menu_use_selection_for_find', 'Use Selection for Find'),
         accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
         click() {
           const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -1846,7 +1869,7 @@ async function appMain() {
     editMenu.submenu.insert(
       selectAllIndex + 1,
       new MenuItem({
-        label: 'Find',
+        label: t('main_process.menu_find', 'Find'),
         submenu: findSubmenu,
       })
     );
@@ -1862,7 +1885,7 @@ async function appMain() {
       fileMenu.submenu.insert(
         menuIndex++,
         new MenuItem({
-          label: 'New Chat',
+          label: t('main_process.menu_new_chat', 'New Chat'),
           accelerator: shortcuts.newChat,
           click() {
             const focusedWindow = BrowserWindow.getFocusedWindow();
@@ -1876,7 +1899,7 @@ async function appMain() {
       fileMenu.submenu.insert(
         menuIndex++,
         new MenuItem({
-          label: 'New Chat Window',
+          label: t('main_process.menu_new_chat_window', 'New Chat Window'),
           accelerator: shortcuts.newChatWindow,
           click() {
             ipcMain.emit('create-chat-window');
@@ -1889,7 +1912,7 @@ async function appMain() {
       fileMenu.submenu.insert(
         menuIndex++,
         new MenuItem({
-          label: 'Open Directory...',
+          label: t('main_process.menu_open_directory', 'Open Directory...'),
           accelerator: shortcuts.openDirectory,
           click: () => openDirectoryDialog(),
         })
@@ -1901,7 +1924,7 @@ async function appMain() {
       fileMenu.submenu.insert(
         menuIndex++,
         new MenuItem({
-          label: 'Recent Directories',
+          label: t('main_process.menu_recent_directories', 'Recent Directories'),
           submenu: recentFilesSubmenu,
         })
       );
@@ -1912,7 +1935,7 @@ async function appMain() {
     if (shortcuts.focusWindow) {
       fileMenu.submenu.append(
         new MenuItem({
-          label: 'Focus Goose Window',
+          label: t('main_process.menu_focus_window', 'Focus Goose Window'),
           accelerator: shortcuts.focusWindow,
           click() {
             focusWindow();
@@ -1924,7 +1947,7 @@ async function appMain() {
     if (shortcuts.quickLauncher) {
       fileMenu.submenu.append(
         new MenuItem({
-          label: 'Quick Launcher',
+          label: t('main_process.menu_quick_launcher', 'Quick Launcher'),
           accelerator: shortcuts.quickLauncher,
           click() {
             createLauncher();
@@ -1939,7 +1962,7 @@ async function appMain() {
 
     if (!windowMenu) {
       windowMenu = new MenuItem({
-        label: 'Window',
+        label: t('main_process.menu_window', 'Window'),
         submenu: Menu.buildFromTemplate([]),
       });
 
@@ -1955,7 +1978,7 @@ async function appMain() {
       if (shortcuts.alwaysOnTop) {
         windowMenu.submenu.append(
           new MenuItem({
-            label: 'Always on Top',
+            label: t('main_process.menu_always_on_top', 'Always on Top'),
             type: 'checkbox',
             accelerator: shortcuts.alwaysOnTop,
             click(menuItem) {
@@ -1987,7 +2010,7 @@ async function appMain() {
     // If Help menu doesn't exist, create it and add it to the menu
     if (!helpMenu) {
       helpMenu = new MenuItem({
-        label: 'Help',
+        label: t('main_process.menu_help', 'Help'),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu
       });
       // Find a reasonable place to insert the Help menu, usually near the end
@@ -2004,7 +2027,7 @@ async function appMain() {
 
       // Create the About Goose menu item with a submenu
       const aboutGooseMenuItem = new MenuItem({
-        label: 'About Goose',
+        label: t('main_process.menu_about', 'About Goose'),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 
@@ -2012,7 +2035,9 @@ async function appMain() {
       if (aboutGooseMenuItem.submenu) {
         aboutGooseMenuItem.submenu.append(
           new MenuItem({
-            label: `Version ${version || app.getVersion()}`,
+            label: t('main_process.menu_version', 'Version {version}', {
+              version: version || app.getVersion(),
+            }),
             enabled: false,
           })
         );
@@ -2359,7 +2384,12 @@ app.whenReady().then(async () => {
   try {
     await appMain();
   } catch (error) {
-    dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
+    dialog.showErrorBox(
+      t('main_process.error_dialog_title', 'Goose Error'),
+      t('main_process.error_create_main_window', 'Failed to create main window: {error}', {
+        error: String(error),
+      })
+    );
     app.quit();
   }
 });

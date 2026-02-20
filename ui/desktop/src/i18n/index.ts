@@ -59,9 +59,18 @@ function resolveLocale(raw: string | undefined | null, availableLocales: string[
 }
 
 function getConfiguredLocaleRaw(): string | undefined {
-  const configured = window.appConfig?.get('GOOSE_LOCALE');
-  if (typeof configured === 'string') {
-    return configured;
+  if (typeof window !== 'undefined') {
+    const configured = window.appConfig?.get('GOOSE_LOCALE');
+    if (typeof configured === 'string') {
+      return configured;
+    }
+  }
+
+  if (typeof process !== 'undefined') {
+    const configuredEnv = process.env?.GOOSE_LOCALE;
+    if (typeof configuredEnv === 'string') {
+      return configuredEnv;
+    }
   }
 
   if (typeof navigator !== 'undefined' && typeof navigator.language === 'string') {
