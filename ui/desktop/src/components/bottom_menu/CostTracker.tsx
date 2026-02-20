@@ -134,22 +134,15 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     !costInfo ||
     (costInfo.input_token_cost === undefined && costInfo.output_token_cost === undefined)
   ) {
-    // If it's a known free/local provider, show $0.000000 without "not available" message
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
         <>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-center h-full text-text-default/70 hover:text-text-default transition-colors cursor-default translate-y-[1px]">
-                <CoinIcon className="mr-1" size={16} />
-                <span className="text-xs font-mono">0.0000</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              {`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex items-center justify-center h-full text-text-default/70 transition-colors cursor-default translate-y-[1px]">
+            <span className="text-xs font-mono">
+              {inputTokens.toLocaleString()}↑ {outputTokens.toLocaleString()}↓
+            </span>
+          </div>
           <div className="w-px h-4 bg-border-default mx-2" />
         </>
       );

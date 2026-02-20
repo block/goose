@@ -7,16 +7,13 @@ use super::utils::{ImageFormat, RequestLog};
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
-use crate::conversation::Conversation;
 use crate::model::ModelConfig;
 use crate::providers::formats::ollama::{create_request, response_to_streaming_message_ollama};
-use crate::utils::safe_truncate;
 use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use regex::Regex;
 use reqwest::Response;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
@@ -215,30 +212,6 @@ impl Provider for OllamaProvider {
         self.model.clone()
     }
 
-    async fn generate_session_name(
-        &self,
-        session_id: &str,
-        messages: &Conversation,
-    ) -> Result<String, ProviderError> {
-        let context = self.get_initial_user_messages(messages);
-        let message = Message::user().with_text(self.create_session_name_prompt(&context));
-        let model_config = self.get_model_config();
-        let result = self
-            .complete(
-                &model_config,
-                session_id,
-                "You are a title generator. Output only the requested title of 4 words or less, with no additional text, reasoning, or explanations.",
-                &[message],
-                &[],
-            )
-            .await?;
-
-        let mut description = result.0.as_concat_text();
-        description = Self::filter_reasoning_tokens(&description);
-
-        Ok(safe_truncate(&description, 100))
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -315,46 +288,6 @@ impl Provider for OllamaProvider {
         model_names.sort();
 
         Ok(model_names)
-    }
-}
-
-impl OllamaProvider {
-    fn filter_reasoning_tokens(text: &str) -> String {
-        let mut filtered = text.to_string();
-
-        let reasoning_patterns = [
-            r"<think>.*?</think>",
-            r"<thinking>.*?</thinking>",
-            r"Let me think.*?\n",
-            r"I need to.*?\n",
-            r"First, I.*?\n",
-            r"Okay, .*?\n",
-            r"So, .*?\n",
-            r"Well, .*?\n",
-            r"Hmm, .*?\n",
-            r"Actually, .*?\n",
-            r"Based on.*?I think",
-            r"Looking at.*?I would say",
-        ];
-
-        for pattern in reasoning_patterns {
-            if let Ok(re) = Regex::new(pattern) {
-                filtered = re.replace_all(&filtered, "").to_string();
-            }
-        }
-        filtered = filtered
-            .replace("<think>", "")
-            .replace("</think>", "")
-            .replace("<thinking>", "")
-            .replace("</thinking>", "");
-        filtered = filtered
-            .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        filtered
     }
 }
 
