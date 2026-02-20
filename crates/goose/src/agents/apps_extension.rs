@@ -142,8 +142,19 @@ impl AppsManagerClient {
                 website_url: None,
             },
             instructions: Some(
-                "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps."
-                    .to_string(),
+                concat!(
+                    "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps.\n\n",
+                    "## Choosing between apps and json-render\n\n",
+                    "You have TWO ways to create visual content:\n\n",
+                    "- **apps (this extension)**: Build standalone apps that open in their own window. ",
+                    "Use for persistent, interactive applications (e.g. 'build me a todo app', 'create a calculator').\n",
+                    "- **json-render code blocks**: Render visual components inline in chat using Radix UI. ",
+                    "Use for data visualization, summaries, diagrams, tables (e.g. 'show me this as a table', 'visualize the architecture').\n\n",
+                    "Quick rule: 'Build/create an app' → apps extension. 'Show/visualize/display' → json-render code block.\n\n",
+                    "To use json-render, output a fenced code block with language `json-render` containing a JSON spec ",
+                    "with a `root` element tree using components like Card, Stack, Grid, Heading, Text, Badge, Table, ",
+                    "Tabs, Button, Progress, Alert, etc.",
+                ).to_string(),
             ),
         }
     }
