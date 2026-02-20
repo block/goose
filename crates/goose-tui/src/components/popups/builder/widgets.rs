@@ -4,7 +4,7 @@ use crate::utils::styles::Theme;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, ListItem};
-use tui_textarea::TextArea;
+use ratatui_textarea::TextArea;
 
 pub fn input_block(title: &str, focused: bool, theme: &Theme) -> Block<'static> {
     let border_color = if focused {

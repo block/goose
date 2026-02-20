@@ -15,7 +15,8 @@ rmcp = { workspace = true }
 anyhow = "1.0"
 ratatui = { version = "0.30.0", features = ["unstable-rendered-line-info"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
-tui-textarea = { version = "0.7.0", features = ["search"] }
+# TODO: Move to ratatui/ratatui-textarea once https://github.com/ratatui/ratatui-textarea/pull/3 merges
+ratatui-textarea = { git = "https://github.com/dotdash/ratatui-textarea", rev = "a31abb7b0b999f4e35fed65b76f8d1cb41d6e85e", features = ["search"] }
 tokio = { version = "1.43", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["full"] }
 axum = { version = "0.8.1", features = ["ws", "macros"] }

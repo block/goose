@@ -4751,6 +4751,7 @@ dependencies = [
  "goose-server",
  "http 1.4.0",
  "ratatui",
+ "ratatui-textarea",
  "rmcp 0.16.0",
  "rustyline",
  "serde",
@@ -4765,7 +4766,6 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "tui-textarea",
  "unicode-width 0.2.2",
  "uuid",
 ]
@@ -8156,6 +8156,18 @@ checksum = "0f76fe0bd0ed4295f0321b1676732e2454024c15a35d01904ddb315afd3d545c"
 dependencies = [
  "ratatui-core",
  "termwiz",
+]
+
+[[package]]
+name = "ratatui-textarea"
+version = "0.7.0"
+source = "git+https://github.com/dotdash/ratatui-textarea?rev=a31abb7b0b999f4e35fed65b76f8d1cb41d6e85e#a31abb7b0b999f4e35fed65b76f8d1cb41d6e85e"
+dependencies = [
+ "ratatui-core",
+ "ratatui-crossterm",
+ "ratatui-widgets",
+ "regex",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -11555,17 +11567,6 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
-
-[[package]]
-name = "tui-textarea"
-version = "0.7.0"
-source = "git+https://github.com/madsmao/tui-textarea?rev=48792febd9d454fefdd869de0e75849cad6e6007#48792febd9d454fefdd869de0e75849cad6e6007"
-dependencies = [
- "crossterm",
- "ratatui",
- "regex",
- "unicode-width 0.2.2",
-]
 
 [[package]]
 name = "tungstenite"

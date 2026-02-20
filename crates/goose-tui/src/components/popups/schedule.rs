@@ -15,7 +15,7 @@ use ratatui::widgets::{
     Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, ScrollbarState,
 };
 use ratatui::Frame;
-use tui_textarea::TextArea;
+use ratatui_textarea::TextArea;
 
 const CRON_PRESETS: [(&str, &str, &str); 5] = [
     ("1", "0 * * * *", "Every hour"),

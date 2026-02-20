@@ -13,7 +13,7 @@ use ratatui::style::Style;
 use ratatui::text::Span;
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem};
 use ratatui::Frame;
-use tui_textarea::TextArea;
+use ratatui_textarea::TextArea;
 
 pub const MAX_HISTORY_ENTRIES: usize = 100;
 pub const MAX_HISTORY_ENTRY_SIZE: usize = 10_000;
@@ -127,8 +127,9 @@ impl<'a> InputComponent<'a> {
         self.textarea = TextArea::new(lines);
         self.textarea.set_placeholder_text("Type a message...");
         self.textarea.set_cursor_line_style(Style::default());
-        self.textarea.move_cursor(tui_textarea::CursorMove::Bottom);
-        self.textarea.move_cursor(tui_textarea::CursorMove::End);
+        self.textarea
+            .move_cursor(ratatui_textarea::CursorMove::Bottom);
+        self.textarea.move_cursor(ratatui_textarea::CursorMove::End);
     }
 
     pub fn seed_history(&mut self, messages: &[goose::conversation::message::Message]) {

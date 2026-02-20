@@ -74,7 +74,3 @@ tracing-opentelemetry = "0.32"
 codegen-units = 1
 lto = true
 
-[patch.crates-io]
-# Use PR #122 which updates to ratatui 0.30 (fixes unicode-width conflict with pctx)
-# https://github.com/rhysd/tui-textarea/pull/122
-tui-textarea = { git = "https://github.com/madsmao/tui-textarea", rev = "48792febd9d454fefdd869de0e75849cad6e6007" }

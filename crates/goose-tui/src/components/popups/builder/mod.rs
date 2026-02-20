@@ -15,7 +15,7 @@ use goose_client::ToolInfo;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Clear, ListState, ScrollbarState};
 use ratatui::Frame;
-use tui_textarea::TextArea;
+use ratatui_textarea::TextArea;
 use widgets::new_text_input;
 
 #[derive(Clone, Copy, PartialEq, Default)]
