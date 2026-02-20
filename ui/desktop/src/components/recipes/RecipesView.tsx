@@ -57,6 +57,7 @@ import {
   DropdownMenuSeparator,
 } from '../ui/dropdown-menu';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { t } from '../../i18n';
 import { errorMessage } from '../../utils/conversionUtils';
 import { AppEvents } from '../../constants/events';
 
@@ -186,11 +187,13 @@ export default function RecipesView() {
   const handleDeleteRecipe = async (recipeManifest: RecipeManifest) => {
     const result = await window.electron.showMessageBox({
       type: 'warning',
-      buttons: ['Cancel', 'Delete'],
+      buttons: [t('common.cancel', 'Cancel'), t('common.delete', 'Delete')],
       defaultId: 0,
-      title: 'Delete Recipe',
-      message: `Are you sure you want to delete "${recipeManifest.recipe.title}"?`,
-      detail: 'Recipe file will be deleted.',
+      title: t('recipes.delete_title', 'Delete Recipe'),
+      message: t('recipes.delete_confirm', 'Are you sure you want to delete "{name}"?', {
+        name: recipeManifest.recipe.title,
+      }),
+      detail: t('recipes.delete_detail', 'Recipe file will be deleted.'),
     });
 
     if (result.response !== 1) {
@@ -203,7 +206,7 @@ export default function RecipesView() {
       await loadSavedRecipes();
       toastSuccess({
         title: recipeManifest.recipe.title,
-        msg: 'Recipe deleted successfully',
+        msg: t('recipes.deleted_success', 'Recipe deleted successfully'),
       });
     } catch (err) {
       console.error('Failed to delete recipe:', err);
@@ -232,15 +235,15 @@ export default function RecipesView() {
       await navigator.clipboard.writeText(deeplink);
       trackRecipeDeeplinkCopied(true);
       toastSuccess({
-        title: 'Deeplink copied',
-        msg: 'Recipe deeplink has been copied to clipboard',
+        title: t('recipes.deeplink_copied', 'Deeplink copied'),
+        msg: t('recipes.deeplink_copied_msg', 'Recipe deeplink has been copied to clipboard'),
       });
     } catch (error) {
       console.error('Failed to copy deeplink:', error);
       trackRecipeDeeplinkCopied(false, getErrorType(error));
       toastError({
-        title: 'Copy failed',
-        msg: 'Failed to copy deeplink to clipboard',
+        title: t('recipes.copy_failed', 'Copy failed'),
+        msg: t('recipes.copy_deeplink_failed', 'Failed to copy deeplink to clipboard'),
       });
     }
   };
@@ -259,15 +262,15 @@ export default function RecipesView() {
       await navigator.clipboard.writeText(response.data.yaml);
       trackRecipeYamlCopied(true);
       toastSuccess({
-        title: 'YAML copied',
-        msg: 'Recipe YAML has been copied to clipboard',
+        title: t('recipes.yaml_copied', 'YAML copied'),
+        msg: t('recipes.yaml_copied_msg', 'Recipe YAML has been copied to clipboard'),
       });
     } catch (error) {
       console.error('Failed to copy YAML:', error);
       trackRecipeYamlCopied(false, getErrorType(error));
       toastError({
-        title: 'Copy failed',
-        msg: 'Failed to copy recipe YAML to clipboard',
+        title: t('recipes.copy_failed', 'Copy failed'),
+        msg: t('recipes.copy_yaml_failed', 'Failed to copy recipe YAML to clipboard'),
       });
     }
   };
@@ -291,11 +294,11 @@ export default function RecipesView() {
       const filename = `${sanitizedTitle}.yaml`;
 
       const result = await window.electron.showSaveDialog({
-        title: 'Export Recipe',
+        title: t('recipes.export_title', 'Export Recipe'),
         defaultPath: filename,
         filters: [
-          { name: 'YAML Files', extensions: ['yaml', 'yml'] },
-          { name: 'All Files', extensions: ['*'] },
+          { name: t('recipes.yaml_files', 'YAML Files'), extensions: ['yaml', 'yml'] },
+          { name: t('recipes.all_files', 'All Files'), extensions: ['*'] },
         ],
       });
 
@@ -303,16 +306,16 @@ export default function RecipesView() {
         await window.electron.writeFile(result.filePath, response.data.yaml);
         trackRecipeExportedToFile(true);
         toastSuccess({
-          title: 'Recipe exported',
-          msg: `Recipe saved to ${result.filePath}`,
+          title: t('recipes.exported', 'Recipe exported'),
+          msg: t('recipes.exported_msg', 'Recipe saved to {path}', { path: result.filePath }),
         });
       }
     } catch (error) {
       console.error('Failed to export recipe:', error);
       trackRecipeExportedToFile(false, getErrorType(error));
       toastError({
-        title: 'Export failed',
-        msg: 'Failed to export recipe to file',
+        title: t('recipes.export_failed', 'Export failed'),
+        msg: t('recipes.export_failed_msg', 'Failed to export recipe to file'),
       });
     }
   };
@@ -338,8 +341,10 @@ export default function RecipesView() {
 
       trackRecipeScheduled(true, action);
       toastSuccess({
-        title: 'Schedule saved',
-        msg: `Recipe will run ${getReadableCron(scheduleCron)}`,
+        title: t('recipes.schedule_saved', 'Schedule saved'),
+        msg: t('recipes.schedule_saved_msg', 'Recipe will run {cron}', {
+          cron: getReadableCron(scheduleCron),
+        }),
       });
 
       setShowScheduleDialog(false);
@@ -366,8 +371,8 @@ export default function RecipesView() {
 
       trackRecipeScheduled(true, 'remove');
       toastSuccess({
-        title: 'Schedule removed',
-        msg: 'Recipe will no longer run automatically',
+        title: t('recipes.schedule_removed', 'Schedule removed'),
+        msg: t('recipes.schedule_removed_msg', 'Recipe will no longer run automatically'),
       });
 
       setShowScheduleDialog(false);
@@ -406,8 +411,12 @@ export default function RecipesView() {
 
       trackRecipeSlashCommandSet(true, action);
       toastSuccess({
-        title: 'Slash command saved',
-        msg: slashCommand ? `Use /${slashCommand} to run this recipe` : 'Slash command removed',
+        title: t('recipes.slash_saved', 'Slash command saved'),
+        msg: slashCommand
+          ? t('recipes.slash_saved_msg', 'Use /{command} to run this recipe', {
+              command: slashCommand,
+            })
+          : t('recipes.slash_removed', 'Slash command removed'),
       });
 
       setShowSlashCommandDialog(false);
@@ -434,8 +443,8 @@ export default function RecipesView() {
 
       trackRecipeSlashCommandSet(true, 'remove');
       toastSuccess({
-        title: 'Slash command removed',
-        msg: 'Recipe slash command has been removed',
+        title: t('recipes.slash_removed', 'Slash command removed'),
+        msg: t('recipes.slash_removed_msg', 'Recipe slash command has been removed'),
       });
 
       setShowSlashCommandDialog(false);
@@ -481,7 +490,7 @@ export default function RecipesView() {
                 {schedule_cron && (
                   <div className="flex items-center text-blue-600 dark:text-blue-400">
                     <Clock className="w-3 h-3 mr-1" />
-                    Runs {getReadableCron(schedule_cron)}
+                    {t('recipes.runs', 'Runs {cron}', { cron: getReadableCron(schedule_cron) })}
                   </div>
                 )}
                 {slash_command && (
@@ -502,7 +511,11 @@ export default function RecipesView() {
           variant={slash_command ? 'default' : 'outline'}
           size="sm"
           className="h-8 w-8 p-0"
-          title={slash_command ? 'Edit slash command' : 'Add slash command'}
+          title={
+            slash_command
+              ? t('recipes.edit_slash', 'Edit slash command')
+              : t('recipes.add_slash', 'Add slash command')
+          }
         >
           <Terminal className="w-4 h-4" />
         </Button>
@@ -515,7 +528,7 @@ export default function RecipesView() {
             }}
             size="sm"
             className="h-8 w-8 p-0"
-            title="Use recipe"
+            title={t('recipes.use', 'Use recipe')}
           >
             <Play className="w-4 h-4" />
           </Button>
@@ -527,7 +540,7 @@ export default function RecipesView() {
             variant="outline"
             size="sm"
             className="h-8 w-8 p-0"
-            title="Open in new window"
+            title={t('recipes.open_new_window', 'Open in new window')}
           >
             <ExternalLink className="w-4 h-4" />
           </Button>
@@ -539,7 +552,7 @@ export default function RecipesView() {
             variant="outline"
             size="sm"
             className="h-8 w-8 p-0"
-            title="Edit recipe"
+            title={t('recipes.edit', 'Edit recipe')}
           >
             <Edit className="w-4 h-4" />
           </Button>
@@ -550,7 +563,7 @@ export default function RecipesView() {
                 variant="outline"
                 size="sm"
                 className="h-8 w-8 p-0"
-                title="Share recipe"
+                title={t('recipes.share', 'Share recipe')}
               >
                 <Share2 className="w-4 h-4" />
               </Button>
@@ -558,16 +571,16 @@ export default function RecipesView() {
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem onClick={() => handleCopyDeeplink(recipeManifestResponse)}>
                 <Link className="w-4 h-4" />
-                Copy Deeplink
+                {t('recipes.copy_deeplink', 'Copy Deeplink')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleCopyYaml(recipeManifestResponse)}>
                 <Copy className="w-4 h-4" />
-                Copy YAML
+                {t('recipes.copy_yaml', 'Copy YAML')}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => handleExportFile(recipeManifestResponse)}>
                 <Download className="w-4 h-4" />
-                Export to File
+                {t('recipes.export_to_file', 'Export to File')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -579,7 +592,11 @@ export default function RecipesView() {
             variant={schedule_cron ? 'default' : 'outline'}
             size="sm"
             className="h-8 w-8 p-0"
-            title={schedule_cron ? 'Edit schedule' : 'Add schedule'}
+            title={
+              schedule_cron
+                ? t('recipes.schedule_edit', 'Edit schedule')
+                : t('recipes.schedule_add', 'Add schedule')
+            }
           >
             <Clock className="w-4 h-4" />
           </Button>
@@ -591,7 +608,7 @@ export default function RecipesView() {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-            title="Delete recipe"
+            title={t('recipes.delete', 'Delete recipe')}
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -639,10 +656,10 @@ export default function RecipesView() {
       return (
         <div className="flex flex-col items-center justify-center h-full text-text-muted">
           <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-          <p className="text-lg mb-2">Error Loading Recipes</p>
+          <p className="text-lg mb-2">{t('recipes.error_loading', 'Error Loading Recipes')}</p>
           <p className="text-sm text-center mb-4">{error}</p>
           <Button onClick={loadSavedRecipes} variant="default">
-            Try Again
+            {t('common.retry', 'Try Again')}
           </Button>
         </div>
       );
@@ -651,8 +668,10 @@ export default function RecipesView() {
     if (savedRecipes.length === 0) {
       return (
         <div className="flex flex-col justify-center pt-2 h-full">
-          <p className="text-lg">No saved recipes</p>
-          <p className="text-sm text-text-muted">Recipe saved from chats will show up here.</p>
+          <p className="text-lg">{t('recipes.no_saved', 'No saved recipes')}</p>
+          <p className="text-sm text-text-muted">
+            {t('recipes.saved_hint', 'Recipe saved from chats will show up here.')}
+          </p>
         </div>
       );
     }
@@ -661,8 +680,8 @@ export default function RecipesView() {
       return (
         <div className="flex flex-col items-center justify-center h-full text-text-muted mt-4">
           <FileText className="h-12 w-12 mb-4" />
-          <p className="text-lg mb-2">No matching recipes found</p>
-          <p className="text-sm">Try adjusting your search terms</p>
+          <p className="text-lg mb-2">{t('recipes.no_match', 'No matching recipes found')}</p>
+          <p className="text-sm">{t('recipes.adjust_search', 'Try adjusting your search terms')}</p>
         </div>
       );
     }
@@ -686,7 +705,7 @@ export default function RecipesView() {
           <div className="bg-background-default px-8 pb-8 pt-16">
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
-                <h1 className="text-4xl font-light">Recipes</h1>
+                <h1 className="text-4xl font-light">{t('recipes.title', 'Recipes')}</h1>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => setShowCreateDialog(true)}
@@ -695,21 +714,29 @@ export default function RecipesView() {
                     className="flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4" />
-                    Create Recipe
+                    {t('recipes.create', 'Create Recipe')}
                   </Button>
                   <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
                 </div>
               </div>
               <p className="text-sm text-text-muted mb-1">
-                View and manage your saved recipes to quickly start new sessions with predefined
-                configurations. {getSearchShortcutText()} to search.
+                {t(
+                  'recipes.helper',
+                  'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
+                  {
+                    shortcut: getSearchShortcutText(),
+                  }
+                )}
               </p>
             </div>
           </div>
 
           <div className="flex-1 min-h-0 relative px-8">
             <ScrollArea className="h-full">
-              <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search recipes...">
+              <SearchView
+                onSearch={(term) => setSearchTerm(term)}
+                placeholder={t('common.search_recipes', 'Search recipes...')}
+              >
                 <div
                   className={`h-full relative transition-all duration-300 ${
                     showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
@@ -754,7 +781,9 @@ export default function RecipesView() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add'} Schedule
+                {scheduleRecipeManifest.schedule_cron
+                  ? t('recipes.schedule_edit', 'Edit Schedule')
+                  : t('recipes.schedule_add', 'Add Schedule')}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
@@ -777,14 +806,14 @@ export default function RecipesView() {
               <div className="flex gap-2 justify-end">
                 {scheduleRecipeManifest.schedule_cron && (
                   <Button variant="outline" onClick={handleRemoveSchedule}>
-                    Remove Schedule
+                    {t('recipes.schedule_remove', 'Remove Schedule')}
                   </Button>
                 )}
                 <Button variant="outline" onClick={() => setShowScheduleDialog(false)}>
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
                 <Button onClick={handleSaveSchedule} disabled={!scheduleValid}>
-                  Save
+                  {t('common.save', 'Save')}
                 </Button>
               </div>
             </div>
@@ -796,12 +825,15 @@ export default function RecipesView() {
         <Dialog open={showSlashCommandDialog} onOpenChange={setShowSlashCommandDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Slash Command</DialogTitle>
+              <DialogTitle>{t('recipes.slash_title', 'Slash Command')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-muted-foreground mb-3">
-                  Set a slash command to quickly run this recipe from any chat
+                  {t(
+                    'recipes.slash_help',
+                    'Set a slash command to quickly run this recipe from any chat'
+                  )}
                 </p>
                 <div className="flex gap-2 items-center">
                   <span className="text-muted-foreground">/</span>
@@ -809,13 +841,15 @@ export default function RecipesView() {
                     type="text"
                     value={slashCommand}
                     onChange={(e) => setSlashCommand(e.target.value)}
-                    placeholder="command-name"
+                    placeholder={t('recipes.slash_placeholder', 'command-name')}
                     className="flex-1 px-3 py-2 border rounded text-sm"
                   />
                 </div>
                 {slashCommand && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    Use /{slashCommand} in any chat to run this recipe
+                    {t('recipes.slash_usage', 'Use /{command} in any chat to run this recipe', {
+                      command: slashCommand,
+                    })}
                   </p>
                 )}
               </div>
@@ -823,13 +857,13 @@ export default function RecipesView() {
               <div className="flex gap-2 justify-end">
                 {slashCommandRecipeManifest.slash_command && (
                   <Button variant="outline" onClick={handleRemoveSlashCommand}>
-                    Remove
+                    {t('common.remove', 'Remove')}
                   </Button>
                 )}
                 <Button variant="outline" onClick={() => setShowSlashCommandDialog(false)}>
-                  Cancel
+                  {t('common.cancel', 'Cancel')}
                 </Button>
-                <Button onClick={handleSaveSlashCommand}>Save</Button>
+                <Button onClick={handleSaveSlashCommand}>{t('common.save', 'Save')}</Button>
               </div>
             </div>
           </DialogContent>

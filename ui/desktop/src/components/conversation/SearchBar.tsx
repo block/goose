@@ -3,6 +3,7 @@ import { Search as SearchIcon } from 'lucide-react';
 import { ArrowDown, ArrowUp, Close } from '../icons';
 import debounce from 'lodash/debounce';
 import { Button } from '../ui/button';
+import { t } from '../../i18n';
 
 /**
  * Props for the SearchBar component
@@ -37,7 +38,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   searchResults,
   inputRef: externalInputRef,
   initialSearchTerm = '',
-  placeholder = 'Search conversation...',
+  placeholder = t('common.search_conversation', 'Search conversation...'),
 }: SearchBarProps) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -190,7 +191,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                 ? 'bg-white/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] text-text-inverse hover:bg-white/25'
                 : 'text-text-inverse/70 hover:text-text-inverse hover:bg-white/10'
             }`}
-            title="Case Sensitive"
+            title={t('search.case_sensitive', 'Case Sensitive')}
           >
             <span className="text-md font-normal">Aa</span>
           </Button>
@@ -200,7 +201,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               onClick={(e) => handleNavigate('prev', e)}
               variant="ghost"
               className="no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 text-text-inverse/70 hover:text-text-inverse hover:bg-white/10"
-              title="Previous (↑)"
+              title={t('search.previous', 'Previous (↑)')}
             >
               <ArrowUp
                 className={`h-5 w-5 transition-opacity ${!hasResults ? 'opacity-30' : ''}`}
@@ -210,7 +211,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
               onClick={(e) => handleNavigate('next', e)}
               variant="ghost"
               className="no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 text-text-inverse/70 hover:text-text-inverse hover:bg-white/10"
-              title="Next (↓ or Enter)"
+              title={t('search.next', 'Next (↓ or Enter)')}
             >
               <ArrowDown
                 className={`h-5 w-5 transition-opacity ${!hasResults ? 'opacity-30' : ''}`}
@@ -222,7 +223,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             onClick={handleClose}
             variant="ghost"
             className="no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 text-text-inverse/70 hover:text-text-inverse hover:bg-white/10"
-            title="Close (Esc)"
+            title={t('search.close', 'Close (Esc)')}
           >
             <Close className="h-5 w-5" />
           </Button>

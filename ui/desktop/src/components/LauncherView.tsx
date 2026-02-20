@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { getInitialWorkingDir } from '../utils/workingDir';
+import { t } from '../i18n';
 
 export default function LauncherView() {
   const [query, setQuery] = useState('');
@@ -37,7 +38,7 @@ export default function LauncherView() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           className="w-full h-full bg-transparent text-text-default text-xl px-6 outline-none placeholder-text-muted"
-          placeholder="Ask goose anything..."
+          placeholder={t('launcher.placeholder', 'Ask goose anything...')}
           autoFocus
         />
       </form>

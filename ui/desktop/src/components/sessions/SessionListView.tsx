@@ -43,6 +43,7 @@ import { formatExtensionName } from '../settings/extensions/subcomponents/Extens
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { shouldShowNewChatTitle } from '../../sessions';
 import { DEFAULT_CHAT_TITLE } from '../../contexts/ChatContext';
+import { t } from '../../i18n';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {
@@ -98,12 +99,22 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
         await onSave(session.id, trimmedDescription);
         onClose();
         setTimeout(() => {
-          toast.success('Session description updated successfully');
+          toast.success(
+            t('sessions.description_updated', 'Session description updated successfully')
+          );
         }, 300);
       } catch (error) {
         const errMsg = errorMessage(error, 'Unknown error occurred');
         console.error('Failed to update session description:', errMsg);
-        toast.error(`Failed to update session description: ${errMsg}`);
+        toast.error(
+          t(
+            'sessions.description_update_failed',
+            'Failed to update session description: {error}',
+            {
+              error: errMsg,
+            }
+          )
+        );
         setDescription(session.name);
       } finally {
         setIsUpdating(false);
@@ -136,7 +147,9 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
         <div className="bg-background-default border border-border-default rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-default mb-4">Edit Session Description</h3>
+          <h3 className="text-lg font-medium text-text-default mb-4">
+            {t('sessions.edit_description', 'Edit Session Description')}
+          </h3>
 
           <div className="space-y-4">
             <div>
@@ -146,7 +159,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
                 value={description}
                 onChange={handleInputChange}
                 className="w-full p-3 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter session description"
+                placeholder={t('sessions.enter_description', 'Enter session description')}
                 autoFocus
                 maxLength={200}
                 onKeyDown={handleKeyDown}
@@ -157,14 +170,16 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
           <div className="flex justify-end space-x-3 mt-6">
             <Button onClick={handleCancel} variant="ghost" disabled={isUpdating || disabled}>
-              Cancel
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               onClick={handleSave}
               disabled={!description.trim() || isUpdating || disabled}
               variant="default"
             >
-              {isUpdating ? 'Saving...' : 'Save'}
+              {isUpdating
+                ? t('sessions.saving', 'Saving...')
+                : t('sessions.save', 'Save')}
             </Button>
           </div>
         </div>
@@ -287,7 +302,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         });
       } catch (err) {
         console.error('Failed to load sessions:', err);
-        setError('Failed to load sessions. Please try again later.');
+        setError(
+          t('sessions.load_failed', 'Failed to load sessions. Please try again later.')
+        );
         setSessions([]);
         setFilteredSessions([]);
       } finally {
@@ -443,11 +460,19 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             body: { truncate: false, copy: true },
             throwOnError: true,
           });
-          toast.success(`Session "${session.name}" duplicated successfully`);
+          toast.success(
+            t('sessions.duplicated', 'Session "{name}" duplicated successfully', {
+              name: session.name,
+            })
+          );
           await loadSessions();
         } catch (error) {
           console.error('Error duplicating session:', error);
-          toast.error(`Failed to duplicate session: ${errorMessage(error, 'Unknown error')}`);
+          toast.error(
+            t('sessions.duplicate_failed', 'Failed to duplicate session: {error}', {
+              error: errorMessage(error, 'Unknown error'),
+            })
+          );
         }
       },
       [loadSessions]
@@ -466,14 +491,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           path: { session_id: sessionToDeleteId },
           throwOnError: true,
         });
-        toast.success('Session deleted successfully');
+        toast.success(t('sessions.deleted_success', 'Session deleted successfully'));
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(
-          `Failed to delete session "${sessionName}": ${errorMessage(error, 'Unknown error')}`
+          t('sessions.delete_failed', 'Failed to delete session "{name}": {error}', {
+            name: sessionName,
+            error: errorMessage(error, 'Unknown error'),
+          })
         );
       }
       await loadSessions();
@@ -502,7 +530,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success('Session exported successfully');
+      toast.success(t('sessions.exported_success', 'Session exported successfully'));
     }, []);
 
     const handleImportClick = useCallback(() => {
@@ -521,10 +549,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             throwOnError: true,
           });
 
-          toast.success('Session imported successfully');
+          toast.success(t('sessions.imported_success', 'Session imported successfully'));
           await loadSessions();
         } catch (error) {
-          toast.error(`Failed to import session: ${error}`);
+          toast.error(
+            t('sessions.import_failed', 'Failed to import session: {error}', {
+              error: String(error),
+            })
+          );
         } finally {
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -652,7 +684,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
                       <div className="text-xs">
-                        <div className="font-medium mb-1">Extensions:</div>
+                        <div className="font-medium mb-1">
+                          {t('sessions.extensions', 'Extensions')}:
+                        </div>
                         <ul className="list-disc list-inside">
                           {extensionNames.map((name) => (
                             <li key={name}>{name}</li>
@@ -669,35 +703,35 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <button
               onClick={handleOpenInNewWindowClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-              title="Open in new window"
+              title={t('sessions.open_new_window', 'Open in new window')}
             >
               <ExternalLink className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
             <button
               onClick={handleEditClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-              title="Edit session name"
+              title={t('sessions.edit_name', 'Edit session name')}
             >
               <Edit2 className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
             <button
               onClick={handleDuplicateClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-              title="Duplicate session"
+              title={t('sessions.duplicate', 'Duplicate session')}
             >
               <Copy className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
             <button
               onClick={handleDeleteClick}
               className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
-              title="Delete session"
+              title={t('sessions.delete', 'Delete session')}
             >
               <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
             </button>
             <button
               onClick={handleExportClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-              title="Export session"
+              title={t('sessions.export', 'Export session')}
             >
               <Download className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
@@ -748,10 +782,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         return (
           <div className="flex flex-col items-center justify-center h-full text-text-muted">
             <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-            <p className="text-lg mb-2">Error Loading Sessions</p>
+            <p className="text-lg mb-2">{t('sessions.error_loading', 'Error Loading Sessions')}</p>
             <p className="text-sm text-center mb-4">{error}</p>
             <Button onClick={loadSessions} variant="default">
-              Try Again
+              {t('common.retry', 'Try Again')}
             </Button>
           </div>
         );
@@ -804,7 +838,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <div className="flex justify-center py-8">
               <div className="flex items-center space-x-2 text-text-muted">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>
-                <span>Loading more sessions...</span>
+                <span>{t('sessions.loading_more', 'Loading more sessions...')}</span>
               </div>
             </div>
           )}
@@ -819,7 +853,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <div className="bg-background-default px-8 pb-8 pt-16">
               <div className="flex flex-col page-transition">
                 <div className="flex justify-between items-center mb-1">
-                  <h1 className="text-4xl font-light">Chat history</h1>
+                  <h1 className="text-4xl font-light">
+                    {t('sessions.chat_history', 'Chat history')}
+                  </h1>
                   <Button
                     onClick={handleImportClick}
                     variant="outline"
@@ -827,12 +863,15 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     className="flex items-center gap-2"
                   >
                     <Upload className="w-4 h-4" />
-                    Import Session
+                    {t('sessions.import', 'Import Session')}
                   </Button>
                 </div>
                 <p className="text-sm text-text-muted mb-4">
-                  View and search your past conversations with Goose. {getSearchShortcutText()} to
-                  search.
+                  {t(
+                    'sessions.history_help',
+                    'View and search your past conversations with Goose. {shortcut} to search.',
+                    { shortcut: getSearchShortcutText() }
+                  )}
                 </p>
               </div>
             </div>
@@ -845,7 +884,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     onNavigate={handleSearchNavigation}
                     searchResults={searchResults}
                     className="relative"
-                    placeholder="Search history..."
+                    placeholder={t('common.search_history', 'Search history...')}
                   >
                     {/* Skeleton layer - always rendered but conditionally visible */}
                     <div
@@ -925,10 +964,14 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         <ConfirmationModal
           isOpen={showDeleteConfirmation}
-          title="Delete Session"
-          message={`Are you sure you want to delete the session "${sessionToDelete?.name}"? This action cannot be undone.`}
-          confirmLabel="Delete Session"
-          cancelLabel="Cancel"
+          title={t('sessions.delete_modal_title', 'Delete Session')}
+          message={t(
+            'sessions.delete_modal_desc',
+            'Are you sure you want to delete the session "{name}"? This action cannot be undone.',
+            { name: sessionToDelete?.name ?? '' }
+          )}
+          confirmLabel={t('sessions.delete_modal_confirm', 'Delete Session')}
+          cancelLabel={t('common.cancel', 'Cancel')}
           confirmVariant="destructive"
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}

@@ -4,6 +4,7 @@ import SessionHistoryView from './SessionHistoryView';
 import { useLocation } from 'react-router-dom';
 import { getSession, Session } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
+import { t } from '../../i18n';
 
 const SessionsView: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -26,7 +27,7 @@ const SessionsView: React.FC = () => {
       setSelectedSession(response.data);
     } catch (err) {
       console.error(`Failed to load session details for ${sessionId}:`, err);
-      setError('Failed to load session details. Please try again later.');
+      setError(t('sessions.load_details_failed', 'Failed to load session details. Please try again later.'));
       // Keep the selected session null if there's an error
       setSelectedSession(null);
       setShowSessionHistory(false);
@@ -78,7 +79,7 @@ const SessionsView: React.FC = () => {
         selectedSession || {
           id: initialSessionId || '',
           conversation: [],
-          name: 'Loading...',
+          name: t('sessions.loading_session_name', 'Loading...'),
           working_dir: '',
           message_count: 0,
           total_tokens: 0,

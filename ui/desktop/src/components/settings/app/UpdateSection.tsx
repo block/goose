@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
+import { t } from '../../../i18n';
 
 type UpdateStatus =
   | 'idle'
@@ -169,20 +170,24 @@ export default function UpdateSection() {
   const getStatusMessage = () => {
     switch (updateStatus) {
       case 'checking':
-        return 'Checking for updates...';
+        return t('updates.checking', 'Checking for updates...');
       case 'downloading':
-        return `Downloading update... ${Math.round(progress)}%`;
+        return t('updates.downloading', 'Downloading update... {progress}%', {
+          progress: Math.round(progress),
+        });
       case 'ready':
-        return 'Update downloaded and ready to install!';
+        return t('updates.download_ready', 'Update downloaded and ready to install!');
       case 'success':
         return updateInfo.isUpdateAvailable === false
-          ? 'You are running the latest version!'
-          : 'Update available!';
+          ? t('updates.latest', 'You are running the latest version!')
+          : t('updates.available', 'Update available!');
       case 'error':
-        return updateInfo.error || 'An error occurred';
+        return updateInfo.error || t('updates.error', 'An error occurred');
       default:
         if (updateInfo.isUpdateAvailable) {
-          return `Version ${updateInfo.latestVersion} is available`;
+          return t('updates.version_available', 'Version {version} is available', {
+            version: updateInfo.latestVersion ?? '',
+          });
         }
         return '';
     }
@@ -209,15 +214,17 @@ export default function UpdateSection() {
       <div className="text-sm text-text-muted mb-4 flex items-center gap-2">
         <div className="flex flex-col">
           <div className="text-text-default text-2xl font-mono">
-            {updateInfo.currentVersion || 'Loading...'}
+            {updateInfo.currentVersion || t('common.loading', 'Loading...')}
           </div>
-          <div className="text-xs text-text-muted">Current version</div>
+          <div className="text-xs text-text-muted">
+            {t('updates.current_version', 'Current version')}
+          </div>
         </div>
         {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
           <span className="text-text-muted"> → {updateInfo.latestVersion} available</span>
         )}
         {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && (
-          <span className="text-text-default"> (up to date)</span>
+          <span className="text-text-default">{` ${t('updates.up_to_date', '(up to date)')}`}</span>
         )}
       </div>
 
@@ -229,12 +236,12 @@ export default function UpdateSection() {
             variant="secondary"
             size="sm"
           >
-            Check for Updates
+            {t('updates.check_button', 'Check for Updates')}
           </Button>
 
           {updateStatus === 'ready' && (
             <Button onClick={installUpdate} variant="default" size="sm">
-              Install & Restart
+              {t('updates.install_restart', 'Install & Restart')}
             </Button>
           )}
         </div>
@@ -249,7 +256,7 @@ export default function UpdateSection() {
         {updateStatus === 'downloading' && (
           <div className="w-full mt-2">
             <div className="flex justify-between text-xs text-text-muted mb-1">
-              <span>Downloading update...</span>
+              <span>{t('updates.downloading_short', 'Downloading update...')}</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
@@ -264,14 +271,25 @@ export default function UpdateSection() {
         {/* Update information */}
         {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
           <div className="text-xs text-text-muted mt-4 space-y-1">
-            <p>Update will be downloaded automatically in the background.</p>
+            <p>
+              {t(
+                'updates.background_download',
+                'Update will be downloaded automatically in the background.'
+              )}
+            </p>
             {isUsingGitHubFallback ? (
               <p className="text-xs text-amber-600">
-                After download, you'll need to manually install the update.
+                {t(
+                  'updates.manual_install',
+                  "After download, you'll need to manually install the update."
+                )}
               </p>
             ) : (
               <p className="text-xs text-green-600">
-                The update will be installed automatically when you quit the app.
+                {t(
+                  'updates.auto_install',
+                  'The update will be installed automatically when you quit the app.'
+                )}
               </p>
             )}
           </div>
