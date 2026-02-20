@@ -1046,7 +1046,6 @@ fn find_workspace_or_exe_root() -> Option<PathBuf> {
         path = parent.to_path_buf();
     }
 
-    // No workspace found, return directory containing the executable
     Some(exe_dir)
 }
 
@@ -1791,7 +1790,6 @@ mod tests {
             defaults_file.path(),
         )
         .unwrap();
-        // Return defaults_file to keep it alive (NamedTempFile deletes on drop)
         (config, defaults_file)
     }
 
