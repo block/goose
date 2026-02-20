@@ -31,8 +31,20 @@ export function pushMessage(currentMessages: Message[], incomingMsg: Message): M
       newContent?.type === 'text' &&
       lastMsg.id === incomingMsg.id
     ) {
+      // Accumulate streaming text deltas: append new text to existing text
+      // The server sends each streaming chunk as a separate message with the
+      // same ID containing only the delta text, not the full accumulated text.
+      const accumulatedContent = [...lastMsg.content];
+      const lastIdx = accumulatedContent.length - 1;
+      accumulatedContent[lastIdx] = {
+        ...lastContent,
+        text: (lastContent as { text: string }).text + (newContent as { text: string }).text,
+      };
       const updatedMessages = [...currentMessages];
-      updatedMessages[updatedMessages.length - 1] = incomingMsg;
+      updatedMessages[updatedMessages.length - 1] = {
+        ...incomingMsg,
+        content: accumulatedContent,
+      };
       return updatedMessages;
     }
   }

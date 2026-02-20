@@ -66,23 +66,36 @@ function describeToolCall(name: string, args: Record<string, unknown>): string {
 }
 
 function extractLastToolDescription(messages: Message[]): string {
+  // Search backwards: prefer the latest assistant thinking text over tool descriptions.
+  // Thinking text (e.g. "I'll start by analyzing...") gives better context than
+  // tool call descriptions (e.g. "running command...") for the one-liner.
+  let lastToolDesc = '';
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== 'assistant') continue;
     for (let j = msg.content.length - 1; j >= 0; j--) {
       const c = msg.content[j];
-      if (c.type === 'toolRequest') {
+      if (c.type === 'text') {
+        const text = (c as { text: string }).text?.trim();
+        if (text) {
+          // Extract first sentence for a clean one-liner
+          const match = text.match(/^(.+?[.!?:—])\s/);
+          const snippet = match ? match[1] : text;
+          return snippet.length > 100 ? `${snippet.slice(0, 97)}…` : snippet;
+        }
+      }
+      if (c.type === 'toolRequest' && !lastToolDesc) {
         const toolCall = c.toolCall as
           | { status?: string; value?: { name?: string; arguments?: Record<string, unknown> } }
           | undefined;
         if (toolCall?.value?.name) {
           const desc = describeToolCall(toolCall.value.name, toolCall.value.arguments || {});
-          return desc.length > 100 ? `${desc.slice(0, 97)}…` : desc;
+          lastToolDesc = desc.length > 100 ? `${desc.slice(0, 97)}…` : desc;
         }
       }
     }
   }
-  return '';
+  return lastToolDesc;
 }
 
 function countToolCalls(messages: Message[]): number {
