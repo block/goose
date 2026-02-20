@@ -52,6 +52,9 @@ function hasElicitation(message: Message): boolean {
 function isRealUserMessage(message: Message, index: number, messages: Message[]): boolean {
   if (message.role !== 'user') return false;
 
+  // Hidden messages (e.g. compacted tool summaries) are not real user messages
+  if (message.metadata?.userVisible === false) return false;
+
   // Pure tool responses are never real user messages
   const hasOnlyToolResponses = message.content.every((c) => c.type === 'toolResponse');
   if (hasOnlyToolResponses) return false;

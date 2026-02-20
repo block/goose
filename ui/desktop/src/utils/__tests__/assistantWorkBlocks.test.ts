@@ -515,4 +515,36 @@ describe('identifyWorkBlocks', () => {
     expect(block.finalIndex).toBe(3);
     expect(result.has(3)).toBe(false); // Final answer excluded from block
   });
+
+  it('NR: hidden user messages (userVisible=false) do not break work blocks', () => {
+    // When compaction injects tool result summaries as user messages with
+    // userVisible=false, they should not split assistant work blocks.
+    const hiddenUserMsg = {
+      ...textMsg('user', 'A shell command searched the codebase...'),
+      metadata: { userVisible: false, agentVisible: true },
+    };
+    const messages = [
+      textMsg('user', 'Fix the bug'),       // 0: real user message
+      toolRequestMsg('tool1'),               // 1: assistant tool call
+      toolResponseMsg('tool1', 'result'),    // 2: tool response
+      hiddenUserMsg,                         // 3: hidden compacted summary
+      textMsg('assistant', 'Found it'),      // 4: assistant text
+      toolRequestMsg('tool2'),               // 5: assistant tool call
+      toolResponseMsg('tool2', 'done'),      // 6: tool response
+      textMsg('assistant', 'Here is the fix'), // 7: final answer
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
+
+    // All intermediate messages should be in ONE block (hidden user msg doesn't split)
+    expect(result.has(1)).toBe(true);
+    expect(result.has(4)).toBe(true);
+    expect(result.has(5)).toBe(true);
+
+    const block = result.get(1)!;
+    // Final answer should be the last text message
+    expect(block.finalIndex).toBe(7);
+    expect(result.has(7)).toBe(false);
+    // Hidden user message should be inside the block
+    expect(block.allBlockIndices.has(3)).toBe(true);
+  });
 });
