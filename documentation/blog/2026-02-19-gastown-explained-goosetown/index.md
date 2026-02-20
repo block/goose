@@ -104,7 +104,9 @@ gtwall is an append-only log that delegates use to communicate and coordinate. A
 
 Try it out: [Goosetown GitHub Repo](https://github.com/block/goosetown)
 
-Rizel's first time using Goosetown: [Watch on YouTube](https://www.youtube.com/watch?v=H2hJjNmvEEA)
+Watch Rizel's first time using Goosetown:
+
+<iframe class="aspect-ratio" width="560" height="315" src="https://www.youtube.com/embed/H2hJjNmvEEA" title="Rizel's first time using Goosetown" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 <head>
   <meta property="og:title" content="Gastown Explained: How to Use Goosetown for Parallel Agentic Engineering" />
