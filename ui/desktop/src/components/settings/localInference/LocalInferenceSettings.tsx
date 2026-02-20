@@ -45,36 +45,27 @@ export const LocalInferenceSettings = () => {
       const response = await listLocalModels();
       if (response.data) {
         setModels(response.data);
+
+        // Start polling for any models currently downloading
+        response.data.forEach((model) => {
+          if (model.status.state === 'Downloading') {
+            pollDownloadProgress(model.id);
+          }
+        });
+
         return response.data;
       }
     } catch (error) {
       console.error('Failed to load models:', error);
     }
     return undefined;
-  }, []);
-
-  // Check for any in-progress downloads when models list changes
-  const detectActiveDownloads = useCallback(async () => {
-    for (const model of models) {
-      if (downloads.has(model.id)) continue;
-      // Check models that the API reports as downloading
-      if (model.status.state === 'Downloading') {
-        pollDownloadProgress(model.id);
-      }
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models, downloads]);
+  }, []);
 
   useEffect(() => {
     loadModels();
-  }, [loadModels]);
-
-  useEffect(() => {
-    if (models.length > 0) {
-      detectActiveDownloads();
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [models]);
+  }, []);
 
   const selectModel = async (modelId: string) => {
     setProviderAndModel('local', modelId);
