@@ -9,7 +9,7 @@ import ConfigSettings from './config/ConfigSettings';
 import PromptsSettingsSection from './PromptsSettingsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard, Radio, HardDrive } from 'lucide-react';
+import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard, HardDrive } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import TunnelSection from './tunnel/TunnelSection';
 import GatewaySettingsSection from './gateways/GatewaySettingsSection';
@@ -59,7 +59,7 @@ export default function SettingsView({
         chat: 'chat',
         prompts: 'prompts',
         keyboard: 'keyboard',
-        gateway: 'gateway',
+        gateway: 'sharing',
         'local-inference': 'local-inference',
       };
 
@@ -165,16 +165,6 @@ export default function SettingsView({
                     <Keyboard className="h-4 w-4" />
                     Keyboard
                   </TabsTrigger>
-                  {!tunnelDisabled && (
-                    <TabsTrigger
-                      value="gateway"
-                      className="flex gap-2"
-                      data-testid="settings-gateway-tab"
-                    >
-                      <Radio className="h-4 w-4" />
-                      Gateway
-                    </TabsTrigger>
-                  )}
                   <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
                     <Monitor className="h-4 w-4" />
                     App
@@ -208,9 +198,15 @@ export default function SettingsView({
                   value="sharing"
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
-                  <div className="space-y-8">
+                  <div className="space-y-8 pb-8">
                     <SessionSharingSection />
                     <ExternalBackendSection />
+                    {!tunnelDisabled && (
+                      <div className="space-y-4">
+                        <TunnelSection />
+                        <GatewaySettingsSection />
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
 
@@ -227,18 +223,6 @@ export default function SettingsView({
                 >
                   <KeyboardShortcutsSection />
                 </TabsContent>
-
-                {!tunnelDisabled && (
-                  <TabsContent
-                    value="gateway"
-                    className="mt-0 focus-visible:outline-none focus-visible:ring-0"
-                  >
-                    <div className="space-y-4 pr-4 pb-8 mt-1">
-                      <TunnelSection />
-                      <GatewaySettingsSection />
-                    </div>
-                  </TabsContent>
-                )}
 
                 <TabsContent
                   value="app"
