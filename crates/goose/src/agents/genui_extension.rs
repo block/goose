@@ -245,6 +245,10 @@ impl McpClientTrait for GenUiClient {
         }
     }
 
+    async fn get_moim(&self, _session_id: &str) -> Option<String> {
+        Some(CATALOG_PROMPT.to_string())
+    }
+
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
     }
