@@ -322,20 +322,21 @@ export default function ProgressiveMessageList({
     hasOnlyToolResponses,
   ]);
 
-  // Show pending indicator when streaming started but no assistant response yet
-  // Don't show if there's already an active streaming work block
-  const lastMessage = messages[messages.length - 1];
-  const hasNoAssistantResponse = !lastMessage || lastMessage.role === 'user';
+  // Show pending indicator when streaming is active and there's no streaming work block
+  // already visible. This covers: (1) waiting for the first assistant message,
+  // (2) single streaming assistant messages that don't form a work block.
   const hasStreamingWorkBlock = Array.from(workBlocks.values()).some((b) => b.isStreaming);
-  const showPendingIndicator =
-    isStreamingMessage && messages.length > 0 && hasNoAssistantResponse && !hasStreamingWorkBlock;
+  const showPendingIndicator = isStreamingMessage && messages.length > 0 && !hasStreamingWorkBlock;
 
   return (
     <>
       {renderMessages()}
 
-      {/* Pending streaming indicator — shows immediately after user sends */}
-      {showPendingIndicator && (
+      {/* Pending streaming indicator — right after all rendered messages.
+          Since showPendingIndicator is only true when there's no streaming work block,
+          this appears right after the last user message (no assistant content yet)
+          or after an assistant message that didn't form a work block. */}
+      {showPendingIndicator && chat && (
         <div className="relative mt-4 assistant">
           <WorkBlockIndicator
             messages={[]}

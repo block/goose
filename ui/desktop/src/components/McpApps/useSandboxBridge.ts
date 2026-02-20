@@ -43,7 +43,7 @@ export function useSandboxBridge(options: SandboxBridgeOptions): SandboxBridgeRe
     resourceHtml,
     resourceCsp,
     resourcePermissions,
-    resourceUri,
+    resourceUri: _resourceUri,
     toolInput,
     toolInputPartial,
     toolResult,
