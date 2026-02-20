@@ -1,9 +1,18 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getInitialWorkingDir } from '../utils/workingDir';
 
 export default function LauncherView() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close launcher when it loses focus
+  useEffect(() => {
+    const handleBlur = () => {
+      window.electron.closeWindow();
+    };
+    window.addEventListener('blur', handleBlur);
+    return () => window.removeEventListener('blur', handleBlur);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

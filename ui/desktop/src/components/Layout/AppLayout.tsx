@@ -20,6 +20,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const navigate = useNavigate();
   const location = useLocation();
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
+  const isTauri = '__TAURI_INTERNALS__' in window;
   const { isMobile, openMobile } = useSidebar();
   const chatContext = useChatContext();
   const isOnPairRoute = location.pathname === '/pair';
@@ -93,7 +94,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   return (
     <div className="flex flex-1 w-full min-h-0 relative animate-fade-in">
       {!shouldHideButtons && (
-        <div className={`${headerPadding} absolute top-3 z-100 flex items-center`}>
+        <div className={`${headerPadding} absolute ${isTauri ? 'top-1' : 'top-3'} z-100 flex items-center`}>
           <SidebarTrigger
             className={`no-drag hover:border-border-strong hover:text-text-default hover:!bg-background-medium hover:scale-105`}
           />

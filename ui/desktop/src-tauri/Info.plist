@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Goose needs access to your calendars to help manage your schedule.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Goose needs microphone access for voice input features.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Goose needs to control other applications for automation tasks.</string>
+</dict>
+</plist>

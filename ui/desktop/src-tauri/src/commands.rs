@@ -1,0 +1,861 @@
+use crate::goosed::GoosedState;
+use crate::settings::{Settings, SettingsState};
+use crate::wakelock::WakelockState;
+use serde::Serialize;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use tauri::{Emitter, Manager};
+
+// ── Settings ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_settings(state: tauri::State<'_, SettingsState>) -> Result<Settings, String> {
+    let settings = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(settings.clone())
+}
+
+#[tauri::command]
+pub fn save_settings(
+    settings: Settings,
+    state: tauri::State<'_, SettingsState>,
+) -> Result<bool, String> {
+    settings.save()?;
+    *state.0.lock().map_err(|e| e.to_string())? = settings;
+    Ok(true)
+}
+
+// ── Goosed connection ─────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_secret_key(state: tauri::State<'_, GoosedState>) -> Result<String, String> {
+    let key = state.secret_key.lock().map_err(|e| e.to_string())?;
+    Ok(key.clone())
+}
+
+#[tauri::command]
+pub fn get_goosed_host_port(state: tauri::State<'_, GoosedState>) -> Result<Option<String>, String> {
+    let url = state.base_url.lock().map_err(|e| e.to_string())?;
+    Ok(url.clone())
+}
+
+// ── File operations ───────────────────────────────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileResponse {
+    pub file: String,
+    pub file_path: String,
+    pub error: Option<String>,
+    pub found: bool,
+}
+
+#[tauri::command]
+pub fn read_file(file_path: String) -> FileResponse {
+    match fs::read_to_string(&file_path) {
+        Ok(content) => FileResponse {
+            file: content,
+            file_path,
+            error: None,
+            found: true,
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => FileResponse {
+            file: String::new(),
+            file_path,
+            error: None,
+            found: false,
+        },
+        Err(e) => FileResponse {
+            file: String::new(),
+            file_path,
+            error: Some(e.to_string()),
+            found: false,
+        },
+    }
+}
+
+#[tauri::command]
+pub fn write_file(file_path: String, content: String) -> Result<bool, String> {
+    if let Some(parent) = PathBuf::from(&file_path).parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&file_path, content).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn ensure_directory(dir_path: String) -> Result<bool, String> {
+    fs::create_dir_all(&dir_path).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn list_files(dir_path: String, extension: Option<String>) -> Result<Vec<String>, String> {
+    let entries = fs::read_dir(&dir_path).map_err(|e| e.to_string())?;
+    let mut files: Vec<String> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if let Some(ref ext) = extension {
+            if path.extension().and_then(|e| e.to_str()) == Some(ext.as_str()) {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    files.push(name.to_string());
+                }
+            }
+        } else if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+            files.push(name.to_string());
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+#[tauri::command]
+pub fn open_directory_in_explorer(directory_path: String) -> Result<bool, String> {
+    open::that(&directory_path).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub async fn select_file_or_directory(
+    app: tauri::AppHandle,
+    default_path: Option<String>,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut builder = app.dialog().file();
+    if let Some(ref path) = default_path {
+        builder = builder.set_directory(path);
+    }
+    let result = builder.blocking_pick_file();
+    Ok(result.map(|p| p.to_string()))
+}
+
+// ── Window management ─────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn create_chat_window(
+    app: tauri::AppHandle,
+    query: Option<String>,
+    dir: Option<String>,
+    version: Option<String>,
+    resume_session_id: Option<String>,
+    view_type: Option<String>,
+    recipe_deeplink: Option<String>,
+) -> Result<(), String> {
+    let label = format!("chat-{}", uuid::Uuid::new_v4());
+    let mut url_parts: Vec<String> = Vec::new();
+
+    if let Some(ref q) = query {
+        url_parts.push(format!("initialQuery={}", urlencoding(q)));
+    }
+    if let Some(ref d) = dir {
+        url_parts.push(format!("dir={}", urlencoding(d)));
+    }
+    if let Some(ref v) = version {
+        url_parts.push(format!("version={}", urlencoding(v)));
+    }
+    if let Some(ref id) = resume_session_id {
+        url_parts.push(format!("resumeSessionId={}", urlencoding(id)));
+    }
+    if let Some(ref vt) = view_type {
+        url_parts.push(format!("viewType={}", urlencoding(vt)));
+    }
+    if let Some(ref rd) = recipe_deeplink {
+        url_parts.push(format!("recipeDeeplink={}", urlencoding(rd)));
+    }
+
+    let url = if url_parts.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/?{}", url_parts.join("&"))
+    };
+
+    let mut builder = tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
+        .title("")
+        .inner_size(750.0, 730.0)
+        .min_inner_size(560.0, 600.0)
+        .on_navigation(|url| {
+            let s = url.as_str();
+            if s.starts_with("tauri://")
+                || s.starts_with("http://localhost")
+                || s.starts_with("http://127.0.0.1")
+                || s.starts_with("about:")
+            {
+                return true;
+            }
+            let _ = open::that(s);
+            false
+        });
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Transparent)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(20.0, 16.0));
+    }
+
+    builder.build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+pub fn open_launcher_window(app: &tauri::AppHandle) -> Result<(), String> {
+    // Reuse existing launcher window if open
+    if let Some(window) = app.get_webview_window("launcher") {
+        let _ = window.set_focus();
+        return Ok(());
+    }
+
+    let width = 600.0;
+    let height = 80.0;
+
+    let mut builder = tauri::WebviewWindowBuilder::new(
+        app,
+        "launcher",
+        tauri::WebviewUrl::App("/".into()),
+    )
+    .initialization_script("window.location.hash = '#/launcher';")
+    .title("")
+    .inner_size(width, height)
+    .resizable(false)
+    .minimizable(false)
+    .maximizable(false)
+    .decorations(false)
+    .always_on_top(true)
+    .skip_taskbar(true);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let window = builder.build().map_err(|e| e.to_string())?;
+
+    // Position: centered horizontally, upper third of screen
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let size = monitor.size();
+        let pos = monitor.position();
+        let scale = monitor.scale_factor();
+        let screen_w = size.width as f64 / scale;
+        let screen_h = size.height as f64 / scale;
+        let x = pos.x as f64 / scale + (screen_w - width) / 2.0;
+        let y = pos.y as f64 / scale + screen_h / 3.0 - height / 2.0;
+        let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn create_launcher_window(app: tauri::AppHandle) -> Result<(), String> {
+    open_launcher_window(&app)
+}
+
+pub(crate) fn urlencoding(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace(' ', "%20")
+        .replace('&', "%26")
+        .replace('=', "%3D")
+        .replace('#', "%23")
+}
+
+// ── System state ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
+pub fn set_wakelock(
+    enable: bool,
+    state: tauri::State<'_, WakelockState>,
+) -> Result<bool, String> {
+    crate::wakelock::set_wakelock_platform(&state, enable)
+}
+
+#[tauri::command]
+pub fn get_wakelock_state(state: tauri::State<'_, WakelockState>) -> bool {
+    *state.enabled.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+#[tauri::command]
+pub fn set_spellcheck(
+    enable: bool,
+    state: tauri::State<'_, SettingsState>,
+) -> Result<bool, String> {
+    let mut settings = state.0.lock().map_err(|e| e.to_string())?;
+    settings.spellcheck_enabled = enable;
+    settings.save()?;
+    Ok(enable)
+}
+
+#[tauri::command]
+pub fn get_spellcheck_state(state: tauri::State<'_, SettingsState>) -> Result<bool, String> {
+    let settings = state.0.lock().map_err(|e| e.to_string())?;
+    Ok(settings.spellcheck_enabled)
+}
+
+// ── Config ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_config(
+    app: tauri::AppHandle,
+    goosed_state: tauri::State<'_, GoosedState>,
+) -> HashMap<String, serde_json::Value> {
+    let mut config: HashMap<String, serde_json::Value> = HashMap::new();
+
+    // Version
+    config.insert(
+        "GOOSE_VERSION".to_string(),
+        serde_json::Value::String(app.package_info().version.to_string()),
+    );
+
+    // Insert goosed base_url as GOOSE_API_HOST (takes precedence over env var)
+    if let Ok(url) = goosed_state.base_url.lock() {
+        if let Some(ref url) = *url {
+            config.insert(
+                "GOOSE_API_HOST".to_string(),
+                serde_json::Value::String(url.clone()),
+            );
+        }
+    }
+
+    // Environment-based config (only insert if not already set by goosed state)
+    for key in &[
+        "GOOSE_API_HOST",
+        "GOOSE_WORKING_DIR",
+        "GOOSE_DEFAULT_PROVIDER",
+        "GOOSE_DEFAULT_MODEL",
+        "GOOSE_BASE_URL_SHARE",
+        "GOOSE_PREDEFINED_MODELS",
+        "GOOSE_TUNNEL",
+        "SECURITY_ML_MODEL_MAPPING",
+    ] {
+        if !config.contains_key(*key) {
+            if let Ok(val) = std::env::var(key) {
+                config.insert(key.to_string(), serde_json::Value::String(val));
+            }
+        }
+    }
+
+    // Alpha flag
+    if std::env::var("ALPHA").unwrap_or_default() == "true" {
+        config.insert(
+            "ALPHA".to_string(),
+            serde_json::Value::Bool(true),
+        );
+    }
+
+    config
+}
+
+// ── Ollama ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn check_for_ollama() -> bool {
+    match reqwest::get("http://127.0.0.1:11434/api/tags").await {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+// ── Metadata ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn fetch_metadata(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    Ok(body)
+}
+
+// ── Extensions ────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_allowed_extensions() -> Vec<String> {
+    // Return allowed extensions list from config or default
+    Vec::new()
+}
+
+// ── Recent directories ───────────────────────────────────────────────
+
+#[tauri::command]
+pub fn add_recent_dir(dir: String) -> Result<bool, String> {
+    let config_dir = dirs::config_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"));
+    let recent_file = config_dir.join("Goose").join("recent_dirs.json");
+
+    let mut dirs: Vec<String> = if recent_file.exists() {
+        let content = fs::read_to_string(&recent_file).unwrap_or_else(|_| "[]".to_string());
+        serde_json::from_str(&content).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    // Remove if already exists, then prepend
+    dirs.retain(|d| d != &dir);
+    dirs.insert(0, dir);
+    dirs.truncate(10); // Keep max 10 recent dirs
+
+    if let Some(parent) = recent_file.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let content = serde_json::to_string_pretty(&dirs).map_err(|e| e.to_string())?;
+    fs::write(&recent_file, content).map_err(|e| e.to_string())?;
+
+    Ok(true)
+}
+
+// ── Recipe tracking ──────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn has_accepted_recipe_before(recipe: serde_json::Value) -> Result<bool, String> {
+    let hash = recipe_hash(&recipe);
+    let accepted_file = recipe_accepted_file();
+
+    if !accepted_file.exists() {
+        return Ok(false);
+    }
+
+    let content = fs::read_to_string(&accepted_file).map_err(|e| e.to_string())?;
+    let hashes: Vec<String> = serde_json::from_str(&content).unwrap_or_default();
+    Ok(hashes.contains(&hash))
+}
+
+#[tauri::command]
+pub fn record_recipe_hash(recipe: serde_json::Value) -> Result<bool, String> {
+    let hash = recipe_hash(&recipe);
+    let accepted_file = recipe_accepted_file();
+
+    let mut hashes: Vec<String> = if accepted_file.exists() {
+        let content = fs::read_to_string(&accepted_file).unwrap_or_else(|_| "[]".to_string());
+        serde_json::from_str(&content).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    if !hashes.contains(&hash) {
+        hashes.push(hash);
+    }
+
+    if let Some(parent) = accepted_file.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let content = serde_json::to_string_pretty(&hashes).map_err(|e| e.to_string())?;
+    fs::write(&accepted_file, content).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+pub(crate) fn recipe_hash(recipe: &serde_json::Value) -> String {
+    use sha2::{Digest, Sha256};
+    let json = serde_json::to_string(recipe).unwrap_or_default();
+    let mut hasher = Sha256::new();
+    hasher.update(json.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+fn recipe_accepted_file() -> PathBuf {
+    let config_dir = dirs::config_dir()
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".config"));
+    config_dir.join("Goose").join("accepted_recipes.json")
+}
+
+// ── App management (GooseApps) ───────────────────────────────────────
+
+#[tauri::command]
+pub async fn launch_app(app: tauri::AppHandle, goose_app: serde_json::Value) -> Result<(), String> {
+    let name = goose_app
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("app");
+    let url = goose_app
+        .get("url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("/");
+
+    let label = format!("app-{}", name.replace(' ', "-").to_lowercase());
+
+    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::External(url.parse().map_err(|e: url::ParseError| e.to_string())?))
+        .title(name)
+        .inner_size(800.0, 600.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn refresh_app(app: tauri::AppHandle, goose_app: serde_json::Value) -> Result<(), String> {
+    let name = goose_app
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("app");
+    let label = format!("app-{}", name.replace(' ', "-").to_lowercase());
+
+    if let Some(window) = app.get_webview_window(&label) {
+        // Reload by evaluating JS
+        let _ = window.eval("window.location.reload()");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn close_app(app: tauri::AppHandle, app_name: String) -> Result<(), String> {
+    let label = format!("app-{}", app_name.replace(' ', "-").to_lowercase());
+    if let Some(window) = app.get_webview_window(&label) {
+        window.close().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+// ── Logging from frontend ────────────────────────────────────────────
+
+#[tauri::command]
+pub fn log_from_frontend(message: String) {
+    log::info!("[frontend] {}", message);
+}
+
+// ── Open in Chrome ──────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn open_in_chrome(url: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", "Google Chrome", &url])
+            .spawn()
+            .or_else(|_| {
+                // Fallback to default browser
+                std::process::Command::new("open").arg(&url).spawn()
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "chrome", &url])
+            .spawn()
+            .or_else(|_| {
+                std::process::Command::new("cmd")
+                    .args(["/c", "start", &url])
+                    .spawn()
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("google-chrome")
+            .arg(&url)
+            .spawn()
+            .or_else(|_| {
+                std::process::Command::new("xdg-open").arg(&url).spawn()
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+// ── Dock / tray icon controls ────────────────────────────────────────
+
+#[tauri::command]
+pub fn set_dock_icon(
+    app: tauri::AppHandle,
+    show: bool,
+    state: tauri::State<'_, SettingsState>,
+) -> Result<bool, String> {
+    let mut settings = state.0.lock().map_err(|e| e.to_string())?;
+    settings.show_dock_icon = show;
+    settings.save()?;
+
+    crate::dock::set_dock_visible(&app, show);
+
+    Ok(show)
+}
+
+#[tauri::command]
+pub fn get_dock_icon_state(state: tauri::State<'_, SettingsState>) -> bool {
+    let settings = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    settings.show_dock_icon
+}
+
+#[tauri::command]
+pub fn set_menu_bar_icon(
+    app: tauri::AppHandle,
+    show: bool,
+    state: tauri::State<'_, SettingsState>,
+) -> Result<bool, String> {
+    let mut settings = state.0.lock().map_err(|e| e.to_string())?;
+    settings.show_menu_bar_icon = show;
+    settings.save()?;
+
+    crate::tray::set_tray_visible(&app, show);
+
+    Ok(show)
+}
+
+#[tauri::command]
+pub fn get_menu_bar_icon_state(state: tauri::State<'_, SettingsState>) -> bool {
+    let settings = state.0.lock().unwrap_or_else(|e| e.into_inner());
+    settings.show_menu_bar_icon
+}
+
+#[tauri::command]
+pub fn set_tray_update_available(app: tauri::AppHandle, available: bool) {
+    crate::tray::set_update_available(&app, available);
+}
+
+// ── Restart ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
+// ── Deep link handling ───────────────────────────────────────────────
+
+pub fn handle_deep_link(app: &tauri::AppHandle, url: &str) {
+    log::info!("Handling deep link: {}", url);
+
+    // Parse the deep link URL and emit appropriate events
+    if url.starts_with("goose://bot/") || url.starts_with("goose://recipe/") {
+        let _ = app.emit("deep-link-recipe", url);
+    } else if url.starts_with("goose://extension/") {
+        let _ = app.emit("add-extension", url);
+    } else if url.starts_with("goose://sessions/") {
+        let _ = app.emit("open-shared-session", url);
+    } else {
+        let _ = app.emit("deep-link", url);
+    }
+}
+
+/// Classify a deep link URL into its event category (testable without Tauri app handle).
+#[cfg(test)]
+pub(crate) fn classify_deep_link(url: &str) -> &'static str {
+    if url.starts_with("goose://bot/") || url.starts_with("goose://recipe/") {
+        "deep-link-recipe"
+    } else if url.starts_with("goose://extension/") {
+        "add-extension"
+    } else if url.starts_with("goose://sessions/") {
+        "open-shared-session"
+    } else {
+        "deep-link"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    // ── URL encoding ─────────────────────────────────────────────────
+
+    #[test]
+    fn urlencoding_spaces() {
+        assert_eq!(urlencoding("hello world"), "hello%20world");
+    }
+
+    #[test]
+    fn urlencoding_ampersand() {
+        assert_eq!(urlencoding("a&b"), "a%26b");
+    }
+
+    #[test]
+    fn urlencoding_equals() {
+        assert_eq!(urlencoding("key=value"), "key%3Dvalue");
+    }
+
+    #[test]
+    fn urlencoding_hash() {
+        assert_eq!(urlencoding("page#section"), "page%23section");
+    }
+
+    #[test]
+    fn urlencoding_percent() {
+        assert_eq!(urlencoding("100%"), "100%25");
+    }
+
+    #[test]
+    fn urlencoding_empty_string() {
+        assert_eq!(urlencoding(""), "");
+    }
+
+    #[test]
+    fn urlencoding_no_special_chars() {
+        assert_eq!(urlencoding("hello"), "hello");
+    }
+
+    #[test]
+    fn urlencoding_multiple_special_chars() {
+        assert_eq!(urlencoding("a & b = c # d"), "a%20%26%20b%20%3D%20c%20%23%20d");
+    }
+
+    // ── Recipe hashing ───────────────────────────────────────────────
+
+    #[test]
+    fn recipe_hash_deterministic() {
+        let recipe = serde_json::json!({"name": "test", "version": "1.0"});
+        let hash1 = recipe_hash(&recipe);
+        let hash2 = recipe_hash(&recipe);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn recipe_hash_is_hex_sha256() {
+        let recipe = serde_json::json!({"name": "test"});
+        let hash = recipe_hash(&recipe);
+        assert_eq!(hash.len(), 64); // SHA-256 produces 64 hex chars
+        assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn recipe_hash_differs_for_different_input() {
+        let recipe_a = serde_json::json!({"name": "alpha"});
+        let recipe_b = serde_json::json!({"name": "beta"});
+        assert_ne!(recipe_hash(&recipe_a), recipe_hash(&recipe_b));
+    }
+
+    #[test]
+    fn recipe_hash_null_value() {
+        let recipe = serde_json::Value::Null;
+        let hash = recipe_hash(&recipe);
+        assert_eq!(hash.len(), 64);
+    }
+
+    // ── Deep link classification ─────────────────────────────────────
+
+    #[test]
+    fn deep_link_recipe_bot() {
+        assert_eq!(classify_deep_link("goose://bot/some-bot"), "deep-link-recipe");
+    }
+
+    #[test]
+    fn deep_link_recipe_recipe() {
+        assert_eq!(classify_deep_link("goose://recipe/my-recipe"), "deep-link-recipe");
+    }
+
+    #[test]
+    fn deep_link_extension() {
+        assert_eq!(classify_deep_link("goose://extension/developer"), "add-extension");
+    }
+
+    #[test]
+    fn deep_link_session() {
+        assert_eq!(classify_deep_link("goose://sessions/abc-123"), "open-shared-session");
+    }
+
+    #[test]
+    fn deep_link_unknown() {
+        assert_eq!(classify_deep_link("goose://unknown/path"), "deep-link");
+    }
+
+    #[test]
+    fn deep_link_empty() {
+        assert_eq!(classify_deep_link(""), "deep-link");
+    }
+
+    // ── File operations ──────────────────────────────────────────────
+
+    #[test]
+    fn read_file_found() {
+        let tmp = std::env::temp_dir().join("goose-test-read-file.txt");
+        fs::write(&tmp, "hello").unwrap();
+        let resp = read_file(tmp.to_string_lossy().to_string());
+        assert!(resp.found);
+        assert_eq!(resp.file, "hello");
+        assert!(resp.error.is_none());
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn read_file_not_found() {
+        let resp = read_file("/tmp/goose-nonexistent-file-12345.txt".to_string());
+        assert!(!resp.found);
+        assert!(resp.file.is_empty());
+        assert!(resp.error.is_none()); // NotFound returns no error, just found=false
+    }
+
+    #[test]
+    fn write_file_creates_parent_dirs() {
+        let tmp = std::env::temp_dir()
+            .join("goose-test-write")
+            .join("nested")
+            .join("file.txt");
+        let _ = fs::remove_dir_all(tmp.parent().unwrap().parent().unwrap());
+        let result = write_file(tmp.to_string_lossy().to_string(), "content".to_string());
+        assert!(result.is_ok());
+        assert_eq!(fs::read_to_string(&tmp).unwrap(), "content");
+        let _ = fs::remove_dir_all(std::env::temp_dir().join("goose-test-write"));
+    }
+
+    #[test]
+    fn list_files_with_extension_filter() {
+        let tmp = std::env::temp_dir().join("goose-test-list-files");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("a.txt"), "").unwrap();
+        fs::write(tmp.join("b.json"), "").unwrap();
+        fs::write(tmp.join("c.txt"), "").unwrap();
+
+        let files = list_files(tmp.to_string_lossy().to_string(), Some("txt".to_string())).unwrap();
+        assert_eq!(files, vec!["a.txt", "c.txt"]);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn list_files_without_filter() {
+        let tmp = std::env::temp_dir().join("goose-test-list-all");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("x.rs"), "").unwrap();
+        fs::write(tmp.join("y.toml"), "").unwrap();
+
+        let files = list_files(tmp.to_string_lossy().to_string(), None).unwrap();
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&"x.rs".to_string()));
+        assert!(files.contains(&"y.toml".to_string()));
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn list_files_sorted() {
+        let tmp = std::env::temp_dir().join("goose-test-list-sorted");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("c.txt"), "").unwrap();
+        fs::write(tmp.join("a.txt"), "").unwrap();
+        fs::write(tmp.join("b.txt"), "").unwrap();
+
+        let files = list_files(tmp.to_string_lossy().to_string(), None).unwrap();
+        assert_eq!(files, vec!["a.txt", "b.txt", "c.txt"]);
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    // ── FileResponse serialization ───────────────────────────────────
+
+    #[test]
+    fn file_response_serializes_camel_case() {
+        let resp = FileResponse {
+            file: "content".to_string(),
+            file_path: "/path/to/file".to_string(),
+            error: None,
+            found: true,
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("filePath"));
+        assert!(!json.contains("file_path"));
+    }
+}

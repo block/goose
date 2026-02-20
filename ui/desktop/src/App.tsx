@@ -624,7 +624,7 @@ export function AppInner() {
       />
       <ExtensionInstallModal addExtension={addExtension} setView={setView} />
       <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
-        <div className="titlebar-drag-region" />
+        <div className="titlebar-drag-region" data-tauri-drag-region />
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>
             <Route path="launcher" element={<LauncherView />} />

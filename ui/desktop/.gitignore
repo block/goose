@@ -11,3 +11,9 @@ src/bin/goose-npm/
 src/bin/temporal.db
 # Signing credentials
 .env.signing
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/goosed*
+dist/

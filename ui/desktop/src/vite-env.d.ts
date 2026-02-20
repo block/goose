@@ -48,6 +48,10 @@ declare module '*.md?raw' {
 declare global {
   interface Window {
     isCreatingRecipe?: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    electron: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    appConfig: any;
   }
 
   interface WindowEventMap {

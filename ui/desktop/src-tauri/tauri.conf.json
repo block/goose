@@ -1,0 +1,70 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Goose",
+  "identifier": "com.block.goose",
+  "version": "1.24.0",
+  "build": {
+    "beforeDevCommand": "npm run dev:frontend",
+    "beforeBuildCommand": "npm run build:frontend",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https://asset.localhost data: https: http:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https: ws: wss:; media-src 'self' data:"
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "",
+        "width": 750,
+        "height": 730,
+        "minWidth": 560,
+        "minHeight": 600,
+        "decorations": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 20,
+          "y": 16
+        },
+        "transparent": false
+      }
+    ],
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "signingIdentity": null,
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["goose"]
+      }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/block/goose/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
+  }
+}
