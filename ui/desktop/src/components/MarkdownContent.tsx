@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, memo, useMemo } from 'react';
+import React, { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -29,6 +29,7 @@ const customOneDarkTheme = {
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
 import { isProtocolSafe, getProtocol, BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
+import { ConfirmationModal } from './ui/ConfirmationModal';
 
 interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
@@ -164,6 +165,7 @@ const MarkdownContent = memo(function MarkdownContent({
   className = '',
 }: MarkdownContentProps) {
   const [processedContent, setProcessedContent] = useState(content);
+  const [pendingLink, setPendingLink] = useState<{ protocol: string; href: string } | null>(null);
 
   useEffect(() => {
     try {
@@ -175,78 +177,100 @@ const MarkdownContent = memo(function MarkdownContent({
     }
   }, [content]);
 
+  const handleConfirmOpen = useCallback(async () => {
+    if (pendingLink) {
+      try {
+        await window.electron.openExternal(pendingLink.href);
+      } catch {
+        await window.electron.showMessageBox({
+          type: 'error',
+          buttons: ['OK'],
+          title: 'Failed to Open Link',
+          message: `No application found to open this link.`,
+          detail: pendingLink.href,
+        });
+      }
+    }
+    setPendingLink(null);
+  }, [pendingLink]);
+
+  const handleCancelOpen = useCallback(() => {
+    setPendingLink(null);
+  }, []);
+
   return (
-    <div
-      className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-break font-sans
-      prose-pre:p-0 prose-pre:m-0 !p-0
-      prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-mono
-      prose-a:break-all prose-a:overflow-wrap-anywhere
-      prose-table:table prose-table:w-full
-      prose-blockquote:text-inherit
-      prose-td:border prose-td:border-border-default prose-td:p-2
-      prose-th:border prose-th:border-border-default prose-th:p-2
-      prose-thead:bg-background-default
-      prose-h1:text-2xl prose-h1:font-normal prose-h1:mb-5 prose-h1:mt-0 prose-h1:font-sans
-      prose-h2:text-xl prose-h2:font-normal prose-h2:mb-4 prose-h2:mt-4 prose-h2:font-sans
-      prose-h3:text-lg prose-h3:font-normal prose-h3:mb-3 prose-h3:mt-3 prose-h3:font-sans
-      prose-p:mt-0 prose-p:mb-2 prose-p:font-sans
-      prose-ol:my-2 prose-ol:font-sans
-      prose-ul:mt-0 prose-ul:mb-3 prose-ul:font-sans
-      prose-li:m-0 prose-li:font-sans ${className}`}
-    >
-      <ReactMarkdown
-        urlTransform={customUrlTransform}
-        remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
-        rehypePlugins={[
-          [
-            rehypeKatex,
-            {
-              throwOnError: false,
-              errorColor: '#cc0000',
-              strict: false,
-            },
-          ],
-        ]}
-        components={{
-          a: (props) => {
-            return (
-              <a
-                {...props}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={async (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (!props.href) return;
-
-                  if (isProtocolSafe(props.href)) {
-                    window.electron.openExternal(props.href);
-                  } else {
-                    const protocol = getProtocol(props.href);
-                    if (!protocol) return;
-
-                    const result = await window.electron.showMessageBox({
-                      type: 'question',
-                      buttons: ['Cancel', 'Open'],
-                      defaultId: 0,
-                      title: 'Open External Link',
-                      message: `Open ${protocol} link?`,
-                      detail: `This will open: ${props.href}`,
-                    });
-                    if (result.response === 1) {
-                      window.electron.openExternal(props.href);
-                    }
-                  }
-                }}
-              />
-            );
-          },
-          code: MarkdownCode,
-        }}
+    <>
+      <div
+        className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-break font-sans
+        prose-pre:p-0 prose-pre:m-0 !p-0
+        prose-code:break-all prose-code:whitespace-pre-wrap prose-code:font-mono
+        prose-a:break-all prose-a:overflow-wrap-anywhere
+        prose-table:table prose-table:w-full
+        prose-blockquote:text-inherit
+        prose-td:border prose-td:border-border-default prose-td:p-2
+        prose-th:border prose-th:border-border-default prose-th:p-2
+        prose-thead:bg-background-default
+        prose-h1:text-2xl prose-h1:font-normal prose-h1:mb-5 prose-h1:mt-0 prose-h1:font-sans
+        prose-h2:text-xl prose-h2:font-normal prose-h2:mb-4 prose-h2:mt-4 prose-h2:font-sans
+        prose-h3:text-lg prose-h3:font-normal prose-h3:mb-3 prose-h3:mt-3 prose-h3:font-sans
+        prose-p:mt-0 prose-p:mb-2 prose-p:font-sans
+        prose-ol:my-2 prose-ol:font-sans
+        prose-ul:mt-0 prose-ul:mb-3 prose-ul:font-sans
+        prose-li:m-0 prose-li:font-sans ${className}`}
       >
-        {processedContent}
-      </ReactMarkdown>
-    </div>
+        <ReactMarkdown
+          urlTransform={customUrlTransform}
+          remarkPlugins={[remarkGfm, remarkBreaks, [remarkMath, { singleDollarTextMath: false }]]}
+          rehypePlugins={[
+            [
+              rehypeKatex,
+              {
+                throwOnError: false,
+                errorColor: '#cc0000',
+                strict: false,
+              },
+            ],
+          ]}
+          components={{
+            a: (props) => {
+              return (
+                <a
+                  {...props}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!props.href) return;
+
+                    if (isProtocolSafe(props.href)) {
+                      window.electron.openExternal(props.href);
+                    } else {
+                      const protocol = getProtocol(props.href);
+                      if (!protocol) return;
+                      setPendingLink({ protocol, href: props.href });
+                    }
+                  }}
+                />
+              );
+            },
+            code: MarkdownCode,
+          }}
+        >
+          {processedContent}
+        </ReactMarkdown>
+      </div>
+      <ConfirmationModal
+        isOpen={pendingLink !== null}
+        title="Open External Link"
+        message={`Open ${pendingLink?.protocol ?? ''} link?`}
+        detail={`This will open: ${pendingLink?.href ?? ''}`}
+        onConfirm={handleConfirmOpen}
+        onCancel={handleCancelOpen}
+        confirmLabel="Open"
+        cancelLabel="Cancel"
+      />
+    </>
   );
 });
 

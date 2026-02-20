@@ -54,7 +54,7 @@ The Claude Code provider integrates with Anthropic's [Claude CLI tool](https://c
 - Uses Claude's latest models
 - 200,000 token context limit
 - Automatic filtering of goose extensions from system prompts (since Claude Code has its own tool ecosystem)
-- JSON output parsing for structured responses
+- Streaming JSON (NDJSON) protocol for persistent, multi-turn sessions
 
 **Requirements:**
 - Claude CLI tool installed and configured
@@ -351,14 +351,14 @@ The CLI providers automatically filter out goose's extension information from sy
 
 ### Message Translation
 
-- **Claude Code**: Converts goose messages to Claude's JSON message format, handling tool calls and responses appropriately
+- **Claude Code**: Converts goose messages to text content blocks with role prefixes (Human:/Assistant:), similar to Codex and Gemini CLI
 - **Codex**: Converts messages to simple text prompts with role prefixes (Human:/Assistant:), similar to Gemini CLI
 - **Cursor Agent**: Converts goose messages to Cursor's JSON message format, handling tool calls and responses appropriately
 - **Gemini CLI**: Converts messages to simple text prompts with role prefixes (Human:/Assistant:)
 
 ### Response Processing
 
-- **Claude Code**: Parses JSON responses to extract text content and usage information
+- **Claude Code**: Parses streaming JSON responses to extract text content and usage information
 - **Codex**: Parses newline-delimited JSON events to extract text content and usage information
 - **Cursor Agent**: Parses JSON responses to extract text content and usage information
 - **Gemini CLI**: Processes plain text responses from the CLI tool
