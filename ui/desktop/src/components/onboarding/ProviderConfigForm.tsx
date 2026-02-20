@@ -10,15 +10,6 @@ import { SecureStorageNotice } from '../settings/providers/modal/subcomponents/S
 import { Button } from '../ui/button';
 import { LogIn, ChevronRight } from 'lucide-react';
 
-function OllamaForm({ onSetup }: { onSetup: () => void }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-sm text-text-muted">Ollama runs AI models locally on your computer.</p>
-      <Button onClick={onSetup}>Set up Ollama</Button>
-    </div>
-  );
-}
-
 function OAuthForm({
   provider,
   onConfigured,
@@ -111,7 +102,13 @@ function ApiKeyForm({
       await providerConfigSubmitHandler(upsert, provider, toSubmit);
       onConfigured(provider.name);
     } catch (err) {
-      onError(`Configuration failed: ${err instanceof Error ? err.message : String(err)}`);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as Record<string, unknown>).message)
+            : JSON.stringify(err);
+      onError(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -161,23 +158,14 @@ function ApiKeyForm({
 interface ProviderConfigFormProps {
   provider: ProviderDetails;
   onConfigured: (providerName: string) => void;
-  onOllamaSetup: () => void;
 }
 
-export default function ProviderConfigForm({
-  provider,
-  onConfigured,
-  onOllamaSetup,
-}: ProviderConfigFormProps) {
+export default function ProviderConfigForm({ provider, onConfigured }: ProviderConfigFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const isOAuthProvider = provider.metadata.config_keys.some((key) => key.oauth_flow);
-  const isOllama = provider.name === 'ollama';
 
   const renderForm = () => {
-    if (isOllama) {
-      return <OllamaForm onSetup={onOllamaSetup} />;
-    }
     if (isOAuthProvider) {
       return <OAuthForm provider={provider} onConfigured={onConfigured} onError={setError} />;
     }

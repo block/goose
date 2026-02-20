@@ -45,11 +45,6 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     navigate('/', { replace: true });
   };
 
-  const handleOllamaSetup = () => {
-    // TODO: integrate with existing OllamaSetup component
-    setHasProvider(true);
-  };
-
   if (isChecking) {
     return null;
   }
@@ -79,7 +74,6 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
 
             <ProviderSelector
               onConfigured={handleConfigured}
-              onOllamaSetup={handleOllamaSetup}
               onFirstSelection={() => setHasSelection(true)}
             />
           </div>

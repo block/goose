@@ -25,13 +25,11 @@ interface ProviderOption {
 
 interface ProviderSelectorProps {
   onConfigured: (providerName: string) => void;
-  onOllamaSetup: () => void;
   onFirstSelection?: () => void;
 }
 
 export default function ProviderSelector({
   onConfigured,
-  onOllamaSetup,
   onFirstSelection,
 }: ProviderSelectorProps) {
   const [providerList, setProviderList] = useState<ProviderDetails[]>([]);
@@ -58,7 +56,12 @@ export default function ProviderSelector({
 
   const options: ProviderOption[] = useMemo(() => {
     return [...providerList]
-      .sort((a, b) => a.metadata.display_name.localeCompare(b.metadata.display_name))
+      .sort((a, b) => {
+        const aPreferred = a.provider_type === 'Preferred' ? 0 : 1;
+        const bPreferred = b.provider_type === 'Preferred' ? 0 : 1;
+        if (aPreferred !== bPreferred) return aPreferred - bPreferred;
+        return a.metadata.display_name.localeCompare(b.metadata.display_name);
+      })
       .map((provider) => ({
         value: provider.name,
         label: provider.metadata.display_name,
@@ -107,9 +110,7 @@ export default function ProviderSelector({
           className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
             selectedPath === FREE_CREDITS
               ? 'border-blue-400 bg-background-muted'
-              : selectedPath === OWN_PROVIDER
-                ? 'border-border-default bg-background-muted opacity-60'
-                : 'border-border-default bg-background-muted hover:border-blue-400'
+              : 'border-border-default bg-background-muted hover:border-blue-400'
           }`}
         >
           <Gift size={20} className="text-text-muted mb-2" />
@@ -125,9 +126,7 @@ export default function ProviderSelector({
           className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
             selectedPath === OWN_PROVIDER
               ? 'border-blue-400 bg-background-muted'
-              : selectedPath === FREE_CREDITS
-                ? 'border-border-default bg-background-muted opacity-60'
-                : 'border-border-default bg-background-muted hover:border-blue-400'
+              : 'border-border-default bg-background-muted hover:border-blue-400'
           }`}
         >
           <Key size={20} className="text-text-muted mb-2" />
@@ -172,7 +171,6 @@ export default function ProviderSelector({
               key={selectedProvider.name}
               provider={selectedProvider}
               onConfigured={onConfigured}
-              onOllamaSetup={onOllamaSetup}
             />
           )}
         </div>
