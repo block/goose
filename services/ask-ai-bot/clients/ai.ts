@@ -1,5 +1,5 @@
-import { openrouter } from "@openrouter/ai-sdk-provider";
+import { anthropic } from "@ai-sdk/anthropic";
 
-const modelName = process.env.AI_MODEL || "google/gemini-3-flash-preview";
+const modelName = process.env.AI_MODEL || "claude-sonnet-4-6";
 
-export const model = openrouter(modelName);
+export const model = anthropic(modelName);
