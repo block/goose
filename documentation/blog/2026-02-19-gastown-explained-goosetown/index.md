@@ -107,7 +107,7 @@ Ready to try parallel agentic engineering for yourself? [Goosetown](https://gith
 <iframe class="aspect-ratio" src="https://www.youtube.com/embed/H2hJjNmvEEA" title="Rizel's first time using Goosetown" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 <head>
-  <meta property="og:title" content="Gastown Explained: How to Use Goosetown for Parallel Agentic Engineering" />
+  <meta property="og:title" content="Gas Town Explained: How to Use Goosetown for Parallel Agentic Engineering" />
   <meta property="og:type" content="article" />
   <meta property="og:url" content="https://block.github.io/goose/blog/2026/02/19/gastown-explained-goosetown" />
   <meta property="og:description" content="Learn how Gastown and Goosetown lead the industrial coding revolution by teaching AI agents to work together in a team. This beginner guide explains the infrastructure we're using to move from talking to one AI to coordinating many agents at once." />
