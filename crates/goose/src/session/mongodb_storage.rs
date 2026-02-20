@@ -53,6 +53,7 @@ pub struct MongoDbSessionStorage {
 }
 
 impl MongoDbSessionStorage {
+    /// Create from environment variables.
     pub async fn new() -> Result<Self> {
         let uri = std::env::var("GOOSE_MONGODB_URI")
             .map_err(|_| anyhow::anyhow!("GOOSE_MONGODB_URI not set"))?;
@@ -66,7 +67,17 @@ impl MongoDbSessionStorage {
         let messages_collection = std::env::var("GOOSE_MONGODB_MESSAGES_COLLECTION")
             .unwrap_or_else(|_| "messages".to_string());
 
-        let mut client_options = ClientOptions::parse(&uri).await?;
+        Self::connect(&uri, &db_name, &sessions_collection, &messages_collection).await
+    }
+
+    /// Create with explicit parameters.
+    pub async fn connect(
+        uri: &str,
+        db_name: &str,
+        sessions_collection: &str,
+        messages_collection: &str,
+    ) -> Result<Self> {
+        let mut client_options = ClientOptions::parse(uri).await?;
 
         if let Ok(pool_size) = std::env::var("GOOSE_MONGODB_MAX_POOL_SIZE") {
             client_options.max_pool_size = Some(pool_size.parse()?);
@@ -780,5 +791,814 @@ impl SessionStorageBackend for MongoDbSessionStorage {
             .run_command(doc! { "ping": 1 }, None)
             .await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::conversation::message::MessageContent;
+    use crate::session::session_manager::Session;
+    use crate::session::storage_backend::SessionUpdate;
+    use std::sync::Arc;
+
+    /// Create a test storage instance with a unique database name.
+    /// Returns None if GOOSE_MONGODB_URI is not set (test will be skipped).
+    async fn setup_test_storage() -> Option<MongoDbSessionStorage> {
+        let uri = match std::env::var("GOOSE_MONGODB_URI") {
+            Ok(uri) => uri,
+            Err(_) => return None,
+        };
+
+        let db_name = format!(
+            "goose_test_{}",
+            uuid::Uuid::new_v4().to_string().replace('-', "")
+        );
+
+        Some(
+            MongoDbSessionStorage::connect(&uri, &db_name, "sessions", "messages")
+                .await
+                .expect("Failed to create test storage"),
+        )
+    }
+
+    /// Drop the test database after use.
+    async fn teardown(storage: &MongoDbSessionStorage) {
+        storage.database.drop(None).await.ok();
+    }
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        assert!(storage.health_check().await.is_ok());
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_create_and_get_session() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Test Session".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        assert!(!session.id.is_empty());
+        assert_eq!(session.name, "Test Session");
+        assert_eq!(session.working_dir, PathBuf::from("/tmp/test"));
+        assert_eq!(session.session_type, SessionType::User);
+        assert_eq!(session.message_count, 0);
+
+        let retrieved = storage.get_session(&session.id, false).await.unwrap();
+        assert_eq!(retrieved.id, session.id);
+        assert_eq!(retrieved.name, "Test Session");
+        assert_eq!(retrieved.working_dir, PathBuf::from("/tmp/test"));
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_session_id_format() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp"), "S1".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        // ID should match YYYYMMDD_N pattern
+        let parts: Vec<&str> = session.id.split('_').collect();
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].len(), 8); // YYYYMMDD
+        assert!(parts[1].parse::<i64>().is_ok()); // sequence number
+
+        // Second session on same day should increment
+        let session2 = storage
+            .create_session(PathBuf::from("/tmp"), "S2".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        let seq1: i64 = session.id.split('_').nth(1).unwrap().parse().unwrap();
+        let seq2: i64 = session2.id.split('_').nth(1).unwrap().parse().unwrap();
+        assert_eq!(seq2, seq1 + 1);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_add_and_get_messages() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp"), "Test".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        let msg1 = Message {
+            id: Some("msg-1".to_string()),
+            role: Role::User,
+            created: 1000,
+            content: vec![MessageContent::text("Hello")],
+            metadata: MessageMetadata::default(),
+        };
+
+        let msg2 = Message {
+            id: Some("msg-2".to_string()),
+            role: Role::Assistant,
+            created: 2000,
+            content: vec![MessageContent::text("Hi there!")],
+            metadata: MessageMetadata::default(),
+        };
+
+        storage.add_message(&session.id, &msg1).await.unwrap();
+        storage.add_message(&session.id, &msg2).await.unwrap();
+
+        let retrieved = storage.get_session(&session.id, true).await.unwrap();
+        assert_eq!(retrieved.message_count, 2);
+
+        let conv = retrieved.conversation.unwrap();
+        let messages = conv.messages();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].role, Role::User);
+        assert_eq!(messages[0].created, 1000);
+        assert_eq!(messages[1].role, Role::Assistant);
+        assert_eq!(messages[1].created, 2000);
+
+        // Verify message IDs round-trip
+        assert_eq!(messages[0].id.as_deref(), Some("msg-1"));
+        assert_eq!(messages[1].id.as_deref(), Some("msg-2"));
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_message_content_roundtrip() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp"), "Test".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        let msg = Message {
+            id: Some("msg-content".to_string()),
+            role: Role::User,
+            created: 1000,
+            content: vec![
+                MessageContent::text("First part"),
+                MessageContent::text("Second part"),
+            ],
+            metadata: MessageMetadata::default(),
+        };
+
+        storage.add_message(&session.id, &msg).await.unwrap();
+
+        let retrieved = storage.get_session(&session.id, true).await.unwrap();
+        let messages = retrieved.conversation.unwrap();
+        let m = &messages.messages()[0];
+
+        // Content should round-trip as native BSON and back
+        assert_eq!(m.content.len(), 2);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_apply_update() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp"),
+                "Original".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        storage
+            .apply_update(
+                &session.id,
+                SessionUpdate {
+                    name: Some("Updated".to_string()),
+                    total_tokens: Some(Some(100)),
+                    input_tokens: Some(Some(60)),
+                    output_tokens: Some(Some(40)),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        let updated = storage.get_session(&session.id, false).await.unwrap();
+        assert_eq!(updated.name, "Updated");
+        assert_eq!(updated.total_tokens, Some(100));
+        assert_eq!(updated.input_tokens, Some(60));
+        assert_eq!(updated.output_tokens, Some(40));
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_apply_update_nullable_fields() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp"), "Test".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        // Set a value
+        storage
+            .apply_update(
+                &session.id,
+                SessionUpdate {
+                    total_tokens: Some(Some(500)),
+                    provider_name: Some(Some("anthropic".to_string())),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        let s = storage.get_session(&session.id, false).await.unwrap();
+        assert_eq!(s.total_tokens, Some(500));
+        assert_eq!(s.provider_name.as_deref(), Some("anthropic"));
+
+        // Clear it back to null
+        storage
+            .apply_update(
+                &session.id,
+                SessionUpdate {
+                    total_tokens: Some(None),
+                    provider_name: Some(None),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        let s = storage.get_session(&session.id, false).await.unwrap();
+        assert_eq!(s.total_tokens, None);
+        assert_eq!(s.provider_name, None);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_delete_session() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp"),
+                "To Delete".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: Some("msg-1".to_string()),
+                    role: Role::User,
+                    created: 1000,
+                    content: vec![MessageContent::text("Hello")],
+                    metadata: MessageMetadata::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage.delete_session(&session.id).await.unwrap();
+
+        let result = storage.get_session(&session.id, false).await;
+        assert!(result.is_err());
+
+        // Messages should also be deleted
+        let msg_count = storage
+            .messages
+            .count_documents(doc! { "session_id": &session.id }, None)
+            .await
+            .unwrap();
+        assert_eq!(msg_count, 0);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_delete_nonexistent_session() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let result = storage.delete_session("nonexistent_id").await;
+        assert!(result.is_err());
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_by_types() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        // Create sessions of different types
+        let s1 = storage
+            .create_session(PathBuf::from("/tmp"), "User 1".to_string(), SessionType::User)
+            .await
+            .unwrap();
+        let s2 = storage
+            .create_session(
+                PathBuf::from("/tmp"),
+                "Scheduled 1".to_string(),
+                SessionType::Scheduled,
+            )
+            .await
+            .unwrap();
+        let _s3 = storage
+            .create_session(
+                PathBuf::from("/tmp"),
+                "Hidden 1".to_string(),
+                SessionType::Hidden,
+            )
+            .await
+            .unwrap();
+
+        // Add messages so sessions appear in listing (sessions without messages are filtered)
+        for sid in [&s1.id, &s2.id] {
+            storage
+                .add_message(
+                    sid,
+                    &Message {
+                        id: None,
+                        role: Role::User,
+                        created: 1000,
+                        content: vec![MessageContent::text("test")],
+                        metadata: MessageMetadata::default(),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+
+        // List only User sessions
+        let user_sessions = storage
+            .list_sessions_by_types(&[SessionType::User])
+            .await
+            .unwrap();
+        assert_eq!(user_sessions.len(), 1);
+        assert_eq!(user_sessions[0].name, "User 1");
+
+        // List User + Scheduled
+        let mixed = storage
+            .list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
+            .await
+            .unwrap();
+        assert_eq!(mixed.len(), 2);
+
+        // Empty types returns empty
+        let empty = storage.list_sessions_by_types(&[]).await.unwrap();
+        assert!(empty.is_empty());
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_replace_conversation() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp"), "Test".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        // Add initial messages
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: Some("old-1".to_string()),
+                    role: Role::User,
+                    created: 1000,
+                    content: vec![MessageContent::text("old message")],
+                    metadata: MessageMetadata::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Replace with new conversation
+        let new_messages = vec![
+            Message {
+                id: Some("new-1".to_string()),
+                role: Role::User,
+                created: 2000,
+                content: vec![MessageContent::text("new message 1")],
+                metadata: MessageMetadata::default(),
+            },
+            Message {
+                id: Some("new-2".to_string()),
+                role: Role::Assistant,
+                created: 3000,
+                content: vec![MessageContent::text("new message 2")],
+                metadata: MessageMetadata::default(),
+            },
+        ];
+        let new_conv = Conversation::new_unvalidated(new_messages);
+
+        storage
+            .replace_conversation(&session.id, &new_conv)
+            .await
+            .unwrap();
+
+        let retrieved = storage.get_session(&session.id, true).await.unwrap();
+        assert_eq!(retrieved.message_count, 2);
+        let msgs = retrieved.conversation.unwrap().messages().to_vec();
+        assert_eq!(msgs[0].id.as_deref(), Some("new-1"));
+        assert_eq!(msgs[1].id.as_deref(), Some("new-2"));
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_truncate_conversation() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp"), "Test".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        for i in 0..5 {
+            storage
+                .add_message(
+                    &session.id,
+                    &Message {
+                        id: Some(format!("msg-{}", i)),
+                        role: Role::User,
+                        created: (i + 1) * 1000,
+                        content: vec![MessageContent::text(format!("Message {}", i))],
+                        metadata: MessageMetadata::default(),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+
+        // Truncate from timestamp 3000 onwards (should remove messages with created >= 3000)
+        storage
+            .truncate_conversation(&session.id, 3000)
+            .await
+            .unwrap();
+
+        let retrieved = storage.get_session(&session.id, true).await.unwrap();
+        assert_eq!(retrieved.message_count, 2);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_message_metadata() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(PathBuf::from("/tmp"), "Test".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        let msg = Message {
+            id: Some("msg-meta".to_string()),
+            role: Role::User,
+            created: 1000,
+            content: vec![MessageContent::text("Hello")],
+            metadata: MessageMetadata::default(),
+        };
+
+        storage.add_message(&session.id, &msg).await.unwrap();
+
+        // Default metadata
+        let metadata = storage
+            .get_message_metadata(&session.id, "msg-meta")
+            .await
+            .unwrap();
+        assert!(metadata.user_visible);
+        assert!(metadata.agent_visible);
+
+        // Update to agent-only
+        let new_metadata = MessageMetadata::agent_only();
+        storage
+            .set_message_metadata(&session.id, "msg-meta", new_metadata)
+            .await
+            .unwrap();
+
+        let updated = storage
+            .get_message_metadata(&session.id, "msg-meta")
+            .await
+            .unwrap();
+        assert!(!updated.user_visible);
+        assert!(updated.agent_visible);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_get_insights() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        // Empty database
+        let insights = storage.get_insights().await.unwrap();
+        assert_eq!(insights.total_sessions, 0);
+        assert_eq!(insights.total_tokens, 0);
+
+        // Add sessions with tokens
+        let s1 = storage
+            .create_session(PathBuf::from("/tmp"), "S1".to_string(), SessionType::User)
+            .await
+            .unwrap();
+        let s2 = storage
+            .create_session(PathBuf::from("/tmp"), "S2".to_string(), SessionType::User)
+            .await
+            .unwrap();
+
+        storage
+            .apply_update(
+                &s1.id,
+                SessionUpdate {
+                    total_tokens: Some(Some(100)),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        storage
+            .apply_update(
+                &s2.id,
+                SessionUpdate {
+                    accumulated_total_tokens: Some(Some(200)),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+
+        let insights = storage.get_insights().await.unwrap();
+        assert_eq!(insights.total_sessions, 2);
+        // s1 has total_tokens=100 (no accumulated), s2 has accumulated=200 (takes priority)
+        assert_eq!(insights.total_tokens, 300);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_session_creation() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let storage = Arc::new(storage);
+        let mut handles: Vec<tokio::task::JoinHandle<String>> = vec![];
+
+        for i in 0..10_i32 {
+            let storage = Arc::clone(&storage);
+            handles.push(tokio::spawn(async move {
+                let session: Session = storage
+                    .create_session(
+                        PathBuf::from(format!("/tmp/test_{}", i)),
+                        format!("Session {}", i),
+                        SessionType::User,
+                    )
+                    .await
+                    .unwrap();
+
+                storage
+                    .add_message(
+                        &session.id,
+                        &Message {
+                            id: None,
+                            role: Role::User,
+                            created: chrono::Utc::now().timestamp_millis(),
+                            content: vec![MessageContent::text(format!("Hello from {}", i))],
+                            metadata: MessageMetadata::default(),
+                        },
+                    )
+                    .await
+                    .unwrap();
+
+                session.id
+            }));
+        }
+
+        let mut ids: Vec<String> = Vec::new();
+        for handle in handles {
+            ids.push(handle.await.unwrap());
+        }
+
+        // All IDs should be unique
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 10);
+
+        // All sessions should be listable
+        let sessions: Vec<Session> = storage
+            .list_sessions_by_types(&[SessionType::User])
+            .await
+            .unwrap();
+        assert_eq!(sessions.len(), 10);
+
+        // Use Arc::try_unwrap to get owned storage for teardown
+        let storage = Arc::try_unwrap(storage).unwrap_or_else(|_| panic!("Arc still shared"));
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_search_chat_history() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/search"),
+                "Search Test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: Some("search-1".to_string()),
+                    role: Role::User,
+                    created: 1000,
+                    content: vec![MessageContent::text(
+                        "How do I configure kubernetes deployments?",
+                    )],
+                    metadata: MessageMetadata::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: Some("search-2".to_string()),
+                    role: Role::Assistant,
+                    created: 2000,
+                    content: vec![MessageContent::text(
+                        "You can use kubectl apply to configure deployments.",
+                    )],
+                    metadata: MessageMetadata::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Search for "kubernetes"
+        let results = storage
+            .search_chat_history("kubernetes", Some(10), None, None, None)
+            .await
+            .unwrap();
+
+        assert!(results.total_matches > 0);
+        assert_eq!(results.results[0].session_id, session.id);
+
+        // Search with exclude
+        let results = storage
+            .search_chat_history(
+                "kubernetes",
+                Some(10),
+                None,
+                None,
+                Some(session.id.clone()),
+            )
+            .await
+            .unwrap();
+        assert_eq!(results.total_matches, 0);
+
+        teardown(&storage).await;
+    }
+
+    #[tokio::test]
+    async fn test_document_matches_export_format() {
+        let Some(storage) = setup_test_storage().await else {
+            eprintln!("Skipping: GOOSE_MONGODB_URI not set");
+            return;
+        };
+
+        let session = storage
+            .create_session(
+                PathBuf::from("/tmp/export"),
+                "Export Test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        storage
+            .add_message(
+                &session.id,
+                &Message {
+                    id: Some("export-msg-1".to_string()),
+                    role: Role::User,
+                    created: 1000,
+                    content: vec![MessageContent::text("Hello")],
+                    metadata: MessageMetadata::default(),
+                },
+            )
+            .await
+            .unwrap();
+
+        // Read the raw message document from MongoDB
+        let msg_doc = storage
+            .messages
+            .find_one(doc! { "id": "export-msg-1" }, None)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // Verify field names match Message struct serde names
+        assert!(msg_doc.get("id").is_some(), "should have 'id' field");
+        assert!(msg_doc.get("role").is_some(), "should have 'role' field");
+        assert!(msg_doc.get("created").is_some(), "should have 'created' field");
+        assert!(msg_doc.get("content").is_some(), "should have 'content' field");
+        assert!(msg_doc.get("metadata").is_some(), "should have 'metadata' field");
+
+        // content should be a BSON array, not a string
+        assert!(msg_doc.get_array("content").is_ok(), "content should be an array");
+
+        // metadata should be a BSON document, not a string
+        assert!(
+            msg_doc.get_document("metadata").is_ok(),
+            "metadata should be a document"
+        );
+
+        // Read the raw session document
+        let sess_doc = storage
+            .sessions
+            .find_one(doc! { "id": &session.id }, None)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // extension_data should be a BSON document, not a string
+        assert!(
+            sess_doc.get_document("extension_data").is_ok(),
+            "extension_data should be a document"
+        );
+
+        teardown(&storage).await;
     }
 }
