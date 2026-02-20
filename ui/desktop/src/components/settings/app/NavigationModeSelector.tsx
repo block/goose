@@ -1,5 +1,5 @@
 import React from 'react';
-import { PanelLeft, Layers } from 'lucide-react';
+import { Columns2, Layers } from 'lucide-react';
 import { useNavigationContext, NavigationMode } from '../../Layout/NavigationContext';
 import { cn } from '../../../utils';
 
@@ -7,11 +7,16 @@ interface NavigationModeSelectorProps {
   className?: string;
 }
 
-const modes: { value: NavigationMode; label: string; icon: React.ReactNode; description: string }[] = [
+const modes: {
+  value: NavigationMode;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}[] = [
   {
     value: 'push',
     label: 'Push',
-    icon: <PanelLeft className="w-5 h-5" />,
+    icon: <Columns2 className="w-5 h-5" />,
     description: 'Navigation pushes content',
   },
   {
