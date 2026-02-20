@@ -27,16 +27,11 @@ function resolveTheme(preference: ThemePreference): ResolvedTheme {
 
 function loadThemePreference(): ThemePreference {
   const useSystemTheme = localStorage.getItem('use_system_theme');
-  if (useSystemTheme === 'true') {
-    return 'system';
+  if (useSystemTheme === 'false') {
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme === 'dark' ? 'dark' : 'light';
   }
-
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'dark') {
-    return 'dark';
-  }
-
-  return 'light';
+  return 'system';
 }
 
 function saveThemePreference(preference: ThemePreference): void {
