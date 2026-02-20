@@ -394,30 +394,33 @@ describe('identifyWorkBlocks', () => {
   // as the "final answer" and renders outside the work block — causing content to
   // flash in and out as tool requests arrive.
 
-  it('NR: multi-message streaming keeps ALL messages collapsed (no premature final answer)', () => {
-    // Scenario: assistant made 2 tool calls, now streaming a 3rd message with text
+  it('NR: multi-message streaming shows pure-text final answer for progressive rendering', () => {
+    // Scenario: assistant made 2 tool calls, now streaming a 3rd message with text.
+    // The pure-text message should be shown as the final answer so the user can
+    // read the streamed text progressively while tool calls stay collapsed above.
     const messages = [
       textMsg('user', 'Analyze the code'),
       toolRequestMsg('shell'),
       toolResponseMsg('shell', 'file list'),
       toolRequestMsg('read_file'),
       toolResponseMsg('read_file', 'file contents'),
-      textMsg('assistant', 'I see the issue, let me fix it...'), // streaming text — NOT final answer yet
+      textMsg('assistant', 'I see the issue, let me fix it...'), // streaming text — shown as final answer
     ];
     const result = identifyWorkBlocks(messages as unknown as Message[], true);
 
-    // ALL messages should be in the block (no final answer during streaming)
+    // Tool call messages should be in the block
     expect(result.has(1)).toBe(true);
     expect(result.has(2)).toBe(true);
     expect(result.has(3)).toBe(true);
     expect(result.has(4)).toBe(true);
-    expect(result.has(5)).toBe(true); // the text message stays inside the block
+    // The pure-text message at index 5 is the final answer — NOT in the block
+    expect(result.has(5)).toBe(false);
 
     const block = result.get(1)!;
-    expect(block.finalIndex).toBe(-1);
+    expect(block.finalIndex).toBe(5);
     expect(block.isStreaming).toBe(true);
-    // The text-only message at index 5 is an intermediate, not a final answer
-    expect(block.intermediateIndices).toContain(5);
+    // The text-only message at index 5 is the final answer, not intermediate
+    expect(block.intermediateIndices).not.toContain(5);
   });
 
   it('NR: multi-message streaming with text+tools keeps everything collapsed', () => {

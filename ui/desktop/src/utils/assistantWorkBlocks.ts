@@ -147,16 +147,16 @@ export function identifyWorkBlocks(
     }
 
     // Find the "final answer" — the message to show outside the collapsed block.
-    // During streaming with multiple assistant messages, keep everything collapsed
-    // (finalIndex = -1) because the LLM often outputs text before adding tool
-    // calls — prematurely selecting a "final answer" causes content to flash in
-    // and out of the work block. Single-message streaming runs still use normal
-    // detection (the rendering layer handles tool-call suppression via
-    // suppressToolCalls prop).
-    const skipFinalAnswerDuringStreaming = isLastRunStreaming && assistantIndices.length > 1;
+    // During streaming, we still show the last message as a "final answer" if it
+    // is a pure text message (no tool calls) — this enables progressive rendering
+    // where the user sees text accumulating in real-time while tool calls are
+    // collapsed above. Messages with both text AND tool requests stay collapsed
+    // during streaming because the tools are still executing.
+    // If the LLM later adds tool calls to a previously pure-text message,
+    // identifyWorkBlocks will re-run and absorb it back into the block.
     let finalAnswerIdx = -1;
 
-    if (!skipFinalAnswerDuringStreaming) {
+    {
       // Strategy: prefer a clean text-only message, but accept a message with both
       // text and tool calls if no pure text message exists.
       let textWithToolsIdx = -1;
@@ -178,8 +178,13 @@ export function identifyWorkBlocks(
         }
       }
 
-      // Use text-with-tools fallback if no pure text answer found
-      if (finalAnswerIdx === -1 && textWithToolsIdx !== -1) {
+      // Use text-with-tools fallback if no pure text answer found.
+      // During streaming of multi-message runs, skip this fallback — text+tool
+      // messages stay collapsed because the tools are still executing.
+      // Single-message runs still use the fallback because the rendering layer
+      // handles tool-call suppression via the suppressToolCalls prop.
+      const skipFallbackDuringStreaming = isLastRunStreaming && assistantIndices.length > 1;
+      if (finalAnswerIdx === -1 && textWithToolsIdx !== -1 && !skipFallbackDuringStreaming) {
         finalAnswerIdx = textWithToolsIdx;
       }
     }
