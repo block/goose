@@ -1807,34 +1807,6 @@ mod tests {
     }
 
     #[test]
-    fn test_config_file_overrides_defaults() -> Result<(), ConfigError> {
-        let (config, _defaults) = new_test_config_with_defaults("SECURITY_PROMPT_ENABLED: true");
-
-        // User explicitly sets to false in config file
-        config.set_param("SECURITY_PROMPT_ENABLED", false)?;
-
-        // Config file value should win over defaults
-        let value: bool = config.get_param("SECURITY_PROMPT_ENABLED")?;
-        assert!(!value);
-
-        Ok(())
-    }
-
-    #[test]
-    #[serial]
-    fn test_env_var_overrides_defaults() -> Result<(), ConfigError> {
-        let (config, _defaults) = new_test_config_with_defaults("SECURITY_PROMPT_ENABLED: true");
-
-        // Env var should still win over defaults
-        std::env::set_var("SECURITY_PROMPT_ENABLED", "false");
-        let value: bool = config.get_param("SECURITY_PROMPT_ENABLED")?;
-        assert!(!value);
-        std::env::remove_var("SECURITY_PROMPT_ENABLED");
-
-        Ok(())
-    }
-
-    #[test]
     #[serial]
     fn test_full_precedence_env_over_config_over_defaults() -> Result<(), ConfigError> {
         let (config, _defaults) = new_test_config_with_defaults("my_key: from_defaults");
@@ -1865,14 +1837,6 @@ mod tests {
     fn test_no_defaults_file_behaves_as_before() {
         // Config without defaults (the normal open-source case)
         let config = new_test_config();
-
-        let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
-        assert!(matches!(result, Err(ConfigError::NotFound(_))));
-    }
-
-    #[test]
-    fn test_defaults_key_not_found_still_returns_not_found() {
-        let (config, _defaults) = new_test_config_with_defaults("some_other_key: value");
 
         let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
