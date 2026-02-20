@@ -236,7 +236,12 @@ async fn child_process_client(
         command.env("PATH", path);
     }
 
-    if let Some(dir) = working_dir {
+    // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
+    let effective_working_dir = working_dir
+        .map(|p| p.to_path_buf())
+        .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from));
+
+    if let Some(ref dir) = effective_working_dir {
         if dir.exists() && dir.is_dir() {
             tracing::info!("Setting MCP process working directory: {:?}", dir);
             command.current_dir(dir);
@@ -710,6 +715,7 @@ impl ExtensionManager {
                     })?;
                 let mut context = self.context.clone();
                 context.extension_manager = Some(Arc::downgrade(self));
+
                 (def.client_factory)(context)
             }
             ExtensionConfig::InlinePython {
@@ -1584,6 +1590,16 @@ impl ExtensionManager {
         session_id: &str,
         working_dir: &std::path::Path,
     ) -> Option<String> {
+        // Skip MOIM for models with small context windows to avoid consuming limited context
+        const MIN_CONTEXT_FOR_MOIM: usize = 32_000;
+        if let Ok(provider_guard) = self.provider.try_lock() {
+            if let Some(provider) = provider_guard.as_ref() {
+                if provider.get_model_config().context_limit() < MIN_CONTEXT_FOR_MOIM {
+                    return None;
+                }
+            }
+        }
+
         // Use minute-level granularity to prevent conversation changes every second
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00").to_string();
         let mut content = format!(

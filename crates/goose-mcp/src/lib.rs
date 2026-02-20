@@ -14,6 +14,8 @@ pub mod computercontroller;
 pub mod developer;
 pub mod mcp_server_runner;
 mod memory;
+#[cfg(target_os = "macos")]
+pub mod peekaboo;
 pub mod subprocess;
 pub mod tutorial;
 

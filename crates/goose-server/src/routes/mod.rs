@@ -3,6 +3,7 @@ pub mod agent;
 pub mod config_management;
 pub mod dictation;
 pub mod errors;
+pub mod local_inference;
 pub mod mcp_app_proxy;
 pub mod mcp_ui_proxy;
 pub mod prompts;
@@ -30,6 +31,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(action_required::routes(state.clone()))
         .merge(agent::routes(state.clone()))
         .merge(dictation::routes(state.clone()))
+        .merge(local_inference::routes(state.clone()))
         .merge(config_management::routes(state.clone()))
         .merge(prompts::routes())
         .merge(recipe::routes(state.clone()))

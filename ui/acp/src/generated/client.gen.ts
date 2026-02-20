@@ -39,7 +39,7 @@ import {
  * Typed client for Goose custom extension methods.
  * Wraps an ExtMethodProvider (e.g. ClientSideConnection) with proper types and Zod validation.
  */
-export class GooseClient {
+export class GooseExtClient {
   constructor(private conn: ExtMethodProvider) {}
 
   async extensionsAdd(params: AddExtensionRequest): Promise<void> {
@@ -97,33 +97,5 @@ export class GooseClient {
   async configExtensions(): Promise<GetExtensionsResponse> {
     const raw = await this.conn.extMethod("_goose/config/extensions", {});
     return zGetExtensionsResponse.parse(raw) as GetExtensionsResponse;
-  }
-
-  async toolCall(): Promise<Record<string, unknown>> {
-    return await this.conn.extMethod("_goose/tool/call", {});
-  }
-
-  async providerUpdate(): Promise<Record<string, unknown>> {
-    return await this.conn.extMethod("_goose/provider/update", {});
-  }
-
-  async containerSet(): Promise<Record<string, unknown>> {
-    return await this.conn.extMethod("_goose/container/set", {});
-  }
-
-  async appsList(): Promise<Record<string, unknown>> {
-    return await this.conn.extMethod("_goose/apps/list", {});
-  }
-
-  async appsExport(): Promise<Record<string, unknown>> {
-    return await this.conn.extMethod("_goose/apps/export", {});
-  }
-
-  async appsImport(): Promise<Record<string, unknown>> {
-    return await this.conn.extMethod("_goose/apps/import", {});
-  }
-
-  async configProviders(): Promise<Record<string, unknown>> {
-    return await this.conn.extMethod("_goose/config/providers", {});
   }
 }

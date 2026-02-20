@@ -172,6 +172,23 @@ The Developer extension provides these tools:
 | `screen_capture` | Take screenshots | Debugging UI issues, documenting state | ✅ Low<br />Visual information only |
 | `image_processor` | Process and resize images | Optimizing assets, format conversion | ✅ Low<br />Image manipulation only |
 
+### Environment Variables in Shell Commands
+
+Shell commands executed by the `shell` tool inherit the environment of the running goose process. This typically includes:
+- System variables like `PATH`, `HOME`, and `USER`
+- Environment variables present in the process that launched goose (for example, your terminal's environment when you start goose from a shell)
+- Session-specific variables injected by goose, such as `AGENT_SESSION_ID` for [session-isolated workflows](/docs/guides/environment-variables#using-session-ids-in-workflows)
+
+This enables workflows that depend on environment configuration, such as authenticated CLI operations and build processes.
+
+:::info
+goose Desktop or launcher-based starts may use a different environment and may not load your shell startup files.
+:::
+
+:::warning Sensitive Information
+Environment variables may contain sensitive values like API keys and tokens (e.g., `GITHUB_TOKEN`, `AWS_ACCESS_KEY_ID`).
+:::
+
 ### Access Control Features
 
 You can layer multiple controls to match your risk tolerance and workflow:
