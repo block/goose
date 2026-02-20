@@ -115,6 +115,6 @@ Ready to try parallel agentic engineering for yourself? [Goosetown](https://gith
   <meta name="twitter:card" content="summary_large_image" />
   <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="Gas Town Explained: How to Use Goosetown for Parallel Agentic Engineering" />
-  <meta name="twitter:description" content="Learn how Gastown and Goosetown lead the industrial coding revolution by teaching AI agents to work together in a team." />
+  <meta name="twitter:description" content="Learn how Gas Town and Goosetown lead the industrial coding revolution by teaching AI agents to work together in a team." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/goosetown-6e1bda1a4bd160c0c01cfc58c118492e.png" />
 </head>
