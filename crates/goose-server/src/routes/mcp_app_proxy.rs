@@ -8,13 +8,17 @@ use axum::{
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
+const GUEST_HTML_TTL_SECS: u64 = 300; // 5 minutes
+const GUEST_HTML_MAX_ENTRIES: usize = 64;
+
 /// In-memory store for guest HTML content.
-/// Maps nonce -> (html_content, csp_string)
-/// Entries are consumed on first read (one-time use).
-type GuestHtmlStore = Arc<RwLock<HashMap<String, (String, String)>>>;
+/// Maps nonce -> (html_content, csp_string, created_at)
+/// Entries are consumed on first read and evicted after TTL.
+type GuestHtmlStore = Arc<RwLock<HashMap<String, (String, String, Instant)>>>;
 
 #[derive(Deserialize)]
 struct ProxyQuery {
@@ -198,7 +202,23 @@ async fn store_guest_html(
 
     {
         let mut store = state.guest_store.write().await;
-        store.insert(nonce.clone(), (body.html, csp));
+
+        // Evict expired entries
+        let cutoff = Instant::now() - std::time::Duration::from_secs(GUEST_HTML_TTL_SECS);
+        store.retain(|_, (_, _, created)| *created > cutoff);
+
+        // If still at capacity, drop the oldest entry
+        if store.len() >= GUEST_HTML_MAX_ENTRIES {
+            if let Some(oldest_key) = store
+                .iter()
+                .min_by_key(|(_, (_, _, created))| *created)
+                .map(|(k, _)| k.clone())
+            {
+                store.remove(&oldest_key);
+            }
+        }
+
+        store.insert(nonce.clone(), (body.html, csp, Instant::now()));
     }
 
     (
@@ -227,7 +247,7 @@ async fn serve_guest_html(
     };
 
     match entry {
-        Some((html, csp)) => {
+        Some((html, csp, _created)) => {
             let mut response = Html(html).into_response();
             let headers = response.headers_mut();
             // Use strict-origin so third-party SDKs (e.g. Square Web Payments)

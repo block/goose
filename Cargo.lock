@@ -348,9 +348,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.15.4"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b7b6141e96a8c160799cc2d5adecd5cbbe5054cb8c7c4af53da0f83bb7ad256"
+checksum = "d9a7b350e3bb1767102698302bc37256cbd48422809984b98d292c40e2579aa9"
 dependencies = [
  "aws-lc-sys",
  "untrusted 0.7.1",
@@ -4480,6 +4480,7 @@ name = "goose-server"
 version = "1.24.0"
 dependencies = [
  "anyhow",
+ "aws-lc-rs",
  "axum 0.8.8",
  "axum-server",
  "base64 0.22.1",
@@ -4499,7 +4500,6 @@ dependencies = [
  "rand 0.9.2",
  "rcgen",
  "reqwest 0.13.2",
- "ring",
  "rmcp 0.16.0",
  "rustls 0.23.36",
  "serde",

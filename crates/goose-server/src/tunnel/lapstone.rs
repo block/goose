@@ -19,6 +19,7 @@ struct ProxyContext {
     port: u16,
     tunnel_secret: String,
     server_secret: String,
+    http_client: reqwest::Client,
 }
 
 /// Constant-time comparison using hash to prevent timing attacks
@@ -266,19 +267,12 @@ async fn handle_request(
     scheme: &str,
 ) -> Result<()> {
     let request_id = message.request_id.clone();
-
-    let mut client_builder = reqwest::Client::builder();
-    if scheme == "https" {
-        client_builder = client_builder.danger_accept_invalid_certs(true);
-    }
-    let client = client_builder
-        .build()
-        .expect("failed to build reqwest client");
+    let client = &ctx.http_client;
 
     let url = format!("{}://127.0.0.1:{}{}", scheme, ctx.port, message.path);
 
     let request_builder = match validate_and_build_request(
-        &client,
+        client,
         &url,
         &message,
         &ctx.tunnel_secret,
@@ -532,10 +526,19 @@ async fn run_single_connection(
     let public_url = format!("{}/tunnel/{}", worker_url, agent_id);
     info!("✓ Public URL: {}", public_url);
 
+    let mut client_builder = reqwest::Client::builder();
+    if scheme == "https" {
+        client_builder = client_builder.danger_accept_invalid_certs(true);
+    }
+    let http_client = client_builder
+        .build()
+        .expect("failed to build reqwest client");
+
     let ctx = ProxyContext {
         port,
         tunnel_secret,
         server_secret,
+        http_client,
     };
 
     let (write, read) = ws_stream.split();

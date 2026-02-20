@@ -1,7 +1,7 @@
 use anyhow::Result;
+use aws_lc_rs::digest;
 use axum_server::tls_rustls::RustlsConfig;
 use rcgen::{CertificateParams, DnType, KeyPair, SanType};
-use ring::digest;
 
 pub struct TlsSetup {
     pub config: RustlsConfig,
@@ -15,7 +15,7 @@ pub struct TlsSetup {
 /// The fingerprint is printed to stdout so the parent process (e.g. Electron)
 /// can pin it and reject connections from any other certificate.
 pub async fn self_signed_config() -> Result<TlsSetup> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let mut params = CertificateParams::default();
     params
