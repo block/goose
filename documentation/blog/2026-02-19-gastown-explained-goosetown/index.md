@@ -56,7 +56,7 @@ I won't list every single character here (it gets deep), but the takeaway is: Ga
 
 ## Introducing Goosetown
 
-This is exactly the kind of futuristic thinking we're building toward at [goose](https://block.github.io/goose). So the goose team, specifically Tyler Longwell, built our own take on this called [Goosetown](http://github.com/block/goosetown).
+This is exactly the kind of futuristic thinking we're building toward at [goose](https://block.github.io/goose). So the goose team, specifically Tyler Longwell, built our own take on this called [Goosetown](https://github.com/block/goosetown).
 
 Goosetown is a multi-agent orchestration layer built on top of goose. Like Gas Town, it coordinates parallel agents. Unlike Gas Town, it's deliberately minimal and built for research-first parallel work.
 
