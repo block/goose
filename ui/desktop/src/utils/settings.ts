@@ -32,7 +32,7 @@ export interface Settings {
   showDockIcon: boolean;
   enableWakelock: boolean;
   spellcheckEnabled: boolean;
-  externalGoosed?: ExternalGoosedConfig;
+  externalGoosed: ExternalGoosedConfig;
   globalShortcut?: string | null;
   keyboardShortcuts: KeyboardShortcuts;
 
@@ -67,6 +67,11 @@ export const defaultSettings: Settings = {
   enableWakelock: false,
   spellcheckEnabled: true,
   keyboardShortcuts: defaultKeyboardShortcuts,
+  externalGoosed: {
+    enabled: false,
+    url: '',
+    secret: '',
+  },
 
   // UI preferences
   theme: 'light',

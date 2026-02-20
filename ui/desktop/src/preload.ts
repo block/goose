@@ -123,8 +123,6 @@ type ElectronAPI = {
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
-  getSettings: () => Promise<Settings>;
-  saveSettings: (settings: Settings) => Promise<boolean>;
   getSetting: <K extends SettingKey>(key: K) => Promise<Settings[K]>;
   setSetting: <K extends SettingKey>(key: K, value: Settings[K]) => Promise<void>;
   getSecretKey: () => Promise<string>;
@@ -229,8 +227,6 @@ const electronAPI: ElectronAPI = {
   getMenuBarIconState: () => ipcRenderer.invoke('get-menu-bar-icon-state'),
   setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
-  getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveSettings: (settings: unknown) => ipcRenderer.invoke('save-settings', settings),
   getSetting: async <K extends SettingKey>(key: K): Promise<Settings[K]> => {
     // Check for localStorage value first (lazy migration)
     const localStorageKey = localStorageKeyMap[key];

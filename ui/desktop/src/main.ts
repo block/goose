@@ -1186,27 +1186,6 @@ ipcMain.handle('add-recent-dir', (_event, dir: string) => {
   }
 });
 
-// Handle scheduling engine settings
-ipcMain.handle('get-settings', () => {
-  return getSettings(); // Always returns Settings (uses defaults as fallback)
-});
-
-ipcMain.handle('save-settings', (_event, settings) => {
-  const oldSettings = getSettings();
-
-  const oldShortcuts = getKeyboardShortcuts(oldSettings);
-  const newShortcuts = getKeyboardShortcuts(settings);
-  const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
-
-  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-
-  if (shortcutsChanged) {
-    registerGlobalShortcuts();
-  }
-
-  return true;
-});
-
 ipcMain.handle('get-setting', (_event, key: SettingKey) => {
   const settings = getSettings();
   return settings[key];
