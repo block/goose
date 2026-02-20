@@ -17,7 +17,7 @@
     "server-binary.json"
   ],
   "scripts": {
-    "build": "node build.mjs",
+    "build": "tsc",
     "start": "tsx src/cli.tsx",
     "postinstall": "node scripts/postinstall.mjs",
     "lint": "tsc --noEmit"
