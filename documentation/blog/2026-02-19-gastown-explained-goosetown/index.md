@@ -36,7 +36,7 @@ However, since agents don't communicate with each other, this approach introduce
 
 * **Merge conflicts**: Two agents change the same line in the same file and break everything.  
 * **Lost context**: Sessions crash or the agent starts hallucinating because it's been talking too long, and suddenly an hour of "work" vanishes.  
-* **Human bottleneck**: You end up constantly checking your phone at a party on the weekend or in bed to see if your agents are still on track making you a baby sitter for agents.
+* **Human bottleneck**: You end up constantly checking your phone at a party on the weekend or in bed to see if your agents are still on track making you a babysitter for agents.
 
 ## Gas Town Explained
 
