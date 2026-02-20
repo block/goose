@@ -102,9 +102,7 @@ gtwall is an append-only log that delegates use to communicate and coordinate. A
 
 ## Get Started
 
-Ready to try parallel agentic engineering for yourself? Goosetown is open source and available on GitHub. Clone the repo, follow the setup instructions in the README, and you'll be orchestrating multiple agents in no time. If you're new to this workflow, watching the video below is a great way to see what a real session looks like before diving in.
-
-**[Goosetown GitHub Repo](https://github.com/block/goosetown)**
+Ready to try parallel agentic engineering for yourself? [Goosetown](https://github.com/block/goosetown) is open source and available on GitHub. Clone the [repo](https://github.com/block/goosetown), follow the setup instructions in the README, and you'll be orchestrating multiple agents in no time. If you're new to this workflow, watching the video below is a great way to see what a real session looks like before diving in.
 
 Watch Rizel's first time using Goosetown:
 
