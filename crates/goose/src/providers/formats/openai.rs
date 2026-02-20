@@ -3,8 +3,8 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
-    sanitize_function_name, ImageFormat,
+    convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
+    load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
@@ -769,34 +769,11 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model = model_config.model_name.starts_with("o1")
-        || model_config.model_name.starts_with("o2")
-        || model_config.model_name.starts_with("o3")
-        || model_config.model_name.starts_with("o4")
-        || model_config.model_name.starts_with("gpt-5");
-
-    // Only extract reasoning effort for O-series models
-    let (model_name, reasoning_effort) = if is_ox_model {
-        let parts: Vec<&str> = model_config.model_name.split('-').collect();
-        let last_part = parts.last().unwrap();
-
-        match *last_part {
-            "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
-            }
-            _ => (
-                model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
-        }
-    } else {
-        // For non-O family models, use the model name as is and no reasoning effort
-        (model_config.model_name.to_string(), None)
-    };
+    let (model_name, reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let is_reasoning_model = reasoning_effort.is_some();
 
     let system_message = json!({
-        "role": if is_ox_model { "developer" } else { "system" },
+        "role": if is_reasoning_model { "developer" } else { "system" },
         "content": system
     });
 
@@ -821,15 +798,13 @@ pub fn create_request(
         payload["tools"] = json!(tools_spec);
     }
 
-    // o1, o3 models currently don't support temperature
-    if !is_ox_model {
+    if !is_reasoning_model {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
     }
 
-    // o1/o3 models use max_completion_tokens instead of max_tokens
-    let key = if is_ox_model {
+    let key = if is_reasoning_model {
         "max_completion_tokens"
     } else {
         "max_tokens"
