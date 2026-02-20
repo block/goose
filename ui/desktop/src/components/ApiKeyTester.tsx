@@ -92,7 +92,7 @@ export default function ApiKeyTester({ onSuccess, onStartTesting }: ApiKeyTester
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder="Enter your API key (OpenAI, Anthropic, Google, etc.)"
-              className="flex-1 px-3 py-2 border rounded-lg bg-background-primary text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="flex-1 px-3 py-2 border rounded-lg bg-background-primary text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={isLoading}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && canSubmit) {

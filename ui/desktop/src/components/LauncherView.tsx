@@ -36,7 +36,7 @@ export default function LauncherView() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full h-full bg-transparent text-text-primary text-xl px-6 outline-none placeholder-text-secondary"
+          className="w-full h-full bg-transparent text-text-primary text-xl px-6 outline-none placeholder:text-text-secondary"
           placeholder="Ask goose anything..."
           autoFocus
         />
