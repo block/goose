@@ -271,7 +271,7 @@ export default function ProgressiveMessageList({
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-8">
           <LoadingGoose message={`Loading messages... (${renderedCount}/${messages.length})`} />
-          <div className="text-xs text-text-muted mt-2">
+          <div className="text-xs text-text-secondary mt-2">
             Press Cmd/Ctrl+F to load all messages immediately for search
           </div>
         </div>

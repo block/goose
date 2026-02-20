@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { applyThemeTokens, buildMcpHostStyles, getResolvedTheme } from '../theme/theme-tokens';
+import type { McpUiHostStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
 
 type ThemePreference = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
@@ -7,6 +9,7 @@ interface ThemeContextValue {
   userThemePreference: ThemePreference;
   setUserThemePreference: (pref: ThemePreference) => void;
   resolvedTheme: ResolvedTheme;
+  mcpHostStyles: McpUiHostStyles;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -24,16 +27,11 @@ function resolveTheme(preference: ThemePreference): ResolvedTheme {
 
 function loadThemePreference(): ThemePreference {
   const useSystemTheme = localStorage.getItem('use_system_theme');
-  if (useSystemTheme === 'true') {
-    return 'system';
+  if (useSystemTheme === 'false') {
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme === 'dark' ? 'dark' : 'light';
   }
-
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'dark') {
-    return 'dark';
-  }
-
-  return 'light';
+  return 'system';
 }
 
 function saveThemePreference(preference: ThemePreference): void {
@@ -51,6 +49,9 @@ function applyThemeToDocument(theme: ResolvedTheme): void {
   document.documentElement.classList.remove(toRemove);
 }
 
+// Built once — light-dark() values are theme-independent
+const mcpHostStyles = buildMcpHostStyles();
+
 interface ThemeProviderProps {
   children: React.ReactNode;
 }
@@ -58,9 +59,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [userThemePreference, setUserThemePreferenceState] =
     useState<ThemePreference>(loadThemePreference);
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(loadThemePreference())
-  );
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(getResolvedTheme);
 
   const setUserThemePreference = useCallback((preference: ThemePreference) => {
     setUserThemePreferenceState(preference);
@@ -114,15 +113,17 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     };
   }, []);
 
-  // Apply theme to document whenever resolvedTheme changes
+  // Apply theme class and CSS tokens whenever resolvedTheme changes
   useEffect(() => {
     applyThemeToDocument(resolvedTheme);
+    applyThemeTokens(resolvedTheme);
   }, [resolvedTheme]);
 
   const value: ThemeContextValue = {
     userThemePreference,
     setUserThemePreference,
     resolvedTheme,
+    mcpHostStyles,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

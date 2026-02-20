@@ -118,9 +118,9 @@ export function SessionInsights() {
 
   // Render skeleton loader while data is loading
   const renderSkeleton = () => (
-    <div className="bg-background-muted flex flex-col h-full">
+    <div className="bg-background-secondary flex flex-col h-full">
       {/* Header container with rounded bottom */}
-      <div className="bg-background-default rounded-b-2xl mb-0.5">
+      <div className="bg-background-primary rounded-b-2xl mb-0.5">
         <div className="px-8 pb-12 pt-19 space-y-4">
           <div className="origin-bottom-left goose-icon-animation">
             <Goose className="size-8" />
@@ -134,21 +134,21 @@ export function SessionInsights() {
         {/* Top row with three equal columns */}
         <div className="grid grid-cols-2 gap-0.5">
           {/* Total Sessions Card Skeleton */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <Skeleton className="h-10 w-16 mb-1" />
-                <span className="text-xs text-text-muted">Total sessions</span>
+                <span className="text-xs text-text-secondary">Total sessions</span>
               </div>
             </CardContent>
           </Card>
 
           {/* Total Tokens Card Skeleton */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <Skeleton className="h-10 w-24 mb-1" />
-                <span className="text-xs text-text-muted">Total tokens</span>
+                <span className="text-xs text-text-secondary">Total tokens</span>
               </div>
             </CardContent>
           </Card>
@@ -156,16 +156,16 @@ export function SessionInsights() {
 
         {/* Recent Chats Card Skeleton */}
         <div className="grid grid-cols-1 gap-0.5">
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="p-0">
               <div className="flex justify-between items-center mb-4">
                 <CardDescription className="mb-0">
-                  <span className="text-lg text-text-default">Recent chats</span>
+                  <span className="text-lg text-text-primary">Recent chats</span>
                 </CardDescription>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-xs text-text-muted flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-default"
+                  className="text-xs text-text-secondary flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-primary"
                   onClick={navigateToSessionHistory}
                 >
                   See all
@@ -200,7 +200,7 @@ export function SessionInsights() {
         </div>
 
         {/* Filler container - extends to fill remaining space */}
-        <div className="bg-background-default rounded-2xl flex-1"></div>
+        <div className="bg-background-primary rounded-2xl flex-1"></div>
       </div>
     </div>
   );
@@ -211,9 +211,9 @@ export function SessionInsights() {
   }
 
   return (
-    <div className="bg-background-muted flex flex-col h-full">
+    <div className="bg-background-secondary flex flex-col h-full">
       {/* Header container with rounded bottom */}
-      <div className="bg-background-default rounded-b-2xl mb-0.5">
+      <div className="bg-background-primary rounded-b-2xl mb-0.5">
         <div className="px-8 pb-12 pt-19 space-y-4">
           <div className="origin-bottom-left goose-icon-animation">
             <Goose className="size-8" />
@@ -239,19 +239,19 @@ export function SessionInsights() {
         {/* Top row with three equal columns */}
         <div className="grid grid-cols-2 gap-0.5">
           {/* Total Sessions Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="page-transition flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
                   {Math.max(insights?.totalSessions ?? 0, 0)}
                 </p>
-                <span className="text-xs text-text-muted">Total sessions</span>
+                <span className="text-xs text-text-secondary">Total sessions</span>
               </div>
             </CardContent>
           </Card>
 
           {/* Average Duration Card */}
-          {/*<Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">*/}
+          {/*<Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">*/}
           {/*  <CardContent className="page-transition flex flex-col justify-end h-full p-0">*/}
           {/*    <div className="flex flex-col justify-end">*/}
           {/*      <p className="text-4xl font-mono font-light flex items-end">*/}
@@ -259,19 +259,19 @@ export function SessionInsights() {
           {/*          ? `${insights.avgSessionDuration.toFixed(1)}m`*/}
           {/*          : '0.0m'}*/}
           {/*      </p>*/}
-          {/*      <span className="text-xs text-text-muted">Avg. chat length</span>*/}
+          {/*      <span className="text-xs text-text-secondary">Avg. chat length</span>*/}
           {/*    </div>*/}
           {/*  </CardContent>*/}
           {/*</Card>*/}
 
           {/* Total Tokens Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="page-transition flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <p className="text-4xl font-mono font-light flex items-end">
                   {formatTokens(insights?.totalTokens)}
                 </p>
-                <span className="text-xs text-text-muted">Total tokens</span>
+                <span className="text-xs text-text-secondary">Total tokens</span>
               </div>
             </CardContent>
           </Card>
@@ -280,16 +280,16 @@ export function SessionInsights() {
         {/* Recent Chats Card */}
         <div className="grid grid-cols-1 gap-0.5">
           {/* Recent Chats Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-default">
+          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
             <CardContent className="page-transition p-0">
               <div className="flex justify-between items-center mb-4">
                 <CardDescription className="mb-0">
-                  <span className="text-lg text-text-default">Recent chats</span>
+                  <span className="text-lg text-text-primary">Recent chats</span>
                 </CardDescription>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-xs text-text-muted flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-default"
+                  className="text-xs text-text-secondary flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-primary"
                   onClick={navigateToSessionHistory}
                 >
                   See all
@@ -324,7 +324,7 @@ export function SessionInsights() {
                   recentSessions.map((session, index) => (
                     <div
                       key={session.id}
-                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-muted cursor-pointer transition-colors"
+                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-secondary cursor-pointer transition-colors"
                       onClick={() => handleSessionClick(session)}
                       role="button"
                       tabIndex={0}
@@ -336,16 +336,16 @@ export function SessionInsights() {
                       }}
                     >
                       <div className="flex items-center space-x-2">
-                        <ChatSmart className="h-4 w-4 text-text-muted" />
+                        <ChatSmart className="h-4 w-4 text-text-secondary" />
                         <span className="truncate max-w-[300px]">{session.name}</span>
                       </div>
-                      <span className="text-text-muted font-mono font-light">
+                      <span className="text-text-secondary font-mono font-light">
                         {formatDateOnly(session.updated_at)}
                       </span>
                     </div>
                   ))
                 ) : (
-                  <div className="text-text-muted text-sm py-2">No recent chat sessions found.</div>
+                  <div className="text-text-secondary text-sm py-2">No recent chat sessions found.</div>
                 )}
               </div>
             </CardContent>
@@ -353,7 +353,7 @@ export function SessionInsights() {
         </div>
 
         {/* Filler container - extends to fill remaining space */}
-        <div className="bg-background-default rounded-2xl flex-1"></div>
+        <div className="bg-background-primary rounded-2xl flex-1"></div>
       </div>
     </div>
   );

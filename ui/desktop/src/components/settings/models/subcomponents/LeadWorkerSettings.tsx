@@ -204,7 +204,7 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
         </DialogHeader>
         <div className="p-4 space-y-4">
           <div className="space-y-2">
-            <p className="text-sm text-text-muted">
+            <p className="text-sm text-text-secondary">
               Configure a lead model for planning and a worker model for execution
             </p>
           </div>
@@ -215,9 +215,9 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
               id="enable-lead-worker"
               checked={isEnabled}
               onChange={(e) => setIsEnabled(e.target.checked)}
-              className="rounded border-border-default"
+              className="rounded border-border-primary"
             />
-            <label htmlFor="enable-lead-worker" className="text-sm text-text-default">
+            <label htmlFor="enable-lead-worker" className="text-sm text-text-primary">
               Enable lead/worker mode
             </label>
           </div>
@@ -225,13 +225,13 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           <div className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+                <label className={`text-sm ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}>
                   Lead Model
                 </label>
                 {isLeadCustomModel && (
                   <button
                     onClick={() => setIsLeadCustomModel(false)}
-                    className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'} hover:underline`}
+                    className={`text-xs ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'} hover:underline`}
                     type="button"
                   >
                     Back to model list
@@ -270,20 +270,20 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                   disabled={!isEnabled}
                 />
               )}
-              <p className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+              <p className={`text-xs ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}>
                 Strong model for initial planning and fallback recovery
               </p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+                <label className={`text-sm ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}>
                   Worker Model
                 </label>
                 {isWorkerCustomModel && (
                   <button
                     onClick={() => setIsWorkerCustomModel(false)}
-                    className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'} hover:underline`}
+                    className={`text-xs ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'} hover:underline`}
                     type="button"
                   >
                     Back to model list
@@ -324,17 +324,17 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                   disabled={!isEnabled}
                 />
               )}
-              <p className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+              <p className={`text-xs ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}>
                 Fast model for routine execution tasks
               </p>
             </div>
 
             <div
-              className={`space-y-4 pt-4 border-t border-border-default ${!isEnabled ? 'opacity-50' : ''}`}
+              className={`space-y-4 pt-4 border-t border-border-primary ${!isEnabled ? 'opacity-50' : ''}`}
             >
               <div className="space-y-2">
                 <label
-                  className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}
+                  className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}
                 >
                   Initial Lead Turns
                 </label>
@@ -347,14 +347,14 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                   className={`w-20 ${!isEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   disabled={!isEnabled}
                 />
-                <p className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+                <p className={`text-xs ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}>
                   Number of turns to use the lead model at the start
                 </p>
               </div>
 
               <div className="space-y-2">
                 <label
-                  className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}
+                  className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}
                 >
                   Failure Threshold
                 </label>
@@ -367,14 +367,14 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                   className={`w-20 ${!isEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   disabled={!isEnabled}
                 />
-                <p className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+                <p className={`text-xs ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}>
                   Consecutive failures before switching back to lead
                 </p>
               </div>
 
               <div className="space-y-2">
                 <label
-                  className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}
+                  className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}
                 >
                   Fallback Turns
                 </label>
@@ -387,14 +387,14 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                   className={`w-20 ${!isEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                   disabled={!isEnabled}
                 />
-                <p className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+                <p className={`text-xs ${!isEnabled ? 'text-text-secondary' : 'text-text-secondary'}`}>
                   Turns to use lead model during fallback
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end space-x-2 pt-4 border-t border-border-default">
+          <div className="flex justify-end space-x-2 pt-4 border-t border-border-primary">
             <Button variant="ghost" onClick={onClose}>
               Cancel
             </Button>

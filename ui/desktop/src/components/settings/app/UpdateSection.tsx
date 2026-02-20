@@ -206,18 +206,18 @@ export default function UpdateSection() {
 
   return (
     <div>
-      <div className="text-sm text-text-muted mb-4 flex items-center gap-2">
+      <div className="text-sm text-text-secondary mb-4 flex items-center gap-2">
         <div className="flex flex-col">
-          <div className="text-text-default text-2xl font-mono">
+          <div className="text-text-primary text-2xl font-mono">
             {updateInfo.currentVersion || 'Loading...'}
           </div>
-          <div className="text-xs text-text-muted">Current version</div>
+          <div className="text-xs text-text-secondary">Current version</div>
         </div>
         {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
-          <span className="text-text-muted"> → {updateInfo.latestVersion} available</span>
+          <span className="text-text-secondary"> → {updateInfo.latestVersion} available</span>
         )}
         {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && (
-          <span className="text-text-default"> (up to date)</span>
+          <span className="text-text-primary"> (up to date)</span>
         )}
       </div>
 
@@ -240,7 +240,7 @@ export default function UpdateSection() {
         </div>
 
         {getStatusMessage() && (
-          <div className="flex items-center gap-2 text-xs text-text-muted">
+          <div className="flex items-center gap-2 text-xs text-text-secondary">
             {getStatusIcon()}
             <span>{getStatusMessage()}</span>
           </div>
@@ -248,7 +248,7 @@ export default function UpdateSection() {
 
         {updateStatus === 'downloading' && (
           <div className="w-full mt-2">
-            <div className="flex justify-between text-xs text-text-muted mb-1">
+            <div className="flex justify-between text-xs text-text-secondary mb-1">
               <span>Downloading update...</span>
               <span>{progress}%</span>
             </div>
@@ -263,7 +263,7 @@ export default function UpdateSection() {
 
         {/* Update information */}
         {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
-          <div className="text-xs text-text-muted mt-4 space-y-1">
+          <div className="text-xs text-text-secondary mt-4 space-y-1">
             <p>Update will be downloaded automatically in the background.</p>
             {isUsingGitHubFallback ? (
               <p className="text-xs text-amber-600">
@@ -278,13 +278,13 @@ export default function UpdateSection() {
         )}
 
         {updateStatus === 'ready' && (
-          <div className="text-xs text-text-muted mt-4 space-y-1">
+          <div className="text-xs text-text-secondary mt-4 space-y-1">
             {isUsingGitHubFallback ? (
               <>
                 <p className="text-xs text-green-600">
                   ✓ Update is ready! Click "Install & Restart" for installation instructions.
                 </p>
-                <p className="text-xs text-text-muted">
+                <p className="text-xs text-text-secondary">
                   Manual installation required for this update method.
                 </p>
               </>
@@ -293,7 +293,7 @@ export default function UpdateSection() {
                 <p className="text-xs text-green-600">
                   ✓ Update is ready! It will be installed when you quit Goose.
                 </p>
-                <p className="text-xs text-text-muted">
+                <p className="text-xs text-text-secondary">
                   Or click "Install & Restart" to update now.
                 </p>
               </>

@@ -143,7 +143,7 @@ export const LocalModelManager = () => {
 
   return (
     <div className="space-y-3">
-      <div className="text-xs text-text-muted mb-2">
+      <div className="text-xs text-text-secondary mb-2">
         <p>
           Supports GPU acceleration (CUDA for NVIDIA, Metal for Apple Silicon). GPU features must be
           enabled at build time for hardware acceleration.
@@ -162,8 +162,8 @@ export const LocalModelManager = () => {
               key={model.id}
               className={`border rounded-lg p-3 transition-colors ${
                 isSelected
-                  ? 'border-border-accent bg-background-accent/5'
-                  : 'border-border-default bg-background-default hover:border-border-default'
+                  ? 'border-text-inverse bg-background-inverse/5'
+                  : 'border-border-primary bg-background-primary hover:border-border-primary'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -177,23 +177,23 @@ export const LocalModelManager = () => {
                         className="cursor-pointer"
                       />
                     )}
-                    <h4 className="text-sm font-medium text-text-default">
+                    <h4 className="text-sm font-medium text-text-primary">
                       {capitalize(model.id)}
                     </h4>
-                    <span className="text-xs text-text-muted">{model.size_mb}MB</span>
+                    <span className="text-xs text-text-secondary">{model.size_mb}MB</span>
                     {model.recommended && (
                       <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
                         Recommended
                       </span>
                     )}
                     {isSelected && (
-                      <span className="text-xs bg-background-accent text-white px-2 py-0.5 rounded">
+                      <span className="text-xs bg-background-inverse text-white px-2 py-0.5 rounded">
                         Active
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs text-text-muted mt-1">{model.description}</p>
+                  <p className="text-xs text-text-secondary mt-1">{model.description}</p>
                   {model.recommended && (
                     <p className="text-xs text-blue-600 mt-1 font-medium">
                       Recommended for your hardware
@@ -219,7 +219,7 @@ export const LocalModelManager = () => {
                     </>
                   ) : isDownloading ? (
                     <>
-                      <div className="text-xs text-text-muted min-w-[60px]">
+                      <div className="text-xs text-text-secondary min-w-[60px]">
                         {progress.progress_percent.toFixed(0)}%
                       </div>
                       <Button variant="ghost" size="sm" onClick={() => cancelDownload(model.id)}>
@@ -237,13 +237,13 @@ export const LocalModelManager = () => {
 
               {isDownloading && progress && (
                 <div className="mt-2 space-y-1">
-                  <div className="w-full bg-background-muted rounded-full h-1.5">
+                  <div className="w-full bg-background-secondary rounded-full h-1.5">
                     <div
-                      className="bg-background-accent h-1.5 rounded-full transition-all"
+                      className="bg-background-inverse h-1.5 rounded-full transition-all"
                       style={{ width: `${progress.progress_percent}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-xs text-text-muted">
+                  <div className="flex justify-between text-xs text-text-secondary">
                     <span>
                       {formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}
                     </span>
@@ -265,7 +265,7 @@ export const LocalModelManager = () => {
           variant="ghost"
           size="sm"
           onClick={() => setShowAllModels(!showAllModels)}
-          className="w-full text-text-muted hover:text-text-default"
+          className="w-full text-text-secondary hover:text-text-primary"
         >
           {showAllModels ? (
             <>
@@ -282,7 +282,7 @@ export const LocalModelManager = () => {
       )}
 
       {models.length === 0 && (
-        <div className="text-center py-6 text-text-muted text-sm">No models available</div>
+        <div className="text-center py-6 text-text-secondary text-sm">No models available</div>
       )}
     </div>
   );
