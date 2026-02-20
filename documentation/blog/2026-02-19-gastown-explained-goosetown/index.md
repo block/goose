@@ -108,7 +108,7 @@ Ready to try parallel agentic engineering for yourself? Goosetown is open source
 
 Watch Rizel's first time using Goosetown:
 
-<iframe class="aspect-ratio" width="560" height="315" src="https://www.youtube.com/embed/H2hJjNmvEEA" title="Rizel's first time using Goosetown" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe class="aspect-ratio" src="https://www.youtube.com/embed/H2hJjNmvEEA" title="Rizel's first time using Goosetown" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 <head>
   <meta property="og:title" content="Gastown Explained: How to Use Goosetown for Parallel Agentic Engineering" />
