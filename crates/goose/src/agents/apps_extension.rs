@@ -506,7 +506,7 @@ impl McpClientTrait for AppsManagerClient {
             ),
             McpTool::new(
                 "create_app".to_string(),
-                "Create a new Goose app based on a description or PRD. The extension will use an LLM to generate the HTML/CSS/JavaScript. Apps are sandboxed and run in standalone windows.".to_string(),
+                "Create a new standalone Goose app that opens in its own window. Use this when the user wants to BUILD a persistent app (e.g. 'build me a todo app', 'create a calculator'). For inline visual content in chat (e.g. 'show me a table', 'visualize this data'), use json-render code blocks instead.".to_string(),
                 schema::<CreateAppParams>(),
             ),
             McpTool::new(

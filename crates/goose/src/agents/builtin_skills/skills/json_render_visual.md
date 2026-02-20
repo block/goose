@@ -3,16 +3,28 @@ name: json-render-visual
 description: Render visual components inline in chat using json-render code blocks. Use when the user asks to visualize data, show diagrams, create summaries, display tables, or render any structured visual content directly in the conversation.
 ---
 
-Use this skill when the user asks to:
-- Visualize data, configs, or code structure
-- Show a diagram, flowchart, or tree
-- Display a table, summary card, or dashboard
-- Render any structured visual content inline in chat
+## When to Use What: Visual Components vs Apps
 
-Do NOT use this skill for:
-- Creating standalone apps (use the `apps` extension instead)
-- Plain text explanations that don't need visual formatting
-- Code output that should remain as code
+Goose has TWO ways to create visual output. Choose the right one:
+
+### Use `json-render` (this skill) when:
+- User wants to **see** data: "show me", "visualize", "display", "render"
+- Content is **part of the conversation**: summaries, tables, diagrams, status cards
+- Output is **ephemeral** — displayed once, not saved or reused
+- Examples: "show me the config flow as a diagram", "display these results in a table", "render a summary card"
+
+### Use `apps__create_app` when:
+- User wants to **build** something: "create an app", "build me a tool", "make a calculator"
+- Output is a **standalone application** that opens in its own window
+- App is **persistent** — saved, iterable, reopenable
+- App needs **custom JavaScript logic**, APIs, or complex interactivity
+- Examples: "build me a todo app", "create a project dashboard app", "make a code playground"
+
+### Quick decision:
+- "Show me X" → `json-render` (inline visual)
+- "Build me X" → `apps__create_app` (standalone app)
+- "Visualize X" → `json-render`
+- "Create an app that X" → `apps__create_app`
 
 ## How It Works
 
