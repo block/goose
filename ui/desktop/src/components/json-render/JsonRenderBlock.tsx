@@ -1,29 +1,29 @@
-import { memo, useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { nestedToFlat } from '@json-render/core';
 import { CatalogRenderer } from './setup';
 
 interface JsonRenderBlockProps {
   spec: string;
 }
 
-export const JsonRenderBlock = memo(function JsonRenderBlock({ spec }: JsonRenderBlockProps) {
-  const [error, setError] = useState<string | null>(null);
-
-  const parsedSpec = useMemo(() => {
+export const JsonRenderBlock = ({ spec }: JsonRenderBlockProps) => {
+  const { parsedSpec, error } = useMemo(() => {
     try {
-      setError(null);
-      return JSON.parse(spec);
+      const raw = JSON.parse(spec);
+      // The LLM outputs nested tree format: { root: { type, props, children } }
+      // The Renderer expects flat element map: { root: "id", elements: { id: {...} } }
+      const nested = raw.root ?? raw;
+      const flat = nestedToFlat(nested);
+      return { parsedSpec: flat, error: null };
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid JSON');
-      return null;
+      return { parsedSpec: null, error: (e as Error).message };
     }
   }, [spec]);
 
   if (error) {
     return (
-      <div className="p-4 rounded-lg border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950">
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Failed to render component: {error}
-        </p>
+      <div className="rounded-md border border-red-300 bg-red-50 p-4 text-red-800 text-sm">
+        Failed to render component: {error}
       </div>
     );
   }
@@ -31,8 +31,8 @@ export const JsonRenderBlock = memo(function JsonRenderBlock({ spec }: JsonRende
   if (!parsedSpec) return null;
 
   return (
-    <div className="my-2 rounded-lg border border-border-default p-4 bg-background-default">
+    <div className="my-2 json-render-block">
       <CatalogRenderer spec={parsedSpec} />
     </div>
   );
-});
+};
