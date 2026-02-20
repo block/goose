@@ -7,8 +7,8 @@ import { getNavItemById, type NavItem } from '../../hooks/useNavigationItems';
 import { AppEvents } from '../../constants/events';
 import { CondensedRenderer } from './CondensedRenderer';
 import { ExpandedRenderer } from './ExpandedRenderer';
-import { NavigationOverlay } from './nav-components';
-import type { SessionStatus, DragHandlers } from './nav-components/types';
+import { NavigationOverlay } from './navigation';
+import type { SessionStatus, DragHandlers } from './navigation/types';
 
 export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   const {

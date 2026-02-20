@@ -5,8 +5,8 @@ import { useNavigationContext } from './NavigationContext';
 import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { ChatSessionsDropdown } from './nav-components';
-import type { NavigationRendererProps } from './nav-components/types';
+import { ChatSessionsDropdown } from './navigation';
+import type { NavigationRendererProps } from './navigation/types';
 
 export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
   isNavExpanded,

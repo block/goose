@@ -6,7 +6,7 @@ import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 import { NavigationProvider, useNavigationContext } from './NavigationContext';
-import { Navigation } from './Navigation';
+import { Navigation } from './NavigationPanel';
 import { NAV_DIMENSIONS, Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { UserInput } from '../../types/message';

@@ -3,8 +3,8 @@ import { GripVertical, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { ChatSessionsDropdown, SessionsList } from './nav-components';
-import type { NavigationRendererProps } from './nav-components/types';
+import { ChatSessionsDropdown, SessionsList } from './navigation';
+import type { NavigationRendererProps } from './navigation/types';
 
 export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
   isOverlayMode,
