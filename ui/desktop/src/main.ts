@@ -100,12 +100,12 @@ async function configureProxy() {
 
 if (started) app.quit();
 
-// Accept self-signed certificates from the local goosed server, but only when
-// the presented certificate matches the fingerprint emitted by goosed at startup.
-// This prevents a malicious local process from racing to serve on the same port
-// with a different self-signed cert.
-// certificate-error handles webContents requests (renderer).
-// setCertificateVerifyProc handles net.fetch requests (main process).
+// Accept self-signed certificates from the local goosed server.
+// certificate-error (renderer webContents) always accepts localhost so page
+// loads and iframe resources never fail.
+// setCertificateVerifyProc (main-process net.fetch) pins the exact cert
+// fingerprint emitted by goosed at startup, rejecting any other self-signed
+// cert on the same port.
 let pinnedCertFingerprint: string | null = null;
 
 function isLocalhost(hostname: string): boolean {
@@ -113,9 +113,6 @@ function isLocalhost(hostname: string): boolean {
 }
 
 function normalizeFingerprint(fp: string): string {
-  // Electron provides fingerprints as "sha256/<base64>".
-  // Our pinned value is colon-separated hex from the DER SHA-256 digest.
-  // Convert the Electron format to match.
   if (fp.startsWith('sha256/')) {
     const b64 = fp.slice('sha256/'.length);
     const buf = Buffer.from(b64, 'base64');
@@ -127,15 +124,10 @@ function normalizeFingerprint(fp: string): string {
   return fp.toUpperCase();
 }
 
-function shouldAcceptCert(hostname: string, certFingerprint: string): boolean {
-  if (!isLocalhost(hostname)) return false;
-  if (!pinnedCertFingerprint) return true;
-  return normalizeFingerprint(certFingerprint) === pinnedCertFingerprint.toUpperCase();
-}
-
-app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
+// Renderer requests: always accept localhost so page loads never break.
+app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
   const parsed = new URL(url);
-  if (shouldAcceptCert(parsed.hostname, certificate.fingerprint)) {
+  if (isLocalhost(parsed.hostname)) {
     event.preventDefault();
     callback(true);
   } else {
@@ -143,13 +135,21 @@ app.on('certificate-error', (event, _webContents, url, _error, certificate, call
   }
 });
 
+// Main-process net.fetch: pin to the exact cert goosed generated.
 app.whenReady().then(() => {
   session.defaultSession.setCertificateVerifyProc((request, callback) => {
-    if (shouldAcceptCert(request.hostname, request.certificate.fingerprint)) {
-      callback(0); // Accept
-    } else {
-      callback(-3); // Use default verification
+    if (!isLocalhost(request.hostname)) {
+      callback(-3);
+      return;
     }
+    if (!pinnedCertFingerprint) {
+      callback(0);
+      return;
+    }
+    const match =
+      normalizeFingerprint(request.certificate.fingerprint) ===
+      pinnedCertFingerprint.toUpperCase();
+    callback(match ? 0 : -3);
   });
 });
 
