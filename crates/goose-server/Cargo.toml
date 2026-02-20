@@ -53,6 +53,7 @@ once_cell = { workspace = true }
 dirs = { workspace = true }
 rcgen = "0.13"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+ring = "0.17.14"
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }

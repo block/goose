@@ -49,7 +49,7 @@ pub async fn run() -> Result<()> {
         .layer(cors);
 
     let addr = settings.socket_addr();
-    let tls_config = self_signed_config().await?;
+    let tls_setup = self_signed_config().await?;
 
     let handle = Handle::new();
     let shutdown_handle = handle.clone();
@@ -65,7 +65,7 @@ pub async fn run() -> Result<()> {
         tunnel_manager.check_auto_start().await;
     });
 
-    axum_server::bind_rustls(addr, tls_config)
+    axum_server::bind_rustls(addr, tls_setup.config)
         .handle(handle)
         .serve(app.into_make_service())
         .await?;

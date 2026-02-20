@@ -4499,6 +4499,7 @@ dependencies = [
  "rand 0.9.2",
  "rcgen",
  "reqwest 0.13.2",
+ "ring",
  "rmcp 0.16.0",
  "rustls 0.23.36",
  "serde",

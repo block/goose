@@ -100,14 +100,42 @@ async function configureProxy() {
 
 if (started) app.quit();
 
-// Accept self-signed certificates from the local goosed server.
-// goosed generates a fresh self-signed TLS cert on every launch so that
-// MCP app iframes are served over HTTPS and get a secure context.
+// Accept self-signed certificates from the local goosed server, but only when
+// the presented certificate matches the fingerprint emitted by goosed at startup.
+// This prevents a malicious local process from racing to serve on the same port
+// with a different self-signed cert.
 // certificate-error handles webContents requests (renderer).
 // setCertificateVerifyProc handles net.fetch requests (main process).
-app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+let pinnedCertFingerprint: string | null = null;
+
+function isLocalhost(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === 'localhost';
+}
+
+function normalizeFingerprint(fp: string): string {
+  // Electron provides fingerprints as "sha256/<base64>".
+  // Our pinned value is colon-separated hex from the DER SHA-256 digest.
+  // Convert the Electron format to match.
+  if (fp.startsWith('sha256/')) {
+    const b64 = fp.slice('sha256/'.length);
+    const buf = Buffer.from(b64, 'base64');
+    return Array.from(buf)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(':')
+      .toUpperCase();
+  }
+  return fp.toUpperCase();
+}
+
+function shouldAcceptCert(hostname: string, certFingerprint: string): boolean {
+  if (!isLocalhost(hostname)) return false;
+  if (!pinnedCertFingerprint) return true;
+  return normalizeFingerprint(certFingerprint) === pinnedCertFingerprint.toUpperCase();
+}
+
+app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
   const parsed = new URL(url);
-  if (parsed.hostname === '127.0.0.1' || parsed.hostname === 'localhost') {
+  if (shouldAcceptCert(parsed.hostname, certificate.fingerprint)) {
     event.preventDefault();
     callback(true);
   } else {
@@ -117,7 +145,7 @@ app.on('certificate-error', (event, _webContents, url, _error, _certificate, cal
 
 app.whenReady().then(() => {
   session.defaultSession.setCertificateVerifyProc((request, callback) => {
-    if (request.hostname === '127.0.0.1' || request.hostname === 'localhost') {
+    if (shouldAcceptCert(request.hostname, request.certificate.fingerprint)) {
       callback(0); // Accept
     } else {
       callback(-3); // Use default verification
@@ -519,6 +547,12 @@ const createChat = async (
     resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
     logger: log,
   });
+
+  // Pin the certificate fingerprint so the cert handlers above only accept
+  // the exact cert that *this* goosed instance generated.
+  if (goosedResult.certFingerprint) {
+    pinnedCertFingerprint = goosedResult.certFingerprint;
+  }
 
   app.on('will-quit', async () => {
     log.info('App quitting, terminating goosed server');
