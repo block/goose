@@ -49,12 +49,8 @@ export const CreditsExhaustedNotification: React.FC<CreditsExhaustedNotification
       <div className="flex items-start gap-3">
         <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 shrink-0" />
         <div className="flex-1">
-          <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
-            Insufficient Credits
-          </div>
-          <div className="text-sm text-yellow-800/80 dark:text-yellow-200/80 mt-1">
-            {notification.msg}
-          </div>
+          <div className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">Insufficient Credits</div>
+          <div className="text-sm text-yellow-800/80 dark:text-yellow-200/80 mt-1">{notification.msg}</div>
           {topUpUrl && (
             <button
               onClick={handleTopUp}

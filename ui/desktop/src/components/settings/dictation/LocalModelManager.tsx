@@ -135,8 +135,9 @@ export const LocalModelManager = () => {
   const hasDownloadedNonRecommended = models.some(
     (model) => model.downloaded && !model.recommended
   );
-  const displayedModels =
-    showAllModels || hasDownloadedNonRecommended ? models : models.filter((m) => m.recommended);
+  const displayedModels = showAllModels || hasDownloadedNonRecommended
+    ? models
+    : models.filter((m) => m.recommended);
   const hasNonRecommendedModels = models.some((m) => !m.recommended);
   const showToggleButton = hasNonRecommendedModels && !hasDownloadedNonRecommended;
 
