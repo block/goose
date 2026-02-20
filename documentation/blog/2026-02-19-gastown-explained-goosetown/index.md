@@ -68,7 +68,7 @@ Here's a real Town Wall snippet from a session where parallel researchers conver
 * **[10:14] researcher-endpoints** - 💡 Found: native endpoint already exists with minimal deps. Alternative path viable.   
 * **[10:15] researcher-source** - ✅ Done. Confirmed: native path requires zero new dependencies. Recommending pivot.
 
-Goosetown operates on 4 components: [skills](/docs/guides/context-engineering/using-skills), [subagents](/docs/guides/subagents), beads, and a gtwall.
+Goosetown operates on 4 components: [skills](/docs/guides/context-engineering/using-skills), [subagents](/docs/guides/subagents), [beads](https://github.com/steveyegge/beads), and a gtwall.
 
 ### Skills
 
@@ -80,7 +80,7 @@ Instead of doing everything in one long conversation that eventually hits a "con
 
 ### Beads
 
-Goosetown uses Beads to track progress so work survives crashes. It's a local issue tracker based on Git. The Orchestrator creates issues, delegates update them, and if a session fails, the next agent picks up the "bead" and continues the work.
+Goosetown uses [Beads](https://github.com/steveyegge/beads) to track progress so work survives crashes. It's a local issue tracker based on Git. The Orchestrator creates issues, delegates update them, and if a session fails, the next agent picks up the "bead" and continues the work.
 
 ### gtwall
 
