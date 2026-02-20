@@ -293,7 +293,39 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         messages_spec.extend(output);
     }
 
-    messages_spec
+    reorder_tool_image_messages(messages_spec)
+}
+
+/// Reorder messages so that user image messages (created by tool response handling
+/// for images that can't be embedded in tool content) don't interrupt consecutive
+/// tool message groups. Providers that proxy to Anthropic require all tool results
+/// grouped together immediately after the assistant message.
+fn reorder_tool_image_messages(messages: Vec<Value>) -> Vec<Value> {
+    let mut result = Vec::with_capacity(messages.len());
+    let mut deferred_images: Vec<Value> = Vec::new();
+
+    for msg in messages {
+        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
+        if role == "tool" {
+            result.push(msg);
+        } else if role == "user"
+            && msg.get("tool_call_id").is_none()
+            && msg.get("tool_calls").is_none()
+            && (result
+                .last()
+                .and_then(|m| m.get("role"))
+                .and_then(|r| r.as_str())
+                == Some("tool")
+                || !deferred_images.is_empty())
+        {
+            deferred_images.push(msg);
+        } else {
+            result.append(&mut deferred_images);
+            result.push(msg);
+        }
+    }
+    result.extend(deferred_images);
+    result
 }
 
 pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
@@ -1886,6 +1918,108 @@ data: [DONE]"#;
         }
 
         panic!("Expected tool call message with nested extra_content metadata");
+    }
+
+    #[test]
+    fn test_reorder_tool_image_messages_with_multiple_tool_responses() -> anyhow::Result<()> {
+        // Create an assistant message with 4 tool calls
+        let mut assistant_msg = Message::assistant();
+        for i in 0..4 {
+            assistant_msg = assistant_msg.with_tool_request(
+                format!("tool_{}", i),
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "image_processor".into(),
+                    arguments: Some(object!({"input": format!("test_{}", i)})),
+                }),
+            );
+        }
+
+        // Tool A: text only
+        let tool_a_response = Message::user().with_tool_response(
+            "tool_0",
+            Ok(CallToolResult {
+                content: vec![Content::text("text only result")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        // Tools B, C, D: text + image
+        let tool_b_response = Message::user().with_tool_response(
+            "tool_1",
+            Ok(CallToolResult {
+                content: vec![
+                    Content::text("result with image"),
+                    Content::image("aW1hZ2VfYg==", "image/png"),
+                ],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        let tool_c_response = Message::user().with_tool_response(
+            "tool_2",
+            Ok(CallToolResult {
+                content: vec![
+                    Content::text("result with image"),
+                    Content::image("aW1hZ2VfYw==", "image/png"),
+                ],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        let tool_d_response = Message::user().with_tool_response(
+            "tool_3",
+            Ok(CallToolResult {
+                content: vec![
+                    Content::text("result with image"),
+                    Content::image("aW1hZ2VfZA==", "image/png"),
+                ],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        let messages = vec![
+            assistant_msg,
+            tool_a_response,
+            tool_b_response,
+            tool_c_response,
+            tool_d_response,
+        ];
+
+        let spec = format_messages(&messages, &ImageFormat::OpenAi);
+
+        // Expected order: assistant, tool, tool, tool, tool, user_img, user_img, user_img
+        assert_eq!(spec.len(), 8, "Expected 8 messages, got {}", spec.len());
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[1]["role"], "tool");
+        assert_eq!(spec[2]["role"], "tool");
+        assert_eq!(spec[3]["role"], "tool");
+        assert_eq!(spec[4]["role"], "tool");
+        assert_eq!(spec[5]["role"], "user");
+        assert_eq!(spec[6]["role"], "user");
+        assert_eq!(spec[7]["role"], "user");
+
+        // Verify tool messages have tool_call_id
+        assert!(spec[1].get("tool_call_id").is_some());
+        assert!(spec[2].get("tool_call_id").is_some());
+        assert!(spec[3].get("tool_call_id").is_some());
+        assert!(spec[4].get("tool_call_id").is_some());
+
+        // Verify user image messages don't have tool_call_id
+        assert!(spec[5].get("tool_call_id").is_none());
+        assert!(spec[6].get("tool_call_id").is_none());
+        assert!(spec[7].get("tool_call_id").is_none());
+
+        Ok(())
     }
 
     #[test]

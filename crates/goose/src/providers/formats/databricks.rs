@@ -228,6 +228,36 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         }
     }
 
+    reorder_tool_image_messages(result)
+}
+
+/// Reorder messages so that user image messages (created by format_tool_response
+/// for images that can't be embedded in tool content) don't interrupt consecutive
+/// tool message groups. Providers that proxy to Anthropic require all tool results
+/// grouped together immediately after the assistant message.
+fn reorder_tool_image_messages(messages: Vec<DatabricksMessage>) -> Vec<DatabricksMessage> {
+    let mut result = Vec::with_capacity(messages.len());
+    let mut deferred_images: Vec<DatabricksMessage> = Vec::new();
+
+    for msg in messages {
+        if msg.role == "tool" {
+            // Tool messages always go through immediately
+            result.push(msg);
+        } else if msg.role == "user"
+            && msg.tool_call_id.is_none()
+            && msg.tool_calls.is_none()
+            && (result.last().is_some_and(|m: &DatabricksMessage| m.role == "tool")
+                || !deferred_images.is_empty())
+        {
+            // User image message between tool messages — defer it
+            deferred_images.push(msg);
+        } else {
+            // Non-tool, non-deferred message — flush any deferred images first
+            result.append(&mut deferred_images);
+            result.push(msg);
+        }
+    }
+    result.extend(deferred_images);
     result
 }
 
@@ -1523,6 +1553,110 @@ mod tests {
         // Verify tool does NOT have cache_control
         let tools = request["tools"].as_array().unwrap();
         assert!(tools[0]["function"].get("cache_control").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reorder_tool_image_messages_with_multiple_tool_responses() -> anyhow::Result<()> {
+        // Create an assistant message with 4 tool calls
+        let mut assistant_msg = Message::assistant();
+        for i in 0..4 {
+            assistant_msg = assistant_msg.with_tool_request(
+                format!("tool_{}", i),
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "image_processor".into(),
+                    arguments: Some(object!({"input": format!("test_{}", i)})),
+                }),
+            );
+        }
+
+        // Tool A: text only
+        let tool_a_response = Message::user().with_tool_response(
+            "tool_0",
+            Ok(CallToolResult {
+                content: vec![Content::text("text only result")],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        // Tools B, C, D: text + image
+        let tool_b_response = Message::user().with_tool_response(
+            "tool_1",
+            Ok(CallToolResult {
+                content: vec![
+                    Content::text("result with image"),
+                    Content::image("aW1hZ2VfYg==", "image/png"),
+                ],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        let tool_c_response = Message::user().with_tool_response(
+            "tool_2",
+            Ok(CallToolResult {
+                content: vec![
+                    Content::text("result with image"),
+                    Content::image("aW1hZ2VfYw==", "image/png"),
+                ],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        let tool_d_response = Message::user().with_tool_response(
+            "tool_3",
+            Ok(CallToolResult {
+                content: vec![
+                    Content::text("result with image"),
+                    Content::image("aW1hZ2VfZA==", "image/png"),
+                ],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+
+        let messages = vec![
+            assistant_msg,
+            tool_a_response,
+            tool_b_response,
+            tool_c_response,
+            tool_d_response,
+        ];
+
+        let formatted =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+        let spec = formatted.as_array().unwrap();
+
+        // Expected order: assistant, tool, tool, tool, tool, user_img, user_img, user_img
+        assert_eq!(spec.len(), 8, "Expected 8 messages, got {}", spec.len());
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[1]["role"], "tool");
+        assert_eq!(spec[2]["role"], "tool");
+        assert_eq!(spec[3]["role"], "tool");
+        assert_eq!(spec[4]["role"], "tool");
+        assert_eq!(spec[5]["role"], "user");
+        assert_eq!(spec[6]["role"], "user");
+        assert_eq!(spec[7]["role"], "user");
+
+        // Verify tool messages have correct tool_call_ids
+        assert!(spec[1]["tool_call_id"].is_string());
+        assert!(spec[2]["tool_call_id"].is_string());
+        assert!(spec[3]["tool_call_id"].is_string());
+        assert!(spec[4]["tool_call_id"].is_string());
+
+        // Verify user image messages don't have tool_call_id
+        assert!(spec[5].get("tool_call_id").is_none());
+        assert!(spec[6].get("tool_call_id").is_none());
+        assert!(spec[7].get("tool_call_id").is_none());
 
         Ok(())
     }
