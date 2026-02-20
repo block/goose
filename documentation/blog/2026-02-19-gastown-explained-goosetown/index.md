@@ -68,7 +68,7 @@ Here's a real Town Wall snippet from a session where parallel researchers conver
 * **[10:14] researcher-endpoints** - 💡 Found: native endpoint already exists with minimal deps. Alternative path viable.   
 * **[10:15] researcher-source** - ✅ Done. Confirmed: native path requires zero new dependencies. Recommending pivot.
 
-Goosetown operates on 4 components: [skills](/docs/guides/context-engineering/using-skills), [subagents](/docs/guides/subagents), [beads](https://github.com/steveyegge/beads), and a gtwall.
+Goosetown operates on 4 components: [skills](/docs/guides/context-engineering/using-skills), [subagents](/docs/guides/subagents), [beads](https://github.com/steveyegge/beads), and a [gtwall](https://github.com/block/goosetown/blob/main/gtwall).
 
 ### Skills
 
@@ -84,7 +84,7 @@ Goosetown uses [Beads](https://github.com/steveyegge/beads) to track progress so
 
 ### gtwall
 
-gtwall is an append-only log that delegates use to communicate and coordinate. All delegates post and read activity.
+[gtwall](https://github.com/block/goosetown/blob/main/gtwall) is an append-only log that delegates use to communicate and coordinate. All delegates post and read activity.
 
 ## A Note from the Creator 
 
