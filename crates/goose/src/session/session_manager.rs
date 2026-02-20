@@ -62,8 +62,43 @@ impl std::str::FromStr for SessionType {
     }
 }
 
-static SESSION_STORAGE: LazyLock<Arc<dyn SessionStorageBackend>> =
-    LazyLock::new(|| Arc::new(SessionStorage::new(Paths::data_dir())));
+static SESSION_STORAGE: LazyLock<Arc<dyn SessionStorageBackend>> = LazyLock::new(|| {
+    match std::env::var("GOOSE_SESSION_STORAGE").as_deref() {
+        #[cfg(feature = "mongodb-storage")]
+        Ok("mongodb") => {
+            // MongoDbSessionStorage::new() is async, so we use a runtime handle.
+            // If a tokio runtime is already running, use block_in_place; otherwise create one.
+            let rt = tokio::runtime::Handle::try_current();
+            match rt {
+                Ok(handle) => tokio::task::block_in_place(|| {
+                    handle.block_on(async {
+                        Arc::new(
+                            crate::session::mongodb_storage::MongoDbSessionStorage::new()
+                                .await
+                                .expect("Failed to initialize MongoDB session storage"),
+                        ) as Arc<dyn SessionStorageBackend>
+                    })
+                }),
+                Err(_) => {
+                    let rt = tokio::runtime::Runtime::new()
+                        .expect("Failed to create tokio runtime for MongoDB init");
+                    rt.block_on(async {
+                        Arc::new(
+                            crate::session::mongodb_storage::MongoDbSessionStorage::new()
+                                .await
+                                .expect("Failed to initialize MongoDB session storage"),
+                        ) as Arc<dyn SessionStorageBackend>
+                    })
+                }
+            }
+        }
+        #[cfg(not(feature = "mongodb-storage"))]
+        Ok("mongodb") => {
+            panic!("MongoDB storage requested but goose was not compiled with the 'mongodb-storage' feature");
+        }
+        _ => Arc::new(SessionStorage::new(Paths::data_dir())),
+    }
+});
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Session {
@@ -269,6 +304,8 @@ pub struct SessionManager {
 
 impl SessionManager {
     pub fn new(data_dir: PathBuf) -> Self {
+        // SessionManager::new() always creates SQLite storage with the given data_dir.
+        // For MongoDB, use SessionManager::instance() which reads GOOSE_SESSION_STORAGE.
         Self {
             storage: Arc::new(SessionStorage::new(data_dir)),
         }
