@@ -9,7 +9,7 @@ import { SessionIndicators } from '../../SessionIndicators';
 import { cn } from '../../../utils';
 import { getSessionDisplayName, truncateMessage } from '../../../hooks/useNavigationSessions';
 import type { Session } from '../../../api';
-import type { SessionStatus } from '../../../hooks/useSidebarSessionStatus';
+import type { SessionStatus } from '../NavigationContext';
 
 interface ChatSessionsDropdownProps {
   sessions: Session[];

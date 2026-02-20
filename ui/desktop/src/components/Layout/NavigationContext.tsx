@@ -4,9 +4,14 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useConfig } from '../ConfigContext';
+import { AppEvents } from '../../constants/events';
+import { getNavItemById, type NavItem } from '../../hooks/useNavigationItems';
 
 export type NavigationMode = 'push' | 'overlay';
 export type NavigationStyle = 'expanded' | 'condensed';
@@ -31,6 +36,13 @@ export const DEFAULT_ENABLED_ITEMS = [...DEFAULT_ITEM_ORDER];
 
 const RESPONSIVE_BREAKPOINT = 700;
 
+export type StreamState = 'idle' | 'loading' | 'streaming' | 'error';
+
+export interface SessionStatus {
+  streamState: StreamState;
+  hasUnreadActivity: boolean;
+}
+
 interface NavigationContextValue {
   isNavExpanded: boolean;
   setIsNavExpanded: (expanded: boolean) => void;
@@ -46,8 +58,19 @@ interface NavigationContextValue {
   updatePreferences: (prefs: NavigationPreferences) => void;
   isHorizontalNav: boolean;
   isCondensedIconOnly: boolean;
+  isOverlayMode: boolean;
   isChatExpanded: boolean;
   setIsChatExpanded: (expanded: boolean) => void;
+  visibleItems: NavItem[];
+  isActive: (path: string) => boolean;
+  draggedItem: string | null;
+  dragOverItem: string | null;
+  handleDragStart: (e: React.DragEvent, itemId: string) => void;
+  handleDragOver: (e: React.DragEvent, itemId: string) => void;
+  handleDrop: (e: React.DragEvent, dropItemId: string) => void;
+  handleDragEnd: () => void;
+  getSessionStatus: (sessionId: string) => SessionStatus | undefined;
+  clearUnread: (sessionId: string) => void;
 }
 
 const NavigationContext = createContext<NavigationContextValue | null>(null);
@@ -60,7 +83,6 @@ export const useNavigationContext = () => {
   return context;
 };
 
-// Safe hook that returns defaults if outside provider
 export const useNavigationContextSafe = () => {
   return useContext(NavigationContext);
 };
@@ -212,6 +234,138 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
   const effectiveNavigationStyle: NavigationStyle =
     navigationMode === 'overlay' ? 'expanded' : navigationStyle;
   const isCondensedIconOnly = !isHorizontalNav && isBelowBreakpoint;
+  const location = useLocation();
+  const configContext = useConfig();
+
+  const appsExtensionEnabled = !!configContext.extensionsList?.find((ext) => ext.name === 'apps')
+    ?.enabled;
+
+  const visibleItems = useMemo(() => {
+    return preferences.itemOrder
+      .filter((id) => preferences.enabledItems.includes(id))
+      .map((id) => getNavItemById(id))
+      .filter((item): item is NavItem => item !== undefined)
+      .filter((item) => {
+        if (item.path === '/apps') {
+          return appsExtensionEnabled;
+        }
+        return true;
+      });
+  }, [preferences.itemOrder, preferences.enabledItems, appsExtensionEnabled]);
+
+  const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
+
+  // --- Drag and drop ---
+
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, itemId: string) => {
+    setDraggedItem(itemId);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, itemId: string) => {
+      e.preventDefault();
+      if (draggedItem && draggedItem !== itemId) {
+        setDragOverItem(itemId);
+      }
+    },
+    [draggedItem]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, dropItemId: string) => {
+      e.preventDefault();
+      if (!draggedItem || draggedItem === dropItemId) return;
+
+      const newOrder = [...preferences.itemOrder];
+      const draggedIndex = newOrder.indexOf(draggedItem);
+      const dropIndex = newOrder.indexOf(dropItemId);
+
+      if (draggedIndex === -1 || dropIndex === -1) return;
+
+      newOrder.splice(draggedIndex, 1);
+      newOrder.splice(dropIndex, 0, draggedItem);
+
+      updatePreferences({
+        ...preferences,
+        itemOrder: newOrder,
+      });
+
+      setDraggedItem(null);
+      setDragOverItem(null);
+    },
+    [draggedItem, preferences, updatePreferences]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedItem(null);
+    setDragOverItem(null);
+  }, []);
+
+  const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
+
+  useEffect(() => {
+    const handleStatusUpdate = (event: Event) => {
+      const { sessionId, streamState } = (event as CustomEvent).detail;
+
+      setSessionStatuses((prev) => {
+        const existing = prev.get(sessionId);
+        const wasStreaming = existing?.streamState === 'streaming';
+        const isNowIdle = streamState === 'idle';
+        const shouldMarkUnread = wasStreaming && isNowIdle;
+
+        const next = new Map(prev);
+        next.set(sessionId, {
+          streamState,
+          hasUnreadActivity: existing?.hasUnreadActivity || shouldMarkUnread,
+        });
+        return next;
+      });
+    };
+
+    window.addEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
+    return () => window.removeEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
+  }, []);
+
+  const getSessionStatus = useCallback(
+    (sessionId: string): SessionStatus | undefined => {
+      return sessionStatuses.get(sessionId);
+    },
+    [sessionStatuses]
+  );
+
+  const clearUnread = useCallback((sessionId: string) => {
+    setSessionStatuses((prev) => {
+      const status = prev.get(sessionId);
+      if (status?.hasUnreadActivity) {
+        const next = new Map(prev);
+        next.set(sessionId, { ...status, hasUnreadActivity: false });
+        return next;
+      }
+      return prev;
+    });
+  }, []);
+
+  const isOverlayMode = effectiveNavigationMode === 'overlay';
+
+  useEffect(() => {
+    if (!(isOverlayMode && isNavExpanded)) {
+      return;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsNavExpanded(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [isNavExpanded, isOverlayMode, setIsNavExpanded]);
 
   const value: NavigationContextValue = {
     isNavExpanded,
@@ -228,8 +382,19 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children
     updatePreferences,
     isHorizontalNav,
     isCondensedIconOnly,
+    isOverlayMode,
     isChatExpanded,
     setIsChatExpanded,
+    visibleItems,
+    isActive,
+    draggedItem,
+    dragOverItem,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
+    handleDragEnd,
+    getSessionStatus,
+    clearUnread,
   };
 
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;

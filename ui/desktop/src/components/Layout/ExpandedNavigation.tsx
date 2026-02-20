@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigationContext } from './NavigationContext';
 import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
-import { useNavigationController } from '../../hooks/useNavigationController';
+import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ChatSessionsDropdown } from './navigation';
 
@@ -20,21 +21,26 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     isOverlayMode,
     visibleItems,
     isActive,
-    recentSessions,
-    activeSessionId,
-    handleNavClick,
-    handleNewChat,
-    handleSessionClick,
-    getSessionStatus,
-    clearUnread,
     draggedItem,
     dragOverItem,
     handleDragStart,
     handleDragOver,
     handleDrop,
     handleDragEnd,
-    navFocusRef,
-  } = useNavigationController();
+    getSessionStatus,
+    clearUnread,
+  } = useNavigationContext();
+
+  const {
+    recentSessions,
+    activeSessionId,
+    fetchSessions,
+    handleNavClick,
+    handleNewChat,
+    handleSessionClick,
+  } = useNavigationSessions({
+    onNavigate: isOverlayMode ? () => setIsNavExpanded(false) : undefined,
+  });
 
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
   const [gridColumns, setGridColumns] = useState(2);
@@ -43,6 +49,17 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const [isClosing, setIsClosing] = useState(false);
   const prevIsNavExpandedRef = useRef(isNavExpanded);
   const gridRef = useRef<HTMLDivElement>(null);
+  const navFocusRef = useRef<HTMLDivElement>(null);
+
+  // Fetch sessions and focus when expanded
+  useEffect(() => {
+    if (isNavExpanded) {
+      fetchSessions();
+      requestAnimationFrame(() => {
+        navFocusRef.current?.focus();
+      });
+    }
+  }, [isNavExpanded, fetchSessions]);
 
   // Detect when nav is closing (transition from expanded to collapsed)
   useEffect(() => {
@@ -121,11 +138,12 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     };
   }, [isNavExpanded, navigationPosition, effectiveNavigationMode]);
 
-  const isPushTopNav = !isOverlayMode && navigationPosition === 'top';
+  const isOverlay = effectiveNavigationMode === 'overlay';
+  const isPushTopNav = !isOverlay && navigationPosition === 'top';
   const dragStyle = isPushTopNav ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined;
 
   // Determine if content should be visible (not during close animation for push mode)
-  const showContent = !isClosing || isOverlayMode;
+  const showContent = !isClosing || isOverlay;
 
   const navContent = (
     <motion.div
@@ -137,12 +155,12 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       transition={{ duration: 0.15 }}
       className={cn(
         'bg-app h-full overflow-hidden outline-none',
-        isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
+        isOverlay && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
         // Add 2px padding on the edge facing the content (push mode only)
-        !isOverlayMode && navigationPosition === 'top' && 'pb-[2px]',
-        !isOverlayMode && navigationPosition === 'bottom' && 'pt-[2px]',
-        !isOverlayMode && navigationPosition === 'left' && 'pr-[2px]',
-        !isOverlayMode && navigationPosition === 'right' && 'pl-[2px]',
+        !isOverlay && navigationPosition === 'top' && 'pb-[2px]',
+        !isOverlay && navigationPosition === 'bottom' && 'pt-[2px]',
+        !isOverlay && navigationPosition === 'left' && 'pr-[2px]',
+        !isOverlay && navigationPosition === 'right' && 'pl-[2px]',
         className
       )}
     >
@@ -153,14 +171,14 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
           ref={gridRef}
           className={cn(
             'grid gap-[2px] overflow-y-auto overflow-x-hidden h-full',
-            isOverlayMode && 'gap-3'
+            isOverlay && 'gap-3'
           )}
           style={{
             // When nav is at top in push mode, the global drag region is hidden.
             // Apply drag to the grid so empty space is draggable but the hamburger button area isn't.
             ...(dragStyle || {}),
             // Use CSS grid with auto-fit for responsive tiles based on container width
-            gridTemplateColumns: isOverlayMode
+            gridTemplateColumns: isOverlay
               ? // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
                 'repeat(auto-fit, minmax(120px, 1fr))'
               : navigationPosition === 'left' || navigationPosition === 'right'
@@ -333,7 +351,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
           })}
 
           {/* Spacer tiles to fill empty grid spaces - only render after grid is measured */}
-          {!isOverlayMode &&
+          {!isOverlay &&
             gridMeasured &&
             gridColumns >= 2 &&
             Array.from({
@@ -355,7 +373,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   );
 
   // Overlay mode: render with backdrop
-  if (isOverlayMode) {
+  if (isOverlay) {
     return (
       <AnimatePresence>
         {isNavExpanded && (

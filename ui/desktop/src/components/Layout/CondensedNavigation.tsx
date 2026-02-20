@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GripVertical, Menu, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { cn } from '../../utils';
-import { useNavigationController } from '../../hooks/useNavigationController';
+import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ChatSessionsDropdown, NavigationOverlay, SessionsList } from './navigation';
 
@@ -17,36 +17,49 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
     setIsNavExpanded,
     navigationPosition,
     isCondensedIconOnly,
+    isOverlayMode,
     isChatExpanded,
     setIsChatExpanded,
-    isOverlayMode,
     visibleItems,
     isActive,
-    recentSessions,
-    activeSessionId,
-    handleNavClick,
-    handleNewChat,
-    handleSessionClick,
-    getSessionStatus,
-    clearUnread,
     draggedItem,
     dragOverItem,
     handleDragStart,
     handleDragOver,
     handleDrop,
     handleDragEnd,
-    navFocusRef,
+    getSessionStatus,
+    clearUnread,
+  } = useNavigationContext();
+
+  const {
+    recentSessions,
+    activeSessionId,
     fetchSessions,
-  } = useNavigationController();
+    handleNavClick,
+    handleNewChat,
+    handleSessionClick,
+  } = useNavigationSessions({
+    onNavigate: isOverlayMode ? () => setIsNavExpanded(false) : undefined,
+  });
 
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
+  const navFocusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isNavExpanded) {
+      fetchSessions();
+      requestAnimationFrame(() => {
+        navFocusRef.current?.focus();
+      });
+    }
+  }, [isNavExpanded, fetchSessions]);
 
   const toggleChatExpanded = () => {
     setIsChatExpanded(!isChatExpanded);
   };
 
   const isVertical = navigationPosition === 'left' || navigationPosition === 'right';
-
   const isTopPosition = navigationPosition === 'top';
   const isBottomPosition = navigationPosition === 'bottom';
 
