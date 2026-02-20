@@ -240,7 +240,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-text-default text-sm sm:text-base">
-                      {recommended.display_name}
+                      {recommended.id}
                     </span>
                     {recommended.status.state === 'Downloaded' && (
                       <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
@@ -301,7 +301,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium text-text-default text-sm">
-                              {model.display_name}
+                              {model.id}
                             </span>
                             <span className="text-xs text-text-muted">
                               {formatSize(model.size_bytes)}
@@ -328,9 +328,9 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-background-muted/80"
           >
             {selectedModel?.status.state === 'Downloaded'
-              ? `Use ${selectedModel.display_name}`
+              ? `Use ${selectedModel.id}`
               : selectedModel
-                ? `Download ${selectedModel.display_name} (${formatSize(selectedModel.size_bytes)})`
+                ? `Download ${selectedModel.id} (${formatSize(selectedModel.size_bytes)})`
                 : 'Select a model'}
           </button>
 
@@ -348,7 +348,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         <div className="space-y-6">
           <div className="border border-border-subtle rounded-xl p-5 sm:p-6 bg-background-default">
             <p className="font-medium text-text-default text-sm sm:text-base mb-4">
-              Downloading {selectedModel.display_name}
+              Downloading {selectedModel.id}
             </p>
 
             {downloadProgress ? (

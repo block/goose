@@ -479,7 +479,6 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
-        output::display_greeting();
         loop {
             self.display_context_usage().await?;
 

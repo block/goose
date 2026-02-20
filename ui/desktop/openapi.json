@@ -5261,7 +5261,6 @@
         "type": "object",
         "required": [
           "id",
-          "display_name",
           "repo_id",
           "filename",
           "quantization",
@@ -5271,9 +5270,6 @@
           "settings"
         ],
         "properties": {
-          "display_name": {
-            "type": "string"
-          },
           "filename": {
             "type": "string"
           },

@@ -550,7 +550,6 @@ export type LoadedProvider = {
 };
 
 export type LocalModelResponse = {
-    display_name: string;
     filename: string;
     id: string;
     quantization: string;
