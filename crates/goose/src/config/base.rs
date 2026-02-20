@@ -314,23 +314,7 @@ impl Config {
             } else {
                 // No backup available, create a default config
                 tracing::info!("No backup found, creating default configuration");
-
-                // Start with bundled defaults if available
-                let mut default_config = if let Some(defaults) = self.load_defaults() {
-                    tracing::info!("Initializing config with bundled defaults");
-                    defaults
-                } else {
-                    Mapping::new()
-                };
-
-                // Overlay init-config.yaml values on top of defaults (if it exists)
-                if let Ok(init_config) = self.load_init_config_if_exists() {
-                    tracing::info!("Merging init-config.yaml into defaults");
-                    for (k, v) in init_config {
-                        default_config.insert(k, v);
-                    }
-                }
-
+                let default_config = self.build_initial_config();
                 self.create_and_save_default_config(default_config)?
             }
         };
@@ -342,12 +326,7 @@ impl Config {
             }
         }
 
-        // Merge in any missing defaults (without overwriting existing values)
-        if self.merge_missing_defaults(&mut values) {
-            if let Err(e) = self.save_values(values.clone()) {
-                tracing::warn!("Failed to save config after merging defaults: {}", e);
-            }
-        }
+        self.merge_missing_defaults(&mut values);
 
         Ok(values)
     }
@@ -409,23 +388,7 @@ impl Config {
 
                 // Last resort: create a fresh default config file
                 tracing::error!("Could not recover config file, creating fresh default configuration. Original error: {}", parse_error);
-
-                // Start with bundled defaults if available
-                let mut default_config = if let Some(defaults) = self.load_defaults() {
-                    tracing::info!("Initializing config with bundled defaults");
-                    defaults
-                } else {
-                    Mapping::new()
-                };
-
-                // Overlay init-config.yaml values on top of defaults (if it exists)
-                if let Ok(init_config) = self.load_init_config_if_exists() {
-                    tracing::info!("Merging init-config.yaml into defaults");
-                    for (k, v) in init_config {
-                        default_config.insert(k, v);
-                    }
-                }
-
+                let default_config = self.build_initial_config();
                 self.create_and_save_default_config(default_config)
             }
         }
@@ -748,14 +711,27 @@ impl Config {
         parse_yaml_content(&content).ok()
     }
 
-    /// Merge defaults into the config, but only for keys that don't exist yet.
-    /// Returns true if any values were added (indicating the config should be saved).
-    fn merge_missing_defaults(&self, values: &mut Mapping) -> bool {
-        let Some(defaults) = self.load_defaults() else {
-            return false;
+    fn build_initial_config(&self) -> Mapping {
+        let mut config = if let Some(defaults) = self.load_defaults() {
+            defaults
+        } else {
+            Mapping::new()
         };
 
-        let mut added_any = false;
+        if let Ok(init_config) = self.load_init_config_if_exists() {
+            for (k, v) in init_config {
+                config.insert(k, v);
+            }
+        }
+
+        config
+    }
+
+    fn merge_missing_defaults(&self, values: &mut Mapping) {
+        let Some(defaults) = self.load_defaults() else {
+            return;
+        };
+
         for (key, default_value) in defaults {
             if !values.contains_key(&key) {
                 tracing::info!(
@@ -764,15 +740,8 @@ impl Config {
                     default_value
                 );
                 values.insert(key, default_value);
-                added_any = true;
             }
         }
-
-        if added_any {
-            tracing::info!("Merged missing defaults into user config");
-        }
-
-        added_any
     }
 
     /// Set a configuration value in the config file (non-secret).
