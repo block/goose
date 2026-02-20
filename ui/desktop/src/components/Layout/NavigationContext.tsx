@@ -72,7 +72,7 @@ interface NavigationProviderProps {
 export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children }) => {
   const [isNavExpanded, setIsNavExpandedState] = useState<boolean>(() => {
     const stored = localStorage.getItem('navigation_expanded');
-    return stored === 'true';
+    return stored !== 'false';
   });
 
   const [isBelowBreakpoint, setIsBelowBreakpoint] = useState<boolean>(
