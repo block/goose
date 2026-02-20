@@ -84,10 +84,9 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   };
 
   const handleNewWindow = () => {
-    window.electron.createChatWindow(
-      undefined,
-      window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined
-    );
+    window.electron.createChatWindow({
+      dir: window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined,
+    });
   };
 
   return (

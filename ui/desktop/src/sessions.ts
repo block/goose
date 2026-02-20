@@ -38,6 +38,7 @@ export async function createSession(
   workingDir: string,
   options?: {
     recipeDeeplink?: string;
+    recipeId?: string;
     extensionConfigs?: ExtensionConfig[];
     allExtensions?: FixedExtensionEntry[];
   }
@@ -45,12 +46,15 @@ export async function createSession(
   const body: {
     working_dir: string;
     recipe?: Recipe;
+    recipe_id?: string;
     extension_overrides?: ExtensionConfig[];
   } = {
     working_dir: workingDir,
   };
 
-  if (options?.recipeDeeplink) {
+  if (options?.recipeId) {
+    body.recipe_id = options.recipeId;
+  } else if (options?.recipeDeeplink) {
     body.recipe = await decodeRecipe(options.recipeDeeplink);
   }
 
@@ -79,6 +83,7 @@ export async function startNewSession(
   workingDir: string,
   options?: {
     recipeDeeplink?: string;
+    recipeId?: string;
     allExtensions?: FixedExtensionEntry[];
   }
 ): Promise<Session> {

@@ -149,17 +149,12 @@ if (process.platform !== 'darwin') {
             const deeplinkData = parseRecipeDeeplink(protocolUrl);
             const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-            createChat(
-              app,
-              undefined,
-              openDir || undefined,
-              undefined,
-              undefined,
-              undefined,
-              deeplinkData?.config,
-              scheduledJobId || undefined,
-              deeplinkData?.parameters
-            );
+            await createChat(app, {
+              dir: openDir || undefined,
+              recipeDeeplink: deeplinkData?.config,
+              scheduledJobId: scheduledJobId || undefined,
+              recipeParameters: deeplinkData?.parameters,
+            });
           });
           return; // Skip the rest of the handler
         }
@@ -208,7 +203,7 @@ async function handleProtocolUrl(url: string) {
     const targetWindow =
       existingWindows.length > 0
         ? existingWindows[0]
-        : await createChat(app, undefined, openDir || undefined);
+        : await createChat(app, { dir: openDir || undefined });
     await processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
@@ -220,7 +215,7 @@ async function handleProtocolUrl(url: string) {
       }
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
+      firstOpenWindow = await createChat(app, { dir: openDir || undefined });
     }
 
     if (firstOpenWindow) {
@@ -249,17 +244,12 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
     // Create a new window and ignore the passed-in window
-    createChat(
-      app,
-      undefined,
-      openDir || undefined,
-      undefined,
-      undefined,
-      undefined,
-      deeplinkData?.config,
-      scheduledJobId || undefined,
-      deeplinkData?.parameters
-    );
+    await createChat(app, {
+      dir: openDir || undefined,
+      recipeDeeplink: deeplinkData?.config,
+      scheduledJobId: scheduledJobId || undefined,
+      recipeParameters: deeplinkData?.parameters,
+    });
     pendingDeepLink = null;
   }
 }
@@ -287,17 +277,12 @@ app.on('open-url', async (_event, url) => {
       }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-      await createChat(
-        app,
-        undefined,
-        openDir || undefined,
-        undefined,
-        undefined,
-        undefined,
-        deeplinkData?.config,
-        scheduledJobId || undefined,
-        deeplinkData?.parameters
-      );
+      await createChat(app, {
+        dir: openDir || undefined,
+        recipeDeeplink: deeplinkData?.config,
+        scheduledJobId: scheduledJobId || undefined,
+        recipeParameters: deeplinkData?.parameters,
+      });
       windowDeeplinkURL = null;
       return;
     }
@@ -320,7 +305,7 @@ app.on('open-url', async (_event, url) => {
       }
     } else {
       openUrlHandledLaunch = true;
-      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
+      firstOpenWindow = await createChat(app, { dir: openDir || undefined });
     }
   }
 });
@@ -371,7 +356,7 @@ async function handleFileOpen(filePath: string) {
     addRecentDir(targetDir);
 
     // Create new window for the directory
-    const newWindow = await createChat(app, undefined, targetDir);
+    const newWindow = await createChat(app, { dir: targetDir });
 
     // Focus the new window
     if (newWindow) {
@@ -469,17 +454,28 @@ const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blocke
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
 
-const createChat = async (
-  app: App,
-  initialMessage?: string,
-  dir?: string,
-  _version?: string,
-  resumeSessionId?: string,
-  viewType?: string,
-  recipeDeeplink?: string, // Raw deeplink decoded on server
-  scheduledJobId?: string, // Scheduled job ID if applicable
-  recipeParameters?: Record<string, string> // Recipe parameter values from deeplink URL
-) => {
+interface CreateChatOptions {
+  initialMessage?: string;
+  dir?: string;
+  resumeSessionId?: string;
+  viewType?: string;
+  recipeDeeplink?: string;
+  recipeId?: string;
+  scheduledJobId?: string;
+  recipeParameters?: Record<string, string>;
+}
+
+const createChat = async (app: App, options: CreateChatOptions = {}) => {
+  const {
+    initialMessage,
+    dir,
+    resumeSessionId,
+    viewType,
+    recipeDeeplink,
+    recipeId,
+    scheduledJobId,
+    recipeParameters,
+  } = options;
   const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
@@ -539,6 +535,7 @@ const createChat = async (
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
           recipeDeeplink: recipeDeeplink,
+          recipeId: recipeId,
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
           SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
@@ -581,7 +578,7 @@ const createChat = async (
           }
         });
         mainWindow.destroy();
-        return createChat(app, initialMessage, dir);
+        return createChat(app, { initialMessage, dir });
       }
     } else {
       dialog.showMessageBoxSync({
@@ -711,7 +708,10 @@ const createChat = async (
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (appPath === '/' && (recipeDeeplink !== undefined || initialMessage)) {
+  if (
+    appPath === '/' &&
+    (recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
+  ) {
     appPath = '/pair';
   }
 
@@ -922,7 +922,7 @@ const showWindow = async () => {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    await createChat(app, undefined, openDir || undefined);
+    await createChat(app, { dir: openDir || undefined });
     return;
   }
 
@@ -954,8 +954,8 @@ const buildRecentFilesMenu = () => {
   const recentDirs = loadRecentDirs();
   return recentDirs.map((dir) => ({
     label: dir,
-    click: () => {
-      createChat(app, undefined, dir);
+    click: async () => {
+      await createChat(app, { dir });
     },
   }));
 };
@@ -1043,18 +1043,11 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
     if (windowDeeplinkURL) {
       deeplinkData = parseRecipeDeeplink(windowDeeplinkURL);
     }
-    // Create a new window with the selected directory
-    await createChat(
-      app,
-      undefined,
-      dirToAdd,
-      undefined,
-      undefined,
-      undefined,
-      deeplinkData?.config,
-      undefined,
-      deeplinkData?.parameters
-    );
+    await createChat(app, {
+      dir: dirToAdd,
+      recipeDeeplink: deeplinkData?.config,
+      recipeParameters: deeplinkData?.parameters,
+    });
   }
   return result;
 };
@@ -1587,7 +1580,7 @@ ipcMain.handle('get-allowed-extensions', async () => {
 const createNewWindow = async (app: App, dir?: string | null) => {
   const recentDirs = loadRecentDirs();
   const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
-  return await createChat(app, undefined, openDir);
+  return await createChat(app, { dir: openDir });
 };
 
 const focusWindow = () => {
@@ -2004,48 +1997,43 @@ async function appMain() {
     }
   });
 
-  ipcMain.on(
-    'create-chat-window',
-    (event, query, dir, version, resumeSessionId, viewType, recipeDeeplink) => {
-      if (!dir?.trim()) {
-        const recentDirs = loadRecentDirs();
-        dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
-      }
+  ipcMain.on('create-chat-window', (event, options = {}) => {
+    const { query, dir, resumeSessionId, viewType, recipeId } = options;
 
-      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeDeeplink;
-
-      if (isFromLauncher) {
-        const senderWindow = BrowserWindow.fromWebContents(event.sender);
-        const launcherWindowId = senderWindow?.id;
-        const allWindows = BrowserWindow.getAllWindows();
-
-        const existingWindows = allWindows.filter(
-          (win) => !win.isDestroyed() && win.id !== launcherWindowId
-        );
-
-        if (existingWindows.length > 0) {
-          const targetWindow = existingWindows[0];
-          targetWindow.show();
-          targetWindow.focus();
-          targetWindow.webContents.send('set-initial-message', query);
-          return;
-        }
-      }
-
-      // Otherwise, create a new window
-      createChat(
-        app,
-        query,
-        dir,
-        version,
-        resumeSessionId,
-        viewType,
-        recipeDeeplink,
-        undefined,
-        undefined
-      );
+    let resolvedDir = dir;
+    if (!resolvedDir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      resolvedDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
     }
-  );
+
+    const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
+
+    if (isFromLauncher) {
+      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+      const launcherWindowId = senderWindow?.id;
+      const allWindows = BrowserWindow.getAllWindows();
+
+      const existingWindows = allWindows.filter(
+        (win) => !win.isDestroyed() && win.id !== launcherWindowId
+      );
+
+      if (existingWindows.length > 0) {
+        const targetWindow = existingWindows[0];
+        targetWindow.show();
+        targetWindow.focus();
+        targetWindow.webContents.send('set-initial-message', query);
+        return;
+      }
+    }
+
+    createChat(app, {
+      initialMessage: query,
+      dir: resolvedDir,
+      resumeSessionId,
+      viewType,
+      recipeId,
+    });
+  });
 
   ipcMain.on('close-window', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);
