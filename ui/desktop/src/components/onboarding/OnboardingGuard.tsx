@@ -23,11 +23,12 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const { read, upsert, getProviders } = useConfig();
   const { refreshCurrentModelAndProvider } = useModelAndProvider();
 
-  const [isChecking, setIsChecking] = useState(true);
+  const [isCheckingProvider, setIsCheckingProvider] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [configuredProvider, setConfiguredProvider] = useState<string | null>(null);
-  const onboardingTracked = useRef(false);
+  const [configuredModel, setConfiguredModel] = useState<string | null>(null);
+  const hasTrackedOnboardingStart = useRef(false);
 
   useEffect(() => {
     const checkProvider = async () => {
@@ -38,28 +39,31 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
         console.error('Error checking provider:', error);
         setHasProvider(false);
       } finally {
-        setIsChecking(false);
+        setIsCheckingProvider(false);
       }
     };
     checkProvider();
   }, [read]);
 
   useEffect(() => {
-    if (!isChecking && !hasProvider && !onboardingTracked.current) {
+    if (!isCheckingProvider && !hasProvider && !hasTrackedOnboardingStart.current) {
       trackOnboardingStarted();
-      onboardingTracked.current = true;
+      hasTrackedOnboardingStart.current = true;
     }
-  }, [isChecking, hasProvider]);
+  }, [isCheckingProvider, hasProvider]);
 
   const handleConfigured = async (providerName: string) => {
     const providers = await getProviders(true);
-    const match = providers.find((p) => p.name === providerName);
+    const matchedProvider = providers.find((p) => p.name === providerName);
     await upsert('GOOSE_PROVIDER', providerName, false);
-    if (match) {
-      await upsert('GOOSE_MODEL', match.metadata.default_model, false);
+    if (matchedProvider) {
+      await upsert('GOOSE_MODEL', matchedProvider.metadata.default_model, false);
     }
     await refreshCurrentModelAndProvider();
     setConfiguredProvider(providerName);
+    if (matchedProvider) {
+      setConfiguredModel(matchedProvider.metadata.default_model);
+    }
   };
 
   const finishOnboarding = async (telemetryEnabled: boolean) => {
@@ -68,19 +72,18 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     } catch (error) {
       console.error('Failed to save telemetry preference:', error);
     }
-    if (telemetryEnabled) {
-      trackTelemetryPreference(true, 'onboarding');
-      if (configuredProvider) {
-        trackOnboardingCompleted(configuredProvider);
-      }
-    } else {
+    trackTelemetryPreference(telemetryEnabled, 'onboarding');
+    if (configuredProvider) {
+      trackOnboardingCompleted(configuredProvider, configuredModel ?? undefined);
+    }
+    if (!telemetryEnabled) {
       setAnalyticsTelemetryEnabled(false);
     }
     navigate('/', { replace: true });
     setHasProvider(true);
   };
 
-  if (isChecking) {
+  if (isCheckingProvider) {
     return null;
   }
 
