@@ -6,8 +6,7 @@ import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
 import { NavigationProvider, useNavigationContext } from './NavigationContext';
-import { ExpandedNavigation } from './ExpandedNavigation';
-import { CondensedNavigation } from './CondensedNavigation';
+import { Navigation } from './Navigation';
 import { NAV_DIMENSIONS, Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { UserInput } from '../../types/message';
@@ -60,14 +59,6 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   // Calculate padding based on macOS traffic lights
   const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
-
-  // Render the appropriate navigation component based on style
-  const renderNavigation = () => {
-    if (effectiveNavigationStyle === 'expanded') {
-      return <ExpandedNavigation />;
-    }
-    return <CondensedNavigation />;
-  };
 
   // Determine flex direction based on navigation position (for push mode)
   const getLayoutClass = () => {
@@ -193,7 +184,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
               isHorizontalNav ? 'w-full' : 'h-full'
             )}
           >
-            {renderNavigation()}
+            <Navigation />
           </motion.div>
         )}
 
@@ -202,7 +193,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       </div>
 
       {/* Overlay mode navigation */}
-      {effectiveNavigationMode === 'overlay' && renderNavigation()}
+      {effectiveNavigationMode === 'overlay' && <Navigation />}
     </div>
   );
 };

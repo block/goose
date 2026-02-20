@@ -7,7 +7,7 @@ import { cn } from '../../../utils';
 import { getSessionDisplayName } from '../../../hooks/useNavigationSessions';
 import { updateSessionName } from '../../../api';
 import type { Session } from '../../../api';
-import type { SessionStatus } from '../NavigationContext';
+import type { SessionStatus } from './types';
 
 interface SessionsListProps {
   sessions: Session[];

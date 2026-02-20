@@ -1,69 +1,38 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { GripVertical, Menu, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { GripVertical, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useNavigationContext } from './NavigationContext';
 import { cn } from '../../utils';
-import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { ChatSessionsDropdown, NavigationOverlay, SessionsList } from './navigation';
+import { ChatSessionsDropdown, SessionsList } from './nav-components';
+import type { NavigationRendererProps } from './nav-components/types';
 
-interface CondensedNavigationProps {
-  className?: string;
-}
-
-export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ className }) => {
-  const {
-    isNavExpanded,
-    setIsNavExpanded,
-    navigationPosition,
-    isCondensedIconOnly,
-    isOverlayMode,
-    isChatExpanded,
-    setIsChatExpanded,
-    visibleItems,
-    isActive,
-    draggedItem,
-    dragOverItem,
-    handleDragStart,
-    handleDragOver,
-    handleDrop,
-    handleDragEnd,
-    getSessionStatus,
-    clearUnread,
-  } = useNavigationContext();
-
-  const {
-    recentSessions,
-    activeSessionId,
-    fetchSessions,
-    handleNavClick,
-    handleNewChat,
-    handleSessionClick,
-  } = useNavigationSessions({
-    onNavigate: isOverlayMode ? () => setIsNavExpanded(false) : undefined,
-  });
-
+export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
+  isOverlayMode,
+  navigationPosition,
+  isCondensedIconOnly,
+  className,
+  visibleItems,
+  isActive,
+  recentSessions,
+  activeSessionId,
+  onNavClick,
+  onNewChat,
+  onSessionClick,
+  onFetchSessions,
+  getSessionStatus,
+  clearUnread,
+  isChatExpanded,
+  onToggleChatExpanded,
+  drag,
+  navFocusRef,
+}) => {
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
-  const navFocusRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (isNavExpanded) {
-      fetchSessions();
-      requestAnimationFrame(() => {
-        navFocusRef.current?.focus();
-      });
-    }
-  }, [isNavExpanded, fetchSessions]);
-
-  const toggleChatExpanded = () => {
-    setIsChatExpanded(!isChatExpanded);
-  };
 
   const isVertical = navigationPosition === 'left' || navigationPosition === 'right';
   const isTopPosition = navigationPosition === 'top';
   const isBottomPosition = navigationPosition === 'bottom';
 
-  const navContent = (
+  return (
     <motion.div
       ref={navFocusRef}
       tabIndex={-1}
@@ -98,32 +67,27 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         <div className="bg-background-default rounded-lg self-stretch w-[160px] flex-shrink-0" />
       )}
 
-      {/* Navigation items container (vertical only) */}
+      {/* Navigation items */}
       {isVertical ? (
         <div className="flex-1 min-h-0 flex flex-col gap-[2px]">
           {visibleItems.map((item, index) => {
             const Icon = item.icon;
             const active = isActive(item.path);
-            const isDragging = draggedItem === item.id;
-            const isDragOver = dragOverItem === item.id;
+            const isDragging = drag.draggedItem === item.id;
+            const isDragOver = drag.dragOverItem === item.id;
             const isChatItem = item.id === 'chat';
 
             return (
               <motion.div
                 key={item.id}
                 draggable
-                onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-                onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-                onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-                onDragEnd={handleDragEnd}
+                onDragStart={(e) => drag.onDragStart(e as unknown as React.DragEvent, item.id)}
+                onDragOver={(e) => drag.onDragOver(e as unknown as React.DragEvent, item.id)}
+                onDrop={(e) => drag.onDrop(e as unknown as React.DragEvent, item.id)}
+                onDragEnd={drag.onDragEnd}
                 initial={{ opacity: 0 }}
-                animate={{
-                  opacity: isDragging ? 0.5 : 1,
-                }}
-                transition={{
-                  duration: 0.15,
-                  delay: index * 0.02,
-                }}
+                animate={{ opacity: isDragging ? 0.5 : 1 }}
+                transition={{ duration: 0.15, delay: index * 0.02 }}
                 className={cn(
                   'relative cursor-move group',
                   isCondensedIconOnly ? 'flex-shrink-0' : 'w-full flex-shrink-0',
@@ -161,18 +125,17 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         side={navigationPosition === 'left' ? 'right' : 'left'}
                         getSessionStatus={getSessionStatus}
                         clearUnread={clearUnread}
-                        onNewChat={handleNewChat}
-                        onSessionClick={handleSessionClick}
-                        onShowAll={() => handleNavClick('/sessions')}
+                        onNewChat={onNewChat}
+                        onSessionClick={onSessionClick}
+                        onShowAll={() => onNavClick('/sessions')}
                       />
                     </DropdownMenu>
                   ) : (
                     <>
-                      {/* Chat row - clicking expands/collapses the sessions list */}
                       {isChatItem && !isCondensedIconOnly ? (
                         <div className="relative">
                           <motion.button
-                            onClick={toggleChatExpanded}
+                            onClick={onToggleChatExpanded}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             className={cn(
@@ -199,12 +162,11 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                               )}
                             </div>
                           </motion.button>
-                          {/* Hover new chat button - only show when collapsed */}
                           {!isChatExpanded && (
                             <motion.button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleNewChat();
+                                onNewChat();
                               }}
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.95 }}
@@ -222,7 +184,7 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                         </div>
                       ) : (
                         <motion.button
-                          onClick={() => handleNavClick(item.path)}
+                          onClick={() => onNavClick(item.path)}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           className={cn(
@@ -272,10 +234,10 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       isExpanded={isChatExpanded}
                       getSessionStatus={getSessionStatus}
                       clearUnread={clearUnread}
-                      onSessionClick={handleSessionClick}
-                      onSessionRenamed={fetchSessions}
-                      onNewChat={handleNewChat}
-                      onShowAll={() => handleNavClick('/sessions')}
+                      onSessionClick={onSessionClick}
+                      onSessionRenamed={onFetchSessions}
+                      onNewChat={onNewChat}
+                      onShowAll={() => onNavClick('/sessions')}
                     />
                   )}
                 </div>
@@ -283,7 +245,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
             );
           })}
 
-          {/* Bottom filler block - fills remaining space below nav items */}
           <div
             className={cn(
               'bg-background-default rounded-lg flex-1 min-h-[40px]',
@@ -296,26 +257,21 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         visibleItems.map((item, index) => {
           const Icon = item.icon;
           const active = isActive(item.path);
-          const isDragging = draggedItem === item.id;
-          const isDragOver = dragOverItem === item.id;
+          const isDragging = drag.draggedItem === item.id;
+          const isDragOver = drag.dragOverItem === item.id;
           const isChatItem = item.id === 'chat';
 
           return (
             <motion.div
               key={item.id}
               draggable
-              onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-              onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-              onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-              onDragEnd={handleDragEnd}
+              onDragStart={(e) => drag.onDragStart(e as unknown as React.DragEvent, item.id)}
+              onDragOver={(e) => drag.onDragOver(e as unknown as React.DragEvent, item.id)}
+              onDrop={(e) => drag.onDrop(e as unknown as React.DragEvent, item.id)}
+              onDragEnd={drag.onDragEnd}
               initial={{ opacity: 0 }}
-              animate={{
-                opacity: isDragging ? 0.5 : 1,
-              }}
-              transition={{
-                duration: 0.15,
-                delay: index * 0.02,
-              }}
+              animate={{ opacity: isDragging ? 0.5 : 1 }}
+              transition={{ duration: 0.15, delay: index * 0.02 }}
               className={cn(
                 'relative cursor-move group flex-shrink-0',
                 isDragOver && 'ring-2 ring-blue-500 rounded-lg',
@@ -323,7 +279,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
               )}
             >
               <div className="flex flex-col">
-                {/* Chat item with dropdown in horizontal mode */}
                 {isChatItem ? (
                   <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
                     <DropdownMenuTrigger asChild>
@@ -351,14 +306,14 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
                       side={isTopPosition ? 'bottom' : 'top'}
                       getSessionStatus={getSessionStatus}
                       clearUnread={clearUnread}
-                      onNewChat={handleNewChat}
-                      onSessionClick={handleSessionClick}
-                      onShowAll={() => handleNavClick('/sessions')}
+                      onNewChat={onNewChat}
+                      onSessionClick={onSessionClick}
+                      onShowAll={() => onNavClick('/sessions')}
                     />
                   </DropdownMenu>
                 ) : (
                   <motion.button
-                    onClick={() => handleNavClick(item.path)}
+                    onClick={() => onNavClick(item.path)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className={cn(
@@ -393,45 +348,5 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
         />
       )}
     </motion.div>
-  );
-
-  if (isOverlayMode) {
-    return (
-      <NavigationOverlay
-        isOpen={isNavExpanded}
-        position={navigationPosition}
-        onClose={() => setIsNavExpanded(false)}
-      >
-        {navContent}
-      </NavigationOverlay>
-    );
-  }
-
-  if (!isNavExpanded) return null;
-  return navContent;
-};
-
-// Trigger button to open navigation
-interface NavTriggerProps {
-  className?: string;
-}
-
-export const NavTrigger: React.FC<NavTriggerProps> = ({ className }) => {
-  const { isNavExpanded, setIsNavExpanded } = useNavigationContext();
-
-  return (
-    <button
-      onClick={() => setIsNavExpanded(!isNavExpanded)}
-      className={cn(
-        'p-2 rounded-lg transition-all duration-150',
-        'hover:bg-background-medium',
-        'flex items-center justify-center',
-        isNavExpanded && 'bg-background-medium',
-        className
-      )}
-      aria-label={isNavExpanded ? 'Close navigation' : 'Open navigation'}
-    >
-      <Menu className="w-5 h-5 text-text-muted" />
-    </button>
   );
 };

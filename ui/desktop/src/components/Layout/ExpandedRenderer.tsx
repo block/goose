@@ -4,43 +4,28 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
-import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { ChatSessionsDropdown } from './navigation';
+import { ChatSessionsDropdown } from './nav-components';
+import type { NavigationRendererProps } from './nav-components/types';
 
-interface ExpandedNavigationProps {
-  className?: string;
-}
-
-export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ className }) => {
-  const {
-    isNavExpanded,
-    setIsNavExpanded,
-    effectiveNavigationMode,
-    navigationPosition,
-    isOverlayMode,
-    visibleItems,
-    isActive,
-    draggedItem,
-    dragOverItem,
-    handleDragStart,
-    handleDragOver,
-    handleDrop,
-    handleDragEnd,
-    getSessionStatus,
-    clearUnread,
-  } = useNavigationContext();
-
-  const {
-    recentSessions,
-    activeSessionId,
-    fetchSessions,
-    handleNavClick,
-    handleNewChat,
-    handleSessionClick,
-  } = useNavigationSessions({
-    onNavigate: isOverlayMode ? () => setIsNavExpanded(false) : undefined,
-  });
+export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
+  isNavExpanded,
+  isOverlayMode,
+  navigationPosition,
+  className,
+  visibleItems,
+  isActive,
+  recentSessions,
+  activeSessionId,
+  onNavClick,
+  onNewChat,
+  onSessionClick,
+  getSessionStatus,
+  clearUnread,
+  drag,
+  navFocusRef,
+}) => {
+  const { setIsNavExpanded, effectiveNavigationMode } = useNavigationContext();
 
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
   const [gridColumns, setGridColumns] = useState(2);
@@ -49,19 +34,8 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const [isClosing, setIsClosing] = useState(false);
   const prevIsNavExpandedRef = useRef(isNavExpanded);
   const gridRef = useRef<HTMLDivElement>(null);
-  const navFocusRef = useRef<HTMLDivElement>(null);
 
-  // Fetch sessions and focus when expanded
-  useEffect(() => {
-    if (isNavExpanded) {
-      fetchSessions();
-      requestAnimationFrame(() => {
-        navFocusRef.current?.focus();
-      });
-    }
-  }, [isNavExpanded, fetchSessions]);
-
-  // Detect when nav is closing (transition from expanded to collapsed)
+  // Detect when nav is closing
   useEffect(() => {
     if (prevIsNavExpandedRef.current && !isNavExpanded) {
       setIsClosing(true);
@@ -72,17 +46,13 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     prevIsNavExpandedRef.current = isNavExpanded;
   }, [isNavExpanded]);
 
-  // Control when tiles are ready to animate in (after panel opens)
+  // Delay tiles animation until panel opens
   useEffect(() => {
     if (!isNavExpanded) {
       setTilesReady(false);
       return;
     }
-
-    const timeoutId = setTimeout(() => {
-      setTilesReady(true);
-    }, 150);
-
+    const timeoutId = setTimeout(() => setTilesReady(true), 150);
     return () => clearTimeout(timeoutId);
   }, [isNavExpanded]);
 
@@ -98,7 +68,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
     const updateGridColumns = () => {
       if (!gridRef.current) return;
-
       const parent = gridRef.current.parentElement;
       if (!parent) return;
 
@@ -110,7 +79,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
 
       const minSize = navigationPosition === 'left' || navigationPosition === 'right' ? 140 : 160;
       const isOverlay = effectiveNavigationMode === 'overlay';
-      const gap = isOverlay ? 12 : 2; // gap-3 = 12px for overlay, gap-[2px] for push
+      const gap = isOverlay ? 12 : 2;
       const cols = Math.max(1, Math.floor((availableWidth + gap) / (minSize + gap)));
 
       setGridColumns(cols);
@@ -127,9 +96,7 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     });
 
     const parent = gridRef.current?.parentElement;
-    if (parent) {
-      resizeObserver.observe(parent);
-    }
+    if (parent) resizeObserver.observe(parent);
 
     return () => {
       clearTimeout(timeoutId);
@@ -138,12 +105,11 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     };
   }, [isNavExpanded, navigationPosition, effectiveNavigationMode]);
 
-  const isOverlay = effectiveNavigationMode === 'overlay';
-  const isPushTopNav = !isOverlay && navigationPosition === 'top';
-  const dragStyle = isPushTopNav ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined;
-
-  // Determine if content should be visible (not during close animation for push mode)
-  const showContent = !isClosing || isOverlay;
+  const isPushTopNav = !isOverlayMode && navigationPosition === 'top';
+  const dragStyle = isPushTopNav
+    ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties)
+    : undefined;
+  const showContent = !isClosing || isOverlayMode;
 
   const navContent = (
     <motion.div
@@ -155,49 +121,38 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
       transition={{ duration: 0.15 }}
       className={cn(
         'bg-app h-full overflow-hidden outline-none',
-        isOverlay && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
-        // Add 2px padding on the edge facing the content (push mode only)
-        !isOverlay && navigationPosition === 'top' && 'pb-[2px]',
-        !isOverlay && navigationPosition === 'bottom' && 'pt-[2px]',
-        !isOverlay && navigationPosition === 'left' && 'pr-[2px]',
-        !isOverlay && navigationPosition === 'right' && 'pl-[2px]',
+        isOverlayMode && 'backdrop-blur-md shadow-2xl rounded-lg p-4',
+        !isOverlayMode && navigationPosition === 'top' && 'pb-[2px]',
+        !isOverlayMode && navigationPosition === 'bottom' && 'pt-[2px]',
+        !isOverlayMode && navigationPosition === 'left' && 'pr-[2px]',
+        !isOverlayMode && navigationPosition === 'right' && 'pl-[2px]',
         className
       )}
     >
-      {/* Navigation grid - square tiles with scroll */}
-      {/* Completely hide content during close animation to prevent layout thrashing */}
       {showContent ? (
         <div
           ref={gridRef}
           className={cn(
             'grid gap-[2px] overflow-y-auto overflow-x-hidden h-full',
-            isOverlay && 'gap-3'
+            isOverlayMode && 'gap-3'
           )}
           style={{
-            // When nav is at top in push mode, the global drag region is hidden.
-            // Apply drag to the grid so empty space is draggable but the hamburger button area isn't.
             ...(dragStyle || {}),
-            // Use CSS grid with auto-fit for responsive tiles based on container width
-            gridTemplateColumns: isOverlay
-              ? // For overlay mode: responsive - single row on larger screens, wraps to 2 rows on smaller
-                'repeat(auto-fit, minmax(120px, 1fr))'
+            gridTemplateColumns: isOverlayMode
+              ? 'repeat(auto-fit, minmax(120px, 1fr))'
               : navigationPosition === 'left' || navigationPosition === 'right'
-                ? // For left/right: auto-fit collapses empty tracks so items fill the container
-                  'repeat(auto-fit, minmax(140px, 1fr))'
-                : // For top/bottom: auto-fit with larger min size to fit all in 1 row on large screens, wrap to 2 rows on smaller
-                  'repeat(auto-fit, minmax(160px, 1fr))',
-            // Align items to start so they don't stretch vertically
+                ? 'repeat(auto-fit, minmax(140px, 1fr))'
+                : 'repeat(auto-fit, minmax(160px, 1fr))',
             alignContent: 'start',
           }}
         >
           {visibleItems.map((item, index) => {
             const Icon = item.icon;
             const active = isActive(item.path);
-            const isDragging = draggedItem === item.id;
-            const isDragOver = dragOverItem === item.id;
+            const isDragging = drag.draggedItem === item.id;
+            const isDragOver = drag.dragOverItem === item.id;
             const isChatItem = item.id === 'chat';
 
-            // Chat tile with dropdown
             if (isChatItem) {
               return (
                 <DropdownMenu
@@ -207,18 +162,17 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                 >
                   <motion.div
                     draggable
-                    onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-                    onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-                    onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-                    onDragEnd={handleDragEnd}
+                    onDragStart={(e) =>
+                      drag.onDragStart(e as unknown as React.DragEvent, item.id)
+                    }
+                    onDragOver={(e) =>
+                      drag.onDragOver(e as unknown as React.DragEvent, item.id)
+                    }
+                    onDrop={(e) => drag.onDrop(e as unknown as React.DragEvent, item.id)}
+                    onDragEnd={drag.onDragEnd}
                     initial={{ opacity: 0 }}
-                    animate={{
-                      opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0,
-                    }}
-                    transition={{
-                      duration: 0.15,
-                      delay: tilesReady ? index * 0.03 : 0,
-                    }}
+                    animate={{ opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0 }}
+                    transition={{ duration: 0.15, delay: tilesReady ? index * 0.03 : 0 }}
                     className={cn(
                       'relative cursor-move group',
                       isDragOver && 'ring-2 ring-blue-500 rounded-lg'
@@ -228,22 +182,17 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                       <DropdownMenuTrigger asChild>
                         <motion.div
                           className={cn(
-                            'w-full relative flex flex-col',
-                            'rounded-lg',
-                            'transition-colors duration-200',
-                            'aspect-square cursor-pointer',
+                            'w-full relative flex flex-col rounded-lg',
+                            'transition-colors duration-200 aspect-square cursor-pointer',
                             active
                               ? 'bg-background-accent text-text-on-accent'
                               : 'bg-background-default hover:bg-background-medium'
                           )}
                         >
                           <div className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left">
-                            {/* Drag handle */}
                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                               <GripVertical className="w-4 h-4 text-text-muted" />
                             </div>
-
-                            {/* Tag/Badge */}
                             {item.getTag && (
                               <div
                                 className={cn(
@@ -257,8 +206,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                                 </span>
                               </div>
                             )}
-
-                            {/* Icon and Label at bottom */}
                             <div className="mt-auto w-full">
                               <Icon className="w-6 h-6 mb-2" />
                               <h2 className="font-light text-left text-xl">{item.label}</h2>
@@ -274,32 +221,26 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                       zIndex={Z_INDEX.DROPDOWN_ABOVE_OVERLAY}
                       getSessionStatus={getSessionStatus}
                       clearUnread={clearUnread}
-                      onNewChat={handleNewChat}
-                      onSessionClick={handleSessionClick}
-                      onShowAll={() => handleNavClick('/sessions')}
+                      onNewChat={onNewChat}
+                      onSessionClick={onSessionClick}
+                      onShowAll={() => onNavClick('/sessions')}
                     />
                   </motion.div>
                 </DropdownMenu>
               );
             }
 
-            // Regular tile for non-chat items
             return (
               <motion.div
                 key={item.id}
                 draggable
-                onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent, item.id)}
-                onDragOver={(e) => handleDragOver(e as unknown as React.DragEvent, item.id)}
-                onDrop={(e) => handleDrop(e as unknown as React.DragEvent, item.id)}
-                onDragEnd={handleDragEnd}
+                onDragStart={(e) => drag.onDragStart(e as unknown as React.DragEvent, item.id)}
+                onDragOver={(e) => drag.onDragOver(e as unknown as React.DragEvent, item.id)}
+                onDrop={(e) => drag.onDrop(e as unknown as React.DragEvent, item.id)}
+                onDragEnd={drag.onDragEnd}
                 initial={{ opacity: 0 }}
-                animate={{
-                  opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0,
-                }}
-                transition={{
-                  duration: 0.15,
-                  delay: tilesReady ? index * 0.03 : 0,
-                }}
+                animate={{ opacity: tilesReady ? (isDragging ? 0.5 : 1) : 0 }}
+                transition={{ duration: 0.15, delay: tilesReady ? index * 0.03 : 0 }}
                 className={cn(
                   'relative cursor-move group',
                   isDragOver && 'ring-2 ring-blue-500 rounded-lg'
@@ -307,26 +248,20 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
               >
                 <motion.div
                   className={cn(
-                    'w-full relative flex flex-col',
-                    'rounded-lg',
-                    'transition-colors duration-200',
-                    'aspect-square',
+                    'w-full relative flex flex-col rounded-lg',
+                    'transition-colors duration-200 aspect-square',
                     active
                       ? 'bg-background-accent text-text-on-accent'
                       : 'bg-background-default hover:bg-background-medium'
                   )}
                 >
-                  {/* Main button area */}
                   <button
-                    onClick={() => handleNavClick(item.path)}
+                    onClick={() => onNavClick(item.path)}
                     className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left"
                   >
-                    {/* Drag handle */}
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                       <GripVertical className="w-4 h-4 text-text-muted" />
                     </div>
-
-                    {/* Tag/Badge */}
                     {item.getTag && (
                       <div
                         className={cn(
@@ -338,8 +273,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
                         <span className="text-xs font-mono text-text-muted">{item.getTag()}</span>
                       </div>
                     )}
-
-                    {/* Icon and Label at bottom */}
                     <div className="mt-auto w-full">
                       <Icon className="w-6 h-6 mb-2" />
                       <h2 className="font-light text-left text-xl">{item.label}</h2>
@@ -350,17 +283,15 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
             );
           })}
 
-          {/* Spacer tiles to fill empty grid spaces - only render after grid is measured */}
-          {!isOverlay &&
+          {/* Spacer tiles */}
+          {!isOverlayMode &&
             gridMeasured &&
             gridColumns >= 2 &&
             Array.from({
-              // For left/right: add extra rows of spacers to fill vertical space
-              // For top/bottom: just fill remaining spaces in the last row
               length:
                 navigationPosition === 'left' || navigationPosition === 'right'
                   ? ((gridColumns - (visibleItems.length % gridColumns)) % gridColumns) +
-                    gridColumns * 6 // Fill last row + 6 more rows
+                    gridColumns * 6
                   : (gridColumns - (visibleItems.length % gridColumns)) % gridColumns,
             }).map((_, index) => (
               <div key={`spacer-${index}`} className="relative">
@@ -372,13 +303,12 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     </motion.div>
   );
 
-  // Overlay mode: render with backdrop
-  if (isOverlay) {
+  // Expanded overlay uses its own AnimatePresence
+  if (isOverlayMode) {
     return (
       <AnimatePresence>
         {isNavExpanded && (
           <div className="fixed inset-0" style={{ zIndex: Z_INDEX.OVERLAY }}>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -386,8 +316,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
               className="absolute inset-0 bg-black/20 backdrop-blur-sm"
               onClick={() => setIsNavExpanded(false)}
             />
-
-            {/* Scrollable container for navigation panel */}
             <div className="absolute inset-0 overflow-y-auto pointer-events-none">
               <div className="min-h-full flex items-center justify-center p-8">
                 <div className="pointer-events-auto max-w-3xl w-full">{navContent}</div>
@@ -399,7 +327,5 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     );
   }
 
-  // Push mode: render inline
-  if (!isNavExpanded) return null;
   return navContent;
 };
