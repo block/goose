@@ -1,9 +1,10 @@
 use std::{cell::LazyCell, fmt::Display, future::Future, path::PathBuf};
 
 use agent_client_protocol_schema::{
-    CreateTerminalRequest, ReadTextFileRequest, SessionId, SessionNotification, SessionUpdate,
-    Terminal, TerminalOutputRequest, ToolCallContent, ToolCallId, ToolCallUpdate,
-    ToolCallUpdateFields, WaitForTerminalExitRequest, WriteTextFileRequest,
+    CreateTerminalRequest, Diff, ReadTextFileRequest, SessionId, SessionNotification,
+    SessionUpdate, Terminal, TerminalOutputRequest, ToolCallContent, ToolCallId, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind, WaitForTerminalExitRequest,
+    WriteTextFileRequest,
 };
 use async_trait::async_trait;
 use goose::agents::mcp_client::McpClientTrait;
@@ -129,6 +130,21 @@ async fn write_file(
 }
 
 impl AcpTools {
+    fn update_tool_call(&self, ctx: &goose::agents::ToolCallContext, fields: ToolCallUpdateFields) {
+        if let Some(ref req_id) = ctx.tool_call_request_id {
+            let _ = self
+                .cx
+                .send_notification(SessionNotification::new(
+                    self.session_id.clone(),
+                    SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+                        ToolCallId::new(req_id.clone()),
+                        fields,
+                    )),
+                ))
+                .inspect_err(|e| tracing::error!("error updating tool call with client: {}", e));
+        }
+    }
+
     pub fn new(
         cx: JrConnectionCx<AgentToClient>,
         session_id: sacp::schema::SessionId,
@@ -143,20 +159,33 @@ impl AcpTools {
 
     async fn read(
         &self,
-        _ctx: &goose::agents::ToolCallContext,
+        ctx: &goose::agents::ToolCallContext,
         params: ReadParams,
     ) -> Result<CallToolResult, ServiceError> {
         let path = self.working_dir.join(params.path);
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new()
+                .kind(ToolKind::Read)
+                .locations(vec![ToolCallLocation::new(&path)]),
+        );
         let content = read_file(&path, &self.cx, self.session_id.clone()).await?;
         Ok(CallToolResult::success(vec![Content::text(content)]))
     }
 
     async fn write(
         &self,
-        _ctx: &goose::agents::ToolCallContext,
+        ctx: &goose::agents::ToolCallContext,
         params: WriteParams,
     ) -> Result<CallToolResult, ServiceError> {
         let path = self.working_dir.join(params.path);
+        let content = read_file(&path, &self.cx, self.session_id.clone()).await?;
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new()
+                .kind(ToolKind::Edit)
+                .locations(vec![ToolCallLocation::new(&path)]),
+        );
         write_file(
             &path,
             &self.cx,
@@ -164,17 +193,29 @@ impl AcpTools {
             params.text.as_str(),
         )
         .await?;
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new().content(vec![ToolCallContent::Diff(
+                Diff::new(path, params.text.as_str()).old_text(content),
+            )]),
+        );
         Ok(CallToolResult::success(vec![Content::text("done")]))
     }
 
     async fn str_replace(
         &self,
-        _ctx: &goose::agents::ToolCallContext,
+        ctx: &goose::agents::ToolCallContext,
         params: StrReplaceParams,
     ) -> Result<CallToolResult, ServiceError> {
         let path = self.working_dir.join(params.path);
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new()
+                .kind(ToolKind::Edit)
+                .locations(vec![ToolCallLocation::new(&path)]),
+        );
         let content = read_file(&path, &self.cx, self.session_id.clone()).await?;
-        let (content, _) = text_editor_replace_inmem(
+        let (new_content, _) = text_editor_replace_inmem(
             &path,
             content.as_str(),
             params.old_str.as_str(),
@@ -183,25 +224,55 @@ impl AcpTools {
         .map_err(|_| {
             ServiceError::McpError(ErrorData::internal_error("failed to replace", None))
         })?;
-        write_file(&path, &self.cx, self.session_id.clone(), content.as_str()).await?;
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new().content(vec![ToolCallContent::Diff(
+                Diff::new(&path, &new_content).old_text(&content),
+            )]),
+        );
+        write_file(
+            &path,
+            &self.cx,
+            self.session_id.clone(),
+            new_content.as_str(),
+        )
+        .await?;
         Ok(CallToolResult::success(vec![Content::text("done")]))
     }
 
     async fn insert(
         &self,
-        _ctx: &goose::agents::ToolCallContext,
+        ctx: &goose::agents::ToolCallContext,
         params: InsertParams,
     ) -> Result<CallToolResult, ServiceError> {
         let path = self.working_dir.join(params.path);
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new()
+                .kind(ToolKind::Edit)
+                .locations(vec![ToolCallLocation::new(&path)]),
+        );
         let content = read_file(&path, &self.cx, self.session_id.clone()).await?;
-        let (content, _) = text_editor_insert_inmem(
+        let (new_content, _) = text_editor_insert_inmem(
             &path,
             content.as_str(),
             params.position,
             &params.new_str.as_str(),
         )
         .map_err(|_| ServiceError::McpError(ErrorData::internal_error("failed to insert", None)))?;
-        write_file(&path, &self.cx, self.session_id.clone(), content.as_str()).await?;
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new().content(vec![ToolCallContent::Diff(
+                Diff::new(&path, &new_content).old_text(&content),
+            )]),
+        );
+        write_file(
+            &path,
+            &self.cx,
+            self.session_id.clone(),
+            new_content.as_str(),
+        )
+        .await?;
         Ok(CallToolResult::success(vec![Content::text("done")]))
     }
 
@@ -210,6 +281,7 @@ impl AcpTools {
         ctx: &goose::agents::ToolCallContext,
         params: ShellParams,
     ) -> Result<CallToolResult, ServiceError> {
+        self.update_tool_call(ctx, ToolCallUpdateFields::new().kind(ToolKind::Execute));
         let res = self
             .cx
             .send_request(CreateTerminalRequest::new(
@@ -223,25 +295,12 @@ impl AcpTools {
             })?;
         let terminal_id = res.terminal_id;
 
-        if let Some(ref req_id) = ctx.tool_call_request_id {
-            self.cx
-                .send_notification(SessionNotification::new(
-                    self.session_id.clone(),
-                    SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-                        ToolCallId::new(req_id.clone()),
-                        ToolCallUpdateFields::new().content(Some(vec![ToolCallContent::Terminal(
-                            Terminal::new(terminal_id.clone()),
-                        )])),
-                    )),
-                ))
-                .map_err(|_| {
-                    ServiceError::McpError(ErrorData::internal_error(
-                        "failed to spawn terminal",
-                        None,
-                    ))
-                })?;
-        }
-
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new().content(Some(vec![ToolCallContent::Terminal(
+                Terminal::new(terminal_id.clone()),
+            )])),
+        );
         let _res = self
             .cx
             .send_request(WaitForTerminalExitRequest::new(
@@ -307,6 +366,10 @@ impl McpClientTrait for AcpTools {
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, ServiceError> {
         let args = arguments.ok_or(invalid_request("missing arguments"))?;
+        self.update_tool_call(
+            ctx,
+            ToolCallUpdateFields::new().status(ToolCallStatus::InProgress),
+        );
         match name {
             "read" => handle_tool_call(|p| self.read(ctx, p), args).await,
             "write" => handle_tool_call(|p| self.write(ctx, p), args).await,
@@ -315,6 +378,20 @@ impl McpClientTrait for AcpTools {
             "shell" => handle_tool_call(|p| self.shell(ctx, p), args).await,
             _ => Err(invalid_request("tool not found")),
         }
+        .and_then(|res| {
+            self.update_tool_call(
+                ctx,
+                ToolCallUpdateFields::new().status(ToolCallStatus::Completed),
+            );
+            Ok(res)
+        })
+        .or_else(|err| {
+            self.update_tool_call(
+                ctx,
+                ToolCallUpdateFields::new().status(ToolCallStatus::Failed),
+            );
+            Err(err)
+        })
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {
