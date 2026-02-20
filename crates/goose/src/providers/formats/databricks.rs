@@ -242,7 +242,9 @@ fn reorder_tool_image_messages(messages: Vec<DatabricksMessage>) -> Vec<Databric
         } else if msg.role == "user"
             && msg.tool_call_id.is_none()
             && msg.tool_calls.is_none()
-            && (result.last().is_some_and(|m: &DatabricksMessage| m.role == "tool")
+            && (result
+                .last()
+                .is_some_and(|m: &DatabricksMessage| m.role == "tool")
                 || !deferred_images.is_empty())
         {
             deferred_images.push(msg);
@@ -1596,13 +1598,50 @@ mod tests {
     fn test_image_in_tool_response_does_not_break_tool_grouping() -> anyhow::Result<()> {
         let messages = vec![
             Message::assistant()
-                .with_tool_request("t1", Ok(CallToolRequestParams { meta: None, task: None, name: "tool".into(), arguments: None }))
-                .with_tool_request("t2", Ok(CallToolRequestParams { meta: None, task: None, name: "tool".into(), arguments: None })),
-            Message::user().with_tool_response("t1", Ok(CallToolResult { content: vec![Content::text("ok")], structured_content: None, is_error: Some(false), meta: None })),
-            Message::user().with_tool_response("t2", Ok(CallToolResult { content: vec![Content::text("ok"), Content::image("abc", "image/png")], structured_content: None, is_error: Some(false), meta: None })),
+                .with_tool_request(
+                    "t1",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool".into(),
+                        arguments: None,
+                    }),
+                )
+                .with_tool_request(
+                    "t2",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool".into(),
+                        arguments: None,
+                    }),
+                ),
+            Message::user().with_tool_response(
+                "t1",
+                Ok(CallToolResult {
+                    content: vec![Content::text("ok")],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
+            Message::user().with_tool_response(
+                "t2",
+                Ok(CallToolResult {
+                    content: vec![Content::text("ok"), Content::image("abc", "image/png")],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
         ];
         let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi))?;
-        let roles: Vec<&str> = spec.as_array().unwrap().iter().map(|m| m["role"].as_str().unwrap()).collect();
+        let roles: Vec<&str> = spec
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["role"].as_str().unwrap())
+            .collect();
         assert_eq!(roles, vec!["assistant", "tool", "tool", "user"]);
         Ok(())
     }
