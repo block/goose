@@ -30,31 +30,12 @@ fn default_depth() -> u32 {
     3
 }
 
-fn resolve_and_validate(raw: &str, wd: &Path) -> std::result::Result<PathBuf, String> {
-    let target = if Path::new(raw).is_absolute() {
+fn resolve(raw: &str, wd: &Path) -> PathBuf {
+    if Path::new(raw).is_absolute() {
         PathBuf::from(raw)
     } else {
         wd.join(raw)
-    };
-    if target
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
-        return Err("Path traversal detected: paths cannot contain '..'".into());
     }
-    let canon = target
-        .canonicalize()
-        .map_err(|e| format!("Cannot resolve '{}': {e}", target.display()))?;
-    let canon_wd = wd
-        .canonicalize()
-        .map_err(|e| format!("Cannot resolve working directory: {e}"))?;
-    if !canon.starts_with(&canon_wd) {
-        return Err(format!(
-            "Path outside working directory: {}",
-            canon_wd.display()
-        ));
-    }
-    Ok(canon)
 }
 
 fn is_binary(path: &Path) -> bool {
@@ -159,10 +140,7 @@ fn build_tree(dir: &Path, depth: usize, max_depth: usize, out: &mut String, stat
         if stats.truncated {
             return;
         }
-        let Ok(ft) = entry.file_type() else { continue };
-        if ft.is_symlink() {
-            continue;
-        }
+        let Ok(meta) = entry.metadata() else { continue };
         let name = entry.file_name().to_string_lossy().to_string();
         let pfx = format!(
             "{}{}",
@@ -173,7 +151,7 @@ fn build_tree(dir: &Path, depth: usize, max_depth: usize, out: &mut String, stat
                 "├── "
             }
         );
-        if ft.is_dir() {
+        if meta.is_dir() {
             stats.dirs += 1;
             stats.total += 1;
             if stats.total > MAX_DIR_ENTRIES {
@@ -184,14 +162,14 @@ fn build_tree(dir: &Path, depth: usize, max_depth: usize, out: &mut String, stat
             if depth < max_depth {
                 build_tree(&entry.path(), depth + 1, max_depth, out, stats);
             }
-        } else if ft.is_file() {
+        } else if meta.is_file() {
             stats.files += 1;
             stats.total += 1;
             if stats.total > MAX_DIR_ENTRIES {
                 stats.truncated = true;
                 return;
             }
-            let sz = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            let sz = meta.len();
             let sz_s = match sz {
                 0..=1023 => format!("{sz}B"),
                 1024..=1_048_575 => format!("{:.1}KB", sz as f64 / 1024.0),
@@ -211,20 +189,27 @@ pub struct ReaderClient {
 
 impl ReaderClient {
     pub fn new(_ctx: PlatformExtensionContext) -> Result<Self> {
-        Ok(Self { info: InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability { list_changed: Some(false) }),
-                ..Default::default()
+        Ok(Self {
+            info: InitializeResult {
+                protocol_version: ProtocolVersion::V_2025_03_26,
+                capabilities: ServerCapabilities {
+                    tools: Some(ToolsCapability {
+                        list_changed: Some(false),
+                    }),
+                    ..Default::default()
+                },
+                server_info: Implementation {
+                    name: EXTENSION_NAME.into(),
+                    title: Some("Reader".into()),
+                    version: "1.0.0".into(),
+                    ..Default::default()
+                },
+                instructions: Some(
+                    "Read-only filesystem access. Use `read` to view files or list directories."
+                        .into(),
+                ),
             },
-            server_info: Implementation {
-                name: EXTENSION_NAME.into(),
-                title: Some("Reader".into()),
-                version: "1.0.0".into(),
-                ..Default::default()
-            },
-            instructions: Some("Read-only filesystem access. Use `read` to view files or list directories within the working directory.".into()),
-        }})
+        })
     }
 
     fn get_tools() -> Vec<Tool> {
@@ -232,9 +217,10 @@ impl ReaderClient {
         let v = serde_json::to_value(schema).expect("schema");
         vec![Tool::new(
             "read",
-            "Read a file or list a directory. Paths resolve against working directory and must stay within it.",
+            "Read a file or list a directory. Relative paths resolve against working directory.",
             v.as_object().unwrap().clone(),
-        ).annotate(ToolAnnotations {
+        )
+        .annotate(ToolAnnotations {
             title: Some("Read files and directories".into()),
             read_only_hint: Some(true),
             idempotent_hint: Some(true),
@@ -243,7 +229,7 @@ impl ReaderClient {
     }
 
     fn handle_read(&self, p: ReadParams, wd: &Path) -> std::result::Result<Vec<Content>, String> {
-        let path = resolve_and_validate(&p.path, wd)?;
+        let path = resolve(&p.path, wd);
         let depth = p.max_depth.min(10);
         if path.is_dir() {
             Ok(read_directory(&path, depth))
