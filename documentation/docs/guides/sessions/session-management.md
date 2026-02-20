@@ -104,21 +104,34 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
-        By default, goose names your session using the current timestamp in the format `YYYYMMDD_<COUNT>`. If you'd like to provide a specific name, this is where you'd do so. For example to name your session `react-migration`, you would run:
+        goose sessions are given an auto-generated name based on the context of your initial prompt.
 
-        ```
-        goose session -n react-migration
+        If you'd like to provide a specific session name, you can do so when starting a session. For example, to name your session "react-migration", run:
+
+        ```sh
+        goose session --name react-migration
         ```
 
-        You'll know your session has started when your terminal looks similar to the following:
+        If you want to confirm the session name, run:
 
+        ```sh
+        goose session list -l 1
         ```
-        starting session | provider: openai model: gpt-4o
-        session id: react-migration
-        working directory: /path/to/your/project
+
+        Example result:
+        
+        ```text
+        Available sessions:
+        20260213_9 - react-migration - 2026-02-13 16:20:37 UTC
         ```
+
+        In the output above, `20260213_9` is the session ID. Session IDs use the format `YYYYMMDD_<COUNT>`. Many [goose CLI commands](/docs/guides/goose-cli-commands) let you identify a session by name (`--name` / `-n`) as an alternative to `--session-id`.
     </TabItem>
 </Tabs>
+
+:::tip Disable AI-generated Session Naming
+Use [`GOOSE_DISABLE_SESSION_NAMING`](/docs/guides/environment-variables#session-management) to keep the default name instead of calling a model to generate one (useful in CI/headless workflows). The default name in goose Desktop is "New Chat" and the default name in goose CLI is "CLI Session".
+:::
 
 ## Exit Session
 Note that sessions are automatically saved when you exit.
@@ -169,35 +182,22 @@ Search allows you to find specific content within sessions or find specific sess
     2. Enter your search term
     3. Use shortcuts and search bar buttons to navigate the results
 
-    #### Search For Session By Name or Path
+    #### Search Across Sessions
     
-    To search all your sessions by name or working directory path:
+    To search conversation history across all your sessions:
 
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `View All` at the bottom of the `Chat` section
-    3. Use `Cmd+F` to open the search bar
+    3. Use `Cmd+F` (or `Ctrl+F`) to open the search bar
     4. Enter your search term
     5. Use keyboard shortcuts and search bar buttons to navigate the results (`Cmd+E` not supported)
 
-    This is a metadata-only search. It doesn't search conversation content. Note that searching by session ID (e.g. `20251108_1`) is supported, but this property isn't displayed in the UI.
+    This searches the content of messages in your conversations. The search is limited to the 10 most recent matching messages across sessions. If your search term appears in many messages, the search will only return a subset of sessions.
 
-    :::tip
-    You can [rename sessions](#name-session) to give them descriptive names that you'll remember later.
-    :::
-
-    #### Search Across All Session Content
-    
-    To search conversation content across all your sessions, ask goose directly in any chat session. For example:
-
+    :::tip Ask goose directly
+    You can also use the built-in [Chat Recall extension](/docs/mcp/chatrecall-mcp) to ask goose to search your conversation history:
     - "Find my earlier conversation about React hooks from last week"
     - "Show me sessions where I worked on database migrations"
-
-    goose will search your session history and show relevant conversations with context from matching sessions.
-    
-    :::info
-    This functionality requires the built-in [Chatrecall extension](/docs/mcp/chatrecall-mcp) to be enabled. You can enable it manually or, if [Extension Manager](/docs/mcp/extension-manager-mcp) is enabled, simply ask goose to use it:
-    
-    - "Use chatrecall to find the latest status of the database migration project"
     :::
 
   </TabItem>

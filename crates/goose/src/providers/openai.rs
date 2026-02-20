@@ -1,7 +1,5 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -13,7 +11,7 @@ use super::openai_compatible::{
     handle_response_openai_compat, handle_status_openai_compat, stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat};
+use super::utils::ImageFormat;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
@@ -22,7 +20,6 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use reqwest::StatusCode;
-use serde_json::Value;
 use std::collections::HashMap;
 use std::io;
 use tokio::pin;
@@ -72,7 +69,7 @@ pub struct OpenAiProvider {
 
 impl OpenAiProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
         let host: String = config
@@ -228,9 +225,10 @@ impl OpenAiProvider {
         normalized.ends_with("responses") || normalized.contains("/responses")
     }
 
-    fn is_codex_gpt_5_model(model_name: &str) -> bool {
+    fn is_responses_model(model_name: &str) -> bool {
         let normalized_model = model_name.to_ascii_lowercase();
-        normalized_model.starts_with("gpt-5") && normalized_model.contains("codex")
+        (normalized_model.starts_with("gpt-5") && normalized_model.contains("codex"))
+            || normalized_model.starts_with("gpt-5.2-pro")
     }
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
@@ -246,7 +244,7 @@ impl OpenAiProvider {
             }
         }
 
-        Self::is_codex_gpt_5_model(model_name)
+        Self::is_responses_model(model_name)
     }
 
     fn map_base_path(base_path: &str, target: &str, fallback: &str) -> String {
@@ -269,34 +267,6 @@ impl OpenAiProvider {
             fallback.to_string()
         }
     }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(session_id, &self.base_path, payload)
-            .await?;
-        handle_response_openai_compat(response).await
-    }
-
-    async fn post_responses(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
-        let response = self
-            .api_client
-            .response_post(
-                session_id,
-                &Self::map_base_path(&self.base_path, "responses", OPEN_AI_DEFAULT_RESPONSES_PATH),
-                payload,
-            )
-            .await?;
-        handle_response_openai_compat(response).await
-    }
 }
 
 impl ProviderDef for OpenAiProvider {
@@ -315,13 +285,25 @@ impl ProviderDef for OpenAiProvider {
             models,
             OPEN_AI_DOC_URL,
             vec![
-                ConfigKey::new("OPENAI_API_KEY", false, true, None),
-                ConfigKey::new("OPENAI_HOST", true, false, Some("https://api.openai.com")),
-                ConfigKey::new("OPENAI_BASE_PATH", true, false, Some("v1/chat/completions")),
-                ConfigKey::new("OPENAI_ORGANIZATION", false, false, None),
-                ConfigKey::new("OPENAI_PROJECT", false, false, None),
-                ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None),
-                ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600")),
+                ConfigKey::new("OPENAI_API_KEY", false, true, None, true),
+                ConfigKey::new(
+                    "OPENAI_HOST",
+                    true,
+                    false,
+                    Some("https://api.openai.com"),
+                    false,
+                ),
+                ConfigKey::new(
+                    "OPENAI_BASE_PATH",
+                    true,
+                    false,
+                    Some("v1/chat/completions"),
+                    false,
+                ),
+                ConfigKey::new("OPENAI_ORGANIZATION", false, false, None, false),
+                ConfigKey::new("OPENAI_PROJECT", false, false, None, false),
+                ConfigKey::new("OPENAI_CUSTOM_HEADERS", false, true, None, false),
+                ConfigKey::new("OPENAI_TIMEOUT", false, false, Some("600"), false),
             ],
         )
     }
@@ -342,82 +324,6 @@ impl Provider for OpenAiProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
-    }
-
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        if Self::should_use_responses_api(&model_config.model_name, &self.base_path) {
-            let payload = create_responses_request(model_config, system, messages, tools)?;
-            let mut log = RequestLog::start(&self.model, &payload)?;
-
-            let json_response = self
-                .with_retry(|| async {
-                    let payload_clone = payload.clone();
-                    self.post_responses(session_id, &payload_clone).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            let responses_api_response: ResponsesApiResponse =
-                serde_json::from_value(json_response.clone()).map_err(|e| {
-                    ProviderError::ExecutionError(format!(
-                        "Failed to parse responses API response: {}",
-                        e
-                    ))
-                })?;
-
-            let message = responses_api_to_message(&responses_api_response)?;
-            let usage = get_responses_usage(&responses_api_response);
-            let model = responses_api_response.model.clone();
-
-            log.write(&json_response, Some(&usage))?;
-            Ok((message, ProviderUsage::new(model, usage)))
-        } else {
-            let payload = create_request(
-                model_config,
-                system,
-                messages,
-                tools,
-                &ImageFormat::OpenAi,
-                false,
-            )?;
-
-            let mut log = RequestLog::start(&self.model, &payload)?;
-            let json_response = self
-                .with_retry(|| async {
-                    let payload_clone = payload.clone();
-                    self.post(session_id, &payload_clone).await
-                })
-                .await
-                .inspect_err(|e| {
-                    let _ = log.error(e);
-                })?;
-
-            let message = response_to_message(&json_response)?;
-            let usage = json_response
-                .get("usage")
-                .map(get_usage)
-                .unwrap_or_else(|| {
-                    tracing::debug!("Failed to get usage data");
-                    Usage::default()
-                });
-
-            let model = get_model(&json_response);
-            log.write(&json_response, Some(&usage))?;
-            Ok((message, ProviderUsage::new(model, usage)))
-        }
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -462,22 +368,19 @@ impl Provider for OpenAiProvider {
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))
     }
 
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        if Self::should_use_responses_api(&self.model.model_name, &self.base_path) {
-            let mut payload = create_responses_request(&self.model, system, messages, tools)?;
-            payload["stream"] = serde_json::Value::Bool(true);
+        if Self::should_use_responses_api(&model_config.model_name, &self.base_path) {
+            let mut payload = create_responses_request(model_config, system, messages, tools)?;
+            payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
 
-            let mut log = RequestLog::start(&self.model, &payload)?;
+            let mut log = RequestLog::start(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
@@ -501,30 +404,56 @@ impl Provider for OpenAiProvider {
                     let _ = log.error(e);
                 })?;
 
-            let stream = response.bytes_stream().map_err(io::Error::other);
+            if self.supports_streaming {
+                let stream = response.bytes_stream().map_err(io::Error::other);
 
-            Ok(Box::pin(try_stream! {
-                let stream_reader = StreamReader::new(stream);
-                let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+                Ok(Box::pin(try_stream! {
+                    let stream_reader = StreamReader::new(stream);
+                    let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
 
-                let message_stream = responses_api_to_streaming_message(framed);
-                pin!(message_stream);
-                while let Some(message) = message_stream.next().await {
-                    let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
-                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                    yield (message, usage);
-                }
-            }))
+                    let message_stream = responses_api_to_streaming_message(framed);
+                    pin!(message_stream);
+                    while let Some(message) = message_stream.next().await {
+                        let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                        log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                        yield (message, usage);
+                    }
+                }))
+            } else {
+                let json: serde_json::Value = response.json().await.map_err(|e| {
+                    ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+                })?;
+
+                let responses_api_response: ResponsesApiResponse =
+                    serde_json::from_value(json.clone()).map_err(|e| {
+                        ProviderError::ExecutionError(format!(
+                            "Failed to parse responses API response: {}",
+                            e
+                        ))
+                    })?;
+
+                let message = responses_api_to_message(&responses_api_response)?;
+                let usage_data = get_responses_usage(&responses_api_response);
+                let usage =
+                    super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+
+                log.write(
+                    &serde_json::to_value(&message).unwrap_or_default(),
+                    Some(&usage_data),
+                )?;
+
+                Ok(super::base::stream_from_single_message(message, usage))
+            }
         } else {
             let payload = create_request(
-                &self.model,
+                model_config,
                 system,
                 messages,
                 tools,
                 &ImageFormat::OpenAi,
-                true,
+                self.supports_streaming,
             )?;
-            let mut log = RequestLog::start(&self.model, &payload)?;
+            let mut log = RequestLog::start(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
@@ -539,7 +468,28 @@ impl Provider for OpenAiProvider {
                     let _ = log.error(e);
                 })?;
 
-            stream_openai_compat(response, log)
+            if self.supports_streaming {
+                stream_openai_compat(response, log)
+            } else {
+                let json: serde_json::Value = response.json().await.map_err(|e| {
+                    ProviderError::RequestFailed(format!("Failed to parse JSON: {}", e))
+                })?;
+
+                let message = response_to_message(&json).map_err(|e| {
+                    ProviderError::RequestFailed(format!("Failed to parse message: {}", e))
+                })?;
+
+                let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
+                let usage =
+                    super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+
+                log.write(
+                    &serde_json::to_value(&message).unwrap_or_default(),
+                    Some(&usage_data),
+                )?;
+
+                Ok(super::base::stream_from_single_message(message, usage))
+            }
         }
     }
 }
@@ -625,10 +575,34 @@ mod tests {
     }
 
     #[test]
+    fn gpt_5_2_pro_uses_responses_when_base_path_is_default() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.2-pro",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_5_2_pro_with_date_uses_responses() {
+        assert!(OpenAiProvider::should_use_responses_api(
+            "gpt-5.2-pro-2025-12-11",
+            "v1/chat/completions"
+        ));
+    }
+
+    #[test]
     fn explicit_chat_path_forces_chat_completions() {
         assert!(!OpenAiProvider::should_use_responses_api(
             "gpt-5.2-codex",
             "openai/v1/chat/completions"
+        ));
+    }
+
+    #[test]
+    fn gpt_4o_does_not_use_responses() {
+        assert!(!OpenAiProvider::should_use_responses_api(
+            "gpt-4o",
+            "v1/chat/completions"
         ));
     }
 

@@ -190,14 +190,7 @@ describe('checkBlocked', () => {
   });
 
   it('does not block loopback by default, blocks when opted in', async () => {
-    const allowed = await checkBlocked(
-      'localhost',
-      8080,
-      blocked,
-      noLD,
-      noLDCache,
-      defaultOptions
-    );
+    const allowed = await checkBlocked('localhost', 8080, blocked, noLD, noLDCache, defaultOptions);
     expect(allowed.blocked).toBe(false);
 
     const blocked_ = await checkBlocked('localhost', 8080, blocked, noLD, noLDCache, {

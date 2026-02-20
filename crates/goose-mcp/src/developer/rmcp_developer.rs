@@ -21,6 +21,8 @@ use rmcp::{
 const WORKING_DIR_HEADER: &str = "agent-working-dir";
 const SESSION_ID_HEADER: &str = "agent-session-id";
 
+pub const WORKING_DIR_PLACEHOLDER: &str = "{{WORKING_DIR}}";
+
 fn extract_working_dir_from_meta(meta: &Meta) -> Option<PathBuf> {
     meta.0
         .get(WORKING_DIR_HEADER)
@@ -242,8 +244,6 @@ pub struct DeveloperServer {
 impl ServerHandler for DeveloperServer {
     #[allow(clippy::too_many_lines)]
     fn get_info(&self) -> ServerInfo {
-        // Get base instructions and working directory
-        let cwd = std::env::current_dir().expect("should have a current working dir");
         let os = std::env::consts::OS;
         let in_container = Self::is_definitely_container();
 
@@ -268,7 +268,7 @@ impl ServerHandler for DeveloperServer {
                 {container_info}
                 "#,
                 os=os,
-                cwd=cwd.to_string_lossy(),
+                cwd=WORKING_DIR_PLACEHOLDER,
                 container_info=if in_container { "container: true" } else { "" },
             },
             _ => {
@@ -295,7 +295,7 @@ impl ServerHandler for DeveloperServer {
             {container_info}
                 "#,
                 os=os,
-                cwd=cwd.to_string_lossy(),
+                cwd=WORKING_DIR_PLACEHOLDER,
                 shell=shell_info,
                 container_info=if in_container { "container: true" } else { "" },
                 }

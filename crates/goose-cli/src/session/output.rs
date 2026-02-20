@@ -3,7 +3,8 @@ use bat::WrappingMode;
 use console::{measure_text_width, style, Color, Term};
 use goose::config::Config;
 use goose::conversation::message::{
-    ActionRequiredData, Message, MessageContent, ToolRequest, ToolResponse,
+    ActionRequiredData, Message, MessageContent, SystemNotificationContent, SystemNotificationType,
+    ToolRequest, ToolResponse,
 };
 use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
@@ -16,7 +17,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Error, IsTerminal, Write};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use super::streaming_buffer::MarkdownBuffer;
@@ -238,22 +239,13 @@ pub fn render_message(message: &Message, debug: bool) {
             MessageContent::Image(image) => {
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
-            MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
-                    && std::io::stdout().is_terminal()
-                {
-                    println!("\n{}", style("Thinking:").dim().italic());
-                    print_markdown(&thinking.thinking, theme);
-                }
-            }
+            MessageContent::Thinking(t) => render_thinking(&t.thinking, theme),
+            MessageContent::Reasoning(r) => render_thinking(&r.text, theme),
             MessageContent::RedactedThinking(_) => {
-                // For redacted thinking, print thinking was redacted
                 println!("\n{}", style("Thinking:").dim().italic());
                 print_markdown("Thinking was redacted", theme);
             }
             MessageContent::SystemNotification(notification) => {
-                use goose::conversation::message::SystemNotificationType;
-
                 match notification.notification_type {
                     SystemNotificationType::ThinkingMessage => {
                         show_thinking();
@@ -263,10 +255,13 @@ pub fn render_message(message: &Message, debug: bool) {
                         hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
                     }
+                    SystemNotificationType::CreditsExhausted => {
+                        render_credits_exhausted_notification(notification);
+                    }
                 }
             }
             _ => {
-                println!("WARNING: Message content type could not be rendered");
+                eprintln!("WARNING: Message content type could not be rendered");
             }
         }
     }
@@ -276,10 +271,22 @@ pub fn render_message(message: &Message, debug: bool) {
 
 /// Render a streaming message, using a buffer to accumulate text content
 /// and only render when markdown constructs are complete.
-pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, debug: bool) {
+pub fn render_message_streaming(
+    message: &Message,
+    buffer: &mut MarkdownBuffer,
+    thinking_header_shown: &mut bool,
+    debug: bool,
+) {
     let theme = get_theme();
 
     for content in &message.content {
+        if !matches!(
+            content,
+            MessageContent::Thinking(_) | MessageContent::Reasoning(_)
+        ) {
+            *thinking_header_shown = false;
+        }
+
         match content {
             MessageContent::Text(text) => {
                 if let Some(safe_content) = buffer.push(&text.text) {
@@ -312,14 +319,11 @@ pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, 
                 flush_markdown_buffer(buffer, theme);
                 println!("Image: [data: {}, type: {}]", image.data, image.mime_type);
             }
-            MessageContent::Thinking(thinking) => {
-                if std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok()
-                    && std::io::stdout().is_terminal()
-                {
-                    flush_markdown_buffer(buffer, theme);
-                    println!("\n{}", style("Thinking:").dim().italic());
-                    print_markdown(&thinking.thinking, theme);
-                }
+            MessageContent::Thinking(t) => {
+                render_thinking_streaming(&t.thinking, buffer, thinking_header_shown, theme);
+            }
+            MessageContent::Reasoning(r) => {
+                render_thinking_streaming(&r.text, buffer, thinking_header_shown, theme);
             }
             MessageContent::RedactedThinking(_) => {
                 flush_markdown_buffer(buffer, theme);
@@ -327,8 +331,6 @@ pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, 
                 print_markdown("Thinking was redacted", theme);
             }
             MessageContent::SystemNotification(notification) => {
-                use goose::conversation::message::SystemNotificationType;
-
                 match notification.notification_type {
                     SystemNotificationType::ThinkingMessage => {
                         show_thinking();
@@ -339,16 +341,54 @@ pub fn render_message_streaming(message: &Message, buffer: &mut MarkdownBuffer, 
                         hide_thinking();
                         println!("\n{}", style(&notification.msg).yellow());
                     }
+                    SystemNotificationType::CreditsExhausted => {
+                        flush_markdown_buffer(buffer, theme);
+                        render_credits_exhausted_notification(notification);
+                    }
                 }
             }
             _ => {
                 flush_markdown_buffer(buffer, theme);
-                println!("WARNING: Message content type could not be rendered");
+                eprintln!("WARNING: Message content type could not be rendered");
             }
         }
     }
 
     let _ = std::io::stdout().flush();
+}
+
+fn render_credits_exhausted_notification(notification: &SystemNotificationContent) {
+    hide_thinking();
+    println!("\n{}", style(&notification.msg).yellow());
+
+    if let Some(url) = notification
+        .data
+        .as_ref()
+        .and_then(|d| d.get("top_up_url"))
+        .and_then(|v| v.as_str())
+    {
+        println!(
+            "{}",
+            style(format!("Visit this URL to top up credits: {url}")).yellow()
+        );
+    }
+}
+
+pub fn get_credits_top_up_url(message: &Message) -> Option<String> {
+    message.content.iter().find_map(|content| {
+        let MessageContent::SystemNotification(notification) = content else {
+            return None;
+        };
+        if notification.notification_type != SystemNotificationType::CreditsExhausted {
+            return None;
+        }
+        notification
+            .data
+            .as_ref()
+            .and_then(|d| d.get("top_up_url"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    })
 }
 
 pub fn flush_markdown_buffer(buffer: &mut MarkdownBuffer, theme: Theme) {
@@ -408,6 +448,38 @@ pub fn render_exit_plan_mode() {
 
 pub fn goose_mode_message(text: &str) {
     println!("\n{}", style(text).yellow(),);
+}
+
+static SHOW_THINKING: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("GOOSE_CLI_SHOW_THINKING").is_ok() && std::io::stdout().is_terminal()
+});
+
+fn should_show_thinking() -> bool {
+    *SHOW_THINKING
+}
+
+fn render_thinking(text: &str, theme: Theme) {
+    if should_show_thinking() {
+        println!("\n{}", style("Thinking:").dim().italic());
+        print_markdown(text, theme);
+    }
+}
+
+fn render_thinking_streaming(
+    text: &str,
+    buffer: &mut MarkdownBuffer,
+    header_shown: &mut bool,
+    theme: Theme,
+) {
+    if should_show_thinking() {
+        flush_markdown_buffer(buffer, theme);
+        if !*header_shown {
+            println!("\n{}", style("Thinking:").dim().italic());
+            *header_shown = true;
+        }
+        print!("{}", style(text).dim());
+        let _ = std::io::stdout().flush();
+    }
 }
 
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
@@ -722,7 +794,14 @@ fn split_tool_name(tool_name: &str) -> (String, String) {
         .split_first()
         .map(|(_, s)| s.iter().rev().copied().collect::<Vec<_>>().join("__"))
         .unwrap_or_default();
-    (tool.to_string(), extension)
+    (tool.to_string(), extension_display_name(&extension))
+}
+
+fn extension_display_name(name: &str) -> String {
+    match name {
+        "code_execution" => "Code Mode".to_string(),
+        _ => name.to_string(),
+    }
 }
 
 pub fn format_subagent_tool_call_message(subagent_id: &str, tool_name: &str) -> String {
@@ -1173,6 +1252,8 @@ pub fn display_session_info(
     session_id: &Option<String>,
     provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
+    set_terminal_title();
+
     let status = if resume {
         "resuming"
     } else if session_id.is_none() {
@@ -1192,8 +1273,16 @@ pub fn display_session_info(
         model.to_string()
     };
 
+    let cwd_display = std::env::current_dir()
+        .ok()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // ASCII art goose with session info on the right
+    println!();
     println!(
-        "\n  {} {} {} {} {}",
+        "  {}  {} {} {} {} {}",
+        style("  __( O)>").white(),
         style("●").green(),
         style(status).dim(),
         style("·").dim(),
@@ -1201,28 +1290,30 @@ pub fn display_session_info(
         style(&model_display).cyan(),
     );
 
-    let cwd_display = std::env::current_dir()
-        .ok()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
-
     if let Some(id) = session_id {
         println!(
-            "  {} {} {}",
+            "  {}  {} {} {}",
+            style(r" \____)").white(),
             style(" ").dim(),
             style(id).dim(),
             style(format!("· {}", cwd_display)).dim(),
         );
     } else {
         println!(
-            "  {} {}",
+            "  {}  {} {}",
+            style(r" \____)").white(),
             style(" ").dim(),
             style(format!("  {}", cwd_display)).dim(),
         );
     }
+    println!(
+        "  {}  {}",
+        style("   L L").white(),
+        style("   goose is ready").white()
+    );
 }
 
-pub fn set_terminal_title() {
+fn set_terminal_title() {
     if !std::io::stdout().is_terminal() {
         return;
     }
@@ -1235,15 +1326,6 @@ pub fn set_terminal_title() {
     // OSC 0 sets the terminal window/tab title
     print!("\x1b]0;🪿 {}\x07", sanitized);
     let _ = std::io::stdout().flush();
-}
-
-pub fn display_greeting() {
-    set_terminal_title();
-    println!(
-        "\n{} {}\n",
-        style("🪿 goose").bold(),
-        style("ready — type a message to get started").dim()
-    );
 }
 
 pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
@@ -1393,6 +1475,7 @@ impl McpSpinners {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::env;
 
     #[test]
@@ -1459,5 +1542,28 @@ mod tests {
             ),
             "/v/l/p/w/m/components/file.txt"
         );
+    }
+
+    #[test]
+    fn test_get_credits_top_up_url_from_credits_notification() {
+        let message = Message::assistant().with_system_notification_with_data(
+            SystemNotificationType::CreditsExhausted,
+            "Insufficient credits",
+            json!({"top_up_url": "https://router.tetrate.ai/billing"}),
+        );
+        assert_eq!(
+            get_credits_top_up_url(&message).as_deref(),
+            Some("https://router.tetrate.ai/billing")
+        );
+    }
+
+    #[test]
+    fn test_get_credits_top_up_url_ignores_non_credits_notification() {
+        let message = Message::assistant().with_system_notification_with_data(
+            SystemNotificationType::InlineMessage,
+            "hello",
+            json!({"top_up_url": "https://router.tetrate.ai/billing"}),
+        );
+        assert_eq!(get_credits_top_up_url(&message), None);
     }
 }

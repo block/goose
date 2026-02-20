@@ -330,10 +330,12 @@ impl SummonClient {
             "Load knowledge into your current context or discover available sources.\n\n\
              Call with no arguments to list all available sources (subrecipes, recipes, skills, agents).\n\
              Call with a source name to load its content into your context.\n\
-             For background tasks: load(source: \"task_id\", cancel: true) stops and returns output.\n\n\
+             For background tasks: load(source: \"task_id\") waits for the task and returns the result.\n\
+             To cancel a running task: load(source: \"task_id\", cancel: true) stops and returns output.\n\n\
              Examples:\n\
              - load() → Lists available sources\n\
-             - load(source: \"rust-patterns\") → Loads the rust-patterns skill"
+             - load(source: \"rust-patterns\") → Loads the rust-patterns skill\n\
+             - load(source: \"20260219_1\") → Waits for background task, then returns result"
                 .to_string(),
             schema.as_object().unwrap().clone(),
         )
@@ -880,7 +882,7 @@ impl SummonClient {
 
             // Wait for the running task to complete, keeping the tool call
             // alive so notifications (subagent tool calls) stream in real time.
-            let task = running.remove(task_id).unwrap();
+            let mut task = running.remove(task_id).unwrap();
             drop(running);
 
             let buffered = {
@@ -896,45 +898,37 @@ impl SummonClient {
                 }
             }
 
-            let description = task.description.clone();
-            let mut handle = task.handle;
-
-            let (output, timed_out) = tokio::select! {
-                result = &mut handle => {
-                    let s = match result {
+            tokio::select! {
+                result = &mut task.handle => {
+                    let output = match result {
                         Ok(Ok(s)) => s,
                         Ok(Err(e)) => format!("Error: {}", e),
                         Err(e) => format!("Task panicked: {}", e),
                     };
-                    (s, false)
+
+                    return Ok(vec![Content::text(format!(
+                        "# Background Task Result: {}\n\n\
+                         **Task:** {}\n\
+                         **Status:** ✓ Completed\n\
+                         **Duration:** {} ({} turns)\n\n\
+                         ## Output\n\n{}",
+                        task_id,
+                        task.description,
+                        round_duration(task.started_at.elapsed()),
+                        task.turns.load(Ordering::Relaxed),
+                        output
+                    ))]);
                 }
                 _ = tokio::time::sleep(Duration::from_secs(300)) => {
-                    handle.abort();
-                    ("Task timed out waiting for completion (aborted after 5 min)".to_string(), true)
+                    self.background_tasks.lock().await.insert(task_id.to_string(), task);
+
+                    return Err(format!(
+                        "Task '{task_id}' is still running after waiting 5 min. \
+                         Use load(source: \"{task_id}\") to wait again, or \
+                         load(source: \"{task_id}\", cancel: true) to stop."
+                    ));
                 }
-            };
-
-            let duration = task.started_at.elapsed();
-            let turns_taken = task.turns.load(Ordering::Relaxed);
-            let status = if timed_out {
-                "⏱ Timed out"
-            } else {
-                "✓ Completed"
-            };
-
-            return Ok(vec![Content::text(format!(
-                "# Background Task Result: {}\n\n\
-                 **Task:** {}\n\
-                 **Status:** {}\n\
-                 **Duration:** {} ({} turns)\n\n\
-                 ## Output\n\n{}",
-                task_id,
-                description,
-                status,
-                round_duration(duration),
-                turns_taken,
-                output
-            ))]);
+            }
         }
 
         Err(format!("Task '{}' not found.", task_id))
@@ -1414,14 +1408,18 @@ impl SummonClient {
                     .as_ref()
                     .and_then(|s| s.goose_provider.clone())
             })
+            .or_else(|| {
+                Config::global()
+                    .get_param::<String>("GOOSE_SUBAGENT_PROVIDER")
+                    .ok()
+            })
             .or_else(|| session.provider_name.clone())
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
-        let mut model_config = session
-            .model_config
-            .clone()
-            .map(Ok)
-            .unwrap_or_else(|| crate::model::ModelConfig::new("default"))?;
+        let mut model_config = session.model_config.clone().map(Ok).unwrap_or_else(|| {
+            crate::model::ModelConfig::new("default")
+                .map(|c| c.with_canonical_limits(&provider_name))
+        })?;
 
         if let Some(model) = &params.model {
             model_config.model_name = model.clone();
@@ -1431,6 +1429,8 @@ impl SummonClient {
             .and_then(|s| s.goose_model.as_ref())
         {
             model_config.model_name = model.clone();
+        } else if let Ok(model) = Config::global().get_param::<String>("GOOSE_SUBAGENT_MODEL") {
+            model_config.model_name = model;
         }
 
         if let Some(temp) = params.temperature {
@@ -1622,7 +1622,8 @@ impl SummonClient {
             .insert(task_id.clone(), task);
 
         Ok(vec![Content::text(format!(
-            "Task {} started in background: \"{}\"\nUse load(source: \"{}\") to wait for the result (it will block until complete).",
+            "Task {} started in background: \"{}\"\n\
+             Continue with other work. When you need the result, use load(source: \"{}\").",
             task_id, description, task_id
         ))])
     }
@@ -1708,18 +1709,12 @@ impl McpClientTrait for SummonClient {
         let mut lines = vec!["Background tasks:".to_string()];
         let now = current_epoch_millis();
 
-        let mut shortest_elapsed_secs: Option<u64> = None;
-
         let mut sorted_running: Vec<_> = running.values().collect();
         sorted_running.sort_by_key(|t| &t.id);
 
         for task in sorted_running {
             let elapsed = task.started_at.elapsed();
             let idle_ms = now.saturating_sub(task.last_activity.load(Ordering::Relaxed));
-
-            let elapsed_secs = elapsed.as_secs();
-            shortest_elapsed_secs =
-                Some(shortest_elapsed_secs.map_or(elapsed_secs, |s| s.min(elapsed_secs)));
 
             lines.push(format!(
                 "• {}: \"{}\" - running {}, {} turns, idle {}",
@@ -1751,12 +1746,11 @@ impl McpClientTrait for SummonClient {
             ));
         }
 
-        if let Some(shortest) = shortest_elapsed_secs {
-            let sleep_secs = 300u64.saturating_sub(shortest).max(10);
-            lines.push(format!(
-                "\n→ sleep {} to wait, or load(source: \"id\", cancel: true) to stop",
-                sleep_secs
-            ));
+        if !running.is_empty() {
+            lines.push(
+                "\n→ Use load(source: \"<id>\") to wait for a task, or load(source: \"<id>\", cancel: true) to stop it"
+                    .to_string(),
+            );
         }
 
         Some(lines.join("\n"))

@@ -854,6 +854,13 @@ enum Command {
         #[command(subcommand)]
         command: TermCommand,
     },
+    /// Manage local inference models
+    #[command(about = "Manage local inference models", visible_alias = "lm")]
+    LocalModels {
+        #[command(subcommand)]
+        command: LocalModelsCommand,
+    },
+
     /// Generate completions for various shells
     #[command(about = "Generate the autocompletion script for the specified shell")]
     Completion {
@@ -862,6 +869,48 @@ enum Command {
 
         #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
         bin_name: String,
+    },
+
+    #[command(
+        name = "validate-extensions",
+        about = "Validate a bundled-extensions.json file",
+        hide = true
+    )]
+    ValidateExtensions {
+        #[arg(help = "Path to the bundled-extensions.json file")]
+        file: PathBuf,
+    },
+}
+
+#[derive(Subcommand)]
+enum LocalModelsCommand {
+    /// Search HuggingFace for GGUF models
+    #[command(about = "Search HuggingFace for GGUF models")]
+    Search {
+        /// Search query
+        query: String,
+
+        /// Maximum number of results
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+    },
+
+    /// Download a model from HuggingFace
+    #[command(about = "Download a GGUF model (e.g. bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M)")]
+    Download {
+        /// Model spec in user/repo:quantization format
+        spec: String,
+    },
+
+    /// List downloaded local models
+    #[command(about = "List downloaded local models")]
+    List,
+
+    /// Delete a downloaded model
+    #[command(about = "Delete a downloaded local model")]
+    Delete {
+        /// Model ID to delete
+        id: String,
     },
 }
 
@@ -954,7 +1003,9 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
+        Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
+        Some(Command::ValidateExtensions { .. }) => "validate-extensions",
         None => "default_session",
     }
 }
@@ -1389,6 +1440,167 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
     }
 }
 
+async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
+    use goose::providers::local_inference::hf_models;
+    use goose::providers::local_inference::local_model_registry::{
+        get_registry, model_id_from_repo, LocalModelEntry,
+    };
+
+    match command {
+        LocalModelsCommand::Search { query, limit } => {
+            println!("Searching HuggingFace for '{}'...", query);
+            let results = hf_models::search_gguf_models(&query, limit).await?;
+
+            if results.is_empty() {
+                println!("No GGUF models found.");
+                return Ok(());
+            }
+
+            for model in &results {
+                println!(
+                    "\n{} (by {}) — {} downloads",
+                    model.model_name, model.author, model.downloads
+                );
+                for file in &model.gguf_files {
+                    let size = if file.size_bytes > 0 {
+                        format!(
+                            "{:.1}GB",
+                            file.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+                        )
+                    } else {
+                        "unknown".to_string()
+                    };
+                    println!("  {} — {}", file.quantization, size);
+                }
+                println!(
+                    "  Download: goose local-models download {}:<quantization>",
+                    model.repo_id
+                );
+            }
+        }
+        LocalModelsCommand::Download { spec } => {
+            println!("Resolving {}...", spec);
+            let (repo_id, file) = hf_models::resolve_model_spec(&spec).await?;
+            let model_id = model_id_from_repo(&repo_id, &file.quantization);
+            let local_path =
+                goose::config::paths::Paths::in_data_dir("models").join(&file.filename);
+
+            println!(
+                "Downloading {} ({})...",
+                model_id,
+                if file.size_bytes > 0 {
+                    format!(
+                        "{:.1}GB",
+                        file.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+                    )
+                } else {
+                    "unknown size".to_string()
+                }
+            );
+
+            // Register
+            let entry = LocalModelEntry {
+                id: model_id.clone(),
+                repo_id: repo_id.clone(),
+                filename: file.filename.clone(),
+                quantization: file.quantization.clone(),
+                local_path: local_path.clone(),
+                source_url: file.download_url.clone(),
+                settings: Default::default(),
+                size_bytes: file.size_bytes,
+            };
+
+            {
+                let mut registry = get_registry()
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("Failed to acquire registry lock"))?;
+                registry.add_model(entry)?;
+            }
+
+            // Download
+            let manager = goose::download_manager::get_download_manager();
+            manager
+                .download_model(
+                    format!("{}-model", model_id),
+                    file.download_url,
+                    local_path,
+                    None,
+                )
+                .await?;
+
+            // Poll progress
+            loop {
+                if let Some(progress) = manager.get_progress(&format!("{}-model", model_id)) {
+                    match progress.status {
+                        goose::download_manager::DownloadStatus::Downloading => {
+                            print!(
+                                "\r  {:.1}% ({:.0}MB / {:.0}MB)",
+                                progress.progress_percent,
+                                progress.bytes_downloaded as f64 / (1024.0 * 1024.0),
+                                progress.total_bytes as f64 / (1024.0 * 1024.0),
+                            );
+                            use std::io::Write;
+                            std::io::stdout().flush().ok();
+                        }
+                        goose::download_manager::DownloadStatus::Completed => {
+                            println!("\nDownloaded: {}", model_id);
+                            break;
+                        }
+                        goose::download_manager::DownloadStatus::Failed => {
+                            let err = progress.error.unwrap_or_default();
+                            anyhow::bail!("Download failed: {}", err);
+                        }
+                        goose::download_manager::DownloadStatus::Cancelled => {
+                            println!("\nDownload cancelled.");
+                            break;
+                        }
+                    }
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+        }
+        LocalModelsCommand::List => {
+            let registry = get_registry()
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire registry lock"))?;
+            let models = registry.list_models();
+
+            if models.is_empty() {
+                println!("No local models downloaded.");
+                return Ok(());
+            }
+
+            println!("{:<50} {:<10} Downloaded", "ID", "Quant");
+            println!("{}", "-".repeat(70));
+            for m in models {
+                println!(
+                    "{:<50} {:<10} {}",
+                    m.id,
+                    m.quantization,
+                    if m.is_downloaded() { "✓" } else { "✗" }
+                );
+            }
+        }
+        LocalModelsCommand::Delete { id } => {
+            let mut registry = get_registry()
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Failed to acquire registry lock"))?;
+
+            if let Some(entry) = registry.get_model(&id) {
+                if entry.local_path.exists() {
+                    std::fs::remove_file(&entry.local_path)?;
+                }
+                registry.remove_model(&id)?;
+                println!("Deleted model: {}", id);
+            } else {
+                println!("Model not found: {}", id);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn handle_default_session() -> Result<()> {
     if !Config::global().exists() {
         return handle_configure().await;
@@ -1507,7 +1719,7 @@ pub async fn cli() -> anyhow::Result<()> {
             canary,
             reconfigure,
         }) => {
-            crate::commands::update::update(canary, reconfigure)?;
+            crate::commands::update::update(canary, reconfigure).await?;
             Ok(())
         }
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
@@ -1519,6 +1731,20 @@ pub async fn cli() -> anyhow::Result<()> {
             no_auth,
         }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
+        Some(Command::ValidateExtensions { file }) => {
+            use goose::agents::validate_extensions::validate_bundled_extensions;
+            match validate_bundled_extensions(&file) {
+                Ok(msg) => {
+                    println!("{msg}");
+                    Ok(())
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+        }
         None => handle_default_session().await,
     }
 }

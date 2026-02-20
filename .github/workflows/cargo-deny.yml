@@ -18,6 +18,7 @@ on:
 jobs:
   deny:
     runs-on: ubuntu-latest
+    if: github.repository == 'block/goose'
     permissions:
       contents: read
     steps:
