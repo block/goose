@@ -730,95 +730,19 @@ pub async fn text_editor_write(path: &PathBuf, file_text: &str) -> Result<Vec<Co
     ])
 }
 
-#[allow(clippy::too_many_lines)]
-pub async fn text_editor_replace(
-    path: &PathBuf,
+/// Performs string replacement on an in-memory buffer.
+///
+/// Returns `(new_content, response)` where `new_content` is the modified buffer
+/// and `response` is the formatted output messages. The `path` is used only for
+/// display and language detection.
+pub fn text_editor_replace_inmem(
+    path: &Path,
+    content: &str,
     old_str: &str,
     new_str: &str,
-    diff: Option<&str>,
-    editor_model: &Option<EditorModel>,
-    file_history: &std::sync::Arc<
-        std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
-    >,
-) -> Result<Vec<Content>, ErrorData> {
-    // Check if diff is provided
-    if let Some(diff_content) = diff {
-        // Validate it's a proper diff
-        if !diff_content.contains("---") || !diff_content.contains("+++") {
-            return Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "The 'diff' parameter must be in unified diff format".to_string(),
-                None,
-            ));
-        }
-
-        return apply_diff(path, diff_content, file_history).await;
-    }
-    // Check if file exists and is active
-    if !path.exists() {
-        return Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            format!(
-                "File '{}' does not exist, you can write a new file with the `write` command",
-                path.display()
-            ),
-            None,
-        ));
-    }
-
-    // Read content
-    let content = std::fs::read_to_string(path).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to read file: {}", e),
-            None,
-        )
-    })?;
-
-    // Check if Editor API is configured and use it as the primary path
-    if let Some(ref editor) = editor_model {
-        // Editor API path - save history then call API directly
-        save_file_history(path, file_history)?;
-
-        match editor.edit_code(&content, old_str, new_str).await {
-            Ok(updated_content) => {
-                // Write the updated content directly
-                let mut normalized_content = normalize_line_endings(&updated_content);
-
-                if !normalized_content.ends_with('\n') {
-                    normalized_content.push('\n');
-                }
-
-                std::fs::write(path, &normalized_content).map_err(|e| {
-                    ErrorData::new(
-                        ErrorCode::INTERNAL_ERROR,
-                        format!("Failed to write file: {}", e),
-                        None,
-                    )
-                })?;
-
-                // Simple success message for Editor API
-                return Ok(vec![
-                    Content::text(format!("Successfully edited {}", path.display()))
-                        .with_audience(vec![Role::Assistant]),
-                    Content::text(format!("File {} has been edited", path.display()))
-                        .with_audience(vec![Role::User])
-                        .with_priority(0.2),
-                ]);
-            }
-            Err(e) => {
-                tracing::debug!(
-                    "Editor API call failed: {}, falling back to string replacement",
-                    e
-                );
-                // Fall through to traditional path below
-            }
-        }
-    }
-
-    // Traditional string replacement path (original logic)
-    // Ensure 'old_str' appears exactly once
-    if content.matches(old_str).count() > 1 {
+) -> Result<(String, Vec<Content>), ErrorData> {
+    let match_count = content.matches(old_str).count();
+    if match_count > 1 {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
             "'old_str' must appear exactly once in the file, but it appears multiple times"
@@ -826,12 +750,9 @@ pub async fn text_editor_replace(
             None,
         ));
     }
-    if content.matches(old_str).count() == 0 {
+    if match_count == 0 {
         return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".to_string(), None));
     }
-
-    // Save history for undo (original behavior - after validation)
-    save_file_history(path, file_history)?;
 
     let new_content = content.replace(old_str, new_str);
     let mut normalized_content = normalize_line_endings(&new_content);
@@ -840,21 +761,10 @@ pub async fn text_editor_replace(
         normalized_content.push('\n');
     }
 
-    std::fs::write(path, &normalized_content).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to write file: {}", e),
-            None,
-        )
-    })?;
-
-    // Try to detect the language from the file extension
     let language = lang::get_language_identifier(path);
 
-    // Show a snippet of the changed content with context
     const SNIPPET_LINES: usize = 4;
 
-    // Count newlines before the replacement to find the line number
     let replacement_line = content
         .split(old_str)
         .next()
@@ -862,11 +772,9 @@ pub async fn text_editor_replace(
         .matches('\n')
         .count();
 
-    // Calculate start and end lines for the snippet
     let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
     let end_line = replacement_line + SNIPPET_LINES + new_content.matches('\n').count();
 
-    // Get the relevant lines for our snippet
     let lines: Vec<&str> = new_content.lines().collect();
     let snippet = lines
         .iter()
@@ -894,23 +802,39 @@ pub async fn text_editor_replace(
         output
     };
 
-    Ok(vec![
+    let response = vec![
         Content::text(success_message).with_audience(vec![Role::Assistant]),
         Content::text(output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
-    ])
+    ];
+
+    Ok((normalized_content, response))
 }
 
-pub async fn text_editor_insert(
+#[allow(clippy::too_many_lines)]
+pub async fn text_editor_replace(
     path: &PathBuf,
-    insert_line_spec: i64,
+    old_str: &str,
     new_str: &str,
+    diff: Option<&str>,
+    editor_model: &Option<EditorModel>,
     file_history: &std::sync::Arc<
         std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
     >,
 ) -> Result<Vec<Content>, ErrorData> {
-    // Check if file exists
+    if let Some(diff_content) = diff {
+        if !diff_content.contains("---") || !diff_content.contains("+++") {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                "The 'diff' parameter must be in unified diff format".to_string(),
+                None,
+            ));
+        }
+
+        return apply_diff(path, diff_content, file_history).await;
+    }
+
     if !path.exists() {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
@@ -922,7 +846,6 @@ pub async fn text_editor_insert(
         ));
     }
 
-    // Read content
     let content = std::fs::read_to_string(path).map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
@@ -931,56 +854,47 @@ pub async fn text_editor_insert(
         )
     })?;
 
-    // Save history for undo
+    if let Some(ref editor) = editor_model {
+        save_file_history(path, file_history)?;
+
+        match editor.edit_code(&content, old_str, new_str).await {
+            Ok(updated_content) => {
+                let mut normalized_content = normalize_line_endings(&updated_content);
+
+                if !normalized_content.ends_with('\n') {
+                    normalized_content.push('\n');
+                }
+
+                std::fs::write(path, &normalized_content).map_err(|e| {
+                    ErrorData::new(
+                        ErrorCode::INTERNAL_ERROR,
+                        format!("Failed to write file: {}", e),
+                        None,
+                    )
+                })?;
+
+                return Ok(vec![
+                    Content::text(format!("Successfully edited {}", path.display()))
+                        .with_audience(vec![Role::Assistant]),
+                    Content::text(format!("File {} has been edited", path.display()))
+                        .with_audience(vec![Role::User])
+                        .with_priority(0.2),
+                ]);
+            }
+            Err(e) => {
+                tracing::debug!(
+                    "Editor API call failed: {}, falling back to string replacement",
+                    e
+                );
+            }
+        }
+    }
+
     save_file_history(path, file_history)?;
 
-    let lines: Vec<&str> = content.lines().collect();
-    let total_lines = lines.len();
+    let (normalized_content, response) = text_editor_replace_inmem(path, &content, old_str, new_str)?;
 
-    // Allow insert_line to be negative
-    let insert_line = if insert_line_spec < 0 {
-        // -1 == end of file, -2 == before the last line, etc.
-        (total_lines as i64 + 1 + insert_line_spec) as usize
-    } else {
-        insert_line_spec as usize
-    };
-
-    // Validate insert_line parameter
-    if insert_line > total_lines {
-        return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
-            "Insert line {} is beyond the end of the file (total lines: {}). Use 0 to insert at the beginning or {} to insert at the end.",
-            insert_line, total_lines, total_lines
-        ), None));
-    }
-
-    // Create new content with inserted text
-    let mut new_lines = Vec::new();
-
-    // Add lines before the insertion point
-    for (i, line) in lines.iter().enumerate() {
-        if i == insert_line {
-            // Insert the new text at this position
-            new_lines.push(new_str.to_string());
-        }
-        new_lines.push(line.to_string());
-    }
-
-    // If inserting at the end (after all existing lines)
-    if insert_line == total_lines {
-        new_lines.push(new_str.to_string());
-    }
-
-    let new_content = new_lines.join("\n");
-    let normalized_content = normalize_line_endings(&new_content);
-
-    // Ensure the file ends with a newline
-    let final_content = if !normalized_content.ends_with('\n') {
-        format!("{}\n", normalized_content)
-    } else {
-        normalized_content
-    };
-
-    std::fs::write(path, &final_content).map_err(|e| {
+    std::fs::write(path, &normalized_content).map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to write file: {}", e),
@@ -988,18 +902,66 @@ pub async fn text_editor_insert(
         )
     })?;
 
-    // Try to detect the language from the file extension
+    Ok(response)
+}
+
+/// Performs line insertion on an in-memory buffer.
+///
+/// Returns `(new_content, response)` where `new_content` is the modified buffer
+/// and `response` is the formatted output messages. The `path` is used only for
+/// display and language detection.
+pub fn text_editor_insert_inmem(
+    path: &Path,
+    content: &str,
+    insert_line_spec: i64,
+    new_str: &str,
+) -> Result<(String, Vec<Content>), ErrorData> {
+    let lines: Vec<&str> = content.lines().collect();
+    let total_lines = lines.len();
+
+    let insert_line = if insert_line_spec < 0 {
+        (total_lines as i64 + 1 + insert_line_spec) as usize
+    } else {
+        insert_line_spec as usize
+    };
+
+    if insert_line > total_lines {
+        return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
+            "Insert line {} is beyond the end of the file (total lines: {}). Use 0 to insert at the beginning or {} to insert at the end.",
+            insert_line, total_lines, total_lines
+        ), None));
+    }
+
+    let mut new_lines = Vec::new();
+
+    for (i, line) in lines.iter().enumerate() {
+        if i == insert_line {
+            new_lines.push(new_str.to_string());
+        }
+        new_lines.push(line.to_string());
+    }
+
+    if insert_line == total_lines {
+        new_lines.push(new_str.to_string());
+    }
+
+    let joined = new_lines.join("\n");
+    let normalized_content = normalize_line_endings(&joined);
+
+    let final_content = if !normalized_content.ends_with('\n') {
+        format!("{}\n", normalized_content)
+    } else {
+        normalized_content
+    };
+
     let language = lang::get_language_identifier(path);
 
-    // Show a snippet of the inserted content with context
     const SNIPPET_LINES: usize = 4;
-    let insertion_line = insert_line + 1; // Convert to 1-indexed for display
+    let insertion_line = insert_line + 1;
 
-    // Calculate start and end lines for the snippet
     let start_line = insertion_line.saturating_sub(SNIPPET_LINES);
     let end_line = std::cmp::min(insertion_line + SNIPPET_LINES, new_lines.len());
 
-    // Get the relevant lines for our snippet with line numbers
     let snippet_lines: Vec<String> = new_lines[start_line.saturating_sub(1)..end_line]
         .iter()
         .enumerate()
@@ -1027,12 +989,57 @@ pub async fn text_editor_insert(
         output
     };
 
-    Ok(vec![
+    let response = vec![
         Content::text(success_message).with_audience(vec![Role::Assistant]),
         Content::text(output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
-    ])
+    ];
+
+    Ok((final_content, response))
+}
+
+pub async fn text_editor_insert(
+    path: &PathBuf,
+    insert_line_spec: i64,
+    new_str: &str,
+    file_history: &std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
+    >,
+) -> Result<Vec<Content>, ErrorData> {
+    if !path.exists() {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            format!(
+                "File '{}' does not exist, you can write a new file with the `write` command",
+                path.display()
+            ),
+            None,
+        ));
+    }
+
+    let content = std::fs::read_to_string(path).map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to read file: {}", e),
+            None,
+        )
+    })?;
+
+    save_file_history(path, file_history)?;
+
+    let (final_content, response) =
+        text_editor_insert_inmem(path, &content, insert_line_spec, new_str)?;
+
+    std::fs::write(path, &final_content).map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to write file: {}", e),
+            None,
+        )
+    })?;
+
+    Ok(response)
 }
 
 pub async fn text_editor_undo(

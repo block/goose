@@ -691,6 +691,10 @@ enum Command {
             value_delimiter = ','
         )]
         builtins: Vec<String>,
+
+        /// Enable ACP editor tools
+        #[arg(long)]
+        acp_editor_tools: bool,
     },
 
     /// Start or resume interactive chat sessions
@@ -1462,7 +1466,10 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),
         Some(Command::Mcp { server }) => handle_mcp_command(server).await,
-        Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
+        Some(Command::Acp {
+            builtins,
+            acp_editor_tools,
+        }) => goose_acp::server::run(builtins, acp_editor_tools).await,
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,

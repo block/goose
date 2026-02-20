@@ -41,6 +41,7 @@ async fn main() -> Result<()> {
         builtins,
         data_dir: Paths::data_dir(),
         config_dir: Paths::config_dir(),
+        acp_editor_tools: false,
     }));
     let router = goose_acp::transport::create_router(server);
 

@@ -932,6 +932,7 @@ impl ExtensionManager {
             .collect();
 
         let cancel_token = CancellationToken::default();
+        let num_clients = clients.len();
         let client_futures = clients.into_iter().map(|(name, config, client)| {
             let cancel_token = cancel_token.clone();
             let ext_name = name.clone();
@@ -948,7 +949,7 @@ impl ExtensionManager {
                     }
                 };
 
-                let expose_unprefixed = is_unprefixed_extension(&config);
+                let expose_unprefixed = num_clients == 1 || is_unprefixed_extension(&config);
 
                 loop {
                     for tool in client_tools.tools {
