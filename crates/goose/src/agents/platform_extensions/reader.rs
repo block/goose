@@ -91,11 +91,13 @@ fn read_file(
     let raw = String::from_utf8_lossy(&buf);
     let lines: Vec<&str> = raw.lines().collect();
     let total = lines.len();
-    // Fix 3: Validate view_range values are non-negative before casting
     let te_range = match view_range.as_deref() {
         Some([a, b]) => {
             if *a < 0 {
                 return Err("view_range start must be non-negative".into());
+            }
+            if *b < -1 {
+                return Err("view_range end must be -1 or non-negative".into());
             }
             Some((*a as usize, *b))
         }
@@ -109,7 +111,6 @@ fn read_file(
     };
     let (s, e) = text_editor::calculate_view_range(te_range, total).map_err(|e| e.message)?;
     let mut content = text_editor::format_file_content(path, &lines, s, e, te_range);
-    // Fix 1: Append truncation notice if file was truncated
     if truncated {
         content.push_str("\n[truncated at 256KB]");
     }
@@ -118,39 +119,50 @@ fn read_file(
 
 fn read_directory(path: &Path, max_depth: u32) -> Vec<Content> {
     let mut out = format!("{}\n", path.display());
-    let mut c = (0usize, 0usize, 0usize, false); // files, dirs, total, truncated
-    build_tree(path, 0, max_depth as usize, &mut out, &mut c);
-    if c.3 {
+    let mut stats = TreeStats {
+        files: 0,
+        dirs: 0,
+        total: 0,
+        truncated: false,
+    };
+    build_tree(path, 0, max_depth as usize, &mut out, &mut stats);
+    if stats.truncated {
         out.push_str(&format!("\n(truncated at {MAX_DIR_ENTRIES} entries)\n"));
     }
-    out.push_str(&format!("\n{} files, {} directories\n", c.0, c.1));
+    out.push_str(&format!(
+        "\n{} files, {} directories\n",
+        stats.files, stats.dirs
+    ));
     vec![Content::text(out)]
 }
 
-fn build_tree(
-    dir: &Path,
-    depth: usize,
-    max_depth: usize,
-    out: &mut String,
-    c: &mut (usize, usize, usize, bool),
-) {
-    if c.3 || depth > max_depth {
+struct TreeStats {
+    files: usize,
+    dirs: usize,
+    total: usize,
+    truncated: bool,
+}
+
+fn build_tree(dir: &Path, depth: usize, max_depth: usize, out: &mut String, stats: &mut TreeStats) {
+    if stats.truncated || depth > max_depth {
         return;
     }
     let Ok(rd) = fs::read_dir(dir) else { return };
-    // Fix 2: Cap entries during iteration instead of collecting all then truncating
     let mut entries: Vec<fs::DirEntry> = rd
         .filter_map(|e| e.ok())
-        .take(MAX_DIR_ENTRIES + 1 - c.2.min(MAX_DIR_ENTRIES))
+        .take(MAX_DIR_ENTRIES + 1 - stats.total.min(MAX_DIR_ENTRIES))
         .collect();
-    let had_more = entries.len() > MAX_DIR_ENTRIES.saturating_sub(c.2);
+    let had_more = entries.len() > MAX_DIR_ENTRIES.saturating_sub(stats.total);
     entries.sort_by_key(|e| e.file_name());
     let n = entries.len();
     for (i, entry) in entries.iter().enumerate() {
-        if c.3 {
+        if stats.truncated {
             return;
         }
-        let path = entry.path();
+        let Ok(ft) = entry.file_type() else { continue };
+        if ft.is_symlink() {
+            continue;
+        }
         let name = entry.file_name().to_string_lossy().to_string();
         let pfx = format!(
             "{}{}",
@@ -161,25 +173,25 @@ fn build_tree(
                 "├── "
             }
         );
-        if path.is_dir() {
-            c.1 += 1;
-            c.2 += 1;
-            if c.2 > MAX_DIR_ENTRIES {
-                c.3 = true;
+        if ft.is_dir() {
+            stats.dirs += 1;
+            stats.total += 1;
+            if stats.total > MAX_DIR_ENTRIES {
+                stats.truncated = true;
                 return;
             }
             out.push_str(&format!("{pfx}{name}/\n"));
             if depth < max_depth {
-                build_tree(&path, depth + 1, max_depth, out, c);
+                build_tree(&entry.path(), depth + 1, max_depth, out, stats);
             }
-        } else if path.is_file() {
-            c.0 += 1;
-            c.2 += 1;
-            if c.2 > MAX_DIR_ENTRIES {
-                c.3 = true;
+        } else if ft.is_file() {
+            stats.files += 1;
+            stats.total += 1;
+            if stats.total > MAX_DIR_ENTRIES {
+                stats.truncated = true;
                 return;
             }
-            let sz = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            let sz = entry.metadata().map(|m| m.len()).unwrap_or(0);
             let sz_s = match sz {
                 0..=1023 => format!("{sz}B"),
                 1024..=1_048_575 => format!("{:.1}KB", sz as f64 / 1024.0),
@@ -188,8 +200,8 @@ fn build_tree(
             out.push_str(&format!("{pfx}{name:<40} {sz_s}\n"));
         }
     }
-    if had_more && !c.3 {
-        c.3 = true;
+    if had_more && !stats.truncated {
+        stats.truncated = true;
     }
 }
 
@@ -232,8 +244,9 @@ impl ReaderClient {
 
     fn handle_read(&self, p: ReadParams, wd: &Path) -> std::result::Result<Vec<Content>, String> {
         let path = resolve_and_validate(&p.path, wd)?;
+        let depth = p.max_depth.min(10);
         if path.is_dir() {
-            Ok(read_directory(&path, p.max_depth))
+            Ok(read_directory(&path, depth))
         } else if path.is_file() {
             read_file(&path, p.view_range)
         } else {
@@ -270,9 +283,17 @@ impl McpClientTrait for ReaderClient {
                 "Unknown tool: {name}"
             ))]));
         }
-        let wd = working_dir
-            .map(PathBuf::from)
-            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/")));
+        let wd = match working_dir.map(PathBuf::from) {
+            Some(p) => p,
+            None => match std::env::current_dir() {
+                Ok(p) => p,
+                Err(e) => {
+                    return Ok(CallToolResult::error(vec![Content::text(format!(
+                        "No working directory: {e}"
+                    ))]));
+                }
+            },
+        };
         let params: ReadParams = match arguments
             .map(|a| serde_json::from_value(serde_json::Value::Object(a)))
             .transpose()
