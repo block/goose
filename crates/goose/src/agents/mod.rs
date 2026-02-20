@@ -37,6 +37,7 @@ pub mod extension_manager;
 pub mod extension_manager_extension;
 pub mod extension_registry;
 pub mod final_output_tool;
+pub(crate) mod genui_extension;
 pub mod goose_agent;
 pub mod intent_router;
 mod large_response_handler;

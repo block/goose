@@ -2,6 +2,7 @@ use crate::agents::apps_extension;
 use crate::agents::chatrecall_extension;
 use crate::agents::code_execution_extension;
 use crate::agents::extension_manager_extension;
+use crate::agents::genui_extension;
 use crate::agents::summon_extension;
 use crate::agents::todo_extension;
 use crate::agents::tom_extension;
@@ -144,6 +145,22 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 unprefixed_tools: false,
                 scope: ExtensionScope::Orchestrator,
                 client_factory: |ctx| Box::new(tom_extension::TomClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            genui_extension::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: genui_extension::EXTENSION_NAME,
+                display_name: "Generative UI",
+                description:
+                    "Render visual components (tables, cards, dashboards) inline in chat using Radix UI",
+                default_enabled: true,
+                unprefixed_tools: false,
+                scope: ExtensionScope::Any,
+                client_factory: |ctx| {
+                    Box::new(genui_extension::GenUiClient::new(ctx).unwrap())
+                },
             },
         );
 
