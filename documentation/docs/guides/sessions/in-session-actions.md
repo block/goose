@@ -237,23 +237,30 @@ Speak to goose directly instead of typing your prompts.
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
         2. Click `Settings` in the sidebar
         3. Click the `Chat` tab
-        4. Under `Voice Dictation`, toggle `Enable Voice Dictation` on
-        5. Choose between `OpenAI Whisper` or `ElevenLabs` as your dictation provider
-        6. Enter your API key for the provider you chose 
+        4. For `Voice Dictation Provider`, select your provider from the dropdown:
+           - Local — On-device transcription using a local whisper model, no API key needed. On first use, you'll be prompted to download the model.
+           - [Elevenlabs](https://elevenlabs.io/)
+           - [Groq](https://groq.com/)
+           - [OpenAI](https://platform.openai.com/api-keys)
+        5. If prompted, enter your API key for the provider you chose
 
     To use voice dictation:
-        1. Return to your chat (click your chat session under `Chat` in the sidebar)
-        2. Click the microphone on the right of the chat box and begin speaking
+        1. Click your chat session under `Chat` in the sidebar
+        2. Click the microphone button on the right of the chat box and begin speaking
+        3. To send your message, do one of the following:
+           - Say "submit" to send the message and continue recording your next one. To stop recording, click the microphone button.
+           - Click the microphone button to stop recording, then click `Send` or press `Enter`. This option allows you to edit the message before sending.
         
-        The first time you use voice dictation, goose will request access to your microphone. While recording, you'll see a live waveform of your audio in the input field, a timer, and the current size of your recording. Click the microphone button again to finish recording. 
+        The first time you use voice dictation, goose will request access to your microphone. While recording, you'll see `Listening` and `Transcribing` status indicators. goose transcribes your speech during natural pauses and adds the text to the chat box. 
 
-        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers.md). ElevenLabs can be used as a dictation provider alongside any LLM, but OpenAI Whisper requires that you have an OpenAI model configured in goose, even if using another LLM provider for chat.  
+        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers.md). For example, using OpenAI as the voice dictation provider requires that you have an OpenAI model configured in goose, even if using another LLM provider for chat.
 
        #### Important Notes
-        * You can record up to 10 minutes or 25MB of audio
-        * The audio is processed by your chosen provider (OpenAI or ElevenLabs)
-        * Voice input is appended to any existing text in the text input field, so you can combine typing and speaking your prompts
+        * You can record up to 50MB of audio
+        * ElevenLabs, Groq, and OpenAI send audio recordings to their servers for processing. The local provider processes audio entirely on your device—no data leaves your computer.
+        * Voice input is appended to any existing text in the text input field
         * Recordings are not stored locally after transcription
+        * To disable voice dictation, select `Disabled` from the provider dropdown
 
   </TabItem>
     <TabItem value="cli" label="goose CLI">
