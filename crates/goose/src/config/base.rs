@@ -332,7 +332,6 @@ impl Config {
     }
 
     pub fn all_values(&self) -> Result<HashMap<String, Value>, ConfigError> {
-        // load() already merges defaults, so just convert and return
         let config_values = self.load()?;
         Ok(HashMap::from_iter(config_values.into_iter().filter_map(
             |(k, v)| {
@@ -1031,10 +1030,6 @@ config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 config_value!(GEMINI3_THINKING_LEVEL, String);
 
-/// Find the workspace root or executable directory.
-///
-/// This is the canonical way to locate bundled files like `init-config.yaml`
-/// and `defaults.yaml` that ship alongside the binary.
 fn find_workspace_or_exe_root() -> Option<PathBuf> {
     let mut path = std::env::current_exe().ok()?;
     while let Some(parent) = path.parent() {
@@ -1048,7 +1043,6 @@ fn find_workspace_or_exe_root() -> Option<PathBuf> {
         }
         path = parent.to_path_buf();
     }
-    // No workspace found — use the final ancestor (exe's root directory)
     Some(path)
 }
 
