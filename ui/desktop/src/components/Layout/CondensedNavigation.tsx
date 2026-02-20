@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { GripVertical, Menu, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { cn } from '../../utils';
-import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
-import { useNavigationSessions } from '../../hooks/useNavigationSessions';
-import { useNavigationDragDrop } from '../../hooks/useNavigationDragDrop';
-import { useNavigationItems, useEscapeToClose } from '../../hooks/useNavigationItems';
+import { useNavigationController } from '../../hooks/useNavigationController';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ChatSessionsDropdown, NavigationOverlay, SessionsList } from './navigation';
 
@@ -18,55 +15,31 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
   const {
     isNavExpanded,
     setIsNavExpanded,
-    effectiveNavigationMode,
     navigationPosition,
-    preferences,
-    updatePreferences,
     isCondensedIconOnly,
     isChatExpanded,
     setIsChatExpanded,
-  } = useNavigationContext();
-
-  const { visibleItems, isActive } = useNavigationItems({ preferences });
-
-  const handleOverlayClose = () => {
-    if (effectiveNavigationMode === 'overlay') {
-      setIsNavExpanded(false);
-    }
-  };
-
-  const {
+    isOverlayMode,
+    visibleItems,
+    isActive,
     recentSessions,
     activeSessionId,
-    fetchSessions,
     handleNavClick,
     handleNewChat,
     handleSessionClick,
-  } = useNavigationSessions({ onNavigate: handleOverlayClose });
-
-  const { draggedItem, dragOverItem, handleDragStart, handleDragOver, handleDrop, handleDragEnd } =
-    useNavigationDragDrop({ preferences, updatePreferences });
-
-  useEscapeToClose({
-    isOpen: isNavExpanded,
-    isOverlayMode: effectiveNavigationMode === 'overlay',
-    onClose: () => setIsNavExpanded(false),
-  });
+    getSessionStatus,
+    clearUnread,
+    draggedItem,
+    dragOverItem,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
+    handleDragEnd,
+    navFocusRef,
+    fetchSessions,
+  } = useNavigationController();
 
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
-
-  const navFocusRef = useRef<HTMLDivElement>(null);
-
-  const { getSessionStatus, clearUnread } = useSidebarSessionStatus();
-
-  useEffect(() => {
-    if (isNavExpanded) {
-      fetchSessions();
-      requestAnimationFrame(() => {
-        navFocusRef.current?.focus();
-      });
-    }
-  }, [isNavExpanded, fetchSessions]);
 
   const toggleChatExpanded = () => {
     setIsChatExpanded(!isChatExpanded);
@@ -74,7 +47,6 @@ export const CondensedNavigation: React.FC<CondensedNavigationProps> = ({ classN
 
   const isVertical = navigationPosition === 'left' || navigationPosition === 'right';
 
-  const isOverlayMode = effectiveNavigationMode === 'overlay';
   const isTopPosition = navigationPosition === 'top';
   const isBottomPosition = navigationPosition === 'bottom';
 

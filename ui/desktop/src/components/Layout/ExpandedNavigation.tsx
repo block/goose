@@ -1,13 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigationContext } from './NavigationContext';
 import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
-import { useSidebarSessionStatus } from '../../hooks/useSidebarSessionStatus';
-import { useNavigationSessions } from '../../hooks/useNavigationSessions';
-import { useNavigationDragDrop } from '../../hooks/useNavigationDragDrop';
-import { useNavigationItems, useEscapeToClose } from '../../hooks/useNavigationItems';
+import { useNavigationController } from '../../hooks/useNavigationController';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ChatSessionsDropdown } from './navigation';
 
@@ -21,35 +17,24 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     setIsNavExpanded,
     effectiveNavigationMode,
     navigationPosition,
-    preferences,
-    updatePreferences,
-  } = useNavigationContext();
-
-  const { visibleItems, isActive } = useNavigationItems({ preferences });
-
-  const handleOverlayClose = () => {
-    if (effectiveNavigationMode === 'overlay') {
-      setIsNavExpanded(false);
-    }
-  };
-
-  const {
+    isOverlayMode,
+    visibleItems,
+    isActive,
     recentSessions,
     activeSessionId,
-    fetchSessions,
     handleNavClick,
     handleNewChat,
     handleSessionClick,
-  } = useNavigationSessions({ onNavigate: handleOverlayClose });
-
-  const { draggedItem, dragOverItem, handleDragStart, handleDragOver, handleDrop, handleDragEnd } =
-    useNavigationDragDrop({ preferences, updatePreferences });
-
-  useEscapeToClose({
-    isOpen: isNavExpanded,
-    isOverlayMode: effectiveNavigationMode === 'overlay',
-    onClose: () => setIsNavExpanded(false),
-  });
+    getSessionStatus,
+    clearUnread,
+    draggedItem,
+    dragOverItem,
+    handleDragStart,
+    handleDragOver,
+    handleDrop,
+    handleDragEnd,
+    navFocusRef,
+  } = useNavigationController();
 
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
   const [gridColumns, setGridColumns] = useState(2);
@@ -58,19 +43,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
   const [isClosing, setIsClosing] = useState(false);
   const prevIsNavExpandedRef = useRef(isNavExpanded);
   const gridRef = useRef<HTMLDivElement>(null);
-  const navFocusRef = useRef<HTMLDivElement>(null);
-
-  const { getSessionStatus, clearUnread } = useSidebarSessionStatus();
-
-  // Fetch sessions when expanded and focus navigation
-  useEffect(() => {
-    if (isNavExpanded) {
-      fetchSessions();
-      requestAnimationFrame(() => {
-        navFocusRef.current?.focus();
-      });
-    }
-  }, [isNavExpanded, fetchSessions]);
 
   // Detect when nav is closing (transition from expanded to collapsed)
   useEffect(() => {
@@ -149,7 +121,6 @@ export const ExpandedNavigation: React.FC<ExpandedNavigationProps> = ({ classNam
     };
   }, [isNavExpanded, navigationPosition, effectiveNavigationMode]);
 
-  const isOverlayMode = effectiveNavigationMode === 'overlay';
   const isPushTopNav = !isOverlayMode && navigationPosition === 'top';
   const dragStyle = isPushTopNav ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined;
 
