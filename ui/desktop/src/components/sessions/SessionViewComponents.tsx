@@ -14,6 +14,7 @@ import {
 } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { Message } from '../../api';
+import { t } from '../../i18n';
 
 /**
  * Get tool responses map from messages
@@ -73,10 +74,12 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                 <div className="text-red-500 mb-4">
                   <AlertCircle size={32} />
                 </div>
-                <p className="text-md mb-2">Error Loading Session Details</p>
+                <p className="text-md mb-2">
+                  {t('sessions.error_loading_details', 'Error Loading Session Details')}
+                </p>
                 <p className="text-sm text-center mb-4">{error}</p>
                 <Button onClick={onRetry} variant="default">
-                  Try Again
+                  {t('common.retry', 'Try Again')}
                 </Button>
               </div>
             ) : messages?.length > 0 ? (
@@ -176,8 +179,10 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-text-muted">
                 <MessageSquare className="w-12 h-12 mb-4" />
-                <p className="text-lg mb-2">No messages found</p>
-                <p className="text-sm">This session doesn't contain any messages</p>
+                <p className="text-lg mb-2">{t('sessions.no_messages', 'No messages found')}</p>
+                <p className="text-sm">
+                  {t('sessions.no_messages_subtitle', "This session doesn't contain any messages")}
+                </p>
               </div>
             )}
           </div>

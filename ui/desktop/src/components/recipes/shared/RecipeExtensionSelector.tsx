@@ -4,6 +4,7 @@ import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
 import { Switch } from '../../ui/switch';
 import { formatExtensionName } from '../../settings/extensions/subcomponents/ExtensionList';
+import { t } from '../../../i18n';
 
 interface RecipeExtensionSelectorProps {
   selectedExtensions: ExtensionConfig[];
@@ -65,30 +66,37 @@ export const RecipeExtensionSelector = ({
     <div className="space-y-4">
       <div>
         <label className="block text-md text-textProminent mb-2 font-bold">
-          Extensions (Optional)
+          {t('recipes.extensions_optional', 'Extensions (Optional)')}
         </label>
         <p className="text-textSubtle text-sm mb-4">
-          Select which extensions should be available when running this recipe. Leave empty to use
-          default extensions.
+          {t(
+            'recipes.extensions_help',
+            'Select which extensions should be available when running this recipe. Leave empty to use default extensions.'
+          )}
         </p>
 
         <Input
           type="text"
-          placeholder="Search extensions..."
+          placeholder={t('common.search_extensions', 'Search extensions...')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="mb-3"
         />
 
         <p className="text-xs text-textSubtle mb-3 text-right">
-          {activeCount} extension{activeCount !== 1 ? 's' : ''} selected
+          {t('recipes.extensions_selected', '{count} extension{suffix} selected', {
+            count: activeCount,
+            suffix: activeCount !== 1 ? 's' : '',
+          })}
         </p>
       </div>
 
       <div className="max-h-[300px] overflow-y-auto border border-borderSubtle rounded-lg">
         {sortedExtensions.length === 0 ? (
           <div className="px-4 py-6 text-center text-sm text-textSubtle">
-            {searchQuery ? 'No extensions found' : 'No extensions available'}
+            {searchQuery
+              ? t('recipes.no_extensions_found', 'No extensions found')
+              : t('recipes.no_extensions_available', 'No extensions available')}
           </div>
         ) : (
           sortedExtensions.map((ext) => {

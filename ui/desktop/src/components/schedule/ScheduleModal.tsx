@@ -7,6 +7,7 @@ import { CronPicker } from './CronPicker';
 import { Recipe, parseDeeplink, parseRecipeFromFile } from '../../recipe';
 import { getStorageDirectory } from '../../recipe/recipe_management';
 import ClockIcon from '../../assets/clock-icon.svg';
+import { t } from '../../i18n';
 
 export interface NewSchedulePayload {
   id: string;
@@ -70,7 +71,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         }
       } catch {
         setParsedRecipe(null);
-        setInternalValidationError('Invalid deep link. Please use a goose://recipe link.');
+        setInternalValidationError(
+          t('schedule.invalid_deeplink', 'Invalid deep link. Please use a goose://recipe link.')
+        );
       }
     } else {
       setParsedRecipe(null);
@@ -109,11 +112,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         try {
           const fileResponse = await window.electron.readFile(filePath);
           if (!fileResponse.found || fileResponse.error) {
-            throw new Error('Failed to read the selected file.');
+            throw new Error(t('schedule.read_file_failed', 'Failed to read the selected file.'));
           }
           const recipe = await parseRecipeFromFile(fileResponse.file);
           if (!recipe) {
-            throw new Error('Failed to parse recipe from file.');
+            throw new Error(
+              t('schedule.parse_recipe_failed', 'Failed to parse recipe from file.')
+            );
           }
           setParsedRecipe(recipe);
           if (recipe.title) {
@@ -122,11 +127,18 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         } catch (e) {
           setParsedRecipe(null);
           setInternalValidationError(
-            e instanceof Error ? e.message : 'Failed to parse recipe from file.'
+            e instanceof Error
+              ? e.message
+              : t('schedule.parse_recipe_failed', 'Failed to parse recipe from file.')
           );
         }
       } else {
-        setInternalValidationError('Invalid file type: Please select a YAML file (.yaml or .yml)');
+        setInternalValidationError(
+          t(
+            'schedule.invalid_file_type',
+            'Invalid file type: Please select a YAML file (.yaml or .yml)'
+          )
+        );
       }
     }
   };
@@ -141,12 +153,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     }
 
     if (!scheduleId.trim()) {
-      setInternalValidationError('Schedule ID is required.');
+      setInternalValidationError(t('schedule.id_required', 'Schedule ID is required.'));
       return;
     }
 
     if (!parsedRecipe) {
-      setInternalValidationError('Please provide a valid recipe source.');
+      setInternalValidationError(
+        t('schedule.valid_source_required', 'Please provide a valid recipe source.')
+      );
       return;
     }
 
@@ -166,10 +180,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       <Card className="w-full max-w-md bg-background-default shadow-xl rounded-3xl z-50 flex flex-col max-h-[90vh] overflow-hidden">
         <div className="px-8 pt-6 pb-4 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <img src={ClockIcon} alt="Clock" className="w-8 h-8" />
+            <img src={ClockIcon} alt={t('schedule.clock', 'Clock')} className="w-8 h-8" />
             <div className="flex-1">
               <h2 className="text-base font-semibold text-text-default">
-                {isEditMode ? 'Edit Schedule' : 'Create New Schedule'}
+                {isEditMode
+                  ? t('schedule.edit', 'Edit Schedule')
+                  : t('schedule.create', 'Create New Schedule')}
               </h2>
               {isEditMode && <p className="text-sm text-text-muted">{schedule.id}</p>}
             </div>
@@ -196,20 +212,20 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             <>
               <div>
                 <label htmlFor="scheduleId-modal" className={modalLabelClassName}>
-                  Name:
+                  {t('schedule.name', 'Name:')}
                 </label>
                 <Input
                   type="text"
                   id="scheduleId-modal"
                   value={scheduleId}
                   onChange={(e) => setScheduleId(e.target.value)}
-                  placeholder="e.g., daily-summary-job"
+                  placeholder={t('schedule.id_example', 'e.g., daily-summary-job')}
                   required
                 />
               </div>
 
               <div>
-                <label className={modalLabelClassName}>Source:</label>
+                <label className={modalLabelClassName}>{t('schedule.source', 'Source:')}</label>
                 <div className="space-y-2">
                   <div className="flex bg-gray-100 dark:bg-gray-700 rounded-full p-1">
                     <button
@@ -244,11 +260,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                         onClick={handleBrowseFile}
                         className="w-full justify-center rounded-full"
                       >
-                        Browse for YAML file...
+                        {t('schedule.browse_yaml', 'Browse for YAML file...')}
                       </Button>
                       {recipeSourcePath && (
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 italic">
-                          Selected: {recipeSourcePath}
+                          {t('schedule.selected', 'Selected: {path}', { path: recipeSourcePath })}
                         </p>
                       )}
                     </div>
@@ -260,19 +276,24 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                         type="text"
                         value={deepLinkInput}
                         onChange={(e) => handleDeepLinkChange(e.target.value)}
-                        placeholder="Paste goose://recipe link here..."
+                        placeholder={t(
+                          'schedule.deeplink_placeholder',
+                          'Paste goose://recipe link here...'
+                        )}
                         className="rounded-full"
                       />
                       {parsedRecipe && (
                         <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-md border border-green-500/50">
                           <p className="text-xs text-green-700 dark:text-green-300 font-medium">
-                            ✓ Recipe parsed successfully
+                            {`✓ ${t('schedule.parsed_success', 'Recipe parsed successfully')}`}
                           </p>
                           <p className="text-xs text-green-600 dark:text-green-400">
-                            Title: {parsedRecipe.title}
+                            {t('schedule.title', 'Title: {title}', { title: parsedRecipe.title })}
                           </p>
                           <p className="text-xs text-green-600 dark:text-green-400">
-                            Description: {parsedRecipe.description}
+                            {t('schedule.description', 'Description: {description}', {
+                              description: parsedRecipe.description ?? '',
+                            })}
                           </p>
                         </div>
                       )}
@@ -284,7 +305,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           )}
 
           <div>
-            <label className={modalLabelClassName}>Schedule:</label>
+            <label className={modalLabelClassName}>{t('schedule.schedule_label', 'Schedule:')}</label>
             <CronPicker schedule={schedule} onChange={setCronExpression} isValid={setIsValid} />
           </div>
         </form>
@@ -297,7 +318,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             disabled={isLoadingExternally}
             className="flex-1 text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
           >
-            Cancel
+            {t('common.cancel', 'Cancel')}
           </Button>
           <Button
             type="submit"
@@ -307,11 +328,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           >
             {isLoadingExternally
               ? isEditMode
-                ? 'Updating...'
-                : 'Creating...'
+                ? t('schedule.updating', 'Updating...')
+                : t('schedule.creating', 'Creating...')
               : isEditMode
-                ? 'Update Schedule'
-                : 'Create Schedule'}
+                ? t('schedule.update_action', 'Update Schedule')
+                : t('schedule.create_action', 'Create Schedule')}
           </Button>
         </div>
       </Card>

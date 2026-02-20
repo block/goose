@@ -7,6 +7,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { formatExtensionErrorMessage } from '../utils/extensionErrorUtils';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { formatExtensionName } from './settings/extensions/subcomponents/ExtensionList';
+import { t } from '../i18n';
 
 export interface ExtensionLoadingStatus {
   name: string;
@@ -32,6 +33,7 @@ export function GroupedExtensionLoadingToast({
 
   const successCount = extensions.filter((ext) => ext.status === 'success').length;
   const errorCount = extensions.filter((ext) => ext.status === 'error').length;
+  const suffix = (count: number) => (count === 1 ? '' : 's');
 
   const getStatusIcon = (status: 'loading' | 'success' | 'error') => {
     switch (status) {
@@ -46,14 +48,24 @@ export function GroupedExtensionLoadingToast({
 
   const getSummaryText = () => {
     if (!isComplete) {
-      return `Loading ${totalCount} extension${totalCount !== 1 ? 's' : ''}...`;
+      return t('extensions.loading_summary', 'Loading {count} extension{suffix}...', {
+        count: totalCount,
+        suffix: suffix(totalCount),
+      });
     }
 
     if (errorCount === 0) {
-      return `Successfully loaded ${successCount} extension${successCount !== 1 ? 's' : ''}`;
+      return t('extensions.success_summary', 'Successfully loaded {count} extension{suffix}', {
+        count: successCount,
+        suffix: suffix(successCount),
+      });
     }
 
-    return `Loaded ${successCount}/${totalCount} extension${totalCount !== 1 ? 's' : ''}`;
+    return t('extensions.partial_summary', 'Loaded {success}/{total} extension{suffix}', {
+      success: successCount,
+      total: totalCount,
+      suffix: suffix(totalCount),
+    });
   };
 
   const getSummaryIcon = () => {
@@ -81,7 +93,10 @@ export function GroupedExtensionLoadingToast({
                   <div className="font-medium text-base">{getSummaryText()}</div>
                   {errorCount > 0 && (
                     <div className="text-sm opacity-90">
-                      {errorCount} extension{errorCount !== 1 ? 's' : ''} failed to load
+                      {t('extensions.failed_count', '{count} extension{suffix} failed to load', {
+                        count: errorCount,
+                        suffix: suffix(errorCount),
+                      })}
                     </div>
                   )}
                 </div>
@@ -120,7 +135,7 @@ export function GroupedExtensionLoadingToast({
                                   );
                                 }}
                               >
-                                Ask goose
+                                {t('common.ask_goose', 'Ask goose')}
                               </Button>
                             )}
                             <Button
@@ -132,7 +147,9 @@ export function GroupedExtensionLoadingToast({
                                 setTimeout(() => setCopiedExtension(null), 2000);
                               }}
                             >
-                              {copiedExtension === ext.name ? 'Copied!' : 'Copy error'}
+                              {copiedExtension === ext.name
+                                ? t('common.copied', 'Copied!')
+                                : t('common.copy_error', 'Copy error')}
                             </Button>
                           </div>
                         </div>
@@ -149,16 +166,20 @@ export function GroupedExtensionLoadingToast({
             <CollapsibleTrigger asChild>
               <button
                 className="flex items-center justify-center gap-1 text-xs opacity-60 hover:opacity-100 transition-opacity mt-2 py-1.5 w-full"
-                aria-label={isOpen ? 'Collapse details' : 'Expand details'}
+                aria-label={
+                  isOpen
+                    ? t('extensions.collapse_details', 'Collapse details')
+                    : t('extensions.expand_details', 'Expand details')
+                }
               >
                 {isOpen ? (
                   <>
-                    <span>Show less</span>
+                    <span>{t('extensions.show_less', 'Show less')}</span>
                     <ChevronUp className="w-3 h-3" />
                   </>
                 ) : (
                   <>
-                    <span>Show details</span>
+                    <span>{t('extensions.show_details', 'Show details')}</span>
                     <ChevronDown className="w-3 h-3" />
                   </>
                 )}

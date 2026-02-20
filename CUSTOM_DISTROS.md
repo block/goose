@@ -47,6 +47,7 @@ goose's architecture is designed for extensibility. Organizations can create "re
 | Preconfigure a model/provider | `config.yaml`, `init-config.yaml`, environment variables | Low |
 | Add custom AI providers | `crates/goose/src/providers/declarative/` | Low |
 | Bundle custom MCP extensions | `config.yaml` extensions section, `ui/desktop/src/built-in-extensions.json` | Medium |
+| Localize desktop UI text | `ui/desktop/src/i18n/`, `GOOSE_LOCALE` config/env | Medium |
 | Modify system prompts | `crates/goose/src/prompts/` | Low |
 | Customize desktop branding | `ui/desktop/` (icons, names, colors) | Medium |
 | Build a new UI (web, mobile) | Integrate with `goose-server` REST API | High |
@@ -267,6 +268,17 @@ You are an AI assistant called [YourName], created by [YourCompany].
    - Color schemes in CSS/Tailwind config
    - Component text and labels
    - Feature visibility
+
+5. **Configure localization for your distro**:
+   - Add translation catalogs under `ui/desktop/src/i18n/` (for example `en.json`, `fr.json`, `de.json`)
+   - Use translation keys via `t('namespace.key', 'Fallback text')` in UI components
+   - Set `GOOSE_LOCALE` in config or environment to select the default locale
+
+Example:
+
+```bash
+export GOOSE_LOCALE=fr
+```
 
 ### Technical Details
 

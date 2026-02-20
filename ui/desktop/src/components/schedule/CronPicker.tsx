@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import cronstrue from 'cronstrue';
 import { ScheduledJob } from '../../schedule';
 import { errorMessage } from '../../utils/conversionUtils';
+import { t } from '../../i18n';
 
 type Period = 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
 
@@ -137,7 +138,7 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
         isValid(true);
       } catch (e) {
         isValid(false);
-        setReadableCron('error: ' + errorMessage(e));
+        setReadableCron(`${t('common.error', 'error')}: ${errorMessage(e)}`);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -148,49 +149,49 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Every</span>
+        <span className="text-sm font-medium">{t('schedule.every', 'Every')}</span>
         <select
           value={period}
           onChange={(e) => setPeriod(e.target.value as Period)}
           className={selectClassName}
         >
-          <option value="minute">Minute</option>
-          <option value="hour">Hour</option>
-          <option value="day">Day</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
-          <option value="year">Year</option>
+          <option value="minute">{t('schedule.period.minute', 'Minute')}</option>
+          <option value="hour">{t('schedule.period.hour', 'Hour')}</option>
+          <option value="day">{t('schedule.period.day', 'Day')}</option>
+          <option value="week">{t('schedule.period.week', 'Week')}</option>
+          <option value="month">{t('schedule.period.month', 'Month')}</option>
+          <option value="year">{t('schedule.period.year', 'Year')}</option>
         </select>
       </div>
 
       <div className="space-y-3">
         {period === 'year' && (
           <div className="flex items-center gap-2">
-            <span className="text-sm">in</span>
+            <span className="text-sm">{t('schedule.in', 'in')}</span>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
               className={selectClassName}
             >
-              <option value="1">January</option>
-              <option value="2">February</option>
-              <option value="3">March</option>
-              <option value="4">April</option>
-              <option value="5">May</option>
-              <option value="6">June</option>
-              <option value="7">July</option>
-              <option value="8">August</option>
-              <option value="9">September</option>
-              <option value="10">October</option>
-              <option value="11">November</option>
-              <option value="12">December</option>
+              <option value="1">{t('schedule.month.january', 'January')}</option>
+              <option value="2">{t('schedule.month.february', 'February')}</option>
+              <option value="3">{t('schedule.month.march', 'March')}</option>
+              <option value="4">{t('schedule.month.april', 'April')}</option>
+              <option value="5">{t('schedule.month.may', 'May')}</option>
+              <option value="6">{t('schedule.month.june', 'June')}</option>
+              <option value="7">{t('schedule.month.july', 'July')}</option>
+              <option value="8">{t('schedule.month.august', 'August')}</option>
+              <option value="9">{t('schedule.month.september', 'September')}</option>
+              <option value="10">{t('schedule.month.october', 'October')}</option>
+              <option value="11">{t('schedule.month.november', 'November')}</option>
+              <option value="12">{t('schedule.month.december', 'December')}</option>
             </select>
           </div>
         )}
 
         {(period === 'month' || period === 'year') && (
           <div className="flex items-center gap-2">
-            <span className="text-sm">on day</span>
+            <span className="text-sm">{t('schedule.on_day', 'on day')}</span>
             <input
               type="number"
               min="1"
@@ -204,26 +205,26 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
 
         {period === 'week' && (
           <div className="flex items-center gap-2">
-            <span className="text-sm">on</span>
+            <span className="text-sm">{t('schedule.on', 'on')}</span>
             <select
               value={dayOfWeek}
               onChange={(e) => setDayOfWeek(e.target.value)}
               className={selectClassName}
             >
-              <option value="0">Sunday</option>
-              <option value="1">Monday</option>
-              <option value="2">Tuesday</option>
-              <option value="3">Wednesday</option>
-              <option value="4">Thursday</option>
-              <option value="5">Friday</option>
-              <option value="6">Saturday</option>
+              <option value="0">{t('schedule.weekday.sunday', 'Sunday')}</option>
+              <option value="1">{t('schedule.weekday.monday', 'Monday')}</option>
+              <option value="2">{t('schedule.weekday.tuesday', 'Tuesday')}</option>
+              <option value="3">{t('schedule.weekday.wednesday', 'Wednesday')}</option>
+              <option value="4">{t('schedule.weekday.thursday', 'Thursday')}</option>
+              <option value="5">{t('schedule.weekday.friday', 'Friday')}</option>
+              <option value="6">{t('schedule.weekday.saturday', 'Saturday')}</option>
             </select>
           </div>
         )}
 
         {(period === 'day' || period === 'week' || period === 'month' || period === 'year') && (
           <div className="flex items-center gap-2">
-            <span className="text-sm">at</span>
+            <span className="text-sm">{t('schedule.at', 'at')}</span>
             <input
               type="number"
               min="1"
@@ -246,15 +247,15 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
               onChange={(e) => setIsPM(e.target.value === 'PM')}
               className={selectClassName}
             >
-              <option value="AM">AM</option>
-              <option value="PM">PM</option>
+              <option value="AM">{t('schedule.am', 'AM')}</option>
+              <option value="PM">{t('schedule.pm', 'PM')}</option>
             </select>
           </div>
         )}
 
         {period === 'hour' && (
           <div className="flex items-center gap-2">
-            <span className="text-sm">at minute</span>
+            <span className="text-sm">{t('schedule.at_minute', 'at minute')}</span>
             <input
               type="number"
               min="0"
@@ -268,7 +269,7 @@ export const CronPicker: React.FC<CronPickerProps> = ({ schedule, onChange, isVa
 
         {period === 'minute' && (
           <div className="flex items-center gap-2">
-            <span className="text-sm">at second</span>
+            <span className="text-sm">{t('schedule.at_second', 'at second')}</span>
             <input
               type="number"
               min="0"
