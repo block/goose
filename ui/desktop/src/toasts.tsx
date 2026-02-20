@@ -76,7 +76,8 @@ class ToastService {
   extensionLoading(
     extensions: ExtensionLoadingStatus[],
     totalCount: number,
-    isComplete: boolean = false
+    isComplete: boolean = false,
+    estimatedTotalMs?: number
   ): string | number {
     if (this.silent) {
       return 'silent';
@@ -93,6 +94,7 @@ class ToastService {
             extensions={extensions}
             totalCount={totalCount}
             isComplete={isComplete}
+            estimatedTotalMs={estimatedTotalMs}
           />
         ),
         autoClose: isComplete ? 5000 : false,
@@ -106,6 +108,7 @@ class ToastService {
           extensions={extensions}
           totalCount={totalCount}
           isComplete={isComplete}
+          estimatedTotalMs={estimatedTotalMs}
         />,
         {
           ...commonToastOptions,

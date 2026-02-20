@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
@@ -13,25 +13,54 @@ export interface ExtensionLoadingStatus {
   status: 'loading' | 'success' | 'error';
   error?: string;
   recoverHints?: string;
+  durationMs?: number;
+  estimatedMs?: number;
 }
+const formatDuration = (ms: number) => {
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 10) return `${seconds.toFixed(1)}s`;
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = Math.round(seconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${minutes}m ${remaining}s`;
+};
 
 interface ExtensionLoadingToastProps {
   extensions: ExtensionLoadingStatus[];
   totalCount: number;
   isComplete: boolean;
+  estimatedTotalMs?: number;
 }
 
 export function GroupedExtensionLoadingToast({
   extensions,
   totalCount,
   isComplete,
+  estimatedTotalMs,
 }: ExtensionLoadingToastProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copiedExtension, setCopiedExtension] = useState<string | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const setView = useNavigation();
 
   const successCount = extensions.filter((ext) => ext.status === 'success').length;
   const errorCount = extensions.filter((ext) => ext.status === 'error').length;
+  const hasEstimate = !isComplete && estimatedTotalMs !== undefined && estimatedTotalMs > 0;
+  const remainingMs = hasEstimate ? Math.max(estimatedTotalMs - elapsedMs, 0) : undefined;
+  const progressRatio = hasEstimate ? Math.min(elapsedMs / estimatedTotalMs, 1) : 0;
+
+  useEffect(() => {
+    if (!hasEstimate) return;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      setElapsedMs(Date.now() - start);
+    }, 250);
+    return () => clearInterval(interval);
+  }, [hasEstimate]);
 
   const getStatusIcon = (status: 'loading' | 'success' | 'error') => {
     switch (status) {
@@ -84,10 +113,25 @@ export function GroupedExtensionLoadingToast({
                       {errorCount} extension{errorCount !== 1 ? 's' : ''} failed to load
                     </div>
                   )}
+                  {hasEstimate && remainingMs !== undefined && (
+                    <div className="text-xs opacity-80">
+                      Estimated time remaining: ~{formatDuration(remainingMs)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </CollapsibleTrigger>
+          {hasEstimate && (
+            <div className="mt-2 pr-8">
+              <div className="h-1.5 rounded-full bg-white/20 overflow-hidden">
+                <div
+                  className="h-full bg-blue-400 transition-all"
+                  style={{ width: `${Math.round(progressRatio * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Expanded details section */}
           <CollapsibleContent className="overflow-hidden">
@@ -95,12 +139,21 @@ export function GroupedExtensionLoadingToast({
               <div className="space-y-3 max-h-64 overflow-y-auto pr-2 pl-1">
                 {extensions.map((ext) => {
                   const friendlyName = formatExtensionName(ext.name);
+                  const timeLabel =
+                    ext.durationMs !== undefined
+                      ? formatDuration(ext.durationMs)
+                      : ext.estimatedMs !== undefined
+                        ? `~${formatDuration(ext.estimatedMs)}`
+                        : undefined;
 
                   return (
                     <div key={ext.name} className="flex flex-col gap-2">
                       <div className="flex items-center gap-3 text-sm">
                         {getStatusIcon(ext.status)}
                         <div className="flex-1 min-w-0 truncate">{friendlyName}</div>
+                        {timeLabel && (
+                          <div className="text-xs opacity-70 tabular-nums">{timeLabel}</div>
+                        )}
                       </div>
                       {ext.status === 'error' && ext.error && (
                         <div className="ml-7 flex flex-col gap-2">

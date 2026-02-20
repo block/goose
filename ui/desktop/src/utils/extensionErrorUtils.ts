@@ -4,6 +4,7 @@
 
 import { ExtensionLoadResult } from '../api/types.gen';
 import { toastService, ExtensionLoadingStatus } from '../toasts';
+import { updateExtensionLoadMetrics } from './extensionLoadMetrics';
 
 export const MAX_ERROR_MESSAGE_LENGTH = 70;
 
@@ -66,8 +67,10 @@ export function showExtensionLoadResults(results: ExtensionLoadResult[] | null |
       status: r.success ? 'success' : 'error',
       error: r.success ? undefined : errorMsg,
       recoverHints: r.success ? undefined : createExtensionRecoverHints(errorMsg),
+      durationMs: r.durationMs ?? undefined,
     };
   });
+  updateExtensionLoadMetrics(results);
 
   toastService.extensionLoading(extensionStatuses, results.length, true);
 }
