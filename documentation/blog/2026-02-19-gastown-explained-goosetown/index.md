@@ -1,6 +1,6 @@
 ---
 title: "Gas Town Explained: How to Use Goosetown for Parallel Agentic Engineering"
-description: "Learn how Gastown and Goosetown lead the industrial coding revolution by teaching AI agents to work together in a team. This beginner guide explains the infrastructure we're using to move from talking to one AI to coordinating many agents at once."
+description: "Learn how Gas Town and Goosetown lead the industrial coding revolution by teaching AI agents to work together in a team. This beginner guide explains the infrastructure we're using to move from talking to one AI to coordinating many agents at once."
 authors:
   - rizel
   - tyler
