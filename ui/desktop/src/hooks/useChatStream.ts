@@ -17,7 +17,17 @@ import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { streamFromResponse } from './chatStream/streamDecoder';
 import { initialState, streamReducer } from './chatStream/streamReducer';
 
+const MAX_CACHE_SIZE = 5;
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
+
+function cacheSet(key: string, value: { messages: Message[]; session: Session }) {
+  resultsCache.delete(key);
+  resultsCache.set(key, value);
+  if (resultsCache.size > MAX_CACHE_SIZE) {
+    const oldest = resultsCache.keys().next().value;
+    if (oldest) resultsCache.delete(oldest);
+  }
+}
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -73,10 +83,10 @@ export function useChatStream({
   }, []);
 
   useEffect(() => {
-    if (state.session) {
-      resultsCache.set(sessionId, { session: state.session, messages: state.messages });
+    if (state.session && state.chatState === ChatState.Idle) {
+      cacheSet(sessionId, { session: state.session, messages: state.messages });
     }
-  }, [sessionId, state.session, state.messages]);
+  }, [sessionId, state.session, state.messages, state.chatState]);
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {

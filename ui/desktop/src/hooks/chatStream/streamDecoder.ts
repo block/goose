@@ -31,24 +31,21 @@ export function pushMessage(currentMessages: Message[], incomingMsg: Message): M
       newContent?.type === 'text' &&
       lastMsg.id === incomingMsg.id
     ) {
-      // Accumulate streaming text deltas: append new text to existing text
-      // The server sends each streaming chunk as a separate message with the
-      // same ID containing only the delta text, not the full accumulated text.
       const accumulatedContent = [...lastMsg.content];
       const lastIdx = accumulatedContent.length - 1;
       accumulatedContent[lastIdx] = {
         ...lastContent,
         text: (lastContent as { text: string }).text + (newContent as { text: string }).text,
       };
-      const updatedMessages = [...currentMessages];
-      updatedMessages[updatedMessages.length - 1] = {
+      currentMessages[currentMessages.length - 1] = {
         ...incomingMsg,
         content: accumulatedContent,
       };
-      return updatedMessages;
+      return currentMessages;
     }
   }
-  return [...currentMessages, incomingMsg];
+  currentMessages.push(incomingMsg);
+  return currentMessages;
 }
 
 export function prefersReducedMotion(): boolean {
@@ -80,23 +77,22 @@ export async function streamFromResponse(
     if (hasPendingUpdate && latestTokenState) {
       dispatch({ type: 'SET_TOKEN_STATE', payload: latestTokenState });
     }
-    dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+    dispatch({ type: 'SET_MESSAGES', payload: [...currentMessages] });
     dispatch({ type: 'SET_CHAT_STATE', payload: latestChatState });
     hasPendingUpdate = false;
     lastBatchUpdate = Date.now();
   };
 
   const maybeUpdateUI = (tokenState: TokenState, chatState: ChatState, forceImmediate = false) => {
+    latestTokenState = tokenState;
+    latestChatState = chatState;
+
     if (!reduceMotion || forceImmediate) {
       dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
-      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+      dispatch({ type: 'SET_MESSAGES', payload: [...currentMessages] });
       dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
+      lastBatchUpdate = Date.now();
     } else {
-      dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
-      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
-      dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
-      latestTokenState = tokenState;
-      latestChatState = chatState;
       hasPendingUpdate = true;
       const now = Date.now();
       if (now - lastBatchUpdate >= REDUCED_MOTION_BATCH_INTERVAL) {
