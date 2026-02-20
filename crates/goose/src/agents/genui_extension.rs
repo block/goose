@@ -84,9 +84,17 @@ impl GenUiClient {
             - **genui**: \"Show me\", \"visualize\", \"display as table/chart/card\" → inline visual\n\
             - **apps**: \"Build me an app\", \"create a tool I can reuse\" → standalone window\n\
             \n\
-            ## How to use\n\
-            Call `genui__render` with a JSON spec OR output a ```json-render code block directly.\n\
-            Both nested tree format and JSONL streaming format are supported.\n\
+            ## IMPORTANT: How to render visuals\n\
+            To show visual components to the user, include a ```json-render fenced code block \
+            DIRECTLY in your text response. Do NOT rely on the genui__render tool result being \
+            visible — tool results are collapsed. Always copy the spec into your response text.\n\
+            \n\
+            Example workflow:\n\
+            1. Gather data using developer tools\n\
+            2. Call `genui__render` to VALIDATE your spec (optional)\n\
+            3. Include the ```json-render code block in your response text\n\
+            \n\
+            The user sees your text response, so the code block MUST be there.\n\
             \n\
             ## Component Catalog\n\
             {CATALOG_PROMPT}\n"

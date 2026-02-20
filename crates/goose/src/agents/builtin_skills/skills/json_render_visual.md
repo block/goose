@@ -6,19 +6,25 @@ description: Render visual UI components (diagrams, tables, dashboards, cards) i
 # Rendering Visual Components Inline
 
 When asked to **show**, **visualize**, **display**, or **present** data as visual content
-in chat, use the `genui__render` tool or output a `json-render` fenced code block.
+in chat, output a `json-render` fenced code block **directly in your text response**.
+
+## CRITICAL: The code block MUST be in your response text
+Tool results are collapsed and hidden from the user. To show visual components,
+you MUST include the ```json-render code block in your TEXT response — not just
+as a tool result. Optionally call `genui__render` first to validate the spec,
+then paste the validated spec into your response.
 
 ## Quick Decision: genui vs apps
 
-- **"Show me X as a table/card/dashboard"** → `genui__render` tool (inline visual)
+- **"Show me X as a table/card/dashboard"** → `json-render` code block in your response
 - **"Build me an app that does X"** → `apps__create_app` tool (standalone window)
-- **"Visualize this data"** → `genui__render` tool
+- **"Visualize this data"** → `json-render` code block in your response
 - **"Create a tool I can reuse"** → `apps__create_app` tool
 
 ## Two Output Formats
 
 ### 1. Nested Tree (simple, for small visuals)
-Output a `json-render` fenced code block with nested JSON:
+Output a `json-render` fenced code block **in your response text** with nested JSON:
 
 ````
 ```json-render
