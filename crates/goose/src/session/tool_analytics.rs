@@ -340,9 +340,12 @@ impl<'a> ToolAnalyticsStore<'a> {
 
         // Fetch all tool requests from sessions that had errors
         let session_ids: Vec<&str> = error_ids.iter().map(|(s, _)| s.as_str()).collect();
-        let session_ids_dedup: std::collections::HashSet<&str> =
-            session_ids.into_iter().collect();
-        let placeholders: String = session_ids_dedup.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let session_ids_dedup: std::collections::HashSet<&str> = session_ids.into_iter().collect();
+        let placeholders: String = session_ids_dedup
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
 
         let query = format!(
             r#"

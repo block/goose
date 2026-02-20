@@ -256,17 +256,25 @@ impl Agent {
         config: AgentConfig,
         shared_extension_manager: Option<Arc<ExtensionManager>>,
     ) -> Self {
-        // Create channels with buffer size 32 (adjust if needed)
         let (confirm_tx, confirm_rx) = mpsc::channel(32);
         let (tool_tx, tool_rx) = mpsc::channel(32);
-        let provider = Arc::new(Mutex::new(None));
 
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let extension_manager = shared_extension_manager
-            .unwrap_or_else(|| Arc::new(ExtensionManager::new(provider.clone(), session_manager)));
+
+        // When using a shared extension manager, reuse its provider so that
+        // update_provider writes to the same Arc<Mutex> that platform extensions read.
+        let (provider, extension_manager) = match shared_extension_manager {
+            Some(em) => (em.get_provider().clone(), em),
+            None => {
+                let provider = Arc::new(Mutex::new(None));
+                let em = Arc::new(ExtensionManager::new(provider.clone(), session_manager));
+                (provider, em)
+            }
+        };
+
         Self {
-            provider: provider.clone(),
+            provider,
             config,
             extension_manager,
             final_output_tool: Arc::new(Mutex::new(None)),
@@ -2091,6 +2099,36 @@ mod tests {
         let final_output_tool_system_prompt =
             final_output_tool_ref.as_ref().unwrap().system_prompt();
         assert!(system_prompt.contains(&final_output_tool_system_prompt));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_shared_extension_manager_uses_same_provider() -> Result<()> {
+        use crate::agents::extension_manager::ExtensionManager;
+
+        let session_manager = Arc::new(SessionManager::instance());
+        let standalone_provider: SharedProvider = Arc::new(Mutex::new(None));
+        let ext_mgr = Arc::new(ExtensionManager::new(
+            standalone_provider.clone(),
+            session_manager.clone(),
+        ));
+
+        let config = AgentConfig::new(
+            session_manager,
+            PermissionManager::instance(),
+            None,
+            GooseMode::Auto,
+            false,
+        );
+        let agent = Agent::with_config_and_extensions(config, Some(ext_mgr.clone()));
+
+        // The agent's provider and the extension manager's provider must be the same Arc.
+        // This ensures update_provider writes to the mutex that platform extensions read.
+        assert!(
+            Arc::ptr_eq(&agent.provider, ext_mgr.get_provider()),
+            "Agent and shared ExtensionManager must share the same provider mutex"
+        );
+
         Ok(())
     }
 
