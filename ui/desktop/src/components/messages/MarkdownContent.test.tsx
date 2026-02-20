@@ -386,7 +386,7 @@ Another very long URL: https://www.example.com/very/long/path/with/many/segments
 
       const markdownContainer = document.querySelector('.prose');
       expect(markdownContainer).toBeInTheDocument();
-      expect(markdownContainer).toHaveClass('prose-a:break-all');
+      expect(markdownContainer).toHaveClass('prose-a:break-words');
       expect(markdownContainer).toHaveClass('prose-a:overflow-wrap-anywhere');
     });
   });

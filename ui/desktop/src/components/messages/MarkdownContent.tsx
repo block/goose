@@ -30,6 +30,7 @@ const customOneDarkTheme = {
 import { wrapHTMLInCodeBlock } from '../../utils/htmlSecurity';
 import { BLOCKED_PROTOCOLS, getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
 import { Check, Copy } from '../icons';
+import { JsonRenderBlock } from '../json-render';
 
 interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttributes<HTMLElement> {
   inline?: boolean;
@@ -134,9 +135,14 @@ const MarkdownCode = memo(
     ref: React.Ref<HTMLElement>
   ) {
     const match = /language-(\w+)/.exec(className || '');
-    return !inline && match ? (
-      <CodeBlock language={match[1]}>{String(children).replace(/\n$/, '')}</CodeBlock>
-    ) : (
+    if (!inline && match) {
+      const lang = match[1];
+      if (lang === 'json-render' || lang === 'jsonrender') {
+        return <JsonRenderBlock spec={String(children).replace(/\n$/, '')} />;
+      }
+      return <CodeBlock language={lang}>{String(children).replace(/\n$/, '')}</CodeBlock>;
+    }
+    return (
       <code
         ref={ref}
         {...props}
