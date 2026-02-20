@@ -14,12 +14,7 @@ import {
 } from '../../../api';
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`;
@@ -45,15 +40,17 @@ export const LocalInferenceSettings = () => {
     [models]
   );
 
-  const loadModels = useCallback(async () => {
+  const loadModels = useCallback(async (): Promise<LocalModelResponse[] | undefined> => {
     try {
       const response = await listLocalModels();
       if (response.data) {
         setModels(response.data);
+        return response.data;
       }
     } catch (error) {
       console.error('Failed to load models:', error);
     }
+    return undefined;
   }, []);
 
   // Check for any in-progress downloads when models list changes
@@ -156,7 +153,17 @@ export const LocalInferenceSettings = () => {
     if (!window.confirm('Delete this model? You can re-download it later.')) return;
     try {
       await deleteLocalModel({ path: { model_id: modelId } });
-      await loadModels();
+      const updatedModels = await loadModels();
+
+      // If we deleted the selected model, select another downloaded model
+      if (selectedModelId === modelId && updatedModels) {
+        const remainingDownloaded = updatedModels.filter(
+          (m) => m.id !== modelId && m.status.state === 'Downloaded'
+        );
+        if (remainingDownloaded.length > 0) {
+          selectModel(remainingDownloaded[0].id);
+        }
+      }
     } catch (error) {
       console.error('Failed to delete model:', error);
     }
