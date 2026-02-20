@@ -60,9 +60,24 @@ const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
     const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    const stored = JSON.parse(data);
-    // Merge with defaults to ensure all keys exist
-    return { ...defaultSettings, ...stored };
+    const stored = JSON.parse(data) as Partial<Settings>;
+    // Deep merge to ensure nested objects get their defaults too
+    return {
+      ...defaultSettings,
+      ...stored,
+      externalGoosed: {
+        ...defaultSettings.externalGoosed,
+        ...(stored.externalGoosed ?? {}),
+      },
+      keyboardShortcuts: {
+        ...defaultSettings.keyboardShortcuts,
+        ...(stored.keyboardShortcuts ?? {}),
+      },
+      sessionSharing: {
+        ...defaultSettings.sessionSharing,
+        ...(stored.sessionSharing ?? {}),
+      },
+    };
   }
   return defaultSettings;
 }
@@ -1191,7 +1206,30 @@ ipcMain.handle('get-setting', (_event, key: SettingKey) => {
   return settings[key];
 });
 
+// Valid setting keys for runtime validation
+const validSettingKeys: Set<string> = new Set([
+  'showMenuBarIcon',
+  'showDockIcon',
+  'enableWakelock',
+  'spellcheckEnabled',
+  'externalGoosed',
+  'globalShortcut',
+  'keyboardShortcuts',
+  'theme',
+  'useSystemTheme',
+  'responseStyle',
+  'showPricing',
+  'sessionSharing',
+  'seenAnnouncementIds',
+]);
+
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
+  // Validate key at runtime to prevent prototype pollution
+  if (!validSettingKeys.has(key)) {
+    console.error(`Invalid setting key rejected: ${key}`);
+    return;
+  }
+
   const settings = getSettings();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (settings as any)[key] = value;

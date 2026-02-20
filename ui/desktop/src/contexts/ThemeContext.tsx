@@ -7,7 +7,6 @@ interface ThemeContextValue {
   userThemePreference: ThemePreference;
   setUserThemePreference: (pref: ThemePreference) => void;
   resolvedTheme: ResolvedTheme;
-  isLoading: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -37,9 +36,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Start with light theme to avoid flash, will update once settings load
   const [userThemePreference, setUserThemePreferenceState] = useState<ThemePreference>('light');
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Load theme preference from settings on mount
   useEffect(() => {
     async function loadThemeFromSettings() {
       try {
@@ -59,8 +56,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         setResolvedTheme(resolveTheme(preference));
       } catch (error) {
         console.warn('[ThemeContext] Failed to load theme settings:', error);
-      } finally {
-        setIsLoading(false);
       }
     }
 
@@ -146,7 +141,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     userThemePreference,
     setUserThemePreference,
     resolvedTheme,
-    isLoading,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

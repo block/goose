@@ -2,6 +2,7 @@ import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
 import type { Settings, SettingKey } from './utils/settings';
+import { defaultSettings } from './utils/settings';
 
 // Mapping from settings keys to their old localStorage keys for lazy migration
 const localStorageKeyMap: Partial<Record<SettingKey, string>> = {
@@ -228,18 +229,23 @@ const electronAPI: ElectronAPI = {
   setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
   getSetting: async <K extends SettingKey>(key: K): Promise<Settings[K]> => {
-    // Check for localStorage value first (lazy migration)
-    const localStorageKey = localStorageKeyMap[key];
-    if (localStorageKey) {
-      const rawValue = localStorage.getItem(localStorageKey);
-      if (rawValue !== null) {
-        const parsed = parseLocalStorageValue(key, rawValue);
-        if (parsed !== null) {
-          return parsed;
+    try {
+      // Check for localStorage value first (lazy migration)
+      const localStorageKey = localStorageKeyMap[key];
+      if (localStorageKey) {
+        const rawValue = localStorage.getItem(localStorageKey);
+        if (rawValue !== null) {
+          const parsed = parseLocalStorageValue(key, rawValue);
+          if (parsed !== null) {
+            return parsed;
+          }
         }
       }
+      return await ipcRenderer.invoke('get-setting', key);
+    } catch (error) {
+      console.error(`Failed to get setting '${key}', using default`, error);
+      return defaultSettings[key];
     }
-    return ipcRenderer.invoke('get-setting', key);
   },
   setSetting: async <K extends SettingKey>(key: K, value: Settings[K]): Promise<void> => {
     // Clear any localStorage version when writing
