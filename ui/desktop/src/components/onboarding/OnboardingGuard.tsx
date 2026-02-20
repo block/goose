@@ -1,9 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { Goose } from '../icons';
 import ProviderSelector from './ProviderSelector';
+import OnboardingSuccess from './OnboardingSuccess';
+import {
+  trackOnboardingStarted,
+  trackOnboardingCompleted,
+  trackTelemetryPreference,
+  setTelemetryEnabled as setAnalyticsTelemetryEnabled,
+} from '../../utils/analytics';
+
+const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
 interface OnboardingGuardProps {
   children: React.ReactNode;
@@ -17,6 +26,8 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
+  const [configuredProvider, setConfiguredProvider] = useState<string | null>(null);
+  const onboardingTracked = useRef(false);
 
   useEffect(() => {
     const checkProvider = async () => {
@@ -33,6 +44,13 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     checkProvider();
   }, [read]);
 
+  useEffect(() => {
+    if (!isChecking && !hasProvider && !onboardingTracked.current) {
+      trackOnboardingStarted();
+      onboardingTracked.current = true;
+    }
+  }, [isChecking, hasProvider]);
+
   const handleConfigured = async (providerName: string) => {
     const providers = await getProviders(true);
     const match = providers.find((p) => p.name === providerName);
@@ -41,8 +59,25 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
       await upsert('GOOSE_MODEL', match.metadata.default_model, false);
     }
     await refreshCurrentModelAndProvider();
-    setHasProvider(true);
+    setConfiguredProvider(providerName);
+  };
+
+  const finishOnboarding = async (telemetryEnabled: boolean) => {
+    try {
+      await upsert(TELEMETRY_CONFIG_KEY, telemetryEnabled, false);
+    } catch (error) {
+      console.error('Failed to save telemetry preference:', error);
+    }
+    if (telemetryEnabled) {
+      trackTelemetryPreference(true, 'onboarding');
+      if (configuredProvider) {
+        trackOnboardingCompleted(configuredProvider);
+      }
+    } else {
+      setAnalyticsTelemetryEnabled(false);
+    }
     navigate('/', { replace: true });
+    setHasProvider(true);
   };
 
   if (isChecking) {
@@ -51,6 +86,10 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
 
   if (hasProvider) {
     return <>{children}</>;
+  }
+
+  if (configuredProvider) {
+    return <OnboardingSuccess providerName={configuredProvider} onFinish={finishOnboarding} />;
   }
 
   return (
