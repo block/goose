@@ -314,7 +314,7 @@ impl Config {
             } else {
                 // No backup available, create a default config
                 tracing::info!("No backup found, creating default configuration");
-                let default_config = self.build_initial_config();
+                let default_config = self.load_init_config_if_exists().unwrap_or_default();
                 self.create_and_save_default_config(default_config)?
             }
         };
@@ -388,7 +388,7 @@ impl Config {
 
                 // Last resort: create a fresh default config file
                 tracing::error!("Could not recover config file, creating fresh default configuration. Original error: {}", parse_error);
-                let default_config = self.build_initial_config();
+                let default_config = self.load_init_config_if_exists().unwrap_or_default();
                 self.create_and_save_default_config(default_config)
             }
         }
@@ -709,22 +709,6 @@ impl Config {
         let path = self.defaults_path.as_ref()?;
         let content = std::fs::read_to_string(path).ok()?;
         parse_yaml_content(&content).ok()
-    }
-
-    fn build_initial_config(&self) -> Mapping {
-        let mut config = if let Some(defaults) = self.load_defaults() {
-            defaults
-        } else {
-            Mapping::new()
-        };
-
-        if let Ok(init_config) = self.load_init_config_if_exists() {
-            for (k, v) in init_config {
-                config.insert(k, v);
-            }
-        }
-
-        config
     }
 
     fn merge_missing_defaults(&self, values: &mut Mapping) {
