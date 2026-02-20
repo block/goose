@@ -1,11 +1,25 @@
 {
-  "name": "goose-text",
+  "name": "@block/goose",
   "version": "0.1.0",
-  "private": true,
+  "description": "Goose - an open-source AI agent",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/block/goose.git"
+  },
   "type": "module",
+  "bin": {
+    "goose": "dist/goose-text.js"
+  },
+  "files": [
+    "dist",
+    "scripts/postinstall.mjs",
+    "server-binary.json"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "node build.mjs",
     "start": "tsx src/cli.tsx",
+    "postinstall": "node scripts/postinstall.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {
@@ -16,9 +30,17 @@
     "meow": "^13.2.0",
     "react": "^18.3.1"
   },
+  "optionalDependencies": {
+    "@block/goose-acp-server-darwin-arm64": "0.1.0",
+    "@block/goose-acp-server-darwin-x64": "0.1.0",
+    "@block/goose-acp-server-linux-arm64": "0.1.0",
+    "@block/goose-acp-server-linux-x64": "0.1.0",
+    "@block/goose-acp-server-win32-x64": "0.1.0"
+  },
   "devDependencies": {
     "@types/node": "^25.2.3",
     "@types/react": "^18.3.0",
+    "esbuild": "^0.25.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

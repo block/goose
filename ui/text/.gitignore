@@ -1,1 +1,3 @@
 dist
+node_modules
+server-binary.json
