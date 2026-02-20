@@ -94,7 +94,9 @@ RUN chown scanner:scanner /home/scanner/.config/goose/config.yaml /docker/base_r
 # Switch to non-root user
 USER scanner
 
-# Set working directory
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["echo 'OPENAI_API_KEY (Base64):'"]
+      
 WORKDIR /workspace
 
 # Default entrypoint
