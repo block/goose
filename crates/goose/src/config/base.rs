@@ -301,7 +301,7 @@ impl Config {
         self.config_path.to_string_lossy().to_string()
     }
 
-    fn load(&self) -> Result<Mapping, ConfigError> {
+    fn load_raw(&self) -> Result<Mapping, ConfigError> {
         let mut values = if self.config_path.exists() {
             self.load_values_with_recovery()?
         } else {
@@ -326,8 +326,12 @@ impl Config {
             }
         }
 
-        self.merge_missing_defaults(&mut values);
+        Ok(values)
+    }
 
+    fn load(&self) -> Result<Mapping, ConfigError> {
+        let mut values = self.load_raw()?;
+        self.merge_missing_defaults(&mut values);
         Ok(values)
     }
 
@@ -742,7 +746,7 @@ impl Config {
     /// - There is an error serializing the value
     pub fn set_param<V: Serialize>(&self, key: &str, value: V) -> Result<(), ConfigError> {
         let _guard = self.guard.lock().unwrap();
-        let mut values = self.load()?;
+        let mut values = self.load_raw()?;
         values.insert(serde_yaml::to_value(key)?, serde_yaml::to_value(value)?);
         self.save_values(values)
     }
@@ -764,7 +768,7 @@ impl Config {
         // Lock before reading to prevent race condition.
         let _guard = self.guard.lock().unwrap();
 
-        let mut values = self.load()?;
+        let mut values = self.load_raw()?;
         values.shift_remove(key);
 
         self.save_values(values)
@@ -1840,5 +1844,31 @@ mod tests {
 
         let result: Result<String, ConfigError> = config.get_param("nonexistent_key");
         assert!(matches!(result, Err(ConfigError::NotFound(_))));
+    }
+
+    #[test]
+    fn test_defaults_not_persisted_on_write() -> Result<(), ConfigError> {
+        let (config, _defaults) = new_test_config_with_defaults("default_key: default_value");
+
+        // Read a default value (should work)
+        let value: String = config.get_param("default_key")?;
+        assert_eq!(value, "default_value");
+
+        // Write a different key
+        config.set_param("user_key", "user_value")?;
+
+        // Read config file directly - should NOT contain default_key
+        let config_path = PathBuf::from(config.path());
+        let file_content = std::fs::read_to_string(&config_path)?;
+        assert!(!file_content.contains("default_key"),
+                "Defaults should not be persisted to config file on write");
+        assert!(file_content.contains("user_key"),
+                "User's key should be in config file");
+
+        // But reading via get_param should still return the default
+        let value: String = config.get_param("default_key")?;
+        assert_eq!(value, "default_value");
+
+        Ok(())
     }
 }
