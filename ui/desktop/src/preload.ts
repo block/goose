@@ -235,14 +235,10 @@ const electronAPI: ElectronAPI = {
       if (rawValue !== null) {
         const parsed = parseLocalStorageValue(key, rawValue);
         if (parsed !== null) {
-          // Migrate: save to settings and remove from localStorage
-          await ipcRenderer.invoke('set-setting', key, parsed);
-          localStorage.removeItem(localStorageKey);
           return parsed;
         }
       }
     }
-    // Fall back to settings file
     return ipcRenderer.invoke('get-setting', key);
   },
   setSetting: async <K extends SettingKey>(key: K, value: Settings[K]): Promise<void> => {
