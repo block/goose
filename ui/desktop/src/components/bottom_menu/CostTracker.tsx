@@ -26,14 +26,19 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
 
   // Check if pricing is enabled
   useEffect(() => {
-    const checkPricingSetting = () => {
-      const stored = localStorage.getItem('show_pricing');
-      setShowPricing(stored !== 'false');
+    const loadPricingSetting = async () => {
+      const enabled = await window.electron.getSetting('showPricing');
+      setShowPricing(enabled);
     };
 
-    checkPricingSetting();
-    window.addEventListener('storage', checkPricingSetting);
-    return () => window.removeEventListener('storage', checkPricingSetting);
+    loadPricingSetting();
+
+    const handlePricingChange = () => {
+      loadPricingSetting();
+    };
+
+    window.addEventListener('showPricingChanged', handlePricingChange);
+    return () => window.removeEventListener('showPricingChanged', handlePricingChange);
   }, []);
 
   useEffect(() => {

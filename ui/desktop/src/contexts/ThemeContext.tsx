@@ -7,6 +7,7 @@ interface ThemeContextValue {
   userThemePreference: ThemePreference;
   setUserThemePreference: (pref: ThemePreference) => void;
   resolvedTheme: ResolvedTheme;
+  isLoading: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -22,29 +23,6 @@ function resolveTheme(preference: ThemePreference): ResolvedTheme {
   return preference;
 }
 
-function loadThemePreference(): ThemePreference {
-  const useSystemTheme = localStorage.getItem('use_system_theme');
-  if (useSystemTheme === 'true') {
-    return 'system';
-  }
-
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme === 'dark') {
-    return 'dark';
-  }
-
-  return 'light';
-}
-
-function saveThemePreference(preference: ThemePreference): void {
-  if (preference === 'system') {
-    localStorage.setItem('use_system_theme', 'true');
-  } else {
-    localStorage.setItem('use_system_theme', 'false');
-    localStorage.setItem('theme', preference);
-  }
-}
-
 function applyThemeToDocument(theme: ResolvedTheme): void {
   const toRemove = theme === 'dark' ? 'light' : 'dark';
   document.documentElement.classList.add(theme);
@@ -56,18 +34,56 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [userThemePreference, setUserThemePreferenceState] =
-    useState<ThemePreference>(loadThemePreference);
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(loadThemePreference())
-  );
+  // Start with light theme to avoid flash, will update once settings load
+  const [userThemePreference, setUserThemePreferenceState] = useState<ThemePreference>('light');
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const setUserThemePreference = useCallback((preference: ThemePreference) => {
+  // Load theme preference from settings on mount
+  useEffect(() => {
+    async function loadThemeFromSettings() {
+      try {
+        const [useSystemTheme, savedTheme] = await Promise.all([
+          window.electron.getSetting('useSystemTheme'),
+          window.electron.getSetting('theme'),
+        ]);
+
+        let preference: ThemePreference;
+        if (useSystemTheme) {
+          preference = 'system';
+        } else {
+          preference = savedTheme;
+        }
+
+        setUserThemePreferenceState(preference);
+        setResolvedTheme(resolveTheme(preference));
+      } catch (error) {
+        console.warn('[ThemeContext] Failed to load theme settings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadThemeFromSettings();
+  }, []);
+
+  const setUserThemePreference = useCallback(async (preference: ThemePreference) => {
     setUserThemePreferenceState(preference);
-    saveThemePreference(preference);
 
     const resolved = resolveTheme(preference);
     setResolvedTheme(resolved);
+
+    // Save to settings
+    try {
+      if (preference === 'system') {
+        await window.electron.setSetting('useSystemTheme', true);
+      } else {
+        await window.electron.setSetting('useSystemTheme', false);
+        await window.electron.setSetting('theme', preference);
+      }
+    } catch (error) {
+      console.warn('[ThemeContext] Failed to save theme settings:', error);
+    }
 
     // Broadcast to other windows via Electron
     window.electron?.broadcastThemeChange({
@@ -104,8 +120,15 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
           : 'light';
 
       setUserThemePreferenceState(newPreference);
-      saveThemePreference(newPreference);
       setResolvedTheme(resolveTheme(newPreference));
+
+      // Save to settings (don't await, fire and forget)
+      if (newPreference === 'system') {
+        window.electron.setSetting('useSystemTheme', true);
+      } else {
+        window.electron.setSetting('useSystemTheme', false);
+        window.electron.setSetting('theme', newPreference);
+      }
     };
 
     window.electron.on('theme-changed', handleThemeChanged);
@@ -123,6 +146,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     userThemePreference,
     setUserThemePreference,
     resolvedTheme,
+    isLoading,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

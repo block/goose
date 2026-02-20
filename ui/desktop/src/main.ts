@@ -30,8 +30,8 @@ import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
-import type { Settings } from './utils/settings';
-import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
+import type { Settings, SettingKey } from './utils/settings';
+import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
@@ -57,18 +57,12 @@ function shouldSetupUpdater(): boolean {
 // Settings management
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
-const defaultSettings: Settings = {
-  showMenuBarIcon: true,
-  showDockIcon: true,
-  enableWakelock: false,
-  spellcheckEnabled: true,
-  keyboardShortcuts: defaultKeyboardShortcuts,
-};
-
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
     const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    return JSON.parse(data);
+    const stored = JSON.parse(data);
+    // Merge with defaults to ensure all keys exist
+    return { ...defaultSettings, ...stored };
   }
   return defaultSettings;
 }
@@ -1211,6 +1205,23 @@ ipcMain.handle('save-settings', (_event, settings) => {
   }
 
   return true;
+});
+
+ipcMain.handle('get-setting', (_event, key: SettingKey) => {
+  const settings = getSettings();
+  return settings[key];
+});
+
+ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
+  const settings = getSettings();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (settings as any)[key] = value;
+  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+
+  // Re-register shortcuts if keyboard shortcuts changed
+  if (key === 'keyboardShortcuts') {
+    registerGlobalShortcuts();
+  }
 });
 
 ipcMain.handle('get-secret-key', () => {

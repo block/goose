@@ -21,15 +21,31 @@ export type DefaultKeyboardShortcuts = {
   [K in keyof KeyboardShortcuts]: string;
 };
 
+export interface SessionSharingConfig {
+  enabled: boolean;
+  baseUrl: string;
+}
+
 export interface Settings {
+  // Desktop app settings
   showMenuBarIcon: boolean;
   showDockIcon: boolean;
   enableWakelock: boolean;
   spellcheckEnabled: boolean;
   externalGoosed?: ExternalGoosedConfig;
   globalShortcut?: string | null;
-  keyboardShortcuts?: KeyboardShortcuts;
+  keyboardShortcuts: KeyboardShortcuts;
+
+  // UI preferences (migrated from localStorage)
+  theme: 'dark' | 'light';
+  useSystemTheme: boolean;
+  responseStyle: string;
+  showPricing: boolean;
+  sessionSharing: SessionSharingConfig;
+  seenAnnouncementIds: string[];
 }
+
+export type SettingKey = keyof Settings;
 
 export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
   focusWindow: 'CommandOrControl+Alt+G',
@@ -42,6 +58,26 @@ export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
   findNext: 'CommandOrControl+G',
   findPrevious: 'CommandOrControl+Shift+G',
   alwaysOnTop: 'CommandOrControl+Shift+T',
+};
+
+export const defaultSettings: Settings = {
+  // Desktop app settings
+  showMenuBarIcon: true,
+  showDockIcon: true,
+  enableWakelock: false,
+  spellcheckEnabled: true,
+  keyboardShortcuts: defaultKeyboardShortcuts,
+
+  // UI preferences
+  theme: 'light',
+  useSystemTheme: true,
+  responseStyle: 'concise',
+  showPricing: true,
+  sessionSharing: {
+    enabled: false,
+    baseUrl: '',
+  },
+  seenAnnouncementIds: [],
 };
 
 export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
