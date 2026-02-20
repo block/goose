@@ -682,7 +682,7 @@ impl Config {
     /// This will attempt to get the value from (in order):
     /// 1. Environment variable with the uppercase key name
     /// 2. Configuration file (~/.config/goose/config.yaml)
-    /// 3. Bundled defaults file (defaults.yaml next to the executable)
+    /// 3. Bundled defaults file (defaults.yaml in workspace root or executable directory)
     ///
     /// The value will be deserialized into the requested type. This works with
     /// both simple types (String, i32, etc.) and complex types that implement
@@ -721,11 +721,6 @@ impl Config {
 
         for (key, default_value) in defaults {
             if !values.contains_key(&key) {
-                tracing::info!(
-                    "Adding missing default to config: {} = {:?}",
-                    key.as_str().unwrap_or("unknown"),
-                    default_value
-                );
                 values.insert(key, default_value);
             }
         }
@@ -1035,7 +1030,10 @@ config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 config_value!(GEMINI3_THINKING_LEVEL, String);
 
 fn find_workspace_or_exe_root() -> Option<PathBuf> {
-    let mut path = std::env::current_exe().ok()?;
+    let exe = std::env::current_exe().ok()?;
+    let exe_dir = exe.parent()?.to_path_buf();
+
+    let mut path = exe;
     while let Some(parent) = path.parent() {
         let cargo_toml = parent.join("Cargo.toml");
         if cargo_toml.exists() {
@@ -1047,7 +1045,9 @@ fn find_workspace_or_exe_root() -> Option<PathBuf> {
         }
         path = parent.to_path_buf();
     }
-    Some(path)
+
+    // No workspace found, return directory containing the executable
+    Some(exe_dir)
 }
 
 pub fn load_init_config_from_workspace() -> Result<Mapping, ConfigError> {
@@ -1860,10 +1860,14 @@ mod tests {
         // Read config file directly - should NOT contain default_key
         let config_path = PathBuf::from(config.path());
         let file_content = std::fs::read_to_string(&config_path)?;
-        assert!(!file_content.contains("default_key"),
-                "Defaults should not be persisted to config file on write");
-        assert!(file_content.contains("user_key"),
-                "User's key should be in config file");
+        assert!(
+            !file_content.contains("default_key"),
+            "Defaults should not be persisted to config file on write"
+        );
+        assert!(
+            file_content.contains("user_key"),
+            "User's key should be in config file"
+        );
 
         // But reading via get_param should still return the default
         let value: String = config.get_param("default_key")?;
