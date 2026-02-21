@@ -1311,6 +1311,16 @@ fn estimate_cost_usd(
     Some(input_cost + output_cost)
 }
 
+/// Estimate session cost, returns None if pricing data is unavailable.
+pub fn estimate_session_cost(
+    provider: &str,
+    model: &str,
+    input_tokens: usize,
+    output_tokens: usize,
+) -> Option<f64> {
+    estimate_cost_usd(provider, model, input_tokens, output_tokens)
+}
+
 /// Display cost information, if price data is available.
 pub fn display_cost_usage(provider: &str, model: &str, input_tokens: usize, output_tokens: usize) {
     if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens) {
