@@ -6,6 +6,9 @@ import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
 import { trackSettingToggled } from '../../../utils/analytics';
 import { LocalModelManager } from './LocalModelManager';
+import { DICTATION_ALL_PROVIDERS_ENABLED } from '../../../updates';
+
+const CORE_PROVIDERS: DictationProvider[] = ['openai', 'local'];
 
 export const DictationSettings = () => {
   const [provider, setProvider] = useState<DictationProvider | null>(null);
@@ -20,7 +23,17 @@ export const DictationSettings = () => {
   useEffect(() => {
     const loadSettings = async () => {
       const providerValue = await read('voice_dictation_provider', false);
-      const loadedProvider: DictationProvider | null = (providerValue as DictationProvider) || null;
+      let loadedProvider: DictationProvider | null = (providerValue as DictationProvider) || null;
+
+      if (
+        !DICTATION_ALL_PROVIDERS_ENABLED &&
+        loadedProvider &&
+        !CORE_PROVIDERS.includes(loadedProvider)
+      ) {
+        loadedProvider = null;
+        await upsert('voice_dictation_provider', '', false);
+      }
+
       setProvider(loadedProvider);
 
       const audioConfig = await getDictationConfig();
@@ -28,7 +41,7 @@ export const DictationSettings = () => {
     };
 
     loadSettings();
-  }, [read]);
+  }, [read, upsert]);
 
   const saveProvider = async (newProvider: DictationProvider | null) => {
     console.log('Saving dictation provider to backend config:', newProvider);
@@ -123,23 +136,25 @@ export const DictationSettings = () => {
                 </span>
               </button>
 
-              {(Object.keys(providerStatuses) as DictationProvider[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => handleProviderChange(p)}
-                  className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span>
-                      {getProviderLabel(p)}
-                      {!providerStatuses[p]?.configured && (
-                        <span className="text-xs ml-1 text-text-muted">(not configured)</span>
-                      )}
+              {(Object.keys(providerStatuses) as DictationProvider[])
+                .filter((p) => DICTATION_ALL_PROVIDERS_ENABLED || CORE_PROVIDERS.includes(p))
+                .map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => handleProviderChange(p)}
+                    className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span>
+                        {getProviderLabel(p)}
+                        {!providerStatuses[p]?.configured && (
+                          <span className="text-xs ml-1 text-text-muted">(not configured)</span>
+                        )}
+                      </span>
+                      {provider === p && <span>✓</span>}
                     </span>
-                    {provider === p && <span>✓</span>}
-                  </span>
-                </button>
-              ))}
+                  </button>
+                ))}
             </div>
           )}
         </div>
