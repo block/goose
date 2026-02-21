@@ -870,6 +870,10 @@ enum Command {
         #[arg(long, default_value = "goose", help = "Provide a custom binary name")]
         bin_name: String,
     },
+
+    /// Honk!
+    #[command(hide = true)]
+    Honk {},
 }
 
 #[derive(Subcommand)]
@@ -962,6 +966,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
         Some(Command::Completion { .. }) => "completion",
+        Some(Command::Honk {}) => "honk",
         None => "default_session",
     }
 }
@@ -1529,6 +1534,34 @@ pub async fn cli() -> anyhow::Result<()> {
             no_auth,
         }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        Some(Command::Honk {}) => {
+            print_honk();
+            Ok(())
+        }
         None => handle_default_session().await,
     }
+}
+
+fn print_honk() {
+    let art = r#"
+                                                               _...--.    goose: lgbeard
+                                               _____......----'     .'    knife: hjw
+                                         _..-''                   .'
+                                       .'                       ./
+                               _.--._.'                       .' |
+                            .-'                           .-.'  /
+                          .'   _.-.                     .  \   '
+                        .'  .'   .'    _    .-.        / `./  :
+     _                .'  .'   .'  .--' `.  |  \  |`. |     .'
+    ( \            _.'  .'   .' `.'       `-'   \ / |.'   .'
+     \ \        _.'  .-'   .'     `-.            `      .'
+      \ \     .'   .'    .'          `-.._ _ _ _ .-.    :
+       \_)   /    /o _.-'               .--'   .'   \   |
+        \\ .'-.__..-'                  /..    .`    / .'        peace was
+         .'   . '                       /.'/.'     /  |         never an option
+        `---'                                   _.'   '
+           \\                                 /.'    .'
+            \)                                  /.'/.'
+"#;
+    println!("{}", art);
 }
