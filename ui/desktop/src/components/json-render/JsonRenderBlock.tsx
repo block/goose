@@ -30,11 +30,42 @@ function isJsonlFormat(text: string): boolean {
 }
 
 /**
+ * Recover a malformed JSONL line by stripping extra trailing braces.
+ * LLMs sometimes produce an extra } on deeply nested objects.
+ */
+function recoverJsonLine(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('{')) return trimmed;
+  try {
+    JSON.parse(trimmed);
+    return trimmed;
+  } catch {
+    let attempt = trimmed;
+    while (attempt.length > 2 && attempt.endsWith('}')) {
+      attempt = attempt.slice(0, -1);
+      try {
+        JSON.parse(attempt);
+        console.warn('[json-render] Recovered malformed JSONL line by stripping trailing brace');
+        return attempt;
+      } catch {
+        continue;
+      }
+    }
+    return trimmed;
+  }
+}
+
+/**
  * Parse a JSONL streaming spec into the flat Spec format using createSpecStreamCompiler.
+ * Pre-processes lines to recover from common LLM JSON errors (extra trailing braces).
  */
 function parseJsonlSpec(text: string): Spec {
+  const recovered = text
+    .split('\n')
+    .map(recoverJsonLine)
+    .join('\n');
   const compiler = createSpecStreamCompiler<Spec>();
-  compiler.push(text + '\n'); // Ensure trailing newline for last line processing
+  compiler.push(recovered + '\n');
   return compiler.getResult();
 }
 

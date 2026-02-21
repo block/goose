@@ -4,11 +4,16 @@
  * The LLM can embed JSON UI specs in messages using either:
  *   1. A fenced code block with language `goose-ui`
  *   2. An XML-style <goose-ui>...</goose-ui> tag
+ *   3. A fenced code block with language `json-render` (JSONL streaming format)
  *
- * Both formats wrap a JSON object matching the json-render Spec shape:
+ * Formats 1 & 2 wrap a JSON object matching the json-render Spec shape:
  *   { "root": "...", "elements": { ... } }
+ *
+ * Format 3 contains JSONL lines (one JSON-Patch op per line) that are compiled
+ * into a Spec via createSpecStreamCompiler.
  */
 
+import { createSpecStreamCompiler } from '@json-render/core';
 import type { Spec } from '@json-render/react';
 import { isGooseUISpec } from '../components/ui/design-system/goose-renderer';
 
@@ -20,10 +25,12 @@ interface ExtractedSpec {
 
 const FENCED_BLOCK_RE = /```goose-ui\s*\n([\s\S]*?)```/;
 const XML_TAG_RE = /<goose-ui>([\s\S]*?)<\/goose-ui>/;
+const FENCED_JSONRENDER_RE = /```json-?render\s*\n([\s\S]*?)```/;
 
 // Streaming-aware: detect incomplete specs that are still being typed
 const PARTIAL_FENCED_RE = /```goose-ui\s*\n[\s\S]*$/;
 const PARTIAL_XML_RE = /<goose-ui>[\s\S]*$/;
+const PARTIAL_JSONRENDER_RE = /```json-?render\s*\n[\s\S]*$/;
 
 function tryParseSpec(raw: string): Spec | null {
   try {
@@ -33,6 +40,54 @@ function tryParseSpec(raw: string): Spec | null {
     }
   } catch {
     // not valid JSON yet
+  }
+  return null;
+}
+
+/**
+ * Attempt to recover a malformed JSON line by stripping trailing braces.
+ * LLMs occasionally produce an extra closing `}` on deeply nested objects.
+ */
+function recoverJsonLine(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed || !trimmed.startsWith('{')) return trimmed;
+  try {
+    JSON.parse(trimmed);
+    return trimmed;
+  } catch {
+    let attempt = trimmed;
+    while (attempt.length > 2 && attempt.endsWith('}')) {
+      attempt = attempt.slice(0, -1);
+      try {
+        JSON.parse(attempt);
+        console.warn('[json-render] Recovered malformed JSONL line by stripping trailing brace');
+        return attempt;
+      } catch {
+        continue;
+      }
+    }
+    return trimmed;
+  }
+}
+
+/**
+ * Parse a JSONL streaming spec (json-render format) into a Spec.
+ * Includes recovery for common LLM brace errors.
+ */
+function tryParseJsonlSpec(raw: string): Spec | null {
+  try {
+    const recovered = raw
+      .split('\n')
+      .map(recoverJsonLine)
+      .join('\n');
+    const compiler = createSpecStreamCompiler<Spec>();
+    compiler.push(recovered + '\n');
+    const result = compiler.getResult();
+    if (result && result.root && result.elements) {
+      return result;
+    }
+  } catch {
+    // not a valid JSONL spec
   }
   return null;
 }
@@ -70,6 +125,20 @@ export function extractGenerativeSpec(text: string): ExtractedSpec | null {
     }
   }
 
+  // Try json-render fenced block: ```json-render ... ```
+  const jsonRenderMatch = text.match(FENCED_JSONRENDER_RE);
+  if (jsonRenderMatch) {
+    const spec = tryParseJsonlSpec(jsonRenderMatch[1]);
+    if (spec) {
+      const idx = jsonRenderMatch.index!;
+      return {
+        spec,
+        beforeText: text.slice(0, idx).trim(),
+        afterText: text.slice(idx + jsonRenderMatch[0].length).trim(),
+      };
+    }
+  }
+
   return null;
 }
 
@@ -79,10 +148,18 @@ export function extractGenerativeSpec(text: string): ExtractedSpec | null {
  */
 export function hasPartialGenerativeSpec(text: string): boolean {
   // If we already have a complete spec, it's not partial
-  if (FENCED_BLOCK_RE.test(text) || XML_TAG_RE.test(text)) {
+  if (
+    FENCED_BLOCK_RE.test(text) ||
+    XML_TAG_RE.test(text) ||
+    FENCED_JSONRENDER_RE.test(text)
+  ) {
     return false;
   }
-  return PARTIAL_FENCED_RE.test(text) || PARTIAL_XML_RE.test(text);
+  return (
+    PARTIAL_FENCED_RE.test(text) ||
+    PARTIAL_XML_RE.test(text) ||
+    PARTIAL_JSONRENDER_RE.test(text)
+  );
 }
 
 /**
@@ -91,11 +168,16 @@ export function hasPartialGenerativeSpec(text: string): boolean {
  */
 export function stripPartialGenerativeSpec(text: string): string {
   // Only strip if partial (not complete)
-  if (FENCED_BLOCK_RE.test(text) || XML_TAG_RE.test(text)) {
+  if (
+    FENCED_BLOCK_RE.test(text) ||
+    XML_TAG_RE.test(text) ||
+    FENCED_JSONRENDER_RE.test(text)
+  ) {
     return text;
   }
   return text
     .replace(/```goose-ui\s*\n[\s\S]*$/, '')
     .replace(/<goose-ui>[\s\S]*$/, '')
+    .replace(/```json-?render\s*\n[\s\S]*$/, '')
     .trim();
 }
