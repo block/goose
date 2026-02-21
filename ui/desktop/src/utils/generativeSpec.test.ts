@@ -1,11 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   extractGenerativeSpec,
   hasPartialGenerativeSpec,
   stripPartialGenerativeSpec,
 } from './generativeSpec';
 
-// Minimal goose-ui JSON spec
 const GOOSE_UI_SPEC = JSON.stringify({
   root: 'main',
   elements: {
@@ -14,82 +13,43 @@ const GOOSE_UI_SPEC = JSON.stringify({
   },
 });
 
-// JSONL json-render spec (valid)
 const JSONL_SPEC = [
   '{"op":"add","path":"/root","value":"main"}',
   '{"op":"add","path":"/elements/main","value":{"type":"Card","children":["title"]}}',
   '{"op":"add","path":"/elements/title","value":{"type":"Text","props":{"content":"Hello"}}}',
 ].join('\n');
 
-// JSONL with extra trailing brace (LLM error)
-const JSONL_SPEC_WITH_EXTRA_BRACE = [
-  '{"op":"add","path":"/root","value":"main"}',
-  '{"op":"add","path":"/elements/main","value":{"type":"Card","children":["title"]}}',
-  '{"op":"add","path":"/elements/title","value":{"type":"Text","props":{"content":"Hello"}}}',
-].join('\n');
-
-const JSONL_SPEC_MALFORMED = [
-  '{"op":"add","path":"/root","value":"main"}',
-  '{"op":"add","path":"/elements/main","value":{"type":"Card","children":["tab"]}}',
-  '{"op":"add","path":"/elements/tab","value":{"type":"Stack","props":{"direction":"vertical"},"visible":{"$state":"/activeTab","eq":"Tab 1"}}}',
-].join('\n');
-
-// Same but with extra } on the tab element line (the actual bug)
-const JSONL_SPEC_MALFORMED_EXTRA_BRACE = [
-  '{"op":"add","path":"/root","value":"main"}',
-  '{"op":"add","path":"/elements/main","value":{"type":"Card","children":["tab"]}}',
-  '{"op":"add","path":"/elements/tab","value":{"type":"Stack","props":{"direction":"vertical"},"visible":{"$state":"/activeTab","eq":"Tab 1"}}}}',
-].join('\n');
-
 describe('generativeSpec', () => {
   describe('extractGenerativeSpec', () => {
     it('extracts goose-ui fenced block', () => {
-      const text = `Here is the UI:\n\`\`\`goose-ui\n${GOOSE_UI_SPEC}\n\`\`\`\nDone!`;
+      const text = `Before text\n\`\`\`goose-ui\n${GOOSE_UI_SPEC}\n\`\`\`\nAfter text`;
       const result = extractGenerativeSpec(text);
       expect(result).not.toBeNull();
-      expect(result!.spec.root).toBe('main');
-      expect(result!.beforeText).toBe('Here is the UI:');
-      expect(result!.afterText).toBe('Done!');
+      expect(result?.spec.root).toBe('main');
+      expect(result?.spec.elements).toHaveProperty('main');
+      expect(result?.beforeText).toBe('Before text');
+      expect(result?.afterText).toBe('After text');
     });
 
     it('extracts goose-ui XML tag', () => {
-      const text = `Before\n<goose-ui>${GOOSE_UI_SPEC}</goose-ui>\nAfter`;
+      const text = `Intro\n<goose-ui>${GOOSE_UI_SPEC}</goose-ui>\nOutro`;
       const result = extractGenerativeSpec(text);
       expect(result).not.toBeNull();
-      expect(result!.spec.root).toBe('main');
-      expect(result!.beforeText).toBe('Before');
-      expect(result!.afterText).toBe('After');
+      expect(result?.spec.root).toBe('main');
+      expect(result?.beforeText).toBe('Intro');
+      expect(result?.afterText).toBe('Outro');
     });
 
-    it('extracts json-render fenced block', () => {
+    it('does NOT extract json-render fenced blocks (they use System 1 renderer)', () => {
       const text = `Here is the chart:\n\`\`\`json-render\n${JSONL_SPEC}\n\`\`\`\nAll done.`;
       const result = extractGenerativeSpec(text);
-      expect(result).not.toBeNull();
-      expect(result!.spec.root).toBe('main');
-      expect(result!.spec.elements).toHaveProperty('main');
-      expect(result!.spec.elements).toHaveProperty('title');
-      expect(result!.beforeText).toBe('Here is the chart:');
-      expect(result!.afterText).toBe('All done.');
+      expect(result).toBeNull();
     });
 
-    it('extracts jsonrender (no hyphen) fenced block', () => {
+    it('does NOT extract jsonrender (no hyphen) fenced blocks', () => {
       const text = `\`\`\`jsonrender\n${JSONL_SPEC}\n\`\`\``;
       const result = extractGenerativeSpec(text);
-      expect(result).not.toBeNull();
-      expect(result!.spec.root).toBe('main');
-    });
-
-    it('recovers json-render with extra trailing brace', () => {
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const text = `\`\`\`json-render\n${JSONL_SPEC_MALFORMED_EXTRA_BRACE}\n\`\`\``;
-      const result = extractGenerativeSpec(text);
-      expect(result).not.toBeNull();
-      expect(result!.spec.root).toBe('main');
-      expect(result!.spec.elements).toHaveProperty('tab');
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Recovered malformed JSONL')
-      );
-      warnSpy.mockRestore();
+      expect(result).toBeNull();
     });
 
     it('returns null for plain text', () => {

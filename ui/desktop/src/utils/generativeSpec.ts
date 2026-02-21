@@ -6,14 +6,15 @@
  *   2. An XML-style <goose-ui>...</goose-ui> tag
  *   3. A fenced code block with language `json-render` (JSONL streaming format)
  *
- * Formats 1 & 2 wrap a JSON object matching the json-render Spec shape:
- *   { "root": "...", "elements": { ... } }
+ * Formats 1 & 2 are extracted here and rendered via GooseGenerativeUI (System 2,
+ * 23 custom components: StatCard, DataCard, TabBar, etc.).
  *
- * Format 3 contains JSONL lines (one JSON-Patch op per line) that are compiled
- * into a Spec via createSpecStreamCompiler.
+ * Format 3 (json-render) is NOT extracted here — it flows through
+ * MarkdownCode → JsonRenderBlock → CatalogRenderer (System 1, 33 shadcn
+ * components including Heading, Tabs, Dialog, etc.). We only detect/strip
+ * partial json-render blocks during streaming to prevent raw JSON from showing.
  */
 
-import { createSpecStreamCompiler } from '@json-render/core';
 import type { Spec } from '@json-render/react';
 import { isGooseUISpec } from '../components/ui/design-system/goose-renderer';
 
@@ -45,51 +46,12 @@ function tryParseSpec(raw: string): Spec | null {
 }
 
 /**
- * Attempt to recover a malformed JSON line by stripping trailing braces.
- * LLMs occasionally produce an extra closing `}` on deeply nested objects.
- */
-function recoverJsonLine(line: string): string {
-  const trimmed = line.trim();
-  if (!trimmed || !trimmed.startsWith('{')) return trimmed;
-  try {
-    JSON.parse(trimmed);
-    return trimmed;
-  } catch {
-    let attempt = trimmed;
-    while (attempt.length > 2 && attempt.endsWith('}')) {
-      attempt = attempt.slice(0, -1);
-      try {
-        JSON.parse(attempt);
-        console.warn('[json-render] Recovered malformed JSONL line by stripping trailing brace');
-        return attempt;
-      } catch {}
-    }
-    return trimmed;
-  }
-}
-
-/**
- * Parse a JSONL streaming spec (json-render format) into a Spec.
- * Includes recovery for common LLM brace errors.
- */
-function tryParseJsonlSpec(raw: string): Spec | null {
-  try {
-    const recovered = raw.split('\n').map(recoverJsonLine).join('\n');
-    const compiler = createSpecStreamCompiler<Spec>();
-    compiler.push(`${recovered}\n`);
-    const result = compiler.getResult();
-    if (result?.root && result.elements) {
-      return result;
-    }
-  } catch {
-    // not a valid JSONL spec
-  }
-  return null;
-}
-
-/**
  * Extract a generative UI spec from message text.
  * Returns the spec and surrounding text, or null if no spec found.
+ *
+ * Only extracts goose-ui specs (formats 1 & 2). json-render blocks (format 3)
+ * are intentionally left in the text so they render via MarkdownCode →
+ * JsonRenderBlock → CatalogRenderer, which has the full 33-component registry.
  */
 export function extractGenerativeSpec(text: string): ExtractedSpec | null {
   // Try fenced code block first: ```goose-ui ... ```
@@ -97,7 +59,7 @@ export function extractGenerativeSpec(text: string): ExtractedSpec | null {
   if (fencedMatch) {
     const spec = tryParseSpec(fencedMatch[1]);
     if (spec) {
-      const idx = fencedMatch.index!;
+      const idx = fencedMatch.index ?? 0;
       return {
         spec,
         beforeText: text.slice(0, idx).trim(),
@@ -111,25 +73,11 @@ export function extractGenerativeSpec(text: string): ExtractedSpec | null {
   if (xmlMatch) {
     const spec = tryParseSpec(xmlMatch[1]);
     if (spec) {
-      const idx = xmlMatch.index!;
+      const idx = xmlMatch.index ?? 0;
       return {
         spec,
         beforeText: text.slice(0, idx).trim(),
         afterText: text.slice(idx + xmlMatch[0].length).trim(),
-      };
-    }
-  }
-
-  // Try json-render fenced block: ```json-render ... ```
-  const jsonRenderMatch = text.match(FENCED_JSONRENDER_RE);
-  if (jsonRenderMatch) {
-    const spec = tryParseJsonlSpec(jsonRenderMatch[1]);
-    if (spec) {
-      const idx = jsonRenderMatch.index!;
-      return {
-        spec,
-        beforeText: text.slice(0, idx).trim(),
-        afterText: text.slice(idx + jsonRenderMatch[0].length).trim(),
       };
     }
   }
@@ -140,6 +88,7 @@ export function extractGenerativeSpec(text: string): ExtractedSpec | null {
 /**
  * Check if text contains a partial (still-streaming) generative spec.
  * Used to suppress rendering incomplete specs during streaming.
+ * Covers all 3 formats to prevent raw JSON from showing.
  */
 export function hasPartialGenerativeSpec(text: string): boolean {
   // If we already have a complete spec, it's not partial
@@ -154,6 +103,7 @@ export function hasPartialGenerativeSpec(text: string): boolean {
 /**
  * Strip incomplete generative spec markup from streaming text
  * so it doesn't show raw JSON to the user.
+ * Covers all 3 formats.
  */
 export function stripPartialGenerativeSpec(text: string): string {
   // Only strip if partial (not complete)
