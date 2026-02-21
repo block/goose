@@ -75,7 +75,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     if (option === 'new-chat') {
       try {
         const workingDir = getInitialWorkingDir();
-        window.electron.createChatWindow(undefined, workingDir);
+        window.electron.createChatWindow({ dir: workingDir });
         window.electron.hideWindow();
       } catch (error) {
         console.error('Error creating new window:', error);

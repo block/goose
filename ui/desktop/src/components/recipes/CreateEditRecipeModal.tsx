@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import {
-  Recipe,
-  generateDeepLink,
-  Parameter,
-  encodeRecipe,
-  stripEmptyExtensions,
-} from '../../recipe';
+import { Recipe, generateDeepLink, Parameter } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
@@ -333,21 +327,12 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      await saveRecipe(recipe, recipeId);
+      const savedId = await saveRecipe(recipe, recipeId);
 
       // Close modal first
       onClose(true);
 
-      // Encode the recipe as a deeplink before passing to the new window
-      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe));
-      window.electron.createChatWindow(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        encodedRecipe
-      );
+      window.electron.createChatWindow({ recipeId: savedId });
 
       toastSuccess({
         title: recipe.title,

@@ -536,13 +536,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     const handleOpenInNewWindow = useCallback((session: Session, e: React.MouseEvent) => {
       e.stopPropagation();
-      window.electron.createChatWindow(
-        undefined,
-        session.working_dir,
-        undefined,
-        session.id,
-        'pair'
-      );
+      window.electron.createChatWindow({
+        dir: session.working_dir,
+        resumeSessionId: session.id,
+        viewType: 'pair',
+      });
     }, []);
 
     const SessionItem = React.memo(function SessionItem({

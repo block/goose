@@ -10,7 +10,7 @@ export default function LauncherView() {
     if (query.trim()) {
       const initialMessage = query;
       setQuery('');
-      window.electron.createChatWindow(initialMessage, getInitialWorkingDir());
+      window.electron.createChatWindow({ query: initialMessage, dir: getInitialWorkingDir() });
       setTimeout(() => {
         window.electron.closeWindow();
       }, 200);
