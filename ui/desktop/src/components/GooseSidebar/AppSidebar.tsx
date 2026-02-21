@@ -38,11 +38,14 @@ import { InlineEditText } from '../common/InlineEditText';
 import { Gear } from '../icons';
 import { SessionIndicators } from '../shared/SessionIndicators';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/molecules/collapsible';
+import { UserAvatarMenu } from '../shared/UserAvatarMenu';
 import {
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -907,7 +910,14 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   return (
     <>
-      {/* No header — the sidebar edge strip in sidebar.tsx handles fold/unfold */}
+      <SidebarHeader className="px-3 py-2">
+        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+          <Home className="w-5 h-5 text-text-muted" />
+          <span className="text-sm font-semibold text-text-default group-data-[collapsible=icon]:hidden">
+            Goose
+          </span>
+        </div>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           {/* Sessions — General group acts as Home */}
@@ -1107,6 +1117,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           })}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter className="px-3 py-2 border-t border-border-muted">
+        <UserAvatarMenu />
+      </SidebarFooter>
     </>
   );
 };

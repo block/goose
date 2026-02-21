@@ -13,7 +13,6 @@ import ChatInput from '../chat/ChatInput';
 import ChatSessionsContainer from '../chat/ChatSessionsContainer';
 import AppSidebar from '../GooseSidebar/AppSidebar';
 import ReasoningDetailPanel from '../messages/ReasoningDetailPanel';
-import { UserAvatarMenu } from '../shared/UserAvatarMenu';
 import { Sidebar, SidebarInset, SidebarProvider } from '../ui/molecules/sidebar';
 
 interface AppLayoutContentProps {
@@ -130,10 +129,6 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         />
       </Sidebar>
       <SidebarInset>
-        {/* User avatar — top-right, in title bar drag area */}
-        <div className="absolute top-1 right-3 z-30 app-region-no-drag">
-          <UserAvatarMenu />
-        </div>
         {/* Non-pair routes: standard page content */}
         <div className={isOnPairRoute ? 'hidden' : 'flex-1 overflow-auto pb-16'}>
           <Outlet />
