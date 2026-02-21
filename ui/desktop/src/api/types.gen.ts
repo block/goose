@@ -1599,22 +1599,22 @@ export type CallToolErrors = {
      */
     401: unknown;
     /**
-     * Resource not found
+     * Session not found
      */
     404: unknown;
     /**
-     * Agent not initialized
+     * Agent not initialized for session
      */
     424: unknown;
     /**
-     * Internal server error
+     * Tool execution failed
      */
     500: unknown;
 };
 
 export type CallToolResponses = {
     /**
-     * Resource read successfully
+     * Tool executed successfully
      */
     200: CallToolResponse;
 };

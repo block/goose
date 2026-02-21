@@ -68,3 +68,9 @@ opentelemetry-otlp = "0.31"
 opentelemetry-appender-tracing = "0.31"
 opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
 tracing-opentelemetry = "0.32"
+
+
+[profile.release]
+codegen-units = 1
+lto = true
+

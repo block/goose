@@ -538,7 +538,7 @@ where
 }
 
 /// Information about the tool used for building prompts
-#[derive(Clone, Debug, Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 pub struct ToolInfo {
     pub name: String,
     pub description: String,

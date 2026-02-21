@@ -41,32 +41,32 @@ pub struct UpdateFromSessionRequest {
     session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct UpdateProviderRequest {
-    provider: String,
-    model: Option<String>,
-    session_id: String,
-    context_limit: Option<usize>,
-    request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
+    pub provider: String,
+    pub model: Option<String>,
+    pub session_id: String,
+    pub context_limit: Option<usize>,
+    pub request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct GetToolsQuery {
-    extension_name: Option<String>,
-    session_id: String,
+    pub extension_name: Option<String>,
+    pub session_id: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
-    working_dir: String,
+    pub working_dir: String,
     #[serde(default)]
-    recipe: Option<Recipe>,
+    pub recipe: Option<Recipe>,
     #[serde(default)]
-    recipe_id: Option<String>,
+    pub recipe_id: Option<String>,
     #[serde(default)]
-    recipe_deeplink: Option<String>,
+    pub recipe_deeplink: Option<String>,
     #[serde(default)]
-    extension_overrides: Option<Vec<ExtensionConfig>>,
+    pub extension_overrides: Option<Vec<ExtensionConfig>>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -85,22 +85,22 @@ pub struct UpdateWorkingDirRequest {
     working_dir: String,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ResumeAgentRequest {
-    session_id: String,
-    load_model_and_extensions: bool,
+    pub session_id: String,
+    pub load_model_and_extensions: bool,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct AddExtensionRequest {
-    session_id: String,
-    config: ExtensionConfig,
+    pub session_id: String,
+    pub config: ExtensionConfig,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct RemoveExtensionRequest {
-    name: String,
-    session_id: String,
+    pub name: String,
+    pub session_id: String,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -127,21 +127,21 @@ pub struct ReadResourceResponse {
     meta: Option<serde_json::Map<String, Value>>,
 }
 
-#[derive(Deserialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct CallToolRequest {
-    session_id: String,
-    name: String,
-    arguments: Value,
+    pub session_id: String,
+    pub name: String,
+    pub arguments: Value,
 }
 
-#[derive(Serialize, utoipa::ToSchema)]
+#[derive(Deserialize, Serialize, utoipa::ToSchema)]
 pub struct CallToolResponse {
-    content: Vec<Content>,
+    pub content: Vec<Content>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    structured_content: Option<Value>,
-    is_error: bool,
+    pub structured_content: Option<Value>,
+    pub is_error: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    _meta: Option<Value>,
+    pub _meta: Option<Value>,
 }
 
 #[derive(Serialize, utoipa::ToSchema)]
@@ -925,11 +925,11 @@ async fn read_resource(
     path = "/agent/call_tool",
     request_body = CallToolRequest,
     responses(
-        (status = 200, description = "Resource read successfully", body = CallToolResponse),
+        (status = 200, description = "Tool executed successfully", body = CallToolResponse),
         (status = 401, description = "Unauthorized - invalid secret key"),
-        (status = 424, description = "Agent not initialized"),
-        (status = 404, description = "Resource not found"),
-        (status = 500, description = "Internal server error")
+        (status = 424, description = "Agent not initialized for session"),
+        (status = 404, description = "Session not found"),
+        (status = 500, description = "Tool execution failed")
     )
 )]
 async fn call_tool(
