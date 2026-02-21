@@ -17,16 +17,30 @@ use serde_json::Value;
 use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
 
-pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
+pub fn to_bedrock_message_with_caching(
+    message: &Message,
+    enable_caching: bool,
+) -> Result<bedrock::Message> {
+    let filtered = message.agent_visible_content();
+
+    let mut content_blocks: Vec<bedrock::ContentBlock> = filtered
+        .content
+        .iter()
+        .map(to_bedrock_message_content)
+        .collect::<Result<_>>()?;
+
+    if enable_caching && !content_blocks.is_empty() {
+        content_blocks.push(bedrock::ContentBlock::CachePoint(
+            bedrock::CachePointBlock::builder()
+                .r#type(bedrock::CachePointType::Default)
+                .build()
+                .map_err(|e| anyhow!("Failed to build cache point for message: {}", e))?,
+        ));
+    }
+
     bedrock::Message::builder()
-        .role(to_bedrock_role(&message.role))
-        .set_content(Some(
-            message
-                .content
-                .iter()
-                .map(to_bedrock_message_content)
-                .collect::<Result<_>>()?,
-        ))
+        .role(to_bedrock_role(&filtered.role))
+        .set_content(Some(content_blocks))
         .build()
         .map_err(|err| anyhow!("Failed to construct Bedrock message: {}", err))
 }
@@ -159,9 +173,9 @@ pub fn to_bedrock_role(role: &Role) -> bedrock::ConversationRole {
     }
 }
 
-pub fn to_bedrock_image(data: &String, mime_type: &String) -> Result<bedrock::ImageBlock> {
+pub fn to_bedrock_image(data: &str, mime_type: &str) -> Result<bedrock::ImageBlock> {
     // Extract format from MIME type
-    let format = match mime_type.as_str() {
+    let format = match mime_type {
         "image/png" => bedrock::ImageFormat::Png,
         "image/jpeg" | "image/jpg" => bedrock::ImageFormat::Jpeg,
         "image/gif" => bedrock::ImageFormat::Gif,
@@ -287,6 +301,7 @@ pub fn from_bedrock_message(message: &bedrock::Message) -> Result<Message> {
     let content = message
         .content()
         .iter()
+        .filter(|block| !matches!(block, bedrock::ContentBlock::CachePoint(_)))
         .map(from_bedrock_content_block)
         .collect::<Result<Vec<_>>>()?;
     let created = Utc::now().timestamp();
@@ -328,6 +343,13 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
                     })
             },
         ),
+        bedrock::ContentBlock::CachePoint(_) => {
+            // CachePoint blocks are filtered out in from_bedrock_message before reaching here.
+            // This case should not occur, but we handle it defensively.
+            // CachePoint is metadata used by AWS for prompt caching optimization and doesn't
+            // represent actual content that should be conveyed to the user.
+            bail!("CachePoint blocks should have been filtered out during message processing")
+        }
         _ => bail!("Unsupported content block type from Bedrock"),
     })
 }
@@ -474,6 +496,314 @@ mod tests {
 
         // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create a message with text content
+        let message = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![MessageContent::text("Hello, world!")],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify the message has two content blocks: text + cache point
+        assert_eq!(bedrock_message.content.len(), 2);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching_multiple_content() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create a message with multiple content blocks
+        let message = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("First text"),
+                MessageContent::text("Second text"),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added after all content
+        assert_eq!(bedrock_message.content.len(), 3);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching_empty_content() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create a message with no content
+        let message = Message::new(Role::User, Utc::now().timestamp(), vec![]);
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify no cache point is added for empty messages
+        assert_eq!(bedrock_message.content.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_bedrock_content_block_cache_point() {
+        // Create a cache point block with the required type field
+        let cache_point = bedrock::CachePointBlock::builder()
+            .r#type(bedrock::CachePointType::Default)
+            .build()
+            .unwrap();
+        let content_block = bedrock::ContentBlock::CachePoint(cache_point);
+
+        // Verify that converting a cache point results in an error
+        let result = from_bedrock_content_block(&content_block);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("CachePoint blocks should have been filtered out"));
+    }
+
+    #[test]
+    fn test_from_bedrock_message_filters_cache_points() -> Result<()> {
+        use rmcp::model::Role;
+
+        // Create a Bedrock message with mixed content including CachePoint
+        let cache_point = bedrock::CachePointBlock::builder()
+            .r#type(bedrock::CachePointType::Default)
+            .build()
+            .unwrap();
+
+        let bedrock_message = bedrock::Message::builder()
+            .role(bedrock::ConversationRole::Assistant)
+            .content(bedrock::ContentBlock::Text("First text".to_string()))
+            .content(bedrock::ContentBlock::CachePoint(cache_point))
+            .content(bedrock::ContentBlock::Text("Second text".to_string()))
+            .build()
+            .unwrap();
+
+        // Convert from Bedrock format
+        let message = from_bedrock_message(&bedrock_message)?;
+
+        // Verify that CachePoint was filtered out and only text content remains
+        assert_eq!(message.content.len(), 2);
+        assert_eq!(message.role, Role::Assistant);
+
+        if let MessageContent::Text(text) = &message.content[0] {
+            assert_eq!(text.text, "First text");
+        } else {
+            panic!("Expected first text content");
+        }
+
+        if let MessageContent::Text(text) = &message.content[1] {
+            assert_eq!(text.text, "Second text");
+        } else {
+            panic!("Expected second text content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_to_bedrock_message_with_caching_preserves_order() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::Role;
+
+        // Create message with specific content order
+        let message = Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("Response text"),
+                MessageContent::text("More response"),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify content order is preserved and cache point is at the end
+        assert_eq!(bedrock_message.content.len(), 3);
+        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[0] {
+            assert_eq!(text, "Response text");
+        } else {
+            panic!("Expected text content block");
+        }
+        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[1] {
+            assert_eq!(text, "More response");
+        } else {
+            panic!("Expected text content block");
+        }
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_points_with_tool_request_messages() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::{CallToolRequestParams, Role};
+        use serde_json::json;
+
+        let message = Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("I'll use a tool"),
+                MessageContent::tool_request(
+                    "tool_1".to_string(),
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "test_tool".into(),
+                        arguments: Some(object(json!({"param": "value"}))),
+                    }),
+                ),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added after all content blocks (text + tool request + cache point)
+        assert_eq!(bedrock_message.content.len(), 3);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::ToolUse(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_points_with_tool_response_messages() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::{CallToolResult, Role};
+
+        let message = Message::new(
+            Role::User,
+            Utc::now().timestamp(),
+            vec![MessageContent::tool_response(
+                "tool_1".to_string(),
+                Ok(CallToolResult {
+                    content: vec![Content::text("Tool result text".to_string())],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            )],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added after tool response content
+        assert_eq!(bedrock_message.content.len(), 2);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::ToolResult(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cache_points_with_mixed_tool_content() -> Result<()> {
+        use chrono::Utc;
+        use rmcp::model::{CallToolRequestParams, Role};
+        use serde_json::json;
+
+        let message = Message::new(
+            Role::Assistant,
+            Utc::now().timestamp(),
+            vec![
+                MessageContent::text("Using tools"),
+                MessageContent::tool_request(
+                    "tool_1".to_string(),
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool_a".into(),
+                        arguments: Some(object(json!({"key": "val"}))),
+                    }),
+                ),
+                MessageContent::tool_request(
+                    "tool_2".to_string(),
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool_b".into(),
+                        arguments: Some(object(json!({"key": "val"}))),
+                    }),
+                ),
+            ],
+        );
+
+        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
+
+        // Verify cache point is added at the end after all tool requests
+        assert_eq!(bedrock_message.content.len(), 4);
+        assert!(matches!(
+            bedrock_message.content[0],
+            bedrock::ContentBlock::Text(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[1],
+            bedrock::ContentBlock::ToolUse(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[2],
+            bedrock::ContentBlock::ToolUse(_)
+        ));
+        assert!(matches!(
+            bedrock_message.content[3],
+            bedrock::ContentBlock::CachePoint(_)
+        ));
 
         Ok(())
     }
