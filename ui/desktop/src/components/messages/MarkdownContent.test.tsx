@@ -443,4 +443,67 @@ for the result.`;
       });
     });
   });
+
+  describe('json-render code block integration', () => {
+    it('renders json-render code blocks as JsonRenderBlock instead of syntax-highlighted code', async () => {
+      const spec = JSON.stringify({
+        root: { type: 'Text', props: { text: 'Rendered via json-render' }, children: [] },
+      });
+      const content = `Here is a visual:\n\n\`\`\`json-render\n${spec}\n\`\`\`\n\nAnd some text after.`;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        // Should render the JsonRenderBlock wrapper
+        expect(container.querySelector('.json-render-block')).toBeInTheDocument();
+        // Should render the actual component content
+        expect(screen.getByText('Rendered via json-render')).toBeInTheDocument();
+        // Should NOT render as a syntax-highlighted <pre><code>
+        const codeBlocks = container.querySelectorAll('pre code.language-json-render');
+        expect(codeBlocks).toHaveLength(0);
+      });
+    });
+
+    it('renders jsonrender (no hyphen) code blocks as JsonRenderBlock', async () => {
+      const spec = JSON.stringify({
+        root: { type: 'Text', props: { text: 'No hyphen variant' }, children: [] },
+      });
+      const content = `\`\`\`jsonrender\n${spec}\n\`\`\``;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(container.querySelector('.json-render-block')).toBeInTheDocument();
+        expect(screen.getByText('No hyphen variant')).toBeInTheDocument();
+      });
+    });
+
+    it('renders regular code blocks normally alongside json-render blocks', async () => {
+      const spec = JSON.stringify({
+        root: { type: 'Text', props: { text: 'Visual component' }, children: [] },
+      });
+      const content = `Some code:\n\n\`\`\`javascript\nconsole.log("hello");\n\`\`\`\n\nAnd a visual:\n\n\`\`\`json-render\n${spec}\n\`\`\``;
+
+      const { container } = render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        // json-render block should render as component
+        expect(container.querySelector('.json-render-block')).toBeInTheDocument();
+        expect(screen.getByText('Visual component')).toBeInTheDocument();
+        // JS code block should render as syntax-highlighted code (spans split tokens)
+        expect(container.querySelector('code')).toBeInTheDocument();
+        expect(container.textContent).toContain('console');
+      });
+    });
+
+    it('shows error for invalid json-render spec in markdown', async () => {
+      const content = `\`\`\`json-render\nnot valid json\n\`\`\``;
+
+      render(<MarkdownContent content={content} />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/json-render error/)).toBeInTheDocument();
+      });
+    });
+  });
 });

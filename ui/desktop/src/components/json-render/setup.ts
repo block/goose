@@ -63,23 +63,45 @@ const catalog = defineCatalog(schema, { components: pickedDefs });
 /**
  * Adapt shadcn components to work with @json-render/react's Renderer.
  *
- * The Renderer spreads props directly onto the component:
- *   jsx(Component, { direction: "vertical", gap: "lg", children: [...] })
+ * The Renderer (ElementRenderer) renders each component as:
+ *   <Component element={resolvedElement} emit={emit} on={on} bindings={...} loading={loading}>
+ *     {children}
+ *   </Component>
  *
- * But @json-render/shadcn components expect a wrapper format:
- *   Component({ props: { direction, gap }, children })
+ * So components receive ComponentRenderProps: { element, emit, on, bindings, loading, children }
  *
- * This adapter wraps each shadcn component to convert from spread to wrapper.
+ * But @json-render/shadcn components expect BaseComponentProps:
+ *   Component({ props: element.props, children, emit, on, bindings })
+ *
+ * This adapter bridges the two interfaces — identical to what defineRegistry() does internally.
  */
+interface ElementLike {
+  props: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface ComponentRenderInput {
+  element: ElementLike;
+  children?: React.ReactNode;
+  emit: (event: string) => void;
+  on: (event: string) => unknown;
+  bindings?: Record<string, string>;
+  loading?: boolean;
+}
+
 function adaptComponents(
   components: Record<string, React.FC<{ props: Record<string, unknown>; children?: React.ReactNode }>>
-): Record<string, React.FC<Record<string, unknown>>> {
-  const adapted: Record<string, React.FC<Record<string, unknown>>> = {};
+): Record<string, React.FC<ComponentRenderInput>> {
+  const adapted: Record<string, React.FC<ComponentRenderInput>> = {};
   for (const [name, Component] of Object.entries(components)) {
-    adapted[name] = ({ children, ...rest }: Record<string, unknown>) => {
+    adapted[name] = ({ element, children, emit, on, bindings, loading }: ComponentRenderInput) => {
       return React.createElement(Component, {
-        props: rest,
-        children: children as React.ReactNode,
+        props: element.props,
+        children,
+        emit,
+        on,
+        bindings,
+        loading,
       });
     };
     adapted[name].displayName = `Adapted${name}`;

@@ -254,7 +254,15 @@ impl McpClientTrait for GenUiClient {
     }
 
     async fn get_moim(&self, _session_id: &str) -> Option<String> {
-        Some(CATALOG_PROMPT.to_string())
+        Some(format!(
+            "{}\n\n\
+            CRITICAL — How to show visual components to the user:\n\
+            You MUST include the ```json-render fenced code block DIRECTLY in your text response.\n\
+            Tool results (including genui__render results) are collapsed and hidden from the user.\n\
+            The ONLY way the user sees rendered components is if you write the ```json-render code block\n\
+            in your response text. After gathering data, output the spec as a ```json-render code block.",
+            CATALOG_PROMPT
+        ))
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {
