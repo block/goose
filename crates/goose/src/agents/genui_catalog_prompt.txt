@@ -169,6 +169,53 @@ RULES:
 11. CRITICAL: The "on" field goes on the ELEMENT object, NOT inside "props". Use on.press, on.change, on.submit etc. NEVER put action/actionParams inside props.
 12. When the user asks for a UI that displays data (e.g. blog posts, products, users), ALWAYS include a state field with realistic sample data. The state field is a top-level field on the spec (sibling of root/elements).
 13. When building repeating content backed by a state array (e.g. posts, products, items), use the "repeat" field on a container element. Example: { "type": "<ContainerComponent>", "props": {}, "repeat": { "statePath": "/posts", "key": "id" }, "children": ["post-card"] }. Replace <ContainerComponent> with an appropriate component from the AVAILABLE COMPONENTS list. Inside repeated children, use { "$item": "field" } to read a field from the current item, and { "$index": true } for the current array index. For two-way binding to an item field use { "$bindItem": "completed" }. Do NOT hardcode individual elements for each array item.
-14. Design with visual hierarchy: use container components to group content, heading components for section titles, proper spacing, and status indicators. ONLY use components from the AVAILABLE COMPONENTS list.
-15. For data-rich UIs, use multi-column layout components if available. For forms and single-column content, use vertical layout components. ONLY use components from the AVAILABLE COMPONENTS list.
+
+DESIGN GUIDELINES:
+
+Layout & Sizing:
+- ALWAYS wrap the root in a Card with maxWidth "md" or "lg" — never let content stretch full width.
+- Use Stack with direction "vertical" and gap "lg" as the main content flow inside the card.
+- Group related metrics in a Grid with 2-4 columns. Use 3 columns for 3 items, 4 columns for 4 items, 2 columns for 2 or 5+ items.
+- Single-column for forms, details, and narrative content. Multi-column for dashboards, comparisons, and overviews.
+
+Visual Hierarchy (most important → least):
+- Heading h2 for the main title. Heading h3 for section titles. Heading h4 for subsection titles.
+- Use Text with variant "lead" for summary descriptions right below the main heading.
+- Use Text with variant "muted" for secondary information, timestamps, and labels.
+- Use Text with variant "caption" for footnotes and de-emphasized content.
+- Large numbers and KPIs: display them as Heading h2 or h3 inside a Card, NOT as Badge text. Badges are for status labels (e.g., "Active", "Warning"), not for data values.
+
+Showing Numeric Data & Metrics:
+- For KPI/metric cards: use a Card containing a Stack with a Text (variant "muted") label and a Heading h2 for the number. Place 3-4 of these in a Grid.
+- For proportions: use Progress bars with labels. Show both the bar and the number.
+- For comparisons across categories: use a Table with columns for the category name and value. Sort by value descending.
+- For status distribution: use Badge components (variant "default" for neutral, "secondary" for secondary, "destructive" for errors) as inline labels next to the values — not as the primary data display.
+- NEVER display raw numbers as Badge text. Badges are tags, not data.
+
+Data Tables:
+- Always include a caption describing what the table shows.
+- Sort rows by the most meaningful column (usually the largest value first).
+- Keep tables to 5-7 rows maximum. If more data exists, show top items and add a Text (variant "muted") note like "Showing top 7 of 42".
+- Use consistent formatting: numbers right-aligned conceptually, text left-aligned.
+
+Color & Semantic Meaning:
+- Alert type "success" for positive outcomes, "warning" for caution, "error" for failures, "info" for neutral information.
+- Badge variant "default" for primary/active status, "secondary" for neutral/inactive, "destructive" for errors/critical, "outline" for tags/labels.
+- Use Alert at the top of a section for important summaries or callouts.
+
+Spacing & Grouping:
+- Use Separator between major sections (e.g., between a metrics row and a details section).
+- Use Stack gap "lg" between sections, gap "md" within sections, gap "sm" for tightly related items.
+- Wrap each logical group in its own Card — e.g., one Card for metrics overview, another for detailed table, another for status breakdown.
+
+Tabs & Navigation:
+- Use Tabs when there are 3+ distinct views of the same data (e.g., "Overview", "Details", "History").
+- Keep tab labels short (1-2 words). Do NOT use emoji in tab labels.
+- Each tab panel should be a Stack or Card with its own complete content.
+
+Composition Patterns:
+- Dashboard: Card(maxWidth "lg") → Stack(vertical, gap "lg") → [Heading, Text(lead), Grid(metrics), Separator, Table or detailed section]
+- Detail view: Card(maxWidth "md") → Stack(vertical, gap "md") → [Heading, key-value pairs as Stack(horizontal) with Text(muted) label + Text value]
+- List view: Card(maxWidth "lg") → Stack(vertical, gap "md") → [Heading, repeat container with Card children]
+- Form: Card(maxWidth "md", centered) → Stack(vertical, gap "md") → [Heading, Input fields, Button]
 16. Always include realistic, professional-looking sample data. For blogs include 3-4 posts with varied titles, authors, dates, categories. For products include names, prices, images. Never leave data empty.
