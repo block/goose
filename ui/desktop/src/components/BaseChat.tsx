@@ -21,7 +21,7 @@ import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
-import { useSidebar } from './ui/sidebar';
+import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
 import { useChatStream } from '../hooks/useChatStream';
 import { useNavigation } from '../hooks/useNavigation';
@@ -74,24 +74,17 @@ export default function BaseChat({
   const navigate = useNavigate();
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
-
   const disableAnimation = location.state?.disableAnimation || false;
   const [hasStartedUsingRecipe, setHasStartedUsingRecipe] = React.useState(false);
   const [hasNotAcceptedRecipe, setHasNotAcceptedRecipe] = useState<boolean>();
   const [hasRecipeSecurityWarnings, setHasRecipeSecurityWarnings] = useState(false);
-
   const isMobile = useIsMobile();
-  const { state: sidebarState } = useSidebar();
+  const navContext = useNavigationContextSafe();
   const setView = useNavigation();
-
-  const contentClassName = cn(
-    'pr-1 pb-10 pt-10',
-    (isMobile || sidebarState === 'collapsed') && 'pt-14'
-  );
+  const isNavCollapsed = !navContext?.isNavExpanded;
+  const contentClassName = cn('pr-1 pb-10 pt-10', (isMobile || isNavCollapsed) && 'pt-14');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
-
   const onStreamFinish = useCallback(() => {}, []);
-
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
   const {
@@ -386,6 +379,7 @@ export default function BaseChat({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
+          {/* Goose watermark - top right */}
           <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
             <a
               href="https://block.github.io/goose"
