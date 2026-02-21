@@ -228,6 +228,7 @@ pub async fn spawn_acp_server_in_process(
             data_root.to_path_buf(),
             goose_mode,
             true,
+            false,
         )
         .await
         .unwrap(),

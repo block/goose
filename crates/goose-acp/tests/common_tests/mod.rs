@@ -73,6 +73,7 @@ pub async fn run_initialize_without_provider() {
             temp_dir.path().to_path_buf(),
             GooseMode::Auto,
             false,
+            false,
         )
         .await
         .unwrap(),

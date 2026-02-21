@@ -1,5 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::tool_execution::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
@@ -63,10 +64,9 @@ impl McpClientTrait for TomClient {
 
     async fn call_tool(
         &self,
-        _session_id: &str,
+        _ctx: &ToolCallContext,
         name: &str,
         _arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         Ok(CallToolResult::error(vec![Content::text(format!(
