@@ -5,7 +5,9 @@ use crate::model::ModelConfig;
 use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
+use crate::session::storage_backend::{SessionStorageBackend, SessionUpdate};
 use anyhow::Result;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
@@ -60,8 +62,43 @@ impl std::str::FromStr for SessionType {
     }
 }
 
-static SESSION_STORAGE: LazyLock<Arc<SessionStorage>> =
-    LazyLock::new(|| Arc::new(SessionStorage::new(Paths::data_dir())));
+static SESSION_STORAGE: LazyLock<Arc<dyn SessionStorageBackend>> = LazyLock::new(|| {
+    match std::env::var("GOOSE_SESSION_STORAGE").as_deref() {
+        #[cfg(feature = "mongodb-storage")]
+        Ok("mongodb") => {
+            // MongoDbSessionStorage::new() is async, so we use a runtime handle.
+            // If a tokio runtime is already running, use block_in_place; otherwise create one.
+            let rt = tokio::runtime::Handle::try_current();
+            match rt {
+                Ok(handle) => tokio::task::block_in_place(|| {
+                    handle.block_on(async {
+                        Arc::new(
+                            crate::session::mongodb_storage::MongoDbSessionStorage::new()
+                                .await
+                                .expect("Failed to initialize MongoDB session storage"),
+                        ) as Arc<dyn SessionStorageBackend>
+                    })
+                }),
+                Err(_) => {
+                    let rt = tokio::runtime::Runtime::new()
+                        .expect("Failed to create tokio runtime for MongoDB init");
+                    rt.block_on(async {
+                        Arc::new(
+                            crate::session::mongodb_storage::MongoDbSessionStorage::new()
+                                .await
+                                .expect("Failed to initialize MongoDB session storage"),
+                        ) as Arc<dyn SessionStorageBackend>
+                    })
+                }
+            }
+        }
+        #[cfg(not(feature = "mongodb-storage"))]
+        Ok("mongodb") => {
+            panic!("MongoDB storage requested but goose was not compiled with the 'mongodb-storage' feature");
+        }
+        _ => Arc::new(SessionStorage::new(Paths::data_dir())),
+    }
+});
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Session {
@@ -145,7 +182,28 @@ impl<'a> SessionUpdateBuilder<'a> {
     }
 
     pub async fn apply(self) -> Result<()> {
-        self.session_manager.apply_update_inner(self).await
+        let update = SessionUpdate {
+            name: self.name,
+            user_set_name: self.user_set_name,
+            session_type: self.session_type,
+            working_dir: self.working_dir,
+            extension_data: self.extension_data,
+            total_tokens: self.total_tokens,
+            input_tokens: self.input_tokens,
+            output_tokens: self.output_tokens,
+            accumulated_total_tokens: self.accumulated_total_tokens,
+            accumulated_input_tokens: self.accumulated_input_tokens,
+            accumulated_output_tokens: self.accumulated_output_tokens,
+            schedule_id: self.schedule_id,
+            recipe: self.recipe,
+            user_recipe_values: self.user_recipe_values,
+            provider_name: self.provider_name,
+            model_config: self.model_config,
+        };
+        self.session_manager
+            .storage
+            .apply_update(&self.session_id, update)
+            .await
     }
 
     pub fn user_provided_name(mut self, name: impl Into<String>) -> Self {
@@ -241,11 +299,13 @@ impl<'a> SessionUpdateBuilder<'a> {
 }
 
 pub struct SessionManager {
-    storage: Arc<SessionStorage>,
+    storage: Arc<dyn SessionStorageBackend>,
 }
 
 impl SessionManager {
     pub fn new(data_dir: PathBuf) -> Self {
+        // SessionManager::new() always creates SQLite storage with the given data_dir.
+        // For MongoDB, use SessionManager::instance() which reads GOOSE_SESSION_STORAGE.
         Self {
             storage: Arc::new(SessionStorage::new(data_dir)),
         }
@@ -255,10 +315,6 @@ impl SessionManager {
         Self {
             storage: Arc::clone(&SESSION_STORAGE),
         }
-    }
-
-    pub fn storage(&self) -> &Arc<SessionStorage> {
-        &self.storage
     }
 
     pub async fn create_session(
@@ -280,10 +336,6 @@ impl SessionManager {
         SessionUpdateBuilder::new(self, id.to_string())
     }
 
-    async fn apply_update_inner(&self, builder: SessionUpdateBuilder<'_>) -> Result<()> {
-        self.storage.apply_update(builder).await
-    }
-
     pub async fn add_message(&self, id: &str, message: &Message) -> Result<()> {
         self.storage.add_message(id, message).await
     }
@@ -293,7 +345,9 @@ impl SessionManager {
     }
 
     pub async fn list_sessions(&self) -> Result<Vec<Session>> {
-        self.storage.list_sessions().await
+        self.storage
+            .list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
+            .await
     }
 
     pub async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
@@ -309,15 +363,86 @@ impl SessionManager {
     }
 
     pub async fn export_session(&self, id: &str) -> Result<String> {
-        self.storage.export_session(id).await
+        let session = self.storage.get_session(id, true).await?;
+        serde_json::to_string_pretty(&session).map_err(Into::into)
     }
 
     pub async fn import_session(&self, json: &str) -> Result<Session> {
-        self.storage.import_session(self, json).await
+        let import: Session = serde_json::from_str(json)?;
+
+        let session = self
+            .storage
+            .create_session(
+                import.working_dir.clone(),
+                import.name.clone(),
+                import.session_type,
+            )
+            .await?;
+
+        let mut builder = self
+            .update(&session.id)
+            .extension_data(import.extension_data)
+            .total_tokens(import.total_tokens)
+            .input_tokens(import.input_tokens)
+            .output_tokens(import.output_tokens)
+            .accumulated_total_tokens(import.accumulated_total_tokens)
+            .accumulated_input_tokens(import.accumulated_input_tokens)
+            .accumulated_output_tokens(import.accumulated_output_tokens)
+            .schedule_id(import.schedule_id)
+            .recipe(import.recipe)
+            .user_recipe_values(import.user_recipe_values);
+
+        if import.user_set_name {
+            builder = builder.user_provided_name(import.name.clone());
+        }
+
+        builder.apply().await?;
+
+        if let Some(conversation) = import.conversation {
+            self.storage
+                .replace_conversation(&session.id, &conversation)
+                .await?;
+        }
+
+        self.storage.get_session(&session.id, true).await
     }
 
     pub async fn copy_session(&self, session_id: &str, new_name: String) -> Result<Session> {
-        self.storage.copy_session(self, session_id, new_name).await
+        let original_session = self.storage.get_session(session_id, true).await?;
+
+        let new_session = self
+            .storage
+            .create_session(
+                original_session.working_dir.clone(),
+                new_name,
+                original_session.session_type,
+            )
+            .await?;
+
+        let mut builder = self
+            .update(&new_session.id)
+            .extension_data(original_session.extension_data)
+            .schedule_id(original_session.schedule_id)
+            .recipe(original_session.recipe)
+            .user_recipe_values(original_session.user_recipe_values);
+
+        if let Some(provider_name) = original_session.provider_name {
+            builder = builder.provider_name(provider_name);
+        }
+
+        if let Some(model_config) = original_session.model_config {
+            builder = builder.model_config(model_config);
+        }
+
+        builder.apply().await?;
+
+        if let Some(conversation) = original_session.conversation {
+            self.storage
+                .replace_conversation(&new_session.id, &conversation)
+                .await?;
+        }
+
+        self.storage.get_session(&new_session.id, true).await
     }
 
     pub async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
@@ -370,9 +495,15 @@ impl SessionManager {
             crate::conversation::message::MessageMetadata,
         ) -> crate::conversation::message::MessageMetadata,
     {
-        Self::instance()
+        let instance = Self::instance();
+        let current = instance
             .storage
-            .update_message_metadata(id, message_id, f)
+            .get_message_metadata(id, message_id)
+            .await?;
+        let new_metadata = f(current);
+        instance
+            .storage
+            .set_message_metadata(id, message_id, new_metadata)
             .await
     }
 }
@@ -968,7 +1099,7 @@ impl SessionStorage {
     }
 
     #[allow(clippy::too_many_lines)]
-    async fn apply_update(&self, builder: SessionUpdateBuilder<'_>) -> Result<()> {
+    async fn apply_update_impl(&self, session_id: &str, update: SessionUpdate) -> Result<()> {
         let mut updates = Vec::new();
         let mut query = String::from("UPDATE sessions SET ");
 
@@ -985,25 +1116,25 @@ impl SessionStorage {
             };
         }
 
-        add_update!(builder.name, "name");
-        add_update!(builder.user_set_name, "user_set_name");
-        add_update!(builder.session_type, "session_type");
-        add_update!(builder.working_dir, "working_dir");
-        add_update!(builder.extension_data, "extension_data");
-        add_update!(builder.total_tokens, "total_tokens");
-        add_update!(builder.input_tokens, "input_tokens");
-        add_update!(builder.output_tokens, "output_tokens");
-        add_update!(builder.accumulated_total_tokens, "accumulated_total_tokens");
-        add_update!(builder.accumulated_input_tokens, "accumulated_input_tokens");
+        add_update!(update.name, "name");
+        add_update!(update.user_set_name, "user_set_name");
+        add_update!(update.session_type, "session_type");
+        add_update!(update.working_dir, "working_dir");
+        add_update!(update.extension_data, "extension_data");
+        add_update!(update.total_tokens, "total_tokens");
+        add_update!(update.input_tokens, "input_tokens");
+        add_update!(update.output_tokens, "output_tokens");
+        add_update!(update.accumulated_total_tokens, "accumulated_total_tokens");
+        add_update!(update.accumulated_input_tokens, "accumulated_input_tokens");
         add_update!(
-            builder.accumulated_output_tokens,
+            update.accumulated_output_tokens,
             "accumulated_output_tokens"
         );
-        add_update!(builder.schedule_id, "schedule_id");
-        add_update!(builder.recipe, "recipe_json");
-        add_update!(builder.user_recipe_values, "user_recipe_values_json");
-        add_update!(builder.provider_name, "provider_name");
-        add_update!(builder.model_config, "model_config_json");
+        add_update!(update.schedule_id, "schedule_id");
+        add_update!(update.recipe, "recipe_json");
+        add_update!(update.user_recipe_values, "user_recipe_values_json");
+        add_update!(update.provider_name, "provider_name");
+        add_update!(update.model_config, "model_config_json");
 
         if updates.is_empty() {
             return Ok(());
@@ -1014,56 +1145,56 @@ impl SessionStorage {
 
         let mut q = sqlx::query(&query);
 
-        if let Some(name) = builder.name {
+        if let Some(name) = update.name {
             q = q.bind(name);
         }
-        if let Some(user_set_name) = builder.user_set_name {
+        if let Some(user_set_name) = update.user_set_name {
             q = q.bind(user_set_name);
         }
-        if let Some(session_type) = builder.session_type {
+        if let Some(session_type) = update.session_type {
             q = q.bind(session_type.to_string());
         }
-        if let Some(wd) = builder.working_dir {
+        if let Some(wd) = update.working_dir {
             q = q.bind(wd.to_string_lossy().to_string());
         }
-        if let Some(ed) = builder.extension_data {
+        if let Some(ed) = update.extension_data {
             q = q.bind(serde_json::to_string(&ed)?);
         }
-        if let Some(tt) = builder.total_tokens {
+        if let Some(tt) = update.total_tokens {
             q = q.bind(tt);
         }
-        if let Some(it) = builder.input_tokens {
+        if let Some(it) = update.input_tokens {
             q = q.bind(it);
         }
-        if let Some(ot) = builder.output_tokens {
+        if let Some(ot) = update.output_tokens {
             q = q.bind(ot);
         }
-        if let Some(att) = builder.accumulated_total_tokens {
+        if let Some(att) = update.accumulated_total_tokens {
             q = q.bind(att);
         }
-        if let Some(ait) = builder.accumulated_input_tokens {
+        if let Some(ait) = update.accumulated_input_tokens {
             q = q.bind(ait);
         }
-        if let Some(aot) = builder.accumulated_output_tokens {
+        if let Some(aot) = update.accumulated_output_tokens {
             q = q.bind(aot);
         }
-        if let Some(sid) = builder.schedule_id {
+        if let Some(sid) = update.schedule_id {
             q = q.bind(sid);
         }
-        if let Some(recipe) = builder.recipe {
+        if let Some(recipe) = update.recipe {
             let recipe_json = recipe.map(|r| serde_json::to_string(&r)).transpose()?;
             q = q.bind(recipe_json);
         }
-        if let Some(user_recipe_values) = builder.user_recipe_values {
+        if let Some(user_recipe_values) = update.user_recipe_values {
             let user_recipe_values_json = user_recipe_values
                 .map(|urv| serde_json::to_string(&urv))
                 .transpose()?;
             q = q.bind(user_recipe_values_json);
         }
-        if let Some(provider_name) = builder.provider_name {
+        if let Some(provider_name) = update.provider_name {
             q = q.bind(provider_name);
         }
-        if let Some(model_config) = builder.model_config {
+        if let Some(model_config) = update.model_config {
             let model_config_json = model_config
                 .map(|mc| serde_json::to_string(&mc))
                 .transpose()?;
@@ -1072,7 +1203,7 @@ impl SessionStorage {
 
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
-        q = q.bind(&builder.session_id);
+        q = q.bind(session_id);
         q.execute(&mut *tx).await?;
 
         tx.commit().await?;
@@ -1230,11 +1361,6 @@ impl SessionStorage {
         q.fetch_all(pool).await.map_err(Into::into)
     }
 
-    async fn list_sessions(&self) -> Result<Vec<Session>> {
-        self.list_sessions_by_types(&[SessionType::User, SessionType::Scheduled])
-            .await
-    }
-
     async fn delete_session(&self, session_id: &str) -> Result<()> {
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
@@ -1281,95 +1407,6 @@ impl SessionStorage {
         })
     }
 
-    async fn export_session(&self, id: &str) -> Result<String> {
-        let session = self.get_session(id, true).await?;
-        serde_json::to_string_pretty(&session).map_err(Into::into)
-    }
-
-    async fn import_session(
-        &self,
-        session_manager: &SessionManager,
-        json: &str,
-    ) -> Result<Session> {
-        let import: Session = serde_json::from_str(json)?;
-
-        let session = self
-            .create_session(
-                import.working_dir.clone(),
-                import.name.clone(),
-                import.session_type,
-            )
-            .await?;
-
-        let mut builder = session_manager
-            .update(&session.id)
-            .extension_data(import.extension_data)
-            .total_tokens(import.total_tokens)
-            .input_tokens(import.input_tokens)
-            .output_tokens(import.output_tokens)
-            .accumulated_total_tokens(import.accumulated_total_tokens)
-            .accumulated_input_tokens(import.accumulated_input_tokens)
-            .accumulated_output_tokens(import.accumulated_output_tokens)
-            .schedule_id(import.schedule_id)
-            .recipe(import.recipe)
-            .user_recipe_values(import.user_recipe_values);
-
-        if import.user_set_name {
-            builder = builder.user_provided_name(import.name.clone());
-        }
-
-        builder.apply().await?;
-
-        if let Some(conversation) = import.conversation {
-            self.replace_conversation(&session.id, &conversation)
-                .await?;
-        }
-
-        self.get_session(&session.id, true).await
-    }
-
-    async fn copy_session(
-        &self,
-        session_manager: &SessionManager,
-        session_id: &str,
-        new_name: String,
-    ) -> Result<Session> {
-        let original_session = self.get_session(session_id, true).await?;
-
-        let new_session = self
-            .create_session(
-                original_session.working_dir.clone(),
-                new_name,
-                original_session.session_type,
-            )
-            .await?;
-
-        let mut builder = session_manager
-            .update(&new_session.id)
-            .extension_data(original_session.extension_data)
-            .schedule_id(original_session.schedule_id)
-            .recipe(original_session.recipe)
-            .user_recipe_values(original_session.user_recipe_values);
-
-        // Preserve provider and model config from original session
-        if let Some(provider_name) = original_session.provider_name {
-            builder = builder.provider_name(provider_name);
-        }
-
-        if let Some(model_config) = original_session.model_config {
-            builder = builder.model_config(model_config);
-        }
-
-        builder.apply().await?;
-
-        if let Some(conversation) = original_session.conversation {
-            self.replace_conversation(&new_session.id, &conversation)
-                .await?;
-        }
-
-        self.get_session(&new_session.id, true).await
-    }
-
     async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
         let pool = self.pool().await?;
         sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
@@ -1404,33 +1441,31 @@ impl SessionStorage {
         .await
     }
 
-    async fn update_message_metadata<F>(
+    async fn get_message_metadata_impl(
         &self,
         session_id: &str,
         message_id: &str,
-        f: F,
-    ) -> Result<()>
-    where
-        F: FnOnce(
-            crate::conversation::message::MessageMetadata,
-        ) -> crate::conversation::message::MessageMetadata,
-    {
+    ) -> Result<crate::conversation::message::MessageMetadata> {
         let pool = self.pool().await?;
-        let mut tx = pool.begin().await?;
-
         let current_metadata_json = sqlx::query_scalar::<_, String>(
             "SELECT metadata_json FROM messages WHERE message_id = ? AND session_id = ?",
         )
         .bind(message_id)
         .bind(session_id)
-        .fetch_one(&mut *tx)
+        .fetch_one(pool)
         .await?;
 
-        let current_metadata: crate::conversation::message::MessageMetadata =
-            serde_json::from_str(&current_metadata_json)?;
+        Ok(serde_json::from_str(&current_metadata_json)?)
+    }
 
-        let new_metadata = f(current_metadata);
-        let metadata_json = serde_json::to_string(&new_metadata)?;
+    async fn set_message_metadata_impl(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        metadata: crate::conversation::message::MessageMetadata,
+    ) -> Result<()> {
+        let pool = self.pool().await?;
+        let metadata_json = serde_json::to_string(&metadata)?;
 
         sqlx::query(
             "UPDATE messages SET metadata_json = ? WHERE message_id = ? AND session_id = ?",
@@ -1438,11 +1473,93 @@ impl SessionStorage {
         .bind(metadata_json)
         .bind(message_id)
         .bind(session_id)
-        .execute(&mut *tx)
+        .execute(pool)
         .await?;
 
-        tx.commit().await?;
+        Ok(())
+    }
+}
 
+#[async_trait]
+impl SessionStorageBackend for SessionStorage {
+    async fn create_session(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+    ) -> Result<Session> {
+        self.create_session(working_dir, name, session_type).await
+    }
+
+    async fn get_session(&self, id: &str, include_messages: bool) -> Result<Session> {
+        self.get_session(id, include_messages).await
+    }
+
+    async fn apply_update(&self, session_id: &str, update: SessionUpdate) -> Result<()> {
+        self.apply_update_impl(session_id, update).await
+    }
+
+    async fn delete_session(&self, id: &str) -> Result<()> {
+        self.delete_session(id).await
+    }
+
+    async fn list_sessions_by_types(&self, types: &[SessionType]) -> Result<Vec<Session>> {
+        self.list_sessions_by_types(types).await
+    }
+
+    async fn add_message(&self, session_id: &str, message: &Message) -> Result<()> {
+        self.add_message(session_id, message).await
+    }
+
+    async fn replace_conversation(
+        &self,
+        session_id: &str,
+        conversation: &Conversation,
+    ) -> Result<()> {
+        self.replace_conversation(session_id, conversation).await
+    }
+
+    async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
+        self.truncate_conversation(session_id, timestamp).await
+    }
+
+    async fn get_message_metadata(
+        &self,
+        session_id: &str,
+        message_id: &str,
+    ) -> Result<crate::conversation::message::MessageMetadata> {
+        self.get_message_metadata_impl(session_id, message_id).await
+    }
+
+    async fn set_message_metadata(
+        &self,
+        session_id: &str,
+        message_id: &str,
+        metadata: crate::conversation::message::MessageMetadata,
+    ) -> Result<()> {
+        self.set_message_metadata_impl(session_id, message_id, metadata)
+            .await
+    }
+
+    async fn get_insights(&self) -> Result<SessionInsights> {
+        self.get_insights().await
+    }
+
+    async fn search_chat_history(
+        &self,
+        query: &str,
+        limit: Option<usize>,
+        after_date: Option<DateTime<Utc>>,
+        before_date: Option<DateTime<Utc>>,
+        exclude_session_id: Option<String>,
+    ) -> Result<crate::session::chat_history_search::ChatRecallResults> {
+        self.search_chat_history(query, limit, after_date, before_date, exclude_session_id)
+            .await
+    }
+
+    async fn health_check(&self) -> Result<()> {
+        let pool = self.pool().await?;
+        sqlx::query("SELECT 1").execute(pool).await?;
         Ok(())
     }
 }

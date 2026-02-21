@@ -1,0 +1,8 @@
+{
+  "label": "MongoDB Storage",
+  "position": 90,
+  "link": {
+    "type": "doc",
+    "id": "mongodb-storage/index"
+  }
+}

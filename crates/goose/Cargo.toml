@@ -10,6 +10,7 @@ description.workspace = true
 [features]
 default = []
 cuda = ["candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
+mongodb-storage = ["dep:mongodb"]
 
 [lints]
 workspace = true
@@ -128,6 +129,9 @@ pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
 llama-cpp-2 = { version = "0.1.133", features = ["sampler"] }
 encoding_rs = "0.8.35"
+
+# MongoDB session storage (optional)
+mongodb = { version = "2.8", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
