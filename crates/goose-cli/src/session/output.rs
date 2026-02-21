@@ -1386,13 +1386,14 @@ pub fn display_splash(model: &str, provider: &str) {
         })
         .unwrap_or_else(|| "unknown".to_string());
 
+    // Goose ASCII art - a side-profile goose with beak, neck, body, and feet
     let art_lines = [
-        "  \u{25d6}\u{25cf}",
-        "   \u{258f}",
-        "  \u{259f}\u{2588}\u{2599}",
-        " \u{2590}\u{259b}\u{2588}\u{2588}\u{2588}\u{259c}\u{258c}",
-        "\u{255d}\u{259c}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{259b}\u{2598}",
-        "  \u{2598}\u{2598} \u{259d}\u{259d}",
+        r"   __",
+        r"  ( o>",
+        r"  //\\",
+        r" V_/_ \\",
+        r"   ||",
+        r"   ^^",
     ];
 
     let version_line = format!("Goose v{}", version);
@@ -1400,10 +1401,10 @@ pub fn display_splash(model: &str, provider: &str) {
 
     let info_lines: [&str; 6] = [
         "",
-        "",
         &version_line,
         &model_line,
         &cwd_display,
+        "",
         "",
     ];
 
