@@ -24,7 +24,14 @@ import {
   YAxis,
 } from 'recharts';
 
-const CHART_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+const CHART_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
+];
 
 const statusColors: Record<string, string> = {
   success: 'text-text-success bg-background-success/10 border-text-success/20',
@@ -82,8 +89,14 @@ export const { registry } = defineRegistry(gooseCatalog, {
         deltaType?: string;
         description?: string;
       };
+
+      const ariaLabel = `${props.label}: ${props.value}${props.delta ? ` (${props.delta})` : ''}`;
       return (
-        <div className="bg-background-muted border border-border-default rounded-xl p-4 space-y-1">
+        <div
+          className="bg-background-muted border border-border-default rounded-xl p-4 space-y-1"
+          role="group"
+          aria-label={ariaLabel}
+        >
           <div className="text-sm text-text-muted">{props.label}</div>
           <div className="text-2xl font-bold text-text-default">{props.value}</div>
           {props.delta && (
@@ -112,9 +125,11 @@ export const { registry } = defineRegistry(gooseCatalog, {
         maxRows?: number;
       };
       const rows = props.rows.slice(0, props.maxRows || 10);
+
+      const ariaLabel = `Data table: ${props.columns.map((c) => c.label).join(', ')}`;
       return (
         <div className="overflow-x-auto rounded-lg border border-border-default">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" aria-label={ariaLabel}>
             <thead>
               <tr className="bg-background-muted">
                 {props.columns.map((col) => (
@@ -128,8 +143,11 @@ export const { registry } = defineRegistry(gooseCatalog, {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-default">
-              {rows.map((row, i) => (
-                <tr key={i} className="hover:bg-background-active">
+              {rows.map((row) => (
+                <tr
+                  key={props.columns.map((col) => String(row[col.key] ?? '')).join('|')}
+                  className="hover:bg-background-active"
+                >
                   {props.columns.map((col) => (
                     <td
                       key={col.key}
@@ -159,35 +177,42 @@ export const { registry } = defineRegistry(gooseCatalog, {
       const colors = props.colors || CHART_COLORS;
       const height = props.height || 300;
 
+      const ariaLabel = props.title
+        ? `${props.title} (${props.type} chart)`
+        : `${props.type} chart: ${props.yKeys.join(', ')} by ${props.xKey}`;
+
       if (props.type === 'pie') {
         return (
           <div className="space-y-2">
             {props.title && (
               <h4 className="text-sm font-medium text-text-default">{props.title}</h4>
             )}
-            <ResponsiveContainer width="100%" height={height}>
-              <PieChart>
-                <Pie
-                  data={props.data}
-                  dataKey={props.yKeys[0]}
-                  nameKey={props.xKey}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                >
-                  {props.data.map((_, i) => (
-                    <Cell key={i} fill={colors[i % colors.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--background-muted)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: '8px',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <div role="img" aria-label={ariaLabel}>
+              <ResponsiveContainer width="100%" height={height}>
+                <PieChart>
+                  <Pie
+                    data={props.data}
+                    dataKey={props.yKeys[0]}
+                    nameKey={props.xKey}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                  >
+                    {props.data.map((datum, i) => (
+                      <Cell key={String(datum[props.xKey] ?? i)} fill={colors[i % colors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'var(--background-muted)',
+                      border: '1px solid var(--border-default)',
+                      borderRadius: '8px',
+                      color: 'var(--text-default)',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         );
       }
@@ -199,31 +224,34 @@ export const { registry } = defineRegistry(gooseCatalog, {
       return (
         <div className="space-y-2">
           {props.title && <h4 className="text-sm font-medium text-text-default">{props.title}</h4>}
-          <ResponsiveContainer width="100%" height={height}>
-            {/* @ts-ignore — Recharts component union type */}
-            <ChartComponent data={props.data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
-              <XAxis dataKey={props.xKey} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-              <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--background-muted)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: '8px',
-                }}
-              />
-              {props.yKeys.map((key, i) => (
-                <DataComponent
-                  key={key}
-                  type="monotone"
-                  dataKey={key}
-                  fill={colors[i % colors.length]}
-                  stroke={colors[i % colors.length]}
-                  fillOpacity={props.type === 'area' ? 0.3 : 1}
+          <div role="img" aria-label={ariaLabel}>
+            <ResponsiveContainer width="100%" height={height}>
+              {/* @ts-ignore — Recharts component union type */}
+              <ChartComponent data={props.data}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
+                <XAxis dataKey={props.xKey} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'var(--background-muted)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    color: 'var(--text-default)',
+                  }}
                 />
-              ))}
-            </ChartComponent>
-          </ResponsiveContainer>
+                {props.yKeys.map((key, i) => (
+                  <DataComponent
+                    key={key}
+                    type="monotone"
+                    dataKey={key}
+                    fill={colors[i % colors.length]}
+                    stroke={colors[i % colors.length]}
+                    fillOpacity={props.type === 'area' ? 0.3 : 1}
+                  />
+                ))}
+              </ChartComponent>
+            </ResponsiveContainer>
+          </div>
         </div>
       );
     },
@@ -236,16 +264,26 @@ export const { registry } = defineRegistry(gooseCatalog, {
         red: 'bg-red-500',
         blue: 'bg-blue-500',
       };
+
+      const pct = Math.min(100, Math.max(0, props.value));
       return (
         <div className="space-y-1">
           <div className="flex justify-between text-sm">
             <span className="text-text-default">{props.label}</span>
             <span className="text-text-muted">{props.value}%</span>
           </div>
-          <div className="h-2 bg-background-muted rounded-full overflow-hidden">
+          <div
+            className="h-2 bg-background-muted rounded-full overflow-hidden"
+            role="progressbar"
+            aria-label={props.label || 'Progress'}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+            aria-valuetext={`${pct}%`}
+          >
             <div
               className={`h-full rounded-full transition-all ${barColors[props.color || 'blue'] || 'bg-blue-500'}`}
-              style={{ width: `${Math.min(100, Math.max(0, props.value))}%` }}
+              style={{ width: `${pct}%` }}
             />
           </div>
         </div>
@@ -322,8 +360,11 @@ export const { registry } = defineRegistry(gooseCatalog, {
       const Tag = props.ordered ? 'ol' : 'ul';
       return (
         <Tag className={`space-y-2 ${props.ordered ? 'list-decimal list-inside' : ''}`}>
-          {props.items.map((item, i) => (
-            <li key={i} className="flex items-start gap-2">
+          {props.items.map((item) => (
+            <li
+              key={`${item.label}|${item.status ?? ''}|${item.description ?? ''}`}
+              className="flex items-start gap-2"
+            >
               {item.status && (
                 <span
                   className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
@@ -360,6 +401,7 @@ export const { registry } = defineRegistry(gooseCatalog, {
       };
       return (
         <button
+          type="button"
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${variants[props.variant || 'primary'] || variants.primary}`}
         >
           {props.label}

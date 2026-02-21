@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -16,7 +16,14 @@ import {
   YAxis,
 } from 'recharts';
 
-const CHART_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+const CHART_COLORS = [
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
+];
 
 const MAX_HEIGHT = 220;
 
@@ -63,6 +70,7 @@ function ChartInner({
                 border: '1px solid var(--border-default)',
                 borderRadius: '6px',
                 fontSize: '12px',
+                color: 'var(--text-default)',
               }}
             />
           </PieChart>
@@ -88,6 +96,7 @@ function ChartInner({
               border: '1px solid var(--border-default)',
               borderRadius: '6px',
               fontSize: '12px',
+              color: 'var(--text-default)',
             }}
           />
           {yKeys.map((key, i) => (
@@ -128,9 +137,15 @@ export function Chart(props: ChartProps) {
 
   const effectiveHeight = Math.min(props.height ?? 180, MAX_HEIGHT);
 
+  const ariaLabel = props.title
+    ? `${props.title} (${props.type} chart)`
+    : `${props.type} chart: ${props.yKeys.join(', ')} by ${props.xKey}`;
+
   return (
     <div
       ref={ref}
+      role="img"
+      aria-label={ariaLabel}
       className="overflow-hidden"
       style={{ minHeight: effectiveHeight, maxHeight: effectiveHeight + 24 }}
     >

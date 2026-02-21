@@ -86,6 +86,14 @@
   --text-warning: var(--color-yellow-600);
   --text-info: var(--color-blue-600);
 
+  /* Charts (theme-aware) */
+  --chart-1: #14b8a6; /* teal */
+  --chart-2: #3b82f6; /* blue */
+  --chart-3: #8b5cf6; /* violet */
+  --chart-4: #f59e0b; /* amber */
+  --chart-5: #f43f5e; /* rose */
+  --chart-6: #64748b; /* slate */
+
   --placeholder: var(--color-text-muted);
 
   --ring: var(--border-strong);
@@ -137,6 +145,14 @@
   --text-success: var(--color-green-100);
   --text-warning: var(--color-yellow-100);
   --text-info: var(--color-blue-100);
+
+  /* Charts (theme-aware) */
+  --chart-1: #2dd4bf; /* teal */
+  --chart-2: #60a5fa; /* blue */
+  --chart-3: #a78bfa; /* violet */
+  --chart-4: #fbbf24; /* amber */
+  --chart-5: #fb7185; /* rose */
+  --chart-6: #94a3b8; /* slate */
 
   --placeholder: var(--color-text-muted);
 

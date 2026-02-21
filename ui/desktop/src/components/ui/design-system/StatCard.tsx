@@ -25,8 +25,12 @@ export function StatCard({
   variant = 'default',
   className,
 }: StatCardProps) {
+  const ariaLabel = `${label}: ${typeof value === 'number' ? value.toLocaleString() : value}`;
+
   return (
     <div
+      role="group"
+      aria-label={ariaLabel}
       className={cn(
         'bg-background-default border border-border-default rounded-lg p-4 flex flex-col gap-2',
         className

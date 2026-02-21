@@ -70,7 +70,7 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   const [isEnabled, setIsEnabled] = useState(false);
   const [provider, setProvider] = useState<DictationProvider | null>(null);
 
-  const { read, config } = useConfig();
+  const { read } = useConfig();
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);

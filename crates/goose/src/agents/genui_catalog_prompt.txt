@@ -130,7 +130,7 @@ Any prop value can be a dynamic expression that resolves based on state. Three f
    Inside repeat scopes: `"checked": { "$bindItem": "completed" }` binds to the current item's completed field.
 
 3. Conditional: `{ "$cond": <condition>, "$then": <value>, "$else": <value> }` - evaluates the condition (same syntax as visibility conditions) and picks the matching value.
-   Example: `"color": { "$cond": { "$state": "/activeTab", "eq": "home" }, "$then": "#007AFF", "$else": "#8E8E93" }`
+   Example: `"color": { "$cond": { "$state": "/activeTab", "eq": "home" }, "$then": "var(--text-info)", "$else": "var(--text-muted)" }`
 
 Use $bindState for form inputs (text fields, checkboxes, selects, sliders, etc.) and $state for read-only data display. Inside repeat scopes, use $bindItem for form inputs bound to the current item. Use dynamic props instead of duplicating elements with opposing visible conditions when only prop values differ.
 

@@ -16,7 +16,7 @@ export const useCostTracking = ({
   sessionOutputTokens,
   localInputTokens,
   localOutputTokens,
-  session,
+  session: _session,
 }: UseCostTrackingProps) => {
   const [sessionCosts, setSessionCosts] = useState<{
     [key: string]: {

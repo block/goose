@@ -15,17 +15,13 @@ import type { AgentPerformanceMetrics, ToolAnalytics } from '../../api';
 import { getAgentPerformance, getToolAnalytics } from '../../api';
 
 const COLORS = [
-  '#6366f1',
-  '#22d3ee',
-  '#f59e0b',
-  '#10b981',
-  '#f43f5e',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
+  'var(--chart-1)',
+  'var(--chart-2)',
+  'var(--chart-3)',
+  'var(--chart-4)',
+  'var(--chart-5)',
+  'var(--chart-6)',
 ];
-const SUCCESS_COLOR = '#10b981';
-const ERROR_COLOR = '#f43f5e';
 
 function formatPercent(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
@@ -48,8 +44,14 @@ function MetricCard({
   sub?: string;
   color?: string;
 }) {
+  const ariaLabel = `${label}: ${value}${sub ? ` (${sub})` : ''}`;
+
   return (
-    <div className="bg-background-muted rounded-xl p-4 border border-border-muted">
+    <div
+      className="bg-background-muted rounded-xl p-4 border border-border-muted"
+      role="group"
+      aria-label={ariaLabel}
+    >
       <div className="text-xs text-text-muted mb-1">{label}</div>
       <div className={`text-2xl font-bold ${color || 'text-text-default'}`}>{value}</div>
       {sub && <div className="text-xs text-text-muted mt-1">{sub}</div>}
@@ -119,10 +121,10 @@ function ToolTable({ tools }: { tools: ToolAnalytics['tool_usage'] }) {
                         width: `${tool.success_rate * 100}%`,
                         backgroundColor:
                           tool.success_rate >= 0.95
-                            ? SUCCESS_COLOR
+                            ? 'var(--text-success)'
                             : tool.success_rate >= 0.8
-                              ? '#f59e0b'
-                              : ERROR_COLOR,
+                              ? 'var(--text-warning)'
+                              : 'var(--text-danger)',
                       }}
                     />
                   </div>
@@ -168,7 +170,12 @@ function ExtensionBreakdown({ extensions }: { extensions: ToolAnalytics['extensi
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
+            contentStyle={{
+              backgroundColor: 'var(--background-muted)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 8,
+              color: 'var(--text-default)',
+            }}
             formatter={(value) => [
               typeof value === 'number' ? value.toLocaleString() : value,
               'Calls',
@@ -203,37 +210,42 @@ function DailyActivityChart({ data }: { data: ToolAnalytics['daily_tool_activity
       <AreaChart data={data}>
         <defs>
           <linearGradient id="toolCallsGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+            <stop offset="5%" stopColor="var(--chart-2)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="var(--chart-2)" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="toolErrorsGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
-            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+            <stop offset="5%" stopColor="var(--chart-5)" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="var(--chart-5)" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
         <XAxis
           dataKey="date"
-          tick={{ fontSize: 11, fill: '#9ca3af' }}
+          tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
           tickFormatter={(v) => v.slice(5)}
         />
-        <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} />
+        <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
         <Tooltip
-          contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 8 }}
+          contentStyle={{
+            backgroundColor: 'var(--background-muted)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 8,
+            color: 'var(--text-default)',
+          }}
           labelFormatter={(label) => `Date: ${label}`}
         />
         <Area
           type="monotone"
           dataKey="tool_calls"
           name="Tool Calls"
-          stroke="#6366f1"
+          stroke="var(--chart-2)"
           fill="url(#toolCallsGrad)"
         />
         <Area
           type="monotone"
           dataKey="tool_errors"
           name="Errors"
-          stroke="#f43f5e"
+          stroke="var(--chart-5)"
           fill="url(#toolErrorsGrad)"
         />
       </AreaChart>

@@ -216,7 +216,7 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-export function useTextAnimator({ text }: UseTextAnimatorProps) {
+export function useTextAnimator({ text: _text }: UseTextAnimatorProps) {
   const elementRef = useRef<HTMLDivElement>(null);
   const animator = useRef<TextAnimator | null>(null);
 

@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import type { Message } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { useModelAndProvider } from '../../contexts/ModelAndProviderContext';
@@ -67,7 +67,6 @@ export default function BaseChat({
   initialMessage,
   isActiveSession,
 }: BaseChatProps) {
-  const _location = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<ScrollAreaHandle>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);

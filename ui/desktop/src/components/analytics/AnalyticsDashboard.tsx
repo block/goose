@@ -19,15 +19,22 @@ import { getEvalOverview, getSessionAnalytics, listEvalRuns } from '../../api';
 
 // --- Design tokens ---
 const COLORS = {
-  accent: '#3b82f6',
-  accentLight: '#60a5fa',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  muted: '#6b7280',
-  purple: '#a855f7',
-  teal: '#14b8a6',
-  chart: ['#3b82f6', '#a855f7', '#14b8a6', '#f59e0b', '#ef4444', '#ec4899'],
+  accent: 'var(--chart-2)',
+  accentLight: 'var(--chart-1)',
+  success: 'var(--text-success)',
+  warning: 'var(--text-warning)',
+  danger: 'var(--text-danger)',
+  muted: 'var(--text-muted)',
+  purple: 'var(--chart-3)',
+  teal: 'var(--chart-1)',
+  chart: [
+    'var(--chart-1)',
+    'var(--chart-2)',
+    'var(--chart-3)',
+    'var(--chart-4)',
+    'var(--chart-5)',
+    'var(--chart-6)',
+  ],
 };
 
 // --- Utility ---
@@ -78,7 +85,7 @@ function KpiCard({
     <div className="bg-background-default rounded-lg border border-border-default p-4 flex flex-col gap-1 relative overflow-hidden">
       <span className="text-xs font-medium text-text-muted uppercase tracking-wider">{label}</span>
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold" style={{ color: color || 'var(--text-standard)' }}>
+        <span className="text-2xl font-bold" style={{ color: color || 'var(--text-default)' }}>
           {value}
         </span>
         {delta && (
@@ -414,27 +421,28 @@ export default function AnalyticsDashboard() {
                     <stop offset="100%" stopColor={COLORS.accent} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatDate}
-                  tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
+                  tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'var(--surface)',
-                    border: '1px solid var(--border-subtle)',
+                    backgroundColor: 'var(--background-muted)',
+                    border: '1px solid var(--border-default)',
                     borderRadius: '8px',
                     fontSize: '12px',
+                    color: 'var(--text-default)',
                   }}
                   formatter={(value) => [
                     `${typeof value === 'number' ? value.toFixed(1) : value}%`,
@@ -525,25 +533,26 @@ export default function AnalyticsDashboard() {
               <h3 className="text-sm font-semibold text-text-default mb-4">Daily Activity</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={usage.dailyActivity}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatDate}
-                    tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
+                    tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
+                    tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'var(--surface)',
-                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--background-muted)',
+                      border: '1px solid var(--border-default)',
                       borderRadius: '8px',
                       fontSize: '12px',
+                      color: 'var(--text-default)',
                     }}
                     labelFormatter={(l) => formatDate(String(l))}
                   />
@@ -587,10 +596,11 @@ export default function AnalyticsDashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'var(--surface)',
-                      border: '1px solid var(--border-subtle)',
+                      backgroundColor: 'var(--background-muted)',
+                      border: '1px solid var(--border-default)',
                       borderRadius: '8px',
                       fontSize: '12px',
+                      color: 'var(--text-default)',
                     }}
                     formatter={(value) => [`${value} sessions`]}
                   />
@@ -622,30 +632,31 @@ export default function AnalyticsDashboard() {
                   <stop offset="100%" stopColor={COLORS.purple} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
               <XAxis
                 dataKey="date"
                 tickFormatter={formatDate}
-                tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
+                tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: 'var(--text-subtle)' }}
+                tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => formatNumber(typeof v === 'number' ? v : 0)}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '8px',
-                  fontSize: '12px',
-                }}
-                labelFormatter={(l) => formatDate(String(l))}
-                formatter={(value) => [formatNumber(typeof value === 'number' ? value : 0)]}
-              />
+	              />
+	              <Tooltip
+	                  contentStyle={{
+	                    backgroundColor: 'var(--background-muted)',
+	                    border: '1px solid var(--border-default)',
+	                    borderRadius: '8px',
+	                    fontSize: '12px',
+	                    color: 'var(--text-default)',
+	                  }}
+	                  labelFormatter={(l) => formatDate(String(l))}
+	                  formatter={(value) => [formatNumber(typeof value === 'number' ? value : 0)]}
+	                />
               <Area
                 type="monotone"
                 dataKey="inputTokens"

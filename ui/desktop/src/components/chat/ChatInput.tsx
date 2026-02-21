@@ -147,7 +147,7 @@ export default function ChatInput({
     null
   ) as React.RefObject<HTMLDivElement>;
   const { getProviders, read } = useConfig();
-  const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
+  const { getCurrentModelAndProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);

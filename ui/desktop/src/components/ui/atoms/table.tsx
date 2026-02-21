@@ -30,12 +30,14 @@ export function Table({
   className,
   ...props
 }: TableProps) {
+  const ariaLabel = caption || 'Data table';
+
   return (
     <div
       className={cn('overflow-x-auto rounded-lg border border-border-default', className)}
       {...props}
     >
-      <table className="w-full text-sm">
+      <table className="w-full text-sm" aria-label={ariaLabel}>
         {caption && (
           <caption className="px-4 py-2 text-xs text-text-muted text-left">{caption}</caption>
         )}
