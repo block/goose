@@ -62,12 +62,15 @@ impl StatusBar {
         let (_, rows) = terminal::size()?;
         let scroll_end = rows.saturating_sub(BAR_HEIGHT);
 
+        // Save cursor position before changing scroll region
+        write!(io::stdout(), "\x1b[s")?;
+
         // Set scroll region to exclude the bottom BAR_HEIGHT lines
         // CSI n ; m r — set scrolling region from row n to row m (1-indexed)
         write!(io::stdout(), "\x1b[1;{}r", scroll_end)?;
 
-        // Move cursor to the top of the scroll region
-        execute!(io::stdout(), cursor::MoveTo(0, 0))?;
+        // Restore cursor position (DECSTBM resets cursor to origin)
+        write!(io::stdout(), "\x1b[u")?;
 
         self.active = true;
         self.render()?;
