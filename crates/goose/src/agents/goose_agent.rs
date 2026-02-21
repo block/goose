@@ -176,7 +176,7 @@ impl GooseAgent {
             category: ModeCategory::LlmOnly,
             tool_groups: vec![ToolGroupAccess::Full("apps".into())],
             recommended_extensions: vec!["apps".into()],
-            when_to_use: "User asks to create a new standalone HTML/CSS/JS app (NOT for data visualization, dashboards, or charts — use genui mode for those)".into(),
+            when_to_use: "User asks to build a standalone interactive HTML/CSS/JS application, game, tool, or utility that opens in its own window".into(),
             is_internal: false,
             deprecated: None,
         });
