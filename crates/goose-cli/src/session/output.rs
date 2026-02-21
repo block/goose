@@ -557,18 +557,16 @@ pub fn render_builtin_error(names: &str, error: &str) {
 }
 
 fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
-    print_tool_header(call);
-
-    if let Some(args) = &call.arguments {
-        if let Some(Value::String(path)) = args.get("path") {
-            println!(
-                "    {} {}",
-                style("path").dim(),
-                style(shorten_path(path, debug)).dim()
-            );
-        }
-
+    if !std::io::stdout().is_terminal() || debug {
+        print_tool_header(call);
         if let Some(args) = &call.arguments {
+            if let Some(Value::String(path)) = args.get("path") {
+                println!(
+                    "    {} {}",
+                    style("path").dim(),
+                    style(shorten_path(path, debug)).dim()
+                );
+            }
             let mut other_args = serde_json::Map::new();
             for (k, v) in args {
                 if k != "path" {
@@ -579,13 +577,137 @@ fn render_text_editor_request(call: &CallToolRequestParams, debug: bool) {
                 print_params(&Some(other_args), 1, debug);
             }
         }
+        println!();
+        return;
     }
+
+    let (tool, extension) = split_tool_name(&call.name);
+    let path_display = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("path"))
+        .and_then(|v| v.as_str())
+        .map(|p| shorten_path(p, false))
+        .unwrap_or_default();
+
+    let ext_suffix = if extension.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", style(&extension).magenta().dim())
+    };
+
+    let width = Term::stdout()
+        .size_checked()
+        .map(|(_h, w)| w as usize)
+        .unwrap_or(80);
+
+    let label = format!("  ┌ {} ", tool);
+    let label_len = measure_text_width(&label);
+    let trail = width.saturating_sub(label_len + 1);
+    println!();
+    println!(
+        "{}{}{}",
+        style(&label).dim(),
+        ext_suffix,
+        style(format!(" {}", "─".repeat(trail))).dim()
+    );
+
+    if !path_display.is_empty() {
+        println!("  {} {}", style("│").dim(), style(&path_display).dim());
+    }
+
+    // Print remaining non-path arguments
+    if let Some(args) = &call.arguments {
+        let mut other_args = serde_json::Map::new();
+        for (k, v) in args {
+            if k != "path" {
+                other_args.insert(k.clone(), v.clone());
+            }
+        }
+        if !other_args.is_empty() {
+            for (k, v) in &other_args {
+                let display = match v {
+                    Value::String(s) => {
+                        let max_w = width.saturating_sub(10 + k.len());
+                        if s.len() > max_w {
+                            safe_truncate(s, max_w)
+                        } else {
+                            s.clone()
+                        }
+                    }
+                    _ => v.to_string(),
+                };
+                println!(
+                    "  {} {} {}",
+                    style("│").dim(),
+                    style(k).dim(),
+                    style(display).dim()
+                );
+            }
+        }
+    }
+
+    println!("  {}", style(format!("└{}", "─".repeat(width.saturating_sub(3)))).dim());
     println!();
 }
 
 fn render_shell_request(call: &CallToolRequestParams, debug: bool) {
-    print_tool_header(call);
-    print_params(&call.arguments, 1, debug);
+    if !std::io::stdout().is_terminal() || debug {
+        print_tool_header(call);
+        print_params(&call.arguments, 1, debug);
+        println!();
+        return;
+    }
+
+    let (tool, extension) = split_tool_name(&call.name);
+    let ext_suffix = if extension.is_empty() {
+        String::new()
+    } else {
+        format!(" {}", style(&extension).magenta().dim())
+    };
+
+    // Build the command string from arguments
+    let cmd_str = call
+        .arguments
+        .as_ref()
+        .and_then(|args| args.get("command"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let width = Term::stdout()
+        .size_checked()
+        .map(|(_h, w)| w as usize)
+        .unwrap_or(80);
+
+    let label = format!("  ┌ {} ", tool);
+    let label_len = measure_text_width(&label);
+    let trail = width.saturating_sub(label_len + 1);
+    println!();
+    println!(
+        "{}{}{}",
+        style(&label).dim(),
+        ext_suffix,
+        style(format!(" {}", "─".repeat(trail))).dim()
+    );
+
+    for line in cmd_str.lines() {
+        println!("  {} {}", style("│").dim(), style(line).dim());
+    }
+
+    // Print remaining non-command arguments if any
+    if let Some(args) = &call.arguments {
+        let mut other_args = serde_json::Map::new();
+        for (k, v) in args {
+            if k != "command" {
+                other_args.insert(k.clone(), v.clone());
+            }
+        }
+        if !other_args.is_empty() {
+            print_params(&Some(other_args), 1, false);
+        }
+    }
+
+    println!("  {}", style(format!("└{}", "─".repeat(width.saturating_sub(3)))).dim());
     println!();
 }
 
@@ -1243,6 +1365,23 @@ pub fn display_greeting() {
         style("🪿 goose").bold(),
         style("ready — type a message to get started").dim()
     );
+}
+
+/// Print a visual separator before the assistant response
+pub fn render_turn_separator(label: &str) {
+    if !std::io::stdout().is_terminal() {
+        return;
+    }
+    let width = Term::stdout()
+        .size_checked()
+        .map(|(_h, w)| w as usize)
+        .unwrap_or(80);
+
+    let prefix = format!("─── {} ", label);
+    let prefix_len = measure_text_width(&prefix);
+    let trail = width.saturating_sub(prefix_len);
+    let line = format!("{}{}", prefix, "─".repeat(trail));
+    println!("\n{}", style(line).dim());
 }
 
 pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
