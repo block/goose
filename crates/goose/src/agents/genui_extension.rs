@@ -261,7 +261,18 @@ impl McpClientTrait for GenUiClient {
             You MUST include the ```json-render fenced code block DIRECTLY in your text response.\n\
             Tool results (including genui__render results) are collapsed and hidden from the user.\n\
             The ONLY way the user sees rendered components is if you write the ```json-render code block\n\
-            in your response text. After gathering data, output the spec as a ```json-render code block.",
+            in your response text. After gathering data, output the spec as a ```json-render code block.\n\n\
+            VISUAL QUALITY RULES:\n\
+            1. Wrap root in Card(maxWidth \"lg\") — never stretch full width.\n\
+            2. Use h3 for section titles, h4 for sub-sections — never h1 or h2.\n\
+            3. Numbers go in StatCard or Heading inside Card — never in Badge.\n\
+            4. Charts max height 180px, max 2 per dashboard, place side-by-side in Grid columns=2.\n\
+            5. Tables max 7 rows, sorted by value descending, right-align numbers.\n\
+            6. Text must be variant \"default\" on backgrounds — never \"muted\" for primary content.\n\
+            7. Every chart and table must be wrapped in its own Card.\n\
+            8. Use Separator between major sections.\n\
+            9. Dashboard must fit in 1-1.5 viewport heights (700-1000px total).\n\
+            10. Never open with an Alert restating the title — use Heading directly.",
             CATALOG_PROMPT
         ))
     }
