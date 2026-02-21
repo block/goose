@@ -44,11 +44,6 @@
 
           cargoLock = {
             lockFile = ./Cargo.lock;
-            outputHashes = {
-              # Patch required for Windows cross-compilation
-              # See: https://github.com/nmathewson/crunchy/tree/cross-compilation-fix
-              "crunchy-0.2.3" = "sha256-CBW3/JuMoNa6MWia6BQo07LQrH5JQbb20vuCqhyFL0Y=";
-            };
           };
 
           nativeBuildInputs = with pkgs; [
