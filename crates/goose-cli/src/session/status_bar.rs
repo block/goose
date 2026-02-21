@@ -58,16 +58,18 @@ impl StatusBar {
     }
 
     /// Set up the scroll region to reserve the bottom lines for the status bar.
-    /// Content flows naturally from the current cursor position; the status bar
-    /// is rendered in the reserved area at the bottom.
+    /// Positions the cursor at the bottom of the scroll region so the input
+    /// prompt appears right above the status bar.
     pub fn setup(&mut self) -> io::Result<()> {
         let (_, rows) = terminal::size()?;
         let scroll_end = rows.saturating_sub(BAR_HEIGHT);
 
-        // Save cursor, set scroll region, restore cursor
-        write!(io::stdout(), "\x1b[s")?;
+        // Set scroll region to exclude the status bar area
         write!(io::stdout(), "\x1b[1;{}r", scroll_end)?;
-        write!(io::stdout(), "\x1b[u")?;
+
+        // Move cursor to the bottom of the scroll region so the input
+        // prompt renders right above the status bar (no gap)
+        execute!(io::stdout(), cursor::MoveTo(0, scroll_end - 1))?;
 
         self.active = true;
         self.render()?;
