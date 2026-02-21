@@ -49,9 +49,7 @@ fn extract_short_title(text: &str) -> String {
             match quote_char {
                 None => {
                     if matches!(ch, '"' | '\'' | '`') {
-                        let after_alnum = prev_char
-                            .map(|p| p.is_alphanumeric())
-                            .unwrap_or(false);
+                        let after_alnum = prev_char.map(|p| p.is_alphanumeric()).unwrap_or(false);
                         if !after_alnum {
                             quote_char = Some(ch);
                             current.clear();
@@ -62,7 +60,7 @@ fn extract_short_title(text: &str) -> String {
                     if ch == q {
                         let trimmed = current.trim().to_string();
                         let wc = trimmed.split_whitespace().count();
-                        if wc >= 2 && wc <= 8 {
+                        if (2..=8).contains(&wc) {
                             results.push(trimmed);
                         }
                         quote_char = None;
@@ -686,8 +684,6 @@ pub trait Provider: Send + Sync {
             .collect::<Vec<_>>()
             .join(" ");
 
-
-
         Ok(safe_truncate(&extract_short_title(&description), 100))
     }
 
@@ -812,23 +808,33 @@ mod tests {
     fn test_extract_short_title() {
         assert_eq!(extract_short_title("List files"), "List files");
         assert_eq!(
-            extract_short_title(r#"blah blah blah blah blah blah blah blah blah "List files in folder""#),
+            extract_short_title(
+                r#"blah blah blah blah blah blah blah blah blah "List files in folder""#
+            ),
             "List files in folder"
         );
         assert_eq!(
-            extract_short_title("blah blah blah blah blah blah blah blah blah `View current files`"),
+            extract_short_title(
+                "blah blah blah blah blah blah blah blah blah `View current files`"
+            ),
             "View current files"
         );
         assert_eq!(
-            extract_short_title(r#"stuff stuff stuff stuff stuff stuff stuff stuff "Abc title" "Zzz title""#),
+            extract_short_title(
+                r#"stuff stuff stuff stuff stuff stuff stuff stuff "Abc title" "Zzz title""#
+            ),
             "Zzz title"
         );
         assert_eq!(
-            extract_short_title("long long long long long long long long long\nList files in folder"),
+            extract_short_title(
+                "long long long long long long long long long\nList files in folder"
+            ),
             "List files in folder"
         );
         assert_eq!(
-            extract_short_title(r#"lots of words here and there and more and more "single" final line here"#),
+            extract_short_title(
+                r#"lots of words here and there and more and more "single" final line here"#
+            ),
             "lots of words here and there and more and more \"single\" final line here"
         );
         assert_eq!(extract_short_title("Hello world"), "Hello world");
@@ -845,7 +851,9 @@ mod tests {
             "List folder files"
         );
         assert_eq!(
-            extract_short_title("lots of reasoning here about what to call it\nList current folder files"),
+            extract_short_title(
+                "lots of reasoning here about what to call it\nList current folder files"
+            ),
             "List current folder files"
         );
     }
