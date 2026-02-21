@@ -6,7 +6,7 @@ import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
 } from "@agentclientprotocol/sdk";
-import { GooseClient } from "@goose/acp";
+import { GooseClient } from "@block/goose-acp";
 import { createHttpStream } from "./transport.js";
 
 interface PendingPermission {
@@ -673,15 +673,14 @@ export default function App({
   const innerWidth = Math.max(termWidth - PAD_X * 2, 20);
   const headerHeight = 2;
   const inputBarHeight = initialPrompt ? 0 : 2;
-  const bodyHeight = Math.max(termHeight - headerHeight - inputBarHeight - PAD_BOTTOM, 3);
+  const bodyHeight = Math.max(
+    termHeight - headerHeight - inputBarHeight - PAD_BOTTOM,
+    3,
+  );
 
   if (bannerVisible) {
     return (
-      <Box
-        flexDirection="column"
-        width={termWidth}
-        height={termHeight}
-      >
+      <Box flexDirection="column" width={termWidth} height={termHeight}>
         <SplashScreen
           animFrame={gooseFrame}
           width={termWidth}
@@ -723,7 +722,9 @@ export default function App({
       >
         {messages.map((msg, i) => {
           if (msg.kind === "tool_call") {
-            return <ToolCallBlock key={i} title={msg.title} width={innerWidth} />;
+            return (
+              <ToolCallBlock key={i} title={msg.title} width={innerWidth} />
+            );
           }
           if (msg.role === "user") {
             return (
