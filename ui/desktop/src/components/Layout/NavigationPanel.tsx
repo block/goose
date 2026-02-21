@@ -24,14 +24,10 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     setIsChatExpanded,
   } = useNavigationContext();
 
-  // --- Visible items ---
-
   const location = useLocation();
   const { extensionsList } = useConfig();
 
-  const appsExtensionEnabled = !!extensionsList?.find(
-    (ext) => ext.name === 'apps'
-  )?.enabled;
+  const appsExtensionEnabled = !!extensionsList?.find((ext) => ext.name === 'apps')?.enabled;
 
   const visibleItems = useMemo(() => {
     return preferences.itemOrder
@@ -44,12 +40,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       });
   }, [preferences.itemOrder, preferences.enabledItems, appsExtensionEnabled]);
 
-  const isActive = useCallback(
-    (path: string) => location.pathname === path,
-    [location.pathname]
-  );
-
-  // --- Sessions ---
+  const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 
   const {
     recentSessions,
@@ -61,8 +52,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   } = useNavigationSessions({
     onNavigate: isOverlayMode ? () => setIsNavExpanded(false) : undefined,
   });
-
-  // --- Drag and drop ---
 
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
@@ -114,8 +103,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     onDragEnd,
   };
 
-  // --- Session status ---
-
   const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
 
   useEffect(() => {
@@ -123,8 +110,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       const { sessionId, streamState } = (event as CustomEvent).detail;
       setSessionStatuses((prev) => {
         const existing = prev.get(sessionId);
-        const shouldMarkUnread =
-          existing?.streamState === 'streaming' && streamState === 'idle';
+        const shouldMarkUnread = existing?.streamState === 'streaming' && streamState === 'idle';
         const next = new Map(prev);
         next.set(sessionId, {
           streamState,
@@ -155,8 +141,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     });
   }, []);
 
-  // --- Escape to close overlay ---
-
   useEffect(() => {
     if (!(isOverlayMode && isNavExpanded)) return;
 
@@ -171,8 +155,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isNavExpanded, isOverlayMode, setIsNavExpanded]);
 
-  // --- Fetch sessions + focus on expand ---
-
   const navFocusRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -182,13 +164,9 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     }
   }, [isNavExpanded, fetchSessions]);
 
-  // --- Chat expand toggle ---
-
   const onToggleChatExpanded = useCallback(() => {
     setIsChatExpanded(!isChatExpanded);
   }, [isChatExpanded, setIsChatExpanded]);
-
-  // --- Shared props for renderers ---
 
   const onClose = useCallback(() => setIsNavExpanded(false), [setIsNavExpanded]);
 
@@ -214,8 +192,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     drag,
     navFocusRef,
   };
-
-  // --- Render ---
 
   const content =
     effectiveNavigationStyle === 'expanded' ? (
