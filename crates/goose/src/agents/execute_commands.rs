@@ -86,6 +86,21 @@ impl Agent {
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
+        // Load hooks and fire PreCompact
+        let hooks = crate::hooks::Hooks::load(&session.working_dir).ok();
+        if let Some(ref hooks) = hooks {
+            let invocation = crate::hooks::HookInvocation::pre_compact(
+                session_id.to_string(),
+                conversation.messages().len(),
+                true, // manual = true for /compact command
+                session.working_dir.to_string_lossy().to_string(),
+            );
+            let _ = hooks
+                .run(invocation, &self.extension_manager, &session.working_dir)
+                .await;
+        }
+
+        let pre_compact_len = conversation.messages().len();
         let (compacted_conversation, usage) = compact_messages(
             self.provider().await?.as_ref(),
             session_id,
@@ -93,6 +108,7 @@ impl Agent {
             true, // is_manual_compact
         )
         .await?;
+        let post_compact_len = compacted_conversation.messages().len();
 
         manager
             .replace_conversation(session_id, &compacted_conversation)
@@ -100,6 +116,28 @@ impl Agent {
 
         self.update_session_metrics(session_id, session.schedule_id, &usage, true)
             .await?;
+
+        // Fire PostCompact hook and inject context if any
+        if let Some(ref hooks) = hooks {
+            let invocation = crate::hooks::HookInvocation::post_compact(
+                session_id.to_string(),
+                pre_compact_len,
+                post_compact_len,
+                true, // manual = true for /compact command
+                session.working_dir.to_string_lossy().to_string(),
+            );
+            if let Ok(outcome) = hooks
+                .run(invocation, &self.extension_manager, &session.working_dir)
+                .await
+            {
+                if let Some(context) = outcome.context {
+                    let context_msg = Message::assistant()
+                        .with_text(context)
+                        .with_visibility(false, true); // agent-only
+                    manager.add_message(session_id, &context_msg).await?;
+                }
+            }
+        }
 
         Ok(Some(Message::assistant().with_system_notification(
             SystemNotificationType::InlineMessage,

@@ -386,12 +386,44 @@ impl Agent {
         request_to_response_map: &HashMap<String, Arc<Mutex<Message>>>,
         cancel_token: Option<tokio_util::sync::CancellationToken>,
         session: &Session,
+        hooks: &Option<crate::hooks::Hooks>,
     ) -> Result<Vec<(String, ToolStream)>> {
         let mut tool_futures: Vec<(String, ToolStream)> = Vec::new();
 
         // Handle pre-approved and read-only tools
         for request in &permission_check_result.approved {
             if let Ok(tool_call) = request.tool_call.clone() {
+                // Fire PreToolUse hook
+                if let Some(ref hooks) = hooks {
+                    let invocation = crate::hooks::HookInvocation::pre_tool_use(
+                        session.id.clone(),
+                        tool_call.name.to_string(),
+                        serde_json::to_value(&tool_call.arguments)
+                            .unwrap_or(serde_json::Value::Null),
+                        session.working_dir.to_string_lossy().to_string(),
+                    );
+                    let outcome = hooks
+                        .run(invocation, &self.extension_manager, &session.working_dir)
+                        .await
+                        .unwrap_or_default();
+                    if outcome.blocked {
+                        // Create an error response instead of dispatching
+                        let error_result = Err(ErrorData::new(
+                            ErrorCode::INTERNAL_ERROR,
+                            "Tool execution blocked by hook".to_string(),
+                            None,
+                        ));
+                        tool_futures.push((
+                            request.id.clone(),
+                            tool_stream(
+                                Box::new(stream::empty()),
+                                futures::future::ready(error_result),
+                            ),
+                        ));
+                        continue;
+                    }
+                }
+
                 let (req_id, tool_result) = self
                     .dispatch_tool_call(
                         tool_call,
@@ -980,6 +1012,9 @@ impl Agent {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Session {} has no conversation", session_config.id))?;
 
+        // Load hooks configuration
+        let hooks = crate::hooks::Hooks::load(&session.working_dir).ok();
+
         let needs_auto_compact = check_if_compaction_needed(
             self.provider().await?.as_ref(),
             &conversation,
@@ -1019,6 +1054,17 @@ impl Agent {
                     )
                 );
 
+                // Fire PreCompact hook
+                if let Some(ref hooks) = hooks {
+                    let invocation = crate::hooks::HookInvocation::pre_compact(
+                        session_config.id.clone(),
+                        conversation_to_compact.messages().len(),
+                        false,  // manual = false for auto-compact
+                        session.working_dir.to_string_lossy().to_string(),
+                    );
+                    let _ = hooks.run(invocation, &self.extension_manager, &session.working_dir).await;
+                }
+
                 match compact_messages(
                     self.provider().await?.as_ref(),
                     &session_config.id,
@@ -1027,9 +1073,29 @@ impl Agent {
                 )
                 .await
                 {
-                    Ok((compacted_conversation, summarization_usage)) => {
+                    Ok((mut compacted_conversation, summarization_usage)) => {
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                         self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
+
+                        // Fire PostCompact hook and inject additional context if any
+                        if let Some(ref hooks) = hooks {
+                            let invocation = crate::hooks::HookInvocation::post_compact(
+                                session_config.id.clone(),
+                                conversation_to_compact.messages().len(),
+                                compacted_conversation.messages().len(),
+                                false,  // manual = false for auto-compact
+                                session.working_dir.to_string_lossy().to_string(),
+                            );
+                            if let Ok(outcome) = hooks.run(invocation, &self.extension_manager, &session.working_dir).await {
+                                if let Some(context) = outcome.context {
+                                    let context_msg = Message::assistant()
+                                        .with_text(context)
+                                        .with_visibility(false, true);  // agent-only
+                                    session_manager.add_message(&session_config.id, &context_msg).await?;
+                                    compacted_conversation.push(context_msg);
+                                }
+                            }
+                        }
 
                         yield AgentEvent::HistoryReplaced(compacted_conversation.clone());
 
@@ -1053,7 +1119,7 @@ impl Agent {
                 }
             };
 
-            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token).await?;
+            let mut reply_stream = self.reply_internal(final_conversation, session_config, session, cancel_token, hooks).await?;
             while let Some(event) = reply_stream.next().await {
                 yield event?;
             }
@@ -1066,6 +1132,7 @@ impl Agent {
         session_config: SessionConfig,
         session: Session,
         cancel_token: Option<CancellationToken>,
+        hooks: Option<crate::hooks::Hooks>,
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let context = self
             .prepare_reply_context(&session.id, conversation, session.working_dir.as_path())
@@ -1086,9 +1153,10 @@ impl Agent {
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {
             let manager_for_spawn = session_manager.clone();
+            let session_id_for_spawn = session_id.clone();
             tokio::spawn(async move {
                 if let Err(e) = manager_for_spawn
-                    .maybe_update_name(&session_id, provider)
+                    .maybe_update_name(&session_id_for_spawn, provider)
                     .await
                 {
                     warn!("Failed to generate session description: {}", e);
@@ -1097,6 +1165,44 @@ impl Agent {
         }
 
         let working_dir = session.working_dir.clone();
+
+        // Fire SessionStart hook (fires at the start of each reply, not once per session lifetime)
+        if let Some(ref hooks) = hooks {
+            let invocation = crate::hooks::HookInvocation::session_start(
+                session_id.clone(),
+                working_dir.to_string_lossy().to_string(),
+            );
+            let _ = hooks
+                .run(invocation, &self.extension_manager, &working_dir)
+                .await;
+        }
+
+        // Fire UserPromptSubmit hook with the last user message
+        if let Some(ref hooks) = hooks {
+            if let Some(last_user_msg) = conversation
+                .messages()
+                .iter()
+                .rev()
+                .find(|m| m.role == rmcp::model::Role::User)
+            {
+                let user_prompt = last_user_msg.as_concat_text();
+                let invocation = crate::hooks::HookInvocation::user_prompt_submit(
+                    session_id.clone(),
+                    user_prompt,
+                    working_dir.to_string_lossy().to_string(),
+                );
+                let outcome = hooks
+                    .run(invocation, &self.extension_manager, &working_dir)
+                    .await
+                    .unwrap_or_default();
+                if outcome.blocked {
+                    return Ok(Box::pin(async_stream::try_stream! {
+                        yield AgentEvent::Message(Message::assistant().with_text("Prompt blocked by hook."));
+                    }));
+                }
+            }
+        }
+
         Ok(Box::pin(async_stream::try_stream! {
             let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
             let _stream_guard = reply_stream_span.enter();
@@ -1218,9 +1324,11 @@ impl Agent {
 
                                 let mut request_to_response_map = HashMap::new();
                                 let mut request_metadata: HashMap<String, Option<ProviderMetadata>> = HashMap::new();
+                                let mut request_id_to_request: HashMap<String, ToolRequest> = HashMap::new();
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     request_to_response_map.insert(request.id.clone(), tool_response_messages[idx].clone());
                                     request_metadata.insert(request.id.clone(), request.metadata.clone());
+                                    request_id_to_request.insert(request.id.clone(), request.clone());
                                 }
 
                                 for (idx, request) in frontend_requests.iter().enumerate() {
@@ -1290,6 +1398,7 @@ impl Agent {
                                         &request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
+                                        &hooks,
                                     ).await?;
 
                                     let tool_futures_arc = Arc::new(Mutex::new(tool_futures));
@@ -1301,6 +1410,7 @@ impl Agent {
                                         cancel_token.clone(),
                                         &session,
                                         &inspection_results,
+                                        &hooks,
                                     );
 
                                     while let Some(msg) = tool_approval_stream.try_next().await? {
@@ -1340,6 +1450,38 @@ impl Agent {
                                                         match item {
                                                             ToolStreamItem::Result(output) => {
                                                                 let output = call_tool_result::validate(output);
+
+                                                                // Fire PostToolUse or PostToolUseFailure hooks
+                                                                if let Some(ref hooks) = hooks {
+                                                                    if let Some(original_request) = request_id_to_request.get(&request_id) {
+                                                                        if let Ok(ref tool_call) = original_request.tool_call {
+                                                                            let tool_input = serde_json::to_value(&tool_call.arguments).unwrap_or(serde_json::Value::Null);
+                                                                            match &output {
+                                                                                Ok(call_result) => {
+                                                                                    let tool_output = serde_json::to_value(&call_result.content).unwrap_or(serde_json::Value::Null);
+                                                                                    let invocation = crate::hooks::HookInvocation::post_tool_use(
+                                                                                        session_config.id.clone(),
+                                                                                        tool_call.name.to_string(),
+                                                                                        tool_input,
+                                                                                        tool_output,
+                                                                                        working_dir.to_string_lossy().to_string(),
+                                                                                    );
+                                                                                    let _ = hooks.run(invocation, &self.extension_manager, &working_dir).await;
+                                                                                }
+                                                                                Err(error_data) => {
+                                                                                    let invocation = crate::hooks::HookInvocation::post_tool_use_failure(
+                                                                                        session_config.id.clone(),
+                                                                                        tool_call.name.to_string(),
+                                                                                        tool_input,
+                                                                                        error_data.message.to_string(),
+                                                                                        working_dir.to_string_lossy().to_string(),
+                                                                                    );
+                                                                                    let _ = hooks.run(invocation, &self.extension_manager, &working_dir).await;
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
 
                                                                 if let Ok(ref call_result) = output {
                                                                     if let Some(ref meta) = call_result.meta {
@@ -1477,6 +1619,17 @@ impl Agent {
                                 )
                             );
 
+                            // Fire PreCompact hook (recovery compaction)
+                            if let Some(ref hooks) = hooks {
+                                let invocation = crate::hooks::HookInvocation::pre_compact(
+                                    session_config.id.clone(),
+                                    conversation.messages().len(),
+                                    false,  // manual = false for auto recovery-compact
+                                    working_dir.to_string_lossy().to_string(),
+                                );
+                                let _ = hooks.run(invocation, &self.extension_manager, &working_dir).await;
+                            }
+
                             match compact_messages(
                                 self.provider().await?.as_ref(),
                                 &session_config.id,
@@ -1485,12 +1638,37 @@ impl Agent {
                             )
                             .await
                             {
-                                Ok((compacted_conversation, usage)) => {
+                                Ok((mut compacted_conversation, usage)) => {
+                                    let pre_compact_len = conversation.messages().len();
+                                    let post_compact_len = compacted_conversation.messages().len();
+
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
+
+                                    // Fire PostCompact hook (recovery compaction)
+                                    if let Some(ref hooks) = hooks {
+                                        let invocation = crate::hooks::HookInvocation::post_compact(
+                                            session_config.id.clone(),
+                                            pre_compact_len,
+                                            post_compact_len,
+                                            false,  // manual = false for auto recovery-compact
+                                            working_dir.to_string_lossy().to_string(),
+                                        );
+                                        if let Ok(outcome) = hooks.run(invocation, &self.extension_manager, &working_dir).await {
+                                            if let Some(context) = outcome.context {
+                                                let context_msg = Message::assistant()
+                                                    .with_text(context)
+                                                    .with_visibility(false, true);  // agent-only
+                                                session_manager.add_message(&session_config.id, &context_msg).await?;
+                                                compacted_conversation.push(context_msg);
+                                            }
+                                        }
+                                    }
+
                                     conversation = compacted_conversation;
                                     did_recovery_compact_this_iteration = true;
                                     yield AgentEvent::HistoryReplaced(conversation.clone());
+
                                     break;
                                 }
                                 Err(e) => {
@@ -1616,6 +1794,16 @@ impl Agent {
                 }
 
                 tokio::task::yield_now().await;
+            }
+
+            // Fire Stop hook before finishing
+            if let Some(ref hooks) = hooks {
+                let invocation = crate::hooks::HookInvocation::stop(
+                    session_id.clone(),
+                    None,  // reason
+                    working_dir.to_string_lossy().to_string(),
+                );
+                let _ = hooks.run(invocation, &self.extension_manager, &working_dir).await;
             }
 
             if !last_assistant_text.is_empty() {
