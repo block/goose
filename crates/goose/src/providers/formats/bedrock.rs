@@ -17,10 +17,6 @@ use serde_json::Value;
 use super::super::base::Usage;
 use crate::conversation::message::{Message, MessageContent};
 
-pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
-    to_bedrock_message_with_caching(message, false)
-}
-
 pub fn to_bedrock_message_with_caching(
     message: &Message,
     enable_caching: bool,
@@ -177,9 +173,9 @@ pub fn to_bedrock_role(role: &Role) -> bedrock::ConversationRole {
     }
 }
 
-pub fn to_bedrock_image(data: &String, mime_type: &String) -> Result<bedrock::ImageBlock> {
+pub fn to_bedrock_image(data: &str, mime_type: &str) -> Result<bedrock::ImageBlock> {
     // Extract format from MIME type
-    let format = match mime_type.as_str() {
+    let format = match mime_type {
         "image/png" => bedrock::ImageFormat::Png,
         "image/jpeg" | "image/jpg" => bedrock::ImageFormat::Jpeg,
         "image/gif" => bedrock::ImageFormat::Gif,
@@ -500,30 +496,6 @@ mod tests {
 
         // Verify the wrapper correctly converts Content::Image to ToolResultContentBlock::Image
         assert!(matches!(result, bedrock::ToolResultContentBlock::Image(_)));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_to_bedrock_message_without_caching() -> Result<()> {
-        use chrono::Utc;
-        use rmcp::model::Role;
-
-        // Create a simple message with text content
-        let message = Message::new(
-            Role::User,
-            Utc::now().timestamp(),
-            vec![MessageContent::text("Hello, world!")],
-        );
-
-        let bedrock_message = to_bedrock_message(&message)?;
-
-        // Verify the message has exactly one content block (no cache point)
-        assert_eq!(bedrock_message.content.len(), 1);
-        assert!(matches!(
-            bedrock_message.content[0],
-            bedrock::ContentBlock::Text(_)
-        ));
 
         Ok(())
     }

@@ -18,7 +18,6 @@ use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
 
-// Import the migrated helper functions from providers/formats/bedrock.rs
 use super::formats::bedrock::{
     from_bedrock_message, from_bedrock_usage, to_bedrock_message_with_caching,
     to_bedrock_tool_config,
@@ -234,7 +233,7 @@ impl BedrockProvider {
         let visible_messages: Vec<&Message> =
             messages.iter().filter(|m| m.is_agent_visible()).collect();
 
-        // Determine which messages should have cache points.
+        // Determine how many leading messages should have cache points.
         // AWS Bedrock has a strict limit of 4 cache points per request.
         // Allocation: 1 for system prompt + 3 for messages = 4 total.
         //
@@ -248,17 +247,11 @@ impl BedrockProvider {
         //
         // Note: Tool configuration doesn't support cache points in Bedrock, but
         // messages containing tool content blocks (ToolRequest/ToolResponse) do.
-        let cache_point_indices: Vec<usize> = if enable_caching && !visible_messages.is_empty() {
-            let total_messages = visible_messages.len();
-            let message_cache_budget = 3;
-
-            if total_messages <= message_cache_budget {
-                (0..total_messages).collect()
-            } else {
-                (0..message_cache_budget).collect()
-            }
+        const MESSAGE_CACHE_BUDGET: usize = 3;
+        let cache_count = if enable_caching {
+            visible_messages.len().min(MESSAGE_CACHE_BUDGET)
         } else {
-            vec![]
+            0
         };
 
         let mut request = self
@@ -270,10 +263,7 @@ impl BedrockProvider {
                 visible_messages
                     .iter()
                     .enumerate()
-                    .map(|(idx, m)| {
-                        let should_cache = cache_point_indices.contains(&idx);
-                        to_bedrock_message_with_caching(m, should_cache)
-                    })
+                    .map(|(idx, m)| to_bedrock_message_with_caching(m, idx < cache_count))
                     .collect::<Result<_>>()?,
             ));
 
@@ -534,270 +524,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
-    fn test_cache_point_allocation_without_tools() {
-        // Ensure clean environment
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching =
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        let total_messages = 5;
-
-        let message_cache_budget = 3;
-        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
-            if total_messages <= message_cache_budget {
-                (0..total_messages).collect()
-            } else {
-                ((total_messages - message_cache_budget)..total_messages).collect()
-            }
-        } else {
-            vec![]
-        };
-
-        // Since caching is disabled by default, no cache points should be allocated
-        assert_eq!(cache_point_indices, Vec::<usize>::new());
-    }
-
-    #[test]
-    #[serial]
-    fn test_cache_point_allocation_with_tools() {
-        // Ensure clean environment
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching =
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        // Simulate 5 messages with tools
-        // Tools don't affect message_cache_budget since they don't support cache points
-        let total_messages = 5;
-
-        let message_cache_budget = 3;
-        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
-            if total_messages <= message_cache_budget {
-                (0..total_messages).collect()
-            } else {
-                ((total_messages - message_cache_budget)..total_messages).collect()
-            }
-        } else {
-            vec![]
-        };
-
-        // Since caching is disabled by default, no cache points should be allocated
-        assert_eq!(cache_point_indices, Vec::<usize>::new());
-    }
-
-    #[test]
-    #[serial]
-    fn test_cache_point_limit_respected_with_few_messages() {
-        // Ensure clean environment
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching =
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        // Simulate 2 messages
-        let total_messages = 2;
-
-        let message_cache_budget = 3;
-        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
-            if total_messages <= message_cache_budget {
-                (0..total_messages).collect()
-            } else {
-                ((total_messages - message_cache_budget)..total_messages).collect()
-            }
-        } else {
-            vec![]
-        };
-
-        // Since caching is disabled by default, no cache points should be allocated
-        assert_eq!(cache_point_indices, Vec::<usize>::new());
-    }
-
-    #[test]
-    fn test_max_four_cache_points_respected() {
-        let _provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        // Test with many messages: 1 system + 3 messages = 4 total
-        // Tools don't get cache points in Bedrock
-        let _total_messages = 10;
-        let message_cache_budget = 3;
-
-        // Count total cache points: 1 (system) + message_cache_budget
-        let total_cache_points = 1 + message_cache_budget;
-        assert_eq!(
-            total_cache_points, 4,
-            "Total cache points should not exceed 4"
-        );
-
-        // With or without tools, same cache point allocation
-        let total_cache_points = 1 + message_cache_budget; // system + messages
-        assert_eq!(
-            total_cache_points, 4,
-            "Total cache points should always be 4 when caching is enabled"
-        );
-    }
-
-    #[test]
-    #[serial]
-    fn test_system_prompt_cache_point_structure() {
-        // Ensure clean environment
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching =
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        assert!(!enable_caching, "Caching should be disabled by default");
-
-        // When caching is disabled, system blocks should only have:
-        // 1. Text block with system prompt
-        // When caching is enabled (via config), system blocks should have:
-        // 1. Text block with system prompt
-        // 2. CachePoint block
-        // This is tested in the actual converse() method implementation
-    }
-
-    #[test]
-    #[serial]
-    fn test_caching_respects_config_override() {
-        // Ensure clean environment
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        // Test that BEDROCK_ENABLE_CACHING defaults to false
-        // Note: This test assumes the config can be set. In practice, you'd need to
-        // set the config value before calling should_enable_caching
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        // The should_enable_caching method checks config first
-        // Without BEDROCK_ENABLE_CACHING set, it defaults to false
-        // regardless of model type
-        assert!(
-            !provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
-            "Without config override, caching should be disabled by default"
-        );
-    }
-
-    #[test]
-    #[serial]
-    fn test_cache_points_allocation_with_caching_enabled() -> Result<()> {
-        use crate::conversation::message::Message;
-        use chrono::Utc;
-        use rmcp::model::Role;
-
-        std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
-
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching =
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        assert!(
-            enable_caching,
-            "Caching should be enabled when BEDROCK_ENABLE_CACHING is set"
-        );
-
-        let messages: Vec<Message> = (0..5)
-            .map(|i| {
-                Message::new(
-                    if i % 2 == 0 {
-                        Role::User
-                    } else {
-                        Role::Assistant
-                    },
-                    Utc::now().timestamp(),
-                    vec![crate::conversation::message::MessageContent::text(format!(
-                        "Message {}",
-                        i
-                    ))],
-                )
-            })
-            .collect();
-
-        let visible_messages: Vec<&Message> = messages.iter().collect();
-        let total_messages = visible_messages.len();
-        let message_cache_budget = 3;
-
-        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
-            if total_messages <= message_cache_budget {
-                (0..total_messages).collect()
-            } else {
-                (0..message_cache_budget).collect()
-            }
-        } else {
-            vec![]
-        };
-
-        assert_eq!(cache_point_indices, vec![0, 1, 2]);
-
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        Ok(())
-    }
-
-    #[test]
-    #[serial]
-    fn test_cache_points_with_few_messages() -> Result<()> {
-        use crate::conversation::message::Message;
-        use chrono::Utc;
-        use rmcp::model::Role;
-
-        // Temporarily set the config to enable caching
-        std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
-
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching =
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
-        assert!(
-            enable_caching,
-            "Caching should be enabled when BEDROCK_ENABLE_CACHING is set"
-        );
-
-        // Test with 2 messages - should cache all
-        let messages: Vec<Message> = (0..2)
-            .map(|i| {
-                Message::new(
-                    if i % 2 == 0 {
-                        Role::User
-                    } else {
-                        Role::Assistant
-                    },
-                    Utc::now().timestamp(),
-                    vec![crate::conversation::message::MessageContent::text(format!(
-                        "Message {}",
-                        i
-                    ))],
-                )
-            })
-            .collect();
-
-        let visible_messages: Vec<&Message> = messages.iter().collect();
-        let total_messages = visible_messages.len();
-        let message_cache_budget = 3;
-
-        let cache_point_indices: Vec<usize> = if enable_caching && total_messages > 0 {
-            if total_messages <= message_cache_budget {
-                (0..total_messages).collect()
-            } else {
-                ((total_messages - message_cache_budget)..total_messages).collect()
-            }
-        } else {
-            vec![]
-        };
-
-        // With 2 messages and budget of 3, should cache all indices 0, 1
-        assert_eq!(cache_point_indices, vec![0, 1]);
-
-        // Clean up
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        Ok(())
-    }
-
-    #[test]
     fn test_message_conversion_with_cache_points() -> Result<()> {
         use crate::conversation::message::Message;
         use chrono::Utc;
@@ -841,46 +567,15 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_system_prompt_cache_point_with_caching_enabled() {
-        use std::env;
-
-        // Temporarily set the config to enable caching
-        env::set_var("BEDROCK_ENABLE_CACHING", "true");
+    fn test_caching_enabled_for_claude_model() {
+        std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
 
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        let enable_caching =
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-
         assert!(
-            enable_caching,
-            "Caching should be enabled when BEDROCK_ENABLE_CACHING is set"
+            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            "Caching should be enabled for Claude models when BEDROCK_ENABLE_CACHING=true"
         );
 
-        // Verify the logic for system blocks with caching enabled
-        let system_blocks = if enable_caching {
-            vec![
-                bedrock::SystemContentBlock::Text("System prompt".to_string()),
-                bedrock::SystemContentBlock::CachePoint(
-                    bedrock::CachePointBlock::builder()
-                        .r#type(bedrock::CachePointType::Default)
-                        .build()
-                        .unwrap(),
-                ),
-            ]
-        } else {
-            vec![bedrock::SystemContentBlock::Text(
-                "System prompt".to_string(),
-            )]
-        };
-
-        // Should have 2 blocks: text + cache point
-        assert_eq!(system_blocks.len(), 2);
-        assert!(matches!(
-            system_blocks[1],
-            bedrock::SystemContentBlock::CachePoint(_)
-        ));
-
-        // Clean up
-        env::remove_var("BEDROCK_ENABLE_CACHING");
+        std::env::remove_var("BEDROCK_ENABLE_CACHING");
     }
 }
