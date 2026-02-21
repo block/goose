@@ -1367,18 +1367,17 @@ pub fn display_greeting() {
     );
 }
 
-/// Display a Claude Code-style splash screen with goose ASCII art and session info.
+/// Display a splash screen with goose ASCII art and a speech-bubble containing session info.
 pub fn display_splash(model: &str, provider: &str) {
     set_terminal_title();
 
     let version = env!("CARGO_PKG_VERSION");
 
-    let cwd_display = std::env::current_dir()
+    let cwd = std::env::current_dir()
         .ok()
         .map(|p| {
-            let home = etcetera::home_dir().ok();
-            if let Some(ref home) = home {
-                if let Ok(stripped) = p.strip_prefix(home) {
+            if let Some(home) = etcetera::home_dir().ok() {
+                if let Ok(stripped) = p.strip_prefix(&home) {
                     return format!("~/{}", stripped.display());
                 }
             }
@@ -1386,51 +1385,77 @@ pub fn display_splash(model: &str, provider: &str) {
         })
         .unwrap_or_else(|| "unknown".to_string());
 
-    // Goose ASCII art - a side-profile goose with beak, neck, body, and feet
-    let art_lines = [
-        r"   __",
-        r"  ( o>",
-        r"  //\\",
-        r" V_/_ \\",
-        r"   ||",
-        r"   ^^",
+    // Speech bubble content
+    let info = [
+        format!("Goose v{}", version),
+        format!("{} \u{00b7} {}", model, provider),
+        cwd,
     ];
+    let max_w = info.iter().map(|s| measure_text_width(s)).max().unwrap_or(0);
+    let bw = max_w + 4; // inner width including 2-space padding each side
 
-    let version_line = format!("Goose v{}", version);
-    let model_line = format!("{} \u{00b7} {}", model, provider);
+    let bubble_top = format!("\u{256d}{}\u{256e}", "\u{2500}".repeat(bw));
+    let bubble_bot = format!("\u{2570}{}\u{256f}", "\u{2500}".repeat(bw));
+    let bubble_row = |s: &str| -> String {
+        let pad = bw.saturating_sub(measure_text_width(s) + 4);
+        format!("\u{2502}  {}{}  \u{2502}", s, " ".repeat(pad))
+    };
+    let row0 = bubble_row(&info[0]);
+    let row1 = bubble_row(&info[1]);
+    let row2 = bubble_row(&info[2]);
 
-    let info_lines: [&str; 6] = [
-        "",
-        &version_line,
-        &model_line,
-        &cwd_display,
-        "",
-        "",
-    ];
-
-    let art_pad: usize = 14;
+    // Pad goose art lines to a fixed column width
+    let g: usize = 19;
+    let pad_art = |s: &str| -> String {
+        let w = measure_text_width(s);
+        format!("{}{}", s, " ".repeat(g.saturating_sub(w)))
+    };
 
     println!();
-    for (art, info) in art_lines.iter().zip(info_lines.iter()) {
-        let art_visible_width = measure_text_width(art);
-        let padding = " ".repeat(art_pad.saturating_sub(art_visible_width));
-        let padded_art = format!("{}{}", art, padding);
+    println!("{}", style(pad_art(r"        ,--.")).green());
+    println!(
+        "{}{}",
+        style(pad_art(r"      ( o  )>")).green(),
+        style(&bubble_top).dim()
+    );
+    println!("{}{}", style(pad_art(r"      /   /")).green(), &row0);
+    println!(
+        "{}{}",
+        style(pad_art(r"     /   /")).green(),
+        style(&row1).dim()
+    );
+    println!(
+        "{}{}",
+        style(pad_art(r"    /   /____")).green(),
+        style(&row2).dim()
+    );
+    println!(
+        "{}{}",
+        style(pad_art(r"   (         )")).green(),
+        style(&bubble_bot).dim()
+    );
+    println!("{}", style(pad_art(r"    \_______/")).green());
+    println!("{}", style(pad_art(r"      ||  ||")).green());
+    println!("{}", style(pad_art(r"      ^^  ^^")).green());
+    println!();
+}
 
-        if info.is_empty() {
-            println!("{}", style(&padded_art).green());
-        } else if info.starts_with("Goose") {
-            println!(
-                "{}{}",
-                style(&padded_art).green(),
-                style(*info).bold()
-            );
-        } else {
-            println!(
-                "{}{}",
-                style(&padded_art).green(),
-                style(*info).dim()
-            );
-        }
+/// Print the swimming goose as a visual separator when processing starts.
+pub fn render_swimming_goose() {
+    if !std::io::stdout().is_terminal() {
+        return;
+    }
+    let art = [
+        r"        ,--.",
+        r"      ( o  )>",
+        r"      /   /",
+        r"     /   /____",
+        r"    (         \",
+        r"   ~^~^~^~^~^~^~^~",
+    ];
+    println!();
+    for line in &art {
+        println!("{}", style(*line).green());
     }
     println!();
 }
