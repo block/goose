@@ -222,8 +222,23 @@ Tabs & Navigation:
 - Keep tab labels to 1-2 words. No emoji in labels.
 - Each tab panel is a complete, self-contained view.
 
+Color Contrast & Readability:
+- Text on light backgrounds: use "default" variant (never "muted" for primary content).
+- Labels and secondary info: use "muted" variant only — never plain gray.
+- NEVER use light text on light backgrounds or dark text on dark backgrounds.
+- Card backgrounds must contrast with the chat background. Use Card component — it handles this automatically.
+- Chart tooltips and axis labels use theme-aware colors automatically — never set colors manually.
+- For emphasis use Badge with appropriate variant (accent, muted, secondary) — not colored text.
+
+Spacing & Overlap Prevention:
+- Every Chart MUST be inside its own Card or have explicit gap "md" above and below.
+- NEVER place two Charts adjacent without a Card or Separator between them.
+- Grid items: use gap "md" minimum. "sm" causes visual cramping.
+- Cards inside Grids: each card should have consistent padding. Don't mix padded and unpadded.
+- Stack gap "xs" is ONLY for label+value pairs (e.g., inside a metric card). Everything else uses "sm" or "md".
+
 Composition Patterns:
-- Dashboard: Card(maxWidth "lg") → Stack(vertical, gap "md") → [Heading h3, Grid(3-4 metric cards), Grid(2 charts), Table]
+- Dashboard: Card(maxWidth "lg") → Stack(vertical, gap "md") → [Heading h3, Grid(3-4 metric cards), Separator, Grid(2 charts in Cards), Separator, Table]
 - Detail view: Card(maxWidth "md") → Stack(vertical, gap "sm") → [Heading h4, key-value pairs]
 - List view: Card(maxWidth "lg") → Stack(vertical, gap "sm") → [Heading h4, Table or repeat cards]
 - Form: Card(maxWidth "md") → Stack(vertical, gap "md") → [Heading h4, Input fields, Button]

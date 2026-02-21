@@ -129,7 +129,11 @@ export function Chart(props: ChartProps) {
   const effectiveHeight = Math.min(props.height ?? 180, MAX_HEIGHT);
 
   return (
-    <div ref={ref} style={{ minHeight: effectiveHeight }}>
+    <div
+      ref={ref}
+      className="overflow-hidden"
+      style={{ minHeight: effectiveHeight, maxHeight: effectiveHeight + 24 }}
+    >
       {visible ? (
         <ChartInner {...props} />
       ) : (
