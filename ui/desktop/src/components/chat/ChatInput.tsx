@@ -175,35 +175,8 @@ export default function ChatInput({
     fetchSessionWorkingDir();
   }, [sessionId]);
 
-  // Save queue state (paused/interrupted) to storage
-  useEffect(() => {
-    try {
-      window.sessionStorage.setItem('goose-queue-paused', JSON.stringify(queuePausedRef.current));
-    } catch (error) {
-      console.error('Error saving queue pause state:', error);
-    }
-  }, []); // Save when queue changes
-
-  useEffect(() => {
-    try {
-      window.sessionStorage.setItem('goose-queue-interruption', JSON.stringify(lastInterruption));
-    } catch (error) {
-      console.error('Error saving queue interruption state:', error);
-    }
-  }, [lastInterruption]);
-
-  // Cleanup effect - save final state on component unmount
-  useEffect(() => {
-    return () => {
-      // Save final queue state when component unmounts
-      try {
-        window.sessionStorage.setItem('goose-queue-paused', JSON.stringify(queuePausedRef.current));
-        window.sessionStorage.setItem('goose-queue-interruption', JSON.stringify(lastInterruption));
-      } catch (error) {
-        console.error('Error saving queue state on unmount:', error);
-      }
-    };
-  }, [lastInterruption]); // Include lastInterruption in dependency array
+  // Queue pause/interruption is an internal, session-scoped state. We intentionally do not
+  // persist it across reloads because it can leak state between sessions and create confusing UX.
 
   // Queue processing
   useEffect(() => {
@@ -395,7 +368,7 @@ export default function ChatInput({
   };
 
   // Load providers and get current model's token limit
-  const loadProviderDetails = async () => {
+  const loadProviderDetails = useCallback(async () => {
     try {
       // Reset token limit loaded state
       setIsTokenLimitLoaded(false);
@@ -449,12 +422,11 @@ export default function ChatInput({
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
       setIsTokenLimitLoaded(true);
     }
-  };
+  }, [getCurrentModelAndProvider, getProviders, read]);
 
   // Initial load and refresh when model changes
   useEffect(() => {
-    loadProviderDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadProviderDetails();
   }, [loadProviderDetails]);
 
   // Handle tool count alerts and token usage
