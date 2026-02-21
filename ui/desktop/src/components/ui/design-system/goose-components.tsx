@@ -7,18 +7,22 @@
  *
  * Categories:
  *   - Layout primitives (Stack, Grid, Text) — intentionally raw <div>/<span>
- *   - DS Atom wrappers (Separator, Badge, Button, Input)
+ *   - DS Atom wrappers (Alert, Badge, Button, CodeBlock, Input, NativeSelect, Progress, Separator, Table)
  *   - DS Molecule wrappers (Card)
  *   - DS Design-System wrappers (PageHeader, DataCard, StatCard, etc.)
- *   - Custom components (Table, Alert, Select, Progress, CodeBlock) — no DS equivalent yet
  */
 import type { ComponentRenderProps } from '@json-render/react';
 import type React from 'react';
 import { cn } from '../../../utils';
+import { Alert } from '../atoms/alert';
 import { Badge } from '../atoms/Badge';
 import { Button } from '../atoms/button';
+import { CodeBlock } from '../atoms/code-block';
 import { Input } from '../atoms/input';
+import { NativeSelect } from '../atoms/native-select';
+import { Progress } from '../atoms/progress';
 import { Separator } from '../atoms/separator';
+import { Table } from '../atoms/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../molecules/card';
 import { DataCard } from './DataCard';
 import { ElementErrorBoundary } from './ElementErrorBoundary';
@@ -177,10 +181,16 @@ function InputComponent({ element }: AnyComponentRenderProps) {
     disabled?: boolean;
     helperText?: string;
   };
+  const inputId = `input-${p.label?.toLowerCase().replace(/\s+/g, '-') || 'field'}`;
   return (
     <div className="space-y-1.5">
-      {p.label && <label className="text-sm font-medium text-text-default">{p.label}</label>}
+      {p.label && (
+        <label htmlFor={inputId} className="text-sm font-medium text-text-default">
+          {p.label}
+        </label>
+      )}
       <Input
+        id={inputId}
         type={p.type || 'text'}
         placeholder={p.placeholder}
         defaultValue={p.value}
@@ -327,67 +337,24 @@ function TabBarComponent({ element, emit }: AnyComponentRenderProps) {
   );
 }
 
-// ─── Components kept as custom (no DS equivalent yet) ───
+// ─── DS Atom Wrappers (Table, Alert, Select, Progress, CodeBlock) ───
 
 function TableComponent({ element }: AnyComponentRenderProps) {
   const p = (element.props || {}) as {
-    columns?: Array<{ key: string; label: string; align?: string }>;
+    columns?: Array<{ key: string; label: string; align?: 'left' | 'center' | 'right' }>;
     rows?: Array<Record<string, unknown>>;
     striped?: boolean;
     hoverable?: boolean;
     caption?: string;
   };
-  const columns = p.columns || [];
-  const rows = p.rows || [];
   return (
-    <div className="overflow-x-auto rounded-lg border border-border-default">
-      <table className="w-full text-sm">
-        {p.caption && (
-          <caption className="px-4 py-2 text-xs text-text-muted text-left">{p.caption}</caption>
-        )}
-        <thead>
-          <tr className="border-b border-border-default bg-background-muted">
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                className={cn(
-                  'px-4 py-2.5 font-medium text-text-muted text-left',
-                  col.align === 'right' && 'text-right',
-                  col.align === 'center' && 'text-center'
-                )}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr
-              key={i}
-              className={cn(
-                'border-b border-border-default last:border-0',
-                p.striped && i % 2 === 1 && 'bg-background-muted/50',
-                p.hoverable && 'hover:bg-background-muted/30'
-              )}
-            >
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={cn(
-                    'px-4 py-2.5 text-text-default',
-                    col.align === 'right' && 'text-right',
-                    col.align === 'center' && 'text-center'
-                  )}
-                >
-                  {String(row[col.key] ?? '')}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table
+      columns={p.columns || []}
+      rows={p.rows || []}
+      striped={p.striped}
+      hoverable={p.hoverable}
+      caption={p.caption}
+    />
   );
 }
 
@@ -395,32 +362,9 @@ function AlertComponent({ element }: AnyComponentRenderProps) {
   const p = (element.props || {}) as {
     title?: string;
     message?: string;
-    severity?: string;
+    severity?: 'info' | 'success' | 'warning' | 'error';
   };
-  const severity = p.severity || 'info';
-  const styles: Record<string, string> = {
-    info: 'border-blue-500/30 bg-blue-500/5 text-blue-600 dark:text-blue-400',
-    success: 'border-green-500/30 bg-green-500/5 text-green-600 dark:text-green-400',
-    warning: 'border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400',
-    error: 'border-red-500/30 bg-red-500/5 text-red-600 dark:text-red-400',
-  };
-  const icons: Record<string, string> = {
-    info: 'ℹ️',
-    success: '✅',
-    warning: '⚠️',
-    error: '❌',
-  };
-  return (
-    <div className={cn('rounded-lg border p-4', styles[severity] || styles.info)}>
-      <div className="flex gap-3">
-        <span className="text-base shrink-0">{icons[severity] || 'ℹ️'}</span>
-        <div className="space-y-1">
-          {p.title && <div className="font-medium text-sm">{p.title}</div>}
-          <div className="text-sm opacity-90">{p.message}</div>
-        </div>
-      </div>
-    </div>
-  );
+  return <Alert title={p.title} message={p.message} severity={p.severity} />;
 }
 
 function SelectComponent({ element }: AnyComponentRenderProps) {
@@ -430,26 +374,13 @@ function SelectComponent({ element }: AnyComponentRenderProps) {
     options?: Array<{ value: string; label: string; disabled?: boolean }>;
     value?: string;
   };
-  const options = p.options || [];
   return (
-    <div className="space-y-1.5">
-      {p.label && <label className="text-sm font-medium text-text-default">{p.label}</label>}
-      <select
-        className="w-full rounded-md border border-border-default bg-background-default text-text-default px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-border-accent"
-        defaultValue={p.value || ''}
-      >
-        {p.placeholder && (
-          <option value="" disabled>
-            {p.placeholder}
-          </option>
-        )}
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    </div>
+    <NativeSelect
+      label={p.label}
+      placeholder={p.placeholder}
+      options={p.options || []}
+      value={p.value}
+    />
   );
 }
 
@@ -458,55 +389,17 @@ function ProgressComponent({ element }: AnyComponentRenderProps) {
     label?: string;
     value?: number;
     max?: number;
-    color?: string;
+    color?: 'default' | 'success' | 'warning' | 'danger' | 'info';
     showValue?: boolean;
   };
-  const pct = Math.min(100, Math.max(0, ((p.value || 0) / (p.max || 100)) * 100));
-  const colors: Record<string, string> = {
-    default: 'bg-accent',
-    success: 'bg-text-success',
-    warning: 'bg-text-warning',
-    danger: 'bg-text-danger',
-    info: 'bg-text-info',
-  };
   return (
-    <div className="space-y-1.5">
-      {(p.label || p.showValue !== false) && (
-        <div className="flex justify-between text-sm">
-          {p.label && <span className="text-text-default">{p.label}</span>}
-          {p.showValue !== false && <span className="text-text-muted">{Math.round(pct)}%</span>}
-        </div>
-      )}
-      <div className="h-2 bg-background-muted rounded-full overflow-hidden">
-        <div
-          className={cn(
-            'h-full rounded-full transition-all',
-            colors[p.color || 'default'] || colors.default
-          )}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
+    <Progress label={p.label} value={p.value} max={p.max} color={p.color} showValue={p.showValue} />
   );
 }
 
 function CodeBlockComponent({ element }: AnyComponentRenderProps) {
-  const p = (element.props || {}) as {
-    code?: string;
-    language?: string;
-  };
-  return (
-    <div className="rounded-lg border border-border-default bg-background-muted overflow-hidden">
-      {p.language && (
-        <div className="flex items-center justify-between px-4 py-1.5 bg-background-active border-b border-border-default">
-          <span className="text-xs text-text-muted font-mono">{p.language}</span>
-        </div>
-      )}
-      <pre className="p-4 overflow-x-auto text-sm">
-        <code className="font-mono text-text-default">{p.code}</code>
-      </pre>
-    </div>
-  );
+  const p = (element.props || {}) as { code?: string; language?: string };
+  return <CodeBlock code={p.code || ''} language={p.language} />;
 }
 
 // ─── Error Boundary Wrapper ───
@@ -549,7 +442,7 @@ const rawComponents: Record<string, React.ComponentType<AnyComponentRenderProps>
   ErrorState: ErrorStateComponent,
   SearchInput: SearchInputComponent,
   TabBar: TabBarComponent,
-  // Custom (no DS equivalent yet)
+  // DS Atoms (Table, Alert, Select, Progress, CodeBlock)
   Table: TableComponent,
   Alert: AlertComponent,
   Select: SelectComponent,
