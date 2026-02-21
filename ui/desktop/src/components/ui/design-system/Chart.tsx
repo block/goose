@@ -1,3 +1,4 @@
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -17,6 +18,8 @@ import {
 
 const CHART_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 
+const MAX_HEIGHT = 220;
+
 export interface ChartProps {
   type: 'bar' | 'line' | 'area' | 'pie';
   data: Array<Record<string, string | number>>;
@@ -28,23 +31,25 @@ export interface ChartProps {
   className?: string;
 }
 
-export function Chart({
+function ChartInner({
   type,
   data,
   xKey,
   yKeys,
-  height = 300,
+  height = 180,
   title,
   colors = CHART_COLORS,
   className,
 }: ChartProps) {
+  const effectiveHeight = Math.min(height, MAX_HEIGHT);
+
   if (type === 'pie') {
     return (
-      <div className={`space-y-2 ${className ?? ''}`}>
-        {title && <h4 className="text-sm font-medium text-text-default">{title}</h4>}
-        <ResponsiveContainer width="100%" height={height}>
+      <div className={`space-y-1 ${className ?? ''}`}>
+        {title && <h4 className="text-xs font-medium text-text-muted">{title}</h4>}
+        <ResponsiveContainer width="100%" height={effectiveHeight}>
           <PieChart>
-            <Pie data={data} dataKey={yKeys[0]} nameKey={xKey} cx="50%" cy="50%" outerRadius={80}>
+            <Pie data={data} dataKey={yKeys[0]} nameKey={xKey} cx="50%" cy="50%" outerRadius={60}>
               {data.map((entry, i) => (
                 <Cell
                   key={entry[xKey]?.toString() ?? `cell-${i}`}
@@ -56,7 +61,8 @@ export function Chart({
               contentStyle={{
                 backgroundColor: 'var(--background-muted)',
                 border: '1px solid var(--border-default)',
-                borderRadius: '8px',
+                borderRadius: '6px',
+                fontSize: '12px',
               }}
             />
           </PieChart>
@@ -69,18 +75,19 @@ export function Chart({
   const DataComponent = type === 'bar' ? Bar : type === 'line' ? Line : Area;
 
   return (
-    <div className={`space-y-2 ${className ?? ''}`}>
-      {title && <h4 className="text-sm font-medium text-text-default">{title}</h4>}
-      <ResponsiveContainer width="100%" height={height}>
+    <div className={`space-y-1 ${className ?? ''}`}>
+      {title && <h4 className="text-xs font-medium text-text-muted">{title}</h4>}
+      <ResponsiveContainer width="100%" height={effectiveHeight}>
         <ChartComponent data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
-          <XAxis dataKey={xKey} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
+          <XAxis dataKey={xKey} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
+          <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={35} />
           <Tooltip
             contentStyle={{
               backgroundColor: 'var(--background-muted)',
               border: '1px solid var(--border-default)',
-              borderRadius: '8px',
+              borderRadius: '6px',
+              fontSize: '12px',
             }}
           />
           {yKeys.map((key, i) => (
@@ -95,6 +102,42 @@ export function Chart({
           ))}
         </ChartComponent>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+export function Chart(props: ChartProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const effectiveHeight = Math.min(props.height ?? 180, MAX_HEIGHT);
+
+  return (
+    <div ref={ref} style={{ minHeight: effectiveHeight }}>
+      {visible ? (
+        <ChartInner {...props} />
+      ) : (
+        <div
+          className="animate-pulse rounded bg-background-muted"
+          style={{ height: effectiveHeight }}
+        />
+      )}
     </div>
   );
 }
