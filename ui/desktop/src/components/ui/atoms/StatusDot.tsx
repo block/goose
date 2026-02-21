@@ -7,8 +7,8 @@ interface StatusDotProps extends React.ComponentProps<'span'> {
 }
 
 const statusColors: Record<StatusDotProps['status'], string> = {
-  active: 'bg-blue-400 animate-pulse',
-  completed: 'bg-emerald-400',
+  active: 'bg-background-accent animate-pulse',
+  completed: 'bg-background-success',
   idle: 'bg-text-muted/30',
 };
 

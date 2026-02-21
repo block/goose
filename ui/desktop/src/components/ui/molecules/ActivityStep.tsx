@@ -83,9 +83,9 @@ export function ActivityStep({
         className={cn(
           'flex items-center gap-2 px-2 py-1.5 w-full text-left text-xs rounded-md transition-colors',
           isActive
-            ? 'bg-blue-500/5 text-text-default'
+            ? 'bg-background-accent/5 text-text-default'
             : isError
-              ? 'text-red-400 hover:bg-red-500/5'
+              ? 'text-text-danger hover:bg-background-danger/5'
               : 'text-text-muted hover:bg-background-muted/50',
           canExpand && 'cursor-pointer'
         )}
@@ -107,7 +107,7 @@ export function ActivityStep({
         <span
           className={cn(
             'shrink-0',
-            isActive ? 'text-blue-400' : isError ? 'text-red-400' : 'text-text-muted/60'
+            isActive ? 'text-text-accent' : isError ? 'text-text-danger' : 'text-text-muted/60'
           )}
         >
           {icon}
@@ -119,11 +119,11 @@ export function ActivityStep({
         {/* Status indicator */}
         <span className="shrink-0">
           {isActive ? (
-            <Loader2 size={12} className="animate-spin text-blue-400" />
+            <Loader2 size={12} className="animate-spin text-text-accent" />
           ) : isError ? (
-            <AlertTriangle size={12} className="text-red-400" />
+            <AlertTriangle size={12} className="text-text-danger" />
           ) : (
-            <Check size={12} className="text-emerald-500" />
+            <Check size={12} className="text-text-success" />
           )}
         </span>
       </button>
@@ -132,24 +132,20 @@ export function ActivityStep({
       {isExpanded && canExpand && (
         <div className="ml-7 mr-2 mb-2 mt-0.5 text-xs border-l-2 border-border-default pl-3 space-y-2">
           {/* Arguments */}
-          {toolArgs && Object.keys(toolArgs).length > 0 && (
-            <ToolArgsView args={toolArgs} />
-          )}
+          {toolArgs && Object.keys(toolArgs).length > 0 && <ToolArgsView args={toolArgs} />}
 
           {/* Error */}
           {isError && errorMessage && (
-            <div className="bg-red-500/5 border border-red-500/20 rounded px-2 py-1.5">
-              <span className="font-medium text-red-400">Error: </span>
-              <span className="text-red-300 whitespace-pre-wrap break-all">
+            <div className="bg-background-danger/5 border border-border-danger/20 rounded px-2 py-1.5">
+              <span className="font-medium text-text-danger">Error: </span>
+              <span className="text-text-danger/80 whitespace-pre-wrap break-all">
                 {truncate(errorMessage, 2000)}
               </span>
             </div>
           )}
 
           {/* Result */}
-          {toolResult && !isError && (
-            <ToolResultView result={toolResult} />
-          )}
+          {toolResult && !isError && <ToolResultView result={toolResult} />}
         </div>
       )}
     </div>
@@ -186,7 +182,7 @@ function StringArgValue({ value }: { value: string }) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="ml-1 text-blue-400 hover:underline"
+        className="ml-1 text-text-accent hover:underline"
       >
         {expanded ? 'less' : 'more'}
       </button>
@@ -231,7 +227,7 @@ function ToolResultView({ result }: { result: string }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="text-blue-400 hover:underline text-[10px]"
+          className="text-text-accent hover:underline text-[10px]"
         >
           {expanded ? 'Show less' : `Show all (${result.length} chars)`}
         </button>
@@ -249,12 +245,7 @@ export interface ThinkingEntryProps {
 
 export function ThinkingEntry({ text, className }: ThinkingEntryProps) {
   return (
-    <div
-      className={cn(
-        'px-2 py-1.5 text-xs text-text-muted/70 italic leading-relaxed',
-        className
-      )}
-    >
+    <div className={cn('px-2 py-1.5 text-xs text-text-muted/70 italic leading-relaxed', className)}>
       {text}
     </div>
   );

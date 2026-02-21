@@ -20,7 +20,7 @@ describe('ActivityStep', () => {
     const { container } = render(
       <ActivityStep description="Done" toolName="developer__shell" isActive={false} />
     );
-    const check = container.querySelector('[class*="text-emerald"]');
+    const check = container.querySelector('[class*="text-text-success"]');
     expect(check).toBeInTheDocument();
   });
 
@@ -33,7 +33,7 @@ describe('ActivityStep', () => {
         errorMessage="Command not found"
       />
     );
-    const errorIcon = container.querySelector('[class*="text-red"]');
+    const errorIcon = container.querySelector('[class*="text-text-danger"]');
     expect(errorIcon).toBeInTheDocument();
   });
 
@@ -106,11 +106,7 @@ describe('ActivityStep', () => {
   it('truncates long tool results and allows expansion', () => {
     const longResult = 'x'.repeat(500);
     render(
-      <ActivityStep
-        description="Long output"
-        toolName="developer__shell"
-        toolResult={longResult}
-      />
+      <ActivityStep description="Long output" toolName="developer__shell" toolResult={longResult} />
     );
     fireEvent.click(screen.getByText('Long output'));
     expect(screen.getByText(/Show all/)).toBeInTheDocument();

@@ -16,12 +16,12 @@ export function BaseModal({
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[9999]">
-      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0">
+      <Card className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] bg-background-default rounded-xl shadow-xl overflow-hidden p-[16px] pt-[24px] pb-0">
         <div className="px-8 pb-0 space-y-8">
           {/* Header */}
           {title && (
             <div className="flex">
-              <h2 className="text-2xl font-regular dark:text-white text-gray-900">{title}</h2>
+              <h2 className="text-2xl font-regular text-text-default">{title}</h2>
             </div>
           )}
 

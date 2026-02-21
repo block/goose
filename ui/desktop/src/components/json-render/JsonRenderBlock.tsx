@@ -123,7 +123,7 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
 
   if (error) {
     return (
-      <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      <div className="rounded-md border border-border-danger bg-background-danger-muted p-4 text-sm text-text-danger">
         <strong>json-render error:</strong> {error}
       </div>
     );
