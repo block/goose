@@ -1412,7 +1412,7 @@ pub fn display_splash(model: &str, provider: &str) {
     };
 
     println!();
-    println!("{}", style(pad_art(r"        ,--.")).green());
+    println!("{}", style(pad_art(r"       ,--.")).green());
     println!(
         "{}{}",
         style(pad_art(r"      ( o  )>")).green(),
@@ -1446,7 +1446,7 @@ pub fn render_swimming_goose() {
         return;
     }
     let art = [
-        r"        ,--.",
+        r"       ,--.",
         r"      ( o  )>",
         r"      /   /",
         r"     /   /____",
