@@ -675,6 +675,7 @@ impl CliSession {
                 }
 
                 output::run_status_hook("thinking");
+                output::render_turn_separator("assistant");
                 output::show_thinking();
                 let start_time = Instant::now();
                 self.process_agent_response(true, CancellationToken::default())
