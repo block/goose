@@ -7,18 +7,29 @@ import { Button } from '../../ui/button';
 import { trackSettingToggled } from '../../../utils/analytics';
 import { LocalModelManager } from './LocalModelManager';
 import { DICTATION_ALL_PROVIDERS_ENABLED } from '../../../updates';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '../../ui/dropdown-menu';
 
 const CORE_PROVIDERS: DictationProvider[] = ['openai', 'local'];
 
 export const DictationSettings = () => {
   const [provider, setProvider] = useState<DictationProvider | null>(null);
-  const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, DictationProviderStatus>>(
     {}
   );
   const [apiKey, setApiKey] = useState('');
   const [isEditingKey, setIsEditingKey] = useState(false);
   const { read, upsert, remove } = useConfig();
+
+  const refreshStatuses = async () => {
+    const audioConfig = await getDictationConfig();
+    setProviderStatuses(audioConfig.data || {});
+  };
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -35,34 +46,17 @@ export const DictationSettings = () => {
       }
 
       setProvider(loadedProvider);
-
-      const audioConfig = await getDictationConfig();
-      setProviderStatuses(audioConfig.data || {});
+      await refreshStatuses();
     };
 
     loadSettings();
   }, [read, upsert]);
 
-  const saveProvider = async (newProvider: DictationProvider | null) => {
-    console.log('Saving dictation provider to backend config:', newProvider);
+  const handleProviderChange = (value: string) => {
+    const newProvider = value === 'disabled' ? null : (value as DictationProvider);
     setProvider(newProvider);
-    await upsert('voice_dictation_provider', newProvider || '', false);
+    upsert('voice_dictation_provider', newProvider || '', false);
     trackSettingToggled('voice_dictation', newProvider !== null);
-  };
-
-  const handleProviderChange = (newProvider: DictationProvider | null) => {
-    saveProvider(newProvider);
-    setShowProviderDropdown(false);
-  };
-
-  const handleDropdownToggle = async () => {
-    const newShowState = !showProviderDropdown;
-    setShowProviderDropdown(newShowState);
-
-    if (newShowState) {
-      const audioConfig = await getDictationConfig();
-      setProviderStatuses(audioConfig.data || {});
-    }
   };
 
   const handleSaveKey = async () => {
@@ -77,9 +71,7 @@ export const DictationSettings = () => {
     await upsert(keyName, trimmedKey, true);
     setApiKey('');
     setIsEditingKey(false);
-
-    const audioConfig = await getDictationConfig();
-    setProviderStatuses(audioConfig.data || {});
+    await refreshStatuses();
   };
 
   const handleRemoveKey = async () => {
@@ -91,9 +83,7 @@ export const DictationSettings = () => {
     await remove(keyName, true);
     setApiKey('');
     setIsEditingKey(false);
-
-    const audioConfig = await getDictationConfig();
-    setProviderStatuses(audioConfig.data || {});
+    await refreshStatuses();
   };
 
   const handleCancelEdit = () => {
@@ -101,10 +91,14 @@ export const DictationSettings = () => {
     setIsEditingKey(false);
   };
 
-  const getProviderLabel = (provider: DictationProvider | null): string => {
-    if (!provider) return 'Disabled';
-    return provider.charAt(0).toUpperCase() + provider.slice(1);
+  const getProviderLabel = (p: DictationProvider | null): string => {
+    if (!p) return 'Disabled';
+    return p.charAt(0).toUpperCase() + p.slice(1);
   };
+
+  const visibleProviders = (Object.keys(providerStatuses) as DictationProvider[]).filter(
+    (p) => DICTATION_ALL_PROVIDERS_ENABLED || CORE_PROVIDERS.includes(p)
+  );
 
   return (
     <div className="space-y-4">
@@ -115,49 +109,28 @@ export const DictationSettings = () => {
             Choose how voice is converted to text
           </p>
         </div>
-        <div className="relative">
-          <button
-            onClick={handleDropdownToggle}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-default rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
-          >
+        <DropdownMenu onOpenChange={(open) => open && refreshStatuses()}>
+          <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-default rounded-md hover:border-border-default transition-colors text-text-default bg-background-default">
             {getProviderLabel(provider)}
             <ChevronDown className="w-4 h-4" />
-          </button>
-
-          {showProviderDropdown && (
-            <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
-              <button
-                onClick={() => handleProviderChange(null)}
-                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap first:rounded-t-md"
-              >
-                <span className="flex items-center justify-between gap-2">
-                  <span>Disabled</span>
-                  {provider === null && <span>✓</span>}
-                </span>
-              </button>
-
-              {(Object.keys(providerStatuses) as DictationProvider[])
-                .filter((p) => DICTATION_ALL_PROVIDERS_ENABLED || CORE_PROVIDERS.includes(p))
-                .map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => handleProviderChange(p)}
-                    className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"
-                  >
-                    <span className="flex items-center justify-between gap-2">
-                      <span>
-                        {getProviderLabel(p)}
-                        {!providerStatuses[p]?.configured && (
-                          <span className="text-xs ml-1 text-text-muted">(not configured)</span>
-                        )}
-                      </span>
-                      {provider === p && <span>✓</span>}
-                    </span>
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-max min-w-[250px] max-w-[350px]">
+            <DropdownMenuRadioGroup
+              value={provider ?? 'disabled'}
+              onValueChange={handleProviderChange}
+            >
+              <DropdownMenuRadioItem value="disabled">Disabled</DropdownMenuRadioItem>
+              {visibleProviders.map((p) => (
+                <DropdownMenuRadioItem key={p} value={p}>
+                  {getProviderLabel(p)}
+                  {!providerStatuses[p]?.configured && (
+                    <span className="text-xs ml-1 text-text-muted">(not configured)</span>
+                  )}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {provider && providerStatuses[provider] && (
