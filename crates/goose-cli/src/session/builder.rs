@@ -12,6 +12,7 @@ use goose::session::session_manager::SessionType;
 use goose::session::EnabledExtensionsState;
 use rustyline::EditMode;
 use std::collections::BTreeSet;
+use std::io::IsTerminal;
 use std::process;
 use std::sync::Arc;
 use tokio::task::JoinSet;
@@ -116,6 +117,8 @@ pub struct SessionBuilderConfig {
     pub output_format: String,
     /// Docker container to run stdio extensions inside
     pub container: Option<Container>,
+    /// Disable TUI status bar
+    pub no_tui: bool,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -143,6 +146,7 @@ impl Default for SessionBuilderConfig {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            no_tui: false,
         }
     }
 }
@@ -233,6 +237,7 @@ async fn offer_extension_debugging_help(
         None,
         None,
         "text".to_string(),
+        false,
     )
     .await;
 
@@ -571,6 +576,29 @@ async fn configure_session_prompts(
     }
 }
 
+fn should_enable_tui(session_config: &SessionBuilderConfig) -> bool {
+    // Explicit opt-out
+    if session_config.no_tui {
+        return false;
+    }
+
+    // Environment variable opt-out
+    if std::env::var("GOOSE_TUI").ok().as_deref() == Some("0") {
+        return false;
+    }
+
+    // Only enable for interactive text-mode sessions on a TTY
+    if session_config.output_format != "text" {
+        return false;
+    }
+
+    if !session_config.interactive {
+        return false;
+    }
+
+    std::io::stdout().is_terminal()
+}
+
 pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
@@ -695,6 +723,9 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
 
+    // Determine if TUI should be enabled
+    let tui_enabled = should_enable_tui(&session_config);
+
     let session = CliSession::new(
         Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
         session_id.clone(),
@@ -704,6 +735,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         edit_mode,
         recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
+        tui_enabled,
     )
     .await;
 
@@ -751,6 +783,7 @@ mod tests {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            no_tui: false,
         };
 
         assert_eq!(config.extensions.len(), 1);
@@ -784,6 +817,7 @@ mod tests {
         assert!(!config.interactive);
         assert!(!config.quiet);
         assert!(!config.fork);
+        assert!(!config.no_tui);
     }
 
     #[tokio::test]
