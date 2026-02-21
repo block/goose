@@ -176,7 +176,7 @@ impl GooseAgent {
             category: ModeCategory::LlmOnly,
             tool_groups: vec![ToolGroupAccess::Full("apps".into())],
             recommended_extensions: vec!["apps".into()],
-            when_to_use: "User asks to create a new standalone HTML/CSS/JS app".into(),
+            when_to_use: "User asks to create a new standalone HTML/CSS/JS app (NOT for data visualization, dashboards, or charts — use genui mode for those)".into(),
             is_internal: false,
             deprecated: None,
         });
@@ -190,6 +190,22 @@ impl GooseAgent {
             tool_groups: vec![ToolGroupAccess::Full("apps".into())],
             recommended_extensions: vec!["apps".into()],
             when_to_use: "User asks to modify or improve an existing Goose app".into(),
+            is_internal: false,
+            deprecated: None,
+        });
+
+        modes.push(BuiltinMode {
+            slug: "genui".into(),
+            name: "📊 Data Visualizer".into(),
+            description: "Visualize data with inline charts, dashboards, and metrics".into(),
+            template_name: "genui.md".into(),
+            category: ModeCategory::Session,
+            tool_groups: vec![
+                ToolGroupAccess::Full("read".into()),
+                ToolGroupAccess::Full("command".into()),
+            ],
+            recommended_extensions: vec!["genui".into(), "developer".into()],
+            when_to_use: "User asks to visualize, chart, graph, or show data as a dashboard, overview, or summary with graphics inline in chat".into(),
             is_internal: false,
             deprecated: None,
         });
@@ -356,6 +372,7 @@ mod tests {
         assert!(agent.mode("recipe_maker").is_some(), "Missing recipe_maker");
         assert!(agent.mode("app_maker").is_some(), "Missing app_maker");
         assert!(agent.mode("app_iterator").is_some(), "Missing app_iterator");
+        assert!(agent.mode("genui").is_some(), "Missing genui");
     }
 
     #[test]
@@ -383,10 +400,10 @@ mod tests {
     #[test]
     fn test_total_mode_count() {
         let agent = GooseAgent::new();
-        // 4 universal + 5 internal/app = 9 total
-        assert_eq!(agent.list_modes().len(), 9);
-        // 4 universal + 2 app = 6 public
-        assert_eq!(agent.list_public_modes().len(), 6);
+        // 4 universal + 5 internal/app + 1 genui = 10 total
+        assert_eq!(agent.list_modes().len(), 10);
+        // 4 universal + 2 app + 1 genui = 7 public
+        assert_eq!(agent.list_public_modes().len(), 7);
     }
 
     #[test]
@@ -433,7 +450,7 @@ mod tests {
     fn test_agent_mode_conversion() {
         let agent = GooseAgent::new();
         let modes = agent.to_agent_modes();
-        assert_eq!(modes.len(), 9);
+        assert_eq!(modes.len(), 10);
         assert!(modes.iter().all(|m| m.when_to_use.is_some()));
     }
 
@@ -441,7 +458,7 @@ mod tests {
     fn test_public_agent_mode_conversion() {
         let agent = GooseAgent::new();
         let modes = agent.to_public_agent_modes();
-        assert_eq!(modes.len(), 6);
+        assert_eq!(modes.len(), 7);
         assert!(modes.iter().all(|m| !m.is_internal));
     }
 
@@ -459,7 +476,7 @@ mod tests {
     fn test_session_modes() {
         let agent = GooseAgent::new();
         let session = agent.session_modes();
-        assert_eq!(session.len(), 4); // ask, plan, write, review
+        assert_eq!(session.len(), 5); // ask, plan, write, review, genui
         assert!(session.iter().all(|m| m.category == ModeCategory::Session));
     }
 
