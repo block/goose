@@ -2,6 +2,7 @@ pub mod apps;
 pub mod chatrecall;
 pub mod code_execution;
 pub mod ext_manager;
+pub mod reader;
 pub mod summon;
 pub mod todo;
 pub mod tom;
@@ -99,6 +100,18 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 client_factory: |ctx| {
                     Box::new(code_execution::CodeExecutionClient::new(ctx).unwrap())
                 },
+            },
+        );
+
+        map.insert(
+            reader::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: reader::EXTENSION_NAME,
+                display_name: "Reader",
+                description: "Read-only filesystem access for sandboxed delegates. View files and list directories within the working directory.",
+                default_enabled: false,
+                unprefixed_tools: false,
+                client_factory: |ctx| Box::new(reader::ReaderClient::new(ctx).unwrap()),
             },
         );
 
