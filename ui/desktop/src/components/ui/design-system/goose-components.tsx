@@ -24,6 +24,7 @@ import { Progress } from '../atoms/progress';
 import { Separator } from '../atoms/separator';
 import { Table } from '../atoms/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../molecules/card';
+import { Chart } from './Chart';
 import { DataCard } from './DataCard';
 import { ElementErrorBoundary } from './ElementErrorBoundary';
 import { EmptyState } from './EmptyState';
@@ -402,6 +403,31 @@ function CodeBlockComponent({ element }: AnyComponentRenderProps) {
   return <CodeBlock code={p.code || ''} language={p.language} />;
 }
 
+// ─── DS Design-System Wrapper (Chart) ───
+
+function ChartComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    type?: 'bar' | 'line' | 'area' | 'pie';
+    data?: Array<Record<string, string | number>>;
+    xKey?: string;
+    yKeys?: string[];
+    height?: number;
+    title?: string;
+    colors?: string[];
+  };
+  return (
+    <Chart
+      type={p.type || 'bar'}
+      data={p.data || []}
+      xKey={p.xKey || ''}
+      yKeys={p.yKeys || []}
+      height={p.height}
+      title={p.title}
+      colors={p.colors}
+    />
+  );
+}
+
 // ─── Error Boundary Wrapper ───
 
 function withErrorBoundary(
@@ -448,6 +474,8 @@ const rawComponents: Record<string, React.ComponentType<AnyComponentRenderProps>
   Select: SelectComponent,
   Progress: ProgressComponent,
   CodeBlock: CodeBlockComponent,
+  // DS Design-System (Chart)
+  Chart: ChartComponent,
 };
 
 export const gooseComponents = Object.fromEntries(

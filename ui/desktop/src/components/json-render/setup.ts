@@ -64,6 +64,7 @@ const GOOSE_CUSTOM_KEYS = [
   'SearchInput',
   'TabBar',
   'CodeBlock',
+  'Chart',
 ] as const;
 
 function pick<T extends Record<string, unknown>>(obj: T, keys: readonly string[]): Partial<T> {

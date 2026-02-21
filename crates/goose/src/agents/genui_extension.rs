@@ -55,6 +55,7 @@ const KNOWN_COMPONENTS: &[&str] = &[
     "Toggle",
     "Link",
     "Pagination",
+    "Chart",
 ];
 
 #[derive(Debug, Deserialize, JsonSchema)]

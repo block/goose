@@ -81,6 +81,7 @@ AVAILABLE COMPONENTS (33):
 - Toggle: { label: string, pressed?: boolean, variant?: "default" | "outline" } - Toggle button. Use { $bindState } on pressed for state binding. [events: change]
 - Link: { label: string, href: string } - Anchor link. Bind on.press for click handler. [events: press]
 - Pagination: { totalPages: number, page?: number } - Page navigation. Use { $bindState } on page for current page number. [events: change]
+- Chart: { type: "bar" | "line" | "area" | "pie", data: Array<Record<string, string | number>>, xKey: string, yKeys: string[], height?: number, title?: string, colors?: string[] } - Data visualization chart. Use for numeric data comparisons, trends, distributions. Prefer bar for comparisons, line for trends, pie for proportions. Include realistic sample data.
 
 AVAILABLE ACTIONS:
 
