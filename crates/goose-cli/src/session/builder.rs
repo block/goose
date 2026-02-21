@@ -741,7 +741,8 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     configure_session_prompts(&session, config, &session_config, &session_id).await;
 
-    if !session_config.quiet {
+    // For TUI sessions, the splash in interactive() shows this info instead.
+    if !session_config.quiet && !tui_enabled {
         output::display_session_info(
             session_config.resume,
             &resolved.provider_name,

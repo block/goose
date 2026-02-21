@@ -486,10 +486,29 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
-        output::display_greeting();
-
-        // Initialize status bar with provider/model info
+        // Display splash or greeting depending on TUI mode
         if self.status_bar.is_some() {
+            // TUI mode: show ASCII art splash with session info
+            let (model_display, provider_name) =
+                if let Ok(provider) = self.agent.provider().await {
+                    let model_config = provider.get_model_config();
+                    let config = Config::global();
+                    let prov = config
+                        .get_goose_provider()
+                        .unwrap_or_else(|_| "unknown".to_string());
+                    let model = if let Some(lw) = provider.as_lead_worker() {
+                        let (lead, worker) = lw.get_model_info();
+                        format!("{} \u{2192} {}", lead, worker)
+                    } else {
+                        model_config.model_name.clone()
+                    };
+                    (model, prov)
+                } else {
+                    ("unknown".to_string(), "unknown".to_string())
+                };
+            output::display_splash(&model_display, &provider_name);
+            output::render_full_separator();
+
             self.init_status_bar_state().await;
             if let Some(ref mut bar) = self.status_bar {
                 if let Err(e) = bar.setup() {
@@ -497,6 +516,9 @@ impl CliSession {
                     self.status_bar = None;
                 }
             }
+        } else {
+            // Non-TUI mode: old greeting
+            output::display_greeting();
         }
 
         loop {
@@ -1370,6 +1392,31 @@ impl CliSession {
 
     /// Initialize status bar state from provider config
     async fn init_status_bar_state(&mut self) {
+        // Gather git and project info
+        let project_name = std::env::current_dir()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+            .unwrap_or_default();
+
+        let git_branch = std::process::Command::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
+
+        let git_dirty = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| !o.stdout.is_empty())
+            .unwrap_or(false);
+
         if let Ok(provider) = self.agent.provider().await {
             let model_config = provider.get_model_config();
             let config = Config::global();
@@ -1395,6 +1442,9 @@ impl CliSession {
                     s.goose_mode = goose_mode;
                     s.extension_count = extension_count;
                     s.session_id = self.session_id.clone();
+                    s.project_name = project_name;
+                    s.git_branch = git_branch;
+                    s.git_dirty = git_dirty;
                 });
             }
         }
