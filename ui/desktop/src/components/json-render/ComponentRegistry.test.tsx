@@ -12,8 +12,14 @@ import JsonRenderBlock from './JsonRenderBlock';
 
 // Mock IntersectionObserver for JSDOM (needed by Chart's lazy rendering)
 beforeAll(() => {
-  global.IntersectionObserver = class IntersectionObserver {
-    constructor(private callback: IntersectionObserverCallback) {}
+  global.IntersectionObserver = class MockIntersectionObserver {
+    private callback: IntersectionObserverCallback;
+    root = null;
+    rootMargin = '0px';
+    thresholds = [0];
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+    }
     observe(target: Element) {
       // Immediately report as visible
       this.callback(
@@ -23,6 +29,9 @@ beforeAll(() => {
     }
     unobserve() {}
     disconnect() {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
   } as unknown as typeof IntersectionObserver;
 });
 
