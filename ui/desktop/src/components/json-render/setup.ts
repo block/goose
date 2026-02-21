@@ -65,6 +65,8 @@ const GOOSE_CUSTOM_KEYS = [
   'TabBar',
   'CodeBlock',
   'Chart',
+  // Override shadcn Table — goose wrapper uses { columns, rows } API matching genUI prompt
+  'Table',
 ] as const;
 
 function pick<T extends Record<string, unknown>>(obj: T, keys: readonly string[]): Partial<T> {
