@@ -986,6 +986,35 @@
     }
   },
   {
+    "id": "amazon-bedrock/deepseek.v3.2-v1:0",
+    "name": "DeepSeek-V3.2",
+    "family": "deepseek",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-07",
+    "release_date": "2026-02-15",
+    "last_updated": "2026-02-15",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.62,
+      "output": 1.85
+    },
+    "limit": {
+      "context": 163840,
+      "output": 81920
+    }
+  },
+  {
     "id": "amazon-bedrock/eu.anthropic.claude-haiku-4.5-20251001-v1:0",
     "name": "Claude Haiku 4.5 (EU)",
     "family": "claude-haiku",
@@ -6091,6 +6120,35 @@
     }
   },
   {
+    "id": "cohere/command-r7b-arabic-02",
+    "name": "Command R7B Arabic",
+    "family": "command-r",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2024-06-01",
+    "release_date": "2025-02-27",
+    "last_updated": "2025-02-27",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.0375,
+      "output": 0.15
+    },
+    "limit": {
+      "context": 128000,
+      "output": 4000
+    }
+  },
+  {
     "id": "deepseek/deepseek-chat",
     "name": "DeepSeek Chat",
     "family": "deepseek",
@@ -6804,6 +6862,35 @@
     "cost": {
       "input": 0.6,
       "output": 2.2
+    },
+    "limit": {
+      "context": 204800,
+      "output": 131072
+    }
+  },
+  {
+    "id": "google-vertex/zai-org/glm-5-maas",
+    "name": "GLM-5",
+    "family": "glm",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-11",
+    "last_updated": "2026-02-11",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 1.0,
+      "output": 3.2,
+      "cache_read": 0.1
     },
     "limit": {
       "context": 204800,
@@ -13277,6 +13364,33 @@
     }
   },
   {
+    "id": "openrouter/openrouter/aurora-alpha",
+    "name": "Aurora Alpha",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-09",
+    "last_updated": "2026-02-09",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 128000,
+      "output": 50000
+    }
+  },
+  {
     "id": "openrouter/openrouter/sherlock-dash-alpha",
     "name": "Sherlock Dash Alpha",
     "family": "sherlock",
@@ -14063,6 +14177,68 @@
     "limit": {
       "context": 262144,
       "output": 262144
+    }
+  },
+  {
+    "id": "openrouter/qwen/qwen3.5-397b-a17b",
+    "name": "Qwen3.5 397B A17B",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-04",
+    "release_date": "2026-02-16",
+    "last_updated": "2026-02-16",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.6,
+      "output": 3.6
+    },
+    "limit": {
+      "context": 262144,
+      "output": 65536
+    }
+  },
+  {
+    "id": "openrouter/qwen/qwen3.5-plus-02-15",
+    "name": "Qwen3.5 Plus 2026-02-15",
+    "family": "qwen",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-04",
+    "release_date": "2026-02-16",
+    "last_updated": "2026-02-16",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.4,
+      "output": 2.4
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 65536
     }
   },
   {
