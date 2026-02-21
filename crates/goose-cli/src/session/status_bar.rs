@@ -58,27 +58,16 @@ impl StatusBar {
     }
 
     /// Set up the scroll region to reserve the bottom lines for the status bar.
-    /// Pushes the cursor to the bottom of the scroll region so the input prompt
-    /// appears at the bottom (like Claude Code), with the splash content scrolled up.
+    /// Content flows naturally from the current cursor position; the status bar
+    /// is rendered in the reserved area at the bottom.
     pub fn setup(&mut self) -> io::Result<()> {
         let (_, rows) = terminal::size()?;
         let scroll_end = rows.saturating_sub(BAR_HEIGHT);
 
-        // Query current cursor row via ANSI DSR (Device Status Report)
-        let cursor_row = cursor::position().map(|(_, r)| r).unwrap_or(0);
-
-        // Print enough newlines to push cursor to the bottom of the scroll region.
-        // This makes the input prompt appear at the bottom, with splash content above.
-        let lines_to_fill = scroll_end.saturating_sub(cursor_row + 1);
-        for _ in 0..lines_to_fill {
-            writeln!(io::stdout())?;
-        }
-
-        // Set scroll region to exclude the bottom BAR_HEIGHT lines
+        // Save cursor, set scroll region, restore cursor
+        write!(io::stdout(), "\x1b[s")?;
         write!(io::stdout(), "\x1b[1;{}r", scroll_end)?;
-
-        // Position cursor at the bottom of the scroll region
-        execute!(io::stdout(), cursor::MoveTo(0, scroll_end - 1))?;
+        write!(io::stdout(), "\x1b[u")?;
 
         self.active = true;
         self.render()?;
