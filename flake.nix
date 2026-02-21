@@ -37,7 +37,7 @@
           ++ pkgs.lib.optionals pkgs.stdenv.isDarwin darwinInputs;
       in
       {
-        defaultPackage = pkgs.rustPlatform.buildRustPackage {
+        packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = cargoToml.package.name;
           version = workspaceToml.workspace.package.version;
           src = self;
