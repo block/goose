@@ -104,8 +104,8 @@ impl StatusBar {
         if !self.active {
             return Ok(());
         }
-        // Reset scroll region to full terminal
-        write!(io::stdout(), "\x1b[r")?;
+        // Save cursor position
+        write!(io::stdout(), "\x1b[s")?;
 
         // Clear the status bar lines
         let (_, rows) = terminal::size()?;
@@ -115,8 +115,9 @@ impl StatusBar {
             write!(io::stdout(), "\x1b[2K")?;
         }
 
-        // Move cursor up to where content should go
-        execute!(io::stdout(), cursor::MoveTo(0, bar_start))?;
+        // Restore cursor position, then reset scroll region to full terminal
+        write!(io::stdout(), "\x1b[u")?;
+        write!(io::stdout(), "\x1b[r")?;
         io::stdout().flush()?;
         Ok(())
     }
