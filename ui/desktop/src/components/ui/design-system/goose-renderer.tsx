@@ -95,6 +95,7 @@ DISPLAY (goose custom):
 - StatCard: label (required), value (required), color ("success"|"warning"|"danger"), trend (number)
 - DataCard: title, description, variant ("default"|"interactive"|"stat") — supports children
 - CodeBlock: code (required), language, title
+- Chart: type ("bar"|"line"|"area"|"pie"), data (array of objects), xKey, yKeys (array), height, title, colors (array) — use bar for comparisons, line for trends, pie for proportions
 
 DATA (shadcn):
 - Table: columns, rows, caption
