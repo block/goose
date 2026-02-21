@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigationContext } from './NavigationContext';
 import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -12,6 +11,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
   isNavExpanded,
   isOverlayMode,
   navigationPosition,
+  onClose,
   className,
   visibleItems,
   isActive,
@@ -25,7 +25,6 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
   drag,
   navFocusRef,
 }) => {
-  const { setIsNavExpanded, effectiveNavigationMode } = useNavigationContext();
 
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
   const [gridColumns, setGridColumns] = useState(2);
@@ -78,8 +77,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
         parseFloat(parentStyle.paddingRight);
 
       const minSize = navigationPosition === 'left' || navigationPosition === 'right' ? 140 : 160;
-      const isOverlay = effectiveNavigationMode === 'overlay';
-      const gap = isOverlay ? 12 : 2;
+      const gap = isOverlayMode ? 12 : 2;
       const cols = Math.max(1, Math.floor((availableWidth + gap) / (minSize + gap)));
 
       setGridColumns(cols);
@@ -103,7 +101,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
     };
-  }, [isNavExpanded, navigationPosition, effectiveNavigationMode]);
+  }, [isNavExpanded, navigationPosition, isOverlayMode]);
 
   const isPushTopNav = !isOverlayMode && navigationPosition === 'top';
   const dragStyle = isPushTopNav
@@ -314,7 +312,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-              onClick={() => setIsNavExpanded(false)}
+              onClick={onClose}
             />
             <div className="absolute inset-0 overflow-y-auto pointer-events-none">
               <div className="min-h-full flex items-center justify-center p-8">

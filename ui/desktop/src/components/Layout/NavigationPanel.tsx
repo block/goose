@@ -190,11 +190,14 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   // --- Shared props for renderers ---
 
+  const onClose = useCallback(() => setIsNavExpanded(false), [setIsNavExpanded]);
+
   const rendererProps = {
     isNavExpanded,
     isOverlayMode,
     navigationPosition,
     isCondensedIconOnly,
+    onClose,
     className,
     visibleItems,
     isActive,

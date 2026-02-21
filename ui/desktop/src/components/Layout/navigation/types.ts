@@ -23,6 +23,7 @@ export interface NavigationRendererProps {
   isOverlayMode: boolean;
   navigationPosition: NavigationPosition;
   isCondensedIconOnly: boolean;
+  onClose: () => void;
   className?: string;
 
   // Items
