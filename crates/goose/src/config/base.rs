@@ -977,6 +977,9 @@ config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 config_value!(GEMINI3_THINKING_LEVEL, String);
+config_value!(CLAUDE_THINKING_TYPE, String);
+config_value!(CLAUDE_THINKING_EFFORT, String);
+config_value!(CLAUDE_THINKING_BUDGET, i32);
 
 /// Load init-config.yaml from workspace root if it exists.
 /// This function is shared between the config recovery and the init_config endpoint.
