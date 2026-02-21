@@ -5,9 +5,9 @@ type BadgeVariant = 'default' | 'secondary' | 'accent' | 'muted' | 'outline';
 type BadgeSize = 'sm' | 'md';
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  default: 'bg-background-accent/10 text-text-accent border-border-accent/20',
   secondary: 'bg-text-muted/10 text-text-muted border-text-muted/20',
-  accent: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+  accent: 'bg-background-warning-muted text-text-warning border-border-default',
   muted: 'bg-background-muted text-text-muted border-transparent',
   outline: 'bg-transparent text-text-muted border-border-default',
 };
