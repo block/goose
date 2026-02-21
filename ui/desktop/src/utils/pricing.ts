@@ -5,6 +5,9 @@ import { getPricing } from '../api';
 let openRouterCache: Map<string, PricingData> | null = null;
 let openRouterFetchPromise: Promise<Map<string, PricingData>> | null = null;
 
+// Skip server endpoint after first failure to avoid repeated 404 console noise
+let serverPricingAvailable = true;
+
 /**
  * Fetch and cache all model pricing from OpenRouter's public API.
  * Based on Kilocode's approach: https://openrouter.ai/api/v1/models
@@ -114,18 +117,23 @@ export async function fetchModelPricing(
   provider: string,
   model: string
 ): Promise<PricingData | null> {
-  // 1. Try the backend endpoint first
-  try {
-    const response = await getPricing({
-      body: { provider, model },
-      throwOnError: false,
-    });
+  // 1. Try the backend endpoint (skip if previously failed to avoid 404 console noise)
+  if (serverPricingAvailable) {
+    try {
+      const response = await getPricing({
+        body: { provider, model },
+        throwOnError: false,
+      });
 
-    if (response.data?.pricing?.[0]) {
-      return response.data.pricing[0];
+      if (response.data?.pricing?.[0]) {
+        return response.data.pricing[0];
+      }
+
+      // Server responded but no pricing data — mark as unavailable
+      serverPricingAvailable = false;
+    } catch {
+      serverPricingAvailable = false;
     }
-  } catch {
-    // Backend unavailable — fall through to OpenRouter
   }
 
   // 2. Fall back to OpenRouter public API
