@@ -37,8 +37,8 @@ import { getInitialWorkingDir } from '../../utils/workingDir';
 import { InlineEditText } from '../common/InlineEditText';
 import { Gear } from '../icons';
 import { SessionIndicators } from '../shared/SessionIndicators';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/molecules/collapsible';
 import { UserAvatarMenu } from '../shared/UserAvatarMenu';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/molecules/collapsible';
 import {
   SidebarContent,
   SidebarFooter,

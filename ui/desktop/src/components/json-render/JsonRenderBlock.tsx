@@ -1,6 +1,5 @@
+import { createSpecStreamCompiler, nestedToFlat } from '@json-render/core';
 import React, { useMemo } from 'react';
-import { createSpecStreamCompiler } from '@json-render/core';
-import { nestedToFlat } from '@json-render/core';
 import { CatalogRenderer } from './setup';
 
 interface JsonRenderBlockProps {
@@ -47,9 +46,7 @@ function recoverJsonLine(line: string): string {
         JSON.parse(attempt);
         console.warn('[json-render] Recovered malformed JSONL line by stripping trailing brace');
         return attempt;
-      } catch {
-        continue;
-      }
+      } catch {}
     }
     return trimmed;
   }
@@ -60,12 +57,9 @@ function recoverJsonLine(line: string): string {
  * Pre-processes lines to recover from common LLM JSON errors (extra trailing braces).
  */
 function parseJsonlSpec(text: string): Spec {
-  const recovered = text
-    .split('\n')
-    .map(recoverJsonLine)
-    .join('\n');
+  const recovered = text.split('\n').map(recoverJsonLine).join('\n');
   const compiler = createSpecStreamCompiler<Spec>();
-  compiler.push(recovered + '\n');
+  compiler.push(`${recovered}\n`);
   return compiler.getResult();
 }
 
@@ -106,7 +100,7 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
       if (isJsonlFormat(trimmed)) {
         // JSONL streaming patch format
         const result = parseJsonlSpec(trimmed);
-        if (result && result.root && result.elements) {
+        if (result?.root && result.elements) {
           return { parsedSpec: result, error: null };
         }
         return { parsedSpec: null, error: 'Invalid JSONL spec: missing root or elements' };
@@ -120,7 +114,10 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
 
       return { parsedSpec: null, error: 'Invalid spec: unrecognized format' };
     } catch (e) {
-      return { parsedSpec: null, error: `Parse error: ${e instanceof Error ? e.message : String(e)}` };
+      return {
+        parsedSpec: null,
+        error: `Parse error: ${e instanceof Error ? e.message : String(e)}`,
+      };
     }
   }, [spec]);
 

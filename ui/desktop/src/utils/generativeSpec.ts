@@ -62,9 +62,7 @@ function recoverJsonLine(line: string): string {
         JSON.parse(attempt);
         console.warn('[json-render] Recovered malformed JSONL line by stripping trailing brace');
         return attempt;
-      } catch {
-        continue;
-      }
+      } catch {}
     }
     return trimmed;
   }
@@ -76,14 +74,11 @@ function recoverJsonLine(line: string): string {
  */
 function tryParseJsonlSpec(raw: string): Spec | null {
   try {
-    const recovered = raw
-      .split('\n')
-      .map(recoverJsonLine)
-      .join('\n');
+    const recovered = raw.split('\n').map(recoverJsonLine).join('\n');
     const compiler = createSpecStreamCompiler<Spec>();
-    compiler.push(recovered + '\n');
+    compiler.push(`${recovered}\n`);
     const result = compiler.getResult();
-    if (result && result.root && result.elements) {
+    if (result?.root && result.elements) {
       return result;
     }
   } catch {
@@ -148,17 +143,11 @@ export function extractGenerativeSpec(text: string): ExtractedSpec | null {
  */
 export function hasPartialGenerativeSpec(text: string): boolean {
   // If we already have a complete spec, it's not partial
-  if (
-    FENCED_BLOCK_RE.test(text) ||
-    XML_TAG_RE.test(text) ||
-    FENCED_JSONRENDER_RE.test(text)
-  ) {
+  if (FENCED_BLOCK_RE.test(text) || XML_TAG_RE.test(text) || FENCED_JSONRENDER_RE.test(text)) {
     return false;
   }
   return (
-    PARTIAL_FENCED_RE.test(text) ||
-    PARTIAL_XML_RE.test(text) ||
-    PARTIAL_JSONRENDER_RE.test(text)
+    PARTIAL_FENCED_RE.test(text) || PARTIAL_XML_RE.test(text) || PARTIAL_JSONRENDER_RE.test(text)
   );
 }
 
@@ -168,11 +157,7 @@ export function hasPartialGenerativeSpec(text: string): boolean {
  */
 export function stripPartialGenerativeSpec(text: string): string {
   // Only strip if partial (not complete)
-  if (
-    FENCED_BLOCK_RE.test(text) ||
-    XML_TAG_RE.test(text) ||
-    FENCED_JSONRENDER_RE.test(text)
-  ) {
+  if (FENCED_BLOCK_RE.test(text) || XML_TAG_RE.test(text) || FENCED_JSONRENDER_RE.test(text)) {
     return text;
   }
   return text
