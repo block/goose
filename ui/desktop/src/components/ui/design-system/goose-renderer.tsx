@@ -1,8 +1,10 @@
 /**
- * Goose Design System — json-render Renderer
+ * Goose Design System — Unified json-render Renderer
  *
- * Renders AI-generated JSON UI specs using the Goose design system.
- * Uses JSONUIProvider for state/action management + Renderer for element tree.
+ * Renders AI-generated JSON UI specs using the unified CatalogRenderer
+ * that merges shadcn (33 components) + goose custom (11 components).
+ *
+ * Both goose-ui and json-render code blocks now use the same renderer.
  *
  * Usage:
  *   import { GooseGenerativeUI, isGooseUISpec } from './goose-renderer';
@@ -11,9 +13,8 @@
 'use client';
 
 import type { Spec } from '@json-render/react';
-import { JSONUIProvider, Renderer } from '@json-render/react';
+import { CatalogRenderer } from '../../json-render/setup';
 import { ElementErrorBoundary } from './ElementErrorBoundary';
-import { gooseComponents } from './goose-components';
 
 export type GooseActionHandler = (
   actionName: string,
@@ -23,7 +24,6 @@ export type GooseActionHandler = (
 export function GooseGenerativeUI({
   spec,
   onAction,
-  state,
   loading,
 }: {
   spec: Spec | null;
@@ -31,19 +31,19 @@ export function GooseGenerativeUI({
   state?: Record<string, unknown>;
   loading?: boolean;
 }) {
-  const handlers = onAction
-    ? new Proxy({} as Record<string, (params: Record<string, unknown>) => unknown>, {
-        get: (_target, prop: string) => {
-          return (params: Record<string, unknown>) => onAction(prop, params);
-        },
-      })
-    : undefined;
+  if (!spec) return null;
 
   return (
     <ElementErrorBoundary elementId="GooseGenerativeUI:root">
-      <JSONUIProvider registry={gooseComponents} initialState={state} handlers={handlers}>
-        <Renderer spec={spec} registry={gooseComponents} loading={loading} />
-      </JSONUIProvider>
+      <CatalogRenderer
+        spec={spec}
+        onAction={
+          onAction
+            ? (action: string, params?: Record<string, unknown>) => onAction(action, params)
+            : undefined
+        }
+        loading={loading}
+      />
     </ElementErrorBoundary>
   );
 }
@@ -67,44 +67,67 @@ export function getGooseUIPromptInstructions(): string {
   }
 }
 
-Available components (23):
+Available components (44 — shadcn + goose custom):
 
-LAYOUT:
+LAYOUT (shadcn):
 - Stack: direction ("vertical"|"horizontal"), gap ("sm"|"md"|"lg"), align ("start"|"center"|"end")
 - Grid: columns (1-4), gap ("sm"|"md"|"lg")
-- Card: title, subtitle, variant ("default"|"outlined"|"elevated"), padding ("none"|"sm"|"md"|"lg") — supports children
+- Card: title, subtitle, variant, padding — supports children
+- Separator: orientation ("horizontal"|"vertical")
+- Tabs: items (array of {label, value}), defaultValue
+- Accordion: items (array of {trigger, content})
+- Dialog: trigger, title, description — supports children
+- Drawer: trigger, title, description — supports children
 
-DISPLAY:
+DISPLAY (shadcn):
+- Heading: level (1-6), content
+- Text: content, variant ("body"|"muted"|"lead"|"small"), color
+- Badge: text, variant ("default"|"secondary"|"destructive"|"outline")
+- Alert: title, description, variant ("default"|"destructive")
+- Image: src, alt, width, height
+- Avatar: src, alt, fallback
+- Progress: value, max
+- Skeleton: width, height
+- Spinner: size
+
+DISPLAY (goose custom):
 - PageHeader: title (required), description, badge
 - StatCard: label (required), value (required), color ("success"|"warning"|"danger"), trend (number)
 - DataCard: title, description, variant ("default"|"interactive"|"stat") — supports children
-- Text: content (required), variant ("body"|"heading"|"label"|"caption"|"code"), color ("default"|"muted"|"accent"|"success"|"warning"|"danger")
-- Badge: text (required), variant ("success"|"warning"|"danger"|"info")
-- Separator: orientation ("horizontal"|"vertical")
 - CodeBlock: code (required), language, title
-- Progress: value (required), max (default 100), label, color ("default"|"success"|"warning"|"danger"|"info"), showValue (boolean)
 
-DATA:
-- Table: columns (array of {key, label, align?}), rows (array of records), maxRows, striped (boolean)
+DATA (shadcn):
+- Table: columns, rows, caption
+- Carousel: items
 
-LISTS:
-- ListItem: title (required), description, status ("active"|"inactive"|"error"|"loading"), indent (number)
-- TreeItem: label (required), badge, childCount, defaultExpanded (boolean), indent — supports children
+DATA (goose custom):
+- ListItem: title (required), description, status ("active"|"inactive"|"error"|"loading"), indent
+- TreeItem: label (required), badge, childCount, defaultExpanded, indent — supports children
 
-FEEDBACK:
-- Alert: title (required), message, severity ("info"|"success"|"warning"|"error")
+INPUT (shadcn):
+- Input: label, placeholder, type, value, disabled
+- Textarea: label, placeholder, rows, value
+- Select: label, placeholder, options (array of {value, label})
+- Checkbox: label, checked, disabled
+- Switch: label, checked, disabled
+- Slider: min, max, step, value
+- Button: label, variant ("default"|"secondary"|"destructive"|"outline"|"ghost"), size
+- Toggle: label, pressed
+- Link: href, label, variant
 
-STATES:
+FEEDBACK (goose custom):
 - EmptyState: title, description
-- LoadingState: variant ("spinner"|"skeleton"|"pulse"), lines (number)
+- LoadingState: variant ("spinner"|"skeleton"|"pulse"), lines
 - ErrorState: title, message
 
-INPUT:
-- Button: label (required), variant ("primary"|"secondary"|"destructive"|"ghost"), size ("sm"|"md"|"lg"), disabled (boolean)
-- Input: label, placeholder, type ("text"|"number"|"email"|"password"|"url"), value, disabled, helperText
-- Select: label, placeholder, options (array of {value, label, disabled?}), value
-- SearchInput: placeholder, value, debounceMs
+NAVIGATION:
 - TabBar: tabs (array of {id, label, group?, badge?}), activeTab, variant ("default"|"pill"|"underline")
+- SearchInput: placeholder, value, debounceMs
+- Pagination: currentPage, totalPages
+- DropdownMenu: trigger, items (array of {label, action})
+- Tooltip: content, trigger
+- Popover: trigger — supports children
+- Collapsible: trigger — supports children
 
 RULES:
 - Every element needs a unique string ID in the elements map
