@@ -87,34 +87,34 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
 
   const [pendingLink, setPendingLink] = useState<string | null>(null);
 
-  const determineModalType = async (
-    command: string,
-    _remoteUrl: string | null
-  ): Promise<ModalType> => {
-    try {
-      const config = window.electron.getConfig();
-      const ALLOWLIST_WARNING_MODE = config.GOOSE_ALLOWLIST_WARNING === true;
+  const determineModalType = useCallback(
+    async (command: string, _remoteUrl: string | null): Promise<ModalType> => {
+      try {
+        const config = window.electron.getConfig();
+        const ALLOWLIST_WARNING_MODE = config.GOOSE_ALLOWLIST_WARNING === true;
 
-      if (ALLOWLIST_WARNING_MODE) {
-        return 'untrusted';
-      }
+        if (ALLOWLIST_WARNING_MODE) {
+          return 'untrusted';
+        }
 
-      const allowedCommands = await window.electron.getAllowedExtensions();
+        const allowedCommands = await window.electron.getAllowedExtensions();
 
-      if (!allowedCommands || allowedCommands.length === 0) {
+        if (!allowedCommands || allowedCommands.length === 0) {
+          return 'trusted';
+        }
+
+        const isCommandAllowed = allowedCommands.some((allowedCmd: string) =>
+          command.startsWith(allowedCmd)
+        );
+
+        return isCommandAllowed ? 'trusted' : 'blocked';
+      } catch (error) {
+        console.error('Error checking allowlist:', error);
         return 'trusted';
       }
-
-      const isCommandAllowed = allowedCommands.some((allowedCmd: string) =>
-        command.startsWith(allowedCmd)
-      );
-
-      return isCommandAllowed ? 'trusted' : 'blocked';
-    } catch (error) {
-      console.error('Error checking allowlist:', error);
-      return 'trusted';
-    }
-  };
+    },
+    []
+  );
 
   const generateModalConfig = (
     modalType: ModalType,
@@ -286,9 +286,9 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   const getTitleClassName = () => {
     switch (modalState.modalType) {
       case 'blocked':
-        return 'text-red-600 dark:text-red-400';
+        return 'text-text-danger';
       case 'untrusted':
-        return 'text-yellow-600 dark:text-yellow-400';
+        return 'text-text-warning';
       default:
         return '';
     }

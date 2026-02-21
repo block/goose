@@ -4,6 +4,10 @@ import type { GooseApp } from './api';
 import type { Recipe } from './recipe';
 import type { Settings } from './utils/settings';
 
+// The app registers ~14 IPC listeners across components; raise the limit to avoid
+// "MaxListenersExceededWarning" in the console (Node default is 10).
+ipcRenderer.setMaxListeners(20);
+
 interface NotificationData {
   title: string;
   body: string;
