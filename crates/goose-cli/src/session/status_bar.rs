@@ -18,6 +18,9 @@ pub struct StatusBarState {
     pub goose_mode: String,
     pub is_processing: bool,
     pub session_id: String,
+    pub project_name: String,
+    pub git_branch: Option<String>,
+    pub git_dirty: bool,
 }
 
 impl Default for StatusBarState {
@@ -34,6 +37,9 @@ impl Default for StatusBarState {
             goose_mode: "auto".to_string(),
             is_processing: false,
             session_id: String::new(),
+            project_name: String::new(),
+            git_branch: None,
+            git_dirty: false,
         }
     }
 }
@@ -145,14 +151,9 @@ impl StatusBar {
 
         let state = self.state.read().unwrap();
 
-        // Build the content segments for the status bar
-        let segments = build_segments(&state, width);
-
-        // Render line 1: top border
-        let border_line = build_border_line(width);
-
-        // Render line 2: content + bottom border chars
-        let content_line = build_content_line(&segments, width);
+        // Build the two flat status lines
+        let line1 = build_line_1(&state, width);
+        let line2 = build_line_2(&state, width);
 
         // Save cursor position
         write!(io::stdout(), "\x1b[s")?;
@@ -160,11 +161,11 @@ impl StatusBar {
         // Move to the status bar area and write
         execute!(io::stdout(), cursor::MoveTo(0, bar_start))?;
         write!(io::stdout(), "\x1b[2K")?; // clear line
-        write_styled_line(&border_line)?;
+        write_styled_line(&line1)?;
 
         execute!(io::stdout(), cursor::MoveTo(0, bar_start + 1))?;
         write!(io::stdout(), "\x1b[2K")?; // clear line
-        write_styled_line(&content_line)?;
+        write_styled_line(&line2)?;
 
         // Restore cursor position
         write!(io::stdout(), "\x1b[u")?;
@@ -239,115 +240,107 @@ impl StyledSpan {
             dim: false,
         }
     }
-
-    fn visible_len(&self) -> usize {
-        self.text.len()
-    }
 }
 
-fn build_segments(state: &StatusBarState, _width: usize) -> Vec<StyledSpan> {
-    let mut segments: Vec<StyledSpan> = Vec::new();
+/// Build line 1: 🪿 model | 📁 project | 🌿 branch ● | ⚡ pct% · tokens
+fn build_line_1(state: &StatusBarState, _width: usize) -> Vec<StyledSpan> {
+    let mut spans: Vec<StyledSpan> = Vec::new();
+    spans.push(StyledSpan::plain("  "));
 
-    // Model name
+    // Model
     if !state.model_name.is_empty() {
-        segments.push(StyledSpan::bold_colored(&state.model_name, Color::Cyan));
+        spans.push(StyledSpan::dim("\u{1fabf} "));
+        spans.push(StyledSpan::bold_colored(&state.model_name, Color::Cyan));
     }
 
-    // Token usage bar
+    // Project name
+    if !state.project_name.is_empty() {
+        spans.push(StyledSpan::dim(" | "));
+        spans.push(StyledSpan::dim("\u{1f4c1} "));
+        spans.push(StyledSpan::dim(&state.project_name));
+    }
+
+    // Git branch
+    if let Some(ref branch) = state.git_branch {
+        spans.push(StyledSpan::dim(" | "));
+        spans.push(StyledSpan::dim("\u{1f33f} "));
+        spans.push(StyledSpan::colored(branch, Color::Green));
+        if state.git_dirty {
+            spans.push(StyledSpan::colored(" \u{25cf}", Color::Yellow));
+        }
+    }
+
+    // Token usage
     if state.context_limit > 0 {
-        let percentage = ((state.total_tokens as f64 / state.context_limit as f64) * 100.0)
-            .round() as usize;
-        let percentage = percentage.min(100);
-
-        let bar_width = 15;
-        let filled = ((percentage as f64 / 100.0) * bar_width as f64).round() as usize;
-        let empty = bar_width - filled.min(bar_width);
-
-        let bar = format!("{}{}", "━".repeat(filled), "╌".repeat(empty));
-        let bar_color = if percentage < 50 {
+        let pct = ((state.total_tokens as f64 / state.context_limit as f64) * 100.0).round()
+            as usize;
+        let pct = pct.min(100);
+        let token_color = if pct < 50 {
             Color::Green
-        } else if percentage < 85 {
+        } else if pct < 85 {
             Color::Yellow
         } else {
             Color::Red
         };
-
-        segments.push(StyledSpan::colored(&bar, bar_color));
-        segments.push(StyledSpan::dim(&format!(
-            " {}% {}/{}",
-            percentage,
-            format_tokens(state.total_tokens),
-            format_tokens(state.context_limit)
-        )));
-    }
-
-    // Cost
-    if let Some(cost) = state.cost_usd {
-        segments.push(StyledSpan::colored(
-            &format!("${:.2}", cost),
-            Color::Yellow,
+        spans.push(StyledSpan::dim(" | "));
+        spans.push(StyledSpan::colored(
+            &format!(
+                "\u{26a1} {}% \u{00b7} {}/{} tokens",
+                pct,
+                format_tokens(state.total_tokens),
+                format_tokens(state.context_limit)
+            ),
+            token_color,
         ));
     }
 
-    // Extension count
-    if state.extension_count > 0 {
-        segments.push(StyledSpan::dim(&format!("{} ext", state.extension_count)));
-    }
+    spans
+}
 
-    // Mode
+/// Build line 2: ⏵ mode · N extensions [· $cost] [⟳]
+fn build_line_2(state: &StatusBarState, _width: usize) -> Vec<StyledSpan> {
+    let mut spans: Vec<StyledSpan> = Vec::new();
+    spans.push(StyledSpan::plain("  "));
+
+    // Mode indicator
     let mode_color = match state.goose_mode.as_str() {
         "auto" => Color::Green,
         "approve" | "smart_approve" => Color::Yellow,
         "chat" => Color::Blue,
         _ => Color::White,
     };
-    segments.push(StyledSpan::colored(&state.goose_mode, mode_color));
+    spans.push(StyledSpan::colored("\u{23f5} ", mode_color));
+    spans.push(StyledSpan::colored(
+        &format!("{} mode", state.goose_mode),
+        mode_color,
+    ));
+
+    // Extension count
+    if state.extension_count > 0 {
+        let ext_label = if state.extension_count == 1 {
+            "extension"
+        } else {
+            "extensions"
+        };
+        spans.push(StyledSpan::dim(&format!(
+            " \u{00b7} {} {}",
+            state.extension_count, ext_label
+        )));
+    }
+
+    // Cost
+    if let Some(cost) = state.cost_usd {
+        spans.push(StyledSpan::dim(" \u{00b7} "));
+        spans.push(StyledSpan::colored(&format!("${:.2}", cost), Color::Yellow));
+    }
 
     // Processing indicator
     if state.is_processing {
-        segments.push(StyledSpan::colored("⟳", Color::Yellow));
+        spans.push(StyledSpan::plain(" "));
+        spans.push(StyledSpan::colored("\u{27f3}", Color::Yellow));
     }
 
-    segments
-}
-
-fn build_border_line(width: usize) -> Vec<StyledSpan> {
-    let inner = "─".repeat(width.saturating_sub(2));
-    vec![StyledSpan::dim(&format!("╭{}╮", inner))]
-}
-
-fn build_content_line(segments: &[StyledSpan], width: usize) -> Vec<StyledSpan> {
-    let mut result: Vec<StyledSpan> = Vec::new();
-    result.push(StyledSpan::dim("│ "));
-
-    let separator = " │ ";
-    let mut content_width: usize = 2; // "│ " prefix
-
-    for (i, seg) in segments.iter().enumerate() {
-        let sep_len = if i > 0 { separator.len() } else { 0 };
-        let needed = sep_len + seg.visible_len();
-
-        // Reserve 2 chars for " │" suffix
-        if content_width + needed + 2 > width {
-            break;
-        }
-
-        if i > 0 {
-            result.push(StyledSpan::dim(separator));
-            content_width += sep_len;
-        }
-        result.push(seg.clone());
-        content_width += seg.visible_len();
-    }
-
-    // Pad to width and close border
-    let remaining = width.saturating_sub(content_width + 2);
-    if remaining > 0 {
-        result.push(StyledSpan::plain(&" ".repeat(remaining)));
-    }
-    result.push(StyledSpan::dim(" │"));
-
-    result
+    spans
 }
 
 fn write_styled_line(spans: &[StyledSpan]) -> io::Result<()> {
@@ -402,47 +395,46 @@ mod tests {
         assert_eq!(state.context_limit, 0);
         assert!(!state.is_processing);
         assert_eq!(state.goose_mode, "auto");
+        assert!(state.git_branch.is_none());
+        assert!(!state.git_dirty);
+        assert!(state.project_name.is_empty());
     }
 
     #[test]
-    fn test_build_segments_empty_model() {
-        let state = StatusBarState::default();
-        let segments = build_segments(&state, 80);
-        // Should have at least the mode segment
-        assert!(!segments.is_empty());
-    }
-
-    #[test]
-    fn test_build_segments_with_data() {
+    fn test_build_line_1_with_model() {
         let state = StatusBarState {
             model_name: "gpt-4o".to_string(),
-            provider_name: "openai".to_string(),
+            project_name: "goose".to_string(),
+            git_branch: Some("main".to_string()),
+            git_dirty: true,
             total_tokens: 42_000,
             context_limit: 128_000,
-            cost_usd: Some(0.12),
-            extension_count: 3,
-            goose_mode: "auto".to_string(),
-            is_processing: false,
             ..Default::default()
         };
-        let segments = build_segments(&state, 80);
-        // Model, bar, bar info, cost, extensions, mode
-        assert!(segments.len() >= 5);
+        let line = build_line_1(&state, 120);
+        // Should have padding + model + project + git + tokens spans
+        assert!(line.len() >= 5);
     }
 
     #[test]
-    fn test_build_border_line() {
-        let line = build_border_line(20);
-        assert_eq!(line.len(), 1);
-        assert!(line[0].text.starts_with('╭'));
-        assert!(line[0].text.ends_with('╮'));
-    }
-
-    #[test]
-    fn test_build_content_line() {
-        let segments = vec![StyledSpan::plain("hello"), StyledSpan::plain("world")];
-        let line = build_content_line(&segments, 30);
-        // Should have prefix, segments, separator, padding, suffix
+    fn test_build_line_2_with_mode() {
+        let state = StatusBarState {
+            goose_mode: "auto".to_string(),
+            extension_count: 3,
+            cost_usd: Some(0.12),
+            is_processing: true,
+            ..Default::default()
+        };
+        let line = build_line_2(&state, 80);
+        // Should have padding + mode icon + mode text + extensions + cost + processing
         assert!(line.len() >= 4);
+    }
+
+    #[test]
+    fn test_build_line_1_empty_state() {
+        let state = StatusBarState::default();
+        let line = build_line_1(&state, 80);
+        // Should at least have the padding span
+        assert!(!line.is_empty());
     }
 }
