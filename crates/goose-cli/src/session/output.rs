@@ -1367,6 +1367,85 @@ pub fn display_greeting() {
     );
 }
 
+/// Display a Claude Code-style splash screen with goose ASCII art and session info.
+pub fn display_splash(model: &str, provider: &str) {
+    set_terminal_title();
+
+    let version = env!("CARGO_PKG_VERSION");
+
+    let cwd_display = std::env::current_dir()
+        .ok()
+        .map(|p| {
+            let home = etcetera::home_dir().ok();
+            if let Some(ref home) = home {
+                if let Ok(stripped) = p.strip_prefix(home) {
+                    return format!("~/{}", stripped.display());
+                }
+            }
+            p.display().to_string()
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let art_lines = [
+        "  \u{25d6}\u{25cf}",
+        "   \u{258f}",
+        "  \u{259f}\u{2588}\u{2599}",
+        " \u{2590}\u{259b}\u{2588}\u{2588}\u{2588}\u{259c}\u{258c}",
+        "\u{255d}\u{259c}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{259b}\u{2598}",
+        "  \u{2598}\u{2598} \u{259d}\u{259d}",
+    ];
+
+    let version_line = format!("Goose v{}", version);
+    let model_line = format!("{} \u{00b7} {}", model, provider);
+
+    let info_lines: [&str; 6] = [
+        "",
+        "",
+        &version_line,
+        &model_line,
+        &cwd_display,
+        "",
+    ];
+
+    let art_pad: usize = 14;
+
+    println!();
+    for (art, info) in art_lines.iter().zip(info_lines.iter()) {
+        let art_visible_width = measure_text_width(art);
+        let padding = " ".repeat(art_pad.saturating_sub(art_visible_width));
+        let padded_art = format!("{}{}", art, padding);
+
+        if info.is_empty() {
+            println!("{}", style(&padded_art).green());
+        } else if info.starts_with("Goose") {
+            println!(
+                "{}{}",
+                style(&padded_art).green(),
+                style(*info).bold()
+            );
+        } else {
+            println!(
+                "{}{}",
+                style(&padded_art).green(),
+                style(*info).dim()
+            );
+        }
+    }
+    println!();
+}
+
+/// Print a full-width dim separator line.
+pub fn render_full_separator() {
+    if !std::io::stdout().is_terminal() {
+        return;
+    }
+    let width = Term::stdout()
+        .size_checked()
+        .map(|(_h, w)| w as usize)
+        .unwrap_or(80);
+    println!("{}", style("\u{2500}".repeat(width)).dim());
+}
+
 /// Print a visual separator before the assistant response
 pub fn render_turn_separator(label: &str) {
     if !std::io::stdout().is_terminal() {
