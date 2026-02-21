@@ -127,7 +127,7 @@ export default function TunnelSection() {
     <>
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Remote Access</CardTitle>
+          <CardTitle className="mb-1">Mobile App</CardTitle>
           <CardDescription className="flex flex-col gap-2">
             <div className="flex items-start gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
               <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
@@ -205,7 +205,7 @@ export default function TunnelSection() {
       <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Remote Access Connection</DialogTitle>
+            <DialogTitle>Mobile App Connection</DialogTitle>
           </DialogHeader>
 
           {tunnelInfo.state === 'running' && (

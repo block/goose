@@ -126,6 +126,7 @@ ignore = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
+pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.133", features = ["sampler"] }
 encoding_rs = "0.8.35"
 
