@@ -57,20 +57,28 @@ impl StatusBar {
         }
     }
 
-    /// Set up the scroll region to reserve the bottom lines for the status bar
+    /// Set up the scroll region to reserve the bottom lines for the status bar.
+    /// Pushes the cursor to the bottom of the scroll region so the input prompt
+    /// appears at the bottom (like Claude Code), with the splash content scrolled up.
     pub fn setup(&mut self) -> io::Result<()> {
         let (_, rows) = terminal::size()?;
         let scroll_end = rows.saturating_sub(BAR_HEIGHT);
 
-        // Save cursor position before changing scroll region
-        write!(io::stdout(), "\x1b[s")?;
+        // Query current cursor row via ANSI DSR (Device Status Report)
+        let cursor_row = cursor::position().map(|(_, r)| r).unwrap_or(0);
+
+        // Print enough newlines to push cursor to the bottom of the scroll region.
+        // This makes the input prompt appear at the bottom, with splash content above.
+        let lines_to_fill = scroll_end.saturating_sub(cursor_row + 1);
+        for _ in 0..lines_to_fill {
+            writeln!(io::stdout())?;
+        }
 
         // Set scroll region to exclude the bottom BAR_HEIGHT lines
-        // CSI n ; m r — set scrolling region from row n to row m (1-indexed)
         write!(io::stdout(), "\x1b[1;{}r", scroll_end)?;
 
-        // Restore cursor position (DECSTBM resets cursor to origin)
-        write!(io::stdout(), "\x1b[u")?;
+        // Position cursor at the bottom of the scroll region
+        execute!(io::stdout(), cursor::MoveTo(0, scroll_end - 1))?;
 
         self.active = true;
         self.render()?;
@@ -107,6 +115,9 @@ impl StatusBar {
         // Save cursor position
         write!(io::stdout(), "\x1b[s")?;
 
+        // Reset scroll region to full terminal
+        write!(io::stdout(), "\x1b[r")?;
+
         // Clear the status bar lines
         let (_, rows) = terminal::size()?;
         let bar_start = rows.saturating_sub(BAR_HEIGHT);
@@ -115,9 +126,8 @@ impl StatusBar {
             write!(io::stdout(), "\x1b[2K")?;
         }
 
-        // Restore cursor position, then reset scroll region to full terminal
+        // Restore cursor position
         write!(io::stdout(), "\x1b[u")?;
-        write!(io::stdout(), "\x1b[r")?;
         io::stdout().flush()?;
         Ok(())
     }
@@ -127,17 +137,17 @@ impl StatusBar {
         if !self.active {
             return Ok(());
         }
+        // Save cursor position
+        write!(io::stdout(), "\x1b[s")?;
+
         let (_, rows) = terminal::size()?;
         let scroll_end = rows.saturating_sub(BAR_HEIGHT);
 
         // Restore scroll region
         write!(io::stdout(), "\x1b[1;{}r", scroll_end)?;
 
-        // Position cursor within the scroll region
-        execute!(
-            io::stdout(),
-            cursor::MoveTo(0, scroll_end.saturating_sub(1))
-        )?;
+        // Restore cursor position
+        write!(io::stdout(), "\x1b[u")?;
 
         self.render()?;
         Ok(())
