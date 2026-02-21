@@ -864,7 +864,6 @@ impl ProviderDef for ChatGptCodexProvider {
                 false,
             )],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(

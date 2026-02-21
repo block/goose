@@ -605,7 +605,6 @@ impl ProviderDef for CodexProvider {
                 ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false, true),
             ],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(
