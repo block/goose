@@ -56,7 +56,8 @@ export function Table({
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const rowKey = columns.map((c) => String(row[c.key] ?? '')).join('|') || `row-${i}`;
+            const contentKey = columns.map((c) => String(row[c.key] ?? '')).join('|');
+            const rowKey = `${i}-${contentKey}`;
             return (
               <tr
                 key={rowKey}

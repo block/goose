@@ -7,6 +7,7 @@ let openRouterFetchPromise: Promise<Map<string, PricingData>> | null = null;
 
 // Skip server endpoint after first failure to avoid repeated 404 console noise
 let serverPricingAvailable = true;
+let serverPricingPromise: Promise<PricingData | null> | null = null;
 
 /**
  * Fetch and cache all model pricing from OpenRouter's public API.
@@ -117,23 +118,33 @@ export async function fetchModelPricing(
   provider: string,
   model: string
 ): Promise<PricingData | null> {
-  // 1. Try the backend endpoint (skip if previously failed to avoid 404 console noise)
+  // 1. Try the backend endpoint (skip if previously failed, deduplicate concurrent calls)
   if (serverPricingAvailable) {
-    try {
-      const response = await getPricing({
-        body: { provider, model },
-        throwOnError: false,
-      });
+    if (!serverPricingPromise) {
+      serverPricingPromise = (async () => {
+        try {
+          const response = await getPricing({
+            body: { provider, model },
+            throwOnError: false,
+          });
 
-      if (response.data?.pricing?.[0]) {
-        return response.data.pricing[0];
-      }
+          if (response.data?.pricing?.[0]) {
+            return response.data.pricing[0];
+          }
 
-      // Server responded but no pricing data — mark as unavailable
-      serverPricingAvailable = false;
-    } catch {
-      serverPricingAvailable = false;
+          serverPricingAvailable = false;
+          return null;
+        } catch {
+          serverPricingAvailable = false;
+          return null;
+        } finally {
+          serverPricingPromise = null;
+        }
+      })();
     }
+
+    const result = await serverPricingPromise;
+    if (result) return result;
   }
 
   // 2. Fall back to OpenRouter public API
