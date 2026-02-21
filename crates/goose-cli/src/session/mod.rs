@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+pub mod status_bar;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
@@ -165,6 +166,7 @@ pub struct CliSession {
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
     output_format: String,
+    status_bar: Option<status_bar::StatusBar>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -239,6 +241,7 @@ impl CliSession {
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
         output_format: String,
+        tui_enabled: bool,
     ) -> Self {
         let messages = agent
             .config
@@ -247,6 +250,12 @@ impl CliSession {
             .await
             .map(|session| session.conversation.unwrap_or_default())
             .unwrap();
+
+        let status_bar = if tui_enabled {
+            Some(status_bar::StatusBar::new(status_bar::StatusBarState::default()))
+        } else {
+            None
+        };
 
         CliSession {
             agent,
@@ -260,6 +269,7 @@ impl CliSession {
             edit_mode,
             retry_config,
             output_format,
+            status_bar,
         }
     }
 
@@ -477,8 +487,24 @@ impl CliSession {
         history_manager.load(&mut editor);
 
         output::display_greeting();
+
+        // Initialize status bar with provider/model info
+        if self.status_bar.is_some() {
+            self.init_status_bar_state().await;
+            if let Some(ref mut bar) = self.status_bar {
+                if let Err(e) = bar.setup() {
+                    tracing::warn!("Failed to setup status bar: {}", e);
+                    self.status_bar = None;
+                }
+            }
+        }
+
         loop {
-            self.display_context_usage().await?;
+            if self.status_bar.is_some() {
+                self.update_status_bar_state().await;
+            } else {
+                self.display_context_usage().await?;
+            }
 
             let conversation_strings: Vec<String> = self
                 .messages
@@ -493,12 +519,27 @@ impl CliSession {
                 .collect();
 
             output::run_status_hook("waiting");
+
+            // Pause status bar for readline
+            if let Some(ref mut bar) = self.status_bar {
+                let _ = bar.pause();
+            }
             let input = input::get_input(&mut editor, Some(&conversation_strings))?;
+            // Resume status bar after readline
+            if let Some(ref mut bar) = self.status_bar {
+                let _ = bar.resume();
+            }
+
             if matches!(input, InputResult::Exit) {
                 break;
             }
             self.handle_input(input, &history_manager, &mut editor)
                 .await?;
+        }
+
+        // Teardown status bar before exit message
+        if let Some(ref mut bar) = self.status_bar {
+            let _ = bar.teardown();
         }
 
         println!(
@@ -628,12 +669,22 @@ impl CliSession {
 
                 let _provider = self.agent.provider().await?;
 
+                // Set processing state on status bar
+                if let Some(ref bar) = self.status_bar {
+                    let _ = bar.set_processing(true);
+                }
+
                 output::run_status_hook("thinking");
                 output::show_thinking();
                 let start_time = Instant::now();
                 self.process_agent_response(true, CancellationToken::default())
                     .await?;
                 output::hide_thinking();
+
+                // Clear processing state
+                if let Some(ref bar) = self.status_bar {
+                    let _ = bar.set_processing(false);
+                }
 
                 let elapsed = start_time.elapsed();
                 let elapsed_str = format_elapsed_time(elapsed);
@@ -809,6 +860,10 @@ impl CliSession {
     }
 
     async fn handle_compact(&mut self) -> Result<()> {
+        // Pause status bar for interactive prompt
+        if let Some(ref mut bar) = self.status_bar {
+            let _ = bar.pause();
+        }
         let prompt = "Are you sure you want to compact this conversation? This will condense the message history.";
         let should_summarize = match cliclack::confirm(prompt).initial_value(true).interact() {
             Ok(choice) => choice,
@@ -820,6 +875,11 @@ impl CliSession {
                 }
             }
         };
+
+        // Resume status bar after interactive prompt
+        if let Some(ref mut bar) = self.status_bar {
+            let _ = bar.resume();
+        }
 
         if should_summarize {
             self.push_message(Message::user().with_text(COMPACT_TRIGGERS[0]));
@@ -971,7 +1031,15 @@ impl CliSession {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
                             if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
+                                // Pause status bar for interactive prompt
+                                if let Some(ref mut bar) = self.status_bar {
+                                    let _ = bar.pause();
+                                }
                                 let permission = prompt_tool_confirmation(&security_prompt)?;
+                                // Resume status bar
+                                if let Some(ref mut bar) = self.status_bar {
+                                    let _ = bar.resume();
+                                }
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
@@ -997,8 +1065,16 @@ impl CliSession {
                                 output::hide_thinking();
                                 let _ = progress_bars.hide();
 
+                                // Pause status bar for elicitation
+                                if let Some(ref mut bar) = self.status_bar {
+                                    let _ = bar.pause();
+                                }
                                 match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
                                     Ok(Some(user_data)) => {
+                                        // Resume status bar after elicitation
+                                        if let Some(ref mut bar) = self.status_bar {
+                                            let _ = bar.resume();
+                                        }
                                         let user_data_value = serde_json::to_value(user_data)
                                             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
                                         let response_message = Message::user()
@@ -1013,12 +1089,18 @@ impl CliSession {
                                         let _ = self.agent.reply(response_message, session_config.clone(), Some(cancel_token.clone())).await?;
                                     }
                                     Ok(None) => {
+                                        if let Some(ref mut bar) = self.status_bar {
+                                            let _ = bar.resume();
+                                        }
                                         output::render_text("Information request cancelled.", Some(Color::Yellow), true);
                                         cancel_token_clone.cancel();
                                         drop(stream);
                                         break;
                                     }
                                     Err(e) => {
+                                        if let Some(ref mut bar) = self.status_bar {
+                                            let _ = bar.resume();
+                                        }
                                         output::render_error(&format!("Failed to collect input: {}", e));
                                         cancel_token_clone.cancel();
                                         drop(stream);
@@ -1283,6 +1365,83 @@ impl CliSession {
     pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_session().await?;
         Ok(metadata.total_tokens)
+    }
+
+    /// Initialize status bar state from provider config
+    async fn init_status_bar_state(&mut self) {
+        if let Ok(provider) = self.agent.provider().await {
+            let model_config = provider.get_model_config();
+            let config = Config::global();
+            let provider_name = config
+                .get_goose_provider()
+                .unwrap_or_else(|_| "unknown".to_string());
+            let goose_mode = config
+                .get_goose_mode()
+                .map(|m| format!("{:?}", m).to_lowercase())
+                .unwrap_or_else(|_| "auto".to_string());
+
+            let extension_count = self
+                .agent
+                .list_extension_prompts(&self.session_id)
+                .await
+                .len();
+
+            if let Some(ref bar) = self.status_bar {
+                let _ = bar.update_state(|s| {
+                    s.model_name = model_config.model_name.clone();
+                    s.provider_name = provider_name;
+                    s.context_limit = model_config.context_limit();
+                    s.goose_mode = goose_mode;
+                    s.extension_count = extension_count;
+                    s.session_id = self.session_id.clone();
+                });
+            }
+        }
+    }
+
+    /// Update the status bar with current session metadata
+    async fn update_status_bar_state(&self) {
+        let provider = match self.agent.provider().await {
+            Ok(p) => p,
+            Err(_) => return,
+        };
+        let model_config = provider.get_model_config();
+        let context_limit = model_config.context_limit();
+        let config = Config::global();
+        let provider_name = config
+            .get_goose_provider()
+            .unwrap_or_else(|_| "unknown".to_string());
+        let show_cost = config
+            .get_param::<bool>("GOOSE_CLI_SHOW_COST")
+            .unwrap_or(false);
+        let goose_mode = config
+            .get_goose_mode()
+            .map(|m| format!("{:?}", m).to_lowercase())
+            .unwrap_or_else(|_| "auto".to_string());
+
+        if let Ok(metadata) = self.get_session().await {
+            let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
+            let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
+            let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
+
+            let cost = if show_cost {
+                output::estimate_session_cost(&provider_name, &model_config.model_name, input_tokens, output_tokens)
+            } else {
+                None
+            };
+
+            if let Some(ref bar) = self.status_bar {
+                let _ = bar.update_state(|s| {
+                    s.total_tokens = total_tokens;
+                    s.context_limit = context_limit;
+                    s.input_tokens = input_tokens;
+                    s.output_tokens = output_tokens;
+                    s.cost_usd = cost;
+                    s.goose_mode = goose_mode;
+                    s.model_name = model_config.model_name.clone();
+                });
+            }
+        }
     }
 
     /// Display enhanced context usage with session totals
