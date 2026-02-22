@@ -247,12 +247,23 @@ impl Hooks {
                 if text.trim().is_empty() {
                     Ok(Some(HookResult::default()))
                 } else {
-                    Ok(serde_json::from_str(text.trim())
-                        .map(Some)
-                        .unwrap_or_else(|e| {
-                            tracing::debug!("Hook output is not HookResult JSON: {}", e);
-                            None
-                        }))
+                    Ok(Some(serde_json::from_str(text.trim()).unwrap_or_else(
+                        |e| {
+                            tracing::debug!("MCP hook output is not HookResult JSON: {}", e);
+                            let mut context = text.trim().to_string();
+                            if context.len() > 32_768 {
+                                tracing::warn!(
+                                    "MCP hook output truncated from {} to 32KB",
+                                    context.len()
+                                );
+                                context.truncate(context.floor_char_boundary(32_768));
+                            }
+                            HookResult {
+                                additional_context: Some(context),
+                                ..Default::default()
+                            }
+                        },
+                    )))
                 }
             }
         }

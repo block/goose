@@ -457,6 +457,20 @@ impl Agent {
         Ok(tool_futures)
     }
 
+    async fn inject_hook_context(
+        session_id: &str,
+        context: String,
+        session_manager: &SessionManager,
+        conversation: &mut crate::conversation::Conversation,
+    ) -> Result<()> {
+        let msg = Message::user()
+            .with_text(context)
+            .with_visibility(false, true);
+        session_manager.add_message(session_id, &msg).await?;
+        conversation.push(msg);
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn run_post_compact_hook(
         &self,
@@ -487,13 +501,8 @@ impl Agent {
             .await
         {
             if let Some(context) = outcome.context {
-                let context_msg = Message::assistant()
-                    .with_text(context)
-                    .with_visibility(false, true);
-                session_manager
-                    .add_message(session_id, &context_msg)
+                Self::inject_hook_context(session_id, context, session_manager, conversation)
                     .await?;
-                conversation.push(context_msg);
             }
         }
         Ok(())
@@ -1217,14 +1226,26 @@ impl Agent {
                 session_id.clone(),
                 working_dir.to_string_lossy().to_string(),
             );
-            let _ = hooks
+            if let Ok(outcome) = hooks
                 .run(
                     invocation,
                     &self.extension_manager,
                     &working_dir,
                     cancel_token.clone().unwrap_or_default(),
                 )
-                .await;
+                .await
+            {
+                if let Some(ctx) = outcome.context {
+                    Self::inject_hook_context(
+                        &session_id,
+                        ctx,
+                        &session_manager,
+                        &mut conversation,
+                    )
+                    .await
+                    .ok();
+                }
+            }
         }
 
         // Fire UserPromptSubmit hook with the last user message
@@ -1253,6 +1274,11 @@ impl Agent {
                 return Ok(Box::pin(async_stream::try_stream! {
                     yield AgentEvent::Message(Message::assistant().with_text("Prompt blocked by hook."));
                 }));
+            }
+            if let Some(ctx) = outcome.context {
+                Self::inject_hook_context(&session_id, ctx, &session_manager, &mut conversation)
+                    .await
+                    .ok();
             }
         }
 
@@ -1520,14 +1546,19 @@ impl Agent {
                                                                                     tool_output,
                                                                                     working_dir.to_string_lossy().to_string(),
                                                                                 );
-                                                                                let _ = hooks
+                                                                                if let Ok(outcome) = hooks
                                                                                     .run(
                                                                                         invocation,
                                                                                         &self.extension_manager,
                                                                                         &working_dir,
                                                                                         cancel_token.clone().unwrap_or_default(),
                                                                                     )
-                                                                                    .await;
+                                                                                    .await
+                                                                                {
+                                                                                    if let Some(ctx) = outcome.context {
+                                                                                        Self::inject_hook_context(&session_config.id, ctx, &session_manager, &mut conversation).await.ok();
+                                                                                    }
+                                                                                }
                                                                             }
                                                                             Err(error_data) => {
                                                                                 let invocation = crate::hooks::HookInvocation::post_tool_use_failure(
@@ -1537,14 +1568,19 @@ impl Agent {
                                                                                     error_data.message.to_string(),
                                                                                     working_dir.to_string_lossy().to_string(),
                                                                                 );
-                                                                                let _ = hooks
+                                                                                if let Ok(outcome) = hooks
                                                                                     .run(
                                                                                         invocation,
                                                                                         &self.extension_manager,
                                                                                         &working_dir,
                                                                                         cancel_token.clone().unwrap_or_default(),
                                                                                     )
-                                                                                    .await;
+                                                                                    .await
+                                                                                {
+                                                                                    if let Some(ctx) = outcome.context {
+                                                                                        Self::inject_hook_context(&session_config.id, ctx, &session_manager, &mut conversation).await.ok();
+                                                                                    }
+                                                                                }
                                                                             }
                                                                         }
                                                                     }
