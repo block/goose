@@ -24,10 +24,14 @@ pub async fn inject_moim(
         .await
     {
         let mut messages = conversation.messages().clone();
-        let idx = messages
-            .iter()
-            .rposition(|m| m.role == Role::Assistant)
-            .unwrap_or(0);
+        let idx = if messages.last().is_some_and(|m| m.role == Role::Assistant) {
+            messages.len()
+        } else {
+            messages
+                .iter()
+                .rposition(|m| m.role == Role::Assistant)
+                .unwrap_or(0)
+        };
         messages.insert(idx, Message::user().with_text(moim));
 
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
@@ -102,6 +106,35 @@ mod tests {
         assert!(merged_content.contains("Hello"));
         assert!(merged_content.contains("<info-msg>"));
         assert!(merged_content.contains("Working directory: /test/dir"));
+    }
+
+    #[tokio::test]
+    async fn test_moim_injection_trailing_assistant() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        let working_dir = PathBuf::from("/test/dir");
+
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("Hi there"),
+            Message::user().with_text("Do something"),
+            Message::assistant().with_text("I'll do that now."),
+        ]);
+        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
+        let msgs = result.messages();
+
+        assert_eq!(
+            msgs.last().unwrap().role,
+            Role::User,
+            "Conversation must end with a user message"
+        );
+
+        let has_moim = msgs.iter().any(|m| {
+            m.content
+                .iter()
+                .any(|c| c.as_text().is_some_and(|t| t.contains("<info-msg>")))
+        });
+        assert!(has_moim, "MOIM should be injected");
     }
 
     #[tokio::test]
