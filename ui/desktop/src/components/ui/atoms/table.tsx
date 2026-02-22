@@ -46,6 +46,7 @@ export function Table({
             {columns.map((col) => (
               <th
                 key={col.key}
+                scope="col"
                 className={cn(
                   'px-4 py-2.5 font-medium text-text-muted text-left',
                   alignClass[col.align || 'left']
