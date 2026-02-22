@@ -9,6 +9,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::permission::PermissionLevel;
+use crate::hooks::Hooks;
 use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
 use rmcp::model::{Content, ServerNotification};
@@ -58,7 +59,7 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &'a Session,
         inspection_results: &'a [crate::tool_inspection::InspectionResult],
-        hooks: &'a Option<crate::hooks::Hooks>,
+        hooks: &'a Hooks,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
         for request in tool_requests.iter() {
@@ -100,35 +101,37 @@ impl Agent {
 
                         if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
                             // Fire PreToolUse hook — if blocked, treat as declined
-                            if let Some(ref hooks) = hooks {
-                                let invocation = crate::hooks::HookInvocation::pre_tool_use(
-                                    session.id.clone(),
-                                    tool_call.name.to_string(),
-                                    serde_json::to_value(&tool_call.arguments)
-                                        .unwrap_or(serde_json::Value::Null),
-                                    session.working_dir.to_string_lossy().to_string(),
-                                );
-                                let outcome = hooks
-                                    .run(invocation, &self.extension_manager, &session.working_dir)
-                                    .await
-                                    .unwrap_or_default();
-                                if outcome.blocked {
-                                    // Hook blocked — treat same as user declining
-                                    if let Some(response_msg) = request_to_response_map.get(&request.id) {
-                                        let mut response = response_msg.lock().await;
-                                        *response = response.clone().with_tool_response_with_metadata(
-                                            request.id.clone(),
-                                            Ok(rmcp::model::CallToolResult {
-                                                content: vec![Content::text("Tool execution blocked by hook")],
-                                                structured_content: None,
-                                                is_error: Some(true),
-                                                meta: None,
-                                            }),
-                                            request.metadata.as_ref(),
-                                        );
-                                    }
-                                    break;
+                            let invocation = crate::hooks::HookInvocation::pre_tool_use(
+                                session.id.clone(),
+                                tool_call.name.to_string(),
+                                serde_json::to_value(&tool_call.arguments)
+                                    .unwrap_or(serde_json::Value::Null),
+                                session.working_dir.to_string_lossy().to_string(),
+                            );
+                            let outcome = hooks
+                                .run(
+                                    invocation,
+                                    &self.extension_manager,
+                                    &session.working_dir,
+                                    cancellation_token.clone().unwrap_or_default(),
+                                )
+                                .await
+                                .unwrap_or_default();
+                            if outcome.blocked {
+                                // Hook blocked — treat same as user declining
+                                if let Some(response_msg) = request_to_response_map.get(&request.id) {
+                                    let mut response = response_msg.lock().await;
+                                    *response = response.clone().with_tool_response_with_metadata(
+                                        request.id.clone(),
+                                        Err(rmcp::model::ErrorData::new(
+                                            rmcp::model::ErrorCode::INTERNAL_ERROR,
+                                            "Tool execution blocked by hook".to_string(),
+                                            None,
+                                        )),
+                                        request.metadata.as_ref(),
+                                    );
                                 }
+                                break;
                             }
 
                             let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;

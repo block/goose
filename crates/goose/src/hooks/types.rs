@@ -85,8 +85,8 @@ pub struct HookInvocation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_count_after: Option<usize>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub manual_compact: Option<bool>,
+    #[serde(default)]
+    pub manual_compact: bool,
 }
 
 impl HookInvocation {
@@ -196,7 +196,7 @@ impl HookInvocation {
     ) -> Self {
         Self {
             message_count_before: Some(message_count_before),
-            manual_compact: Some(manual),
+            manual_compact: manual,
             cwd: Some(cwd),
             ..Self::base(HookEventKind::PreCompact, session_id)
         }
@@ -212,7 +212,7 @@ impl HookInvocation {
         Self {
             message_count_before: Some(message_count_before),
             message_count_after: Some(message_count_after),
-            manual_compact: Some(manual),
+            manual_compact: manual,
             cwd: Some(cwd),
             ..Self::base(HookEventKind::PostCompact, session_id)
         }

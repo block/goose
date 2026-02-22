@@ -15,9 +15,12 @@ pub struct Hooks {
 }
 
 impl Hooks {
-    pub fn load(working_dir: &Path) -> Result<Self> {
-        let settings = HookSettingsFile::load_merged(working_dir)?;
-        Ok(Self { settings })
+    pub fn load(working_dir: &Path) -> Self {
+        let settings = HookSettingsFile::load_merged(working_dir).unwrap_or_else(|e| {
+            tracing::debug!("No hooks config loaded: {}", e);
+            HookSettingsFile::default()
+        });
+        Self { settings }
     }
 
     pub async fn run(
@@ -25,6 +28,7 @@ impl Hooks {
         invocation: HookInvocation,
         extension_manager: &crate::agents::extension_manager::ExtensionManager,
         working_dir: &Path,
+        cancel_token: CancellationToken,
     ) -> Result<HooksOutcome> {
         let event_configs = self.settings.get_hooks_for_event(invocation.event);
 
@@ -37,8 +41,14 @@ impl Hooks {
             }
 
             for action in &config.hooks {
-                match Self::execute_action(action, &invocation, extension_manager, working_dir)
-                    .await
+                match Self::execute_action(
+                    action,
+                    &invocation,
+                    extension_manager,
+                    working_dir,
+                    cancel_token.clone(),
+                )
+                .await
                 {
                     Ok(Some(result)) => {
                         if let Some(HookDecision::Block) = result.decision {
@@ -74,17 +84,6 @@ impl Hooks {
         Ok(outcome)
     }
 
-    pub async fn fire(
-        &self,
-        invocation: HookInvocation,
-        extension_manager: &crate::agents::extension_manager::ExtensionManager,
-        working_dir: &Path,
-    ) {
-        if let Err(e) = self.run(invocation, extension_manager, working_dir).await {
-            tracing::warn!("Hook fire failed: {}", e);
-        }
-    }
-
     // Dispatches hook actions directly via ExtensionManager, bypassing tool inspection
     // and approval prompts. This is intentional: hooks are a privileged execution path
     // configured by the user (global) or opted-in (project). Running hooks through the
@@ -94,9 +93,9 @@ impl Hooks {
         invocation: &HookInvocation,
         extension_manager: &crate::agents::extension_manager::ExtensionManager,
         working_dir: &Path,
+        cancel_token: CancellationToken,
     ) -> Result<Option<HookResult>> {
         let (tool_call, timeout_secs) = Self::build_tool_call(action, invocation)?;
-        let cancel_token = CancellationToken::new();
 
         let tool_call_result = extension_manager
             .dispatch_tool_call(
@@ -107,18 +106,22 @@ impl Hooks {
             )
             .await?;
 
-        let result =
-            tokio::time::timeout(Duration::from_secs(timeout_secs), tool_call_result.result).await;
-
-        match result {
-            Ok(Ok(call_result)) => Self::parse_result(call_result, action, invocation.event),
-            Ok(Err(e)) => {
-                tracing::warn!("Hook tool call failed: {}, failing open", e);
-                Ok(None)
+        tokio::select! {
+            result = tokio::time::timeout(Duration::from_secs(timeout_secs), tool_call_result.result) => {
+                match result {
+                    Ok(Ok(call_result)) => Self::parse_result(call_result, action, invocation.event),
+                    Ok(Err(e)) => {
+                        tracing::warn!("Hook tool call failed: {}, failing open", e);
+                        Ok(None)
+                    }
+                    Err(_) => {
+                        tracing::warn!("Hook timed out after {}s, failing open", timeout_secs);
+                        Ok(None)
+                    }
+                }
             }
-            Err(_) => {
-                cancel_token.cancel();
-                tracing::warn!("Hook timed out after {}s, failing open", timeout_secs);
+            _ = cancel_token.cancelled() => {
+                tracing::info!("Hook cancelled by session cancellation");
                 Ok(None)
             }
         }
@@ -269,9 +272,10 @@ impl Hooks {
                 .notification_type
                 .as_ref()
                 .is_some_and(|t| t.contains(pattern)),
-            PreCompact | PostCompact => invocation.manual_compact.is_some_and(|manual| {
-                (manual && pattern == "manual") || (!manual && pattern == "auto")
-            }),
+            PreCompact | PostCompact => {
+                (invocation.manual_compact && pattern == "manual")
+                    || (!invocation.manual_compact && pattern == "auto")
+            }
             _ => true,
         }
     }
@@ -279,7 +283,7 @@ impl Hooks {
     /// Match a tool invocation against a Claude Code-style matcher pattern.
     /// Supports:
     ///   "Bash" or "Bash(...)" — maps to developer__shell, optionally matching command content
-    ///   "tool_name" — direct tool name substring match (goose-native)
+    ///   "tool_name" — direct tool name match (goose-native)
     fn matches_tool(pattern: &str, invocation: &HookInvocation) -> bool {
         let tool_name = match &invocation.tool_name {
             Some(name) => name,
@@ -288,14 +292,14 @@ impl Hooks {
 
         // Claude Code "Bash" / "Bash(pattern)" syntax
         if pattern == "Bash" {
-            return tool_name.contains("shell");
+            return tool_name == "developer__shell";
         }
 
         if let Some(inner) = pattern
             .strip_prefix("Bash(")
             .and_then(|s| s.strip_suffix(')'))
         {
-            if !tool_name.contains("shell") {
+            if tool_name != "developer__shell" {
                 return false;
             }
             // Match the inner pattern against the command argument
@@ -310,17 +314,12 @@ impl Hooks {
         }
 
         // Direct tool name match (goose-native: "developer__shell", "slack__post_message", etc.)
-        tool_name.contains(pattern)
+        tool_name == pattern
     }
 
-    /// Simple glob matching: only supports trailing * (prefix match).
-    /// "git push*" matches "git push origin main"
-    /// "git push" matches exactly "git push"
     fn glob_match(pattern: &str, text: &str) -> bool {
-        if let Some(prefix) = pattern.strip_suffix('*') {
-            text.starts_with(prefix)
-        } else {
-            text == pattern
-        }
+        glob::Pattern::new(pattern)
+            .map(|p| p.matches(text))
+            .unwrap_or(false)
     }
 }
