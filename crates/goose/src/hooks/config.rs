@@ -49,7 +49,33 @@ pub struct HookEventConfig {
     #[serde(default)]
     pub matcher: Option<String>,
 
+    #[serde(deserialize_with = "deserialize_hooks_skip_unknown")]
     pub hooks: Vec<HookAction>,
+}
+
+fn deserialize_hooks_skip_unknown<'de, D>(deserializer: D) -> Result<Vec<HookAction>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
+    let mut actions = Vec::new();
+    for value in raw {
+        match value.get("type").and_then(|t| t.as_str()) {
+            Some("command") | Some("mcp_tool") => match serde_json::from_value(value) {
+                Ok(action) => actions.push(action),
+                Err(e) => {
+                    tracing::warn!("Invalid hook action config: {}", e);
+                }
+            },
+            Some(other) => {
+                tracing::warn!("Unsupported hook action type '{}', skipping", other);
+            }
+            None => {
+                tracing::warn!("Hook action missing 'type' field, skipping");
+            }
+        }
+    }
+    Ok(actions)
 }
 
 #[derive(Debug, Clone, Deserialize)]
