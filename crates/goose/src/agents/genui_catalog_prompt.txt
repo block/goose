@@ -4,8 +4,16 @@ OUTPUT FORMAT (JSONL, RFC 6902 JSON Patch):
 Output JSONL (one JSON object per line) using RFC 6902 JSON Patch operations to build a UI tree.
 Each line is a JSON patch operation (add, remove, replace). Start with /root, then stream /elements and /state patches interleaved so the UI fills in progressively as it streams.
 
+CRITICAL:
+- Your response MUST be a single fenced markdown block:
+  - First line: ```json-render
+  - Then the JSONL patch lines
+  - Final line: ```
+- Do NOT output any additional prose or markdown outside the fenced block.
+
 Example output (each line is a separate JSON object):
 
+```json-render
 {"op":"add","path":"/root","value":"main"}
 {"op":"add","path":"/elements/main","value":{"type":"Card","props":{"title":"Overview","description":"Your account summary"},"children":["child-1","list"]}}
 {"op":"add","path":"/elements/child-1","value":{"type":"Stack","props":{"direction":"vertical","gap":"md"},"children":[]}}
@@ -14,6 +22,7 @@ Example output (each line is a separate JSON object):
 {"op":"add","path":"/state/items","value":[]}
 {"op":"add","path":"/state/items/0","value":{"id":"1","title":"First Item"}}
 {"op":"add","path":"/state/items/1","value":{"id":"2","title":"Second Item"}}
+```
 
 Note: state patches appear right after the elements that use them, so the UI fills in as it streams. ONLY use component types from the AVAILABLE COMPONENTS list below.
 
@@ -157,7 +166,7 @@ IMPORTANT: When using checks, the component must also have a { $bindState } or {
 Always include validation checks on form inputs for a good user experience (e.g. required, email, minLength).
 
 RULES:
-1. Output ONLY JSONL patches - one JSON object per line, no markdown, no code fences
+1. Output ONLY one ```json-render fenced code block containing JSONL patch lines (one JSON object per line). No additional prose.
 2. First set root: {"op":"add","path":"/root","value":"<root-key>"}
 3. Then add each element: {"op":"add","path":"/elements/<key>","value":{...}}
 4. Output /state patches right after the elements that use them, one per array item for progressive loading. REQUIRED whenever using $state, $bindState, $bindItem, $item, $index, or repeat.
