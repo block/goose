@@ -17,6 +17,7 @@
 
 import type { Spec } from '@json-render/react';
 import { isGooseUISpec } from '../components/ui/design-system/goose-renderer';
+import { looksLikeJsonRenderSpec } from './jsonRenderDetection';
 
 interface ExtractedSpec {
   spec: Spec;
@@ -91,6 +92,10 @@ export function extractGenerativeSpec(text: string): ExtractedSpec | null {
  * Covers all 3 formats to prevent raw JSON from showing.
  */
 export function hasPartialGenerativeSpec(text: string): boolean {
+  // If the content is a complete json-render spec (jsonl or json object), don't treat it as partial.
+  if (looksLikeJsonRenderSpec(text)) {
+    return false;
+  }
   // If we already have a complete spec, it's not partial
   if (FENCED_BLOCK_RE.test(text) || XML_TAG_RE.test(text) || FENCED_JSONRENDER_RE.test(text)) {
     return false;

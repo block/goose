@@ -9,7 +9,7 @@
 const JSON_RENDER_FENCE_START = '```json-render\n';
 const JSON_RENDER_FENCE_END = '\n```';
 
-function looksLikeJsonlPatch(text: string): boolean {
+export function looksLikeJsonlPatch(text: string): boolean {
   const trimmed = text.trimStart();
   if (trimmed.startsWith('```')) return false;
   if (!trimmed.startsWith('{"op"')) return false;
@@ -42,6 +42,34 @@ function looksLikeJsonlPatch(text: string): boolean {
   }
 
   return parsed >= 2 && hasRootOrElements;
+}
+
+function looksLikeNestedOrFlatSpec(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false;
+
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!parsed || typeof parsed !== 'object') return false;
+
+    // Flat spec: { root: string, elements: {...} }
+    const asAny = parsed as { root?: unknown; elements?: unknown };
+    if (typeof asAny.root === 'string' && asAny.elements && typeof asAny.elements === 'object') {
+      return true;
+    }
+
+    // Nested root element: { type: string, props, children }
+    const maybeElement = parsed as { type?: unknown };
+    if (typeof maybeElement.type === 'string') return true;
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+export function looksLikeJsonRenderSpec(text: string): boolean {
+  return looksLikeJsonlPatch(text) || looksLikeNestedOrFlatSpec(text);
 }
 
 export function wrapBareJsonRender(text: string): string {
