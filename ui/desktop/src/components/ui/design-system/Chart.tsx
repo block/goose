@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -44,16 +44,25 @@ function ChartInner({
   xKey,
   yKeys,
   height = 180,
-  title,
   colors = CHART_COLORS,
   className,
 }: ChartProps) {
   const effectiveHeight = Math.min(height, MAX_HEIGHT);
 
+  if (type === 'pie' && yKeys.length === 0) {
+    return (
+      <div
+        className={`flex items-center justify-center rounded bg-background-muted text-xs text-text-muted ${className ?? ''}`}
+        style={{ height: effectiveHeight }}
+      >
+        No data keys provided
+      </div>
+    );
+  }
+
   if (type === 'pie') {
     return (
       <div className={`space-y-1 ${className ?? ''}`}>
-        {title && <h4 className="text-xs font-medium text-text-muted">{title}</h4>}
         <ResponsiveContainer width="100%" height={effectiveHeight}>
           <PieChart>
             <Pie data={data} dataKey={yKeys[0]} nameKey={xKey} cx="50%" cy="50%" outerRadius={60}>
@@ -84,7 +93,6 @@ function ChartInner({
 
   return (
     <div className={`space-y-1 ${className ?? ''}`}>
-      {title && <h4 className="text-xs font-medium text-text-muted">{title}</h4>}
       <ResponsiveContainer width="100%" height={effectiveHeight}>
         <ChartComponent data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
@@ -118,10 +126,17 @@ function ChartInner({
 export function Chart(props: ChartProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
+  const titleId = useId();
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setVisible(true);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -138,25 +153,35 @@ export function Chart(props: ChartProps) {
   const effectiveHeight = Math.min(props.height ?? 180, MAX_HEIGHT);
 
   const ariaLabel = props.title
-    ? `${props.title} (${props.type} chart)`
-    : `${props.type} chart: ${props.yKeys.join(', ')} by ${props.xKey}`;
+    ? undefined
+    : `${props.type} chart: ${props.yKeys.join(', ') || 'values'} by ${props.xKey}`;
 
   return (
-    <div
+    <figure
       ref={ref}
-      role="img"
-      aria-label={ariaLabel}
       className="overflow-hidden"
       style={{ minHeight: effectiveHeight, maxHeight: effectiveHeight + 24 }}
     >
-      {visible ? (
-        <ChartInner {...props} />
-      ) : (
-        <div
-          className="animate-pulse rounded bg-background-muted"
-          style={{ height: effectiveHeight }}
-        />
+      {props.title && (
+        <figcaption id={titleId} className="text-xs font-medium text-text-muted mb-1">
+          {props.title}
+        </figcaption>
       )}
-    </div>
+      <div
+        role="img"
+        {...(props.title
+          ? { 'aria-labelledby': titleId }
+          : { 'aria-label': ariaLabel ?? `${props.type} chart` })}
+      >
+        {visible ? (
+          <ChartInner {...props} />
+        ) : (
+          <div
+            className="animate-pulse rounded bg-background-muted"
+            style={{ height: effectiveHeight }}
+          />
+        )}
+      </div>
+    </figure>
   );
 }
