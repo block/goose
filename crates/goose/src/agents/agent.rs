@@ -1617,10 +1617,20 @@ impl Agent {
                     }
                 }
 
+                let conversation_mutated = !messages_to_add.is_empty();
                 for msg in &messages_to_add {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
+
+                // Notify the UI of conversation changes so its local state stays
+                // in sync with the server. Without this, the client may send back
+                // stale conversation_so_far on the next turn, overwriting server-side
+                // metadata mutations (e.g. from tool-pair summarization).
+                if conversation_mutated && !did_recovery_compact_this_iteration {
+                    yield AgentEvent::HistoryReplaced(conversation.clone());
+                }
+
                 if exit_chat {
                     break;
                 }
