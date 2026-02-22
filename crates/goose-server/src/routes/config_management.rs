@@ -458,13 +458,13 @@ pub struct PricingQuery {
 pub async fn get_pricing(
     Json(query): Json<PricingQuery>,
 ) -> Result<Json<PricingResponse>, ErrorResponse> {
-    let canonical_model =
-        maybe_get_canonical_model(&query.provider, &query.model).ok_or_else(|| {
-            ErrorResponse::not_found(format!(
-                "Model '{}/{}' not found",
-                query.provider, query.model
-            ))
-        })?;
+    let Some(canonical_model) = maybe_get_canonical_model(&query.provider, &query.model) else {
+        // Pricing is best-effort in the UI; avoid 404 noise in the console.
+        return Ok(Json(PricingResponse {
+            pricing: Vec::new(),
+            source: "canonical".to_string(),
+        }));
+    };
 
     let mut pricing_data = Vec::new();
 

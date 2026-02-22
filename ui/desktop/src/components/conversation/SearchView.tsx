@@ -2,6 +2,7 @@ import debounce from 'lodash/debounce';
 import type { PropsWithChildren } from 'react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SearchHighlighter } from '../../utils/searchHighlighter';
+import { onFindEvent } from '../../utils/findEvents';
 import SearchBar from './SearchBar';
 
 /**
@@ -346,19 +347,18 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
   // Listen for Find menu commands
   useEffect(() => {
-    window.electron.on('find-command', handleFindCommand);
-    window.electron.on('find-next', handleFindNext);
-    window.electron.on('find-previous', handleFindPrevious);
-    window.electron.on('use-selection-find', handleUseSelectionFind);
+    const offCommand = onFindEvent('command', handleFindCommand);
+    const offNext = onFindEvent('next', handleFindNext);
+    const offPrevious = onFindEvent('previous', handleFindPrevious);
+    const offUseSelection = onFindEvent('use-selection', handleUseSelectionFind);
 
     return () => {
-      window.electron.off('find-command', handleFindCommand);
-      window.electron.off('find-next', handleFindNext);
-      window.electron.off('find-previous', handleFindPrevious);
-      window.electron.off('use-selection-find', handleUseSelectionFind);
+      offCommand();
+      offNext();
+      offPrevious();
+      offUseSelection();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleFindCommand, handleFindNext, handleFindPrevious, handleUseSelectionFind]); // Empty dependency array - handlers are stable due to useCallback and useRef
+  }, [handleFindCommand, handleFindNext, handleFindPrevious, handleUseSelectionFind]);
 
   return (
     <div
