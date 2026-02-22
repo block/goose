@@ -158,13 +158,10 @@ describe('Component Registry — End-to-End Rendering', () => {
 
     it('renders Table with data', () => {
       const spec = nestedSpec('Table', {
-        columns: [
-          { key: 'name', label: 'Name' },
-          { key: 'count', label: 'Count', align: 'right' },
-        ],
+        columns: ['Name', 'Count'],
         rows: [
-          { name: 'Atoms', count: '14' },
-          { name: 'Molecules', count: '14' },
+          ['Atoms', '14'],
+          ['Molecules', '14'],
         ],
       });
       render(<JsonRenderBlock spec={spec} />);
@@ -404,17 +401,13 @@ describe('Component Registry — End-to-End Rendering', () => {
         table: {
           type: 'Table',
           props: {
-            columns: [
-              { key: 'dir', label: 'Directory' },
-              { key: 'files', label: 'Files', align: 'right' },
-            ],
+            columns: ['Directory', 'Files'],
             rows: [
-              { dir: 'icons', files: '77' },
-              { dir: 'settings', files: '74' },
-              { dir: 'ui', files: '51' },
-              { dir: 'recipes', files: '17' },
+              ['icons', '77'],
+              ['settings', '74'],
+              ['ui', '51'],
+              ['recipes', '17'],
             ],
-            striped: true,
           },
         },
       });
