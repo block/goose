@@ -1608,8 +1608,15 @@ impl ExtensionManager {
             working_dir.display()
         );
 
-        if let Ok(session) = self.context.session_manager.get_session(session_id, false).await {
-            if let (Some(total), Some(config)) = (session.total_tokens, session.model_config.as_ref()) {
+        if let Ok(session) = self
+            .context
+            .session_manager
+            .get_session(session_id, false)
+            .await
+        {
+            if let (Some(total), Some(config)) =
+                (session.total_tokens, session.model_config.as_ref())
+            {
                 let limit = config.context_limit();
                 if total > 0 && limit > 0 {
                     let pct = (total as f64 / limit as f64 * 100.0).round() as u32;
