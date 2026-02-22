@@ -105,7 +105,7 @@ export default function SettingsView({
               className="h-full flex flex-col"
             >
               <div className="px-1">
-                <TabsList className="w-full mb-2 justify-start">
+                <TabsList className="w-full mb-2 justify-start overflow-x-auto flex-nowrap">
                   <TabsTrigger
                     value="models"
                     className="flex gap-2"

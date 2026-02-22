@@ -6,7 +6,6 @@ import SuspenseLoader from './suspense-loader';
 import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
-
 const App = lazy(() => import('./App'));
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';

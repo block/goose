@@ -27,25 +27,19 @@ export default function SessionSharingSection() {
     sessionSharingConfig.enabled &&
     isValidUrl(String(sessionSharingConfig.baseUrl));
 
-  // Only load saved config from localStorage if the env variable is not provided.
+  // Only load saved config from settings if the env variable is not provided.
   useEffect(() => {
     if (envBaseUrlShare) {
-      // If env variable is set, save the forced configuration to localStorage
+      // If env variable is set, save the forced configuration to settings
       const forcedConfig = {
         enabled: true,
         baseUrl: typeof envBaseUrlShare === 'string' ? envBaseUrlShare : '',
       };
-      localStorage.setItem('session_sharing_config', JSON.stringify(forcedConfig));
+      window.electron.setSetting('sessionSharing', forcedConfig);
     } else {
-      const savedSessionConfig = localStorage.getItem('session_sharing_config');
-      if (savedSessionConfig) {
-        try {
-          const config = JSON.parse(savedSessionConfig);
-          setSessionSharingConfig(config);
-        } catch (error) {
-          console.error('Error parsing session sharing config:', error);
-        }
-      }
+      window.electron.getSetting('sessionSharing').then((config) => {
+        setSessionSharingConfig(config);
+      });
     }
   }, [envBaseUrlShare]);
 
@@ -61,20 +55,18 @@ export default function SessionSharingSection() {
   }
 
   // Toggle sharing (only allowed when env is not set).
-  const toggleSharing = () => {
+  const toggleSharing = async () => {
     if (envBaseUrlShare) {
       return; // Do nothing if the environment variable forces sharing.
     }
-    setSessionSharingConfig((prev) => {
-      const updated = { ...prev, enabled: !prev.enabled };
-      localStorage.setItem('session_sharing_config', JSON.stringify(updated));
-      trackSettingToggled('session_sharing', updated.enabled);
-      return updated;
-    });
+    const updated = { ...sessionSharingConfig, enabled: !sessionSharingConfig.enabled };
+    setSessionSharingConfig(updated);
+    await window.electron.setSetting('sessionSharing', updated);
+    trackSettingToggled('session_sharing', updated.enabled);
   };
 
   // Handle changes to the base URL field
-  const handleBaseUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBaseUrlChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newBaseUrl = e.target.value;
     setSessionSharingConfig((prev) => ({
       ...prev,
@@ -87,7 +79,7 @@ export default function SessionSharingSection() {
     if (isValidUrl(newBaseUrl)) {
       setUrlError('');
       const updated = { ...sessionSharingConfig, baseUrl: newBaseUrl };
-      localStorage.setItem('session_sharing_config', JSON.stringify(updated));
+      await window.electron.setSetting('sessionSharing', updated);
     } else {
       setUrlError('Invalid URL format. Please enter a valid URL (e.g. https://example.com/api).');
     }

@@ -30,8 +30,8 @@ import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
-import type { Settings } from './utils/settings';
-import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
+import type { Settings, SettingKey } from './utils/settings';
+import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
@@ -57,18 +57,27 @@ function shouldSetupUpdater(): boolean {
 // Settings management
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
-const defaultSettings: Settings = {
-  showMenuBarIcon: true,
-  showDockIcon: true,
-  enableWakelock: false,
-  spellcheckEnabled: true,
-  keyboardShortcuts: defaultKeyboardShortcuts,
-};
-
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
     const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    return JSON.parse(data);
+    const stored = JSON.parse(data) as Partial<Settings>;
+    // Deep merge to ensure nested objects get their defaults too
+    return {
+      ...defaultSettings,
+      ...stored,
+      externalGoosed: {
+        ...defaultSettings.externalGoosed,
+        ...(stored.externalGoosed ?? {}),
+      },
+      keyboardShortcuts: {
+        ...defaultSettings.keyboardShortcuts,
+        ...(stored.keyboardShortcuts ?? {}),
+      },
+      sessionSharing: {
+        ...defaultSettings.sessionSharing,
+        ...(stored.sessionSharing ?? {}),
+      },
+    };
   }
   return defaultSettings;
 }
@@ -1192,25 +1201,44 @@ ipcMain.handle('add-recent-dir', (_event, dir: string) => {
   }
 });
 
-// Handle scheduling engine settings
-ipcMain.handle('get-settings', () => {
-  return getSettings(); // Always returns Settings (uses defaults as fallback)
+ipcMain.handle('get-setting', (_event, key: SettingKey) => {
+  const settings = getSettings();
+  return settings[key];
 });
 
-ipcMain.handle('save-settings', (_event, settings) => {
-  const oldSettings = getSettings();
+// Valid setting keys for runtime validation
+const validSettingKeys: Set<string> = new Set([
+  'showMenuBarIcon',
+  'showDockIcon',
+  'enableWakelock',
+  'spellcheckEnabled',
+  'externalGoosed',
+  'globalShortcut',
+  'keyboardShortcuts',
+  'theme',
+  'useSystemTheme',
+  'responseStyle',
+  'showPricing',
+  'sessionSharing',
+  'seenAnnouncementIds',
+]);
 
-  const oldShortcuts = getKeyboardShortcuts(oldSettings);
-  const newShortcuts = getKeyboardShortcuts(settings);
-  const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
-
-  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-
-  if (shortcutsChanged) {
-    registerGlobalShortcuts();
+ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
+  // Validate key at runtime to prevent prototype pollution
+  if (!validSettingKeys.has(key)) {
+    console.error(`Invalid setting key rejected: ${key}`);
+    return;
   }
 
-  return true;
+  const settings = getSettings();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (settings as any)[key] = value;
+  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+
+  // Re-register shortcuts if keyboard shortcuts changed
+  if (key === 'keyboardShortcuts') {
+    registerGlobalShortcuts();
+  }
 });
 
 ipcMain.handle('get-secret-key', () => {
