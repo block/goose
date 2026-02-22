@@ -15,7 +15,7 @@ services:
       - ~/.ssh:/root/.ssh:ro
     working_dir: /root/workspace
     environment:
-      - OOSE_HOME=/root/.goose
+      - GOOSE_HOME=/root/.goose
       # Set default editor
       - EDITOR=vim
       # Preserve git author info
