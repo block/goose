@@ -151,7 +151,7 @@ impl AppsManagerClient {
                     "- **json-render code blocks**: Render visual components inline in chat using Radix UI. ",
                     "Use for data visualization, summaries, diagrams, tables (e.g. 'show me this as a table', 'visualize the architecture').\n\n",
                     "Quick rule: 'Build/create an app' → apps extension. 'Show/visualize/display' → json-render code block.\n\n",
-                    "To use json-render, output a fenced code block with language `json-render` containing a JSON spec ",
+                    "To use json-render, output the JSON spec (nested JSON or JSONL patches). Markdown fences are optional; if you use a fence, set the language to `json-render`. ",
                     "with a `root` element tree using components like Card, Stack, Grid, Heading, Text, Badge, Table, ",
                     "Tabs, Button, Progress, Alert, etc.",
                 ).to_string(),
