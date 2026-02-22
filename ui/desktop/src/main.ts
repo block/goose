@@ -448,6 +448,14 @@ const getBundledConfig = (): BundledConfig => {
 const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
   getBundledConfig();
 
+const resolveGoosePathRoot = (): string | undefined => {
+  const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
+  if (pathRoot) {
+    return expandTilde(pathRoot);
+  }
+  return undefined;
+};
+
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 
 const getServerSecret = (settings: Settings): string => {
@@ -465,6 +473,7 @@ let appConfig = {
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
   GOOSE_API_HOST: 'http://127.0.0.1',
+  GOOSE_PATH_ROOT: resolveGoosePathRoot(),
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -495,7 +504,9 @@ const createChat = async (
   const goosedResult = await startGoosed({
     serverSecret,
     dir: dir || os.homedir(),
-    env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
+    env: {
+      GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+    },
     externalGoosed: settings.externalGoosed,
     isPackaged: app.isPackaged,
     resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
