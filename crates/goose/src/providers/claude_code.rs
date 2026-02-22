@@ -730,7 +730,8 @@ impl Provider for ClaudeCodeProvider {
                         req_id,
                         PermissionResponse::Deny { message: "Stream cancelled".to_string() },
                     );
-                    let mut s = serde_json::to_string(&resp).unwrap();
+                    let mut s = serde_json::to_string(&resp)
+                        .expect("Failed to serialize cleanup deny response");
                     s.push('\n');
                     let _ = process.stdin.write_all(s.as_bytes()).await;
                 }
@@ -870,7 +871,9 @@ impl Provider for ClaudeCodeProvider {
                                             },
                                         };
                                         let resp = ControlResponse::success(request_id, perm_resp);
-                                        let mut resp_str = serde_json::to_string(&resp).unwrap();
+                                        let mut resp_str = serde_json::to_string(&resp).map_err(|e| {
+                                            ProviderError::RequestFailed(format!("Failed to serialize permission response: {e}"))
+                                        })?;
                                         tracing::debug!(json = %resp_str, "can_use_tool control_response sent");
                                         resp_str.push('\n');
                                         process.stdin.write_all(resp_str.as_bytes()).await.map_err(|e| {
