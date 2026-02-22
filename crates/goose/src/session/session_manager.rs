@@ -491,6 +491,9 @@ fn is_sqlite_foreign_key_error(err: &sqlx::Error) -> bool {
     let sqlx::Error::Database(db_err) = err else {
         return false;
     };
+
+    // SQLite uses extended result codes. The foreign key constraint failed
+    // error is commonly surfaced by sqlx as code 787.
     db_err.code().is_some_and(|c| c == "787")
 }
 

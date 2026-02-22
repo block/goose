@@ -28,6 +28,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     }
                     text_content.push_str(&text.text);
                 }
+                MessageContent::JsonRenderSpec(spec) => {
+                    if !text_content.is_empty() {
+                        text_content.push('\n');
+                    }
+                    text_content.push_str(&spec.spec);
+                }
                 MessageContent::ToolRequest(_tool_request) => {
                     // Skip tool requests in message formatting - tools are handled separately
                     // through the tools parameter in the API request

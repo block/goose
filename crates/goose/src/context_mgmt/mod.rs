@@ -63,10 +63,12 @@ pub async fn compact_messages(
     let messages = conversation.messages();
 
     let has_text_only = |msg: &Message| {
-        let has_text = msg
-            .content
-            .iter()
-            .any(|c| matches!(c, MessageContent::Text(_)));
+        let has_text = msg.content.iter().any(|c| {
+            matches!(
+                c,
+                MessageContent::Text(_) | MessageContent::JsonRenderSpec(_)
+            )
+        });
         let has_tool_content = msg.content.iter().any(|c| {
             matches!(
                 c,
@@ -80,12 +82,10 @@ pub async fn compact_messages(
         let text_parts: Vec<String> = msg
             .content
             .iter()
-            .filter_map(|c| {
-                if let MessageContent::Text(text) = c {
-                    Some(text.text.clone())
-                } else {
-                    None
-                }
+            .filter_map(|c| match c {
+                MessageContent::Text(text) => Some(text.text.clone()),
+                MessageContent::JsonRenderSpec(spec) => Some(spec.spec.clone()),
+                _ => None,
             })
             .collect();
 
@@ -339,6 +339,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
         .map(|content| match content {
             MessageContent::Text(text) => text.text.clone(),
             MessageContent::Image(img) => format!("[image: {}]", img.mime_type),
+            MessageContent::JsonRenderSpec(spec) => spec.spec.clone(),
             MessageContent::ToolRequest(req) => {
                 if let Ok(call) = &req.tool_call {
                     format!(

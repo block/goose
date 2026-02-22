@@ -9,5 +9,7 @@ src/bin/goose-npm/
 /test-results/
 /src/bin/temporal-service
 src/bin/temporal.db
+# transient local crash logs from openapi-ts
+openapi-ts-error-*.log
 # Signing credentials
 .env.signing

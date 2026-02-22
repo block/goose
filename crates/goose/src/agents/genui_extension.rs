@@ -86,16 +86,16 @@ impl GenUiClient {
             - **apps**: \"Build me an app\", \"create a tool I can reuse\" → standalone window\n\
             \n\
             ## IMPORTANT: How to render visuals\n\
-            To show visual components to the user, include a ```json-render fenced code block \
-            DIRECTLY in your text response. Do NOT rely on the genui__render tool result being \
-            visible — tool results are collapsed. Always copy the spec into your response text.\n\
+            To show visual components to the user, include the json-render JSONL spec directly in \
+            your text response. Do NOT rely on the genui__render tool result being visible — tool \
+            results are collapsed.\n\
+            \n\
+            Markdown fences are optional. If you use a fence, it MUST be ```json-render.\n\
             \n\
             Example workflow:\n\
             1. Gather data using developer tools\n\
             2. Call `genui__render` to VALIDATE your spec (optional)\n\
-            3. Include the ```json-render code block in your response text\n\
-            \n\
-            The user sees your text response, so the code block MUST be there.\n\
+            3. Output the JSONL spec in your response (fenced or unfenced)\n\
             \n\
             ## Component Catalog\n\
             {CATALOG_PROMPT}\n"

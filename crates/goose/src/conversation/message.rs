@@ -151,6 +151,11 @@ pub struct RedactedThinkingContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct JsonRenderSpecContent {
+    pub spec: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FrontendToolRequest {
     pub id: String,
@@ -181,6 +186,7 @@ pub struct SystemNotificationContent {
 pub enum MessageContent {
     Text(TextContent),
     Image(ImageContent),
+    JsonRenderSpec(JsonRenderSpecContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
     ToolConfirmationRequest(ToolConfirmationRequest),
@@ -196,6 +202,7 @@ impl fmt::Display for MessageContent {
         match self {
             MessageContent::Text(t) => write!(f, "{}", t.text),
             MessageContent::Image(i) => write!(f, "[Image: {}]", i.mime_type),
+            MessageContent::JsonRenderSpec(_s) => write!(f, "[JsonRenderSpec]"),
             MessageContent::ToolRequest(r) => {
                 write!(f, "[ToolRequest: {}]", r.to_readable_string())
             }
@@ -296,7 +303,9 @@ impl MessageContent {
                     metadata: res.metadata.clone(),
                 }))
             }
-            MessageContent::Thinking(_) | MessageContent::RedactedThinking(_) => None,
+            MessageContent::Thinking(_)
+            | MessageContent::RedactedThinking(_)
+            | MessageContent::JsonRenderSpec(_) => None,
             _ => Some(self.clone()),
         }
     }
@@ -310,6 +319,10 @@ impl MessageContent {
             }
             .no_annotation(),
         )
+    }
+
+    pub fn json_render_spec<S: Into<String>>(spec: S) -> Self {
+        MessageContent::JsonRenderSpec(JsonRenderSpecContent { spec: spec.into() })
     }
 
     pub fn tool_request<S: Into<String>>(
@@ -495,6 +508,13 @@ impl MessageContent {
     pub fn as_text(&self) -> Option<&str> {
         match self {
             MessageContent::Text(text) => Some(&text.text),
+            _ => None,
+        }
+    }
+
+    pub fn as_json_render_spec(&self) -> Option<&JsonRenderSpecContent> {
+        match self {
+            MessageContent::JsonRenderSpec(spec) => Some(spec),
             _ => None,
         }
     }
@@ -890,6 +910,104 @@ impl Message {
                 }
             })
             .collect();
+        self
+    }
+
+    /// Extract `json-render` specs out of assistant text so UIs can render them
+    /// without relying on markdown code fences.
+    ///
+    /// Behavior:
+    /// - If the message contains ```json-render fenced blocks, extract the fenced
+    ///   content into `MessageContent::JsonRenderSpec` and remove it from the text.
+    /// - If the text content appears to be *only* a json-render spec (JSONL patches
+    ///   or JSON object with `root`), convert the whole text into `JsonRenderSpec`.
+    pub fn extract_json_render_specs(mut self) -> Self {
+        if self.role != Role::Assistant {
+            return self;
+        }
+
+        fn looks_like_jsonl_patch(spec: &str) -> bool {
+            let first_line = spec
+                .lines()
+                .find(|l| !l.trim().is_empty())
+                .unwrap_or("")
+                .trim();
+            if !first_line.starts_with('{') {
+                return false;
+            }
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(first_line) else {
+                return false;
+            };
+            v.get("op").and_then(|op| op.as_str()).is_some()
+        }
+
+        fn looks_like_json_render_json(spec: &str) -> bool {
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(spec.trim()) else {
+                return false;
+            };
+            let Some(root) = v.get("root") else {
+                return false;
+            };
+
+            match root {
+                serde_json::Value::String(_) => v.get("elements").is_some(),
+                serde_json::Value::Object(obj) => {
+                    obj.get("type").and_then(|t| t.as_str()).is_some()
+                }
+                _ => false,
+            }
+        }
+
+        fn extract_fenced(text: &str) -> Option<(String, String, String)> {
+            // Returns (before, spec, after)
+            let re = regex::Regex::new(
+                r"(?s)(?P<before>.*?)```json-render\s*\n(?P<spec>.*?)\n```(?P<after>.*)",
+            )
+            .expect("valid regex");
+            let caps = re.captures(text)?;
+            Some((
+                caps.name("before")?.as_str().to_string(),
+                caps.name("spec")?.as_str().to_string(),
+                caps.name("after")?.as_str().to_string(),
+            ))
+        }
+
+        let mut out: Vec<MessageContent> = Vec::new();
+
+        for c in std::mem::take(&mut self.content) {
+            match c {
+                MessageContent::Text(t) => {
+                    let text = t.text.clone();
+
+                    if let Some((before, spec, after)) = extract_fenced(&text) {
+                        if !before.trim().is_empty() {
+                            out.push(MessageContent::text(before.trim().to_string()));
+                        }
+                        if !spec.trim().is_empty() {
+                            out.push(MessageContent::json_render_spec(spec.trim().to_string()));
+                        }
+                        if !after.trim().is_empty() {
+                            out.push(MessageContent::text(after.trim().to_string()));
+                        }
+                        continue;
+                    }
+
+                    let trimmed = text.trim();
+                    if !trimmed.is_empty()
+                        && (looks_like_jsonl_patch(trimmed) || looks_like_json_render_json(trimmed))
+                    {
+                        out.push(MessageContent::json_render_spec(trimmed.to_string()));
+                        continue;
+                    }
+
+                    // Preserve annotations/metadata when no changes are made
+                    out.push(MessageContent::Text(t));
+                }
+                other => out.push(other),
+            }
+        }
+
+        self.content = out;
         self
     }
 

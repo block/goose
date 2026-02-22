@@ -1308,8 +1308,14 @@ impl Agent {
                                 // Strip <tool_call>/<tool_result> XML tags from text content
                                 // before sending to the UI. Some models emit these as raw text
                                 // alongside structured tool calls.
-                                let display_response = filtered_response.clone().strip_tool_call_tags();
-                                yield AgentEvent::Message(display_response);
+                                //
+                                // Also extract json-render specs into structured message content
+                                // so the UI can render them without relying on markdown fences.
+                                let display_response = filtered_response
+                                    .clone()
+                                    .strip_tool_call_tags()
+                                    .extract_json_render_specs();
+                                yield AgentEvent::Message(display_response.clone());
                                 tokio::task::yield_now().await;
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
@@ -1318,7 +1324,7 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
-                                    messages_to_add.push(response.clone());
+                                    messages_to_add.push(display_response);
                                     continue;
                                 }
 

@@ -14,9 +14,15 @@ export interface WorkBlock {
 }
 
 function hasDisplayText(message: Message): boolean {
-  return message.content.some(
-    (c) => c.type === 'text' && typeof c.text === 'string' && c.text.trim().length > 0
-  );
+  return message.content.some((c) => {
+    if (c.type === 'text') {
+      return typeof c.text === 'string' && c.text.trim().length > 0;
+    }
+    if (c.type === 'jsonRenderSpec') {
+      return typeof c.spec === 'string' && c.spec.trim().length > 0;
+    }
+    return false;
+  });
 }
 
 function hasToolRequests(message: Message): boolean {

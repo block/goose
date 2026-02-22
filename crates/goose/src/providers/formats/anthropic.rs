@@ -49,6 +49,14 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         TEXT_TYPE: text.text
                     }));
                 }
+                MessageContent::JsonRenderSpec(spec) => {
+                    if !spec.spec.is_empty() {
+                        content.push(json!({
+                            TYPE_FIELD: TEXT_TYPE,
+                            TEXT_TYPE: spec.spec
+                        }));
+                    }
+                }
                 MessageContent::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
                         Ok(tool_call) => {

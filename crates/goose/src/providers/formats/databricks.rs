@@ -130,6 +130,11 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                         has_multiple_content |= multi;
                     }
                 }
+                MessageContent::JsonRenderSpec(spec) => {
+                    if !spec.spec.is_empty() {
+                        content_array.push(json!({"type": "text", "text": spec.spec}));
+                    }
+                }
                 MessageContent::Thinking(content) => {
                     has_multiple_content = true;
                     content_array.push(json!({

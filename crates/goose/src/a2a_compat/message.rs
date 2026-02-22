@@ -56,6 +56,14 @@ fn goose_content_to_a2a_part(content: &MessageContent) -> Option<Part> {
             filename: None,
             media_type: None,
         }),
+        MessageContent::JsonRenderSpec(spec) => Some(Part {
+            content: PartContent::Text {
+                text: spec.spec.clone(),
+            },
+            metadata: None,
+            filename: None,
+            media_type: None,
+        }),
         MessageContent::Image(img) => Some(Part {
             content: PartContent::File {
                 raw: Some(img.data.clone()),

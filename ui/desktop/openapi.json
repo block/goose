@@ -8714,6 +8714,17 @@
         "type": "object",
         "additionalProperties": true
       },
+      "JsonRenderSpecContent": {
+        "type": "object",
+        "required": [
+          "spec"
+        ],
+        "properties": {
+          "spec": {
+            "type": "string"
+          }
+        }
+      },
       "KillJobResponse": {
         "type": "object",
         "required": [
@@ -9094,6 +9105,27 @@
                     "type": "string",
                     "enum": [
                       "image"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JsonRenderSpecContent"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "jsonRenderSpec"
                     ]
                   }
                 }

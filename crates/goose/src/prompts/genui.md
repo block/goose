@@ -11,10 +11,10 @@ SCOPE:
 - For standalone apps, games, or utilities, the app_maker mode is more appropriate
 
 OUTPUT FORMAT:
-- Wrap your visual output in a json-render fenced code block
 - Output JSONL (one JSON object per line) using RFC 6902 JSON Patch operations
 - Start with the root element, then add child elements
-- The UI renders inline in the chat message
+- Do not include extra prose before/after the spec
+- Markdown fences are optional; if you use them, the fence MUST be ```json-render
 
 COMPONENT HIGHLIGHTS:
 - Chart: bar, line, area, pie charts for data visualization

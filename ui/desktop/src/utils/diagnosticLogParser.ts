@@ -167,13 +167,16 @@ function hasToolRequests(content: RawLogContent[]): boolean {
 }
 
 function hasDisplayText(content: RawLogContent[]): boolean {
-  return content.some(
-    (c) =>
-      c.type === 'text' &&
-      typeof c.text === 'string' &&
-      c.text.trim().length > 0 &&
-      !c.text.trim().startsWith('<info-msg>')
-  );
+  return content.some((c) => {
+    if (c.type === 'text' && typeof c.text === 'string') {
+      const t = c.text.trim();
+      return t.length > 0 && !t.startsWith('<info-msg>');
+    }
+    if (c.type === 'jsonRenderSpec' && 'spec' in c && typeof c.spec === 'string') {
+      return c.spec.trim().length > 0;
+    }
+    return false;
+  });
 }
 
 function hasThinking(content: RawLogContent[]): boolean {

@@ -1013,6 +1013,10 @@ export type JsonObject = {
     [key: string]: unknown;
 };
 
+export type JsonRenderSpecContent = {
+    spec: string;
+};
+
 export type KillJobResponse = {
     message: string;
 };
@@ -1196,6 +1200,8 @@ export type MessageContent = (TextContent & {
     type: 'text';
 }) | (ImageContent & {
     type: 'image';
+}) | (JsonRenderSpecContent & {
+    type: 'jsonRenderSpec';
 }) | (ToolRequest & {
     type: 'toolRequest';
 }) | (ToolResponse & {

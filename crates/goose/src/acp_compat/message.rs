@@ -95,6 +95,19 @@ fn goose_content_to_acp_part(content: &MessageContent) -> Option<AcpMessagePart>
     match content {
         MessageContent::Text(text) => Some(AcpMessagePart::text(&text.text)),
 
+        MessageContent::JsonRenderSpec(spec) => {
+            let metadata = serde_json::json!({
+                "goose": { "type": "json_render_spec" }
+            });
+            Some(AcpMessagePart {
+                content_type: "application/json".to_string(),
+                content: Some(spec.spec.clone()),
+                content_url: None,
+                content_encoding: None,
+                metadata: Some(metadata),
+            })
+        }
+
         MessageContent::Image(image) => Some(AcpMessagePart::image(&image.data, &image.mime_type)),
 
         MessageContent::ToolRequest(req) => {
@@ -322,6 +335,7 @@ fn parse_content_part(part: &AcpMessagePart, content_str: &str) -> Option<Messag
                 let data: ActionRequiredData = serde_json::from_str(content_str).ok()?;
                 Some(MessageContent::ActionRequired(ActionRequired { data }))
             }
+            Some("json_render_spec") => Some(MessageContent::json_render_spec(content_str)),
             _ => Some(MessageContent::text(content_str)),
         }
     } else {

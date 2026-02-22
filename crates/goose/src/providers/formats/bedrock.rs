@@ -34,6 +34,7 @@ pub fn to_bedrock_message(message: &Message) -> Result<bedrock::Message> {
 pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::ContentBlock> {
     Ok(match content {
         MessageContent::Text(text) => bedrock::ContentBlock::Text(text.text.to_string()),
+        MessageContent::JsonRenderSpec(spec) => bedrock::ContentBlock::Text(spec.spec.to_string()),
         MessageContent::ToolConfirmationRequest(_tool_confirmation_request) => {
             bedrock::ContentBlock::Text("".to_string())
         }

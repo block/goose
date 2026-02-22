@@ -88,6 +88,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
+                MessageContent::JsonRenderSpec(spec) => {
+                    if !spec.spec.is_empty() {
+                        text_array.push(spec.spec.clone());
+                    }
+                }
                 MessageContent::Thinking(_) => {
                     // Thinking blocks are not directly used in OpenAI format
                     continue;

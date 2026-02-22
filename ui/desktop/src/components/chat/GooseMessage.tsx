@@ -31,6 +31,7 @@ import MarkdownContent from '../messages/MarkdownContent';
 import MessageCopyLink from '../messages/MessageCopyLink';
 import ToolCallConfirmation from '../messages/ToolCallConfirmation';
 import ToolCallWithResponse from '../messages/ToolCallWithResponse';
+import { JsonRenderBlock } from '../json-render';
 import ImagePreview from '../shared/ImagePreview';
 import { GooseGenerativeUI } from '../ui/design-system/goose-renderer';
 
@@ -165,6 +166,15 @@ export default function GooseMessage({
   const hideToolCalls = responseStyle === 'hidden';
 
   const { textContent, imagePaths } = getTextAndImageContent(message);
+  const jsonRenderSpecs = useMemo(
+    () =>
+      message.content
+        .filter((c): c is Extract<Message['content'][number], { type: 'jsonRenderSpec' }> =>
+          c.type === 'jsonRenderSpec'
+        )
+        .map((c) => c.spec),
+    [message.content]
+  );
 
   const stripInternalTags = (text: string, streaming: boolean): string => {
     let cleaned = text
@@ -380,11 +390,20 @@ export default function GooseMessage({
 
         {(renderedText.trim() ||
           imagePaths.length > 0 ||
+          jsonRenderSpecs.length > 0 ||
           (generativeResult && !generativeResult.partial)) && (
           <div className="flex flex-col group">
             {renderedText.trim() && (
               <div ref={contentRef} className="w-full">
                 <MarkdownContent content={renderedText} />
+              </div>
+            )}
+
+            {jsonRenderSpecs.length > 0 && (
+              <div className="mt-3 rounded-xl border border-border-default bg-background-default overflow-hidden">
+                {jsonRenderSpecs.map((spec, idx) => (
+                  <JsonRenderBlock key={idx} spec={spec} />
+                ))}
               </div>
             )}
 
