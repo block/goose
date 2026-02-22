@@ -415,6 +415,47 @@ export default function ToolAnalyticsTab() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'tools' | 'extensions' | 'sessions' | 'agents'>('tools');
 
+  const tabs = [
+    { key: 'tools' as const, label: 'Tool Usage' },
+    { key: 'extensions' as const, label: 'Extensions' },
+    { key: 'sessions' as const, label: 'Sessions' },
+    { key: 'agents' as const, label: 'Agent Performance' },
+  ];
+
+  const tabId = (key: (typeof tabs)[number]['key']) => `tool-analytics-tab-${key}`;
+  const panelId = (key: (typeof tabs)[number]['key']) => `tool-analytics-panel-${key}`;
+
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, currentKey: typeof view) => {
+    const currentIndex = tabs.findIndex((t) => t.key === currentKey);
+    if (currentIndex === -1) return;
+
+    const focusTab = (nextIndex: number) => {
+      const next = tabs[nextIndex];
+      setView(next.key);
+      document.getElementById(tabId(next.key))?.focus();
+    };
+
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      focusTab((currentIndex + 1) % tabs.length);
+      return;
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      focusTab((currentIndex - 1 + tabs.length) % tabs.length);
+      return;
+    }
+    if (e.key === 'Home') {
+      e.preventDefault();
+      focusTab(0);
+      return;
+    }
+    if (e.key === 'End') {
+      e.preventDefault();
+      focusTab(tabs.length - 1);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -474,25 +515,29 @@ export default function ToolAnalyticsTab() {
       </div>
 
       {/* Sub-navigation */}
-      <div className="flex gap-1 border-b border-border-default pb-0">
-        {(['tools', 'extensions', 'sessions', 'agents'] as const).map((tab) => (
+      <div
+        role="tablist"
+        aria-label="Tool analytics views"
+        className="flex gap-1 border-b border-border-default pb-0"
+      >
+        {tabs.map((tab) => (
           <button
-            key={tab}
+            key={tab.key}
+            id={tabId(tab.key)}
             type="button"
-            onClick={() => setView(tab)}
+            role="tab"
+            aria-selected={view === tab.key}
+            aria-controls={panelId(tab.key)}
+            tabIndex={view === tab.key ? 0 : -1}
+            onKeyDown={(e) => handleTabKeyDown(e, tab.key)}
+            onClick={() => setView(tab.key)}
             className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-              view === tab
+              view === tab.key
                 ? 'text-text-default bg-background-muted border-b-2 border-indigo-500'
                 : 'text-text-muted hover:text-text-default'
             }`}
           >
-            {tab === 'tools'
-              ? 'Tool Usage'
-              : tab === 'extensions'
-                ? 'Extensions'
-                : tab === 'sessions'
-                  ? 'Sessions'
-                  : 'Agent Performance'}
+            {tab.label}
           </button>
         ))}
       </div>
@@ -506,16 +551,26 @@ export default function ToolAnalyticsTab() {
       )}
 
       {/* View-specific content */}
-      {view === 'tools' && (
+      <div
+        id={panelId('tools')}
+        role="tabpanel"
+        aria-labelledby={tabId('tools')}
+        hidden={view !== 'tools'}
+      >
         <div className="bg-background-muted rounded-xl p-4 border border-border-muted">
           <h3 className="text-sm font-medium text-text-default mb-3">
             Tool Usage ({toolData.tool_usage.length} tools)
           </h3>
           <ToolTable tools={toolData.tool_usage} />
         </div>
-      )}
+      </div>
 
-      {view === 'extensions' && (
+      <div
+        id={panelId('extensions')}
+        role="tabpanel"
+        aria-labelledby={tabId('extensions')}
+        hidden={view !== 'extensions'}
+      >
         <div className="bg-background-muted rounded-xl p-4 border border-border-muted">
           <h3 className="text-sm font-medium text-text-default mb-3">Extension Breakdown</h3>
           {toolData.extension_usage.length > 0 ? (
@@ -524,9 +579,14 @@ export default function ToolAnalyticsTab() {
             <div className="text-text-muted text-center py-8">No extension data available</div>
           )}
         </div>
-      )}
+      </div>
 
-      {view === 'sessions' && (
+      <div
+        id={panelId('sessions')}
+        role="tabpanel"
+        aria-labelledby={tabId('sessions')}
+        hidden={view !== 'sessions'}
+      >
         <div className="bg-background-muted rounded-xl p-4 border border-border-muted">
           <h3 className="text-sm font-medium text-text-default mb-3">
             Recent Sessions ({toolData.session_tool_summary.length})
@@ -537,14 +597,23 @@ export default function ToolAnalyticsTab() {
             <div className="text-text-muted text-center py-8">No session data available</div>
           )}
         </div>
-      )}
+      </div>
 
-      {view === 'agents' && agentData && (
-        <div className="bg-background-muted rounded-xl p-4 border border-border-muted">
-          <h3 className="text-sm font-medium text-text-default mb-3">Agent Performance</h3>
-          <AgentPerformanceView data={agentData} />
-        </div>
-      )}
+      <div
+        id={panelId('agents')}
+        role="tabpanel"
+        aria-labelledby={tabId('agents')}
+        hidden={view !== 'agents'}
+      >
+        {agentData ? (
+          <div className="bg-background-muted rounded-xl p-4 border border-border-muted">
+            <h3 className="text-sm font-medium text-text-default mb-3">Agent Performance</h3>
+            <AgentPerformanceView data={agentData} />
+          </div>
+        ) : (
+          <div className="text-text-muted text-center py-8">No agent performance data</div>
+        )}
+      </div>
     </div>
   );
 }
