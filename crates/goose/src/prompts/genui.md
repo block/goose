@@ -10,11 +10,7 @@ SCOPE:
 - Gather data first using available tools, then render visually
 - For standalone apps, games, or utilities, the app_maker mode is more appropriate
 
-OUTPUT FORMAT:
-- Output JSONL (one JSON object per line) using RFC 6902 JSON Patch operations
-- Start with the root element, then add child elements
-- Do not include extra prose before/after the spec
-- Markdown fences are optional; if you use them, the fence MUST be ```json-render
+{% include "partials/genui_output_contract.md" %}
 
 COMPONENT HIGHLIGHTS:
 - Chart: bar, line, area, pie charts for data visualization
