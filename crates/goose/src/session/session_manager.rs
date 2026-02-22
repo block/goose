@@ -487,6 +487,13 @@ fn role_to_string(role: &Role) -> &'static str {
     }
 }
 
+fn is_sqlite_foreign_key_error(err: &sqlx::Error) -> bool {
+    let sqlx::Error::Database(db_err) = err else {
+        return false;
+    };
+    db_err.code().is_some_and(|c| c == "787")
+}
+
 impl Default for Session {
     fn default() -> Self {
         Self {
@@ -593,9 +600,22 @@ impl SessionStorage {
             .filename(path)
             .create_if_missing(true)
             .busy_timeout(std::time::Duration::from_secs(30))
-            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .foreign_keys(true);
 
-        SqlitePoolOptions::new().connect_lazy_with(options)
+        SqlitePoolOptions::new()
+            // SQLite serializes writers; using a single connection avoids intermittent
+            // "database is locked" errors under concurrent message/session writes.
+            .max_connections(1)
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    sqlx::query("PRAGMA foreign_keys = ON")
+                        .execute(conn)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .connect_lazy_with(options)
     }
 
     pub fn new(data_dir: PathBuf) -> Self {
@@ -1385,6 +1405,15 @@ impl SessionStorage {
         let pool = self.pool().await?;
         let mut tx = pool.begin().await?;
 
+        let session_exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
+                .bind(session_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !session_exists {
+            return Ok(());
+        }
+
         let metadata_json = serde_json::to_string(&message.metadata)?;
 
         let message_id = message
@@ -1392,7 +1421,7 @@ impl SessionStorage {
             .clone()
             .unwrap_or_else(|| format!("msg_{}_{}", session_id, uuid::Uuid::new_v4()));
 
-        sqlx::query(
+        let insert_result = sqlx::query(
             r#"
             INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -1405,7 +1434,14 @@ impl SessionStorage {
         .bind(message.created)
         .bind(metadata_json)
         .execute(&mut *tx)
-        .await?;
+        .await;
+
+        if let Err(e) = insert_result {
+            if is_sqlite_foreign_key_error(&e) {
+                return Ok(());
+            }
+            return Err(e.into());
+        }
 
         sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
             .bind(session_id)
@@ -1423,6 +1459,15 @@ impl SessionStorage {
     ) -> Result<()> {
         let mut tx = pool.begin().await?;
 
+        let session_exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ?)")
+                .bind(session_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !session_exists {
+            return Ok(());
+        }
+
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
             .execute(&mut *tx)
@@ -1436,7 +1481,7 @@ impl SessionStorage {
                 .clone()
                 .unwrap_or_else(|| format!("msg_{}_{}", session_id, uuid::Uuid::new_v4()));
 
-            sqlx::query(
+            let result = sqlx::query(
                 r#"
             INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -1449,7 +1494,14 @@ impl SessionStorage {
             .bind(message.created)
             .bind(metadata_json)
             .execute(&mut *tx)
-            .await?;
+            .await;
+
+            if let Err(e) = result {
+                if is_sqlite_foreign_key_error(&e) {
+                    continue;
+                }
+                return Err(e.into());
+            }
         }
 
         tx.commit().await?;
