@@ -1115,10 +1115,10 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_session(
+            .create_subagent_session(
                 working_dir,
                 "Delegated task".to_string(),
-                SessionType::SubAgent,
+                session_id.to_string(),
             )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
@@ -1562,7 +1562,7 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_session(working_dir, description.clone(), SessionType::SubAgent)
+            .create_subagent_session(working_dir, description.clone(), session_id.to_string())
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
 

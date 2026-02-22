@@ -1125,6 +1125,12 @@ export type Session = {
     accumulated_input_tokens?: number | null;
     accumulated_output_tokens?: number | null;
     accumulated_total_tokens?: number | null;
+    children_accumulated_input_tokens?: number | null;
+    children_accumulated_output_tokens?: number | null;
+    /**
+     * Accumulated tokens from child subagent sessions (computed, not stored in DB)
+     */
+    children_accumulated_total_tokens?: number | null;
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
@@ -1134,6 +1140,7 @@ export type Session = {
     model_config?: ModelConfig | null;
     name: string;
     output_tokens?: number | null;
+    parent_session_id?: string | null;
     provider_name?: string | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
