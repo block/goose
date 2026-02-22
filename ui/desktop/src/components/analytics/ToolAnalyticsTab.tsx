@@ -47,20 +47,30 @@ function MetricCard({
   const ariaLabel = `${label}: ${value}${sub ? ` (${sub})` : ''}`;
 
   return (
-    <div
+    <section
       className="bg-background-muted rounded-xl p-4 border border-border-muted"
-      role="group"
       aria-label={ariaLabel}
     >
       <div className="text-xs text-text-muted mb-1">{label}</div>
       <div className={`text-2xl font-bold ${color || 'text-text-default'}`}>{value}</div>
       {sub && <div className="text-xs text-text-muted mt-1">{sub}</div>}
-    </div>
+    </section>
   );
 }
 
 function ToolTable({ tools }: { tools: ToolAnalytics['tool_usage'] }) {
   const [sortBy, setSortBy] = useState<'calls' | 'errors' | 'rate'>('calls');
+
+  const ariaSortFor = (column: typeof sortBy): 'none' | 'ascending' | 'descending' => {
+    if (sortBy !== column) return 'none';
+    // calls/errors are sorted desc; success rate is sorted asc.
+    return column === 'rate' ? 'ascending' : 'descending';
+  };
+
+  const srSortLabel = (column: typeof sortBy) => {
+    if (sortBy !== column) return '';
+    return column === 'rate' ? 'Sorted ascending.' : 'Sorted descending.';
+  };
   const sorted = [...tools].sort((a, b) => {
     if (sortBy === 'calls') return b.call_count - a.call_count;
     if (sortBy === 'errors') return b.error_count - a.error_count;
@@ -74,23 +84,35 @@ function ToolTable({ tools }: { tools: ToolAnalytics['tool_usage'] }) {
           <tr className="text-text-muted border-b border-border-default">
             <th className="text-left py-2 px-3">Tool</th>
             <th className="text-left py-2 px-3">Extension</th>
-            <th
-              className="text-right py-2 px-3 cursor-pointer hover:text-text-default"
-              onClick={() => setSortBy('calls')}
-            >
-              Calls {sortBy === 'calls' && '↓'}
+            <th className="text-right py-2 px-3" aria-sort={ariaSortFor('calls')}>
+              <button
+                type="button"
+                className="inline-flex items-center justify-end gap-1 hover:text-text-default"
+                onClick={() => setSortBy('calls')}
+              >
+                Calls <span aria-hidden="true">{sortBy === 'calls' && '↓'}</span>
+                <span className="sr-only">{srSortLabel('calls')}</span>
+              </button>
             </th>
-            <th
-              className="text-right py-2 px-3 cursor-pointer hover:text-text-default"
-              onClick={() => setSortBy('errors')}
-            >
-              Errors {sortBy === 'errors' && '↓'}
+            <th className="text-right py-2 px-3" aria-sort={ariaSortFor('errors')}>
+              <button
+                type="button"
+                className="inline-flex items-center justify-end gap-1 hover:text-text-default"
+                onClick={() => setSortBy('errors')}
+              >
+                Errors <span aria-hidden="true">{sortBy === 'errors' && '↓'}</span>
+                <span className="sr-only">{srSortLabel('errors')}</span>
+              </button>
             </th>
-            <th
-              className="text-right py-2 px-3 cursor-pointer hover:text-text-default"
-              onClick={() => setSortBy('rate')}
-            >
-              Success Rate {sortBy === 'rate' && '↑'}
+            <th className="text-right py-2 px-3" aria-sort={ariaSortFor('rate')}>
+              <button
+                type="button"
+                className="inline-flex items-center justify-end gap-1 hover:text-text-default"
+                onClick={() => setSortBy('rate')}
+              >
+                Success Rate <span aria-hidden="true">{sortBy === 'rate' && '↑'}</span>
+                <span className="sr-only">{srSortLabel('rate')}</span>
+              </button>
             </th>
           </tr>
         </thead>
@@ -165,8 +187,8 @@ function ExtensionBreakdown({ extensions }: { extensions: ToolAnalytics['extensi
             nameKey="name"
             stroke="none"
           >
-            {data.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
+            {data.map((entry, i) => (
+              <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />
             ))}
           </Pie>
           <Tooltip
@@ -372,11 +394,12 @@ function formatDuration(seconds: number): string {
 }
 
 function LoadingSkeleton() {
+  const kpiSkeletonKeys = ['kpi-1', 'kpi-2', 'kpi-3', 'kpi-4'];
   return (
     <div className="space-y-6 animate-pulse">
       <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-20 bg-background-muted rounded-xl" />
+        {kpiSkeletonKeys.map((key) => (
+          <div key={key} className="h-20 bg-background-muted rounded-xl" />
         ))}
       </div>
       <div className="h-[220px] bg-background-muted rounded-xl" />
@@ -455,6 +478,7 @@ export default function ToolAnalyticsTab() {
         {(['tools', 'extensions', 'sessions', 'agents'] as const).map((tab) => (
           <button
             key={tab}
+            type="button"
             onClick={() => setView(tab)}
             className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
               view === tab
