@@ -848,11 +848,9 @@ pub async fn text_editor_replace(
         )
     })?;
 
-    // Try to detect the language from the file extension
-    let language = lang::get_language_identifier(path);
-
-    // Show a snippet of the changed content with context
-    const SNIPPET_LINES: usize = 4;
+    // Count lines changed for a concise summary
+    let old_line_count = old_str.lines().count();
+    let new_line_count = new_str.lines().count();
 
     // Count newlines before the replacement to find the line number
     let replacement_line = content
@@ -860,13 +858,24 @@ pub async fn text_editor_replace(
         .next()
         .expect("should split on already matched content")
         .matches('\n')
-        .count();
+        .count()
+        + 1; // 1-indexed
 
-    // Calculate start and end lines for the snippet
-    let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
-    let end_line = replacement_line + SNIPPET_LINES + new_content.matches('\n').count();
+    let summary = format!(
+        "Successfully edited {} (replaced {} lines with {} lines at line {})",
+        path.display(),
+        old_line_count,
+        new_line_count,
+        replacement_line
+    );
 
-    // Get the relevant lines for our snippet
+    // Try to detect the language from the file extension
+    let language = lang::get_language_identifier(path);
+
+    // Show a snippet of the changed content with context for the user only
+    const SNIPPET_LINES: usize = 4;
+    let start_line = replacement_line.saturating_sub(SNIPPET_LINES + 1);
+    let end_line = replacement_line + SNIPPET_LINES + new_line_count;
     let lines: Vec<&str> = new_content.lines().collect();
     let snippet = lines
         .iter()
@@ -876,27 +885,20 @@ pub async fn text_editor_replace(
         .collect::<Vec<&str>>()
         .join("\n");
 
-    let output = formatdoc! {r#"
+    let user_output = formatdoc! {r#"
+        {summary}
         ```{language}
         {snippet}
         ```
         "#,
+        summary=summary,
         language=language,
         snippet=snippet
     };
 
-    let success_message = formatdoc! {r#"
-        The file {} has been edited, and the section now reads:
-        {}
-        Review the changes above for errors. Undo and edit the file again if necessary!
-        "#,
-        path.display(),
-        output
-    };
-
     Ok(vec![
-        Content::text(success_message).with_audience(vec![Role::Assistant]),
-        Content::text(output)
+        Content::text(summary).with_audience(vec![Role::Assistant]),
+        Content::text(user_output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
     ])
@@ -988,48 +990,44 @@ pub async fn text_editor_insert(
         )
     })?;
 
+    let insertion_line = insert_line + 1; // Convert to 1-indexed for display
+    let inserted_line_count = new_str.lines().count();
+
+    let summary = format!(
+        "Successfully inserted {} lines at line {} in {}",
+        inserted_line_count,
+        insertion_line,
+        path.display()
+    );
+
     // Try to detect the language from the file extension
     let language = lang::get_language_identifier(path);
 
-    // Show a snippet of the inserted content with context
+    // Show a snippet of the inserted content with context for the user only
     const SNIPPET_LINES: usize = 4;
-    let insertion_line = insert_line + 1; // Convert to 1-indexed for display
-
-    // Calculate start and end lines for the snippet
     let start_line = insertion_line.saturating_sub(SNIPPET_LINES);
     let end_line = std::cmp::min(insertion_line + SNIPPET_LINES, new_lines.len());
-
-    // Get the relevant lines for our snippet with line numbers
     let snippet_lines: Vec<String> = new_lines[start_line.saturating_sub(1)..end_line]
         .iter()
         .enumerate()
         .map(|(i, line)| format!("{}: {}", start_line + i, line))
         .collect();
-
     let snippet = snippet_lines.join("\n");
 
-    let output = formatdoc! {r#"
+    let user_output = formatdoc! {r#"
+        {summary}
         ```{language}
         {snippet}
         ```
         "#,
+        summary=summary,
         language=language,
         snippet=snippet
     };
 
-    let success_message = formatdoc! {r#"
-        Text has been inserted at line {} in {}. The section now reads:
-        {}
-        Review the changes above for errors. Undo and edit the file again if necessary!
-        "#,
-        insertion_line,
-        path.display(),
-        output
-    };
-
     Ok(vec![
-        Content::text(success_message).with_audience(vec![Role::Assistant]),
-        Content::text(output)
+        Content::text(summary).with_audience(vec![Role::Assistant]),
+        Content::text(user_output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
     ])
