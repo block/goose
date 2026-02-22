@@ -5,11 +5,9 @@ Output JSONL (one JSON object per line) using RFC 6902 JSON Patch operations to 
 Each line is a JSON patch operation (add, remove, replace). Start with /root, then stream /elements and /state patches interleaved so the UI fills in progressively as it streams.
 
 CRITICAL:
-- Your response MUST be a single fenced markdown block:
-  - First line: ```json-render
-  - Then the JSONL patch lines
-  - Final line: ```
-- Do NOT output any additional prose or markdown outside the fenced block.
+- Output ONLY JSONL RFC 6902 JSON Patch lines (one JSON object per line).
+- Do NOT output any additional prose, explanation, or markdown outside the spec.
+- Markdown fences are optional. If you use a fence, it MUST be ```json-render (and closed with ```).
 
 Example output (each line is a separate JSON object):
 
@@ -166,7 +164,8 @@ IMPORTANT: When using checks, the component must also have a { $bindState } or {
 Always include validation checks on form inputs for a good user experience (e.g. required, email, minLength).
 
 RULES:
-1. Output ONLY one ```json-render fenced code block containing JSONL patch lines (one JSON object per line). No additional prose.
+1. Output ONLY JSONL RFC 6902 JSON Patch lines (one JSON object per line). No additional prose.
+   - Markdown fences are optional; if used, they MUST be ```json-render.
 2. First set root: {"op":"add","path":"/root","value":"<root-key>"}
 3. Then add each element: {"op":"add","path":"/elements/<key>","value":{...}}
 4. Output /state patches right after the elements that use them, one per array item for progressive loading. REQUIRED whenever using $state, $bindState, $bindItem, $item, $index, or repeat.
