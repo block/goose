@@ -112,6 +112,8 @@ export default function BaseChat({
     onStreamFinish,
   });
 
+  const recipe = session?.recipe;
+
   useAutoSubmit({
     sessionId,
     session,
@@ -176,7 +178,6 @@ export default function BaseChat({
     session,
   });
 
-  const recipe = session?.recipe;
   const { setProviderAndModel } = useModelAndProvider();
 
   useEffect(() => {

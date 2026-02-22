@@ -156,6 +156,7 @@ export default function RecipesView() {
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
+        initialMessage: recipe.prompt ? { msg: recipe.prompt, images: [] } : undefined,
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
