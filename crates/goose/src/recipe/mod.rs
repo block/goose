@@ -3,6 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
+use std::sync::OnceLock;
+use tracing::warn;
 
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
@@ -225,11 +227,33 @@ pub struct RecipeBuilder {
     retry: Option<RetryConfig>,
 }
 
+fn delegate_pattern() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"\bdelegate\s*\(").expect("valid regex"))
+}
+
 impl Recipe {
     fn ensure_summon_for_subrecipes(&mut self) {
-        if self.sub_recipes.is_none() {
+        let uses_delegate = self
+            .instructions
+            .as_deref()
+            .map(|instr| delegate_pattern().is_match(instr))
+            .unwrap_or(false);
+
+        if self.sub_recipes.is_none() && !uses_delegate {
             return;
         }
+
+        let summon_present = self
+            .extensions
+            .as_ref()
+            .map(|exts| exts.iter().any(|e| e.name() == "summon"))
+            .unwrap_or(false);
+
+        if uses_delegate && !summon_present {
+            warn!("recipe instructions use 'delegate' but 'summon' extension is not listed; auto-injecting summon");
+        }
+
         let summon = ExtensionConfig::Platform {
             name: "summon".to_string(),
             description: String::new(),
@@ -846,5 +870,61 @@ isGlobal: true"#;
             error_msg,
             "settings.temperature: invalid type: string \"not_a_number\", expected f32"
         );
+    }
+
+    #[test]
+    fn test_ensure_summon_injected_when_delegate_in_instructions() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Delegate Recipe",
+            "description": "A recipe with delegate",
+            "instructions": "Call delegate(some_task) to execute",
+            "extensions": []
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+        assert!(extensions.iter().any(|e| e.name() == "summon"));
+    }
+
+    #[test]
+    fn test_ensure_summon_not_duplicated_when_already_present() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Delegate Recipe",
+            "description": "A recipe with delegate and summon",
+            "instructions": "Call delegate(some_task) to execute",
+            "extensions": [
+                {
+                    "type": "platform",
+                    "name": "summon",
+                    "description": "Summon extension"
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+        assert!(extensions.iter().any(|e| e.name() == "summon"));
+    }
+
+    #[test]
+    fn test_ensure_summon_not_injected_without_delegate() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Simple Recipe",
+            "description": "A recipe without delegate",
+            "instructions": "Just do something simple",
+            "extensions": []
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 0);
     }
 }
