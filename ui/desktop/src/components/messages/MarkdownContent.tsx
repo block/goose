@@ -28,6 +28,7 @@ const customOneDarkTheme = {
 };
 
 import { wrapHTMLInCodeBlock } from '../../utils/htmlSecurity';
+import { wrapBareJsonRender } from '../../utils/jsonRenderDetection';
 import { BLOCKED_PROTOCOLS, getProtocol, isProtocolSafe } from '../../utils/urlSecurity';
 import { Check, Copy } from '../icons';
 import { JsonRenderBlock } from '../json-render';
@@ -116,6 +117,7 @@ const CodeBlock = memo(function CodeBlock({
   return (
     <div className="relative group w-full">
       <button
+        type="button"
         onClick={handleCopy}
         className="absolute right-2 bottom-2 p-1.5 rounded-lg bg-gray-700/50 text-gray-300 font-sans text-sm
                  opacity-0 group-hover:opacity-100 transition-opacity duration-200
@@ -178,7 +180,7 @@ const MarkdownContent = memo(function MarkdownContent({
   useEffect(() => {
     try {
       const processed = wrapHTMLInCodeBlock(content);
-      setProcessedContent(processed);
+      setProcessedContent(wrapBareJsonRender(processed));
     } catch (error) {
       console.error('Error processing content:', error);
       setProcessedContent(content);
@@ -219,33 +221,37 @@ const MarkdownContent = memo(function MarkdownContent({
         ]}
         components={{
           a: (props) => {
+            const href = props.href;
             return (
               <a
                 {...props}
-                target="_blank"
-                rel="noopener noreferrer"
+                href={href}
+                target={href ? '_blank' : undefined}
+                rel={href ? 'noopener noreferrer' : undefined}
                 onClick={async (e) => {
+                  if (!href) return;
+
                   e.preventDefault();
                   e.stopPropagation();
-                  if (!props.href) return;
 
-                  if (isProtocolSafe(props.href)) {
-                    window.electron.openExternal(props.href);
-                  } else {
-                    const protocol = getProtocol(props.href);
-                    if (!protocol) return;
+                  if (isProtocolSafe(href)) {
+                    await window.electron.openExternal(href);
+                    return;
+                  }
 
-                    const result = await window.electron.showMessageBox({
-                      type: 'question',
-                      buttons: ['Cancel', 'Open'],
-                      defaultId: 0,
-                      title: 'Open External Link',
-                      message: `Open ${protocol} link?`,
-                      detail: `This will open: ${props.href}`,
-                    });
-                    if (result.response === 1) {
-                      window.electron.openExternal(props.href);
-                    }
+                  const protocol = getProtocol(href);
+                  if (!protocol) return;
+
+                  const result = await window.electron.showMessageBox({
+                    type: 'question',
+                    buttons: ['Cancel', 'Open'],
+                    defaultId: 0,
+                    title: 'Open External Link',
+                    message: `Open ${protocol} link?`,
+                    detail: `This will open: ${href}`,
+                  });
+                  if (result.response === 1) {
+                    await window.electron.openExternal(href);
                   }
                 }}
               />
