@@ -1767,7 +1767,7 @@
             "description": "Provider not configured"
           },
           "413": {
-            "description": "Audio file too large (max 25MB)"
+            "description": "Audio file too large (max 50MB)"
           },
           "429": {
             "description": "Rate limit exceeded"
