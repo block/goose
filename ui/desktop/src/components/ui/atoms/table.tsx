@@ -43,9 +43,9 @@ export function Table({
         )}
         <thead>
           <tr className="border-b border-border-default bg-background-muted">
-            {columns.map((col) => (
+            {columns.map((col, colIndex) => (
               <th
-                key={col.key}
+                key={`${col.key}-${colIndex}`}
                 scope="col"
                 className={cn(
                   'px-4 py-2.5 font-medium text-text-muted text-left',
@@ -70,9 +70,9 @@ export function Table({
                   hoverable && 'hover:bg-background-muted/30'
                 )}
               >
-                {columns.map((col) => (
+                {columns.map((col, colIndex) => (
                   <td
-                    key={col.key}
+                    key={`${col.key}-${colIndex}`}
                     className={cn('px-4 py-2.5 text-text-default', alignClass[col.align || 'left'])}
                   >
                     {String(row[col.key] ?? '')}
