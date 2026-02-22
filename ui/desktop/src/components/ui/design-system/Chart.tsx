@@ -92,8 +92,8 @@ function ChartInner({
   const DataComponent = type === 'bar' ? Bar : type === 'line' ? Line : Area;
 
   return (
-    <div className={`space-y-1 ${className ?? ''}`}>
-      <ResponsiveContainer width="100%" height={effectiveHeight}>
+    <div className={`w-full min-w-0 space-y-1 ${className ?? ''}`}>
+      <ResponsiveContainer width="100%" height={effectiveHeight} minWidth={1}>
         <ChartComponent data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
           <XAxis dataKey={xKey} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
