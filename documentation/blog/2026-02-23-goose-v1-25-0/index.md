@@ -85,7 +85,7 @@ Under the hood, goose converts your extension configurations into the native for
 - Claude Code gets `--mcp-config` JSON
 - Codex gets `-c mcp_servers.*` TOML overrides
 
-This means you can use the same Kiwi flight search extension, the same GitHub extension, or any other MCP server, regardless of which provider you're using.
+This means you can use the same MCP extensions regardless of which provider you're using.
 
 ### Claude Code Streaming
 
