@@ -782,7 +782,7 @@ async fn execute_job(
         .prompt
         .as_ref()
         .or(recipe.instructions.as_ref())
-        .unwrap();
+        .ok_or_else(|| anyhow!("Recipe must have either 'prompt' or 'instructions' set"))?;
 
     let user_message = Message::user().with_text(prompt_text);
     let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
