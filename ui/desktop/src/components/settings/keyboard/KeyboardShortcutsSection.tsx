@@ -128,8 +128,8 @@ export default function KeyboardShortcutsSection() {
   const [showRestartNotice, setShowRestartNotice] = useState(false);
 
   const loadShortcuts = useCallback(async () => {
-    const settings = await window.electron.getSettings();
-    setShortcuts({ ...defaultKeyboardShortcuts, ...settings.keyboardShortcuts });
+    const keyboardShortcuts = await window.electron.getSetting('keyboardShortcuts');
+    setShortcuts({ ...defaultKeyboardShortcuts, ...keyboardShortcuts });
   }, []);
 
   useEffect(() => {
@@ -169,15 +169,11 @@ export default function KeyboardShortcutsSection() {
       newShortcuts[key] = null;
     }
 
-    const settings = await window.electron.getSettings();
-    settings.keyboardShortcuts = newShortcuts;
-    const success = await window.electron.saveSettings(settings);
-    if (success) {
-      setShortcuts(newShortcuts);
-      trackSettingToggled(`shortcut_${key}`, enabled);
-      if (needsRestart.has(key)) {
-        setShowRestartNotice(true);
-      }
+    await window.electron.setSetting('keyboardShortcuts', newShortcuts);
+    setShortcuts(newShortcuts);
+    trackSettingToggled(`shortcut_${key}`, enabled);
+    if (needsRestart.has(key)) {
+      setShowRestartNotice(true);
     }
   };
 
@@ -215,15 +211,11 @@ export default function KeyboardShortcutsSection() {
 
     newShortcuts[editingKey] = shortcut || null;
 
-    const settings = await window.electron.getSettings();
-    settings.keyboardShortcuts = newShortcuts;
-    const success = await window.electron.saveSettings(settings);
-    if (success) {
-      setShortcuts(newShortcuts);
-      setEditingKey(null);
-      if (needsRestart.has(editingKey)) {
-        setShowRestartNotice(true);
-      }
+    await window.electron.setSetting('keyboardShortcuts', newShortcuts);
+    setShortcuts(newShortcuts);
+    setEditingKey(null);
+    if (needsRestart.has(editingKey)) {
+      setShowRestartNotice(true);
     }
   };
 
@@ -242,14 +234,10 @@ export default function KeyboardShortcutsSection() {
     });
 
     if (confirmed.response === 0) {
-      const settings = await window.electron.getSettings();
-      settings.keyboardShortcuts = { ...defaultKeyboardShortcuts };
-      const success = await window.electron.saveSettings(settings);
-      if (success) {
-        setShortcuts({ ...defaultKeyboardShortcuts });
-        setShowRestartNotice(true);
-        trackSettingToggled('shortcuts_reset', true);
-      }
+      await window.electron.setSetting('keyboardShortcuts', { ...defaultKeyboardShortcuts });
+      setShortcuts({ ...defaultKeyboardShortcuts });
+      setShowRestartNotice(true);
+      trackSettingToggled('shortcuts_reset', true);
     }
   };
 

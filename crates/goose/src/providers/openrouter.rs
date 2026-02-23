@@ -168,7 +168,6 @@ impl ProviderDef for OpenRouterProvider {
                 ),
             ],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(

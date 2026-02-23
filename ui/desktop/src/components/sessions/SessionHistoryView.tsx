@@ -151,29 +151,18 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   const setView = useNavigation();
 
   useEffect(() => {
-    const savedSessionConfig = localStorage.getItem('session_sharing_config');
-    if (savedSessionConfig) {
-      try {
-        const config = JSON.parse(savedSessionConfig);
-        if (config.enabled && config.baseUrl) {
-          setCanShare(true);
-        }
-      } catch (error) {
-        console.error('Error parsing session sharing config:', error);
+    window.electron.getSetting('sessionSharing').then((config) => {
+      if (config.enabled && config.baseUrl) {
+        setCanShare(true);
       }
-    }
+    });
   }, []);
 
   const handleShare = async () => {
     setIsSharing(true);
 
     try {
-      const savedSessionConfig = localStorage.getItem('session_sharing_config');
-      if (!savedSessionConfig) {
-        throw new Error('Session sharing is not configured. Please configure it in settings.');
-      }
-
-      const config = JSON.parse(savedSessionConfig);
+      const config = await window.electron.getSetting('sessionSharing');
       if (!config.enabled || !config.baseUrl) {
         throw new Error('Session sharing is not enabled or base URL is not configured.');
       }

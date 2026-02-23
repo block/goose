@@ -3,33 +3,18 @@ import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { AlertCircle } from 'lucide-react';
-import { ExternalGoosedConfig } from '../../../utils/settings';
+import { ExternalGoosedConfig, defaultSettings } from '../../../utils/settings';
 import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';
 
-const DEFAULT_CONFIG: ExternalGoosedConfig = {
-  enabled: false,
-  url: '',
-  secret: '',
-};
-
-function parseConfig(config: ExternalGoosedConfig | undefined): ExternalGoosedConfig {
-  if (!config) return DEFAULT_CONFIG;
-  return {
-    enabled: config.enabled ?? DEFAULT_CONFIG.enabled,
-    url: config.url ?? DEFAULT_CONFIG.url,
-    secret: config.secret ?? DEFAULT_CONFIG.secret,
-  };
-}
-
 export default function ExternalBackendSection() {
-  const [config, setConfig] = useState<ExternalGoosedConfig>(DEFAULT_CONFIG);
+  const [config, setConfig] = useState<ExternalGoosedConfig>(defaultSettings.externalGoosed);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSettings = async () => {
-      const settings = await window.electron.getSettings();
-      setConfig(parseConfig(settings.externalGoosed));
+      const externalGoosed = await window.electron.getSetting('externalGoosed');
+      setConfig(externalGoosed);
     };
     loadSettings();
   }, []);
@@ -56,11 +41,7 @@ export default function ExternalBackendSection() {
   const saveConfig = async (newConfig: ExternalGoosedConfig): Promise<void> => {
     setIsSaving(true);
     try {
-      const currentSettings = await window.electron.getSettings();
-      await window.electron.saveSettings({
-        ...currentSettings,
-        externalGoosed: newConfig,
-      });
+      await window.electron.setSetting('externalGoosed', newConfig);
     } catch (error) {
       console.error('Failed to save external backend settings:', error);
     } finally {
