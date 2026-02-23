@@ -30,13 +30,13 @@ This is a great starting point for defense-in-depth security. The sandbox checks
 
 ## 🧩 Unified Summon Extension
 
-**We replaced two separate systems (subagent and skills) with a single, unified ["summon" extension](https://block.github.io/goose/docs/mcp/summon-mcp).**
+**We replaced two separate systems (subagent and Skills) with a single, unified ["Summon" extension](https://block.github.io/goose/docs/mcp/summon-mcp).**
 
-Previously, goose had two different mechanisms for delegating work: [subagents](https://block.github.io/goose/docs/tutorials/subagents) (for spinning up independent sub-tasks) and skills (for loading predefined capabilities). They overlapped in confusing ways and made the system harder to understand.
+Previously, goose had two different mechanisms for delegating work: [subagents](https://block.github.io/goose/docs/tutorials/subagents) (for spinning up independent sub-tasks) and Skills (for loading predefined capabilities). They overlapped in confusing ways and made the system harder to understand.
 
-The new **summon** extension unifies both concepts into two clean tools:
+The new **Summon** extension unifies both concepts into two clean tools:
 
-- **`load`**: Load a skill by name and return its content, replacing the old skills system.
+- **`load`**: Load Skills and Recipes into goose's context, replacing the old Skills system.
 - **`delegate`**: Delegate a task to a subagent that runs independently with its own context, replacing the old subagent system. Supports ad-hoc instructions, predefined subrecipes, or both combined.
 
 This simplification means:
