@@ -352,4 +352,4 @@ You can change some settings during a session and they will take effect immediat
   </TabItem>
 </Tabs>
 
-*Persistence indicates whether changes apply to your current session only or carry over to new sessions
+*Persistence indicates whether changes apply to your current session only or also carry over to new sessions

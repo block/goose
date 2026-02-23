@@ -108,27 +108,27 @@ export const DictationSettings = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all">
+      <div className="flex items-center justify-between py-2 px-2 hover:bg-background-secondary rounded-lg transition-all">
         <div>
-          <h3 className="text-text-default">Voice Dictation Provider</h3>
-          <p className="text-xs text-text-muted max-w-md mt-[2px]">
+          <h3 className="text-text-primary">Voice Dictation Provider</h3>
+          <p className="text-xs text-text-secondary max-w-md mt-[2px]">
             Choose how voice is converted to text
           </p>
         </div>
         <div className="relative">
           <button
             onClick={handleDropdownToggle}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-default rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-primary rounded-md hover:border-border-primary transition-colors text-text-primary bg-background-primary"
           >
             {getProviderLabel(provider)}
             <ChevronDown className="w-4 h-4" />
           </button>
 
           {showProviderDropdown && (
-            <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
+            <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-primary border border-border-primary rounded-md shadow-lg z-50">
               <button
                 onClick={() => handleProviderChange(null)}
-                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap first:rounded-t-md"
+                className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-secondary text-text-primary whitespace-nowrap first:rounded-t-md"
               >
                 <span className="flex items-center justify-between gap-2">
                   <span>Disabled</span>
@@ -142,13 +142,13 @@ export const DictationSettings = () => {
                   <button
                     key={p}
                     onClick={() => handleProviderChange(p)}
-                    className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"
+                    className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-secondary text-text-primary whitespace-nowrap last:rounded-b-md"
                   >
                     <span className="flex items-center justify-between gap-2">
                       <span>
                         {getProviderLabel(p)}
                         {!providerStatuses[p]?.configured && (
-                          <span className="text-xs ml-1 text-text-muted">(not configured)</span>
+                          <span className="text-xs ml-1 text-text-secondary">(not configured)</span>
                         )}
                       </span>
                       {provider === p && <span>✓</span>}
@@ -167,9 +167,9 @@ export const DictationSettings = () => {
               <LocalModelManager />
             </div>
           ) : providerStatuses[provider].uses_provider_config ? (
-            <div className="py-2 px-2 bg-background-muted rounded-lg">
+            <div className="py-2 px-2 bg-background-secondary rounded-lg">
               {!providerStatuses[provider].configured ? (
-                <p className="text-xs text-text-muted">
+                <p className="text-xs text-text-secondary">
                   Configure the API key in <b>{providerStatuses[provider].settings_path}</b>
                 </p>
               ) : (
@@ -179,10 +179,10 @@ export const DictationSettings = () => {
               )}
             </div>
           ) : (
-            <div className="py-2 px-2 bg-background-muted rounded-lg">
+            <div className="py-2 px-2 bg-background-secondary rounded-lg">
               <div className="mb-2">
-                <h4 className="text-text-default text-sm">API Key</h4>
-                <p className="text-xs text-text-muted mt-[2px]">
+                <h4 className="text-text-primary text-sm">API Key</h4>
+                <p className="text-xs text-text-secondary mt-[2px]">
                   Required for transcription
                   {providerStatuses[provider]?.configured && (
                     <span className="text-green-600 ml-2">(Configured)</span>

@@ -1443,6 +1443,16 @@ impl Agent {
                                                                 .lock().await.clone();
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
+                                    } else {
+                                        let error_msg = format!(
+                                            "[system: Tool call could not be parsed: {}. The response may have been truncated. Try breaking the task into smaller steps.]",
+                                            request.tool_call.as_ref().unwrap_err(),
+                                        );
+                                        let error_response = Message::user()
+                                            .with_generated_id()
+                                            .with_text(&error_msg);
+                                        yield AgentEvent::Message(error_response.clone());
+                                        messages_to_add.push(error_response);
                                     }
                                 }
 
