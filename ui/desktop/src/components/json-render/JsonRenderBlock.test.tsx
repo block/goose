@@ -289,7 +289,7 @@ describe('JsonRenderBlock', () => {
     });
   });
 
-  describe('real-world AI output (diagnostics_20260220_28 derived)', () => {
+  describe('real-world AI output (diagnostics derived)', () => {
     it('renders the full dashboard header section from a real session', () => {
       // This is the exact JSONL the AI produced for the dashboard header,
       // extracted from diagnostics_20260220_28/session.json message[14]
