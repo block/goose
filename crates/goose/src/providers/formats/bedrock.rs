@@ -21,9 +21,7 @@ pub fn to_bedrock_message_with_caching(
     message: &Message,
     enable_caching: bool,
 ) -> Result<bedrock::Message> {
-    let filtered = message.agent_visible_content();
-
-    let mut content_blocks: Vec<bedrock::ContentBlock> = filtered
+    let mut content_blocks: Vec<bedrock::ContentBlock> = message
         .content
         .iter()
         .map(to_bedrock_message_content)
@@ -39,7 +37,7 @@ pub fn to_bedrock_message_with_caching(
     }
 
     bedrock::Message::builder()
-        .role(to_bedrock_role(&filtered.role))
+        .role(to_bedrock_role(&message.role))
         .set_content(Some(content_blocks))
         .build()
         .map_err(|err| anyhow!("Failed to construct Bedrock message: {}", err))
