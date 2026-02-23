@@ -2,7 +2,10 @@ import { useState } from 'react';
 import { startNanogptSetup } from '../../utils/nanogptSetup';
 import { startTetrateSetup } from '../../utils/tetrateSetup';
 import { Tetrate } from '../icons';
-import { SetupModal } from '../SetupModal';
+
+const TETRATE = 'tetrate' as const;
+const NANOGPT = 'nanogpt' as const;
+type FreeCreditProvider = typeof TETRATE | typeof NANOGPT;
 
 interface FreeCreditCardsProps {
   onConfigured: (providerName: string) => void;
@@ -15,72 +18,34 @@ const ChevronRight = () => (
 );
 
 export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) {
-  const [setupState, setSetupState] = useState<{
-    show: boolean;
-    title: string;
+  const [error, setError] = useState<{
     message: string;
-    showRetry: boolean;
-    type: 'tetrate' | 'nanogpt';
+    type: FreeCreditProvider;
   } | null>(null);
 
-  const handleTetrateSetup = async () => {
+  const handleSetup = async (type: FreeCreditProvider) => {
+    setError(null);
     try {
-      const result = await startTetrateSetup();
+      const result = type === TETRATE ? await startTetrateSetup() : await startNanogptSetup();
       if (result.success) {
-        onConfigured('tetrate');
+        onConfigured(type);
       } else {
-        setSetupState({
-          show: true,
-          title: 'Setup Failed',
-          message: result.message,
-          showRetry: true,
-          type: 'tetrate',
-        });
+        setError({ message: result.message, type });
       }
-    } catch (error) {
-      console.error('Tetrate setup error:', error);
-      setSetupState({
-        show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
-        showRetry: true,
-        type: 'tetrate',
-      });
+    } catch {
+      setError({ message: 'An unexpected error occurred during setup.', type });
     }
   };
 
-  const handleNanogptSetup = async () => {
-    try {
-      const result = await startNanogptSetup();
-      if (result.success) {
-        onConfigured('nanogpt');
-      } else {
-        setSetupState({
-          show: true,
-          title: 'Setup Failed',
-          message: result.message,
-          showRetry: true,
-          type: 'nanogpt',
-        });
-      }
-    } catch (error) {
-      console.error('NanoGPT setup error:', error);
-      setSetupState({
-        show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
-        showRetry: true,
-        type: 'nanogpt',
-      });
-    }
-  };
+  const handleTetrateSetup = () => handleSetup(TETRATE);
+  const handleNanogptSetup = () => handleSetup(NANOGPT);
 
   const handleRetry = () => {
-    if (!setupState) return;
-    const type = setupState.type;
-    setSetupState(null);
-    if (type === 'tetrate') handleTetrateSetup();
-    else handleNanogptSetup();
+    if (!error) return;
+    if (error.type === TETRATE) {
+      handleTetrateSetup();
+    }
+    handleNanogptSetup();
   };
 
   return (
@@ -89,7 +54,6 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
         <p className="text-sm text-text-muted mb-4">Choose a provider to get started.</p>
 
         <div className="flex flex-col gap-3">
-          {/* Tetrate */}
           <div
             onClick={handleTetrateSetup}
             className="w-full p-4 bg-transparent border rounded-lg transition-all duration-200 cursor-pointer group hover:border-blue-400"
@@ -110,7 +74,6 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
             </p>
           </div>
 
-          {/* NanoGPT */}
           <div
             onClick={handleNanogptSetup}
             className="w-full p-4 bg-transparent border rounded-lg transition-all duration-200 cursor-pointer group hover:border-blue-400"
@@ -132,18 +95,20 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
           </div>
         </div>
 
+        {error && (
+          <div className="mt-3 p-3 border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-center justify-between gap-3">
+            <p className="text-sm text-red-700 dark:text-red-400">{error.message}</p>
+            <button
+              onClick={handleRetry}
+              className="px-3 py-1 text-sm font-medium text-red-700 dark:text-red-400 bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <p className="text-xs text-text-muted mt-4">You can switch providers anytime.</p>
       </div>
-
-      {setupState?.show && (
-        <SetupModal
-          title={setupState.title}
-          message={setupState.message}
-          showRetry={setupState.showRetry}
-          onRetry={handleRetry}
-          onClose={() => setSetupState(null)}
-        />
-      )}
     </div>
   );
 }

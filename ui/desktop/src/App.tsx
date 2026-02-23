@@ -18,7 +18,6 @@ import TelemetryOptOutModal from './components/TelemetryOptOutModal';
 import ProviderGuard from './components/ProviderGuard';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { USE_NEW_ONBOARDING } from './featureFlags';
-import GettingStartedPage from './components/onboarding/GettingStartedPage';
 import { createSession } from './sessions';
 
 import { ChatType } from './types/chat';
@@ -636,7 +635,6 @@ export function AppInner() {
               element={<WelcomeRoute onSelectProvider={() => setDidSelectProvider(true)} />}
             />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />
-            <Route path="getting-started" element={<GettingStartedPage />} />
             <Route path="standalone-app" element={<StandaloneAppView />} />
             <Route
               path="/"

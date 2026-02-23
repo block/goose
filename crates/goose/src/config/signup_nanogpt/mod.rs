@@ -11,7 +11,7 @@ pub const NANOGPT_DEFAULT_MODEL: &str = "openai/gpt-4.1-nano";
 
 const NANOGPT_START_URL: &str = "https://nano-gpt.com/api/cli-login/start";
 const NANOGPT_POLL_URL: &str = "https://nano-gpt.com/api/cli-login/poll";
-const AUTH_TIMEOUT: Duration = Duration::from_secs(600); // 10 minutes
+const AUTH_TIMEOUT: Duration = Duration::from_secs(180); // 3 minutes
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Serialize)]
@@ -46,14 +46,13 @@ async fn poll_for_token(device_code: &str) -> Result<String> {
         };
 
         let response = client.post(NANOGPT_POLL_URL).json(&body).send().await?;
-
+        // https://docs.nano-gpt.com/integrations/cli-login#response-codes
         match response.status().as_u16() {
             200 => {
                 let poll_resp: PollResponse = response.json().await?;
                 return Ok(poll_resp.key);
             }
             202 => {
-                // Authorization pending, continue polling
                 continue;
             }
             410 => {
@@ -64,6 +63,9 @@ async fn poll_for_token(device_code: &str) -> Result<String> {
             }
             404 => {
                 return Err(anyhow!("Invalid device code"));
+            }
+            429 => {
+                return Err(anyhow!("Too many requests to NanoGPT. Please wait a moment and try again."));
             }
             other => {
                 let error_text = response.text().await.unwrap_or_default();

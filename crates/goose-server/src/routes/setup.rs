@@ -52,7 +52,7 @@ async fn start_openrouter_setup() -> Result<Json<SetupResponse>, ErrorResponse> 
         }
         Err(e) => Ok(Json(SetupResponse {
             success: false,
-            message: format!("Setup failed: {}", e),
+            message: e.to_string(),
         })),
     }
 }
@@ -86,7 +86,7 @@ async fn start_tetrate_setup() -> Result<Json<SetupResponse>, ErrorResponse> {
         }
         Err(e) => Ok(Json(SetupResponse {
             success: false,
-            message: format!("Setup failed: {}", e),
+            message: e.to_string(),
         })),
     }
 }
@@ -117,7 +117,7 @@ async fn start_nanogpt_setup() -> Result<Json<SetupResponse>, ErrorResponse> {
         }
         Err(e) => Ok(Json(SetupResponse {
             success: false,
-            message: format!("Setup failed: {}", e),
+            message: e.to_string(),
         })),
     }
 }
