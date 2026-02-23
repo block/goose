@@ -3,9 +3,10 @@ import { useForm } from '@tanstack/react-form';
 import { X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { toastSuccess, toastError } from '../../../toasts';
-import { saveRecipe } from '../../../recipe/recipe_management';
+import { saveRecipe, getStorageDirectory } from '../../../recipe/recipe_management';
 import { Recipe } from '../../../recipe';
 import { SubRecipeFormData } from './recipeFormSchema';
+import { useEscapeKey } from '../../../hooks/useEscapeKey';
 
 interface CreateSubRecipeInlineProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ export default function CreateSubRecipeInline({
   onClose,
   onSubRecipeSaved,
 }: CreateSubRecipeInlineProps) {
+  useEscapeKey(isOpen, onClose);
+
   const form = useForm({
     defaultValues: {
       title: '',
@@ -85,17 +88,11 @@ export default function CreateSubRecipeInline({
         instructions: formValues.instructions.trim(),
       };
 
-      await saveRecipe(recipe, null);
-
-      const sanitizedTitle = formValues.title
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
+      const savedRecipeId = await saveRecipe(recipe, null);
 
       const subRecipe: SubRecipeFormData = {
         name: name.trim(),
-        path: `./subrecipes/${sanitizedTitle}.yaml`,
+        path: `${getStorageDirectory(true)}/${savedRecipeId}.yaml`,
         description: toolDescription.trim() || undefined,
         sequential_when_repeated: sequentialWhenRepeated,
         values: Object.keys(values).length > 0 ? values : undefined,
