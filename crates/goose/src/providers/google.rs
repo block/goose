@@ -122,8 +122,8 @@ impl ProviderDef for GoogleProvider {
             ],
         )
         .with_setup_steps(vec![
-            "Go to aistudio.google.com and sign in with your Google account",
-            "Click 'Get API key' in the top navigation",
+            "Go to https://aistudio.google.com and sign in with your Google account",
+            "Click 'Get API key' on the left sidebar",
             "Create a new API key or select an existing one",
             "Copy the key and paste it above",
         ])

@@ -10,6 +10,26 @@ import { SecureStorageNotice } from '../settings/providers/modal/subcomponents/S
 import { Button } from '../ui/button';
 import { LogIn, ChevronRight } from 'lucide-react';
 
+function parseLinks(text: string) {
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={i}
+        href="#"
+        onClick={(e) => {
+          e.preventDefault();
+          window.electron.openExternal(part);
+        }}
+        className="underline hover:text-text-default cursor-pointer"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 function OAuthForm({
   provider,
   onConfigured,
@@ -140,7 +160,7 @@ function ApiKeyForm({
           {showSetupHelp && (
             <ol className="mt-2 ml-5 list-decimal text-sm text-text-muted space-y-1">
               {setupSteps.map((step, i) => (
-                <li key={i}>{step}</li>
+                <li key={i}>{parseLinks(step)}</li>
               ))}
             </ol>
           )}

@@ -307,7 +307,7 @@ impl ProviderDef for OpenAiProvider {
             ],
         )
         .with_setup_steps(vec![
-            "Go to platform.openai.com and sign up or log in",
+            "Go to https://platform.openai.com and sign up or log in",
             "Navigate to API Keys in the left sidebar",
             "Click 'Create new secret key'",
             "Copy the key and paste it above",
