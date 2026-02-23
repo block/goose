@@ -87,6 +87,9 @@ struct RoutingPromptContext {
 /// A sub-task produced by compound request splitting.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubTask {
+    pub task_id: String,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
     pub routing: RoutingDecision,
     pub sub_task_description: String,
 }
@@ -105,6 +108,8 @@ impl OrchestratorPlan {
         Self {
             is_compound: false,
             tasks: vec![SubTask {
+                task_id: "task-1".to_string(),
+                depends_on: Vec::new(),
                 routing: decision,
                 sub_task_description: desc,
             }],
@@ -128,6 +133,9 @@ pub struct PlanProposal {
 /// A single task within a plan proposal, enriched with display info.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanProposalTask {
+    pub task_id: String,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
     pub agent_name: String,
     pub mode_slug: String,
     pub mode_name: String,
@@ -298,6 +306,8 @@ impl OrchestratorAgent {
                     .collect();
 
                 PlanProposalTask {
+                    task_id: sub_task.task_id.clone(),
+                    depends_on: sub_task.depends_on.clone(),
                     agent_name: sub_task.routing.agent_name.clone(),
                     mode_slug: sub_task.routing.mode_slug.clone(),
                     mode_name,
@@ -419,7 +429,40 @@ impl OrchestratorAgent {
         }
 
         let mut tasks = Vec::new();
+        let mut next_generated_id: usize = 1;
+        let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
         for task_val in tasks_arr {
+            let mut task_id = task_val["task_id"]
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| {
+                    let id = format!("task-{}", next_generated_id);
+                    next_generated_id += 1;
+                    id
+                });
+
+            if seen_ids.contains(&task_id) {
+                let mut suffix = 2usize;
+                loop {
+                    let candidate = format!("{}-{}", task_id, suffix);
+                    if !seen_ids.contains(&candidate) {
+                        task_id = candidate;
+                        break;
+                    }
+                    suffix += 1;
+                }
+            }
+            seen_ids.insert(task_id.clone());
+
+            let depends_on = task_val["depends_on"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(ToString::to_string))
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default();
+
             let agent_name = task_val["agent_name"]
                 .as_str()
                 .ok_or_else(|| anyhow::anyhow!("Missing agent_name in task"))?;
@@ -461,6 +504,8 @@ impl OrchestratorAgent {
             };
 
             tasks.push(SubTask {
+                task_id,
+                depends_on,
                 routing: RoutingDecision {
                     agent_name: agent_name.to_string(),
                     mode_slug: resolved_mode_slug,
@@ -475,6 +520,23 @@ impl OrchestratorAgent {
             return Err(anyhow::anyhow!(
                 "No valid tasks after filtering, all agent names were unknown"
             ));
+        }
+
+        // Normalize dependencies: keep only references to known task IDs and avoid self-deps.
+        // Use owned Strings to avoid borrowing `tasks` across the mutation loop.
+        let known: std::collections::HashSet<String> =
+            tasks.iter().map(|t| t.task_id.clone()).collect();
+        for task in &mut tasks {
+            let self_id = task.task_id.clone();
+            task.depends_on
+                .retain(|dep| dep != &self_id && known.contains(dep));
+        }
+
+        // Deterministic ordering: topological if possible, otherwise stable by task_id.
+        if let Some(order) = topo_sort_tasks(&tasks) {
+            tasks = order;
+        } else {
+            tasks.sort_by(|a, b| a.task_id.cmp(&b.task_id));
         }
 
         Ok(OrchestratorPlan { is_compound, tasks })
@@ -668,6 +730,65 @@ pub fn aggregate_results(tasks: &[SubTask], results: &[String]) -> String {
     output
 }
 
+fn topo_sort_tasks(tasks: &[SubTask]) -> Option<Vec<SubTask>> {
+    let order = topo_sort_indices(tasks)?;
+    let mut with_index: Vec<(usize, &SubTask)> = tasks.iter().enumerate().collect();
+    with_index.sort_by_key(|(idx, _)| order.get(idx).copied().unwrap_or(usize::MAX));
+    Some(with_index.into_iter().map(|(_, t)| t.clone()).collect())
+}
+
+fn topo_sort_indices(tasks: &[SubTask]) -> Option<std::collections::HashMap<usize, usize>> {
+    use std::collections::{BTreeSet, HashMap};
+
+    let mut id_to_index: HashMap<&str, usize> = HashMap::new();
+    for (idx, task) in tasks.iter().enumerate() {
+        id_to_index.insert(task.task_id.as_str(), idx);
+    }
+
+    let mut in_degree = vec![0usize; tasks.len()];
+    let mut out_edges: Vec<Vec<usize>> = vec![Vec::new(); tasks.len()];
+
+    for (idx, task) in tasks.iter().enumerate() {
+        for dep in &task.depends_on {
+            if let Some(&dep_idx) = id_to_index.get(dep.as_str()) {
+                in_degree[idx] += 1;
+                out_edges[dep_idx].push(idx);
+            }
+        }
+    }
+
+    // Deterministic tie-breaker: smallest task_id among ready nodes.
+    let mut ready: BTreeSet<(String, usize)> = BTreeSet::new();
+    for (idx, deg) in in_degree.iter().enumerate() {
+        if *deg == 0 {
+            ready.insert((tasks[idx].task_id.clone(), idx));
+        }
+    }
+
+    let mut order_map: HashMap<usize, usize> = HashMap::new();
+    let mut visited = 0usize;
+    let mut next = 0usize;
+
+    while let Some((_, node)) = ready.pop_first() {
+        order_map.insert(node, next);
+        next += 1;
+        visited += 1;
+
+        for &child in &out_edges[node] {
+            in_degree[child] = in_degree[child].saturating_sub(1);
+            if in_degree[child] == 0 {
+                ready.insert((tasks[child].task_id.clone(), child));
+            }
+        }
+    }
+
+    if visited == tasks.len() {
+        Some(order_map)
+    } else {
+        None
+    }
+}
+
 /// Extract a JSON object from text that may contain markdown code fences.
 fn extract_json(text: &str) -> Result<String> {
     let fence = "```";
@@ -774,6 +895,53 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_compound_response_with_dependencies() {
+        let orch = make_orchestrator();
+
+        let response = crate::conversation::message::Message::assistant().with_text(
+            r#"{"is_compound": true, "tasks": [
+                {"task_id": "a", "agent_name": "Developer Agent", "mode_slug": "write", "confidence": 0.85, "reasoning": "Bug fix", "sub_task": "Fix the login endpoint bug"},
+                {"task_id": "b", "depends_on": ["a"], "agent_name": "Developer Agent", "mode_slug": "write", "confidence": 0.8, "reasoning": "UI feature", "sub_task": "Add dark theme toggle to settings"}
+            ]}"#,
+        );
+
+        let plan = orch.parse_splitting_response(&response).unwrap();
+        assert!(plan.is_compound);
+        assert_eq!(plan.tasks.len(), 2);
+
+        assert_eq!(plan.tasks[0].task_id, "a");
+        assert_eq!(plan.tasks[0].depends_on, Vec::<String>::new());
+
+        assert_eq!(plan.tasks[1].task_id, "b");
+        assert_eq!(plan.tasks[1].depends_on, vec!["a".to_string()]);
+
+        // Topological ordering should ensure "a" runs before "b".
+        assert_eq!(plan.tasks[0].task_id, "a");
+        assert_eq!(plan.tasks[1].task_id, "b");
+    }
+
+    #[test]
+    fn test_parse_compound_response_dependency_normalization() {
+        let orch = make_orchestrator();
+
+        let response = crate::conversation::message::Message::assistant().with_text(
+            r#"{"is_compound": true, "tasks": [
+                {"task_id": "a", "depends_on": ["a", "missing"], "agent_name": "Goose Agent", "mode_slug": "ask", "confidence": 0.9, "reasoning": "A", "sub_task": "A"},
+                {"task_id": "b", "depends_on": ["a"], "agent_name": "Goose Agent", "mode_slug": "ask", "confidence": 0.9, "reasoning": "B", "sub_task": "B"}
+            ]}"#,
+        );
+
+        let plan = orch.parse_splitting_response(&response).unwrap();
+        assert_eq!(plan.tasks.len(), 2);
+
+        let a = plan.tasks.iter().find(|t| t.task_id == "a").unwrap();
+        assert!(
+            a.depends_on.is_empty(),
+            "self-dep and unknown dep should be removed"
+        );
+    }
+
+    #[test]
     fn test_parse_response_markdown_wrapped() {
         let orch = make_orchestrator();
 
@@ -846,6 +1014,8 @@ mod tests {
     #[test]
     fn test_aggregate_results_single() {
         let tasks = vec![SubTask {
+            task_id: "task-1".into(),
+            depends_on: Vec::new(),
             routing: RoutingDecision {
                 agent_name: "Goose Agent".into(),
                 mode_slug: "ask".into(),
@@ -864,6 +1034,8 @@ mod tests {
     fn test_aggregate_results_compound() {
         let tasks = vec![
             SubTask {
+                task_id: "task-1".into(),
+                depends_on: Vec::new(),
                 routing: RoutingDecision {
                     agent_name: "Developer Agent".into(),
                     mode_slug: "code".into(),
@@ -873,6 +1045,8 @@ mod tests {
                 sub_task_description: "Fix login bug".into(),
             },
             SubTask {
+                task_id: "task-2".into(),
+                depends_on: vec!["task-1".into()],
                 routing: RoutingDecision {
                     agent_name: "Developer Agent".into(),
                     mode_slug: "frontend".into(),
@@ -987,6 +1161,8 @@ mod tests {
             is_compound: true,
             tasks: vec![
                 PlanProposalTask {
+                    task_id: "task-1".into(),
+                    depends_on: Vec::new(),
                     agent_name: "Developer Agent".into(),
                     mode_slug: "write".into(),
                     mode_name: "✏️ Write".into(),
@@ -1003,6 +1179,8 @@ mod tests {
                     ],
                 },
                 PlanProposalTask {
+                    task_id: "task-2".into(),
+                    depends_on: vec!["task-1".into()],
                     agent_name: "QA Agent".into(),
                     mode_slug: "review".into(),
                     mode_name: "🔍 Review".into(),

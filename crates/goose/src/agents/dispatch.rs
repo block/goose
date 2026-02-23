@@ -579,6 +579,8 @@ mod tests {
 
     fn test_sub_task(description: &str, agent: &str) -> SubTask {
         SubTask {
+            task_id: "task-1".to_string(),
+            depends_on: Vec::new(),
             routing: RoutingDecision {
                 agent_name: agent.to_string(),
                 mode_slug: "default".to_string(),

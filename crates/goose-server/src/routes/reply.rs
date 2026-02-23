@@ -179,6 +179,9 @@ pub enum MessageEvent {
 /// A task within a plan proposal, serializable for SSE transport.
 #[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PlanTask {
+    pub task_id: String,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
     pub agent_name: String,
     pub mode_slug: String,
     pub mode_name: String,
@@ -410,6 +413,8 @@ pub async fn reply(
                         .tasks
                         .iter()
                         .map(|t| PlanTask {
+                            task_id: t.task_id.clone(),
+                            depends_on: t.depends_on.clone(),
                             agent_name: t.agent_name.clone(),
                             mode_slug: t.mode_slug.clone(),
                             mode_name: t.mode_name.clone(),

@@ -40,6 +40,8 @@ Respond with ONLY a JSON object (no markdown fencing):
   "is_compound": true | false,
   "tasks": [
     {
+      "task_id": "<unique id>",
+      "depends_on": ["<task_id>", "..."],
       "agent_name": "<exact agent name from catalog>",
       "mode_slug": "<exact mode slug from catalog>",
       "confidence": <0.0-1.0>,
@@ -48,3 +50,9 @@ Respond with ONLY a JSON object (no markdown fencing):
     }
   ]
 }
+
+Rules:
+- `task_id` must be unique within the response.
+- `depends_on` may be omitted or empty; if present it must reference other task_ids.
+- Use `depends_on` to represent a DAG when tasks can run in parallel.
+- If unsure, omit `depends_on` and list tasks in the order they should run.
