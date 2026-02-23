@@ -13,6 +13,8 @@ Let's break down what's new.
 
 <!--truncate-->
 
+<iframe class="aspect-ratio" src="https://www.youtube.com/embed/9tbYbUkvxW0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+
 ## 🔒 macOS Sandboxing
 
 **The headline feature of v1.25.0 is security sandboxing for goose Desktop on macOS.**
