@@ -21,55 +21,20 @@ import type {
 
 type ThemeTokens = Record<McpUiStyleVariableKey, string>;
 
+// Subset of keys that are the same across both themes.
+type BaseTokenKey = Extract<
+  McpUiStyleVariableKey,
+  | `--font-${string}`
+  | `--border-radius-${string}`
+  | `--border-width-${string}`
+>;
+
+type ColorTokenKey = Exclude<McpUiStyleVariableKey, BaseTokenKey>;
+
 // ---------------------------------------------------------------------------
-// Light theme
+// Base tokens — shared across light and dark themes
 // ---------------------------------------------------------------------------
-export const lightTokens: ThemeTokens = {
-  // Backgrounds
-  '--color-background-primary': '#ffffff',
-  '--color-background-secondary': '#f4f6f7',
-  '--color-background-tertiary': '#e3e6ea',
-  '--color-background-inverse': '#000000',
-  '--color-background-ghost': 'transparent',
-  '--color-background-info': '#5c98f9',
-  '--color-background-danger': '#f94b4b',
-  '--color-background-success': '#91cb80',
-  '--color-background-warning': '#fbcd44',
-  '--color-background-disabled': '#e3e6ea',
-
-  // Text
-  '--color-text-primary': '#3f434b',
-  '--color-text-secondary': '#878787',
-  '--color-text-tertiary': '#a7b0b9',
-  '--color-text-inverse': '#ffffff',
-  '--color-text-ghost': '#878787',
-  '--color-text-info': '#5c98f9',
-  '--color-text-danger': '#f94b4b',
-  '--color-text-success': '#91cb80',
-  '--color-text-warning': '#fbcd44',
-  '--color-text-disabled': '#cbd1d6',
-
-  // Borders
-  '--color-border-primary': '#e3e6ea',
-  '--color-border-secondary': '#e3e6ea',
-  '--color-border-tertiary': '#cbd1d6',
-  '--color-border-inverse': '#000000',
-  '--color-border-ghost': 'transparent',
-  '--color-border-info': '#5c98f9',
-  '--color-border-danger': '#f94b4b',
-  '--color-border-success': '#91cb80',
-  '--color-border-warning': '#fbcd44',
-  '--color-border-disabled': '#e3e6ea',
-
-  // Rings
-  '--color-ring-primary': '#e3e6ea',
-  '--color-ring-secondary': '#cbd1d6',
-  '--color-ring-inverse': '#ffffff',
-  '--color-ring-info': '#5c98f9',
-  '--color-ring-danger': '#f94b4b',
-  '--color-ring-success': '#91cb80',
-  '--color-ring-warning': '#fbcd44',
-
+const baseTokens: Pick<ThemeTokens, BaseTokenKey> = {
   // Typography — families
   '--font-sans': "'Cash Sans', sans-serif",
   '--font-mono': 'monospace',
@@ -120,6 +85,59 @@ export const lightTokens: ThemeTokens = {
 
   // Border width
   '--border-width-regular': '1px',
+};
+
+// Theme-specific color/shadow tokens only.
+type ColorTokens = Pick<ThemeTokens, ColorTokenKey>;
+
+// ---------------------------------------------------------------------------
+// Light theme — colors & shadows
+// ---------------------------------------------------------------------------
+const lightColorTokens: ColorTokens = {
+  // Backgrounds
+  '--color-background-primary': '#ffffff',
+  '--color-background-secondary': '#f4f6f7',
+  '--color-background-tertiary': '#e3e6ea',
+  '--color-background-inverse': '#000000',
+  '--color-background-ghost': 'transparent',
+  '--color-background-info': '#5c98f9',
+  '--color-background-danger': '#f94b4b',
+  '--color-background-success': '#91cb80',
+  '--color-background-warning': '#fbcd44',
+  '--color-background-disabled': '#e3e6ea',
+
+  // Text
+  '--color-text-primary': '#3f434b',
+  '--color-text-secondary': '#878787',
+  '--color-text-tertiary': '#a7b0b9',
+  '--color-text-inverse': '#ffffff',
+  '--color-text-ghost': '#878787',
+  '--color-text-info': '#5c98f9',
+  '--color-text-danger': '#f94b4b',
+  '--color-text-success': '#91cb80',
+  '--color-text-warning': '#fbcd44',
+  '--color-text-disabled': '#cbd1d6',
+
+  // Borders
+  '--color-border-primary': '#e3e6ea',
+  '--color-border-secondary': '#e3e6ea',
+  '--color-border-tertiary': '#cbd1d6',
+  '--color-border-inverse': '#000000',
+  '--color-border-ghost': 'transparent',
+  '--color-border-info': '#5c98f9',
+  '--color-border-danger': '#f94b4b',
+  '--color-border-success': '#91cb80',
+  '--color-border-warning': '#fbcd44',
+  '--color-border-disabled': '#e3e6ea',
+
+  // Rings
+  '--color-ring-primary': '#e3e6ea',
+  '--color-ring-secondary': '#cbd1d6',
+  '--color-ring-inverse': '#ffffff',
+  '--color-ring-info': '#5c98f9',
+  '--color-ring-danger': '#f94b4b',
+  '--color-ring-success': '#91cb80',
+  '--color-ring-warning': '#fbcd44',
 
   // Shadows
   '--shadow-hairline': '0 0 0 1px rgba(0, 0, 0, 0.05)',
@@ -130,9 +148,9 @@ export const lightTokens: ThemeTokens = {
 };
 
 // ---------------------------------------------------------------------------
-// Dark theme
+// Dark theme — colors & shadows
 // ---------------------------------------------------------------------------
-export const darkTokens: ThemeTokens = {
+const darkColorTokens: ColorTokens = {
   // Backgrounds
   '--color-background-primary': '#22252a',
   '--color-background-secondary': '#3f434b',
@@ -178,57 +196,6 @@ export const darkTokens: ThemeTokens = {
   '--color-ring-success': '#a3d795',
   '--color-ring-warning': '#ffd966',
 
-  // Typography — families (same as light)
-  '--font-sans': "'Cash Sans', sans-serif",
-  '--font-mono': 'monospace',
-
-  // Typography — weights (same as light)
-  '--font-weight-normal': '400',
-  '--font-weight-medium': '500',
-  '--font-weight-semibold': '600',
-  '--font-weight-bold': '700',
-
-  // Typography — text sizes (same as light)
-  '--font-text-xs-size': '0.75rem',
-  '--font-text-sm-size': '0.875rem',
-  '--font-text-md-size': '1rem',
-  '--font-text-lg-size': '1.125rem',
-
-  // Typography — heading sizes (same as light)
-  '--font-heading-xs-size': '1rem',
-  '--font-heading-sm-size': '1.125rem',
-  '--font-heading-md-size': '1.25rem',
-  '--font-heading-lg-size': '1.5rem',
-  '--font-heading-xl-size': '1.875rem',
-  '--font-heading-2xl-size': '2.25rem',
-  '--font-heading-3xl-size': '3rem',
-
-  // Typography — text line heights (same as light)
-  '--font-text-xs-line-height': '1rem',
-  '--font-text-sm-line-height': '1.25rem',
-  '--font-text-md-line-height': '1.5rem',
-  '--font-text-lg-line-height': '1.75rem',
-
-  // Typography — heading line heights (same as light)
-  '--font-heading-xs-line-height': '1.5rem',
-  '--font-heading-sm-line-height': '1.75rem',
-  '--font-heading-md-line-height': '1.75rem',
-  '--font-heading-lg-line-height': '2rem',
-  '--font-heading-xl-line-height': '2.25rem',
-  '--font-heading-2xl-line-height': '2.5rem',
-  '--font-heading-3xl-line-height': '3.5rem',
-
-  // Border radius (same as light)
-  '--border-radius-xs': '2px',
-  '--border-radius-sm': '4px',
-  '--border-radius-md': '8px',
-  '--border-radius-lg': '12px',
-  '--border-radius-xl': '16px',
-  '--border-radius-full': '9999px',
-
-  // Border width (same as light)
-  '--border-width-regular': '1px',
-
   // Shadows (darker for dark mode)
   '--shadow-hairline': '0 0 0 1px rgba(0, 0, 0, 0.2)',
   '--shadow-sm': '0 1px 2px 0 rgba(0, 0, 0, 0.2)',
@@ -236,6 +203,12 @@ export const darkTokens: ThemeTokens = {
   '--shadow-lg':
     '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2)',
 };
+
+// ---------------------------------------------------------------------------
+// Merged token maps — used by applyThemeTokens() and buildMcpHostStyles()
+// ---------------------------------------------------------------------------
+export const lightTokens: ThemeTokens = { ...baseTokens, ...lightColorTokens };
+export const darkTokens: ThemeTokens = { ...baseTokens, ...darkColorTokens };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -275,8 +248,9 @@ const HOST_FONT_CSS = `
 
 /**
  * Build the McpUiHostStyles object for MCP apps.
- * Color values use light-dark() format per the MCP spec.
- * Non-color values (fonts, radii, shadows) are the same in both themes.
+ * Color keys use light-dark() so a single payload works for both themes.
+ * Non-color keys (fonts, radii, shadows) use plain values from baseTokens
+ * (or light as the default when values differ, e.g. shadows).
  * css.fonts provides @font-face rules so sandboxed apps can load host fonts.
  */
 export function buildMcpHostStyles(): McpUiHostStyles {
@@ -284,7 +258,11 @@ export function buildMcpHostStyles(): McpUiHostStyles {
   for (const key of Object.keys(lightTokens) as McpUiStyleVariableKey[]) {
     const light = lightTokens[key];
     const dark = darkTokens[key];
-    variables[key] = light === dark ? light : `light-dark(${light}, ${dark})`;
+    if (key.startsWith('--color-')) {
+      variables[key] = `light-dark(${light}, ${dark})`;
+    } else {
+      variables[key] = light;
+    }
   }
   return { variables, css: { fonts: HOST_FONT_CSS } };
 }
