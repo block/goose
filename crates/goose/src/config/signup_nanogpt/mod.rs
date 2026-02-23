@@ -65,7 +65,9 @@ async fn poll_for_token(device_code: &str) -> Result<String> {
                 return Err(anyhow!("Invalid device code"));
             }
             429 => {
-                return Err(anyhow!("Too many requests to NanoGPT. Please wait a moment and try again."));
+                return Err(anyhow!(
+                    "Too many requests to NanoGPT. Please wait a moment and try again."
+                ));
             }
             other => {
                 let error_text = response.text().await.unwrap_or_default();
