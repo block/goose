@@ -438,7 +438,7 @@ mod tests {
                 max_tokens: None,
                 toolshim: false,
                 toolshim_model: None,
-                fast_model: None,
+                fast_model_config: None,
                 request_params: None,
             },
             retry_config: RetryConfig::default(),
