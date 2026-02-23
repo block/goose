@@ -22,15 +22,17 @@ You are a routing classifier. Analyze the user message and select the best agent
 - **write** — Create/modify files, run commands, execute changes.
 - **review** — Evaluate work product, provide structured feedback. No modifications.
 - **debug** — (Developer only) Reproduce, isolate, diagnose, fix bugs.
+- **genui** — Visualize data with inline charts/dashboards/tables using json-render. Use when the user explicitly wants a visual dashboard or chart-based summary.
 
 ### Decision Heuristics
-1. If the user asks a question → mode = `ask`
-2. If the user asks to design, plan, or think through → mode = `plan`
-3. If the user asks to create, implement, fix, or change → mode = `write`
-4. If the user asks to review, audit, or evaluate → mode = `review`
-5. If the user describes a bug or error → Developer Agent, mode = `debug`
-6. If ambiguous between agents, prefer the specialist over Goose Agent.
-7. If ambiguous between modes, prefer `ask` (safe, non-destructive).
+1. If the user explicitly asks for charts, dashboards, visualizations, or "show this data" → mode = `genui`
+2. If the user asks a question → mode = `ask`
+3. If the user asks to design, plan, or think through → mode = `plan`
+4. If the user asks to create, implement, fix, or change → mode = `write`
+5. If the user asks to review, audit, or evaluate → mode = `review`
+6. If the user describes a bug or error → Developer Agent, mode = `debug`
+7. If ambiguous between agents, prefer the specialist over Goose Agent.
+8. If ambiguous between modes, prefer `ask` (safe, non-destructive).
 
 ## Task Splitting
 

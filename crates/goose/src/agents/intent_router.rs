@@ -509,4 +509,12 @@ mod tests {
         // Routes to Developer Agent (write mode for devops)
         assert_eq!(decision.agent_name, "Developer Agent");
     }
+
+    #[test]
+    fn test_route_visual_dashboard_to_genui() {
+        let router = IntentRouter::new();
+        let decision = router.route("show a dashboard with charts summarizing session token usage");
+        assert_eq!(decision.agent_name, "Goose Agent");
+        assert_eq!(decision.mode_slug, "genui");
+    }
 }
