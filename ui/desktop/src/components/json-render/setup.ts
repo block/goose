@@ -15,7 +15,7 @@ import React from 'react';
 import { gooseComponents } from '../ui/design-system/goose-components';
 
 // ─── shadcn component keys (33) ───────────────────────────────
-const SHADCN_KEYS = [
+export const SHADCN_COMPONENT_KEYS = [
   'Card',
   'Stack',
   'Grid',
@@ -50,6 +50,8 @@ const SHADCN_KEYS = [
   'Link',
   'Pagination',
 ] as const;
+
+const SHADCN_KEYS = SHADCN_COMPONENT_KEYS;
 
 // ─── Goose custom component keys (11 unique, not in shadcn) ───
 const GOOSE_CUSTOM_KEYS = [
@@ -113,6 +115,22 @@ const pickedShadcn = pick(shadcnComponents, SHADCN_KEYS) as Record<
 >;
 const adaptedShadcn = adaptShadcnComponents(pickedShadcn);
 
+function assertRegistryInvariant() {
+  const shadcn = new Set<string>(SHADCN_KEYS);
+  const overlap = GOOSE_CUSTOM_KEYS.filter((k) => shadcn.has(k));
+  if (overlap.length > 0) {
+    throw new Error(
+      `json-render registry invariant violated: Goose DS overrides shadcn component(s): ${overlap.join(
+        ', '
+      )}`
+    );
+  }
+}
+
+if (import.meta.env.MODE !== 'production') {
+  assertRegistryInvariant();
+}
+
 // Pick goose custom components — already implement ComponentRenderProps ({ element, children, emit })
 const pickedGoose = pick(gooseComponents, GOOSE_CUSTOM_KEYS) as Record<
   string,
@@ -120,7 +138,6 @@ const pickedGoose = pick(gooseComponents, GOOSE_CUSTOM_KEYS) as Record<
 >;
 
 // Merge: shadcn (adapted) + goose custom (native)
-// Goose components take priority for shared names
 const mergedComponents: Record<string, React.ComponentType<ComponentRenderProps>> = {
   ...adaptedShadcn,
   ...pickedGoose,
