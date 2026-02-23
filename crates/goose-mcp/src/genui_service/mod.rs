@@ -257,9 +257,85 @@ impl GenUiServiceServer {
     }
 
     fn validate_jsonl_patches(output: &str) -> Result<(), ErrorData> {
-        let mut saw_root = false;
+        const MAX_SPEC_CHARS: usize = 250_000;
+        const MAX_JSONL_LINES: usize = 5_000;
+        const MAX_ELEMENTS: usize = 5_000;
 
-        for (idx, raw) in output.lines().enumerate() {
+        const ALLOWED_COMPONENT_TYPES: &[&str] = &[
+            // shadcn primitives
+            "Card",
+            "Stack",
+            "Grid",
+            "Separator",
+            "Tabs",
+            "Accordion",
+            "Collapsible",
+            "Dialog",
+            "Drawer",
+            "Popover",
+            "Tooltip",
+            "DropdownMenu",
+            "Heading",
+            "Text",
+            "Image",
+            "Avatar",
+            "Badge",
+            "Alert",
+            "Table",
+            "Carousel",
+            "Progress",
+            "Skeleton",
+            "Spinner",
+            "Input",
+            "Textarea",
+            "Select",
+            "Checkbox",
+            "Switch",
+            "Slider",
+            "Button",
+            "Toggle",
+            "Link",
+            "Pagination",
+            // Goose DS overlay
+            "PageHeader",
+            "DataCard",
+            "StatCard",
+            "ListItem",
+            "TreeItem",
+            "EmptyState",
+            "LoadingState",
+            "ErrorState",
+            "SearchInput",
+            "TabBar",
+            "CodeBlock",
+            "Chart",
+        ];
+
+        if output.chars().count() > MAX_SPEC_CHARS {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Generated spec too large (>{MAX_SPEC_CHARS} chars)"),
+                None,
+            ));
+        }
+
+        let lines: Vec<&str> = output.lines().collect();
+        if lines.len() > MAX_JSONL_LINES {
+            return Err(ErrorData::new(
+                ErrorCode::INVALID_PARAMS,
+                format!("Generated spec too large (>{MAX_JSONL_LINES} lines)"),
+                None,
+            ));
+        }
+
+        let allowed = std::collections::HashSet::<&'static str>::from_iter(
+            ALLOWED_COMPONENT_TYPES.iter().copied(),
+        );
+
+        let mut saw_root = false;
+        let mut element_ids = std::collections::HashSet::<String>::new();
+
+        for (idx, raw) in lines.iter().enumerate() {
             let line = raw.trim();
             if line.is_empty() {
                 continue;
@@ -293,6 +369,31 @@ impl GenUiServiceServer {
 
             if op == "add" && path == "/root" {
                 saw_root = true;
+            }
+
+            if op == "add" && path.starts_with("/elements/") {
+                if let Some(element_id) = path.strip_prefix("/elements/") {
+                    element_ids.insert(element_id.to_string());
+                    if element_ids.len() > MAX_ELEMENTS {
+                        return Err(ErrorData::new(
+                            ErrorCode::INVALID_PARAMS,
+                            format!("Generated spec too large (>{MAX_ELEMENTS} elements)"),
+                            None,
+                        ));
+                    }
+                }
+
+                if let Some(value_obj) = obj.get("value").and_then(|v| v.as_object()) {
+                    if let Some(t) = value_obj.get("type").and_then(|v| v.as_str()) {
+                        if !allowed.contains(t) {
+                            return Err(ErrorData::new(
+                                ErrorCode::INVALID_PARAMS,
+                                format!("Unknown component type: {t}"),
+                                None,
+                            ));
+                        }
+                    }
+                }
             }
         }
 
