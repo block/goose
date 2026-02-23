@@ -495,7 +495,11 @@ pub async fn orchestrator_status(State(state): State<Arc<AppState>>) -> Json<Orc
     use goose::agents::orchestrator_agent::{is_orchestrator_enabled, OrchestratorAgent};
 
     let provider = Arc::new(tokio::sync::Mutex::new(None));
-    let router = OrchestratorAgent::new(provider);
+    let mut router = OrchestratorAgent::new(provider);
+    state
+        .agent_slot_registry
+        .configure_orchestrator(&mut router)
+        .await;
 
     let mut agents = Vec::new();
     let mut total_modes = 0;
@@ -588,7 +592,11 @@ pub async fn agent_catalog(State(state): State<Arc<AppState>>) -> Json<AgentCata
 
     // 1. Builtin agents from orchestrator slots
     let provider = Arc::new(tokio::sync::Mutex::new(None));
-    let router = OrchestratorAgent::new(provider);
+    let mut router = OrchestratorAgent::new(provider);
+    state
+        .agent_slot_registry
+        .configure_orchestrator(&mut router)
+        .await;
 
     for slot in router.slots() {
         let enabled = state.agent_slot_registry.is_enabled(&slot.name).await;

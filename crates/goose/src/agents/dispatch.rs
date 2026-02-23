@@ -244,7 +244,40 @@ impl Dispatcher for A2ADispatcher {
             strategy: strategy.to_string(),
         });
 
-        let client = a2a::client::A2AClient::new(&url);
+        // A2AClient requires an RPC endpoint (a JSON-RPC URL). The registry may store either:
+        // - a base URL that serves /.well-known/agent-card.json, or
+        // - a direct JSON-RPC endpoint.
+        //
+        // Prefer fetching the agent card (sets rpc_url), but if that fails, fall back to treating
+        // the configured URL as the JSON-RPC endpoint.
+        let mut client = a2a::client::A2AClient::new(&url);
+
+        if client.fetch_agent_card().await.is_err() {
+            let direct_card = a2a::types::agent_card::AgentCard {
+                name: agent_name.clone(),
+                description: "Remote A2A agent".to_string(),
+                supported_interfaces: vec![a2a::types::agent_card::AgentInterface {
+                    url: url.clone(),
+                    protocol_binding: Some("JSONRPC".to_string()),
+                    tenant: None,
+                    protocol_version: None,
+                }],
+                provider: None,
+                version: None,
+                protocol_version: Some("1.0".to_string()),
+                capabilities: None,
+                security_schemes: serde_json::Value::Null,
+                security: vec![],
+                default_input_modes: vec!["text/plain".to_string()],
+                default_output_modes: vec!["text/plain".to_string()],
+                skills: vec![],
+                documentation_url: None,
+                icon_url: None,
+                signatures: vec![],
+            };
+
+            client = client.with_agent_card(direct_card);
+        }
 
         let message = a2a::types::core::Message {
             message_id: uuid::Uuid::new_v4().to_string(),

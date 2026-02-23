@@ -138,7 +138,11 @@ async fn build_health(state: &AppState) -> SystemHealth {
     use goose::agents::orchestrator_agent::OrchestratorAgent;
 
     let provider = Arc::new(tokio::sync::Mutex::new(None));
-    let router = OrchestratorAgent::new(provider);
+    let mut router = OrchestratorAgent::new(provider);
+    state
+        .agent_slot_registry
+        .configure_orchestrator(&mut router)
+        .await;
     let slots = router.slots();
     let registered = slots.len();
     let enabled = slots.iter().filter(|s| s.enabled).count();
@@ -180,7 +184,11 @@ async fn build_active_agents(state: &AppState) -> Vec<ActiveAgent> {
     use goose::agents::orchestrator_agent::OrchestratorAgent;
 
     let provider = Arc::new(tokio::sync::Mutex::new(None));
-    let router = OrchestratorAgent::new(provider);
+    let mut router = OrchestratorAgent::new(provider);
+    state
+        .agent_slot_registry
+        .configure_orchestrator(&mut router)
+        .await;
     let slots = router.slots();
 
     let pool_snapshots = state.agent_pool.status_all().await;

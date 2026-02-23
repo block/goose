@@ -1,10 +1,16 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::sync::{OnceCell, RwLock};
+use tokio::time::timeout;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Row, Sqlite};
+
+use a2a::client::A2AClient;
+use a2a::types::agent_card::AgentCard;
+const A2A_FETCH_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Registry tracking which agents are enabled, their delegation strategies,
 /// and which extensions are bound to each agent.
@@ -16,9 +22,18 @@ pub struct AgentSlotRegistry {
     enabled_agents: Arc<RwLock<HashMap<String, bool>>>,
     bound_extensions: Arc<RwLock<HashMap<String, HashSet<String>>>>,
     delegation_strategies: Arc<RwLock<HashMap<String, SlotDelegation>>>,
+    agent_cards: Arc<RwLock<HashMap<String, CachedAgentCard>>>,
     pool: Arc<OnceCell<Pool<Sqlite>>>,
     db_path: PathBuf,
 }
+
+#[derive(Clone)]
+struct CachedAgentCard {
+    fetched_at: Instant,
+    card: AgentCard,
+}
+
+const AGENT_CARD_TTL: Duration = Duration::from_secs(60 * 5);
 
 /// How a particular agent slot should be executed.
 #[derive(Clone, Debug, PartialEq)]
@@ -42,18 +57,28 @@ impl Default for AgentSlotRegistry {
 impl AgentSlotRegistry {
     /// Create an in-memory-only registry (for tests or when no persistence needed).
     pub fn new() -> Self {
-        let mut enabled = HashMap::new();
-        enabled.insert("Goose Agent".to_string(), true);
-        enabled.insert("Developer Agent".to_string(), true);
+        let builtin_agents = [
+            "Goose Agent",
+            "Developer Agent",
+            "QA Agent",
+            "PM Agent",
+            "Security Agent",
+            "Research Agent",
+        ];
 
+        let mut enabled = HashMap::new();
         let mut strategies = HashMap::new();
-        strategies.insert("Goose Agent".to_string(), SlotDelegation::InProcess);
-        strategies.insert("Developer Agent".to_string(), SlotDelegation::InProcess);
+
+        for name in builtin_agents {
+            enabled.insert(name.to_string(), true);
+            strategies.insert(name.to_string(), SlotDelegation::InProcess);
+        }
 
         Self {
             enabled_agents: Arc::new(RwLock::new(enabled)),
             bound_extensions: Arc::new(RwLock::new(HashMap::new())),
             delegation_strategies: Arc::new(RwLock::new(strategies)),
+            agent_cards: Arc::new(RwLock::new(HashMap::new())),
             pool: Arc::new(OnceCell::new()),
             db_path: PathBuf::new(),
         }
@@ -69,6 +94,7 @@ impl AgentSlotRegistry {
             enabled_agents: Arc::new(RwLock::new(HashMap::new())),
             bound_extensions: Arc::new(RwLock::new(HashMap::new())),
             delegation_strategies: Arc::new(RwLock::new(HashMap::new())),
+            agent_cards: Arc::new(RwLock::new(HashMap::new())),
             pool: Arc::new(OnceCell::new()),
             db_path,
         }
@@ -86,17 +112,19 @@ impl AgentSlotRegistry {
         self.load_from_db(pool).await?;
 
         // Ensure builtins exist
-        let agents = self.enabled_agents.read().await;
-        if !agents.contains_key("Goose Agent") {
-            drop(agents);
-            self.register_builtin("Goose Agent").await;
-        } else {
-            drop(agents);
-        }
-        let agents = self.enabled_agents.read().await;
-        if !agents.contains_key("Developer Agent") {
-            drop(agents);
-            self.register_builtin("Developer Agent").await;
+        for name in [
+            "Goose Agent",
+            "Developer Agent",
+            "QA Agent",
+            "PM Agent",
+            "Security Agent",
+            "Research Agent",
+        ] {
+            let agents = self.enabled_agents.read().await;
+            if !agents.contains_key(name) {
+                drop(agents);
+                self.register_builtin(name).await;
+            }
         }
 
         Ok(())
@@ -310,6 +338,7 @@ impl AgentSlotRegistry {
     pub async fn set_delegation(&self, name: &str, strategy: SlotDelegation) {
         let enabled = self.is_enabled(name).await;
         self.persist_agent(name, enabled, &strategy).await;
+        self.agent_cards.write().await.remove(name);
         self.delegation_strategies
             .write()
             .await
@@ -328,7 +357,120 @@ impl AgentSlotRegistry {
             .write()
             .await
             .insert(name.to_string(), delegation.clone());
+        self.agent_cards.write().await.remove(name);
         self.persist_agent(name, true, &delegation).await;
+    }
+
+    pub async fn get_cached_a2a_agent_card(
+        &self,
+        agent_name: &str,
+        url: &str,
+    ) -> Option<AgentCard> {
+        let now = Instant::now();
+
+        if let Some(cached) = self.agent_cards.read().await.get(agent_name) {
+            if now.duration_since(cached.fetched_at) < AGENT_CARD_TTL {
+                return Some(cached.card.clone());
+            }
+        }
+
+        let mut client = A2AClient::new(url);
+        let fetched = timeout(A2A_FETCH_TIMEOUT, client.fetch_agent_card()).await;
+        let card = match fetched {
+            Ok(Ok(card)) => card,
+            _ => return None,
+        };
+
+        self.agent_cards.write().await.insert(
+            agent_name.to_string(),
+            CachedAgentCard {
+                fetched_at: now,
+                card: card.clone(),
+            },
+        );
+
+        Some(card)
+    }
+
+    pub async fn configure_orchestrator(
+        &self,
+        router: &mut goose::agents::orchestrator_agent::OrchestratorAgent,
+    ) {
+        use goose::agents::intent_router::AgentSlot;
+        use goose::registry::manifest::AgentMode;
+
+        for (slot_name, enabled, delegation) in self.all_agents().await {
+            router.set_enabled(&slot_name, enabled);
+
+            let bound = self.get_bound_extensions(&slot_name).await;
+            router.set_bound_extensions(&slot_name, bound.to_vec());
+
+            // Builtins are already present in the orchestrator's default slots.
+            if router.slots().iter().any(|s| s.name == slot_name) {
+                continue;
+            }
+
+            let mut modes: Vec<AgentMode> = Vec::new();
+            let mut description = match &delegation {
+                SlotDelegation::RemoteA2A { url } => format!("Remote A2A agent ({url})"),
+                SlotDelegation::ExternalAcp => "External ACP agent".to_string(),
+                SlotDelegation::InProcess => "In-process agent".to_string(),
+            };
+
+            if let SlotDelegation::RemoteA2A { url } = &delegation {
+                if let Some(card) = self.get_cached_a2a_agent_card(&slot_name, url).await {
+                    description = card.description.clone();
+
+                    modes = card
+                        .skills
+                        .into_iter()
+                        .map(|skill| {
+                            let slug = skill.id.split('.').next_back().unwrap_or("ask").to_string();
+
+                            AgentMode {
+                                slug,
+                                name: skill.name,
+                                description: skill.description,
+                                instructions: None,
+                                instructions_file: None,
+                                tool_groups: Vec::new(),
+                                when_to_use: None,
+                                is_internal: false,
+                                deprecated: None,
+                            }
+                        })
+                        .collect();
+                }
+            }
+
+            if modes.is_empty() {
+                modes.push(AgentMode {
+                    slug: "ask".to_string(),
+                    name: "Ask".to_string(),
+                    description: "General-purpose mode".to_string(),
+                    instructions: None,
+                    instructions_file: None,
+                    tool_groups: Vec::new(),
+                    when_to_use: None,
+                    is_internal: false,
+                    deprecated: None,
+                });
+            }
+
+            let default_mode = modes
+                .first()
+                .map(|m| m.slug.clone())
+                .unwrap_or_else(|| "ask".to_string());
+
+            router.intent_router_mut().add_slot(AgentSlot {
+                name: slot_name.clone(),
+                description,
+                modes,
+                default_mode,
+                enabled,
+                bound_extensions: bound.into_iter().collect(),
+            });
+        }
     }
 
     pub async fn register_acp_agent(&self, name: &str) {
@@ -367,6 +509,7 @@ impl AgentSlotRegistry {
         self.enabled_agents.write().await.remove(name);
         self.delegation_strategies.write().await.remove(name);
         self.bound_extensions.write().await.remove(name);
+        self.agent_cards.write().await.remove(name);
 
         if let Ok(pool) = self.get_or_init_pool().await {
             sqlx::query("DELETE FROM agents WHERE name = ?")
@@ -483,7 +626,8 @@ mod tests {
             .register_a2a_agent("Remote", "https://example.com")
             .await;
         let all = registry.all_agents().await;
-        assert!(all.len() >= 3); // Goose Agent, Developer Agent, Remote
+        // Builtins + the registered remote agent
+        assert!(all.len() >= 7);
         assert!(all.iter().any(|(name, _, _)| name == "Remote"));
     }
 
