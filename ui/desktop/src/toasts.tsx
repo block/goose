@@ -9,6 +9,7 @@ import {
   ExtensionLoadingStatus,
 } from './components/GroupedExtensionLoadingToast';
 import { getInitialWorkingDir } from './utils/workingDir';
+import { t } from './i18n';
 
 export interface ToastServiceOptions {
   silent?: boolean;
@@ -197,22 +198,28 @@ function ToastErrorContent({
       <div className="flex-none flex items-center gap-2">
         {showRecovery && (
           <Button onClick={() => startNewSession(recoverHints, setView, getInitialWorkingDir())}>
-            Ask goose
+            {t('common.ask_goose', 'Ask goose')}
           </Button>
         )}
         {hasBoth && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button onClick={handleCopyError} shape="round" aria-label="Copy error">
+              <Button
+                onClick={handleCopyError}
+                shape="round"
+                aria-label={t('common.copy_error', 'Copy error')}
+              >
                 <Copy className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="z-[10000]">
-              Copy error
+              {t('common.copy_error', 'Copy error')}
             </TooltipContent>
           </Tooltip>
         )}
-        {traceback && !hasBoth && <Button onClick={handleCopyError}>Copy error</Button>}
+        {traceback && !hasBoth && (
+          <Button onClick={handleCopyError}>{t('common.copy_error', 'Copy error')}</Button>
+        )}
       </div>
     </div>
   );

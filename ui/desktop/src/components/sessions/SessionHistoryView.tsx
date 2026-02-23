@@ -33,6 +33,7 @@ import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { Message, Session } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
+import { t } from '../../i18n';
 
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
@@ -96,15 +97,17 @@ const SessionMessages: React.FC<{
               <div className="text-red-500 mb-4">
                 <AlertCircle size={32} />
               </div>
-              <p className="text-md mb-2">Error Loading Session Details</p>
+              <p className="text-md mb-2">
+                {t('sessions.error_loading_details', 'Error Loading Session Details')}
+              </p>
               <p className="text-sm text-center mb-4">{error}</p>
               <Button onClick={onRetry} variant="default">
-                Try Again
+                {t('common.retry', 'Try Again')}
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
             <div className="max-w-4xl mx-auto w-full">
-              <SearchView placeholder="Search history...">
+              <SearchView placeholder={t('common.search_history', 'Search history...')}>
                 <ProgressiveMessageList
                   messages={filteredMessages}
                   chat={{
@@ -122,8 +125,10 @@ const SessionMessages: React.FC<{
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-text-muted">
               <MessageSquareText className="w-12 h-12 mb-4" />
-              <p className="text-lg mb-2">No messages found</p>
-              <p className="text-sm">This session doesn't contain any messages</p>
+              <p className="text-lg mb-2">{t('sessions.no_messages', 'No messages found')}</p>
+              <p className="text-sm">
+                {t('sessions.no_messages_subtitle', "This session doesn't contain any messages")}
+              </p>
             </div>
           )}
         </div>
@@ -164,14 +169,19 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     try {
       const config = await window.electron.getSetting('sessionSharing');
       if (!config.enabled || !config.baseUrl) {
-        throw new Error('Session sharing is not enabled or base URL is not configured.');
+        throw new Error(
+          t(
+            'sessions.share_disabled',
+            'Session sharing is not enabled or base URL is not configured.'
+          )
+        );
       }
 
       const shareToken = await createSharedSession(
         config.baseUrl,
         session.working_dir,
         messages,
-        session.name || 'Shared Session',
+        session.name || t('sessions.shared_session', 'Shared Session'),
         session.total_tokens || 0
       );
 
@@ -180,7 +190,11 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       setIsShareModalOpen(true);
     } catch (error) {
       console.error('Error sharing session:', error);
-      toast.error(`Failed to share session: ${errorMessage(error, 'Unknown error')}`);
+      toast.error(
+        t('sessions.share_failed', 'Failed to share session: {error}', {
+          error: errorMessage(error, 'Unknown error'),
+        })
+      );
     } finally {
       setIsSharing(false);
     }
@@ -195,7 +209,9 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       })
       .catch((err) => {
         console.error('Failed to copy link:', err);
-        toast.error('Failed to copy link to clipboard');
+        toast.error(
+          t('sessions.copy_link_failed', 'Failed to copy link to clipboard')
+        );
       });
   };
 
@@ -203,7 +219,11 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
     try {
       resumeSession(session, setView);
     } catch (error) {
-      toast.error(`Could not launch session: ${errorMessage(error)}`);
+      toast.error(
+        t('sessions.launch_failed', 'Could not launch session: {error}', {
+          error: errorMessage(error),
+        })
+      );
     }
   };
 
@@ -285,7 +305,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
               ) : (
                 <div className="flex items-center text-text-muted text-sm">
                   <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
-                  <span>Loading session details...</span>
+                  <span>{t('sessions.loading_details', 'Loading session details...')}</span>
                 </div>
               )}
             </div>

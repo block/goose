@@ -4,6 +4,7 @@ import { type SharedSessionDetails } from '../../sharedSessions';
 import { SessionMessages } from './SessionViewComponents';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
+import { t } from '../../i18n';
 
 interface SharedSessionViewProps {
   session: SharedSessionDetails | null;
@@ -37,11 +38,13 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
         <div className="flex items-center py-4 border-b border-border-default mb-6">
           <div className="flex items-center text-text-muted">
             <Share2 className="w-5 h-5 mr-2" />
-            <span className="text-sm font-medium">Shared Session</span>
+            <span className="text-sm font-medium">
+              {t('sessions.shared_session', 'Shared Session')}
+            </span>
           </div>
         </div>
 
-        <SessionHeader title={session ? session.description : 'Shared Session'}>
+        <SessionHeader title={session ? session.description : t('sessions.shared_session', 'Shared Session')}>
           <div className="flex flex-col">
             {!isLoading && session && session.messages.length > 0 ? (
               <>
@@ -71,7 +74,7 @@ const SharedSessionView: React.FC<SharedSessionViewProps> = ({
             ) : (
               <div className="flex items-center text-text-muted text-sm">
                 <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
-                <span>Loading session details...</span>
+                <span>{t('sessions.loading_details', 'Loading session details...')}</span>
               </div>
             )}
           </div>
