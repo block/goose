@@ -56,9 +56,6 @@ pub struct Attachment {
 pub enum OutgoingMessage {
     Text { body: String },
     Typing,
-    Error { message: String },
-    ToolStarted { tool_name: String },
-    ToolCompleted { tool_name: String, success: bool },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

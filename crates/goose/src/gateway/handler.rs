@@ -53,8 +53,8 @@ impl GatewayHandler {
                         self.gateway
                             .send_message(
                                 &message.user,
-                                OutgoingMessage::Error {
-                                    message: "That code is for a different gateway.".into(),
+                                OutgoingMessage::Text {
+                                    body: "⚠️ That code is for a different gateway.".into(),
                                 },
                             )
                             .await?;
@@ -286,8 +286,8 @@ impl GatewayHandler {
             self.gateway
                 .send_message(
                     &message.user,
-                    OutgoingMessage::Error {
-                        message: format!("Failed to configure provider: {e}"),
+                    OutgoingMessage::Text {
+                        body: format!("⚠️ Failed to configure provider: {e}"),
                     },
                 )
                 .await?;
@@ -322,8 +322,8 @@ impl GatewayHandler {
                 self.gateway
                     .send_message(
                         &message.user,
-                        OutgoingMessage::Error {
-                            message: format!("Failed to start agent: {e}"),
+                        OutgoingMessage::Text {
+                            body: format!("⚠️ Failed to start agent: {e}"),
                         },
                     )
                     .await?;
@@ -410,33 +410,17 @@ impl GatewayHandler {
                                         );
                                         let _ = self
                                             .gateway
-                                            .send_message(
-                                                &message.user,
-                                                OutgoingMessage::ToolStarted {
-                                                    tool_name: call.name.to_string(),
-                                                },
-                                            )
+                                            .send_message(&message.user, OutgoingMessage::Typing)
                                             .await;
                                     }
                                 }
                                 MessageContent::ToolResponse(resp) => {
-                                    let success = resp.tool_result.is_ok();
                                     tracing::debug!(
                                         session_id,
                                         id = %resp.id,
-                                        success,
+                                        success = resp.tool_result.is_ok(),
                                         "gateway stream: tool response"
                                     );
-                                    let _ = self
-                                        .gateway
-                                        .send_message(
-                                            &message.user,
-                                            OutgoingMessage::ToolCompleted {
-                                                tool_name: resp.id.clone(),
-                                                success,
-                                            },
-                                        )
-                                        .await;
                                 }
                                 _ => {}
                             }
@@ -474,8 +458,8 @@ impl GatewayHandler {
                     self.gateway
                         .send_message(
                             &message.user,
-                            OutgoingMessage::Error {
-                                message: format!("Agent error: {e}"),
+                            OutgoingMessage::Text {
+                                body: format!("⚠️ Agent error: {e}"),
                             },
                         )
                         .await?;

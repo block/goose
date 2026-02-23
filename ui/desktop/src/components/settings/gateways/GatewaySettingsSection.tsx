@@ -282,13 +282,14 @@ function TelegramGatewayCard({
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   disabled={busy}
                   onClick={wrap(onRemove)}
-                  className="text-text-muted hover:text-red-600"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Remove
                 </Button>
               </>
             )}
@@ -298,10 +299,26 @@ function TelegramGatewayCard({
       <CardContent className="pt-3 space-y-2">
         {!running && !configured && (
           <>
+            <div className="text-xs text-text-muted space-y-1.5 mb-2">
+              <p>
+                Open{' '}
+                <a
+                  href="https://t.me/BotFather"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  @BotFather
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+                {' '}on your phone, send <code className="bg-background-muted px-1 py-0.5 rounded">/newbot</code>, and follow
+                the prompts to name your bot. BotFather will reply with an API token — paste it below.
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               <Input
                 type="password"
-                placeholder="Bot token from @BotFather"
+                placeholder="Paste bot token here"
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleFirstStart()}
@@ -311,18 +328,6 @@ function TelegramGatewayCard({
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
               </Button>
             </div>
-            <p className="text-xs text-text-muted">
-              Create a bot with{' '}
-              <a
-                href="https://t.me/BotFather"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                @BotFather
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </p>
           </>
         )}
         {status && <PairedUsersList users={status.paired_users} onUnpairUser={onUnpairUser} />}

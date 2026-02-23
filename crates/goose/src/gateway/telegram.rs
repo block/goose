@@ -242,14 +242,6 @@ impl Gateway for TelegramGateway {
             OutgoingMessage::Typing => {
                 self.send_chat_action(chat_id, "typing").await?;
             }
-            OutgoingMessage::Error { message } => {
-                self.send_text(chat_id, &format!("⚠️ Error: {}", message))
-                    .await?;
-            }
-            OutgoingMessage::ToolStarted { .. } => {
-                self.send_chat_action(chat_id, "typing").await?;
-            }
-            OutgoingMessage::ToolCompleted { .. } => {}
         }
 
         Ok(())

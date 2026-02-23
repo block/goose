@@ -6,7 +6,6 @@ use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 
-use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::execution::manager::AgentManager;
 
@@ -62,8 +61,7 @@ pub struct GatewayManager {
 
 impl GatewayManager {
     pub fn new(agent_manager: Arc<AgentManager>) -> anyhow::Result<Self> {
-        let db_path = Paths::data_dir().join("gateway").join("pairings.db");
-        let pairing_store = Arc::new(PairingStore::new(&db_path)?);
+        let pairing_store = Arc::new(PairingStore::new()?);
 
         Ok(Self {
             gateways: RwLock::new(HashMap::new()),
