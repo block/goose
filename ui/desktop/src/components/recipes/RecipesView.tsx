@@ -32,7 +32,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, encodeRecipe, Recipe, stripEmptyExtensions } from '../../recipe';
+import { generateDeepLink } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -139,12 +139,12 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChat = async (recipe: Recipe) => {
+  const handleStartRecipeChat = async (recipeId: string) => {
     try {
       const newAgent = await startAgent({
         body: {
           working_dir: getInitialWorkingDir(),
-          recipe: stripEmptyExtensions(recipe) as Recipe,
+          recipe_id: recipeId,
         },
         throwOnError: true,
       });
@@ -165,17 +165,13 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChatInNewWindow = async (recipe: Recipe) => {
+  const handleStartRecipeChatInNewWindow = async (recipeId: string) => {
     try {
-      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe) as Recipe);
-      window.electron.createChatWindow(
-        undefined,
-        getInitialWorkingDir(),
-        undefined,
-        undefined,
-        'pair',
-        encodedRecipe
-      );
+      window.electron.createChatWindow({
+        dir: getInitialWorkingDir(),
+        viewType: 'pair',
+        recipeId,
+      });
       trackRecipeStarted(true, undefined, true);
     } catch (error) {
       console.error('Failed to open recipe in new window:', error);
@@ -509,9 +505,9 @@ export default function RecipesView() {
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              handleStartRecipeChat(recipe);
+              await handleStartRecipeChat(recipeManifestResponse.id);
             }}
             size="sm"
             className="h-8 w-8 p-0"
@@ -520,9 +516,9 @@ export default function RecipesView() {
             <Play className="w-4 h-4" />
           </Button>
           <Button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              handleStartRecipeChatInNewWindow(recipe);
+              await handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
             }}
             variant="outline"
             size="sm"
@@ -532,9 +528,9 @@ export default function RecipesView() {
             <ExternalLink className="w-4 h-4" />
           </Button>
           <Button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              handleEditRecipe(recipeManifestResponse);
+              await handleEditRecipe(recipeManifestResponse);
             }}
             variant="outline"
             size="sm"

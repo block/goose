@@ -7,6 +7,16 @@ license.workspace = true
 repository.workspace = true
 description.workspace = true
 
+# Include 3rd-party licenses for JavaScript/CSS minified files
+include = [
+    "licenses/chart-js.license",
+    "licenses/d3-js.license",
+    "licenses/d3-sankey.license",
+    "licenses/leaflet.license",
+    "licenses/leaflet-markercluster.license",
+    "licenses/mermaid.license"
+]
+
 [lints]
 workspace = true
 
@@ -56,6 +66,7 @@ libc = "0.2"
 # ~1000 downloads). Pinned to exact version to prevent supply chain attacks.
 mpatch = "=0.2.0"
 tokio-util = { workspace = true }
+shell-words = "1.1.1"
 
 [dev-dependencies]
 serial_test = { workspace = true }

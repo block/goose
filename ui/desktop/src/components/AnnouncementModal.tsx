@@ -63,9 +63,7 @@ export default function AnnouncementModal() {
         });
 
         // Get list of seen announcement IDs
-        const seenAnnouncementIds = JSON.parse(
-          localStorage.getItem('seenAnnouncementIds') || '[]'
-        ) as string[];
+        const seenAnnouncementIds = await window.electron.getSetting('seenAnnouncementIds');
 
         // Find ALL unseen announcements (in order)
         const unseenAnnouncementsList = applicableAnnouncements.filter(
@@ -101,13 +99,11 @@ export default function AnnouncementModal() {
     loadAnnouncements();
   }, []);
 
-  const handleCloseAnnouncement = () => {
+  const handleCloseAnnouncement = async () => {
     if (unseenAnnouncements.length === 0) return;
 
     // Get existing seen announcement IDs
-    const seenAnnouncementIds = JSON.parse(
-      localStorage.getItem('seenAnnouncementIds') || '[]'
-    ) as string[];
+    const seenAnnouncementIds = await window.electron.getSetting('seenAnnouncementIds');
 
     // Add all unseen announcement IDs to the seen list
     const newSeenIds = [...seenAnnouncementIds];
@@ -117,7 +113,7 @@ export default function AnnouncementModal() {
       }
     });
 
-    localStorage.setItem('seenAnnouncementIds', JSON.stringify(newSeenIds));
+    await window.electron.setSetting('seenAnnouncementIds', newSeenIds);
     setShowAnnouncementModal(false);
   };
 

@@ -487,10 +487,6 @@ impl ProviderDef for ClaudeCodeProvider {
                 true, false, true,
             )],
         )
-        // The model list only returns aliases the `claude` CLI uses, such as "default"
-        // and "haiku". There is no listing that includes full names like
-        // "claude-sonnet-4-5-20250929". However, they are permitted.
-        .with_unlisted_models()
     }
 
     fn from_env(

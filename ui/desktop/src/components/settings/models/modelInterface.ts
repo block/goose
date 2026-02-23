@@ -1,4 +1,4 @@
-import { ProviderDetails, getProviderModels } from '../../../api';
+import { ProviderDetails, getProviderModels, listLocalModels } from '../../../api';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {
@@ -54,6 +54,16 @@ export async function fetchModelsForProviders(
 ): Promise<ProviderModelsResult[]> {
   const modelPromises = activeProviders.map(async (p) => {
     try {
+      // For local provider, use listLocalModels and filter to only downloaded models
+      if (p.name === 'local') {
+        const response = await listLocalModels();
+        const allModels = response.data || [];
+        const downloadedModels = allModels
+          .filter((m) => m.status.state === 'Downloaded')
+          .map((m) => m.id);
+        return { provider: p, models: downloadedModels, error: null };
+      }
+
       const response = await getProviderModels({
         path: { name: p.name },
         throwOnError: true,

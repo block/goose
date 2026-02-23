@@ -428,20 +428,20 @@ function ToolCallView({
   notifications,
   isStreamingMessage = false,
 }: ToolCallViewProps) {
-  const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
+  const [responseStyle, setResponseStyle] = useState<string>('concise');
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      setResponseStyle(localStorage.getItem('response_style'));
+    // Load initial value from settings
+    window.electron.getSetting('responseStyle').then(setResponseStyle);
+
+    const handleStyleChange = () => {
+      window.electron.getSetting('responseStyle').then(setResponseStyle);
     };
 
-    window.addEventListener('storage', handleStorageChange);
-
-    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
+    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
+      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
     };
   }, []);
 
