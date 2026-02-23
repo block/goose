@@ -30,13 +30,16 @@
 use crate::agents::developer_agent::DeveloperAgent;
 use crate::agents::goose_agent::GooseAgent;
 use crate::agents::intent_router::{IntentRouter, RoutingDecision};
+use crate::agents::pm_agent::PmAgent;
+use crate::agents::qa_agent::QaAgent;
+use crate::agents::research_agent::ResearchAgent;
+use crate::agents::security_agent::SecurityAgent;
 use crate::context_mgmt::{
     check_if_compaction_needed, compact_messages, DEFAULT_COMPACTION_THRESHOLD,
 };
 use crate::conversation::Conversation;
 use crate::prompt_template;
 use crate::providers::base::{Provider, ProviderUsage};
-use crate::registry::manifest::AgentMode;
 use crate::session::Session;
 
 use anyhow::Result;
@@ -134,53 +137,32 @@ pub struct PlanProposalTask {
     pub tool_groups: Vec<String>,
 }
 
-/// An agent slot with its modes, used for building the catalog.
-#[derive(Debug, Clone)]
-struct CatalogEntry {
-    name: String,
-    description: String,
-    modes: Vec<AgentMode>,
-    default_mode: String,
-}
-
 /// The OrchestratorAgent coordinates routing decisions using LLM intelligence.
 ///
-/// It maintains an agent catalog built from builtin agents (GooseAgent, DeveloperAgent)
-/// and any externally registered agents. The catalog is rendered into the LLM prompt
-/// so it can make informed routing decisions.
+/// It maintains a dynamic catalog of agents/modes via the internal IntentRouter.
+/// That catalog is rendered into the LLM prompt so it can make informed routing
+/// decisions.
+///
+/// The orchestrator should *not* hardcode mode slugs in its prompt. Instead, it
+/// relies on the agent catalog and each mode's `when_to_use` guidance.
 pub struct OrchestratorAgent {
-    catalog: Vec<CatalogEntry>,
     intent_router: IntentRouter,
     provider: Arc<Mutex<Option<Arc<dyn Provider>>>>,
 }
 
 impl OrchestratorAgent {
     pub fn new(provider: Arc<Mutex<Option<Arc<dyn Provider>>>>) -> Self {
-        let goose = GooseAgent::new();
-        let dev = DeveloperAgent::new();
-
-        let catalog = vec![
-            CatalogEntry {
-                name: "Goose Agent".into(),
-                description:
-                    "General-purpose assistant for conversation, planning, apps, and misc tasks"
-                        .into(),
-                modes: goose.to_agent_modes(),
-                default_mode: goose.default_mode_slug().to_string(),
-            },
-            CatalogEntry {
-                name: "Developer Agent".into(),
-                description: "Software engineer for writing, debugging, and deploying code".into(),
-                modes: dev.to_agent_modes(),
-                default_mode: dev.default_mode().into(),
-            },
-        ];
-
         Self {
-            catalog,
             intent_router: IntentRouter::new(),
             provider,
         }
+    }
+
+    fn slot_for(&self, agent_name: &str) -> Option<&crate::agents::intent_router::AgentSlot> {
+        self.intent_router
+            .slots()
+            .iter()
+            .find(|s| s.name == agent_name)
     }
 
     /// Expose the inner IntentRouter for state synchronization (enable/disable, extensions).
@@ -339,19 +321,18 @@ impl OrchestratorAgent {
             clarifying_questions: None,
         }
     }
-
     /// Look up a human-readable mode name from the catalog.
     fn get_mode_name(&self, agent_name: &str, mode_slug: &str) -> String {
-        for entry in &self.catalog {
-            if entry.name == agent_name {
-                for mode in &entry.modes {
-                    if mode.slug == mode_slug {
-                        return mode.name.clone();
-                    }
-                }
-            }
-        }
-        mode_slug.to_string()
+        let slot = match self.slot_for(agent_name) {
+            Some(s) => s,
+            None => return mode_slug.to_string(),
+        };
+
+        slot.modes
+            .iter()
+            .find(|m| m.slug == mode_slug)
+            .map(|m| m.name.clone())
+            .unwrap_or_else(|| mode_slug.to_string())
     }
 
     /// Use the LLM to classify the user's intent, potentially splitting compound requests.
@@ -359,7 +340,7 @@ impl OrchestratorAgent {
         name = "orchestrator.llm_classify",
         skip(self),
         fields(
-            orchestrator.catalog_agents = self.catalog.len() as i64,
+            orchestrator.catalog_agents = self.intent_router.slots().len() as i64,
             orchestrator.llm_response_parsed,
         )
     )]
@@ -390,14 +371,15 @@ impl OrchestratorAgent {
     /// Build a human-readable catalog of all available agents and their modes.
     pub fn build_catalog_text(&self) -> String {
         let mut text = String::new();
-        for entry in &self.catalog {
+
+        for slot in self.intent_router.slots().iter().filter(|s| s.enabled) {
             text.push_str(&format!(
                 "### {} \u{2014} {}\n",
-                entry.name, entry.description
+                slot.name, slot.description
             ));
-            text.push_str(&format!("Default mode: {}\n", entry.default_mode));
+            text.push_str(&format!("Default mode: {}\n", slot.default_mode));
             text.push_str("Modes:\n");
-            for mode in &entry.modes {
+            for mode in &slot.modes {
                 let when = mode.when_to_use.as_deref().unwrap_or(&mode.description);
                 text.push_str(&format!(
                     "  - **{}** ({}): {} | Use when: {}\n",
@@ -454,19 +436,34 @@ impl OrchestratorAgent {
                 .unwrap_or(agent_name)
                 .to_string();
 
-            // Validate agent_name
-            if !self.catalog.iter().any(|e| e.name == agent_name) {
+            let slot = match self.slot_for(agent_name) {
+                Some(s) => s,
+                None => {
+                    warn!(
+                        "LLM selected unknown agent '{}', skipping sub-task",
+                        agent_name
+                    );
+                    continue;
+                }
+            };
+
+            // Validate mode_slug
+            let resolved_mode_slug = if slot.modes.iter().any(|m| m.slug == mode_slug) {
+                mode_slug.to_string()
+            } else {
                 warn!(
-                    "LLM selected unknown agent '{}', skipping sub-task",
-                    agent_name
+                    agent = agent_name,
+                    mode_slug = mode_slug,
+                    default_mode = slot.default_mode,
+                    "LLM selected unknown mode for agent; falling back to default"
                 );
-                continue;
-            }
+                slot.default_mode.clone()
+            };
 
             tasks.push(SubTask {
                 routing: RoutingDecision {
                     agent_name: agent_name.to_string(),
-                    mode_slug: mode_slug.to_string(),
+                    mode_slug: resolved_mode_slug,
                     confidence,
                     reasoning,
                 },
@@ -545,21 +542,18 @@ impl OrchestratorAgent {
         agent_name: &str,
         mode_slug: &str,
     ) -> Vec<crate::registry::manifest::ToolGroupAccess> {
-        match agent_name {
-            "Goose Agent" => {
-                let goose = GooseAgent::new();
-                if let Some(mode) = goose.mode(mode_slug) {
-                    mode.tool_groups.clone()
-                } else {
-                    vec![] // unknown mode → all tools (backward compatible)
-                }
-            }
-            "Developer Agent" => {
-                let dev = DeveloperAgent::new();
-                dev.tool_groups_for(mode_slug)
-            }
-            _ => vec![], // external agent → all tools
-        }
+        let slot = match self.slot_for(agent_name) {
+            Some(s) => s,
+            None => return vec![],
+        };
+
+        let mode = slot
+            .modes
+            .iter()
+            .find(|m| m.slug == mode_slug)
+            .or_else(|| slot.modes.iter().find(|m| m.slug == slot.default_mode));
+
+        mode.map(|m| m.tool_groups.clone()).unwrap_or_default()
     }
 
     /// Get the recommended MCP extensions for a specific agent/mode.
@@ -582,7 +576,23 @@ impl OrchestratorAgent {
                 let dev = DeveloperAgent::new();
                 dev.recommended_extensions(mode_slug)
             }
-            _ => vec![], // external agent → no restrictions
+            "QA Agent" => {
+                let qa = QaAgent::new();
+                qa.recommended_extensions(mode_slug)
+            }
+            "PM Agent" => {
+                let pm = PmAgent::new();
+                pm.recommended_extensions(mode_slug)
+            }
+            "Security Agent" => {
+                let security = SecurityAgent::new();
+                security.recommended_extensions(mode_slug)
+            }
+            "Research Agent" => {
+                let research = ResearchAgent::new();
+                research.recommended_extensions(mode_slug)
+            }
+            _ => vec![], // external agent \u2192 no restrictions
         }
     }
 
@@ -598,13 +608,12 @@ impl OrchestratorAgent {
     ) {
         let primary = plan.primary_routing();
 
+        let mut allowed_extensions: std::collections::BTreeSet<String> =
+            std::collections::BTreeSet::new();
+
         // Apply bound extensions from the agent slot
-        if let Some(slot) = self.slots().iter().find(|s| s.name == primary.agent_name) {
-            if !slot.bound_extensions.is_empty() {
-                agent
-                    .set_allowed_extensions(slot.bound_extensions.clone())
-                    .await;
-            }
+        if let Some(slot) = self.slot_for(&primary.agent_name) {
+            allowed_extensions.extend(slot.bound_extensions.iter().cloned());
         }
 
         // Set orchestrator context flag
@@ -618,11 +627,15 @@ impl OrchestratorAgent {
             agent.set_active_tool_groups(tool_groups).await;
         }
 
-        // Apply mode-recommended extensions (merge with slot bound)
+        // Apply mode-recommended extensions
         let recommended =
             self.get_recommended_extensions_for_routing(&primary.agent_name, &primary.mode_slug);
-        if !recommended.is_empty() {
-            agent.set_allowed_extensions(recommended).await;
+        allowed_extensions.extend(recommended);
+
+        if !allowed_extensions.is_empty() {
+            agent
+                .set_allowed_extensions(allowed_extensions.into_iter().collect())
+                .await;
         }
 
         tracing::info!(
@@ -711,8 +724,7 @@ mod tests {
         assert!(catalog.contains("Goose Agent"));
         assert!(catalog.contains("Developer Agent"));
         assert!(catalog.contains("ask"));
-        assert!(catalog.contains("code"));
-        assert!(catalog.contains("architect"));
+        assert!(catalog.contains("write"));
     }
 
     #[test]
@@ -720,14 +732,14 @@ mod tests {
         let orch = make_orchestrator();
 
         let response = crate::conversation::message::Message::assistant().with_text(
-            r#"{"is_compound": false, "tasks": [{"agent_name": "Developer Agent", "mode_slug": "code", "confidence": 0.9, "reasoning": "API implementation task", "sub_task": "implement a REST API endpoint"}]}"#,
+            r#"{"is_compound": false, "tasks": [{"agent_name": "Developer Agent", "mode_slug": "write", "confidence": 0.9, "reasoning": "API implementation task", "sub_task": "implement a REST API endpoint"}]}"#,
         );
 
         let plan = orch.parse_splitting_response(&response).unwrap();
         assert!(!plan.is_compound);
         assert_eq!(plan.tasks.len(), 1);
         assert_eq!(plan.primary_routing().agent_name, "Developer Agent");
-        assert_eq!(plan.primary_routing().mode_slug, "code");
+        assert_eq!(plan.primary_routing().mode_slug, "write");
         assert_eq!(
             plan.tasks[0].sub_task_description,
             "implement a REST API endpoint"
@@ -740,8 +752,8 @@ mod tests {
 
         let response = crate::conversation::message::Message::assistant().with_text(
             r#"{"is_compound": true, "tasks": [
-                {"agent_name": "Developer Agent", "mode_slug": "code", "confidence": 0.85, "reasoning": "Bug fix", "sub_task": "Fix the login endpoint bug"},
-                {"agent_name": "Developer Agent", "mode_slug": "frontend", "confidence": 0.8, "reasoning": "UI feature", "sub_task": "Add dark theme toggle to settings"}
+                {"agent_name": "Developer Agent", "mode_slug": "write", "confidence": 0.85, "reasoning": "Bug fix", "sub_task": "Fix the login endpoint bug"},
+                {"agent_name": "Developer Agent", "mode_slug": "write", "confidence": 0.8, "reasoning": "UI feature", "sub_task": "Add dark theme toggle to settings"}
             ]}"#,
         );
 
@@ -749,12 +761,12 @@ mod tests {
         assert!(plan.is_compound);
         assert_eq!(plan.tasks.len(), 2);
         assert_eq!(plan.tasks[0].routing.agent_name, "Developer Agent");
-        assert_eq!(plan.tasks[0].routing.mode_slug, "code");
+        assert_eq!(plan.tasks[0].routing.mode_slug, "write");
         assert_eq!(
             plan.tasks[0].sub_task_description,
             "Fix the login endpoint bug"
         );
-        assert_eq!(plan.tasks[1].routing.mode_slug, "frontend");
+        assert_eq!(plan.tasks[1].routing.mode_slug, "write");
         assert_eq!(
             plan.tasks[1].sub_task_description,
             "Add dark theme toggle to settings"
@@ -976,21 +988,28 @@ mod tests {
             tasks: vec![
                 PlanProposalTask {
                     agent_name: "Developer Agent".into(),
-                    mode_slug: "code".into(),
-                    mode_name: "💻 Code".into(),
+                    mode_slug: "write".into(),
+                    mode_name: "✏️ Write".into(),
                     confidence: 0.85,
                     reasoning: "API implementation".into(),
                     description: "Build the REST endpoint".into(),
-                    tool_groups: vec!["developer".into(), "command".into()],
+                    tool_groups: vec![
+                        "developer".into(),
+                        "read".into(),
+                        "edit".into(),
+                        "command".into(),
+                        "fetch".into(),
+                        "memory".into(),
+                    ],
                 },
                 PlanProposalTask {
                     agent_name: "QA Agent".into(),
-                    mode_slug: "analyze".into(),
-                    mode_name: "QA Analyst".into(),
+                    mode_slug: "review".into(),
+                    mode_name: "🔍 Review".into(),
                     confidence: 0.75,
                     reasoning: "Testing needed".into(),
                     description: "Write integration tests".into(),
-                    tool_groups: vec!["developer".into()],
+                    tool_groups: vec!["read".into(), "memory".into()],
                 },
             ],
             clarifying_questions: None,
@@ -1002,13 +1021,9 @@ mod tests {
         assert!(deserialized.is_compound);
         assert_eq!(deserialized.tasks.len(), 2);
         assert_eq!(deserialized.tasks[0].agent_name, "Developer Agent");
-        assert_eq!(deserialized.tasks[0].mode_slug, "code");
-        assert_eq!(deserialized.tasks[0].mode_name, "💻 Code");
-        assert_eq!(
-            deserialized.tasks[0].tool_groups,
-            vec!["developer", "command"]
-        );
-        assert_eq!(deserialized.tasks[1].mode_slug, "analyze");
+        assert_eq!(deserialized.tasks[0].mode_slug, "write");
+        assert_eq!(deserialized.tasks[0].mode_name, "✏️ Write");
+        assert_eq!(deserialized.tasks[1].mode_slug, "review");
     }
 
     #[test]
