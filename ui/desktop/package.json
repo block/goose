@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "generate-api": "openapi-ts",
-    "start-gui": "npm run generate-api && GOOSE_PATH_ROOT=/tmp/lifei-test electron-forge start",
+    "start-gui": "npm run generate-api && electron-forge start",
     "start-gui-debug": "npm run generate-api && electron-forge start -- --inspect=9229",
     "start": "cd ../.. && just run-ui",
     "start:test-error": "GOOSE_TEST_ERROR=true electron-forge start",
