@@ -1,6 +1,6 @@
 import { createSpecStreamCompiler, nestedToFlat } from '@json-render/core';
 import React, { useMemo } from 'react';
-import { CatalogRenderer } from './setup';
+import { CatalogRenderer, GOOSE_CUSTOM_COMPONENT_KEYS, SHADCN_COMPONENT_KEYS } from './setup';
 
 interface JsonRenderBlockProps {
   spec: string;
@@ -10,6 +10,28 @@ interface Spec {
   root?: string;
   elements?: Record<string, unknown>;
   state?: Record<string, unknown>;
+}
+
+type UnknownComponentType = { elementId: string; type: string };
+
+const MAX_SPEC_CHARS = 250_000;
+const MAX_JSONL_LINES = 5_000;
+const MAX_ELEMENTS = 5_000;
+
+function getUnknownComponentTypes(elements: Record<string, unknown>): UnknownComponentType[] {
+  const known = new Set<string>([...SHADCN_COMPONENT_KEYS, ...GOOSE_CUSTOM_COMPONENT_KEYS]);
+
+  const unknown: UnknownComponentType[] = [];
+  for (const [elementId, el] of Object.entries(elements)) {
+    if (!el || typeof el !== 'object') continue;
+    const t = (el as { type?: unknown }).type;
+    if (typeof t !== 'string') continue;
+    if (!known.has(t)) {
+      unknown.push({ elementId, type: t });
+    }
+  }
+
+  return unknown;
 }
 
 /**
@@ -44,7 +66,6 @@ function recoverJsonLine(line: string): string {
       attempt = attempt.slice(0, -1);
       try {
         JSON.parse(attempt);
-        console.warn('[json-render] Recovered malformed JSONL line by stripping trailing brace');
         return attempt;
       } catch {}
     }
@@ -56,11 +77,22 @@ function recoverJsonLine(line: string): string {
  * Parse a JSONL streaming spec into the flat Spec format using createSpecStreamCompiler.
  * Pre-processes lines to recover from common LLM JSON errors (extra trailing braces).
  */
-function parseJsonlSpec(text: string): Spec {
-  const recovered = text.split('\n').map(recoverJsonLine).join('\n');
+function parseJsonlSpec(text: string): { spec: Spec; recoveredLineCount: number; lineCount: number } {
+  let recoveredLineCount = 0;
+  const lines = text.split('\n');
+  const recovered = lines
+    .map((line) => {
+      const fixed = recoverJsonLine(line);
+      if (fixed !== line.trim()) {
+        recoveredLineCount += 1;
+      }
+      return fixed;
+    })
+    .join('\n');
+
   const compiler = createSpecStreamCompiler<Spec>();
   compiler.push(`${recovered}\n`);
-  return compiler.getResult();
+  return { spec: compiler.getResult(), recoveredLineCount, lineCount: lines.length };
 }
 
 /**
@@ -97,10 +129,54 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
     try {
       const trimmed = spec.trim();
 
+      if (trimmed.length === 0) {
+        return { parsedSpec: null, error: null };
+      }
+
+      if (trimmed.length > MAX_SPEC_CHARS) {
+        return {
+          parsedSpec: null,
+          error: `Spec too large (${trimmed.length.toLocaleString()} chars). Maximum is ${MAX_SPEC_CHARS.toLocaleString()} chars.`,
+        };
+      }
+
       if (isJsonlFormat(trimmed)) {
+        const lineCount = trimmed.split('\n').length;
+        if (lineCount > MAX_JSONL_LINES) {
+          return {
+            parsedSpec: null,
+            error: `Spec too large (${lineCount.toLocaleString()} lines). Maximum is ${MAX_JSONL_LINES.toLocaleString()} lines.`,
+          };
+        }
+
         // JSONL streaming patch format
-        const result = parseJsonlSpec(trimmed);
+        const { spec: result, recoveredLineCount } = parseJsonlSpec(trimmed);
         if (result?.root && result.elements) {
+          const elementCount = Object.keys(result.elements).length;
+          if (elementCount > MAX_ELEMENTS) {
+            return {
+              parsedSpec: null,
+              error: `Spec too large (${elementCount.toLocaleString()} elements). Maximum is ${MAX_ELEMENTS.toLocaleString()} elements.`,
+            };
+          }
+
+          const unknown = getUnknownComponentTypes(result.elements);
+          if (unknown.length > 0) {
+            const preview = unknown
+              .slice(0, 8)
+              .map((u) => `${u.type} (${u.elementId})`)
+              .join(', ');
+            return {
+              parsedSpec: null,
+              error: `Unknown component type(s): ${preview}${unknown.length > 8 ? ', …' : ''}`,
+            };
+          }
+
+          // Surface light debug info without noisy logs
+          if (recoveredLineCount > 0 && import.meta.env.MODE !== 'production') {
+            console.debug(`[json-render] recovered ${recoveredLineCount} malformed JSONL line(s)`);
+          }
+
           return { parsedSpec: result, error: null };
         }
         return { parsedSpec: null, error: 'Invalid JSONL spec: missing root or elements' };
@@ -109,9 +185,32 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
       // Try nested JSON tree format
       const result = parseNestedSpec(trimmed);
       if (result) {
+        if (result.elements) {
+          const elementCount = Object.keys(result.elements).length;
+          if (elementCount > MAX_ELEMENTS) {
+            return {
+              parsedSpec: null,
+              error: `Spec too large (${elementCount.toLocaleString()} elements). Maximum is ${MAX_ELEMENTS.toLocaleString()} elements.`,
+            };
+          }
+
+          const unknown = getUnknownComponentTypes(result.elements);
+          if (unknown.length > 0) {
+            const preview = unknown
+              .slice(0, 8)
+              .map((u) => `${u.type} (${u.elementId})`)
+              .join(', ');
+            return {
+              parsedSpec: null,
+              error: `Unknown component type(s): ${preview}${unknown.length > 8 ? ', …' : ''}`,
+            };
+          }
+        }
+
         return { parsedSpec: result, error: null };
       }
 
+      // Unknown content: don't silently hide it. Show an error so we can debug.
       return { parsedSpec: null, error: 'Invalid spec: unrecognized format' };
     } catch (e) {
       return {
