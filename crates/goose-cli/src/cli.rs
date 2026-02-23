@@ -1499,6 +1499,9 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             );
 
             // Register
+            let quality_rank = goose::providers::local_inference::hf_models::quant_quality_rank(
+                &file.quantization,
+            );
             let entry = LocalModelEntry {
                 id: model_id.clone(),
                 repo_id: repo_id.clone(),
@@ -1508,6 +1511,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 source_url: file.download_url.clone(),
                 settings: Default::default(),
                 size_bytes: file.size_bytes,
+                quality_rank,
             };
 
             {

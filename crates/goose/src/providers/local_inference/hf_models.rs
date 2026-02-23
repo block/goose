@@ -117,6 +117,11 @@ fn quant_info(quant: &str) -> QuantInfo {
         })
 }
 
+/// Get the quality rank for a quantization level (1-28, higher is better).
+pub fn quant_quality_rank(quant: &str) -> u8 {
+    quant_info(quant).quality_rank
+}
+
 pub fn parse_quantization_from_filename(filename: &str) -> String {
     parse_quantization(filename)
 }
@@ -378,25 +383,12 @@ pub async fn resolve_model_spec(spec: &str) -> Result<(String, HfGgufFile)> {
 }
 
 /// Recommend which quantization variant to use based on available memory.
+/// Delegates to the recommender module for proper memory estimation with KV cache.
 pub fn recommend_variant(
     variants: &[HfQuantVariant],
     available_memory_bytes: u64,
 ) -> Option<usize> {
-    // We need ~10-20% overhead beyond model size for inference context.
-    // Pick the highest-quality variant that fits.
-    let usable = (available_memory_bytes as f64 * 0.85) as u64;
-
-    let mut best: Option<usize> = None;
-    for (i, v) in variants.iter().enumerate() {
-        if v.size_bytes <= usable {
-            match best {
-                Some(bi) if variants[bi].quality_rank < v.quality_rank => best = Some(i),
-                None => best = Some(i),
-                _ => {}
-            }
-        }
-    }
-    best
+    super::recommender::recommend_variant(variants, available_memory_bytes)
 }
 
 #[cfg(test)]
@@ -450,37 +442,5 @@ mod tests {
         assert!(parse_model_spec("noslash:Q4_K_M").is_err());
     }
 
-    #[test]
-    fn test_recommend_variant() {
-        let variants = vec![
-            HfQuantVariant {
-                quantization: "Q2_K".into(),
-                size_bytes: 2_000_000_000,
-                filename: "m-Q2_K.gguf".into(),
-                download_url: String::new(),
-                description: "Small",
-                quality_rank: 7,
-            },
-            HfQuantVariant {
-                quantization: "Q4_K_M".into(),
-                size_bytes: 4_000_000_000,
-                filename: "m-Q4_K_M.gguf".into(),
-                download_url: String::new(),
-                description: "Medium",
-                quality_rank: 19,
-            },
-            HfQuantVariant {
-                quantization: "Q8_0".into(),
-                size_bytes: 8_000_000_000,
-                filename: "m-Q8_0.gguf".into(),
-                download_url: String::new(),
-                description: "Large",
-                quality_rank: 25,
-            },
-        ];
-
-        assert_eq!(recommend_variant(&variants, 5_000_000_000), Some(1));
-        assert_eq!(recommend_variant(&variants, 10_000_000_000), Some(2));
-        assert_eq!(recommend_variant(&variants, 1_000_000_000), None);
-    }
+    // Note: recommend_variant is tested in recommender.rs where the implementation lives
 }
