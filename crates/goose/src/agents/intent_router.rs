@@ -517,4 +517,20 @@ mod tests {
         assert_eq!(decision.agent_name, "Goose Agent");
         assert_eq!(decision.mode_slug, "genui");
     }
+
+    #[test]
+    fn test_route_qa_dashboard_prefers_qa_agent() {
+        let router = IntentRouter::new();
+        let decision = router
+            .route("show a dashboard of test coverage gaps and flaky tests in the auth module");
+        assert_eq!(decision.agent_name, "QA Agent");
+    }
+
+    #[test]
+    fn test_route_security_dashboard_prefers_security_agent() {
+        let router = IntentRouter::new();
+        let decision = router
+            .route("create a dashboard of CVEs and security vulnerabilities for our dependencies");
+        assert_eq!(decision.agent_name, "Security Agent");
+    }
 }
