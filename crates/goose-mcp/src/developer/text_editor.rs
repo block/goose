@@ -799,9 +799,9 @@ pub async fn text_editor_replace(
 
                 // Simple success message for Editor API
                 return Ok(vec![
-                    Content::text(format!("Successfully edited {}", path.display()))
+                    Content::text(format!("Successfully replaced text in {}.", path.display()))
                         .with_audience(vec![Role::Assistant]),
-                    Content::text(format!("File {} has been edited", path.display()))
+                    Content::text(format!("Successfully replaced text in {}.", path.display()))
                         .with_audience(vec![Role::User])
                         .with_priority(0.2),
                 ]);
@@ -848,8 +848,6 @@ pub async fn text_editor_replace(
         )
     })?;
 
-    // Count lines changed for a concise summary
-    let old_line_count = old_str.lines().count();
     let new_line_count = new_str.lines().count();
 
     // Count newlines before the replacement to find the line number
@@ -861,13 +859,7 @@ pub async fn text_editor_replace(
         .count()
         + 1; // 1-indexed
 
-    let summary = format!(
-        "Successfully edited {} (replaced {} lines with {} lines at line {})",
-        path.display(),
-        old_line_count,
-        new_line_count,
-        replacement_line
-    );
+    let summary = format!("Successfully replaced text in {}.", path.display());
 
     // Try to detect the language from the file extension
     let language = lang::get_language_identifier(path);
@@ -886,12 +878,13 @@ pub async fn text_editor_replace(
         .join("\n");
 
     let user_output = formatdoc! {r#"
-        {summary}
+        Successfully replaced text in {path} at line {line}.
         ```{language}
         {snippet}
         ```
         "#,
-        summary=summary,
+        path=path.display(),
+        line=replacement_line,
         language=language,
         snippet=snippet
     };
