@@ -532,6 +532,26 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
     line.strip_prefix("data: ").map(|s| s.trim())
 }
 
+fn extract_streaming_error(json_str: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(json_str).ok()?;
+    let msg = value
+        .get("error")
+        .and_then(|e| e.get("message"))
+        .or_else(|| value.get("message"))
+        .and_then(|m| m.as_str())?;
+    Some(msg.to_string())
+}
+
+fn parse_streaming_chunk(line: &str) -> anyhow::Result<StreamingChunk> {
+    serde_json::from_str(line).map_err(|e| {
+        if let Some(server_msg) = extract_streaming_error(line) {
+            anyhow!("{}", server_msg)
+        } else {
+            anyhow!("Failed to parse streaming chunk: {}: {:?}", e, line)
+        }
+    })
+}
+
 pub fn response_to_streaming_message<S>(
     mut stream: S,
 ) -> impl Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
@@ -544,6 +564,9 @@ where
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
         let mut accumulated_reasoning_content = String::new();
 
+        let mut thinking_buffer = String::new();
+        let mut thinking_done = false;
+
         'outer: while let Some(response) = stream.next().await {
             if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
                 break 'outer;
@@ -555,9 +578,8 @@ where
                 continue
             }
 
-            let chunk: StreamingChunk = serde_json::from_str(line
-                .ok_or_else(|| anyhow!("unexpected stream format"))?)
-                .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+            let chunk: StreamingChunk = parse_streaming_chunk(line
+                .ok_or_else(|| anyhow!("unexpected stream format"))?)?;
 
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
@@ -595,8 +617,7 @@ where
                             let response_str = response_chunk?;
                             if let Some(line) = strip_data_prefix(&response_str) {
 
-                                let tool_chunk: StreamingChunk = serde_json::from_str(line)
-                                    .map_err(|e| anyhow!("Failed to parse streaming chunk: {}: {:?}", e, &line))?;
+                                let tool_chunk: StreamingChunk = parse_streaming_chunk(line)?;
 
                                 if let Some(chunk_usage) = extract_usage_with_output_tokens(&tool_chunk) {
                                     usage = Some(chunk_usage);
@@ -721,7 +742,23 @@ where
 
                 if let Some(text) = &chunk.choices[0].delta.content {
                     if !text.is_empty() {
-                        content.push(MessageContent::text(text));
+                        if !thinking_done {
+                            thinking_buffer.push_str(text);
+                            if let Some(pos) = thinking_buffer.find("</think>") {
+                                let thinking = &thinking_buffer[..pos];
+                                if !thinking.is_empty() {
+                                    content.push(MessageContent::reasoning(thinking));
+                                }
+                                let after = &thinking_buffer[pos + "</think>".len()..];
+                                if !after.is_empty() {
+                                    content.push(MessageContent::text(after));
+                                }
+                                thinking_buffer.clear();
+                                thinking_done = true;
+                            }
+                        } else {
+                            content.push(MessageContent::text(text));
+                        }
                     }
                 }
 
@@ -751,6 +788,15 @@ where
             } else if usage.is_some() {
                 yield (None, usage)
             }
+        }
+
+        if !thinking_done && !thinking_buffer.is_empty() {
+            let msg = Message::new(
+                Role::Assistant,
+                chrono::Utc::now().timestamp(),
+                vec![MessageContent::text(&thinking_buffer)],
+            );
+            yield (Some(msg), None);
         }
     }
 }

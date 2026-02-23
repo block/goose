@@ -132,11 +132,11 @@ export default function GooseMessage({
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
         {reasoningContent && (
-          <details className="mb-2">
-            <summary className="cursor-pointer text-xs text-textSubtle select-none">
+          <details className="bg-background-secondary border border-border-primary rounded-lg p-2 mb-2">
+            <summary className="cursor-pointer text-sm text-text-secondary select-none">
               Show reasoning
             </summary>
-            <div className="mt-2 text-sm">
+            <div className="mt-2">
               <MarkdownContent content={reasoningContent} />
             </div>
           </details>

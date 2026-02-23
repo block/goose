@@ -33,6 +33,13 @@ fn strip_xml_tags(text: &str) -> String {
     TAG_RE.replace_all(&pass1, "").into_owned()
 }
 
+fn strip_thinking_content(text: &str) -> &str {
+    if let Some(pos) = text.rfind("</think>") {
+        return text[pos + "</think>".len()..].trim_start();
+    }
+    text
+}
+
 fn extract_short_title(text: &str) -> String {
     let word_count = text.split_whitespace().count();
     if word_count <= 8 {
@@ -667,7 +674,8 @@ pub trait Provider: Send + Sync {
             .iter()
             .filter_map(|c| c.as_text())
             .collect();
-        let description = strip_xml_tags(&raw)
+        let cleaned = strip_thinking_content(&raw);
+        let description = strip_xml_tags(cleaned)
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ");
@@ -764,6 +772,27 @@ mod tests {
     use test_case::test_case;
 
     use serde_json::json;
+
+    #[test]
+    fn test_strip_thinking_content() {
+        assert_eq!(
+            strip_thinking_content("1. Analyze... 2. Think...</think>Hello"),
+            "Hello"
+        );
+        assert_eq!(
+            strip_thinking_content("long reasoning here</think>Short Title"),
+            "Short Title"
+        );
+        assert_eq!(
+            strip_thinking_content("no thinking tags here"),
+            "no thinking tags here"
+        );
+        assert_eq!(strip_thinking_content("</think>"), "");
+        assert_eq!(
+            strip_thinking_content("first</think>middle</think>last"),
+            "last"
+        );
+    }
 
     #[test]
     fn test_strip_xml_tags() {
