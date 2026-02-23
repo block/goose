@@ -140,7 +140,7 @@ Check out the full [release notes](https://github.com/block/goose/releases/tag/v
   <meta property="og:description" content="goose v1.25.0 brings macOS sandboxing, a unified summon extension, rich MCP app UIs, agentic CLI upgrades, and SLSA build provenance." />
   <meta property="og:image" content="https://block.github.io/goose/assets/images/banner-7288f9dab6214bbe6baef00cda590d27.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="block.github.io" />
+  <meta property="twitter:domain" content="block.github.io/goose" />
   <meta name="twitter:title" content="goose v1.25.0: Sandboxed, Streamlined, and More Secure" />
   <meta name="twitter:description" content="goose v1.25.0 brings macOS sandboxing, a unified summon extension, rich MCP app UIs, agentic CLI upgrades, and SLSA build provenance." />
   <meta name="twitter:image" content="https://block.github.io/goose/assets/images/banner-7288f9dab6214bbe6baef00cda590d27.png" />
