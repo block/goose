@@ -23,7 +23,7 @@ export function RecipeNameField({
 }: RecipeNameFieldProps) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-text-default mb-2">
+      <label htmlFor={id} className="block text-sm font-medium text-text-primary mb-2">
         {label} {required && <span className="text-red-500">*</span>}
       </label>
       <input
@@ -50,13 +50,13 @@ export function RecipeNameField({
           onBlur();
         }}
         disabled={disabled}
-        className={`w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-          errors.length > 0 ? 'border-red-500' : 'border-border-default'
+        className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          errors.length > 0 ? 'border-red-500' : 'border-border-primary'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         placeholder={RECIPE_NAME_PLACEHOLDER}
         data-testid="recipe-name-input"
       />
-      <p className="text-xs text-text-muted mt-1">
+      <p className="text-xs text-text-secondary mt-1">
         Will be automatically formatted (lowercase, dashes for spaces)
       </p>
       {errors.length > 0 && <p className="text-red-500 text-sm mt-1">{errors[0]}</p>}

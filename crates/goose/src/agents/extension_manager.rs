@@ -1608,6 +1608,28 @@ impl ExtensionManager {
             working_dir.display()
         );
 
+        if let Ok(session) = self
+            .context
+            .session_manager
+            .get_session(session_id, false)
+            .await
+        {
+            if let (Some(total), Some(config)) =
+                (session.total_tokens, session.model_config.as_ref())
+            {
+                let limit = config.context_limit();
+                if total > 0 && limit > 0 {
+                    let pct = (total as f64 / limit as f64 * 100.0).round() as u32;
+                    content.push_str(&format!(
+                        "Context: ~{}k/{}k tokens used ({}%)\n",
+                        total / 1000,
+                        limit / 1000,
+                        pct
+                    ));
+                }
+            }
+        }
+
         let platform_clients: Vec<(String, McpClientBox)> = {
             let extensions = self.extensions.lock().await;
             extensions

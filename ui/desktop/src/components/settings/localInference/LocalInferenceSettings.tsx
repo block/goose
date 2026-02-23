@@ -37,14 +37,6 @@ export const LocalInferenceSettings = () => {
   const downloadSectionRef = useRef<HTMLDivElement>(null);
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
 
-  const getDisplayName = useCallback(
-    (modelId: string): string => {
-      const model = models.find((m) => m.id === modelId);
-      return model?.display_name || modelId;
-    },
-    [models]
-  );
-
   const loadModels = useCallback(async () => {
     try {
       const response = await listLocalModels();
@@ -195,7 +187,6 @@ export const LocalInferenceSettings = () => {
           <div className="space-y-2">
             {Array.from(downloads.entries()).map(([modelId, progress]) => {
               if (progress.status === 'completed') return null;
-              const displayName = getDisplayName(modelId);
               return (
                 <div
                   key={modelId}
@@ -203,7 +194,7 @@ export const LocalInferenceSettings = () => {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-text-default truncate">
-                      {displayName}
+                      {modelId}
                     </span>
                     {progress.status === 'downloading' && (
                       <Button
@@ -218,9 +209,9 @@ export const LocalInferenceSettings = () => {
                   </div>
                   {progress.status === 'downloading' && (
                     <div className="space-y-1">
-                      <div className="w-full bg-background-subtle rounded-full h-2">
+                      <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
-                          className="bg-accent-primary h-2 rounded-full transition-all duration-300"
+                          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                           style={{ width: `${progress.progress_percent}%` }}
                         />
                       </div>
@@ -283,7 +274,7 @@ export const LocalInferenceSettings = () => {
                         className="cursor-pointer"
                       />
                       <span className="text-sm font-medium text-text-default">
-                        {model.display_name}
+                        {model.id}
                       </span>
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
@@ -334,7 +325,7 @@ export const LocalInferenceSettings = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm font-medium text-text-default">
-                        {model.display_name}
+                        {model.id}
                       </h4>
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
@@ -400,7 +391,7 @@ export const LocalInferenceSettings = () => {
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Model Settings</DialogTitle>
-            <p className="text-sm text-text-muted">{getDisplayName(settingsOpenFor || '')}</p>
+            <p className="text-sm text-text-muted">{settingsOpenFor || ''}</p>
           </DialogHeader>
           {settingsOpenFor && <ModelSettingsPanel modelId={settingsOpenFor} />}
         </DialogContent>

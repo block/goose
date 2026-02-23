@@ -1252,6 +1252,8 @@ pub fn display_session_info(
     session_id: &Option<String>,
     provider_instance: Option<&Arc<dyn goose::providers::base::Provider>>,
 ) {
+    set_terminal_title();
+
     let status = if resume {
         "resuming"
     } else if session_id.is_none() {
@@ -1271,8 +1273,16 @@ pub fn display_session_info(
         model.to_string()
     };
 
+    let cwd_display = std::env::current_dir()
+        .ok()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // ASCII art goose with session info on the right
+    println!();
     println!(
-        "\n  {} {} {} {} {}",
+        "  {}  {} {} {} {} {}",
+        style("  __( O)>").white(),
         style("●").green(),
         style(status).dim(),
         style("·").dim(),
@@ -1280,28 +1290,30 @@ pub fn display_session_info(
         style(&model_display).cyan(),
     );
 
-    let cwd_display = std::env::current_dir()
-        .ok()
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
-
     if let Some(id) = session_id {
         println!(
-            "  {} {} {}",
+            "  {}  {} {} {}",
+            style(r" \____)").white(),
             style(" ").dim(),
             style(id).dim(),
             style(format!("· {}", cwd_display)).dim(),
         );
     } else {
         println!(
-            "  {} {}",
+            "  {}  {} {}",
+            style(r" \____)").white(),
             style(" ").dim(),
             style(format!("  {}", cwd_display)).dim(),
         );
     }
+    println!(
+        "  {}  {}",
+        style("   L L").white(),
+        style("   goose is ready").white()
+    );
 }
 
-pub fn set_terminal_title() {
+fn set_terminal_title() {
     if !std::io::stdout().is_terminal() {
         return;
     }
@@ -1314,15 +1326,6 @@ pub fn set_terminal_title() {
     // OSC 0 sets the terminal window/tab title
     print!("\x1b]0;🪿 {}\x07", sanitized);
     let _ = std::io::stdout().flush();
-}
-
-pub fn display_greeting() {
-    set_terminal_title();
-    println!(
-        "\n{} {}\n",
-        style("🪿 goose").bold(),
-        style("ready — type a message to get started").dim()
-    );
 }
 
 pub fn display_context_usage(total_tokens: usize, context_limit: usize) {

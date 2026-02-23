@@ -5185,7 +5185,6 @@
         "type": "object",
         "required": [
           "id",
-          "display_name",
           "repo_id",
           "filename",
           "quantization",
@@ -5195,9 +5194,6 @@
           "settings"
         ],
         "properties": {
-          "display_name": {
-            "type": "string"
-          },
           "filename": {
             "type": "string"
           },
@@ -6158,10 +6154,6 @@
           "config_keys"
         ],
         "properties": {
-          "allows_unlisted_models": {
-            "type": "boolean",
-            "description": "Whether this provider allows entering model names not in the fetched list"
-          },
           "config_keys": {
             "type": "array",
             "items": {

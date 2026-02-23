@@ -244,10 +244,12 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
   if (!scheduleId) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-gray-900 text-text-default p-8">
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-gray-900 text-text-primary p-8">
         <BackButton onClick={onNavigateBack} />
-        <h1 className="text-2xl font-medium text-text-default mt-4">Schedule Not Found</h1>
-        <p className="text-text-muted mt-2">No schedule ID provided. Return to schedules list.</p>
+        <h1 className="text-2xl font-medium text-text-primary mt-4">Schedule Not Found</h1>
+        <p className="text-text-secondary mt-2">
+          No schedule ID provided. Return to schedules list.
+        </p>
       </div>
     );
   }
@@ -263,19 +265,19 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     : '';
 
   return (
-    <div className="h-screen w-full flex flex-col bg-background-default text-text-default">
-      <div className="px-8 pt-6 pb-4 border-b border-border-default flex-shrink-0">
+    <div className="h-screen w-full flex flex-col bg-background-primary text-text-primary">
+      <div className="px-8 pt-6 pb-4 border-b border-border-primary flex-shrink-0">
         <BackButton onClick={onNavigateBack} />
         <h1 className="text-4xl font-light mt-1 mb-1 pt-8">Schedule Details</h1>
-        <p className="text-sm text-text-muted mb-1">Viewing Schedule ID: {scheduleId}</p>
+        <p className="text-sm text-text-secondary mb-1">Viewing Schedule ID: {scheduleId}</p>
       </div>
 
       <ScrollArea className="flex-grow">
         <div className="p-8 space-y-6">
           <section>
-            <h2 className="text-xl font-semibold text-text-default mb-3">Schedule Information</h2>
+            <h2 className="text-xl font-semibold text-text-primary mb-3">Schedule Information</h2>
             {isLoadingSchedule && (
-              <div className="flex items-center text-text-muted">
+              <div className="flex items-center text-text-secondary">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading schedule...
               </div>
             )}
@@ -285,10 +287,10 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
               </p>
             )}
             {scheduleDetails && (
-              <Card className="p-4 bg-background-default shadow mb-6">
+              <Card className="p-4 bg-background-primary shadow mb-6">
                 <div className="space-y-2">
                   <div className="flex flex-col md:flex-row md:items-center justify-between">
-                    <h3 className="text-base font-semibold text-text-default">
+                    <h3 className="text-base font-semibold text-text-primary">
                       {scheduleDetails.id}
                     </h3>
                     <div className="mt-2 md:mt-0 flex items-center gap-2">
@@ -306,27 +308,27 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                       )}
                     </div>
                   </div>
-                  <p className="text-sm text-text-default">
+                  <p className="text-sm text-text-primary">
                     <span className="font-semibold">Schedule:</span> {readableCron}
                   </p>
-                  <p className="text-sm text-text-default">
+                  <p className="text-sm text-text-primary">
                     <span className="font-semibold">Cron Expression:</span> {scheduleDetails.cron}
                   </p>
-                  <p className="text-sm text-text-default">
+                  <p className="text-sm text-text-primary">
                     <span className="font-semibold">Recipe Source:</span> {scheduleDetails.source}
                   </p>
-                  <p className="text-sm text-text-default">
+                  <p className="text-sm text-text-primary">
                     <span className="font-semibold">Last Run:</span>{' '}
                     {formatToLocalDateWithTimezone(scheduleDetails.last_run)}
                   </p>
                   {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
-                    <p className="text-sm text-text-default">
+                    <p className="text-sm text-text-primary">
                       <span className="font-semibold">Current Session:</span>{' '}
                       {scheduleDetails.current_session_id}
                     </p>
                   )}
                   {scheduleDetails.currently_running && scheduleDetails.process_start_time && (
-                    <p className="text-sm text-text-default">
+                    <p className="text-sm text-text-primary">
                       <span className="font-semibold">Process Started:</span>{' '}
                       {formatToLocalDateWithTimezone(scheduleDetails.process_start_time)}
                     </p>
@@ -337,7 +339,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-text-default mb-3">Actions</h2>
+            <h2 className="text-xl font-semibold text-text-primary mb-3">Actions</h2>
             <div className="flex flex-col md:flex-row gap-2">
               <Button
                 onClick={handleRunNow}
@@ -422,15 +424,15 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-text-default mb-4">Recent Sessions</h2>
-            {isLoadingSessions && <p className="text-text-muted">Loading sessions...</p>}
+            <h2 className="text-xl font-semibold text-text-primary mb-4">Recent Sessions</h2>
+            {isLoadingSessions && <p className="text-text-secondary">Loading sessions...</p>}
             {sessionsError && (
               <p className="text-text-danger text-sm p-3 bg-background-danger border border-border-danger rounded-md">
                 Error: {sessionsError}
               </p>
             )}
             {!isLoadingSessions && sessions.length === 0 && (
-              <p className="text-text-muted text-center py-4">
+              <p className="text-text-secondary text-center py-4">
                 No sessions found for this schedule.
               </p>
             )}
@@ -440,27 +442,27 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                 {sessions.map((session) => (
                   <Card
                     key={session.id}
-                    className="p-4 bg-background-default shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                    className="p-4 bg-background-primary shadow cursor-pointer hover:shadow-lg transition-shadow duration-200"
                     onClick={() => loadSession(session.id)}
                   >
                     <h3
-                      className="text-sm font-semibold text-text-default truncate"
+                      className="text-sm font-semibold text-text-primary truncate"
                       title={session.name || session.id}
                     >
                       {session.name || `Session ID: ${session.id}`}
                     </h3>
-                    <p className="text-xs text-text-muted mt-1">
+                    <p className="text-xs text-text-secondary mt-1">
                       Created:{' '}
                       {session.createdAt ? formatToLocalDateWithTimezone(session.createdAt) : 'N/A'}
                     </p>
                     {session.messageCount !== undefined && (
-                      <p className="text-xs text-text-muted mt-1">
+                      <p className="text-xs text-text-secondary mt-1">
                         Messages: {session.messageCount}
                       </p>
                     )}
                     {session.workingDir && (
                       <p
-                        className="text-xs text-text-muted mt-1 truncate"
+                        className="text-xs text-text-secondary mt-1 truncate"
                         title={session.workingDir}
                       >
                         Dir: {session.workingDir}
@@ -468,11 +470,11 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     )}
                     {session.accumulatedTotalTokens !== undefined &&
                       session.accumulatedTotalTokens !== null && (
-                        <p className="text-xs text-text-muted mt-1">
+                        <p className="text-xs text-text-secondary mt-1">
                           Tokens: {session.accumulatedTotalTokens}
                         </p>
                       )}
-                    <p className="text-xs text-text-muted mt-1">
+                    <p className="text-xs text-text-secondary mt-1">
                       ID: <span className="font-mono">{session.id}</span>
                     </p>
                   </Card>
