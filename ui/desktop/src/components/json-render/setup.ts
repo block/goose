@@ -51,10 +51,8 @@ export const SHADCN_COMPONENT_KEYS = [
   'Pagination',
 ] as const;
 
-const SHADCN_KEYS = SHADCN_COMPONENT_KEYS;
-
 // ─── Goose custom component keys (11 unique, not in shadcn) ───
-const GOOSE_CUSTOM_KEYS = [
+export const GOOSE_CUSTOM_COMPONENT_KEYS = [
   'PageHeader',
   'DataCard',
   'StatCard',
@@ -78,6 +76,9 @@ function pick<T extends Record<string, unknown>>(obj: T, keys: readonly string[]
   }
   return result;
 }
+
+const SHADCN_KEYS = SHADCN_COMPONENT_KEYS;
+const GOOSE_CUSTOM_KEYS = GOOSE_CUSTOM_COMPONENT_KEYS;
 
 const pickedDefs = pick(catalogDefs, SHADCN_KEYS);
 
