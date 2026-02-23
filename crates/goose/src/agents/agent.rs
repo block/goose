@@ -846,7 +846,8 @@ impl Agent {
         request_id: String,
         confirmation: PermissionConfirmation,
     ) {
-        if let Some(provider) = self.provider.lock().await.as_ref() {
+        let provider = self.provider.lock().await.clone();
+        if let Some(provider) = provider.as_ref() {
             if provider.permission_routing() == PermissionRouting::ActionRequired
                 && provider
                     .handle_permission_confirmation(&request_id, &confirmation)

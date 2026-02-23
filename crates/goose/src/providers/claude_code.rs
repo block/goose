@@ -730,8 +730,9 @@ impl Provider for ClaudeCodeProvider {
                         req_id,
                         PermissionResponse::Deny { message: "Stream cancelled".to_string() },
                     );
-                    let mut s = serde_json::to_string(&resp)
-                        .expect("Failed to serialize cleanup deny response");
+                    let mut s = serde_json::to_string(&resp).map_err(|e| {
+                        ProviderError::RequestFailed(format!("Failed to serialize cleanup deny response: {e}"))
+                    })?;
                     s.push('\n');
                     let _ = process.stdin.write_all(s.as_bytes()).await;
                 }
