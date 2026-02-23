@@ -174,6 +174,27 @@ describe('JsonRenderBlock', () => {
 
       expect(screen.getByText(/json-render error/)).toBeInTheDocument();
     });
+
+    it('shows error for unknown component types', () => {
+      const unknownType = [
+        '{"op":"add","path":"/root","value":"main"}',
+        '{"op":"add","path":"/elements/main","value":{"type":"NotARealComponent","props":{},"children":[]}}',
+      ].join('\n');
+
+      render(<JsonRenderBlock spec={unknownType} />);
+
+      expect(screen.getByText(/json-render error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Unknown component type/)).toBeInTheDocument();
+      expect(screen.getByText(/NotARealComponent/)).toBeInTheDocument();
+    });
+
+    it('shows error when spec is too large', () => {
+      const huge = `{"op":"add","path":"/root","value":"main"}\n${'x'.repeat(300_000)}`;
+      render(<JsonRenderBlock spec={huge} />);
+
+      expect(screen.getByText(/json-render error/i)).toBeInTheDocument();
+      expect(screen.getByText(/Spec too large/)).toBeInTheDocument();
+    });
   });
 
   describe('format detection', () => {
