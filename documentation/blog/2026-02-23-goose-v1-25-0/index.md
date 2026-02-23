@@ -5,7 +5,7 @@ authors:
   - debbie
 ---
 
-![blog banner](banner.png)
+![Banner image for the goose v1.25.0 release](banner.png)
 
 goose v1.25.0 is here, and it's one of our most significant releases yet. This version brings macOS sandboxing for enhanced security, a major architectural simplification with the unified summon extension, rich UI rendering for MCP apps, and a wave of improvements to agentic CLI providers. Whether you're running goose Desktop or the CLI, there's something in this release for you.
 
@@ -123,17 +123,7 @@ The implementation covers all release workflows including stable releases, canar
 
 ## Get Started
 
-Ready to try v1.25.0?
-
-- **Desktop**: Download the latest from [goose Desktop releases](https://github.com/block/goose/releases/tag/v1.25.0)
-- **CLI**:
-  ```bash
-  # macOS / Linux
-  curl -fsSL https://github.com/block/goose/releases/download/v1.25.0/download_cli.sh | sh
-
-  # Or verify the download first (new in v1.25.0!)
-  gh attestation verify goose-* --repo block/goose
-  ```
+Ready to try v1.25.0? Head over to our [updating goose](https://block.github.io/goose/docs/guides/updating-goose) guide for step-by-step instructions on getting the latest version for Desktop or CLI.
 
 Check out the full [release notes](https://github.com/block/goose/releases/tag/v1.25.0) for the complete list of changes, and join the conversation in [GitHub Discussions](https://github.com/block/goose/discussions).
 
