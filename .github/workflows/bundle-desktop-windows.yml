@@ -79,6 +79,8 @@ jobs:
 
       - name: Build Windows executable
         shell: bash
+        env:
+          LLAMA_STATIC_CRT: "1"
         run: |
           echo "🚀 Building Windows executable..."
           cargo build --release --target x86_64-pc-windows-msvc
