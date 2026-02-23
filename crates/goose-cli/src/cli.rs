@@ -1502,7 +1502,7 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::{
-        display_name_from_repo, get_registry, model_id_from_repo, LocalModelEntry,
+        get_registry, model_id_from_repo, LocalModelEntry,
     };
 
     match command {
@@ -1541,13 +1541,12 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             println!("Resolving {}...", spec);
             let (repo_id, file) = hf_models::resolve_model_spec(&spec).await?;
             let model_id = model_id_from_repo(&repo_id, &file.quantization);
-            let display_name = display_name_from_repo(&repo_id, &file.quantization);
             let local_path =
                 goose::config::paths::Paths::in_data_dir("models").join(&file.filename);
 
             println!(
                 "Downloading {} ({})...",
-                display_name,
+                model_id,
                 if file.size_bytes > 0 {
                     format!(
                         "{:.1}GB",
@@ -1561,7 +1560,6 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
             // Register
             let entry = LocalModelEntry {
                 id: model_id.clone(),
-                display_name: display_name.clone(),
                 repo_id: repo_id.clone(),
                 filename: file.filename.clone(),
                 quantization: file.quantization.clone(),
@@ -1604,7 +1602,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                             std::io::stdout().flush().ok();
                         }
                         goose::download_manager::DownloadStatus::Completed => {
-                            println!("\nDownloaded: {} (id: {})", display_name, model_id);
+                            println!("\nDownloaded: {}", model_id);
                             break;
                         }
                         goose::download_manager::DownloadStatus::Failed => {
@@ -1631,13 +1629,12 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 return Ok(());
             }
 
-            println!("{:<40} {:<20} {:<10} Downloaded", "ID", "Name", "Quant");
-            println!("{}", "-".repeat(80));
+            println!("{:<50} {:<10} Downloaded", "ID", "Quant");
+            println!("{}", "-".repeat(70));
             for m in models {
                 println!(
-                    "{:<40} {:<20} {:<10} {}",
+                    "{:<50} {:<10} {}",
                     m.id,
-                    m.display_name,
                     m.quantization,
                     if m.is_downloaded() { "✓" } else { "✗" }
                 );

@@ -57,8 +57,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
   // Load show pricing setting
   useEffect(() => {
-    const stored = localStorage.getItem('show_pricing');
-    setShowPricing(stored !== 'false');
+    window.electron.getSetting('showPricing').then(setShowPricing);
   }, []);
 
   // Handle scrolling to update section
@@ -139,12 +138,12 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     }
   };
 
-  const handleShowPricingToggle = (checked: boolean) => {
+  const handleShowPricingToggle = async (checked: boolean) => {
     setShowPricing(checked);
-    localStorage.setItem('show_pricing', String(checked));
+    await window.electron.setSetting('showPricing', checked);
     trackSettingToggled('cost_tracking', checked);
-    // Trigger storage event for other components
-    window.dispatchEvent(new CustomEvent('storage'));
+    // Trigger event for other components
+    window.dispatchEvent(new CustomEvent('showPricingChanged'));
   };
 
   return (

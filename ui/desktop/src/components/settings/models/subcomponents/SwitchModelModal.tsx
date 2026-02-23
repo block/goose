@@ -250,7 +250,7 @@ export const SwitchModelModal = ({
             providerType: p.provider_type,
           }));
 
-          if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
+          if (p.provider_type !== 'Custom') {
             options.push({
               value: 'custom',
               label: 'Enter a model not listed...',

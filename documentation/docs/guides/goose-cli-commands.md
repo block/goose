@@ -45,6 +45,10 @@ Configure goose settings - providers, extensions, etc.
 goose configure
 ```
 
+:::tip Type to Filter
+When selecting from menus in `goose configure`, start typing to filter options in real-time. This works for lists of providers, extensions, and tools.
+:::
+
 ---
 
 #### info [options]

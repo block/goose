@@ -549,7 +549,6 @@ export type LoadedProvider = {
 };
 
 export type LocalModelResponse = {
-    display_name: string;
     filename: string;
     id: string;
     quantization: string;
@@ -833,10 +832,6 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  * Metadata about a provider's configuration requirements and capabilities
  */
 export type ProviderMetadata = {
-    /**
-     * Whether this provider allows entering model names not in the fetched list
-     */
-    allows_unlisted_models?: boolean;
     /**
      * Required configuration keys
      */
