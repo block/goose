@@ -30,6 +30,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   const sessionsRef = useRef<Session[]>([]);
   const lastSessionIdRef = useRef<string | null>(null);
   const isCreatingSessionRef = useRef(false);
+  const erroredSessionIds = useRef<Set<string>>(new Set());
 
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const currentSessionId =
@@ -125,6 +126,17 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
     };
   }, []);
 
+  useEffect(() => {
+    const handleStatusUpdate = (event: Event) => {
+      const { sessionId, streamState } = (event as CustomEvent).detail;
+      if (streamState === 'error') {
+        erroredSessionIds.current.add(sessionId);
+      }
+    };
+    window.addEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
+    return () => window.removeEventListener(AppEvents.SESSION_STATUS_UPDATE, handleStatusUpdate);
+  }, []);
+
   const handleNavClick = useCallback(
     (path: string) => {
       if (path === '/pair') {
@@ -146,7 +158,9 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   const handleNewChat = useCallback(async () => {
     if (isCreatingSessionRef.current) return;
 
-    const emptyNewSession = sessionsRef.current.find((s) => shouldShowNewChatTitle(s));
+    const emptyNewSession = sessionsRef.current.find(
+      (s) => shouldShowNewChatTitle(s) && !erroredSessionIds.current.has(s.id)
+    );
 
     if (emptyNewSession) {
       resumeSession(emptyNewSession, setView);
