@@ -647,13 +647,15 @@ These free options are a great way to get started with goose and explore its cap
 
 
 ### Groq
-Groq provides free access to open source models with high-speed inference. To use Groq with goose, you need an API key from [Groq Console](https://console.groq.com/keys).
+Groq provides free access to open source (open weight) models with high-speed inference. To use Groq with goose, you need an API key from [Groq Console](https://console.groq.com/keys).
 
-Groq offers several open source models that support tool calling:
-- **moonshotai/kimi-k2-instruct** - Mixture-of-Experts model with 1 trillion parameters, optimized for agentic intelligence and tool use
+Groq offers several open source models that support tool calling, including:
+- **moonshotai/kimi-k2-instruct-0905** - Mixture-of-Experts model with 1 trillion parameters, optimized for agentic intelligence and tool use
 - **qwen/qwen3-32b** - 32.8 billion parameter model with advanced reasoning and multilingual capabilities  
-- **gemma2-9b-it** - Google's Gemma 2 model with instruction tuning
 - **llama-3.3-70b-versatile** - Meta's Llama 3.3 model for versatile applications
+- **llama-3.1-8b-instant** - Meta's Llama 3.1 model for fast inference
+
+For the complete list of supported Groq models, see [groq.json](https://github.com/block/goose/blob/main/crates/goose/src/providers/declarative/groq.json).
 
 To set up Groq with goose, follow these steps:
 
@@ -667,6 +669,7 @@ To set up Groq with goose, follow these steps:
     4. Click `Configure Providers`
     5. Choose `Groq` as provider from the list.
     6. Click `Configure`, enter your API key, and click `Submit`.
+    7. Select the Groq model of your choice.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -677,7 +680,7 @@ To set up Groq with goose, follow these steps:
     2. Select `Configure Providers` from the menu.
     3. Follow the prompts to choose `Groq` as the provider.
     4. Enter your API key when prompted.
-    5. Enter the Groq model of your choice (e.g., `moonshotai/kimi-k2-instruct`).
+    5. Select the Groq model of your choice.
   </TabItem>
 </Tabs>
 

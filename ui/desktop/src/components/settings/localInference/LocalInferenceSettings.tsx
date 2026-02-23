@@ -204,9 +204,9 @@ export const LocalInferenceSettings = () => {
                   </div>
                   {progress.status === 'downloading' && (
                     <div className="space-y-1">
-                      <div className="w-full bg-background-subtle rounded-full h-2">
+                      <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
-                          className="bg-accent-primary h-2 rounded-full transition-all duration-300"
+                          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                           style={{ width: `${progress.progress_percent}%` }}
                         />
                       </div>

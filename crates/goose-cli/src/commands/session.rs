@@ -2,14 +2,26 @@ use crate::session::message_to_markdown;
 use anyhow::{Context, Result};
 
 use cliclack::{confirm, multiselect, select};
+use etcetera::home_dir;
 use goose::session::{generate_diagnostics, Session, SessionManager};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
 use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 
 const TRUNCATED_DESC_LENGTH: usize = 60;
+
+fn display_path_with_tilde(path: &Path) -> String {
+    #[cfg(not(target_os = "windows"))]
+    if let Ok(home) = home_dir() {
+        if let Ok(stripped) = path.strip_prefix(&home) {
+            return format!("~/{}", stripped.display());
+        }
+    }
+    path.display().to_string()
+}
 
 async fn remove_sessions(session_manager: &SessionManager, sessions: Vec<Session>) -> Result<()> {
     println!("The following sessions will be removed:");
@@ -170,7 +182,13 @@ pub async fn handle_session_list(
 
             println!("Available sessions:");
             for session in sessions {
-                let output = format!("{} - {} - {}", session.id, session.name, session.updated_at);
+                let output = format!(
+                    "{} - {} - {} - {}",
+                    session.id,
+                    session.name,
+                    session.updated_at,
+                    display_path_with_tilde(&session.working_dir)
+                );
                 println!("{}", output);
             }
         }

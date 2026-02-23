@@ -281,6 +281,17 @@
     ]
   },
   {
+    "id": "excalidraw-mcp-app",
+    "name": "Excalidraw",
+    "description": "Excalidraw MCP App for diagrammin",
+    "url": "https://excalidraw-mcp-app.vercel.app/mcp",
+    "link": "https://github.com/excalidraw/excalidraw-mcp",
+    "is_builtin": false,
+    "endorsed": true,
+    "environmentVariables": [],
+    "type": "streamable-http"
+  },
+  {
     "id": "fetch",
     "name": "Fetch",
     "description": "Web content fetching and processing capabilities",

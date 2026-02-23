@@ -44,8 +44,8 @@ export default function CardContainer({
       className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card
                  ${
                    grayedOut
-                     ? 'bg-background-muted hover:bg-gray-700'
-                     : 'bg-background-muted hover:bg-transparent hover:duration-300'
+                     ? 'bg-background-secondary hover:bg-gray-700'
+                     : 'bg-background-secondary hover:bg-transparent hover:duration-300'
                  }`}
       onClick={!grayedOut ? onClick : undefined}
       style={{
@@ -54,13 +54,13 @@ export default function CardContainer({
     >
       {!grayedOut && <GlowingRing />}
       <div
-        className={`relative bg-background-default rounded-lg p-3 transition-all duration-200 h-[160px] flex flex-col
+        className={`relative bg-background-primary rounded-lg p-3 transition-all duration-200 h-[160px] flex flex-col
                    ${header ? 'justify-between' : 'justify-center'}
                    ${borderStyle === 'dashed' ? 'border-2 border-dashed' : 'border'}
                    ${
                      grayedOut
-                       ? 'border-border-default'
-                       : 'border-border-default hover:border-border-default'
+                       ? 'border-border-primary'
+                       : 'border-border-primary hover:border-border-primary'
                    }
                    ${className}`}
       >

@@ -6317,10 +6317,6 @@
           "config_keys"
         ],
         "properties": {
-          "allows_unlisted_models": {
-            "type": "boolean",
-            "description": "Whether this provider allows entering model names not in the fetched list"
-          },
           "config_keys": {
             "type": "array",
             "items": {

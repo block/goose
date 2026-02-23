@@ -360,7 +360,7 @@ export default function CustomProviderForm({
         <div>
           <label
             htmlFor="provider-select"
-            className="flex items-center text-sm font-medium text-text-default mb-2"
+            className="flex items-center text-sm font-medium text-text-primary mb-2"
           >
             Provider Type
             <span className="text-red-500 ml-1">*</span>
@@ -402,7 +402,7 @@ export default function CustomProviderForm({
         <div>
           <label
             htmlFor="display-name"
-            className="flex items-center text-sm font-medium text-text-default mb-2"
+            className="flex items-center text-sm font-medium text-text-primary mb-2"
           >
             Display Name
             <span className="text-red-500 ml-1">*</span>
@@ -429,7 +429,7 @@ export default function CustomProviderForm({
         <div>
           <label
             htmlFor="api-url"
-            className="flex items-center text-sm font-medium text-text-default mb-2"
+            className="flex items-center text-sm font-medium text-text-primary mb-2"
           >
             API URL
             <span className="text-red-500 ml-1">*</span>
@@ -453,8 +453,8 @@ export default function CustomProviderForm({
 
       {/* Authentication */}
       <div>
-        <label className="block text-sm font-medium text-text-default mb-2">Authentication</label>
-        <p className="text-sm text-text-muted mb-3">
+        <label className="block text-sm font-medium text-text-primary mb-2">Authentication</label>
+        <p className="text-sm text-text-secondary mb-3">
           Local LLMs like Ollama typically don't require an API key.
         </p>
         <div className="flex items-center space-x-2">
@@ -463,9 +463,9 @@ export default function CustomProviderForm({
             id="requires-auth"
             checked={requiresAuth}
             onChange={(e) => handleRequiresAuthChange(e.target.checked)}
-            className="rounded border-border-default"
+            className="rounded border-border-primary"
           />
-          <label htmlFor="requires-auth" className="text-sm text-text-muted">
+          <label htmlFor="requires-auth" className="text-sm text-text-secondary">
             This provider requires an API key
           </label>
         </div>
@@ -474,7 +474,7 @@ export default function CustomProviderForm({
           <div className="mt-3">
             <label
               htmlFor="api-key"
-              className="flex items-center text-sm font-medium text-text-default mb-2"
+              className="flex items-center text-sm font-medium text-text-primary mb-2"
             >
               API Key
               {selectedTemplate?.env_var && (
@@ -508,7 +508,7 @@ export default function CustomProviderForm({
         <div>
           <label
             htmlFor="available-models"
-            className="flex items-center text-sm font-medium text-text-default mb-2"
+            className="flex items-center text-sm font-medium text-text-primary mb-2"
           >
             Available Models (comma-separated)
             <span className="text-red-500 ml-1">*</span>
@@ -558,9 +558,9 @@ export default function CustomProviderForm({
             id="supports-streaming"
             checked={supportsStreaming}
             onChange={(e) => setSupportsStreaming(e.target.checked)}
-            className="rounded border-border-default"
+            className="rounded border-border-primary"
           />
-          <label htmlFor="supports-streaming" className="text-sm text-text-muted">
+          <label htmlFor="supports-streaming" className="text-sm text-text-secondary">
             Provider supports streaming responses
           </label>
         </div>
@@ -630,7 +630,7 @@ export default function CustomProviderForm({
               onClick={handleAddHeader}
               variant="ghost"
               type="button"
-              className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-background-default border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
+              className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-textStandard bg-background-primary border border-borderSubtle hover:border-borderStandard transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
             >
               <Plus /> Add
             </Button>
