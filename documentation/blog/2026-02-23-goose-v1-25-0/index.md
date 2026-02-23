@@ -71,6 +71,8 @@ With v1.25.0, the desktop app lets you visually configure these settings per rec
 
 Alongside this, the recipe details view now correctly **displays the provider and model specified in the recipe's own config**, rather than showing your global default. This means if you have a code review recipe set to always run on Claude Sonnet, the UI will accurately reflect that, regardless of your default provider setting.
 
+![Recipe editor in goose Desktop showing provider and model configuration](recipe-editor.png)
+
 ## 🤖 Agentic CLI Providers Level Up
 
 **Claude Code, Codex, and Gemini CLI all received major upgrades in this release.**
