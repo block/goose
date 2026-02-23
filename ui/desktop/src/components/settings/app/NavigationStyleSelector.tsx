@@ -40,14 +40,14 @@ export const NavigationStyleSelector: React.FC<NavigationStyleSelectorProps> = (
             className={cn(
               'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
               navigationStyle === style.value
-                ? 'border-border-strong bg-background-medium'
-                : 'border-border-subtle bg-background-default hover:border-border-medium'
+                ? 'border-border-primary bg-background-tertiary'
+                : 'border-border-secondary bg-background-primary hover:border-border-medium'
             )}
           >
-            <div className="text-text-default">{style.icon}</div>
+            <div className="text-text-primary">{style.icon}</div>
             <div className="text-center">
-              <div className="text-sm font-medium text-text-default">{style.label}</div>
-              <div className="text-xs text-text-muted mt-1">{style.description}</div>
+              <div className="text-sm font-medium text-text-primary">{style.label}</div>
+              <div className="text-xs text-text-secondary mt-1">{style.description}</div>
             </div>
           </button>
         ))}

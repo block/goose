@@ -143,7 +143,7 @@ export default function ModelsBottomBar({
     <div className="relative flex items-center" ref={dropdownRef}>
       <BottomMenuAlertPopover alerts={alerts} />
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/70 hover:text-text-default transition-colors">
+        <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-primary/70 hover:text-text-primary transition-colors">
           <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
             <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
             <span className="truncate text-xs">
@@ -155,7 +155,7 @@ export default function ModelsBottomBar({
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
-          <h6 className="text-xs text-text-default mt-2 ml-2">Current model</h6>
+          <h6 className="text-xs text-text-primary mt-2 ml-2">Current model</h6>
           <p className="flex items-center justify-between text-sm mx-2 pb-2 border-b mb-2">
             {displayModelName}
             {displayProvider && ` — ${displayProvider}`}

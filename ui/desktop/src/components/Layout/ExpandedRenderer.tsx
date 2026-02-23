@@ -25,7 +25,6 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
   drag,
   navFocusRef,
 }) => {
-
   const [chatDropdownOpen, setChatDropdownOpen] = useState(false);
   const [gridColumns, setGridColumns] = useState(2);
   const [gridMeasured, setGridMeasured] = useState(false);
@@ -104,9 +103,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
   }, [isNavExpanded, navigationPosition, isOverlayMode]);
 
   const isPushTopNav = !isOverlayMode && navigationPosition === 'top';
-  const dragStyle = isPushTopNav
-    ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties)
-    : undefined;
+  const dragStyle = isPushTopNav ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined;
   const showContent = !isClosing || isOverlayMode;
 
   const navContent = (
@@ -160,12 +157,8 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                 >
                   <motion.div
                     draggable
-                    onDragStart={(e) =>
-                      drag.onDragStart(e as unknown as React.DragEvent, item.id)
-                    }
-                    onDragOver={(e) =>
-                      drag.onDragOver(e as unknown as React.DragEvent, item.id)
-                    }
+                    onDragStart={(e) => drag.onDragStart(e as unknown as React.DragEvent, item.id)}
+                    onDragOver={(e) => drag.onDragOver(e as unknown as React.DragEvent, item.id)}
                     onDrop={(e) => drag.onDrop(e as unknown as React.DragEvent, item.id)}
                     onDragEnd={drag.onDragEnd}
                     initial={{ opacity: 0 }}
@@ -183,23 +176,23 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                             'w-full relative flex flex-col rounded-lg',
                             'transition-colors duration-200 aspect-square cursor-pointer',
                             active
-                              ? 'bg-background-accent text-text-on-accent'
-                              : 'bg-background-default hover:bg-background-medium'
+                              ? 'bg-background-inverse text-text-inverse'
+                              : 'bg-background-primary hover:bg-background-tertiary'
                           )}
                         >
                           <div className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left">
                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                              <GripVertical className="w-4 h-4 text-text-muted" />
+                              <GripVertical className="w-4 h-4 text-text-secondary" />
                             </div>
                             {item.getTag && (
                               <div
                                 className={cn(
                                   'absolute top-3 px-2 py-1 rounded-full',
                                   item.tagAlign === 'left' ? 'left-8' : 'right-8',
-                                  'bg-background-muted'
+                                  'bg-background-secondary'
                                 )}
                               >
-                                <span className="text-xs font-mono text-text-muted">
+                                <span className="text-xs font-mono text-text-secondary">
                                   {item.getTag()}
                                 </span>
                               </div>
@@ -249,8 +242,8 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                     'w-full relative flex flex-col rounded-lg',
                     'transition-colors duration-200 aspect-square',
                     active
-                      ? 'bg-background-accent text-text-on-accent'
-                      : 'bg-background-default hover:bg-background-medium'
+                      ? 'bg-background-inverse text-text-inverse'
+                      : 'bg-background-primary hover:bg-background-tertiary'
                   )}
                 >
                   <button
@@ -258,17 +251,19 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                     className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left"
                   >
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                      <GripVertical className="w-4 h-4 text-text-muted" />
+                      <GripVertical className="w-4 h-4 text-text-secondary" />
                     </div>
                     {item.getTag && (
                       <div
                         className={cn(
                           'absolute top-3 px-2 py-1 rounded-full',
                           item.tagAlign === 'left' ? 'left-8' : 'right-8',
-                          'bg-background-muted'
+                          'bg-background-secondary'
                         )}
                       >
-                        <span className="text-xs font-mono text-text-muted">{item.getTag()}</span>
+                        <span className="text-xs font-mono text-text-secondary">
+                          {item.getTag()}
+                        </span>
                       </div>
                     )}
                     <div className="mt-auto w-full">
@@ -293,7 +288,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                   : (gridColumns - (visibleItems.length % gridColumns)) % gridColumns,
             }).map((_, index) => (
               <div key={`spacer-${index}`} className="relative">
-                <div className="w-full aspect-square rounded-lg bg-background-default" />
+                <div className="w-full aspect-square rounded-lg bg-background-primary" />
               </div>
             ))}
         </div>

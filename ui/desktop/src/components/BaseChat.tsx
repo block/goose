@@ -339,13 +339,13 @@ export default function BaseChat({
     return (
       <div className="h-full flex flex-col min-h-0">
         <MainPanelLayout
-          backgroundColor={'bg-background-muted'}
+          backgroundColor={'bg-background-secondary'}
           removeTopPadding={true}
           {...customMainLayoutProps}
         >
           {renderHeader && renderHeader()}
           <div className="flex flex-col flex-1 mb-0.5 min-h-0 relative">
-            <div className="flex-1 bg-background-default rounded-b-2xl flex items-center justify-center">
+            <div className="flex-1 bg-background-primary rounded-b-2xl flex items-center justify-center">
               <div className="flex flex-col items-center justify-center p-8">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
                   <h3 className="font-semibold mb-2">Failed to Load Session</h3>
@@ -355,7 +355,7 @@ export default function BaseChat({
                   onClick={() => {
                     setView('chat');
                   }}
-                  className="px-4 py-2 text-center cursor-pointer text-text-default border border-border-default hover:bg-background-muted rounded-lg transition-all duration-150"
+                  className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150"
                 >
                   Go home
                 </button>
@@ -370,7 +370,7 @@ export default function BaseChat({
   return (
     <div className="h-full flex flex-col min-h-0">
       <MainPanelLayout
-        backgroundColor={'bg-background-muted'}
+        backgroundColor={'bg-background-secondary'}
         removeTopPadding={true}
         {...customMainLayoutProps}
       >
@@ -388,14 +388,16 @@ export default function BaseChat({
               className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
             >
               <Goose className="size-5 goose-icon-animation" />
-              <span className="text-sm leading-none text-text-muted -translate-y-px">goose</span>
+              <span className="text-sm leading-none text-text-secondary -translate-y-px">
+                goose
+              </span>
             </a>
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
           <ScrollArea
             ref={scrollRef}
-            className={`flex-1 bg-background-default rounded-b-2xl min-h-0 relative ${contentClassName}`}
+            className={`flex-1 bg-background-primary rounded-b-2xl min-h-0 relative ${contentClassName}`}
             autoScroll
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -404,7 +406,7 @@ export default function BaseChat({
             paddingY={0}
           >
             {recipe?.title && (
-              <div className="sticky top-0 z-10 bg-background-default px-0 -mx-6 mb-6 pt-6">
+              <div className="sticky top-0 z-10 bg-background-primary px-0 -mx-6 mb-6 pt-6">
                 <RecipeHeader title={recipe.title} />
               </div>
             )}

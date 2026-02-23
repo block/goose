@@ -36,7 +36,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
 }) => {
   return (
     <DropdownMenuContent
-      className="w-64 p-1 bg-background-default border-border-subtle rounded-lg shadow-lg"
+      className="w-64 p-1 bg-background-primary border-border-secondary rounded-lg shadow-lg"
       side={side}
       align="start"
       sideOffset={8}
@@ -68,13 +68,13 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
             }}
             className={cn(
               'flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer',
-              isActiveSession && 'bg-background-medium'
+              isActiveSession && 'bg-background-tertiary'
             )}
           >
             {session.recipe ? (
-              <ChefHat className="w-4 h-4 flex-shrink-0 text-text-muted" />
+              <ChefHat className="w-4 h-4 flex-shrink-0 text-text-secondary" />
             ) : (
-              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+              <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-secondary" />
             )}
             <span className="truncate flex-1">
               {truncateMessage(getSessionDisplayName(session), 30)}
@@ -93,7 +93,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
           <DropdownMenuSeparator className="my-1" />
           <DropdownMenuItem
             onClick={onShowAll}
-            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-muted"
+            className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-secondary"
           >
             <History className="w-4 h-4 flex-shrink-0" />
             <span>Show All</span>

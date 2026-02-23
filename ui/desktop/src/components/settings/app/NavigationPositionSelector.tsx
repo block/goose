@@ -14,7 +14,9 @@ const positions: { value: NavigationPosition; label: string; icon: React.ReactNo
   { value: 'right', label: 'Right', icon: <ArrowRight className="w-5 h-5" /> },
 ];
 
-export const NavigationPositionSelector: React.FC<NavigationPositionSelectorProps> = ({ className }) => {
+export const NavigationPositionSelector: React.FC<NavigationPositionSelectorProps> = ({
+  className,
+}) => {
   const { navigationPosition, setNavigationPosition } = useNavigationContext();
 
   return (
@@ -27,12 +29,12 @@ export const NavigationPositionSelector: React.FC<NavigationPositionSelectorProp
             className={cn(
               'flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all',
               navigationPosition === position.value
-                ? 'border-border-strong bg-background-medium'
-                : 'border-border-subtle bg-background-default hover:border-border-medium'
+                ? 'border-border-primary bg-background-tertiary'
+                : 'border-border-secondary bg-background-primary hover:border-border-medium'
             )}
           >
-            <div className="text-text-default">{position.icon}</div>
-            <div className="text-xs font-medium text-text-default">{position.label}</div>
+            <div className="text-text-primary">{position.icon}</div>
+            <div className="text-xs font-medium text-text-primary">{position.label}</div>
           </button>
         ))}
       </div>

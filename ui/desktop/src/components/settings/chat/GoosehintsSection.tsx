@@ -11,8 +11,8 @@ export const GoosehintsSection = () => {
     <>
       <div className="flex items-center justify-between px-2 py-2">
         <div className="flex-1">
-          <h3 className="text-text-default">Project Hints (.goosehints)</h3>
-          <p className="text-xs text-text-muted mt-[2px]">
+          <h3 className="text-text-primary">Project Hints (.goosehints)</h3>
+          <p className="text-xs text-text-secondary mt-[2px]">
             Configure your project's .goosehints file to provide additional context to Goose
           </p>
         </div>

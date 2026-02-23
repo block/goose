@@ -83,7 +83,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   // Main content area
   const mainContent = (
     <div className="flex-1 overflow-hidden min-h-0">
-      <div className="h-full w-full bg-background-default rounded-lg overflow-hidden">
+      <div className="h-full w-full bg-background-primary rounded-lg overflow-hidden">
         <Outlet />
         {/* Always render ChatSessionsContainer to keep SSE connections alive.
             When navigating away from /pair, hide it with CSS */}
@@ -97,7 +97,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   return (
     <div
       className={cn(
-        'flex flex-1 w-full h-full relative animate-fade-in bg-background-muted',
+        'flex flex-1 w-full h-full relative animate-fade-in bg-background-secondary',
         getLayoutClass()
       )}
     >
@@ -120,7 +120,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         {/* Navigation trigger */}
         <Button
           onClick={() => setIsNavExpanded(!isNavExpanded)}
-          className="no-drag hover:!bg-background-medium"
+          className="no-drag hover:!bg-background-tertiary"
           variant="ghost"
           size="xs"
           title={isNavExpanded ? 'Close navigation' : 'Open navigation'}

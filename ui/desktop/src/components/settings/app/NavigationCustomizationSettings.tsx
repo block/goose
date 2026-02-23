@@ -89,12 +89,12 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
     <div className={className}>
       <div className="space-y-3">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-text-muted">
+          <p className="text-sm text-text-secondary">
             Drag to reorder, click the eye icon to show/hide items
           </p>
           <button
             onClick={resetToDefaults}
-            className="text-xs text-text-muted hover:text-text-default transition-colors"
+            className="text-xs text-text-secondary hover:text-text-primary transition-colors"
           >
             Reset to defaults
           </button>
@@ -118,22 +118,22 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
                 'flex items-center gap-3 p-3 rounded-lg border transition-all',
                 isDragging && 'opacity-50',
                 isDragOver
-                  ? 'border-border-strong bg-background-medium'
-                  : 'border-border-subtle bg-background-default',
+                  ? 'border-border-primary bg-background-tertiary'
+                  : 'border-border-secondary bg-background-primary',
                 !isEnabled && 'opacity-50'
               )}
             >
-              <GripVertical className="w-4 h-4 text-text-muted cursor-move flex-shrink-0" />
-              <span className="flex-1 text-sm text-text-default">{label}</span>
+              <GripVertical className="w-4 h-4 text-text-secondary cursor-move flex-shrink-0" />
+              <span className="flex-1 text-sm text-text-primary">{label}</span>
               <button
                 onClick={() => toggleItemEnabled(itemId)}
-                className="p-1 rounded hover:bg-background-medium transition-colors flex-shrink-0"
+                className="p-1 rounded hover:bg-background-tertiary transition-colors flex-shrink-0"
                 title={isEnabled ? 'Hide item' : 'Show item'}
               >
                 {isEnabled ? (
-                  <Eye className="w-4 h-4 text-text-default" />
+                  <Eye className="w-4 h-4 text-text-primary" />
                 ) : (
-                  <EyeOff className="w-4 h-4 text-text-muted" />
+                  <EyeOff className="w-4 h-4 text-text-secondary" />
                 )}
               </button>
             </div>

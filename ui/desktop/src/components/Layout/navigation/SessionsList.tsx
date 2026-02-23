@@ -55,20 +55,20 @@ export const SessionsList: React.FC<SessionsListProps> = ({
           transition={{ duration: 0.2 }}
           className="overflow-hidden mt-[2px]"
         >
-          <div className="bg-background-default rounded-lg py-1 flex flex-col gap-[2px]">
+          <div className="bg-background-primary rounded-lg py-1 flex flex-col gap-[2px]">
             {/* New Chat button as first item */}
             {onNewChat && (
               <div
                 onClick={onNewChat}
                 className={cn(
                   'w-full text-left py-1.5 px-2 text-xs rounded-md',
-                  'hover:bg-background-medium transition-colors',
+                  'hover:bg-background-tertiary transition-colors',
                   'flex items-center gap-2 cursor-pointer'
                 )}
               >
                 <div className="w-4 flex-shrink-0" />
-                <Plus className="w-4 h-4 flex-shrink-0 text-text-muted" />
-                <span className="text-text-default">Start New Chat</span>
+                <Plus className="w-4 h-4 flex-shrink-0 text-text-secondary" />
+                <span className="text-text-primary">Start New Chat</span>
               </div>
             )}
 
@@ -91,16 +91,16 @@ export const SessionsList: React.FC<SessionsListProps> = ({
                   }}
                   className={cn(
                     'w-full text-left py-1.5 px-2 text-xs rounded-md',
-                    'hover:bg-background-medium transition-colors',
+                    'hover:bg-background-tertiary transition-colors',
                     'flex items-center gap-2 cursor-pointer',
-                    isActiveSession && 'bg-background-medium'
+                    isActiveSession && 'bg-background-tertiary'
                   )}
                 >
                   <div className="w-4 flex-shrink-0" />
                   {session.recipe ? (
-                    <ChefHat className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                    <ChefHat className="w-4 h-4 flex-shrink-0 text-text-secondary" />
                   ) : (
-                    <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-muted" />
+                    <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-secondary" />
                   )}
                   <InlineEditText
                     value={getSessionDisplayName(session)}
@@ -108,7 +108,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
                     placeholder="Untitled session"
                     disabled={isStreaming}
                     singleClickEdit={false}
-                    className="truncate text-text-default flex-1 !px-0 !py-0 hover:bg-transparent"
+                    className="truncate text-text-primary flex-1 !px-0 !py-0 hover:bg-transparent"
                     editClassName="!text-xs"
                     onEditStart={() => setEditingSessionId(session.id)}
                     onEditEnd={() => setEditingSessionId(null)}
@@ -128,8 +128,8 @@ export const SessionsList: React.FC<SessionsListProps> = ({
                 onClick={onShowAll}
                 className={cn(
                   'w-full text-left py-1.5 px-2 text-xs rounded-md',
-                  'hover:bg-background-medium transition-colors',
-                  'flex items-center gap-2 cursor-pointer text-text-muted'
+                  'hover:bg-background-tertiary transition-colors',
+                  'flex items-center gap-2 cursor-pointer text-text-secondary'
                 )}
               >
                 <div className="w-4 flex-shrink-0" />

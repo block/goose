@@ -150,6 +150,7 @@ type ElectronAPI = {
     mode: string;
     useSystemTheme: boolean;
     theme: string;
+    tokensUpdated?: boolean;
   }) => void;
   openExternal: (url: string) => Promise<void>;
   // Update-related functions
@@ -273,7 +274,12 @@ const electronAPI: ElectronAPI = {
   emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
   },
-  broadcastThemeChange: (themeData: { mode: string; useSystemTheme: boolean; theme: string }) => {
+  broadcastThemeChange: (themeData: {
+    mode: string;
+    useSystemTheme: boolean;
+    theme: string;
+    tokensUpdated?: boolean;
+  }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
   },
   openExternal: (url: string): Promise<void> => {

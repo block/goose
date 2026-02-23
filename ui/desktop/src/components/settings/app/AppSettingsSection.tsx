@@ -40,32 +40,32 @@ const NavigationSettingsContent: React.FC = () => {
             <CardDescription>Customize navigation layout and behavior</CardDescription>
           </div>
           {isExpanded ? (
-            <ChevronUp className="w-5 h-5 text-text-muted" />
+            <ChevronUp className="w-5 h-5 text-text-secondary" />
           ) : (
-            <ChevronDown className="w-5 h-5 text-text-muted" />
+            <ChevronDown className="w-5 h-5 text-text-secondary" />
           )}
         </button>
       </CardHeader>
       {isExpanded && (
         <CardContent className="pt-4 px-4 space-y-6">
           <div>
-            <h3 className="text-sm font-medium text-text-default mb-3">Mode</h3>
+            <h3 className="text-sm font-medium text-text-primary mb-3">Mode</h3>
             <NavigationModeSelector />
           </div>
           {!isOverlayMode && (
             <div>
-              <h3 className="text-sm font-medium text-text-default mb-3">Style</h3>
+              <h3 className="text-sm font-medium text-text-primary mb-3">Style</h3>
               <NavigationStyleSelector />
             </div>
           )}
           {!isOverlayMode && (
             <div>
-              <h3 className="text-sm font-medium text-text-default mb-3">Position</h3>
+              <h3 className="text-sm font-medium text-text-primary mb-3">Position</h3>
               <NavigationPositionSelector />
             </div>
           )}
           <div>
-            <h3 className="text-sm font-medium text-text-default mb-3">Customize Items</h3>
+            <h3 className="text-sm font-medium text-text-primary mb-3">Customize Items</h3>
             <NavigationCustomizationSettings />
           </div>
         </CardContent>
@@ -220,8 +220,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Notifications</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Notifications</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Notifications are managed by your OS{' - '}
                 <span
                   className="underline hover:cursor-pointer"
@@ -252,8 +252,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Menu bar icon</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Menu bar icon</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Show goose in the menu bar
               </p>
             </div>
@@ -269,8 +269,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {isMacOS && (
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-text-default text-xs">Dock icon</h3>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">Show goose in the dock</p>
+                <h3 className="text-text-primary text-xs">Dock icon</h3>
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
+                  Show goose in the dock
+                </p>
               </div>
               <div className="flex items-center">
                 <Switch
@@ -286,8 +288,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {/* Prevent Sleep */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Prevent Sleep</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Prevent Sleep</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Keep your computer awake while goose is running a task (screen can still lock)
               </p>
             </div>
@@ -304,8 +306,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {COST_TRACKING_ENABLED && (
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-text-default">Cost Tracking</h3>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                <h3 className="text-text-primary">Cost Tracking</h3>
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                   Show model pricing and usage costs
                 </p>
               </div>
