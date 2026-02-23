@@ -52,18 +52,21 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     }
   }, [isCheckingProvider, hasProvider]);
 
-  const handleConfigured = async (providerName: string) => {
-    const providers = await getProviders(true);
-    const matchedProvider = providers.find((p) => p.name === providerName);
+  const handleConfigured = async (providerName: string, modelId?: string) => {
     await upsert('GOOSE_PROVIDER', providerName, false);
-    if (matchedProvider) {
-      await upsert('GOOSE_MODEL', matchedProvider.metadata.default_model, false);
+    if (modelId) {
+      await upsert('GOOSE_MODEL', modelId, false);
+      setConfiguredModel(modelId);
+    } else {
+      const providers = await getProviders(true);
+      const matchedProvider = providers.find((p) => p.name === providerName);
+      if (matchedProvider) {
+        await upsert('GOOSE_MODEL', matchedProvider.metadata.default_model, false);
+        setConfiguredModel(matchedProvider.metadata.default_model);
+      }
     }
     await refreshCurrentModelAndProvider();
     setConfiguredProvider(providerName);
-    if (matchedProvider) {
-      setConfiguredModel(matchedProvider.metadata.default_model);
-    }
   };
 
   const finishOnboarding = async (telemetryEnabled: boolean) => {

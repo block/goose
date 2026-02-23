@@ -248,12 +248,6 @@ impl ProviderMetadata {
         }
     }
 
-    /// Set allows_unlisted_models flag (builder pattern)
-    pub fn with_unlisted_models(mut self) -> Self {
-        self.allows_unlisted_models = true;
-        self
-    }
-
     pub fn with_setup_steps(mut self, steps: Vec<&str>) -> Self {
         self.setup_steps = steps.into_iter().map(|s| s.to_string()).collect();
         self

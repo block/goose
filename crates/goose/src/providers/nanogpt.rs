@@ -85,7 +85,6 @@ impl ProviderDef for NanoGptProvider {
             NANOGPT_DOC_URL,
             vec![ConfigKey::new(NANOGPT_API_KEY, true, true, None, true)],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(

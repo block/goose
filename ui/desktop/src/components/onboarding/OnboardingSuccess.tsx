@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Button } from '../ui/button';
 import PrivacyInfoModal from './PrivacyInfoModal';
 
+const LOCAL_PROVIDER = 'local';
+
 interface OnboardingSuccessProps {
   providerName: string;
   onFinish: (telemetryEnabled: boolean) => void;
@@ -33,7 +35,9 @@ export default function OnboardingSuccess({ providerName, onFinish }: Onboarding
                 </svg>
               </div>
               <h2 className="text-xl font-light text-text-default mb-1">
-                Connected to {providerName}
+                {providerName === LOCAL_PROVIDER
+                  ? 'Local model ready'
+                  : `Connected to ${providerName}`}
               </h2>
               <p className="text-text-muted text-sm">You're all set to start using Goose.</p>
             </div>

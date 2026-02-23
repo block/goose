@@ -7,7 +7,7 @@ import {
 } from '../../api';
 import { Select } from '../ui/Select';
 import ProviderConfigForm from './ProviderConfigForm';
-import FreeCreditCards from './FreeCreditCards';
+import FreeOptionCards from './FreeOptionCards';
 import CustomProviderForm from '../settings/providers/modal/subcomponents/forms/CustomProviderForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Gift, Key, Plus } from 'lucide-react';
@@ -24,7 +24,7 @@ interface ProviderOption {
 }
 
 interface ProviderSelectorProps {
-  onConfigured: (providerName: string) => void;
+  onConfigured: (providerName: string, modelId?: string) => void;
   onFirstSelection?: () => void;
 }
 
@@ -114,9 +114,9 @@ export default function ProviderSelector({
           }`}
         >
           <Gift size={20} className="text-text-muted mb-2" />
-          <span className="font-medium text-text-default text-base block">Free Credits</span>
+          <span className="font-medium text-text-default text-base block">Try for Free</span>
           <p className="text-text-muted text-sm mt-1">
-            Get free credits from a provider to try Goose
+            Free credits or run locally on your machine
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export default function ProviderSelector({
 
       {selectedPath === FREE_CREDITS && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-          <FreeCreditCards onConfigured={onConfigured} />
+          <FreeOptionCards onConfigured={onConfigured} />
         </div>
       )}
 

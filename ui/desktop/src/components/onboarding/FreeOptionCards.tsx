@@ -2,13 +2,17 @@ import { useState } from 'react';
 import { startNanogptSetup } from '../../utils/nanogptSetup';
 import { startTetrateSetup } from '../../utils/tetrateSetup';
 import { Tetrate } from '../icons';
+import LocalModelPicker from './LocalModelPicker';
+import { trackOnboardingProviderSelected } from '../../utils/analytics';
+import { HardDrive } from 'lucide-react';
 
 const TETRATE = 'tetrate' as const;
 const NANOGPT = 'nanogpt' as const;
-type FreeCreditProvider = typeof TETRATE | typeof NANOGPT;
+const LOCAL_PROVIDER = 'local' as const;
+type FreeOption = typeof TETRATE | typeof NANOGPT | typeof LOCAL_PROVIDER;
 
-interface FreeCreditCardsProps {
-  onConfigured: (providerName: string) => void;
+interface FreeOptionCardsProps {
+  onConfigured: (providerName: string, modelId?: string) => void;
 }
 
 const ChevronRight = () => (
@@ -17,14 +21,21 @@ const ChevronRight = () => (
   </svg>
 );
 
-export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) {
+const cardClass = (isSelected: boolean) =>
+  `w-full p-4 bg-transparent border rounded-lg transition-all duration-200 cursor-pointer group ${
+    isSelected ? 'border-blue-400' : 'hover:border-blue-400'
+  }`;
+
+export default function FreeOptionCards({ onConfigured }: FreeOptionCardsProps) {
   const [error, setError] = useState<{
     message: string;
-    type: FreeCreditProvider;
+    type: typeof TETRATE | typeof NANOGPT;
   } | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<FreeOption | null>(null);
 
-  const handleSetup = async (type: FreeCreditProvider) => {
+  const handleSetup = async (type: typeof TETRATE | typeof NANOGPT) => {
     setError(null);
+    setSelectedProvider(type);
     try {
       const result = type === TETRATE ? await startTetrateSetup() : await startNanogptSetup();
       if (result.success) {
@@ -40,6 +51,11 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
   const handleTetrateSetup = () => handleSetup(TETRATE);
   const handleNanogptSetup = () => handleSetup(NANOGPT);
 
+  const handleRunLocallyClick = () => {
+    trackOnboardingProviderSelected(LOCAL_PROVIDER);
+    setSelectedProvider(LOCAL_PROVIDER);
+  };
+
   const handleRetry = () => {
     if (!error) return;
     if (error.type === TETRATE) {
@@ -48,16 +64,19 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
     handleNanogptSetup();
   };
 
+  if (selectedProvider === LOCAL_PROVIDER) {
+    return (
+      <LocalModelPicker onConfigured={onConfigured} onBack={() => setSelectedProvider(null)} />
+    );
+  }
+
   return (
     <div>
       <div className="p-4 border rounded-xl bg-background-muted">
-        <p className="text-sm text-text-muted mb-4">Choose a provider to get started.</p>
+        <p className="text-sm text-text-muted mb-4">Choose an option to get started.</p>
 
         <div className="flex flex-col gap-3">
-          <div
-            onClick={handleTetrateSetup}
-            className="w-full p-4 bg-transparent border rounded-lg transition-all duration-200 cursor-pointer group hover:border-blue-400"
-          >
+          <div onClick={handleTetrateSetup} className={cardClass(selectedProvider === TETRATE)}>
             <div className="flex items-start justify-between mb-1">
               <div className="flex items-center gap-2">
                 <Tetrate className="w-5 h-5 text-text-default" />
@@ -74,10 +93,7 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
             </p>
           </div>
 
-          <div
-            onClick={handleNanogptSetup}
-            className="w-full p-4 bg-transparent border rounded-lg transition-all duration-200 cursor-pointer group hover:border-blue-400"
-          >
+          <div onClick={handleNanogptSetup} className={cardClass(selectedProvider === NANOGPT)}>
             <div className="flex items-start justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 flex items-center justify-center text-text-default text-xs font-bold">
@@ -93,6 +109,24 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
               Sign up to receive 60M free tokens for 7 days.
             </p>
           </div>
+
+          <div onClick={handleRunLocallyClick} className={cardClass(false)}>
+            <div className="flex items-start justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <HardDrive className="w-5 h-5 text-text-default" />
+                <span className="font-medium text-text-default text-base">Use a Local Model</span>
+                <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium bg-green-600 text-white rounded-full">
+                  Free &amp; Private
+                </span>
+              </div>
+              <div className="text-text-muted group-hover:text-text-default transition-colors">
+                <ChevronRight />
+              </div>
+            </div>
+            <p className="text-text-muted text-sm">
+              Download a model and run entirely on your machine. No API keys, no accounts.
+            </p>
+          </div>
         </div>
 
         {error && (
@@ -106,8 +140,6 @@ export default function FreeCreditCards({ onConfigured }: FreeCreditCardsProps) 
             </button>
           </div>
         )}
-
-        <p className="text-xs text-text-muted mt-4">You can switch providers anytime.</p>
       </div>
     </div>
   );
