@@ -1,7 +1,45 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
-import type { Settings } from './utils/settings';
+import type { Settings, SettingKey } from './utils/settings';
+import { defaultSettings } from './utils/settings';
+
+// Mapping from settings keys to their old localStorage keys for lazy migration
+const localStorageKeyMap: Partial<Record<SettingKey, string>> = {
+  theme: 'theme',
+  useSystemTheme: 'use_system_theme',
+  responseStyle: 'response_style',
+  showPricing: 'show_pricing',
+  sessionSharing: 'session_sharing_config',
+  seenAnnouncementIds: 'seenAnnouncementIds',
+};
+
+// Parse localStorage value based on the setting key
+function parseLocalStorageValue<K extends SettingKey>(
+  key: K,
+  rawValue: string
+): Settings[K] | null {
+  try {
+    switch (key) {
+      case 'theme':
+        return (rawValue === 'dark' || rawValue === 'light' ? rawValue : null) as Settings[K];
+      case 'useSystemTheme':
+        return (rawValue === 'true') as unknown as Settings[K];
+      case 'responseStyle':
+        return rawValue as Settings[K];
+      case 'showPricing':
+        return (rawValue === 'true') as unknown as Settings[K];
+      case 'sessionSharing':
+        return JSON.parse(rawValue) as Settings[K];
+      case 'seenAnnouncementIds':
+        return JSON.parse(rawValue) as Settings[K];
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
 
 interface NotificationData {
   title: string;
@@ -86,8 +124,8 @@ type ElectronAPI = {
   getMenuBarIconState: () => Promise<boolean>;
   setDockIcon: (show: boolean) => Promise<boolean>;
   getDockIconState: () => Promise<boolean>;
-  getSettings: () => Promise<Settings>;
-  saveSettings: (settings: Settings) => Promise<boolean>;
+  getSetting: <K extends SettingKey>(key: K) => Promise<Settings[K]>;
+  setSetting: <K extends SettingKey>(key: K, value: Settings[K]) => Promise<void>;
   getSecretKey: () => Promise<string>;
   getGoosedHostPort: () => Promise<string | null>;
   setWakelock: (enable: boolean) => Promise<boolean>;
@@ -190,8 +228,33 @@ const electronAPI: ElectronAPI = {
   getMenuBarIconState: () => ipcRenderer.invoke('get-menu-bar-icon-state'),
   setDockIcon: (show: boolean) => ipcRenderer.invoke('set-dock-icon', show),
   getDockIconState: () => ipcRenderer.invoke('get-dock-icon-state'),
-  getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveSettings: (settings: unknown) => ipcRenderer.invoke('save-settings', settings),
+  getSetting: async <K extends SettingKey>(key: K): Promise<Settings[K]> => {
+    try {
+      // Check for localStorage value first (lazy migration)
+      const localStorageKey = localStorageKeyMap[key];
+      if (localStorageKey) {
+        const rawValue = localStorage.getItem(localStorageKey);
+        if (rawValue !== null) {
+          const parsed = parseLocalStorageValue(key, rawValue);
+          if (parsed !== null) {
+            return parsed;
+          }
+        }
+      }
+      return await ipcRenderer.invoke('get-setting', key);
+    } catch (error) {
+      console.error(`Failed to get setting '${key}', using default`, error);
+      return defaultSettings[key];
+    }
+  },
+  setSetting: async <K extends SettingKey>(key: K, value: Settings[K]): Promise<void> => {
+    // Clear any localStorage version when writing
+    const localStorageKey = localStorageKeyMap[key];
+    if (localStorageKey) {
+      localStorage.removeItem(localStorageKey);
+    }
+    return ipcRenderer.invoke('set-setting', key, value);
+  },
   getSecretKey: () => ipcRenderer.invoke('get-secret-key'),
   getGoosedHostPort: () => ipcRenderer.invoke('get-goosed-host-port'),
   setWakelock: (enable: boolean) => ipcRenderer.invoke('set-wakelock', enable),

@@ -27,12 +27,12 @@ Code Mode wraps your MCP tools as JavaScript modules, allowing the agent to comb
 
 ## 2. goose Supports Code Mode
 
-Code Mode support landed in goose v1.17.0 in December 2025. It ships as a platform extension called "Code Execution" that you can enable in the desktop app or CLI.
+Code Mode support landed in goose v1.17.0 in December 2025. It ships as a platform extension called "Code Mode" that you can enable in the desktop app or CLI.
 
 To enable it:
 
-- **Desktop app:** Click the extensions icon and toggle on "Code Execution"
-- **CLI:** Run `goose configure` and enable the Code Execution extension
+- **Desktop app:** Click the extensions icon and toggle on "Code Mode"
+- **CLI:** Run `goose configure` and enable the Code Mode extension
 
 Since its initial implementation, we've added so many improvements!
 

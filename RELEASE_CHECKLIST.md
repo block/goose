@@ -1,6 +1,6 @@
 # goose Release Manual Testing Checklist
 
-## Version: _____
+## Version: {{VERSION}}
 
 Make a copy of this document for each version and check off as steps are verified.
 

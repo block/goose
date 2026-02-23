@@ -168,7 +168,7 @@ To configure your chosen provider, see available options, or select a model, vis
        │  ○ goose Settings 
        └  
        ```
-    3. Choose a model provider and press `Enter`. Use the arrow keys (↑/↓) to move through the options.
+    3. Choose a model provider and press `Enter`. Use the arrow keys (↑/↓) to move through the options, or start typing to filter the list.
 
        ```
        ┌   goose-configure 
@@ -526,7 +526,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        └  
        ```
 
-    3. Select the custom provider you want to update and press `Enter`. Use the arrow keys (↑/↓) to move through the options.
+    3. Select the custom provider you want to update and press `Enter`. Use the arrow keys (↑/↓) to move through the options, or start typing to filter the list.
 
        ```sh
        ┌   goose-configure 
@@ -647,13 +647,15 @@ These free options are a great way to get started with goose and explore its cap
 
 
 ### Groq
-Groq provides free access to open source models with high-speed inference. To use Groq with goose, you need an API key from [Groq Console](https://console.groq.com/keys).
+Groq provides free access to open source (open weight) models with high-speed inference. To use Groq with goose, you need an API key from [Groq Console](https://console.groq.com/keys).
 
-Groq offers several open source models that support tool calling:
-- **moonshotai/kimi-k2-instruct** - Mixture-of-Experts model with 1 trillion parameters, optimized for agentic intelligence and tool use
+Groq offers several open source models that support tool calling, including:
+- **moonshotai/kimi-k2-instruct-0905** - Mixture-of-Experts model with 1 trillion parameters, optimized for agentic intelligence and tool use
 - **qwen/qwen3-32b** - 32.8 billion parameter model with advanced reasoning and multilingual capabilities  
-- **gemma2-9b-it** - Google's Gemma 2 model with instruction tuning
 - **llama-3.3-70b-versatile** - Meta's Llama 3.3 model for versatile applications
+- **llama-3.1-8b-instant** - Meta's Llama 3.1 model for fast inference
+
+For the complete list of supported Groq models, see [groq.json](https://github.com/block/goose/blob/main/crates/goose/src/providers/declarative/groq.json).
 
 To set up Groq with goose, follow these steps:
 
@@ -667,6 +669,7 @@ To set up Groq with goose, follow these steps:
     4. Click `Configure Providers`
     5. Choose `Groq` as provider from the list.
     6. Click `Configure`, enter your API key, and click `Submit`.
+    7. Select the Groq model of your choice.
 
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -677,7 +680,7 @@ To set up Groq with goose, follow these steps:
     2. Select `Configure Providers` from the menu.
     3. Follow the prompts to choose `Groq` as the provider.
     4. Enter your API key when prompted.
-    5. Enter the Groq model of your choice (e.g., `moonshotai/kimi-k2-instruct`).
+    5. Select the Groq model of your choice.
   </TabItem>
 </Tabs>
 
@@ -1156,6 +1159,10 @@ Gemini 3 models support configurable thinking levels to balance response latency
 - **Low** (default) - Faster responses, lighter reasoning
 - **High** - Deeper reasoning, higher latency
 
+:::tip
+When thinking is enabled, you can view the model's reasoning process. See [Viewing Model Reasoning](#viewing-model-reasoning) for details.
+:::
+
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
     When selecting a Gemini 3 model, a "Thinking Level" dropdown appears automatically. Select your preference and the setting persists across sessions.
@@ -1179,6 +1186,41 @@ The thinking level is determined in this order (highest to lowest priority):
 1. `request_params.thinking_level` in model configuration (via `GOOSE_PREDEFINED_MODELS`)
 2. `GEMINI3_THINKING_LEVEL` environment variable
 3. Default value: `low`
+:::
+
+## Viewing Model Reasoning
+
+Some models expose their internal reasoning or "chain of thought" as part of their response. goose automatically captures this reasoning output and makes it available to you. The following models and providers support reasoning output:
+
+| Provider / Model | How It Works |
+|---|---|
+| **DeepSeek-R1** (via OpenAI, Ollama, OpenRouter, OVHcloud, etc.) | Reasoning captured from the `reasoning_content` field in the API response |
+| **Kimi** (via Groq or other OpenAI-compatible endpoints) | Reasoning captured from the `reasoning_content` field in the API response |
+| **Gemini CLI** (Google Gemini models with thinking enabled) | Thinking blocks captured from the streaming response |
+| **Claude** (Anthropic, with [extended thinking](/docs/guides/environment-variables#claude-extended-thinking) enabled) | Thinking blocks captured from the API response |
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    Reasoning output appears automatically in a collapsible **"Show reasoning"** toggle above the model's response. Click it to expand and view the model's thought process.
+  </TabItem>
+  
+  <TabItem value="cli" label="goose CLI">
+    Reasoning output is **hidden by default** in the CLI. To display it, set the `GOOSE_CLI_SHOW_THINKING` environment variable:
+    
+    ```bash
+    export GOOSE_CLI_SHOW_THINKING=1
+    ```
+    
+    When enabled, reasoning appears under a "Thinking:" header in dimmed text before the model's main response.
+    
+    :::note
+    This requires stdout to be a terminal (reasoning output won't appear when piping output to a file or another command).
+    :::
+  </TabItem>
+</Tabs>
+
+:::tip
+Reasoning output can be useful for understanding how the model arrived at its answer, debugging unexpected behavior, or learning from the model's problem-solving approach. However, it can also be verbose — toggle it on only when you need it.
 :::
 
 ---

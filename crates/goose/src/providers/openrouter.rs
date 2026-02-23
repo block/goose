@@ -168,7 +168,6 @@ impl ProviderDef for OpenRouterProvider {
                 ),
             ],
         )
-        .with_unlisted_models()
         .with_setup_steps(vec![
             "Go to https://openrouter.ai/settings/keys",
             "Click 'Create' or use an existing API key",

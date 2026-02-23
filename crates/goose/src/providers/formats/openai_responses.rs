@@ -168,6 +168,11 @@ pub enum ResponsesStreamEvent {
     },
     #[serde(rename = "error")]
     Error { error: Value },
+    #[serde(rename = "keepalive")]
+    Keepalive {
+        #[serde(default)]
+        sequence_number: Option<i32>,
+    },
 }
 
 fn is_known_responses_stream_event_type(event_type: &str) -> bool {
@@ -186,6 +191,7 @@ fn is_known_responses_stream_event_type(event_type: &str) -> bool {
             | "response.function_call_arguments.delta"
             | "response.function_call_arguments.done"
             | "error"
+            | "keepalive"
     )
 }
 
