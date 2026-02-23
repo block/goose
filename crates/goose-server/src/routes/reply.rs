@@ -453,9 +453,16 @@ pub async fn reply(
 
                 // Compound execution: delegate to dispatch module
                 if plan.is_compound && plan.tasks.len() > 1 {
+                    let config = goose::config::Config::global();
+                    let max_concurrency = config
+                        .get_goose_orchestrator_max_concurrency()
+                        .map(|v| (*v).max(1))
+                        .unwrap_or(3);
+
                     tracing::info!(
                         task_count = plan.tasks.len(),
-                        "Executing compound request via dispatch_compound_sequential"
+                        max_concurrency = max_concurrency,
+                        "Executing compound request via dispatch_compound_dag"
                     );
 
                     // Build (SubTask, Option<a2a_url>) tuples from slot delegation
@@ -483,9 +490,10 @@ pub async fn reply(
                         session_id.clone(),
                     );
 
-                    let results = goose::agents::dispatch::dispatch_compound_sequential(
+                    let results = goose::agents::dispatch::dispatch_compound_dag(
                         &reply_dispatcher,
                         &dispatch_tasks,
+                        max_concurrency,
                         Some(task_cancel.clone()),
                     )
                     .await;

@@ -5,11 +5,15 @@ import { Input } from '../../ui/atoms/input';
 interface ConversationLimitsDropdownProps {
   maxTurns: number;
   onMaxTurnsChange: (value: number) => void;
+  orchestratorMaxConcurrency: number;
+  onOrchestratorMaxConcurrencyChange: (value: number) => void;
 }
 
 export const ConversationLimitsDropdown = ({
   maxTurns,
   onMaxTurnsChange,
+  orchestratorMaxConcurrency,
+  onOrchestratorMaxConcurrencyChange,
 }: ConversationLimitsDropdownProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -20,6 +24,7 @@ export const ConversationLimitsDropdown = ({
   return (
     <div className="pt-4">
       <button
+        type="button"
         onClick={toggleExpanded}
         className="w-full flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all group"
       >
@@ -51,6 +56,23 @@ export const ConversationLimitsDropdown = ({
               max="10000"
               value={maxTurns}
               onChange={(e) => onMaxTurnsChange(Number(e.target.value))}
+              className="w-20"
+            />
+          </div>
+
+          <div className="flex items-center justify-between py-2 px-2 bg-background-muted rounded-lg transform transition-all duration-200 ease-in-out">
+            <div>
+              <h4 className="text-text-default text-sm">Orchestrator Max Concurrency</h4>
+              <p className="text-xs text-text-muted mt-[2px]">
+                Maximum number of orchestration subtasks to run in parallel
+              </p>
+            </div>
+            <Input
+              type="number"
+              min="1"
+              max="32"
+              value={orchestratorMaxConcurrency}
+              onChange={(e) => onOrchestratorMaxConcurrencyChange(Number(e.target.value))}
               className="w-20"
             />
           </div>

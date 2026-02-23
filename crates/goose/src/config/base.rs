@@ -172,7 +172,10 @@ macro_rules! config_value {
 
             impl Default for [<$key:camel>] {
                 fn default() -> Self {
-                    [<$key:camel>]($default.into())
+                    let parsed: $inner = $default
+                        .parse()
+                        .unwrap_or_else(|_| panic!("Invalid default for {}: {}", stringify!($key), $default));
+                    [<$key:camel>](parsed)
                 }
             }
 
@@ -967,6 +970,7 @@ config_value!(GOOSE_PROVIDER, String);
 config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
+config_value!(GOOSE_ORCHESTRATOR_MAX_CONCURRENCY, usize, "3");
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 config_value!(GEMINI3_THINKING_LEVEL, String);
 

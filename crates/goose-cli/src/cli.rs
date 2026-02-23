@@ -61,15 +61,6 @@ pub struct Identifier {
         long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
     )]
     pub session_id: Option<String>,
-
-    #[arg(
-        long,
-        value_name = "PATH",
-        help = "Legacy: Path for the chat session",
-        long_help = "Legacy parameter for backward compatibility. Extracts session ID from the file path (e.g., '/path/to/20250325_200615.
-jsonl' -> '20250325_200615')."
-    )]
-    pub path: Option<PathBuf>,
 }
 
 /// Session behavior options shared between Session and Run commands
@@ -329,7 +320,7 @@ pub struct RunBehavior {
         long = "no-session",
         help = "Run without storing a session file",
         long_help = "Execute commands without creating or using a session file. Useful for automated runs.",
-        conflicts_with_all = ["resume", "name", "path"]
+        conflicts_with_all = ["resume", "name"]
     )]
     pub no_session: bool,
 
@@ -384,13 +375,6 @@ async fn get_or_create_session_id(
                 .find(|s| s.name == name || s.id == name)
                 .map(|s| s.id)
                 .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))?
-        } else if let Some(path) = id.path {
-            path.file_stem()
-                .and_then(|s| s.to_str())
-                .map(|s| s.to_string())
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Could not extract session ID from path: {:?}", path)
-                })?
         } else {
             return Err(anyhow::anyhow!("Invalid identifier"));
         }
@@ -442,11 +426,6 @@ async fn lookup_session_id(identifier: Identifier) -> Result<String> {
             .find(|s| s.name == name || s.id == name)
             .map(|s| s.id)
             .ok_or_else(|| anyhow::anyhow!("No session found with name '{}'", name))
-    } else if let Some(path) = identifier.path {
-        path.file_stem()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| anyhow::anyhow!("Could not extract session ID from path: {:?}", path))
     } else {
         Err(anyhow::anyhow!("No identifier provided"))
     }

@@ -1163,6 +1163,11 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
             "Set maximum number of turns without user input",
         )
         .item(
+            "orchestrator_max_concurrency",
+            "Orchestrator Max Concurrency",
+            "Set maximum number of orchestrated sub-tasks to run in parallel",
+        )
+        .item(
             "keyring",
             "Secret Storage",
             "Configure how secrets are stored (keyring vs file)",
@@ -1198,6 +1203,9 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         }
         "max_turns" => {
             configure_max_turns_dialog()?;
+        }
+        "orchestrator_max_concurrency" => {
+            configure_orchestrator_max_concurrency_dialog()?;
         }
         "keyring" => {
             configure_keyring_dialog()?;
@@ -1714,6 +1722,37 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
             eprintln!("Your settings have been saved. Please check your configuration.");
         }
     }
+    Ok(())
+}
+
+pub fn configure_orchestrator_max_concurrency_dialog() -> anyhow::Result<()> {
+    let config = Config::global();
+
+    let current: u32 = config
+        .get_param("GOOSE_ORCHESTRATOR_MAX_CONCURRENCY")
+        .unwrap_or(3);
+
+    let input: String =
+        cliclack::input("Set maximum number of orchestrated sub-tasks to run in parallel:")
+            .placeholder(&current.to_string())
+            .default_input(&current.to_string())
+            .validate(|input: &String| match input.parse::<u32>() {
+                Ok(value) => {
+                    if value < 1 {
+                        Err("Value must be at least 1")
+                    } else {
+                        Ok(())
+                    }
+                }
+                Err(_) => Err("Please enter a valid number"),
+            })
+            .interact()?;
+
+    let value: u32 = input.parse()?;
+    config.set_param("GOOSE_ORCHESTRATOR_MAX_CONCURRENCY", value)?;
+
+    cliclack::outro(format!("Set orchestrator max concurrency to {}", value))?;
+
     Ok(())
 }
 

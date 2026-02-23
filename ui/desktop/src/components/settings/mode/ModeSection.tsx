@@ -6,6 +6,7 @@ import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 export const ModeSection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
   const [maxTurns, setMaxTurns] = useState<number>(1000);
+  const [orchestratorMaxConcurrency, setOrchestratorMaxConcurrency] = useState<number>(3);
   const { read, upsert } = useConfig();
 
   const handleModeChange = async (newMode: string) => {
@@ -32,7 +33,7 @@ export const ModeSection = () => {
   const fetchMaxTurns = useCallback(async () => {
     try {
       const turns = (await read('GOOSE_MAX_TURNS', false)) as number;
-      if (turns) {
+      if (typeof turns === 'number' && turns > 0) {
         setMaxTurns(turns);
       }
     } catch (error) {
@@ -40,7 +41,22 @@ export const ModeSection = () => {
     }
   }, [read]);
 
+  const fetchOrchestratorMaxConcurrency = useCallback(async () => {
+    try {
+      const value = (await read('GOOSE_ORCHESTRATOR_MAX_CONCURRENCY', false)) as number;
+      if (typeof value === 'number' && value > 0) {
+        setOrchestratorMaxConcurrency(value);
+      }
+    } catch (error) {
+      console.error('Error fetching orchestrator max concurrency:', error);
+    }
+  }, [read]);
+
   const handleMaxTurnsChange = async (value: number) => {
+    if (!Number.isFinite(value) || value < 1) {
+      return;
+    }
+
     try {
       await upsert('GOOSE_MAX_TURNS', value, false);
       setMaxTurns(value);
@@ -49,14 +65,27 @@ export const ModeSection = () => {
     }
   };
 
+  const handleOrchestratorMaxConcurrencyChange = async (value: number) => {
+    if (!Number.isFinite(value) || value < 1) {
+      return;
+    }
+
+    try {
+      await upsert('GOOSE_ORCHESTRATOR_MAX_CONCURRENCY', value, false);
+      setOrchestratorMaxConcurrency(value);
+    } catch (error) {
+      console.error('Error updating orchestrator max concurrency:', error);
+    }
+  };
+
   useEffect(() => {
     fetchCurrentMode();
     fetchMaxTurns();
-  }, [fetchCurrentMode, fetchMaxTurns]);
+    fetchOrchestratorMaxConcurrency();
+  }, [fetchCurrentMode, fetchMaxTurns, fetchOrchestratorMaxConcurrency]);
 
   return (
     <div className="space-y-1">
-      {/* Mode Selection */}
       {all_goose_modes.map((mode) => (
         <ModeSelectionItem
           key={mode.key}
@@ -68,8 +97,12 @@ export const ModeSection = () => {
         />
       ))}
 
-      {/* Conversation Limits Dropdown */}
-      <ConversationLimitsDropdown maxTurns={maxTurns} onMaxTurnsChange={handleMaxTurnsChange} />
+      <ConversationLimitsDropdown
+        maxTurns={maxTurns}
+        onMaxTurnsChange={handleMaxTurnsChange}
+        orchestratorMaxConcurrency={orchestratorMaxConcurrency}
+        onOrchestratorMaxConcurrencyChange={handleOrchestratorMaxConcurrencyChange}
+      />
     </div>
   );
 };
