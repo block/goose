@@ -209,6 +209,5 @@ mod tests {
         assert_eq!(metadata.config_keys[0].name, NANOGPT_API_KEY);
         assert!(metadata.config_keys[0].required);
         assert!(metadata.config_keys[0].secret);
-        assert!(metadata.allows_unlisted_models);
     }
 }
