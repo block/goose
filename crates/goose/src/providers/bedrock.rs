@@ -512,48 +512,6 @@ mod tests {
     }
 
     #[test]
-    fn test_message_conversion_with_cache_points() -> Result<()> {
-        use crate::conversation::message::Message;
-        use chrono::Utc;
-        use rmcp::model::Role;
-
-        // Test that to_bedrock_message_with_caching correctly adds cache points
-        let message = Message::new(
-            Role::User,
-            Utc::now().timestamp(),
-            vec![
-                crate::conversation::message::MessageContent::text("First text"),
-                crate::conversation::message::MessageContent::text("Second text"),
-            ],
-        );
-
-        // Convert with caching enabled
-        let bedrock_message_cached = to_bedrock_message_with_caching(&message, true)?;
-
-        // Should have 3 content blocks: 2 text + 1 cache point
-        assert_eq!(bedrock_message_cached.content.len(), 3);
-
-        // Last block should be a cache point
-        assert!(matches!(
-            bedrock_message_cached.content[2],
-            bedrock::ContentBlock::CachePoint(_)
-        ));
-
-        // Convert with caching disabled
-        let bedrock_message_no_cache = to_bedrock_message_with_caching(&message, false)?;
-
-        // Should have only 2 content blocks (no cache point)
-        assert_eq!(bedrock_message_no_cache.content.len(), 2);
-
-        // No cache point should be present
-        for block in &bedrock_message_no_cache.content {
-            assert!(!matches!(block, bedrock::ContentBlock::CachePoint(_)));
-        }
-
-        Ok(())
-    }
-
-    #[test]
     #[serial]
     fn test_caching_enabled_for_claude_model() {
         std::env::set_var("BEDROCK_ENABLE_CACHING", "true");

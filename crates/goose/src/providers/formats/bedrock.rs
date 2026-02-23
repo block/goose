@@ -500,35 +500,7 @@ mod tests {
         use chrono::Utc;
         use rmcp::model::Role;
 
-        // Create a message with text content
-        let message = Message::new(
-            Role::User,
-            Utc::now().timestamp(),
-            vec![MessageContent::text("Hello, world!")],
-        );
-
-        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
-
-        // Verify the message has two content blocks: text + cache point
-        assert_eq!(bedrock_message.content.len(), 2);
-        assert!(matches!(
-            bedrock_message.content[0],
-            bedrock::ContentBlock::Text(_)
-        ));
-        assert!(matches!(
-            bedrock_message.content[1],
-            bedrock::ContentBlock::CachePoint(_)
-        ));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_to_bedrock_message_with_caching_multiple_content() -> Result<()> {
-        use chrono::Utc;
-        use rmcp::model::Role;
-
-        // Create a message with multiple content blocks
+        // Multiple content blocks: cache point appended at end, order preserved
         let message = Message::new(
             Role::User,
             Utc::now().timestamp(),
@@ -537,39 +509,34 @@ mod tests {
                 MessageContent::text("Second text"),
             ],
         );
-
         let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
-
-        // Verify cache point is added after all content
         assert_eq!(bedrock_message.content.len(), 3);
-        assert!(matches!(
-            bedrock_message.content[0],
-            bedrock::ContentBlock::Text(_)
-        ));
-        assert!(matches!(
-            bedrock_message.content[1],
-            bedrock::ContentBlock::Text(_)
-        ));
+        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[0] {
+            assert_eq!(text, "First text");
+        } else {
+            panic!("Expected text content block");
+        }
+        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[1] {
+            assert_eq!(text, "Second text");
+        } else {
+            panic!("Expected text content block");
+        }
         assert!(matches!(
             bedrock_message.content[2],
             bedrock::ContentBlock::CachePoint(_)
         ));
 
-        Ok(())
-    }
+        // Caching disabled: no cache point added
+        let no_cache = to_bedrock_message_with_caching(&message, false)?;
+        assert_eq!(no_cache.content.len(), 2);
+        for block in &no_cache.content {
+            assert!(!matches!(block, bedrock::ContentBlock::CachePoint(_)));
+        }
 
-    #[test]
-    fn test_to_bedrock_message_with_caching_empty_content() -> Result<()> {
-        use chrono::Utc;
-        use rmcp::model::Role;
-
-        // Create a message with no content
-        let message = Message::new(Role::User, Utc::now().timestamp(), vec![]);
-
-        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
-
-        // Verify no cache point is added for empty messages
-        assert_eq!(bedrock_message.content.len(), 0);
+        // Empty content: no cache point added even with caching enabled
+        let empty = Message::new(Role::User, Utc::now().timestamp(), vec![]);
+        let empty_msg = to_bedrock_message_with_caching(&empty, true)?;
+        assert_eq!(empty_msg.content.len(), 0);
 
         Ok(())
     }
@@ -628,43 +595,6 @@ mod tests {
         } else {
             panic!("Expected second text content");
         }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_to_bedrock_message_with_caching_preserves_order() -> Result<()> {
-        use chrono::Utc;
-        use rmcp::model::Role;
-
-        // Create message with specific content order
-        let message = Message::new(
-            Role::Assistant,
-            Utc::now().timestamp(),
-            vec![
-                MessageContent::text("Response text"),
-                MessageContent::text("More response"),
-            ],
-        );
-
-        let bedrock_message = to_bedrock_message_with_caching(&message, true)?;
-
-        // Verify content order is preserved and cache point is at the end
-        assert_eq!(bedrock_message.content.len(), 3);
-        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[0] {
-            assert_eq!(text, "Response text");
-        } else {
-            panic!("Expected text content block");
-        }
-        if let bedrock::ContentBlock::Text(text) = &bedrock_message.content[1] {
-            assert_eq!(text, "More response");
-        } else {
-            panic!("Expected text content block");
-        }
-        assert!(matches!(
-            bedrock_message.content[2],
-            bedrock::ContentBlock::CachePoint(_)
-        ));
 
         Ok(())
     }
