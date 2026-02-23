@@ -3826,11 +3826,12 @@
           "session_id"
         ],
         "properties": {
-          "conversation_so_far": {
+          "override_conversation": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Message"
             },
+            "description": "Override the server's conversation history. Only use this when you need absolute control\nover the conversation state (e.g., administrative tools). For normal operations, the server\nis the source of truth - use truncate/fork endpoints to modify conversation history instead.",
             "nullable": true
           },
           "recipe_name": {
