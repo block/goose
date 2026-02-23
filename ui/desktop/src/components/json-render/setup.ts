@@ -1,6 +1,6 @@
 /**
  * Unified json-render setup — merges shadcn components (33) with goose
- * custom components (11) into a single 44-component registry.
+ * custom components (11) into a single registry.
  *
  * Both goose-ui and json-render code blocks use this CatalogRenderer.
  */
@@ -14,7 +14,7 @@ import React from 'react';
 
 import { gooseComponents } from '../ui/design-system/goose-components';
 
-// ─── shadcn component keys (33) ───────────────────────────────
+// ─── shadcn component keys ───────────────────────────────────
 export const SHADCN_COMPONENT_KEYS = [
   'Card',
   'Stack',
@@ -51,7 +51,7 @@ export const SHADCN_COMPONENT_KEYS = [
   'Pagination',
 ] as const;
 
-// ─── Goose custom component keys (11 unique, not in shadcn) ───
+// ─── Goose DS overlay keys (must not overlap shadcn) ──────────
 export const GOOSE_CUSTOM_COMPONENT_KEYS = [
   'PageHeader',
   'DataCard',
@@ -67,6 +67,9 @@ export const GOOSE_CUSTOM_COMPONENT_KEYS = [
   'Chart',
 ] as const;
 
+const SHADCN_KEYS = SHADCN_COMPONENT_KEYS;
+const GOOSE_CUSTOM_KEYS = GOOSE_CUSTOM_COMPONENT_KEYS;
+
 function pick<T extends Record<string, unknown>>(obj: T, keys: readonly string[]): Partial<T> {
   const result: Partial<T> = {};
   for (const key of keys) {
@@ -76,9 +79,6 @@ function pick<T extends Record<string, unknown>>(obj: T, keys: readonly string[]
   }
   return result;
 }
-
-const SHADCN_KEYS = SHADCN_COMPONENT_KEYS;
-const GOOSE_CUSTOM_KEYS = GOOSE_CUSTOM_COMPONENT_KEYS;
 
 const pickedDefs = pick(catalogDefs, SHADCN_KEYS);
 
