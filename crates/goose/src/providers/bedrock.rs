@@ -189,14 +189,13 @@ impl BedrockProvider {
         }
     }
 
-    fn should_enable_caching(&self, model_name: &str) -> bool {
+    fn should_enable_caching(&self) -> bool {
         let config = crate::config::Config::global();
 
-        // Default: caching disabled
         let enabled = config
             .get_param::<bool>("BEDROCK_ENABLE_CACHING")
             .unwrap_or(false);
-        enabled && model_name.contains("anthropic.claude")
+        enabled && self.model.model_name.contains("anthropic.claude")
     }
 
     async fn converse(
@@ -208,7 +207,7 @@ impl BedrockProvider {
     ) -> Result<(bedrock::Message, Option<bedrock::TokenUsage>), ProviderError> {
         let model_name = &self.model.model_name;
 
-        let enable_caching = self.should_enable_caching(model_name);
+        let enable_caching = self.should_enable_caching();
 
         let system_blocks = if enable_caching {
             vec![
@@ -509,7 +508,7 @@ mod tests {
 
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         assert!(
-            !provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            !provider.should_enable_caching(),
             "Caching should be disabled by default"
         );
     }
@@ -518,7 +517,7 @@ mod tests {
     fn test_caching_disabled_for_non_claude_models() {
         let provider = create_mock_provider("amazon.titan-text-express-v1");
         assert!(
-            !provider.should_enable_caching("amazon.titan-text-express-v1"),
+            !provider.should_enable_caching(),
             "Caching should be disabled for non-Claude models"
         );
     }
@@ -572,7 +571,7 @@ mod tests {
 
         let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         assert!(
-            provider.should_enable_caching("us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
+            provider.should_enable_caching(),
             "Caching should be enabled for Claude models when BEDROCK_ENABLE_CACHING=true"
         );
 
