@@ -232,20 +232,9 @@ impl BedrockProvider {
         let visible_messages: Vec<&Message> =
             messages.iter().filter(|m| m.is_agent_visible()).collect();
 
-        // Determine how many leading messages should have cache points.
-        // AWS Bedrock has a strict limit of 4 cache points per request.
-        // Allocation: 1 for system prompt + 3 for messages = 4 total.
-        //
-        // Strategy: Cache the earliest 3 messages (rather than most recent).
-        // Rationale: Prompt caching requires exact prefix matching. By caching
-        // the earliest messages, we create a stable cached prefix that doesn't
-        // shift position across conversation turns, maximizing cache hit rates.
-        // With "most recent 3" strategy, cache points would shift on every turn
-        // (turn 1: msgs[0,1,2], turn 2: msgs[1,2,3], turn 3: msgs[2,3,4]),
-        // causing cache misses and wasting the limited cache budget.
-        //
-        // Note: Tool configuration doesn't support cache points in Bedrock, but
-        // messages containing tool content blocks (ToolRequest/ToolResponse) do.
+        // Cache the earliest messages (not most recent) because prompt caching
+        // requires exact prefix matching — caching recent messages would shift
+        // positions each turn, causing misses.
         const MESSAGE_CACHE_BUDGET: usize = 3;
         let cache_count = if enable_caching {
             visible_messages.len().min(MESSAGE_CACHE_BUDGET)

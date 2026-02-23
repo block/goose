@@ -344,10 +344,7 @@ pub fn from_bedrock_content_block(block: &bedrock::ContentBlock) -> Result<Messa
             },
         ),
         bedrock::ContentBlock::CachePoint(_) => {
-            // CachePoint blocks are filtered out in from_bedrock_message before reaching here.
-            // This case should not occur, but we handle it defensively.
-            // CachePoint is metadata used by AWS for prompt caching optimization and doesn't
-            // represent actual content that should be conveyed to the user.
+            // Filtered upstream in from_bedrock_message
             bail!("CachePoint blocks should have been filtered out during message processing")
         }
         _ => bail!("Unsupported content block type from Bedrock"),
