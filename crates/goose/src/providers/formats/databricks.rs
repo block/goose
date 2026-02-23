@@ -36,12 +36,12 @@ fn format_text_content(text: &str, image_format: &ImageFormat) -> (Vec<Value>, b
     (items, has_image)
 }
 
+/// Returns (tool_message, image_messages) separately to allow proper ordering.
+/// All tool messages should be grouped together before any image messages.
 fn format_tool_response(
     response: &crate::conversation::message::ToolResponse,
     image_format: &ImageFormat,
-) -> Vec<DatabricksMessage> {
-    let mut result = Vec::new();
-
+) -> (DatabricksMessage, Vec<DatabricksMessage>) {
     match &response.tool_result {
         Ok(call_result) => {
             let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
@@ -79,25 +79,24 @@ fn format_tool_response(
                 .collect::<Vec<String>>()
                 .join(" "));
 
-            result.push(DatabricksMessage {
+            let tool_message = DatabricksMessage {
                 content: tool_response_content,
                 role: "tool".to_string(),
                 tool_call_id: Some(response.id.clone()),
                 tool_calls: None,
-            });
-            result.extend(image_messages);
+            };
+            (tool_message, image_messages)
         }
         Err(e) => {
-            result.push(DatabricksMessage {
+            let tool_message = DatabricksMessage {
                 role: "tool".to_string(),
                 content: format!("The tool call returned the following error:\n{}", e).into(),
                 tool_call_id: Some(response.id.clone()),
                 tool_calls: None,
-            });
+            };
+            (tool_message, vec![])
         }
     }
-
-    result
 }
 
 /// Convert internal Message format to Databricks' API message specification
@@ -120,6 +119,8 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         let mut content_array = Vec::new();
         let mut has_tool_calls = false;
         let mut has_multiple_content = false;
+        // Collect image messages from tool responses to add after all tool messages
+        let mut pending_image_messages: Vec<DatabricksMessage> = Vec::new();
 
         for content in &message.content {
             match content {
@@ -186,7 +187,11 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     }
                 }
                 MessageContent::ToolResponse(response) => {
-                    result.extend(format_tool_response(response, image_format));
+                    // Collect tool message immediately, but defer image messages
+                    let (tool_message, image_messages) =
+                        format_tool_response(response, image_format);
+                    result.push(tool_message);
+                    pending_image_messages.extend(image_messages);
                 }
                 MessageContent::Image(image) => {
                     content_array.push(convert_image(image, image_format));
@@ -226,6 +231,9 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         if !content_array.is_empty() || has_tool_calls {
             result.push(converted);
         }
+
+        // Add all image messages after all tool messages for this message
+        result.extend(pending_image_messages);
     }
 
     result
