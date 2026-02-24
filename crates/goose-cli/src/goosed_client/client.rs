@@ -27,20 +27,46 @@ pub struct GoosedClient {
 }
 
 impl GoosedClient {
+    fn build_goosed_command(
+        goosed_path: &std::path::Path,
+        working_dir: &str,
+        port: u16,
+        secret_key: &str,
+        env_overrides: &[(String, String)],
+    ) -> Command {
+        let mut cmd = Command::new(goosed_path);
+        cmd.arg("agent")
+            .env("GOOSE_PORT", port.to_string())
+            .env("GOOSE_SERVER__SECRET_KEY", secret_key)
+            .current_dir(working_dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true);
+
+        for (key, value) in env_overrides {
+            cmd.env(key, value);
+        }
+
+        cmd
+    }
+
     /// Spawn a new goosed process and connect to it.
     pub async fn spawn(working_dir: &str) -> Result<Self> {
+        Self::spawn_with_env(working_dir, &[]).await
+    }
+
+    pub async fn spawn_with_env(
+        working_dir: &str,
+        env_overrides: &[(String, String)],
+    ) -> Result<Self> {
         let port = find_available_port().await?;
         let secret_key = generate_secret();
         let goosed_path = find_goosed_binary()?;
 
-        let process = Command::new(&goosed_path)
-            .arg("agent")
-            .env("GOOSE_PORT", port.to_string())
-            .env("GOOSE_SERVER__SECRET_KEY", &secret_key)
-            .current_dir(working_dir)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .kill_on_drop(true)
+        let mut cmd =
+            Self::build_goosed_command(&goosed_path, working_dir, port, &secret_key, env_overrides);
+
+        let process = cmd
             .spawn()
             .map_err(|e| anyhow!("Failed to spawn goosed: {}", e))?;
 
@@ -100,6 +126,21 @@ impl GoosedClient {
             http,
             process: None,
         })
+    }
+
+    /// Discover a running goosed instance or spawn a new one.
+    ///
+    /// If `env_overrides` is non-empty, this always spawns a fresh goosed process (and does not
+    /// record it for reuse), since env overrides are per-invocation.
+    pub async fn spawn_or_discover_with_env(
+        working_dir: &str,
+        env_overrides: &[(String, String)],
+    ) -> Result<Self> {
+        if env_overrides.is_empty() {
+            return Self::spawn_or_discover(working_dir).await;
+        }
+
+        Self::spawn_with_env(working_dir, env_overrides).await
     }
 
     pub async fn wait_for_ready(&mut self) -> Result<()> {
@@ -818,5 +859,33 @@ impl Drop for GoosedClient {
         if let Some(mut proc) = self.process.take() {
             let _ = proc.start_kill();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_goosed_command_applies_env_overrides() {
+        let cmd = GoosedClient::build_goosed_command(
+            std::path::Path::new("goosed"),
+            ".",
+            1234,
+            "secret",
+            &[(
+                "GOOSE_ORCHESTRATOR_MAX_CONCURRENCY".to_string(),
+                "7".to_string(),
+            )],
+        );
+
+        let mut found = false;
+        for (k, v) in cmd.as_std().get_envs() {
+            if k == std::ffi::OsStr::new("GOOSE_ORCHESTRATOR_MAX_CONCURRENCY") {
+                assert_eq!(v, Some(std::ffi::OsStr::new("7")));
+                found = true;
+            }
+        }
+        assert!(found, "expected orchestrator concurrency env var to be set");
     }
 }

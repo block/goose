@@ -116,6 +116,10 @@ pub struct SessionBuilderConfig {
     pub output_format: String,
     /// Docker container to run stdio extensions inside
     pub container: Option<Container>,
+
+    /// Per-invocation override for orchestrator max concurrency.
+    /// This is propagated to goosed via the GOOSE_ORCHESTRATOR_MAX_CONCURRENCY env var.
+    pub orchestrator_max_concurrency: Option<usize>,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -143,8 +147,24 @@ impl Default for SessionBuilderConfig {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            orchestrator_max_concurrency: None,
         }
     }
+}
+
+fn env_overrides_from_session_config(
+    session_config: &SessionBuilderConfig,
+) -> Vec<(String, String)> {
+    let mut env = Vec::new();
+
+    if let Some(max_concurrency) = session_config.orchestrator_max_concurrency {
+        env.push((
+            "GOOSE_ORCHESTRATOR_MAX_CONCURRENCY".to_string(),
+            max_concurrency.to_string(),
+        ));
+    }
+
+    env
 }
 
 /// Offers to help debug an extension failure by creating a minimal debugging session
@@ -316,14 +336,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let session_manager = Arc::new(SessionManager::instance());
 
-    // Spawn goosed
-    let goosed = match GoosedClient::spawn(&working_dir_str).await {
-        Ok(client) => client,
-        Err(e) => {
-            output::render_error(&format!("Failed to spawn goosed: {}", e));
-            std::process::exit(1);
-        }
-    };
+    let env_overrides = env_overrides_from_session_config(&session_config);
+
+    // Spawn (or reuse) goosed.
+    // If we have per-invocation env overrides, we must spawn a fresh goosed and avoid reusing
+    // a previously-discovered instance (it may have different settings).
+    let goosed =
+        match GoosedClient::spawn_or_discover_with_env(&working_dir_str, &env_overrides).await {
+            Ok(client) => client,
+            Err(e) => {
+                output::render_error(&format!("Failed to start goosed: {}", e));
+                std::process::exit(1);
+            }
+        };
 
     let resolved = resolve_provider_and_model(&session_config, config, None, None);
 
@@ -436,6 +461,7 @@ mod tests {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            orchestrator_max_concurrency: None,
         };
 
         assert_eq!(config.extensions.len(), 1);

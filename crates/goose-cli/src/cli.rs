@@ -90,6 +90,15 @@ pub struct SessionOptions {
     pub max_turns: Option<u32>,
 
     #[arg(
+        long = "orchestrator-max-concurrency",
+        value_name = "NUMBER",
+        help = "Maximum number of concurrent orchestrator subtasks (overrides config for this invocation)",
+        long_help = "Override GOOSE_ORCHESTRATOR_MAX_CONCURRENCY for this invocation. When set, Goose will spawn an isolated goosed instance with this environment override.",
+        value_parser = parse_positive_usize
+    )]
+    pub orchestrator_max_concurrency: Option<usize>,
+
+    #[arg(
         long = "container",
         value_name = "CONTAINER_ID",
         help = "Docker container ID to run extensions inside",
@@ -102,6 +111,18 @@ pub struct SessionOptions {
 pub struct StreamableHttpOptions {
     pub url: String,
     pub timeout: u64,
+}
+
+fn parse_positive_usize(input: &str) -> Result<usize, String> {
+    let value: usize = input
+        .parse()
+        .map_err(|_| format!("invalid integer: {input}"))?;
+
+    if value < 1 {
+        return Err("value must be >= 1".to_string());
+    }
+
+    Ok(value)
 }
 
 fn parse_streamable_http_extension(input: &str) -> Result<StreamableHttpOptions, String> {
@@ -1425,6 +1446,7 @@ async fn handle_interactive_session(
         debug: session_opts.debug,
         max_tool_repetitions: session_opts.max_tool_repetitions,
         max_turns: session_opts.max_turns,
+        orchestrator_max_concurrency: session_opts.orchestrator_max_concurrency,
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
@@ -1630,6 +1652,7 @@ async fn handle_run_command(
         debug: session_opts.debug,
         max_tool_repetitions: session_opts.max_tool_repetitions,
         max_turns: session_opts.max_turns,
+        orchestrator_max_concurrency: session_opts.orchestrator_max_concurrency,
         scheduled_job_id: run_behavior.scheduled_job_id,
         interactive: run_behavior.interactive,
         quiet: output_opts.quiet,
@@ -1852,6 +1875,7 @@ async fn handle_default_session() -> Result<()> {
         debug: false,
         max_tool_repetitions: None,
         max_turns: None,
+        orchestrator_max_concurrency: None,
         scheduled_job_id: None,
         interactive: true,
         quiet: false,
@@ -1960,5 +1984,43 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         Some(Command::Service { command }) => handle_service_subcommand(command),
         None => handle_default_session().await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_orchestrator_max_concurrency_run() {
+        let cli = Cli::try_parse_from([
+            "goose",
+            "run",
+            "--text",
+            "hello",
+            "--orchestrator-max-concurrency",
+            "7",
+        ])
+        .unwrap();
+
+        match cli.command {
+            Some(Command::Run { session_opts, .. }) => {
+                assert_eq!(session_opts.orchestrator_max_concurrency, Some(7));
+            }
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_orchestrator_max_concurrency_interactive() {
+        let cli = Cli::try_parse_from(["goose", "session", "--orchestrator-max-concurrency", "2"])
+            .unwrap();
+
+        match cli.command {
+            Some(Command::Session { session_opts, .. }) => {
+                assert_eq!(session_opts.orchestrator_max_concurrency, Some(2));
+            }
+            _ => panic!("expected Session command"),
+        }
     }
 }
