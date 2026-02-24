@@ -123,6 +123,7 @@ jobs:
           RUSTFLAGS: -C target-feature=-crt-static
           CMAKE_POLICY_DEFAULT_CMP0091: NEW
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+          LLAMA_STATIC_CRT: "0"
         run: |
           unset CMAKE_ARGS
           unset CMAKE_C_FLAGS_RELEASE
