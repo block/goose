@@ -103,10 +103,6 @@ impl Conversation {
         self.0.clear();
     }
 
-    pub fn sort_by_created(&mut self) {
-        self.0.sort_by_key(|m| m.created);
-    }
-
     pub fn filtered_messages<F>(&self, filter: F) -> Vec<Message>
     where
         F: Fn(&MessageMetadata) -> bool,
