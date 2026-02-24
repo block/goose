@@ -12,14 +12,7 @@ import {
 const DEFAULT_SETTINGS: ModelSettings = {
   context_size: null,
   max_output_tokens: null,
-  sampling: {
-    type: 'Temperature',
-    temperature: 0.8,
-    top_k: 40,
-    top_p: 0.95,
-    min_p: 0.05,
-    seed: null,
-  },
+  sampling: { type: 'Temperature', temperature: 0.8, top_k: 40, top_p: 0.95, min_p: 0.05, seed: null },
   repeat_penalty: 1.0,
   repeat_last_n: 64,
   frequency_penalty: 0.0,
@@ -184,14 +177,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
     } else if (type === 'MirostatV2') {
       sampling = { type: 'MirostatV2', tau: 5.0, eta: 0.1, seed: null };
     } else {
-      sampling = {
-        type: 'Temperature',
-        temperature: 0.8,
-        top_k: 40,
-        top_p: 0.95,
-        min_p: 0.05,
-        seed: null,
-      };
+      sampling = { type: 'Temperature', temperature: 0.8, top_k: 40, top_p: 0.95, min_p: 0.05, seed: null };
     }
     save({ ...settings, sampling });
   };
@@ -405,13 +391,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
         <SelectField
           label="Flash attention"
           description="Enable flash attention optimization"
-          value={
-            settings.flash_attention === null || settings.flash_attention === undefined
-              ? 'auto'
-              : settings.flash_attention
-                ? 'on'
-                : 'off'
-          }
+          value={settings.flash_attention === null || settings.flash_attention === undefined ? 'auto' : settings.flash_attention ? 'on' : 'off'}
           options={[
             { value: 'auto', label: 'Auto' },
             { value: 'on', label: 'On' },

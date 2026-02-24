@@ -183,8 +183,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         </div>
         <h1 className="text-2xl sm:text-4xl font-light">Run Locally</h1>
         <p className="text-text-muted text-base sm:text-lg">
-          Download a model to run Goose entirely on your machine — no API keys, no accounts,
-          completely free and private.
+          Download a model to run Goose entirely on your machine — no API keys, no accounts, completely free and private.
         </p>
       </div>
 
@@ -270,12 +269,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
 
@@ -300,12 +294,8 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-text-default text-sm">
-                              {model.id}
-                            </span>
-                            <span className="text-xs text-text-muted">
-                              {formatSize(model.size_bytes)}
-                            </span>
+                            <span className="font-medium text-text-default text-sm">{model.id}</span>
+                            <span className="text-xs text-text-muted">{formatSize(model.size_bytes)}</span>
                             {model.status.state === 'Downloaded' && (
                               <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
                                 Ready
@@ -378,8 +368,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                   )}
                   {downloadProgress.eta_seconds != null && downloadProgress.eta_seconds > 0 && (
                     <span>
-                      ~
-                      {downloadProgress.eta_seconds < 60
+                      ~{downloadProgress.eta_seconds < 60
                         ? `${Math.round(downloadProgress.eta_seconds)}s`
                         : `${Math.round(downloadProgress.eta_seconds / 60)}m`}{' '}
                       remaining
