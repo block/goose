@@ -133,7 +133,7 @@ Ask goose to open a specific restaurant's menu. The interactive MCP app renders 
 I'd like to view the Ba'al Falafel menu.
 ```
 
-[![Ba'al Falafel menu with category tabs and dish cards](/img/neighborhood-menu.png)](/img/neighborhood-menu.png)
+[![Goose response with restaurant recommendations for pre-tennis meal](/img/neighborhood-restaurants-2.png)](/img/neighborhood-restaurants-2.png)
 
 Browse through all the available dishes — Sandwiches, Salads, Combo platters, Soups, Pastries, Sides, Drinks, and more. Ask goose to add anything that catches your eye to your cart.
 
