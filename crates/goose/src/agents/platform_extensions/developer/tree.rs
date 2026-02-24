@@ -49,14 +49,16 @@ impl TreeTool {
             return CallToolResult::error(vec![Content::text(format!(
                 "Path does not exist: {}",
                 root.display()
-            ))]);
+            ))
+            .with_priority(0.0)]);
         }
 
         if !root.is_dir() {
             return CallToolResult::error(vec![Content::text(format!(
                 "Path is not a directory: {}",
                 root.display()
-            ))]);
+            ))
+            .with_priority(0.0)]);
         }
 
         let max_depth = if depth == 0 {
@@ -74,7 +76,7 @@ impl TreeTool {
             output.push_str("(empty directory)");
         }
 
-        CallToolResult::success(vec![Content::text(output)])
+        CallToolResult::success(vec![Content::text(output).with_priority(0.0)])
     }
 }
 
