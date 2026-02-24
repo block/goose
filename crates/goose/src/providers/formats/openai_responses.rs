@@ -67,7 +67,7 @@ pub enum ResponseContentBlock {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseReasoningInfo {
-    pub effort: String,
+    pub effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
 }
@@ -870,5 +870,21 @@ mod tests {
             types,
             vec!["assistant", "function_call", "assistant", "function_call"]
         );
+    }
+
+    #[test]
+    fn test_deserialize_reasoning_info_with_null_effort() {
+        let json = r#"{"effort": null}"#;
+        let info: ResponseReasoningInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.effort, None);
+        assert_eq!(info.summary, None);
+    }
+
+    #[test]
+    fn test_deserialize_reasoning_info_with_effort() {
+        let json = r#"{"effort": "high", "summary": "Thought deeply"}"#;
+        let info: ResponseReasoningInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.effort.as_deref(), Some("high"));
+        assert_eq!(info.summary.as_deref(), Some("Thought deeply"));
     }
 }
