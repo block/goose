@@ -18,11 +18,14 @@ This tutorial covers how to add the Neighborhood extension to goose, enabling yo
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fconnect.squareup.com%2Fv2%2Fmcp%2Fneighborhood&id=neighborhood&name=Neighborhood&description=Discover%20nearby%20restaurants%2C%20browse%20menus%2C%20and%20place%20takeout%20orders%20through%20natural%20conversation.)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
-    ```sh
-    npx mcp-remote https://connect.squareup.com/v2/mcp/neighborhood
+    <TabItem value="cli" label="goose CLI">
+    Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
+
+    **Endpoint URL**
     ```
-  </TabItem>
+    https://connect.squareup.com/v2/mcp/neighborhood
+    ```
+    </TabItem>
 </Tabs>
 :::
 
