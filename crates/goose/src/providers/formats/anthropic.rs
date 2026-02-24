@@ -433,10 +433,11 @@ pub fn create_request(
     if is_thinking_enabled {
         // Anthropic requires budget_tokens >= 1024
         const DEFAULT_THINKING_BUDGET: i32 = 16000;
-        let budget_tokens: i32 = std::env::var("CLAUDE_THINKING_BUDGET")
+        let raw_budget_tokens: i32 = std::env::var("CLAUDE_THINKING_BUDGET")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(DEFAULT_THINKING_BUDGET);
+        let budget_tokens: i32 = std::cmp::max(1024, raw_budget_tokens);
 
         payload
             .as_object_mut()
