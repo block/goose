@@ -51,7 +51,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
   useEffect(() => {
     const load = async () => {
       try {
-        const response = await listLocalModels();
+        const response = await listLocalModels({ throwOnError: true });
         if (response.data) {
           setModels(response.data);
 
@@ -91,7 +91,7 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
     }
 
     try {
-      await downloadHfModel({ body: { spec: model.id } });
+      await downloadHfModel({ body: { spec: model.id }, throwOnError: true });
     } catch (error) {
       console.error('Failed to start download:', error);
       setErrorMessage('Failed to start download. Please try again.');
@@ -102,7 +102,10 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
 
     pollRef.current = setInterval(async () => {
       try {
-        const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
+        const response = await getLocalModelDownloadProgress({
+          path: { model_id: modelId },
+          throwOnError: true,
+        });
         if (response.data) {
           setDownloadProgress(response.data);
           if (response.data.status === 'completed') {
