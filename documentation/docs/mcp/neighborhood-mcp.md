@@ -5,11 +5,26 @@ description: Add Neighborhood as a goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
+import Admonition from '@theme/Admonition';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/qY2i83l6dCQ" />
+<Admonition type="info" icon="🎥" title="Plug & Play" className="alert--video">
+  <details>
+    <summary>Watch the demo</summary>
+    <div style={{ textAlign: 'center', margin: '20px 0' }}>
+      <iframe
+        width="100%"
+        height="540"
+        src="https://www.youtube.com/embed/qY2i83l6dCQ"
+        title="YouTube Short"
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      ></iframe>
+    </div>
+  </details>
+</Admonition>
 
 Order food from nearby restaurants — right from your goose chat. Sellers are currently US-based.
 
