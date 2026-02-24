@@ -113,7 +113,7 @@ export default function SubRecipeModal({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="e.g., security_scan"
             />
             <p className="text-xs text-text-muted mt-1">
@@ -135,7 +135,7 @@ export default function SubRecipeModal({
                 type="text"
                 value={path}
                 onChange={(e) => setPath(e.target.value)}
-                className="flex-1 p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex-1 p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="e.g., ./subrecipes/security-analysis.yaml"
               />
               <Button
@@ -165,7 +165,7 @@ export default function SubRecipeModal({
               id="subrecipe-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               placeholder="Optional description of what this subrecipe does..."
               rows={3}
             />

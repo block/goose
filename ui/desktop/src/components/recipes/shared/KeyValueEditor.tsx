@@ -48,7 +48,7 @@ export default function KeyValueEditor({
           onChange={(e) => setNewKey(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={keyPlaceholder}
-          className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+          className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring text-sm"
         />
         <input
           type="text"
@@ -56,7 +56,7 @@ export default function KeyValueEditor({
           onChange={(e) => setNewValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={valuePlaceholder}
-          className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+          className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring text-sm"
         />
         <Button
           type="button"
