@@ -323,12 +323,7 @@ impl Provider for SnowflakeProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let metadata = <Self as ProviderDef>::metadata();
-        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
-        if canonical.is_empty() {
-            Ok(vec!["claude-sonnet-4-5".to_string(), "claude-haiku-4-5".to_string(), "claude-4-sonnet".to_string(), "claude-4-opus".to_string(), "claude-3-7-sonnet".to_string(), "claude-3-5-sonnet".to_string()])
-        } else {
-            Ok(canonical)
-        }
+        Ok(metadata.known_models.into_iter().map(|m| m.name).collect())
     }
 
     #[tracing::instrument(

@@ -115,18 +115,7 @@ impl CanonicalModelRegistry {
                     .map(|(_, name)| name.to_string())
                     .unwrap_or_else(|| m.id.clone());
                 let release_date = m.release_date.clone();
-                let info = ModelInfo {
-                    name: model_name,
-                    context_limit: m.limit.context,
-                    input_token_cost: m.cost.input.map(|c| c / 1_000_000.0),
-                    output_token_cost: m.cost.output.map(|c| c / 1_000_000.0),
-                    currency: if m.cost.input.is_some() || m.cost.output.is_some() {
-                        Some("$".to_string())
-                    } else {
-                        None
-                    },
-                    supports_cache_control: None,
-                };
+                let info = ModelInfo::from_canonical(model_name, &m);
                 (info, release_date)
             })
             .collect();

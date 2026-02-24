@@ -346,12 +346,7 @@ impl Provider for BedrockProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let metadata = <Self as ProviderDef>::metadata();
-        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
-        if canonical.is_empty() {
-            Ok(vec![])
-        } else {
-            Ok(canonical)
-        }
+        Ok(metadata.known_models.into_iter().map(|m| m.name).collect())
     }
 
     #[tracing::instrument(

@@ -4,7 +4,9 @@ use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
-use super::canonical::{map_to_canonical_model, CanonicalModelRegistry, Modality};
+use super::canonical::{
+    map_to_canonical_model, maybe_get_canonical_model, CanonicalModel, CanonicalModelRegistry,
+};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -133,58 +135,40 @@ impl ModelInfo {
         }
     }
 
-    /// Create a ModelInfo enriched with canonical data (context limit, pricing).
+    /// Convert a CanonicalModel into a ModelInfo, using the given display name.
     ///
-    /// Looks up the model in the canonical registry and fills in context_limit
-    /// and pricing when available. Falls back to default_context_limit if
-    /// canonical lookup fails.
+    /// Pricing in canonical is per-million tokens; this converts to per-token.
+    pub fn from_canonical(name: impl Into<String>, canonical: &CanonicalModel) -> Self {
+        Self {
+            name: name.into(),
+            context_limit: canonical.limit.context,
+            input_token_cost: canonical.cost.input.map(|c| c / 1_000_000.0),
+            output_token_cost: canonical.cost.output.map(|c| c / 1_000_000.0),
+            currency: if canonical.cost.input.is_some() || canonical.cost.output.is_some() {
+                Some("$".to_string())
+            } else {
+                None
+            },
+            supports_cache_control: None,
+        }
+    }
+
+    /// Look up a model in canonical and return enriched ModelInfo.
+    ///
+    /// Uses `maybe_get_canonical_model` which handles version suffixes,
+    /// provider name mapping, etc. Falls back to default_context_limit
+    /// if the model isn't found in canonical.
     pub fn from_canonical_lookup(
         name: impl Into<String>,
         provider: &str,
         default_context_limit: usize,
     ) -> Self {
         let name = name.into();
-        if let Ok(registry) = CanonicalModelRegistry::bundled() {
-            let canonical_prov =
-                super::canonical::canonical_provider_name(provider);
-            // Try direct lookup first
-            if let Some(m) = registry.get(canonical_prov, &name) {
-                if m.modalities.input.contains(&Modality::Text) {
-                    return Self {
-                        name,
-                        context_limit: m.limit.context,
-                        input_token_cost: m.cost.input.map(|c| c / 1_000_000.0),
-                        output_token_cost: m.cost.output.map(|c| c / 1_000_000.0),
-                        currency: if m.cost.input.is_some() || m.cost.output.is_some() {
-                            Some("$".to_string())
-                        } else {
-                            None
-                        },
-                        supports_cache_control: None,
-                    };
-                }
-            }
-            // Try canonical mapping (handles version suffixes, etc.)
-            if let Some(canonical_id) = map_to_canonical_model(provider, &name, registry) {
-                if let Some((cp, cm)) = canonical_id.split_once('/') {
-                    if let Some(m) = registry.get(cp, cm) {
-                        return Self {
-                            name,
-                            context_limit: m.limit.context,
-                            input_token_cost: m.cost.input.map(|c| c / 1_000_000.0),
-                            output_token_cost: m.cost.output.map(|c| c / 1_000_000.0),
-                            currency: if m.cost.input.is_some() || m.cost.output.is_some() {
-                                Some("$".to_string())
-                            } else {
-                                None
-                            },
-                            supports_cache_control: None,
-                        };
-                    }
-                }
-            }
+        if let Some(canonical) = maybe_get_canonical_model(provider, &name) {
+            Self::from_canonical(name, &canonical)
+        } else {
+            Self::new(name, default_context_limit)
         }
-        Self::new(name, default_context_limit)
     }
 
     /// Create a new ModelInfo with cost information (per token)

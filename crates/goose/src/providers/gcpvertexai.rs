@@ -617,12 +617,7 @@ impl Provider for GcpVertexAIProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let metadata = <Self as ProviderDef>::metadata();
-        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
-        let models = if canonical.is_empty() {
-            vec![]
-        } else {
-            canonical
-        };
+        let models: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
         let filtered = self.filter_by_org_policy(models).await;
         Ok(filtered)
     }

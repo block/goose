@@ -921,12 +921,7 @@ impl Provider for ChatGptCodexProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let metadata = <Self as ProviderDef>::metadata();
-        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
-        if canonical.is_empty() {
-            Ok(vec!["gpt-5.2-codex".to_string(), "gpt-5.1-codex".to_string(), "gpt-5.1-codex-mini".to_string(), "gpt-5.1-codex-max".to_string()])
-        } else {
-            Ok(canonical)
-        }
+        Ok(metadata.known_models.into_iter().map(|m| m.name).collect())
     }
 }
 

@@ -54,17 +54,13 @@ pub fn canonical_provider_name(provider: &str) -> &str {
     }
 }
 
-fn map_provider_name(provider: &str) -> &str {
-    canonical_provider_name(provider)
-}
-
 /// Try to map a provider/model pair to a canonical model
 pub fn map_to_canonical_model(
     provider: &str,
     model: &str,
     registry: &super::CanonicalModelRegistry,
 ) -> Option<String> {
-    let registry_provider = map_provider_name(provider);
+    let registry_provider = canonical_provider_name(provider);
 
     if provider == "gcp_vertex_ai" {
         let normalized_model = strip_version_suffix(model);

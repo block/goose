@@ -185,12 +185,7 @@ impl Provider for GeminiCliProvider {
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let metadata = <Self as ProviderDef>::metadata();
-        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
-        if canonical.is_empty() {
-            Ok(vec!["gemini-2.5-pro".to_string(), "gemini-2.5-flash".to_string(), "gemini-2.5-flash-lite".to_string()])
-        } else {
-            Ok(canonical)
-        }
+        Ok(metadata.known_models.into_iter().map(|m| m.name).collect())
     }
 
     #[tracing::instrument(
