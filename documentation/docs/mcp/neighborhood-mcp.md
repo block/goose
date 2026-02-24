@@ -120,7 +120,7 @@ goose uses the Neighborhood extension's interactive UI to display restaurant car
 
 goose doesn't just list restaurants — it tailors its recommendations to your situation. Since you mentioned playing tennis later, goose suggests meals that are energizing but not too heavy, and even includes a pro tip on pre-match eating timing.
 
-[![Goose response with restaurant recommendations for pre-tennis meal](/img/neighborhood-restaurants-2.png)](/img/neighborhood-restaurants-2.png)
+[![goose response with restaurant recommendations for pre-tennis meal](/img/neighborhood-restaurants-2.png)](/img/neighborhood-restaurants-2.png)
 
 Click on any restaurant to view its menu.
 
