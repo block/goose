@@ -60,8 +60,9 @@ export default function FreeOptionCards({ onConfigured }: FreeOptionCardsProps) 
     if (!error) return;
     if (error.type === TETRATE) {
       handleTetrateSetup();
+    } else {
+      handleNanogptSetup();
     }
-    handleNanogptSetup();
   };
 
   if (selectedProvider === LOCAL_PROVIDER) {

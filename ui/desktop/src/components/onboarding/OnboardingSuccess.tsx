@@ -39,7 +39,7 @@ export default function OnboardingSuccess({ providerName, onFinish }: Onboarding
                   ? 'Local model ready'
                   : `Connected to ${providerName}`}
               </h2>
-              <p className="text-text-muted text-sm">You're all set to start using Goose.</p>
+              <p className="text-text-muted text-sm">You're all set to start using goose.</p>
             </div>
 
             <div className="w-full p-4 bg-transparent border rounded-xl text-left mb-6">

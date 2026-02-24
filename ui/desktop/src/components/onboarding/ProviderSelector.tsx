@@ -85,6 +85,7 @@ export default function ProviderSelector({
 
   const handleOwnProviderClick = () => {
     setSelectedPath(OWN_PROVIDER);
+    onFirstSelection?.();
   };
 
   const handleProviderSelect = (option: ProviderOption | null) => {
@@ -120,7 +121,6 @@ export default function ProviderSelector({
           </p>
         </div>
 
-        {/* Own Provider card */}
         <div
           onClick={handleOwnProviderClick}
           className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${

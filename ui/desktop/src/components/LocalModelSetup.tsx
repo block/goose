@@ -29,7 +29,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         </div>
         <h1 className="text-2xl sm:text-4xl font-light">Run Locally</h1>
         <p className="text-text-muted text-base sm:text-lg">
-          Download a model to run Goose entirely on your machine — no API keys, no accounts,
+          Download a model to run goose entirely on your machine — no API keys, no accounts,
           completely free and private.
         </p>
       </div>

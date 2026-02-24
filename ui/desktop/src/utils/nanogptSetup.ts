@@ -6,7 +6,7 @@ export async function startNanogptSetup(): Promise<{ success: boolean; message: 
   } catch (e) {
     return {
       success: false,
-      message: `Failed to start NanoGPT setup ['${e}]`,
+      message: `Failed to start NanoGPT setup: ${e instanceof Error ? e.message : String(e)}`,
     };
   }
 }

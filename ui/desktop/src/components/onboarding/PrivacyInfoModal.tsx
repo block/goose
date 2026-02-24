@@ -37,7 +37,7 @@ export default function PrivacyInfoModal({ isOpen, onClose }: PrivacyInfoModalPr
         <p className="font-medium text-text-default text-sm mb-1.5">What we collect:</p>
         <ul className="text-text-muted text-sm list-disc list-inside space-y-0.5 ml-1 mb-3">
           <li>Operating system, version, and architecture</li>
-          <li>Goose version and install method</li>
+          <li>goose version and install method</li>
           <li>Provider and model used</li>
           <li>Extensions and tool usage counts (names only)</li>
           <li>Session metrics (duration, interaction count, token usage)</li>

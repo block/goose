@@ -111,7 +111,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
               <div className="mb-4">
                 <Goose className="size-8" />
               </div>
-              <h1 className="text-2xl sm:text-4xl font-light mb-3">Welcome to Goose</h1>
+              <h1 className="text-2xl sm:text-4xl font-light mb-3">Welcome to goose</h1>
               <p className="text-text-muted text-base sm:text-lg">
                 Your local AI agent. Connect an AI model provider to get started.
               </p>
