@@ -9,28 +9,15 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-Order food from nearby restaurants — right from your goose chat. Sellers are currently US-based.
-
-With the Neighborhood extension, you can:
-- 🔍 **Discover** nearby restaurants based on your location
-- 📋 **Browse menus** with photos, prices, and descriptions — right in the chat
-- 🛒 **Build a cart** and check out via Cash App
-- 🧠 **Get smart suggestions** — goose factors in your schedule, dietary needs, and plans
-
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/qY2i83l6dCQ" />
 
-<iframe
-  class="aspect-ratio"
-  src="https://www.youtube.com/embed/DG1HUFsekyc"
-  title="Neighborhood Extension"
-  frameBorder="0"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowFullScreen
-></iframe>
+Order food from nearby restaurants — right from your goose chat. Sellers are currently US-based.
 
-## Configuration
+In this tutorial, you'll learn how to set up the Neighborhood extension and use it to discover nearby restaurants, browse menus, build a cart, and check out — all through natural conversation with goose.
 
-:::tip Quick Install
+## Quick Install
+
+:::tip
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Install Neighborhood extension](goose://extension?type=streamable_http&url=https%3A%2F%2Fconnect.squareup.com%2Fv2%2Fmcp%2Fneighborhood&id=neighborhood&name=Neighborhood&description=Discover%20nearby%20restaurants%2C%20browse%20menus%2C%20and%20place%20takeout%20orders%20through%20natural%20conversation.)
@@ -46,6 +33,8 @@ With the Neighborhood extension, you can:
   </TabItem>
 </Tabs>
 :::
+
+## Configuration
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -157,3 +146,16 @@ Try combining Neighborhood with other goose extensions for even more useful work
 - **Pair with your calendar:** *"Check my calendar for today and find somewhere I can grab a quick pickup lunch before my 1pm meeting. I'm near Union Square."*
 - **Track what you eat:** *"Order me a chicken bowl from that place on Sullivan St, and log the macros to my food diary."*
 - **Plan for a group:** *"I'm meeting 3 friends near Bryant Park tonight. Find somewhere with good vegetarian options that's not too loud."*
+
+## Deep Dive Video
+
+Want a closer look at the Neighborhood extension in action? Watch the full walkthrough:
+
+<iframe
+  class="aspect-ratio"
+  src="https://www.youtube.com/embed/DG1HUFsekyc"
+  title="Neighborhood Extension"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
