@@ -37,6 +37,7 @@ opdich
 aharvard
 dhanji
 baxen
+codefromthecrypt
 
 # Block, non-goose (eligible for Team Stars)
 wendytang
@@ -64,6 +65,7 @@ joahg
 simonsickle
 taylorkmho
 chaitanyarahalkar
+jh-block
 
 # External, goose (excluded from rankings)
 The-Best-Codes
@@ -73,3 +75,4 @@ Abhijay007
 dependabot[bot]
 SquareGist
 github-actions[bot]
+claude
