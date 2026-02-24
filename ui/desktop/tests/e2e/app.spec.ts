@@ -1,4 +1,4 @@
-import { test as base, expect } from './fixtures';
+import { test as base, expect } from './fixtures.electron.packaged';
 import { Page } from '@playwright/test';
 import { showTestName, clearTestName } from './test-overlay';
 import { join } from 'path';
@@ -38,12 +38,14 @@ test.beforeEach(async ({ goosePage }, testInfo) => {
   const providerSuite = testInfo.titlePath.find(t => t.startsWith('Provider:'));
   const providerName = providerSuite ? providerSuite.split(': ')[1] : undefined;
 
-  console.log(`Setting overlay for test: "${testName}"${providerName ? ` (Provider: ${providerName})` : ''}`);
-  await showTestName(mainWindow, testName, providerName);
+  if (!process.env.NO_TEST_OVERLAY) {
+    console.log(`Setting overlay for test: "${testName}"${providerName ? ` (Provider: ${providerName})` : ''}`);
+    await showTestName(mainWindow, testName, providerName);
+  }
 });
 
 test.afterEach(async () => {
-  if (mainWindow) {
+  if (mainWindow && !process.env.NO_TEST_OVERLAY) {
     await clearTestName(mainWindow);
   }
 });
