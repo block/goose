@@ -86,17 +86,23 @@ const PairRouteWrapper = ({
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
+  const recipeIdFromConfig = window.appConfig?.get('recipeId') as string | undefined;
   const initialMessage = routeState.initialMessage;
 
-  // Create session if we have an initialMessage or recipeDeeplink but no sessionId
+  // Create session if we have an initialMessage, recipeDeeplink, or recipeId but no sessionId
   useEffect(() => {
-    if ((initialMessage || recipeDeeplinkFromConfig) && !resumeSessionId && !isCreatingSession) {
+    if (
+      (initialMessage || recipeDeeplinkFromConfig || recipeIdFromConfig) &&
+      !resumeSessionId &&
+      !isCreatingSession
+    ) {
       setIsCreatingSession(true);
 
       (async () => {
         try {
           const newSession = await createSession(getInitialWorkingDir(), {
             recipeDeeplink: recipeDeeplinkFromConfig,
+            recipeId: recipeIdFromConfig,
             allExtensions: extensionsList,
           });
 
@@ -128,7 +134,14 @@ const PairRouteWrapper = ({
     // Note: isCreatingSession is intentionally NOT in the dependency array
     // It's only used as a guard to prevent concurrent session creation
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMessage, recipeDeeplinkFromConfig, resumeSessionId, setSearchParams, extensionsList]);
+  }, [
+    initialMessage,
+    recipeDeeplinkFromConfig,
+    recipeIdFromConfig,
+    resumeSessionId,
+    setSearchParams,
+    extensionsList,
+  ]);
 
   // Add resumed session to active sessions if not already there
   useEffect(() => {
@@ -220,7 +233,7 @@ const ConfigureProvidersRoute = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="w-screen h-screen bg-background-default">
+    <div className="w-screen h-screen bg-background-primary">
       <ProviderSettings
         onClose={() => navigate('/settings', { state: { section: 'models' } })}
         isOnboarding={false}
@@ -237,7 +250,7 @@ const WelcomeRoute = ({ onSelectProvider }: WelcomeRouteProps) => {
   const navigate = useNavigate();
 
   return (
-    <div className="w-screen h-screen bg-background-default">
+    <div className="w-screen h-screen bg-background-primary">
       <ProviderSettings
         onClose={() => {
           navigate('/', { replace: true });
@@ -452,7 +465,7 @@ export function AppInner() {
       if ((isMac ? event.metaKey : event.ctrlKey) && event.key === 'n') {
         event.preventDefault();
         try {
-          window.electron.createChatWindow(undefined, getInitialWorkingDir());
+          window.electron.createChatWindow({ dir: getInitialWorkingDir() });
         } catch (error) {
           console.error('Error creating new window:', error);
         }
@@ -614,7 +627,7 @@ export function AppInner() {
         toastClassName={() =>
           `relative min-h-16 mb-4 p-2 rounded-lg
                flex justify-between overflow-hidden cursor-pointer
-               text-text-on-accent bg-background-inverse
+               text-text-inverse bg-background-inverse
               `
         }
         style={{ width: '450px' }}
@@ -625,7 +638,7 @@ export function AppInner() {
         pauseOnHover
       />
       <ExtensionInstallModal addExtension={addExtension} setView={setView} />
-      <div className="relative w-screen h-screen overflow-hidden bg-background-muted flex flex-col">
+      <div className="relative w-screen h-screen overflow-hidden bg-background-secondary flex flex-col">
         <div className="titlebar-drag-region" />
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <Routes>

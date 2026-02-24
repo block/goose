@@ -26,7 +26,7 @@ interface ProviderDescriptionProps {
 
 export function ProviderDescription({ description }: ProviderDescriptionProps) {
   return (
-    <p className="text-xs text-text-muted mt-1.5 mb-3 leading-normal overflow-y-auto max-h-[54px]">
+    <p className="text-xs text-text-secondary mt-1.5 mb-3 leading-normal overflow-y-auto max-h-[54px]">
       {description}
     </p>
   );

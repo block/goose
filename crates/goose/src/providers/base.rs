@@ -12,6 +12,7 @@ use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
+use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
 use utoipa::ToSchema;
@@ -443,6 +444,12 @@ pub trait ProviderDef: Send + Sync {
         Self: Sized;
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PermissionRouting {
+    ActionRequired,
+    Noop,
+}
+
 /// Trait for LeadWorkerProvider-specific functionality
 pub trait LeadWorkerProviderTrait {
     /// Get information about the lead and worker models for logging
@@ -701,6 +708,18 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    fn permission_routing(&self) -> PermissionRouting {
+        PermissionRouting::Noop
+    }
+
+    async fn handle_permission_confirmation(
+        &self,
+        _request_id: &str,
+        _confirmation: &PermissionConfirmation,
+    ) -> bool {
+        false
     }
 }
 

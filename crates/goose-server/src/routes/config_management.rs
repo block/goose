@@ -15,6 +15,10 @@ use goose::model::ModelConfig;
 use goose::providers::auto_detect::detect_provider_from_api_key;
 use goose::providers::base::{ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
+use goose::providers::catalog::{
+    get_provider_template, get_providers_by_format, ProviderCatalogEntry, ProviderFormat,
+    ProviderTemplate,
+};
 use goose::providers::create_with_default_model;
 use goose::providers::providers as get_providers;
 use goose::{
@@ -94,6 +98,8 @@ pub struct UpdateCustomProviderRequest {
     pub headers: Option<std::collections::HashMap<String, String>>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
+    #[serde(default)]
+    pub catalog_provider_id: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -653,6 +659,7 @@ pub async fn create_custom_provider(
             supports_streaming: request.supports_streaming,
             headers: request.headers,
             requires_auth: request.requires_auth,
+            catalog_provider_id: request.catalog_provider_id,
         },
     )?;
 
@@ -725,6 +732,7 @@ pub async fn update_custom_provider(
             supports_streaming: request.supports_streaming,
             headers: request.headers,
             requires_auth: request.requires_auth,
+            catalog_provider_id: request.catalog_provider_id,
         },
     )?;
 
@@ -775,6 +783,54 @@ pub async fn set_config_provider(
             ))
         })?;
     Ok(())
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/provider-catalog",
+    params(
+        ("format" = Option<String>, Query, description = "Filter by provider format (openai, anthropic, ollama)")
+    ),
+    responses(
+        (status = 200, description = "Provider catalog retrieved successfully", body = [ProviderCatalogEntry]),
+        (status = 400, description = "Invalid format parameter")
+    )
+)]
+pub async fn get_provider_catalog(
+    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
+) -> Result<Json<Vec<ProviderCatalogEntry>>, ErrorResponse> {
+    let format_str = params.get("format").map(|s| s.as_str()).unwrap_or("openai");
+
+    let format = format_str.parse::<ProviderFormat>().map_err(|_| {
+        ErrorResponse::bad_request(format!(
+            "Invalid format '{}'. Must be one of: openai, anthropic, ollama",
+            format_str
+        ))
+    })?;
+
+    let providers = get_providers_by_format(format).await;
+    Ok(Json(providers))
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/provider-catalog/{id}",
+    params(
+        ("id" = String, Path, description = "Provider ID from models.dev")
+    ),
+    responses(
+        (status = 200, description = "Provider template retrieved successfully", body = ProviderTemplate),
+        (status = 404, description = "Provider not found in catalog")
+    )
+)]
+pub async fn get_provider_catalog_template(
+    Path(id): Path<String>,
+) -> Result<Json<ProviderTemplate>, ErrorResponse> {
+    let template = get_provider_template(&id).ok_or_else(|| {
+        ErrorResponse::not_found(format!("Provider '{}' not found in catalog", id))
+    })?;
+
+    Ok(Json(template))
 }
 
 #[utoipa::path(
@@ -843,6 +899,11 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/extensions/{name}", delete(remove_extension))
         .route("/config/providers", get(providers))
         .route("/config/providers/{name}/models", get(get_provider_models))
+        .route("/config/provider-catalog", get(get_provider_catalog))
+        .route(
+            "/config/provider-catalog/{id}",
+            get(get_provider_catalog_template),
+        )
         .route("/config/detect-provider", post(detect_provider))
         .route("/config/slash_commands", get(get_slash_commands))
         .route(

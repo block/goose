@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { applyThemeTokens, buildMcpHostStyles } from '../theme/theme-tokens';
+import type { McpUiHostStyles } from '@modelcontextprotocol/ext-apps/app-bridge';
 
 type ThemePreference = 'light' | 'dark' | 'system';
 type ResolvedTheme = 'light' | 'dark';
@@ -7,6 +9,7 @@ interface ThemeContextValue {
   userThemePreference: ThemePreference;
   setUserThemePreference: (pref: ThemePreference) => void;
   resolvedTheme: ResolvedTheme;
+  mcpHostStyles: McpUiHostStyles;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -27,6 +30,9 @@ function applyThemeToDocument(theme: ResolvedTheme): void {
   document.documentElement.classList.add(theme);
   document.documentElement.classList.remove(toRemove);
 }
+
+// Built once — light-dark() values are theme-independent
+const mcpHostStyles = buildMcpHostStyles();
 
 interface ThemeProviderProps {
   children: React.ReactNode;
@@ -132,15 +138,17 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     };
   }, []);
 
-  // Apply theme to document whenever resolvedTheme changes
+  // Apply theme class and CSS tokens whenever resolvedTheme changes
   useEffect(() => {
     applyThemeToDocument(resolvedTheme);
+    applyThemeTokens(resolvedTheme);
   }, [resolvedTheme]);
 
   const value: ThemeContextValue = {
     userThemePreference,
     setUserThemePreference,
     resolvedTheme,
+    mcpHostStyles,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

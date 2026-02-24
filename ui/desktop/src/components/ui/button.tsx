@@ -8,13 +8,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-background-accent text-text-on-accent hover:bg-background-accent/90 shadow-xs',
+        default: 'bg-background-inverse text-text-inverse hover:bg-background-inverse/90 shadow-xs',
         destructive:
           'bg-background-danger text-white hover:bg-background-danger/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-background-danger/60 shadow-xs',
-        outline: 'border hover:bg-background-muted',
-        secondary: 'bg-background-muted text-text-default hover:bg-background-muted/80 shadow-xs',
-        ghost: 'hover:bg-background-muted dark:hover:bg-background-muted/50',
-        link: 'text-text-accent underline-offset-4 hover:underline',
+        outline: 'border hover:bg-background-secondary',
+        secondary:
+          'bg-background-secondary text-text-primary hover:bg-background-secondary/80 shadow-xs',
+        ghost: 'hover:bg-background-secondary dark:hover:bg-background-secondary/50',
+        link: 'text-text-inverse underline-offset-4 hover:underline',
       },
       size: {
         xs: 'h-6 gap-1 ![&_svg:not([class*="size-"])]:size-3',

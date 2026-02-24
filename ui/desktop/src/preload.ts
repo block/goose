@@ -89,6 +89,15 @@ interface UpdaterEvent {
   data?: unknown;
 }
 
+export interface CreateChatWindowOptions {
+  query?: string;
+  dir?: string;
+  version?: string;
+  resumeSessionId?: string;
+  viewType?: string;
+  recipeId?: string;
+}
+
 // Define the API types in a single place
 type ElectronAPI = {
   platform: string;
@@ -96,14 +105,7 @@ type ElectronAPI = {
   getConfig: () => Record<string, unknown>;
   hideWindow: () => void;
   directoryChooser: () => Promise<Electron.OpenDialogReturnValue>;
-  createChatWindow: (
-    query?: string,
-    dir?: string,
-    version?: string,
-    resumeSessionId?: string,
-    viewType?: string,
-    recipeDeeplink?: string
-  ) => void;
+  createChatWindow: (options?: CreateChatWindowOptions) => void;
   logInfo: (txt: string) => void;
   showNotification: (data: NotificationData) => void;
   showMessageBox: (options: MessageBoxOptions) => Promise<MessageBoxResponse>;
@@ -148,6 +150,7 @@ type ElectronAPI = {
     mode: string;
     useSystemTheme: boolean;
     theme: string;
+    tokensUpdated?: boolean;
   }) => void;
   openExternal: (url: string) => Promise<void>;
   // Update-related functions
@@ -188,23 +191,8 @@ const electronAPI: ElectronAPI = {
   },
   hideWindow: () => ipcRenderer.send('hide-window'),
   directoryChooser: () => ipcRenderer.invoke('directory-chooser'),
-  createChatWindow: (
-    query?: string,
-    dir?: string,
-    version?: string,
-    resumeSessionId?: string,
-    viewType?: string,
-    recipeDeeplink?: string
-  ) =>
-    ipcRenderer.send(
-      'create-chat-window',
-      query,
-      dir,
-      version,
-      resumeSessionId,
-      viewType,
-      recipeDeeplink
-    ),
+  createChatWindow: (options?: CreateChatWindowOptions) =>
+    ipcRenderer.send('create-chat-window', options || {}),
   logInfo: (txt: string) => ipcRenderer.send('logInfo', txt),
   showNotification: (data: NotificationData) => ipcRenderer.send('notify', data),
   showMessageBox: (options: MessageBoxOptions) => ipcRenderer.invoke('show-message-box', options),
@@ -286,7 +274,12 @@ const electronAPI: ElectronAPI = {
   emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
   },
-  broadcastThemeChange: (themeData: { mode: string; useSystemTheme: boolean; theme: string }) => {
+  broadcastThemeChange: (themeData: {
+    mode: string;
+    useSystemTheme: boolean;
+    theme: string;
+    tokensUpdated?: boolean;
+  }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
   },
   openExternal: (url: string): Promise<void> => {
