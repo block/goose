@@ -79,6 +79,9 @@ jobs:
 
       - name: Build Windows executable
         shell: bash
+        env:
+          RUSTFLAGS: -C target-feature=-crt-static
+          CMAKE_ARGS: -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
         run: |
           echo "🚀 Building Windows executable..."
           cargo build --release --target x86_64-pc-windows-msvc
