@@ -280,8 +280,9 @@ impl ModelConfig {
             return tokens;
         }
 
-        // Priority 2: Global default
-        4_096
+        // Fallback default - high enough for most use cases like HTML app generation
+        // Models in canonical registry will have their actual limits set via with_canonical_limits()
+        16_384
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {

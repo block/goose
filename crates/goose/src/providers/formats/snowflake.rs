@@ -353,11 +353,10 @@ pub fn create_request(
         format_tools(tools)
     };
 
-    let max_tokens = model_config.max_tokens.unwrap_or(4096);
     let mut payload = json!({
         "model": model_config.model_name,
         "messages": snowflake_messages,
-        "max_tokens": max_tokens,
+        "max_tokens": model_config.max_output_tokens(),
     });
 
     // Add tools if present and not a description request

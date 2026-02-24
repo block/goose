@@ -290,8 +290,7 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::create_app_content_tool()];
 
-        let mut model_config = provider.get_model_config();
-        model_config.max_tokens = Some(16384);
+        let model_config = provider.get_model_config();
 
         let (response, _usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)
@@ -324,8 +323,7 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::update_app_content_tool()];
 
-        let mut model_config = provider.get_model_config();
-        model_config.max_tokens = Some(16384);
+        let model_config = provider.get_model_config();
 
         let (response, _usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)

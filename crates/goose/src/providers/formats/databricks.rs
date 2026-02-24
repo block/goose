@@ -620,8 +620,7 @@ pub fn create_request(
             .unwrap_or(16000);
 
         // For Claude models with thinking enabled, we need to add max_tokens + budget_tokens
-        // Default to 8192 (Claude max output) + budget if not specified
-        let max_completion_tokens = model_config.max_tokens.unwrap_or(8192);
+        let max_completion_tokens = model_config.max_output_tokens();
         payload.as_object_mut().unwrap().insert(
             "max_tokens".to_string(),
             json!(max_completion_tokens + budget_tokens),
@@ -650,18 +649,16 @@ pub fn create_request(
             }
         }
 
-        // open ai reasoning models use max_completion_tokens instead of max_tokens
-        if let Some(tokens) = model_config.max_tokens {
-            let key = if is_openai_reasoning_model {
-                "max_completion_tokens"
-            } else {
-                "max_tokens"
-            };
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert(key.to_string(), json!(tokens));
-        }
+        // OpenAI reasoning models use max_completion_tokens instead of max_tokens
+        let key = if is_openai_reasoning_model {
+            "max_completion_tokens"
+        } else {
+            "max_tokens"
+        };
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert(key.to_string(), json!(model_config.max_output_tokens()));
     }
 
     // Apply cache control for Claude models to enable prompt caching
