@@ -11,7 +11,6 @@ pub static APP_STRATEGY: Lazy<AppStrategyArgs> = Lazy::new(|| AppStrategyArgs {
 
 pub mod autovisualiser;
 pub mod computercontroller;
-pub mod developer;
 pub mod mcp_server_runner;
 mod memory;
 #[cfg(target_os = "macos")]
@@ -21,8 +20,6 @@ pub mod tutorial;
 
 pub use autovisualiser::AutoVisualiserRouter;
 pub use computercontroller::ComputerControllerServer;
-pub use developer::DeveloperServer;
-pub const WORKING_DIR_PLACEHOLDER: &str = "{{WORKING_DIR}}";
 pub use memory::MemoryServer;
 pub use tutorial::TutorialServer;
 
@@ -57,7 +54,6 @@ macro_rules! builtin {
 
 pub static BUILTIN_EXTENSIONS: Lazy<HashMap<&'static str, SpawnServerFn>> = Lazy::new(|| {
     HashMap::from([
-        builtin!(developer, DeveloperServer),
         builtin!(autovisualiser, AutoVisualiserRouter),
         builtin!(computercontroller, ComputerControllerServer),
         builtin!(memory, MemoryServer),

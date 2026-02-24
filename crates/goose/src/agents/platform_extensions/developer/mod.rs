@@ -1,10 +1,12 @@
+pub mod edit;
+pub mod shell;
+pub mod tree;
+
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
-use goose_mcp::developer::edit::{EditTools, FileEditParams, FileWriteParams};
-use goose_mcp::developer::shell::{ShellParams, ShellTool};
-use goose_mcp::developer::tree::{TreeParams, TreeTool};
+use edit::{EditTools, FileEditParams, FileWriteParams};
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
@@ -12,9 +14,11 @@ use rmcp::model::{
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
+use shell::{ShellParams, ShellTool};
 use std::path::Path;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
+use tree::{TreeParams, TreeTool};
 
 pub static EXTENSION_NAME: &str = "developer";
 

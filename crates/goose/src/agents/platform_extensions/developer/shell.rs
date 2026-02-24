@@ -211,16 +211,13 @@ fn render_output(full_output: &str) -> Result<String, String> {
         return Ok(full_output.to_string());
     }
 
-    // Output exceeds limit — save full output to temp file and show tail preview
     let output_path = save_full_output(full_output)?;
 
     let preview_start = total_lines.saturating_sub(OUTPUT_PREVIEW_LINES);
     let preview = lines[preview_start..].join("\n");
 
     let reason = if exceeded_lines {
-        format!(
-            "Output exceeded {OUTPUT_LIMIT_LINES} line limit ({total_lines} lines total)."
-        )
+        format!("Output exceeded {OUTPUT_LIMIT_LINES} line limit ({total_lines} lines total).")
     } else {
         format!(
             "Output exceeded {} byte limit ({total_bytes} bytes total).",
@@ -236,16 +233,14 @@ fn render_output(full_output: &str) -> Result<String, String> {
     ))
 }
 
-/// Returns the path to a single reusable temp file for shell output.
-/// The file is created once and rewritten on each call with large output.
 fn output_buffer_path() -> Result<PathBuf, String> {
     static PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
     let mut guard = PATH.lock().map_err(|e| format!("Lock poisoned: {e}"))?;
     if let Some(path) = guard.as_ref() {
         return Ok(path.clone());
     }
-    let temp_file = tempfile::NamedTempFile::new()
-        .map_err(|e| format!("Failed to create temp file: {e}"))?;
+    let temp_file =
+        tempfile::NamedTempFile::new().map_err(|e| format!("Failed to create temp file: {e}"))?;
     let (_, path) = temp_file
         .keep()
         .map_err(|e| format!("Failed to persist temp file: {}", e.error))?;
@@ -255,8 +250,7 @@ fn output_buffer_path() -> Result<PathBuf, String> {
 
 fn save_full_output(output: &str) -> Result<PathBuf, String> {
     let path = output_buffer_path()?;
-    std::fs::write(&path, output)
-        .map_err(|e| format!("Failed to write output buffer: {e}"))?;
+    std::fs::write(&path, output).map_err(|e| format!("Failed to write output buffer: {e}"))?;
     Ok(path)
 }
 
@@ -361,7 +355,6 @@ mod tests {
 
     #[test]
     fn render_output_truncates_when_bytes_exceeded() {
-        // Create output that is under line limit but over byte limit
         let long_line = "x".repeat(1000);
         let input = (0..100)
             .map(|_| long_line.clone())

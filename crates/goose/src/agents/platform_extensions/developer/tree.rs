@@ -30,11 +30,7 @@ impl TreeTool {
         self.tree_at(root, params.depth)
     }
 
-    pub fn tree_with_cwd(
-        &self,
-        params: TreeParams,
-        working_dir: Option<&Path>,
-    ) -> CallToolResult {
+    pub fn tree_with_cwd(&self, params: TreeParams, working_dir: Option<&Path>) -> CallToolResult {
         let path = PathBuf::from(&params.path);
         let root = if path.is_absolute() {
             path

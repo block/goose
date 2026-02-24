@@ -4258,7 +4258,6 @@ dependencies = [
  "etcetera 0.11.0",
  "fs2",
  "futures",
- "goose-mcp",
  "goose-test-support",
  "hf-hub",
  "ignore",
