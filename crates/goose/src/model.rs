@@ -280,8 +280,6 @@ impl ModelConfig {
             return tokens;
         }
 
-        // Fallback default - high enough for most use cases like HTML app generation
-        // Models in canonical registry will have their actual limits set via with_canonical_limits()
         16_384
     }
 
