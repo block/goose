@@ -66,8 +66,6 @@ export default function CreateSubRecipeInline({
         instructions: formValues.instructions.trim(),
       };
 
-      // Use a human-readable sanitized title as the recipe ID so the saved
-      // filename is meaningful (e.g. security-scan.yaml) instead of a hash.
       const sanitizedTitle = formValues.title
         .trim()
         .toLowerCase()
@@ -148,7 +146,7 @@ export default function CreateSubRecipeInline({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="e.g., security_scan"
             />
             <p className="text-xs text-text-muted mt-1">
@@ -172,7 +170,7 @@ export default function CreateSubRecipeInline({
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="e.g., Security Analysis Tool"
                 />
               </div>
@@ -195,7 +193,7 @@ export default function CreateSubRecipeInline({
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="What this recipe does when executed"
                 />
               </div>
@@ -217,7 +215,7 @@ export default function CreateSubRecipeInline({
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none font-mono text-sm"
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none font-mono text-sm"
                   placeholder="Instructions for the AI when this subrecipe is called..."
                   rows={8}
                 />
@@ -237,7 +235,7 @@ export default function CreateSubRecipeInline({
               id="tool-description"
               value={toolDescription}
               onChange={(e) => setToolDescription(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-primary text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               placeholder="Optional description shown when this is called as a tool"
               rows={2}
             />
