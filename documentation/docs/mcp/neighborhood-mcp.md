@@ -147,9 +147,9 @@ Try combining Neighborhood with other goose extensions for even more useful work
 - **Track what you eat:** *"Order me a chicken bowl from that place on Sullivan St, and log the macros to my food diary."*
 - **Plan for a group:** *"I'm meeting 3 friends near Bryant Park tonight. Find somewhere with good vegetarian options that's not too loud."*
 
-## Deep Dive Video
+## Video Walkthrough
 
-Want a closer look at the Neighborhood extension in action? Watch the full walkthrough:
+Watch a full walkthrough of the Neighborhood extension in action:
 
 <iframe
   class="aspect-ratio"
