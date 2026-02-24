@@ -65,7 +65,6 @@ joahg
 simonsickle
 taylorkmho
 chaitanyarahalkar
-jh-block
 
 # External, goose (excluded from rankings)
 The-Best-Codes
