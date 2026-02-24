@@ -506,6 +506,9 @@ async fn get_tools(
                 get_parameter_names(&tool),
                 permission,
             )
+            .with_input_schema(serde_json::Value::Object(
+                tool.input_schema.as_ref().clone(),
+            ))
         })
         .collect::<Vec<ToolInfo>>();
     tools.sort_by(|a, b| a.name.cmp(&b.name));
