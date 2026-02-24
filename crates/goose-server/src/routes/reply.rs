@@ -502,9 +502,9 @@ pub async fn reply(
                     let sub_results: Vec<String> =
                         results.iter().map(|r| r.output.clone()).collect();
                     let aggregated = aggregate_results(&plan.tasks, &sub_results);
-
                     // Best-effort persistence for orchestration memory (used by KG/observability).
-                    if let Err(e) = goose::agents::orchestration::memory::persist_orchestration_run(
+                    // Persistence failures must not fail the user request.
+                    match goose::agents::orchestration::memory::persist_orchestration_run(
                         state.session_manager(),
                         &session_id,
                         &user_text,
@@ -515,7 +515,31 @@ pub async fn reply(
                     )
                     .await
                     {
-                        tracing::warn!(session_id = %session_id, "Failed to persist orchestration memory: {}", e);
+                        Ok(Some(run)) => {
+                            // Best-effort KG ingestion (only runs if knowledge_graph_memory is enabled).
+                            if let Err(e) = goose::agents::orchestration::memory::ingest_orchestration_run_to_kg(
+                                &agent.extension_manager,
+                                &session_id,
+                                session.working_dir.as_path(),
+                                &run,
+                            )
+                            .await
+                            {
+                                tracing::warn!(
+                                    session_id = %session_id,
+                                    "Failed to ingest orchestration run into KG memory: {}",
+                                    e
+                                );
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            tracing::warn!(
+                                session_id = %session_id,
+                                "Failed to persist orchestration memory: {}",
+                                e
+                            );
+                        }
                     }
 
                     let aggregated_message = Message::assistant().with_text(&aggregated);
