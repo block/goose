@@ -12,10 +12,10 @@ import CustomProviderForm from '../settings/providers/modal/subcomponents/forms/
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Gift, Key, Plus } from 'lucide-react';
 
-const FREE_CREDITS = 'free-credits';
-const OWN_PROVIDER = 'own-provider';
+const FREE_OPTIONS = 'free-options' as const;
+const OWN_PROVIDER = 'own-provider' as const;
 
-type SelectedPath = 'free-credits' | 'own-provider' | null;
+type SelectedPath = typeof FREE_OPTIONS | typeof OWN_PROVIDER | null;
 
 interface ProviderOption {
   value: string;
@@ -78,7 +78,7 @@ export default function ProviderSelector({
   };
 
   const handleFreeCreditClick = () => {
-    setSelectedPath(FREE_CREDITS);
+    setSelectedPath(FREE_OPTIONS);
     setSelectedOption(null);
     onFirstSelection?.();
   };
@@ -109,13 +109,15 @@ export default function ProviderSelector({
         <div
           onClick={handleFreeCreditClick}
           className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
-            selectedPath === FREE_CREDITS
+            selectedPath === FREE_OPTIONS
               ? 'border-blue-400 bg-background-muted'
               : 'border-border-default bg-background-muted hover:border-blue-400'
           }`}
         >
           <Gift size={20} className="text-text-muted mb-2" />
-          <span className="font-medium text-text-default text-base block">Try for Free</span>
+          <span className="font-medium text-text-default text-base block">
+            Use Free/Local Providers
+          </span>
           <p className="text-text-muted text-sm mt-1">
             Free credits or run locally on your machine
           </p>
@@ -137,7 +139,7 @@ export default function ProviderSelector({
         </div>
       </div>
 
-      {selectedPath === FREE_CREDITS && (
+      {selectedPath === FREE_OPTIONS && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
           <FreeOptionCards onConfigured={onConfigured} />
         </div>

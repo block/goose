@@ -166,8 +166,9 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
 
   return (
     <div className="p-4 border rounded-xl bg-background-muted">
-      <p className="text-sm text-text-muted mb-4">
-        Choose a model to download and run on your machine.
+      <p className="text-sm text-text-muted leading-relaxed mb-4">
+        ℹ️ Local models keep everything on your machine for full privacy. Performance and context
+        window size may vary compared to cloud providers depending on your hardware and model size.
       </p>
 
       {phase === 'error' && (
