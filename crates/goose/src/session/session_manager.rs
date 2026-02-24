@@ -1082,7 +1082,10 @@ impl SessionStorage {
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
         let pool = self.pool().await?;
         let rows = sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
-            "SELECT role, content_json, created_timestamp, metadata_json, message_id FROM messages WHERE session_id = ? ORDER BY timestamp",
+            // Order by created_timestamp, then by id to break ties. created_timestamp is in seconds,
+            // so messages created in the same second (e.g., tool request and response) need to
+            // maintain their insertion order via the auto-increment id.
+            "SELECT role, content_json, created_timestamp, metadata_json, message_id FROM messages WHERE session_id = ? ORDER BY created_timestamp, id",
         )
             .bind(session_id)
             .fetch_all(pool)
