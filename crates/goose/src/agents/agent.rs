@@ -7,6 +7,7 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context, Result};
 use futures::stream::BoxStream;
 use futures::{stream, FutureExt, Stream, StreamExt, TryStreamExt};
+use tracing_futures::Instrument;
 use uuid::Uuid;
 
 use super::container::Container;
@@ -492,7 +493,7 @@ impl Agent {
     }
 
     /// Dispatch a single tool call to the appropriate client
-    #[instrument(skip(self, tool_call, request_id), fields(input, output))]
+    #[instrument(skip(self, tool_call, request_id, cancellation_token, session), fields(session.id = %session.id, input, output))]
     pub async fn dispatch_tool_call(
         &self,
         tool_call: CallToolRequestParams,
@@ -869,8 +870,8 @@ impl Agent {
     }
 
     #[instrument(
-        skip(self, user_message, session_config),
-        fields(user_message, trace_input)
+        skip(self, user_message, session_config, cancel_token),
+        fields(session.id = %session_config.id, user_message, trace_input)
     )]
     pub async fn reply(
         &self,
@@ -1114,9 +1115,8 @@ impl Agent {
         }
 
         let working_dir = session.working_dir.clone();
-        Ok(Box::pin(async_stream::try_stream! {
-            let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
-            let _stream_guard = reply_stream_span.enter();
+        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", session.id = %session_config.id);
+        let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
             let mut compaction_attempts = 0;
@@ -1648,7 +1648,8 @@ impl Agent {
             if !last_assistant_text.is_empty() {
                 tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
             }
-        }))
+        }.instrument(reply_stream_span));
+        Ok(inner)
     }
 
     pub async fn extend_system_prompt(&self, key: String, instruction: String) {

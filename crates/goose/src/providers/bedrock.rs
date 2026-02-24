@@ -355,10 +355,6 @@ impl Provider for BedrockProvider {
         Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
     async fn stream(
         &self,
         model_config: &ModelConfig,

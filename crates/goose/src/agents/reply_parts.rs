@@ -203,6 +203,10 @@ impl Agent {
 
     /// Stream a response from the LLM provider.
     /// Handles toolshim transformations if needed
+    #[tracing::instrument(
+        skip(provider, session_id, system_prompt, messages, tools, toolshim_tools),
+        fields(session.id = %session_id, gen_ai.request.model = %provider.get_model_config().model_name)
+    )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
         session_id: &str,
