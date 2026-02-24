@@ -16,6 +16,11 @@ use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
+/// Feature flag to enable/disable tool pair summarization.
+/// Set to `false` to disable summarizing old tool call/response pairs.
+/// TODO: Re-enable once tool summarization stability issues are resolved.
+const ENABLE_TOOL_PAIR_SUMMARIZATION: bool = false;
+
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
@@ -507,6 +512,12 @@ pub fn maybe_summarize_tool_pair(
     cutoff: usize,
 ) -> JoinHandle<Option<(Message, String)>> {
     tokio::spawn(async move {
+        // Tool pair summarization is currently disabled via feature flag.
+        // See ENABLE_TOOL_PAIR_SUMMARIZATION constant above.
+        if !ENABLE_TOOL_PAIR_SUMMARIZATION {
+            return None;
+        }
+
         if let Some(tool_id) = tool_id_to_summarize(&conversation, cutoff) {
             match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
             {
