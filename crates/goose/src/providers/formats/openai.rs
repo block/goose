@@ -84,7 +84,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
         let mut reasoning_text = String::new();
-        // Collect image messages from tool responses to add after all tool messages
         let mut pending_image_messages: Vec<Value> = Vec::new();
 
         for content in &message.content {
@@ -171,10 +170,8 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                             for content in result.content.iter() {
                                 match content.deref() {
                                     RawContent::Image(image) => {
-                                        // Add placeholder text in the tool response
                                         tool_content.push(Content::text("This tool result included an image that is uploaded in the next message."));
 
-                                        // Collect image messages to add after all tool messages
                                         pending_image_messages.push(json!({
                                             "role": "user",
                                             "content": [convert_image(&image.clone().no_annotation(), image_format)]
@@ -198,7 +195,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                                 .collect::<Vec<String>>()
                                 .join(" "));
 
-                            // Add the tool response with all content
                             output.push(json!({
                                 "role": "tool",
                                 "content": tool_response_content,
@@ -290,7 +286,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         }
 
         messages_spec.extend(output);
-        // Add all image messages after all tool messages for this message
         messages_spec.extend(pending_image_messages);
     }
 
