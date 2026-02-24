@@ -314,7 +314,12 @@ export default function McpAppRenderer({
   // PiP drag state
   const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
   const pipPositionRef = useRef(pipPosition);
-  const pipDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const pipDragRef = useRef<{
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
 
   useEffect(() => {
     pipPositionRef.current = pipPosition;
@@ -338,35 +343,52 @@ export default function McpAppRenderer({
     pipDragRef.current = { startX: e.clientX, startY: e.clientY, originX: x, originY: y };
   }, []);
 
-  const handlePipPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!pipDragRef.current) return;
-    const dx = e.clientX - pipDragRef.current.startX;
-    const dy = e.clientY - pipDragRef.current.startY;
-    setPipPosition(clampPipPosition({
-      x: pipDragRef.current.originX + dx,
-      y: pipDragRef.current.originY + dy,
-    }));
-  }, [clampPipPosition]);
+  const handlePipPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!pipDragRef.current) return;
+      const dx = e.clientX - pipDragRef.current.startX;
+      const dy = e.clientY - pipDragRef.current.startY;
+      setPipPosition(
+        clampPipPosition({
+          x: pipDragRef.current.originX + dx,
+          y: pipDragRef.current.originY + dy,
+        })
+      );
+    },
+    [clampPipPosition]
+  );
 
   const handlePipPointerUp = useCallback((e: React.PointerEvent) => {
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     pipDragRef.current = null;
   }, []);
 
-  const handlePipKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const step = e.shiftKey ? 32 : 8;
-    let dx = 0;
-    let dy = 0;
-    switch (e.key) {
-      case 'ArrowUp': dy = -step; break;
-      case 'ArrowDown': dy = step; break;
-      case 'ArrowLeft': dx = -step; break;
-      case 'ArrowRight': dx = step; break;
-      default: return;
-    }
-    e.preventDefault();
-    setPipPosition((prev) => clampPipPosition({ x: prev.x + dx, y: prev.y + dy }));
-  }, [clampPipPosition]);
+  const handlePipKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const step = e.shiftKey ? 32 : 8;
+      let dx = 0;
+      let dy = 0;
+      switch (e.key) {
+        case 'ArrowUp':
+          dy = -step;
+          break;
+        case 'ArrowDown':
+          dy = step;
+          break;
+        case 'ArrowLeft':
+          dx = -step;
+          break;
+        case 'ArrowRight':
+          dx = step;
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+      setPipPosition((prev) => clampPipPosition({ x: prev.x + dx, y: prev.y + dy }));
+    },
+    [clampPipPosition]
+  );
 
   // Cache iframe contentWindows for O(1) source matching via MutationObserver.
   useEffect(() => {
@@ -441,7 +463,7 @@ export default function McpAppRenderer({
     }
   }, [activeDisplayMode]);
 
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme, mcpHostStyles } = useTheme();
 
   // Survive StrictMode remounts — replay cached results instead of re-fetching,
   // which prevents the iframe from being torn down and recreated (visible flicker).
@@ -814,7 +836,7 @@ export default function McpAppRenderer({
     const context: McpUiHostContext = {
       // todo: toolInfo: {}
       theme: resolvedTheme,
-      // todo: styles: { variables: {}, styles: {} }
+      styles: mcpHostStyles,
       displayMode: activeDisplayMode as McpUiDisplayMode,
       availableDisplayModes: isStandalone
         ? [activeDisplayMode as McpUiDisplayMode]
@@ -843,7 +865,15 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, activeDisplayMode, isStandalone, containerWidth, containerHeight, effectiveDisplayModes]);
+  }, [
+    resolvedTheme,
+    mcpHostStyles,
+    activeDisplayMode,
+    isStandalone,
+    containerWidth,
+    containerHeight,
+    effectiveDisplayModes,
+  ]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
@@ -1001,13 +1031,13 @@ export default function McpAppRenderer({
   // Single stable container — CSS switches between inline/fullscreen/pip positioning.
   // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
-    'mcp-app-container bg-background-default [&_iframe]:!w-full',
+    'mcp-app-container bg-background-primary [&_iframe]:!w-full',
     isFillsViewport && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
     isPip &&
-      'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-default shadow-2xl',
+      'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-primary shadow-2xl',
     isInline && 'group/mcp-app relative overflow-hidden',
     isInline && !isError && 'mt-6 mb-2',
-    isInline && !isError && meta.prefersBorder && 'border border-border-default rounded-lg',
+    isInline && !isError && meta.prefersBorder && 'border border-border-primary rounded-lg',
     isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20'
   );
 
@@ -1038,12 +1068,12 @@ export default function McpAppRenderer({
       )}
       {isPip && (
         <div
-          className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-default bg-black/[0.02] dark:bg-white/[0.02]"
+          className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-primary bg-black/[0.02] dark:bg-white/[0.02]"
           style={{ width: '100%', height: `${inlineHeightRef.current}px` }}
         >
           <button
             onClick={() => changeDisplayMode('inline')}
-            className="cursor-pointer flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-text-subtler transition-colors hover:bg-black/5 hover:text-text-default dark:hover:bg-white/5"
+            className="cursor-pointer flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/5"
           >
             <PictureInPicture2 size={14} />
             <span>Playing in Picture-in-Picture</span>
@@ -1052,7 +1082,11 @@ export default function McpAppRenderer({
       )}
 
       {/* Stable app container — never unmounted, only repositioned via CSS */}
-      <div ref={containerRef} className={cn(containerClasses, isPip && 'group/pip')} style={containerStyle}>
+      <div
+        ref={containerRef}
+        className={cn(containerClasses, isPip && 'group/pip')}
+        style={containerStyle}
+      >
         {isPip && (
           <div className="pointer-events-none sticky top-1 z-20 flex h-0 items-start justify-between px-1 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
             <div
@@ -1067,9 +1101,7 @@ export default function McpAppRenderer({
             >
               <GripHorizontal size={14} />
             </div>
-            <div className="flex gap-1">
-              {renderDisplayModeControls()}
-            </div>
+            <div className="flex gap-1">{renderDisplayModeControls()}</div>
           </div>
         )}
         <div className={cn('relative w-full', !isPip && 'h-full')}>

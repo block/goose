@@ -28,7 +28,6 @@ main().catch((err) => {
 async function main() {
   const schemaSrc = await fs.readFile(SCHEMA_PATH, "utf8");
   const jsonSchema = JSON.parse(
-    // Convert JSON Schema $defs refs to OpenAPI component refs
     schemaSrc.replaceAll("#/$defs/", "#/components/schemas/"),
   );
 
@@ -63,7 +62,6 @@ async function main() {
 async function postProcessTypes() {
   const tsPath = resolve(OUTPUT_DIR, "types.gen.ts");
   let src = await fs.readFile(tsPath, "utf8");
-  // Remove the ClientOptions type block injected by @hey-api (not part of our schema)
   src = src.replace(/\nexport type ClientOptions =[\s\S]*?^};\n/m, "\n");
   await fs.writeFile(tsPath, src);
 }
@@ -72,17 +70,14 @@ async function postProcessIndex(meta: { methods: unknown[] }) {
   const indexPath = resolve(OUTPUT_DIR, "index.ts");
   let src = await fs.readFile(indexPath, "utf8");
 
-  // Strip ClientOptions from re-exports
   src = src.replace(/,?\s*ClientOptions\s*,?/g, (match) => {
     if (match.startsWith(",") && match.endsWith(",")) return ",";
     if (match.startsWith(",")) return "";
     return "";
   });
 
-  // Fix bare relative imports to use .js extensions (required by nodenext consumers)
   src = fixRelativeImports(src);
 
-  // Append method constants
   const methodConstants = await prettier.format(
     `
 export const GOOSE_EXT_METHODS = ${JSON.stringify(meta.methods, null, 2)} as const;
@@ -94,7 +89,6 @@ export type GooseExtMethod = (typeof GOOSE_EXT_METHODS)[number];
 
   await fs.writeFile(indexPath, `${src}\n${methodConstants}`);
 
-  // Also fix imports in zod.gen.ts (it may import from types.gen)
   for (const file of ["zod.gen.ts", "types.gen.ts"]) {
     const filePath = resolve(OUTPUT_DIR, file);
     try {
@@ -127,9 +121,6 @@ interface MethodMeta {
   responseType: string | null;
 }
 
-/**
- * Convert a method path like "session/list" or "working_dir/update" to camelCase "sessionList", "workingDirUpdate".
- */
 function methodToCamelCase(method: string): string {
   return method
     .split(/[/_]/)
@@ -139,10 +130,6 @@ function methodToCamelCase(method: string): string {
     .join("");
 }
 
-/**
- * Generate a typed GooseClient class that wraps ClientSideConnection.extMethod()
- * with proper TypeScript types and Zod runtime validation.
- */
 async function generateClient(meta: { methods: MethodMeta[] }) {
   const typeImports = new Set<string>();
   const zodImports = new Set<string>();
@@ -153,7 +140,6 @@ async function generateClient(meta: { methods: MethodMeta[] }) {
     const fnName = methodToCamelCase(m.method);
     const fullMethod = `_goose/${m.method}`;
 
-    // Build param type and arg
     let paramType = "";
     let paramArg = "";
     let callParams = "{}";
@@ -164,7 +150,6 @@ async function generateClient(meta: { methods: MethodMeta[] }) {
       callParams = "params";
     }
 
-    // Build return type and validation
     let returnType: string;
     let bodyLines: string[];
 
@@ -183,7 +168,6 @@ async function generateClient(meta: { methods: MethodMeta[] }) {
         `await this.conn.extMethod("${fullMethod}", ${callParams});`,
       ];
     } else {
-      // Both request and response are untyped (serde_json::Value)
       returnType = "Record<string, unknown>";
       bodyLines = [
         `return await this.conn.extMethod("${fullMethod}", ${callParams ? callParams : "{}"});`,
@@ -212,11 +196,7 @@ export interface ExtMethodProvider {
 ${typeImportLine}
 ${zodImportLine}
 
-/**
- * Typed client for Goose custom extension methods.
- * Wraps an ExtMethodProvider (e.g. ClientSideConnection) with proper types and Zod validation.
- */
-export class GooseClient {
+export class GooseExtClient {
   constructor(private conn: ExtMethodProvider) {}
 ${methodDefs.join("\n")}
 }

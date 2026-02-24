@@ -250,7 +250,7 @@ export const SwitchModelModal = ({
             providerType: p.provider_type,
           }));
 
-          if (p.metadata.allows_unlisted_models && p.provider_type !== 'Custom') {
+          if (p.provider_type !== 'Custom') {
             options.push({
               value: 'custom',
               label: 'Enter a model not listed...',
@@ -369,7 +369,7 @@ export const SwitchModelModal = ({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bot size={24} className="text-text-default" />
+            <Bot size={24} className="text-text-primary" />
             {titleOverride || 'Switch models'}
           </DialogTitle>
           <DialogDescription>
@@ -381,35 +381,35 @@ export const SwitchModelModal = ({
           {usePredefinedModels ? (
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-text-default">Choose a model:</label>
+                <label className="text-sm font-medium text-text-primary">Choose a model:</label>
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {predefinedModels.map((model) => (
                   <div key={model.id || model.name} className="group hover:cursor-pointer text-sm">
                     <div
-                      className={`flex items-center justify-between text-text-default py-2 px-2 ${
+                      className={`flex items-center justify-between text-text-primary py-2 px-2 ${
                         selectedPredefinedModel?.name === model.name
-                          ? 'bg-background-muted'
-                          : 'bg-background-default hover:bg-background-muted'
+                          ? 'bg-background-secondary'
+                          : 'bg-background-primary hover:bg-background-secondary'
                       } rounded-lg transition-all`}
                       onClick={() => setSelectedPredefinedModel(model)}
                     >
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-text-default font-medium">
+                          <span className="text-text-primary font-medium">
                             {model.alias || model.name}
                           </span>
                           {model.alias?.includes('recommended') && (
-                            <span className="text-xs bg-background-muted text-text-default px-2 py-1 rounded-full border border-border-default ml-2">
+                            <span className="text-xs bg-background-secondary text-text-primary px-2 py-1 rounded-full border border-border-primary ml-2">
                               Recommended
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-[2px]">
-                          <span className="text-xs text-text-muted">{model.subtext}</span>
-                          <span className="text-xs text-text-muted">•</span>
-                          <span className="text-xs text-text-muted">{model.provider}</span>
+                          <span className="text-xs text-text-secondary">{model.subtext}</span>
+                          <span className="text-xs text-text-secondary">•</span>
+                          <span className="text-xs text-text-secondary">{model.provider}</span>
                         </div>
                       </div>
 
@@ -423,10 +423,10 @@ export const SwitchModelModal = ({
                           className="peer sr-only"
                         />
                         <div
-                          className="h-4 w-4 rounded-full border border-border-default
+                          className="h-4 w-4 rounded-full border border-border-primary
                                 peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                                 peer-checked:bg-white dark:peer-checked:bg-black
-                                transition-all duration-200 ease-in-out group-hover:border-border-default"
+                                transition-all duration-200 ease-in-out group-hover:border-border-primary"
                         ></div>
                       </div>
                     </div>
@@ -486,7 +486,36 @@ export const SwitchModelModal = ({
 
               {provider && (
                 <>
-                  {providerErrors[provider] ? (
+                  {provider === 'local' &&
+                  !loadingModels &&
+                  filteredModelOptions.flatMap((g) => g.options).filter((o) => o.value !== 'custom')
+                    .length === 0 ? (
+                    /* Show special UI for local provider when no models are downloaded */
+                    <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                            Local models need to be downloaded first
+                          </h3>
+                          <div className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                            To use local inference, you need to download a model to your computer
+                            first. Go to Settings → Models to manage local models.
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setView('settings');
+                            onClose();
+                          }}
+                          className="self-start border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                        >
+                          Go to Settings
+                        </Button>
+                      </div>
+                    </div>
+                  ) : providerErrors[provider] ? (
                     /* Show error message when provider failed to connect */
                     <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
                       <div className="flex items-start">
@@ -534,10 +563,10 @@ export const SwitchModelModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
-                        <label className="text-sm text-text-muted">Custom model name</label>
+                        <label className="text-sm text-text-secondary">Custom model name</label>
                         <button
                           onClick={() => setIsCustomModel(false)}
-                          className="text-sm text-text-muted"
+                          className="text-sm text-text-secondary"
                         >
                           Back to model list
                         </button>
@@ -582,7 +611,7 @@ export const SwitchModelModal = ({
             href={QUICKSTART_GUIDE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center text-text-muted hover:text-text-default text-sm mr-auto"
+            className="inline-flex items-center text-text-secondary hover:text-text-primary text-sm mr-auto"
           >
             <ExternalLink size={14} className="mr-1" />
             Quick start guide
