@@ -36,8 +36,6 @@ fn format_text_content(text: &str, image_format: &ImageFormat) -> (Vec<Value>, b
     (items, has_image)
 }
 
-/// Returns (tool_message, image_messages) separately to allow proper ordering.
-/// All tool messages should be grouped together before any image messages.
 fn format_tool_response(
     response: &crate::conversation::message::ToolResponse,
     image_format: &ImageFormat,
