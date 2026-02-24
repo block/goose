@@ -4,6 +4,7 @@ import { Button } from '../../ui/button';
 import { SubRecipeFormData } from './recipeFormSchema';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
 import KeyValueEditor from './KeyValueEditor';
+import { toastError } from '../../../toasts';
 
 interface SubRecipeModalProps {
   isOpen: boolean;
@@ -65,6 +66,13 @@ export default function SubRecipeModal({
     try {
       const selectedPath = await window.electron.selectFileOrDirectory();
       if (selectedPath) {
+        if (!selectedPath.endsWith('.yaml') && !selectedPath.endsWith('.yml')) {
+          toastError({
+            title: 'Invalid File',
+            msg: 'Please select a YAML file (.yaml or .yml).',
+          });
+          return;
+        }
         setPath(selectedPath);
       }
     } catch (error) {

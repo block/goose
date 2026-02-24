@@ -198,7 +198,7 @@ export default function CreateRecipeFromSessionModal({
         sub_recipes: formattedSubRecipes,
       };
 
-      const recipeId = await saveRecipe(recipe, null);
+      const { id: recipeId } = await saveRecipe(recipe, null);
 
       onRecipeCreated?.(recipe);
       onClose();

@@ -66,17 +66,11 @@ export default function CreateSubRecipeInline({
         instructions: formValues.instructions.trim(),
       };
 
-      const sanitizedTitle = formValues.title
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
-
-      const savedRecipeId = await saveRecipe(recipe, sanitizedTitle);
+      const { fileName } = await saveRecipe(recipe, null);
 
       const subRecipe: SubRecipeFormData = {
         name: name.trim(),
-        path: `${getStorageDirectory(true)}/${savedRecipeId}.yaml`,
+        path: `${getStorageDirectory(true)}/${fileName}`,
         description: toolDescription.trim() || undefined,
         sequential_when_repeated: sequentialWhenRepeated,
         values: Object.keys(values).length > 0 ? values : undefined,

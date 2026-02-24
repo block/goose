@@ -39,18 +39,21 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
   };
 
   const handleSaveSubRecipe = (subRecipe: SubRecipeFormData) => {
+    const isDuplicate = subRecipes.some(
+      (sr, i) => sr.name === subRecipe.name && i !== editingIndex
+    );
+    if (isDuplicate) {
+      toastError({
+        title: 'Duplicate Name',
+        msg: `A subrecipe named "${subRecipe.name}" already exists. Please use a unique name.`,
+      });
+      return;
+    }
     if (editingIndex !== null) {
       const newSubRecipes = [...subRecipes];
       newSubRecipes[editingIndex] = subRecipe;
       onChange(newSubRecipes);
     } else {
-      if (subRecipes.some((sr) => sr.name === subRecipe.name)) {
-        toastError({
-          title: 'Duplicate Name',
-          msg: `A subrecipe named "${subRecipe.name}" already exists. Please use a unique name.`,
-        });
-        return;
-      }
       onChange([...subRecipes, subRecipe]);
     }
   };
@@ -177,8 +180,6 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
         subRecipe={editingSubRecipe}
       />
 
-      {/* SubRecipeModal (z-[500]) can be opened from within CreateSubRecipeInline (z-[400]),
-          so SubRecipeModal must have a higher z-index than this panel. */}
       <CreateSubRecipeInline
         isOpen={showCreateRecipeModal}
         onClose={() => {

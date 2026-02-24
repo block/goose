@@ -323,9 +323,8 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      const savedRecipeId = await saveRecipe(recipe, recipeId);
+      const { id: savedRecipeId } = await saveRecipe(recipe, recipeId);
 
-      // Call the callback with the saved recipe ID if provided
       if (onRecipeSaved) {
         onRecipeSaved(savedRecipeId);
       }
@@ -362,9 +361,8 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      const savedId = await saveRecipe(recipe, recipeId);
+      const { id: savedId } = await saveRecipe(recipe, recipeId);
 
-      // Close modal first
       onClose(true);
 
       window.electron.createChatWindow({ recipeId: savedId });
