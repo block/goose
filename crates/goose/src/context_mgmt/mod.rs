@@ -414,19 +414,26 @@ fn format_message_for_compacting(msg: &Message) -> String {
     }
 }
 
-/// Compute a smart tool call cutoff based on the model's context window size.
-/// Larger context windows can hold more tool calls before summarization is needed.
-/// Returns context_limit / 10_000, clamped to [10, 100].
-pub fn compute_tool_call_cutoff(context_limit: usize) -> usize {
-    (context_limit / 10_000).clamp(10, 100)
+/// Compute a smart tool call cutoff based on the effective context budget.
+/// When a compaction threshold is set, the effective budget is context_limit * threshold,
+/// since compaction will fire at that point anyway.
+/// Returns effective_limit / 10_000, clamped to [10, 100].
+pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: Option<f64>) -> usize {
+    let effective_limit = match compaction_threshold {
+        Some(t) if t > 0.0 && t < 1.0 => (context_limit as f64 * t) as usize,
+        _ => context_limit,
+    };
+    (effective_limit / 10_000).clamp(10, 100)
 }
 
 /// Find tool call IDs to summarize. Returns the oldest unsummarized tool call IDs
-/// that exceed the cutoff, up to `batch_size` at once.
+/// that exceed the cutoff, up to `batch_size` at once. Tool calls from the current
+/// turn (identified by `protect_last_n`) are never summarized.
 pub fn tool_ids_to_summarize(
     conversation: &Conversation,
     cutoff: usize,
     batch_size: usize,
+    protect_last_n: usize,
 ) -> Vec<String> {
     let messages = conversation.messages();
 
@@ -448,7 +455,13 @@ pub fn tool_ids_to_summarize(
         return Vec::new();
     }
 
-    let excess = tool_call_ids.len() - cutoff;
+    // Never summarize the last N tool calls (current turn)
+    let eligible = tool_call_ids.len().saturating_sub(protect_last_n);
+    if eligible <= cutoff {
+        return Vec::new();
+    }
+
+    let excess = eligible - cutoff;
     let to_summarize = excess.min(batch_size);
     tool_call_ids.into_iter().take(to_summarize).collect()
 }
@@ -519,9 +532,11 @@ pub fn maybe_summarize_tool_pairs(
     session_id: String,
     conversation: Conversation,
     cutoff: usize,
+    protect_last_n: usize,
 ) -> JoinHandle<Vec<(Message, String)>> {
     tokio::spawn(async move {
-        let tool_ids = tool_ids_to_summarize(&conversation, cutoff, TOOL_PAIR_BATCH_SIZE);
+        let tool_ids =
+            tool_ids_to_summarize(&conversation, cutoff, TOOL_PAIR_BATCH_SIZE, protect_last_n);
         let mut results = Vec::new();
         for tool_id in tool_ids {
             match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
@@ -757,7 +772,7 @@ mod tests {
 
         let conversation = Conversation::new_unvalidated(messages);
 
-        let result = tool_ids_to_summarize(&conversation, 2, 3);
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 0);
         assert!(
             !result.is_empty(),
             "Should return pairs to summarize when tool calls exceed cutoff"
@@ -830,20 +845,25 @@ mod tests {
             "Summary should not be user visible"
         );
 
-        let result = tool_ids_to_summarize(&updated_conversation, 3, 3);
+        let result = tool_ids_to_summarize(&updated_conversation, 3, 3, 0);
         assert!(result.is_empty(), "Nothing left to summarize");
     }
 
     #[test]
     fn test_compute_tool_call_cutoff_scales_with_context() {
-        assert_eq!(compute_tool_call_cutoff(128_000), 12);
-        assert_eq!(compute_tool_call_cutoff(200_000), 20);
-        assert_eq!(compute_tool_call_cutoff(1_000_000), 100);
+        // No threshold (uses full context)
+        assert_eq!(compute_tool_call_cutoff(128_000, None), 12);
+        assert_eq!(compute_tool_call_cutoff(200_000, None), 20);
+        assert_eq!(compute_tool_call_cutoff(1_000_000, None), 100);
         // Clamp at minimum
-        assert_eq!(compute_tool_call_cutoff(50_000), 10);
-        assert_eq!(compute_tool_call_cutoff(10_000), 10);
+        assert_eq!(compute_tool_call_cutoff(50_000, None), 10);
+        assert_eq!(compute_tool_call_cutoff(10_000, None), 10);
         // Clamp at maximum
-        assert_eq!(compute_tool_call_cutoff(2_000_000), 100);
+        assert_eq!(compute_tool_call_cutoff(2_000_000, None), 100);
+        // With compaction threshold — uses effective budget
+        assert_eq!(compute_tool_call_cutoff(200_000, Some(0.3)), 10); // 60K effective
+        assert_eq!(compute_tool_call_cutoff(1_000_000, Some(0.5)), 50); // 500K effective
+        assert_eq!(compute_tool_call_cutoff(200_000, Some(0.8)), 16); // 160K effective
     }
 
     #[test]
@@ -860,7 +880,7 @@ mod tests {
         }
         let conversation = Conversation::new_unvalidated(messages);
 
-        let result = tool_ids_to_summarize(&conversation, 2, 2);
+        let result = tool_ids_to_summarize(&conversation, 2, 2, 0);
         assert_eq!(result.len(), 2, "Should be capped at batch_size=2");
         assert_eq!(result[0], "call0");
         assert_eq!(result[1], "call1");
@@ -873,7 +893,38 @@ mod tests {
         messages.extend(create_tool_pair("call1", "resp1", "read_file", "content"));
         let conversation = Conversation::new_unvalidated(messages);
 
-        let result = tool_ids_to_summarize(&conversation, 5, 3);
+        let result = tool_ids_to_summarize(&conversation, 5, 3, 0);
         assert!(result.is_empty(), "Under cutoff, nothing to summarize");
+    }
+
+    #[test]
+    fn test_tool_ids_to_summarize_protects_current_turn() {
+        let mut messages = vec![Message::user().with_text("hello")];
+        // 6 tool pairs total, cutoff=2
+        for i in 0..6 {
+            messages.extend(create_tool_pair(
+                &format!("call{}", i),
+                &format!("resp{}", i),
+                "read_file",
+                "content",
+            ));
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        // Protect last 3 (current turn) — 6 total, 3 eligible, cutoff 2 → 1 to summarize
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 3);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], "call0");
+
+        // Protect last 5 — only 1 eligible, under cutoff
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 5);
+        assert!(
+            result.is_empty(),
+            "Should not summarize when protected count leaves too few eligible"
+        );
+
+        // Protect all — nothing eligible
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 6);
+        assert!(result.is_empty());
     }
 }

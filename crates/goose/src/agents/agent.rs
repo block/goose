@@ -360,7 +360,10 @@ impl Agent {
                     .await
                     .map(|p| p.get_model_config().context_limit())
                     .unwrap_or(crate::model::DEFAULT_CONTEXT_LIMIT);
-                crate::context_mgmt::compute_tool_call_cutoff(context_limit)
+                let compaction_threshold = Config::global()
+                    .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
+                    .ok();
+                crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             }
         };
 
@@ -1124,6 +1127,15 @@ impl Agent {
             });
         }
 
+        // Count tool calls present before this reply — everything added during
+        // the reply loop is part of the current turn and should not be summarized.
+        let pre_turn_tool_count = conversation
+            .messages()
+            .iter()
+            .flat_map(|m| m.content.iter())
+            .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+            .count();
+
         let working_dir = session.working_dir.clone();
         Ok(Box::pin(async_stream::try_stream! {
             let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
@@ -1158,11 +1170,18 @@ impl Agent {
                     break;
                 }
 
+                let current_turn_tool_count = conversation.messages().iter()
+                    .flat_map(|m| m.content.iter())
+                    .filter(|c| matches!(c, MessageContent::ToolRequest(_)))
+                    .count()
+                    .saturating_sub(pre_turn_tool_count);
+
                 let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
                     self.provider().await?,
                     session_config.id.clone(),
                     conversation.clone(),
                     tool_call_cut_off,
+                    current_turn_tool_count,
                 );
 
                 let conversation_with_moim = super::moim::inject_moim(
