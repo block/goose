@@ -1082,7 +1082,7 @@ impl SessionStorage {
     async fn get_conversation(&self, session_id: &str) -> Result<Conversation> {
         let pool = self.pool().await?;
         let rows = sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
-            "SELECT role, content_json, created_timestamp, metadata_json, message_id FROM messages WHERE session_id = ? ORDER BY timestamp",
+            "SELECT role, content_json, created_timestamp, metadata_json, message_id FROM messages WHERE session_id = ? ORDER BY created_timestamp",
         )
             .bind(session_id)
             .fetch_all(pool)

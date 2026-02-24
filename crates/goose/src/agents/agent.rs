@@ -1638,6 +1638,7 @@ impl Agent {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
                 conversation.extend(messages_to_add);
+                conversation.sort_by_created();
                 if exit_chat {
                     break;
                 }
