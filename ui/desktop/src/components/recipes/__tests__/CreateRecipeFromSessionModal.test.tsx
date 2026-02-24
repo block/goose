@@ -14,7 +14,7 @@ vi.mock('../../../toasts', () => ({
 }));
 
 vi.mock('../../../recipe/recipe_management', () => ({
-  saveRecipe: vi.fn(),
+  saveRecipe: vi.fn().mockResolvedValue({ id: 'mock-recipe-id', fileName: 'mock-recipe.yaml' }),
 }));
 
 vi.mock('../../ConfigContext', () => ({
