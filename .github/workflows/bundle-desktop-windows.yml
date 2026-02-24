@@ -83,9 +83,11 @@ jobs:
           RUSTFLAGS: -C target-feature=-crt-static
           CMAKE_POLICY_DEFAULT_CMP0091: NEW
           CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
-          CMAKE_C_FLAGS_RELEASE: /MD
-          CMAKE_CXX_FLAGS_RELEASE: /MD
         run: |
+          unset CMAKE_ARGS
+          unset CMAKE_C_FLAGS_RELEASE
+          unset CMAKE_CXX_FLAGS_RELEASE
+
           echo "🚀 Building Windows executable..."
           cargo build --release --target x86_64-pc-windows-msvc
 
