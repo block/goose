@@ -50,7 +50,7 @@ use rmcp::transport::auth::AuthClient;
 use schemars::_private::NoSerialize;
 use serde_json::Value;
 
-type McpClientBox = Arc<dyn McpClientTrait>;
+pub type McpClientBox = Arc<dyn McpClientTrait>;
 
 static RE_ENV_BRACES: Lazy<regex::Regex> =
     Lazy::new(|| regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}").expect("valid regex"));
@@ -215,10 +215,10 @@ pub fn is_first_class_extension(name: &str) -> bool {
 }
 
 /// Result of resolving a tool call to its owning extension
-struct ResolvedTool {
-    extension_name: String,
-    actual_tool_name: String,
-    client: McpClientBox,
+pub struct ResolvedTool {
+    pub extension_name: String,
+    pub actual_tool_name: String,
+    pub client: McpClientBox,
 }
 
 async fn child_process_client(
@@ -1295,7 +1295,7 @@ impl ExtensionManager {
         }
     }
 
-    async fn resolve_tool(
+    pub async fn resolve_tool(
         &self,
         session_id: &str,
         tool_name: &str,

@@ -490,16 +490,22 @@ impl GooseAcpAgent {
         };
 
         let mut fields = ToolCallUpdateFields::new().status(status);
-        let is_acp_tool = tool_request
-            .and_then(|req| req.tool_call.as_ref().ok())
-            // TODO: something more robust here
-            .is_some_and(|req| {
-                req.name == "read"
-                    || req.name == "write"
-                    || req.name == "str_replace"
-                    || req.name == "insert"
-                    || req.name == "shell"
-            });
+
+        let is_acp_tool = if let Some(tool_request) = tool_request {
+            if let Ok(ref tool_call) = tool_request.tool_call {
+                session
+                    .agent
+                    .extension_manager
+                    .resolve_tool(&*session_id.0, &tool_call.name)
+                    .await
+                    .is_ok_and(|res| res.extension_name == "tools")
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         if !is_acp_tool {
             let content = build_tool_call_content(&tool_response.tool_result);
             fields = fields.content(content);
@@ -740,9 +746,9 @@ impl GooseAcpAgent {
             agent
                 .extension_manager
                 .add_client(
-                    "acp-tools".to_string(),
+                    "tools".to_string(),
                     ExtensionConfig::Builtin {
-                        name: "acp-tools".to_string(),
+                        name: "tools".to_string(),
                         description: "".to_string(),
                         display_name: None,
                         timeout: None,

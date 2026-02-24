@@ -1,10 +1,10 @@
 use std::{fmt::Display, future::Future, path::PathBuf, sync::LazyLock};
 
 use agent_client_protocol_schema::{
-    CreateTerminalRequest, Diff, ReadTextFileRequest, SessionId, SessionNotification,
-    SessionUpdate, Terminal, TerminalOutputRequest, ToolCallContent, ToolCallId, ToolCallLocation,
-    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind, WaitForTerminalExitRequest,
-    WriteTextFileRequest,
+    CreateTerminalRequest, Diff, ReadTextFileRequest, ReleaseTerminalRequest, SessionId,
+    SessionNotification, SessionUpdate, Terminal, TerminalOutputRequest, ToolCallContent,
+    ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use async_trait::async_trait;
 use goose::agents::mcp_client::McpClientTrait;
@@ -326,6 +326,20 @@ impl AcpTools {
             .map_err(|_| {
                 ServiceError::McpError(ErrorData::internal_error(
                     "failed to wait for terminal exit",
+                    None,
+                ))
+            })?;
+        let _release_res = self
+            .cx
+            .send_request(ReleaseTerminalRequest::new(
+                self.session_id.clone(),
+                terminal_id.clone(),
+            ))
+            .block_task()
+            .await
+            .map_err(|_| {
+                ServiceError::McpError(ErrorData::internal_error(
+                    "failed to release terminal",
                     None,
                 ))
             })?;
