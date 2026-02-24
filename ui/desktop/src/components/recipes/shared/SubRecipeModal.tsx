@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, FolderOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, FolderOpen } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { SubRecipeFormData } from './recipeFormSchema';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
+import KeyValueEditor from './KeyValueEditor';
 
 interface SubRecipeModalProps {
   isOpen: boolean;
@@ -22,8 +23,6 @@ export default function SubRecipeModal({
   const [description, setDescription] = useState('');
   const [sequentialWhenRepeated, setSequentialWhenRepeated] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
-  const [newValueKey, setNewValueKey] = useState('');
-  const [newValueValue, setNewValueValue] = useState('');
 
   useEscapeKey(isOpen, onClose);
 
@@ -42,8 +41,6 @@ export default function SubRecipeModal({
         setSequentialWhenRepeated(false);
         setValues({});
       }
-      setNewValueKey('');
-      setNewValueValue('');
     }
   }, [isOpen, subRecipe]);
 
@@ -62,27 +59,6 @@ export default function SubRecipeModal({
 
     onSave(subRecipeData);
     onClose();
-  };
-
-  const handleAddValue = () => {
-    if (newValueKey.trim() && newValueValue.trim()) {
-      setValues({ ...values, [newValueKey.trim()]: newValueValue.trim() });
-      setNewValueKey('');
-      setNewValueValue('');
-    }
-  };
-
-  const handleRemoveValue = (key: string) => {
-    const newValues = { ...values };
-    delete newValues[key];
-    setValues(newValues);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent, action: () => void) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      action();
-    }
   };
 
   const handleBrowseFile = async () => {
@@ -116,6 +92,7 @@ export default function SubRecipeModal({
             variant="ghost"
             size="sm"
             className="p-2 hover:bg-bgSubtle rounded-lg transition-colors"
+            aria-label="Close subrecipe modal"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -129,14 +106,14 @@ export default function SubRecipeModal({
               htmlFor="subrecipe-name"
               className="block text-sm font-medium text-text-standard mb-2"
             >
-              Name <span className="text-red-500">*</span>
+              Name <span className="text-text-danger">*</span>
             </label>
             <input
               id="subrecipe-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="e.g., security_scan"
             />
             <p className="text-xs text-text-muted mt-1">
@@ -150,7 +127,7 @@ export default function SubRecipeModal({
               htmlFor="subrecipe-path"
               className="block text-sm font-medium text-text-standard mb-2"
             >
-              Path <span className="text-red-500">*</span>
+              Path <span className="text-text-danger">*</span>
             </label>
             <div className="flex gap-2">
               <input
@@ -158,7 +135,7 @@ export default function SubRecipeModal({
                 type="text"
                 value={path}
                 onChange={(e) => setPath(e.target.value)}
-                className="flex-1 p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder="e.g., ./subrecipes/security-analysis.yaml"
               />
               <Button
@@ -188,7 +165,7 @@ export default function SubRecipeModal({
               id="subrecipe-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               placeholder="Optional description of what this subrecipe does..."
               rows={3}
             />
@@ -201,7 +178,7 @@ export default function SubRecipeModal({
               type="checkbox"
               checked={sequentialWhenRepeated}
               onChange={(e) => setSequentialWhenRepeated(e.target.checked)}
-              className="w-4 h-4 text-blue-500 border-border-subtle rounded focus:ring-2 focus:ring-blue-500"
+              className="w-4 h-4 border-border-subtle rounded focus:ring-2 focus:ring-ring"
             />
             <label htmlFor="subrecipe-sequential" className="text-sm text-text-standard">
               Sequential when repeated
@@ -219,63 +196,7 @@ export default function SubRecipeModal({
             <p className="text-xs text-text-muted mb-3">
               Optional parameter values that are always passed to the subrecipe
             </p>
-
-            {/* Add Value Input */}
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={newValueKey}
-                onChange={(e) => setNewValueKey(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleAddValue)}
-                placeholder="Parameter name..."
-                className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-              <input
-                type="text"
-                value={newValueValue}
-                onChange={(e) => setNewValueValue(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleAddValue)}
-                placeholder="Parameter value..."
-                className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-              <Button
-                type="button"
-                onClick={handleAddValue}
-                disabled={!newValueKey.trim() || !newValueValue.trim()}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Values List */}
-            {Object.keys(values).length > 0 && (
-              <div className="space-y-2 border border-border-subtle rounded-lg p-3">
-                {Object.entries(values).map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between p-2 bg-background-muted rounded"
-                  >
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-text-standard">{key}</span>
-                      <span className="text-sm text-text-muted mx-2">=</span>
-                      <span className="text-sm text-text-standard">{value}</span>
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={() => handleRemoveValue(key)}
-                      variant="ghost"
-                      size="sm"
-                      className="p-1 hover:bg-red-100 hover:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <KeyValueEditor values={values} onChange={setValues} />
           </div>
         </div>
 
@@ -284,11 +205,7 @@ export default function SubRecipeModal({
           <Button onClick={onClose} variant="outline" className="flex-1">
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={!name.trim() || !path.trim()}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
-          >
+          <Button onClick={handleSave} disabled={!name.trim() || !path.trim()} className="flex-1">
             {subRecipe ? 'Apply' : 'Add Subrecipe'}
           </Button>
         </div>

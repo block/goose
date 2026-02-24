@@ -1123,10 +1123,10 @@ describe('RecipeFormFields', () => {
       const subrecipeCard = screen.getByText('to_be_deleted').closest('.border');
       const deleteButton = subrecipeCard?.querySelectorAll('button')[1];
 
-      if (deleteButton) {
-        await user.click(deleteButton);
-        expect(screen.queryByText('to_be_deleted')).not.toBeInTheDocument();
-      }
+      expect(subrecipeCard).toBeTruthy();
+      expect(deleteButton).toBeTruthy();
+      await user.click(deleteButton!);
+      expect(screen.queryByText('to_be_deleted')).not.toBeInTheDocument();
     });
   });
 });
