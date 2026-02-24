@@ -7233,6 +7233,22 @@
             "format": "int32",
             "nullable": true
           },
+          "children_accumulated_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "children_accumulated_output_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "children_accumulated_total_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Accumulated tokens from child subagent sessions (computed, not stored in DB)",
+            "nullable": true
+          },
           "conversation": {
             "allOf": [
               {
@@ -7274,6 +7290,10 @@
           "output_tokens": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "parent_session_id": {
+            "type": "string",
             "nullable": true
           },
           "provider_name": {

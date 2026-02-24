@@ -18,7 +18,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 7;
+pub const CURRENT_SCHEMA_VERSION: i32 = 8;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -90,6 +90,15 @@ pub struct Session {
     pub message_count: usize,
     pub provider_name: Option<String>,
     pub model_config: Option<ModelConfig>,
+    #[serde(default)]
+    pub parent_session_id: Option<String>,
+    /// Accumulated tokens from child subagent sessions (computed, not stored in DB)
+    #[serde(default)]
+    pub children_accumulated_total_tokens: Option<i32>,
+    #[serde(default)]
+    pub children_accumulated_input_tokens: Option<i32>,
+    #[serde(default)]
+    pub children_accumulated_output_tokens: Option<i32>,
 }
 
 pub struct SessionUpdateBuilder<'a> {
@@ -268,7 +277,23 @@ impl SessionManager {
         session_type: SessionType,
     ) -> Result<Session> {
         self.storage
-            .create_session(working_dir, name, session_type)
+            .create_session(working_dir, name, session_type, None)
+            .await
+    }
+
+    pub async fn create_subagent_session(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        parent_session_id: String,
+    ) -> Result<Session> {
+        self.storage
+            .create_session(
+                working_dir,
+                name,
+                SessionType::SubAgent,
+                Some(parent_session_id),
+            )
             .await
     }
 
@@ -414,6 +439,10 @@ impl Default for Session {
             message_count: 0,
             provider_name: None,
             model_config: None,
+            parent_session_id: None,
+            children_accumulated_total_tokens: None,
+            children_accumulated_input_tokens: None,
+            children_accumulated_output_tokens: None,
         }
     }
 }
@@ -478,6 +507,10 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
             provider_name: row.try_get("provider_name").ok().flatten(),
             model_config,
+            parent_session_id: row.try_get("parent_session_id").ok().flatten(),
+            children_accumulated_total_tokens: None,
+            children_accumulated_input_tokens: None,
+            children_accumulated_output_tokens: None,
         })
     }
 }
@@ -576,7 +609,8 @@ impl SessionStorage {
                 recipe_json TEXT,
                 user_recipe_values_json TEXT,
                 provider_name TEXT,
-                model_config_json TEXT
+                model_config_json TEXT,
+                parent_session_id TEXT
             )
         "#,
         )
@@ -614,6 +648,9 @@ impl SessionStorage {
             .execute(pool)
             .await?;
         sqlx::query("CREATE INDEX idx_sessions_type ON sessions(session_type)")
+            .execute(pool)
+            .await?;
+        sqlx::query("CREATE INDEX idx_sessions_parent ON sessions(parent_session_id)")
             .execute(pool)
             .await?;
 
@@ -884,6 +921,16 @@ impl SessionStorage {
                     .execute(&mut **tx)
                     .await?;
             }
+            8 => {
+                sqlx::query("ALTER TABLE sessions ADD COLUMN parent_session_id TEXT")
+                    .execute(&mut **tx)
+                    .await?;
+                sqlx::query(
+                    "CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)",
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -897,6 +944,7 @@ impl SessionStorage {
         working_dir: PathBuf,
         name: String,
         session_type: SessionType,
+        parent_session_id: Option<String>,
     ) -> Result<Session> {
         let pool = self.pool().await?;
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -904,7 +952,7 @@ impl SessionStorage {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
         let session = sqlx::query_as(
             r#"
-                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data)
+                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, parent_session_id)
                 VALUES (
                     ? || '_' || CAST(COALESCE((
                         SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
@@ -915,18 +963,20 @@ impl SessionStorage {
                     FALSE,
                     ?,
                     ?,
-                    '{}'
+                    '{}',
+                    ?
                 )
                 RETURNING *
                 "#,
         )
-            .bind(&today)
-            .bind(&today)
-            .bind(&name)
-            .bind(session_type.to_string())
-            .bind(&*working_dir.to_string_lossy())
-            .fetch_one(&mut *tx)
-            .await?;
+        .bind(&today)
+        .bind(&today)
+        .bind(&name)
+        .bind(session_type.to_string())
+        .bind(&*working_dir.to_string_lossy())
+        .bind(&parent_session_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
         tx.commit().await?;
         crate::posthog::emit_session_started();
@@ -941,7 +991,7 @@ impl SessionStorage {
                total_tokens, input_tokens, output_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
                schedule_id, recipe_json, user_recipe_values_json,
-               provider_name, model_config_json
+               provider_name, model_config_json, parent_session_id
         FROM sessions
         WHERE id = ?
     "#,
@@ -962,6 +1012,37 @@ impl SessionStorage {
                     .fetch_one(pool)
                     .await? as usize;
             session.message_count = count;
+        }
+
+        // Populate children's accumulated tokens (computed, not stored)
+        let child_tokens = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>)>(
+            r#"
+            SELECT
+                SUM(COALESCE(accumulated_total_tokens, total_tokens, 0)),
+                SUM(COALESCE(accumulated_input_tokens, input_tokens, 0)),
+                SUM(COALESCE(accumulated_output_tokens, output_tokens, 0))
+            FROM sessions
+            WHERE parent_session_id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+
+        if let Some(total) = child_tokens.0 {
+            if total > 0 {
+                session.children_accumulated_total_tokens = Some(total as i32);
+            }
+        }
+        if let Some(input) = child_tokens.1 {
+            if input > 0 {
+                session.children_accumulated_input_tokens = Some(input as i32);
+            }
+        }
+        if let Some(output) = child_tokens.2 {
+            if output > 0 {
+                session.children_accumulated_output_tokens = Some(output as i32);
+            }
         }
 
         Ok(session)
@@ -1210,7 +1291,7 @@ impl SessionStorage {
                    s.total_tokens, s.input_tokens, s.output_tokens,
                    s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
-                   s.provider_name, s.model_config_json,
+                   s.provider_name, s.model_config_json, s.parent_session_id,
                    COUNT(m.id) as message_count
             FROM sessions s
             INNER JOIN messages m ON s.id = m.session_id
@@ -1248,6 +1329,19 @@ impl SessionStorage {
         if !exists {
             return Err(anyhow::anyhow!("Session not found"));
         }
+
+        // Delete child subagent sessions and their messages first
+        sqlx::query(
+            "DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE parent_session_id = ?)",
+        )
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query("DELETE FROM sessions WHERE parent_session_id = ?")
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await?;
 
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(session_id)
@@ -1298,6 +1392,7 @@ impl SessionStorage {
                 import.working_dir.clone(),
                 import.name.clone(),
                 import.session_type,
+                import.parent_session_id.clone(),
             )
             .await?;
 
@@ -1341,6 +1436,7 @@ impl SessionStorage {
                 original_session.working_dir.clone(),
                 new_name,
                 original_session.session_type,
+                original_session.parent_session_id.clone(),
             )
             .await?;
 
@@ -1726,5 +1822,77 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_subagent_parent_session_cost_and_delete() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        // Create parent + 2 children
+        let parent = sm
+            .create_session(
+                PathBuf::from("/tmp"),
+                "Parent".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        let child1 = sm
+            .create_subagent_session(
+                PathBuf::from("/tmp"),
+                "Child 1".to_string(),
+                parent.id.clone(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(child1.parent_session_id, Some(parent.id.clone()));
+        assert_eq!(child1.session_type, SessionType::SubAgent);
+
+        let child2 = sm
+            .create_subagent_session(
+                PathBuf::from("/tmp"),
+                "Child 2".to_string(),
+                parent.id.clone(),
+            )
+            .await
+            .unwrap();
+
+        // Set token costs
+        sm.update(&parent.id)
+            .accumulated_total_tokens(Some(100))
+            .accumulated_input_tokens(Some(60))
+            .accumulated_output_tokens(Some(40))
+            .apply()
+            .await
+            .unwrap();
+        sm.update(&child1.id)
+            .accumulated_total_tokens(Some(50))
+            .accumulated_input_tokens(Some(30))
+            .accumulated_output_tokens(Some(20))
+            .apply()
+            .await
+            .unwrap();
+        sm.update(&child2.id)
+            .accumulated_total_tokens(Some(200))
+            .accumulated_input_tokens(Some(120))
+            .accumulated_output_tokens(Some(80))
+            .apply()
+            .await
+            .unwrap();
+
+        // Parent's own tokens are unchanged, children's tokens are separate
+        let parent_fetched = sm.get_session(&parent.id, false).await.unwrap();
+        assert_eq!(parent_fetched.accumulated_total_tokens, Some(100));
+        assert_eq!(parent_fetched.children_accumulated_total_tokens, Some(250)); // 50+200
+        assert_eq!(parent_fetched.children_accumulated_input_tokens, Some(150)); // 30+120
+        assert_eq!(parent_fetched.children_accumulated_output_tokens, Some(100)); // 20+80
+
+        // Delete parent should cascade to children
+        sm.delete_session(&parent.id).await.unwrap();
+        assert!(sm.get_session(&parent.id, false).await.is_err());
+        assert!(sm.get_session(&child1.id, false).await.is_err());
+        assert!(sm.get_session(&child2.id, false).await.is_err());
     }
 }
