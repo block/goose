@@ -119,8 +119,6 @@ jobs:
       - name: Build CLI (Windows)
         if: matrix.os == 'windows'
         shell: bash
-        env:
-          LLAMA_STATIC_CRT: "1"
         run: |
           echo "🚀 Building Windows CLI executable..."
           cargo build --release --target x86_64-pc-windows-msvc -p goose-cli
