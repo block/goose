@@ -431,10 +431,13 @@ pub fn create_request(
 
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_thinking_enabled {
-        let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
-            .unwrap_or_else(|_| "16000".to_string())
-            .parse()
-            .unwrap_or(16000);
+        // Anthropic requires budget_tokens >= 1024
+        const DEFAULT_THINKING_BUDGET: i32 = 16000;
+        let raw_budget_tokens: i32 = std::env::var("CLAUDE_THINKING_BUDGET")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_THINKING_BUDGET);
+        let budget_tokens: i32 = std::cmp::max(1024, raw_budget_tokens);
 
         payload
             .as_object_mut()
