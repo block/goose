@@ -8,6 +8,7 @@ import OnboardingSuccess from './OnboardingSuccess';
 import {
   trackOnboardingStarted,
   trackOnboardingCompleted,
+  trackOnboardingProviderSelected,
   trackTelemetryPreference,
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
 } from '../../utils/analytics';
@@ -53,6 +54,7 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   }, [isCheckingProvider, hasProvider]);
 
   const handleConfigured = async (providerName: string, modelId?: string) => {
+    trackOnboardingProviderSelected(providerName);
     await upsert('GOOSE_PROVIDER', providerName, false);
     if (modelId) {
       await upsert('GOOSE_MODEL', modelId, false);

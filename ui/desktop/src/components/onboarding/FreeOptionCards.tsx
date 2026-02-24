@@ -3,7 +3,6 @@ import { startNanogptSetup } from '../../utils/nanogptSetup';
 import { startTetrateSetup } from '../../utils/tetrateSetup';
 import { Tetrate } from '../icons';
 import LocalModelPicker from './LocalModelPicker';
-import { trackOnboardingProviderSelected } from '../../utils/analytics';
 import { HardDrive } from 'lucide-react';
 
 const TETRATE = 'tetrate' as const;
@@ -52,7 +51,6 @@ export default function FreeOptionCards({ onConfigured }: FreeOptionCardsProps) 
   const handleNanogptSetup = () => handleSetup(NANOGPT);
 
   const handleRunLocallyClick = () => {
-    trackOnboardingProviderSelected(LOCAL_PROVIDER);
     setSelectedProvider(LOCAL_PROVIDER);
   };
 
