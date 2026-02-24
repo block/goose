@@ -5,8 +5,11 @@ description: Add Neighborhood as a goose Extension
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
+
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/qY2i83l6dCQ" />
 
 This tutorial covers how to add the Neighborhood extension to goose, enabling you to discover nearby restaurants, browse menus, and place takeout orders through natural conversation. Sellers are US-based.
 
