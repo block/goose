@@ -280,7 +280,7 @@ impl ModelConfig {
             return tokens;
         }
 
-        16_384
+        4_096
     }
 
     pub fn new_or_fail(model_name: &str) -> ModelConfig {
