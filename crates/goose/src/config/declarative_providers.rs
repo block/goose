@@ -260,7 +260,10 @@ pub fn load_provider(id: &str) -> Result<LoadedProvider> {
             .contents_utf8()
             .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
 
-        let config: DeclarativeProviderConfig = serde_json::from_str(content)?;
+        let config: DeclarativeProviderConfig = match serde_json::from_str(content) {
+            Ok(config) => config,
+            Err(_) => continue,
+        };
         if config.name == id {
             return Ok(LoadedProvider {
                 config,
@@ -300,8 +303,16 @@ fn load_fixed_providers() -> Result<Vec<DeclarativeProviderConfig>> {
             .contents_utf8()
             .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
 
-        let config: DeclarativeProviderConfig = serde_json::from_str(content)?;
-        res.push(config)
+        match serde_json::from_str(content) {
+            Ok(config) => res.push(config),
+            Err(e) => {
+                tracing::warn!(
+                    "Skipping invalid declarative provider {:?}: {}",
+                    file.path(),
+                    e
+                );
+            }
+        }
     }
 
     Ok(res)
