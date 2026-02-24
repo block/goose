@@ -27,17 +27,18 @@ fn strip_xml_tags(text: &str) -> String {
     static BLOCK_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?s)<([a-zA-Z][a-zA-Z0-9_]*)[^>]*>.*?</[a-zA-Z][a-zA-Z0-9_]*>").unwrap()
     });
+    // Orphan closing tags with everything before them (e.g. thinking content
+    // from local models that output `reasoning...</think>answer` with no opening tag)
+    static ORPHAN_CLOSE_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?s)^.*</[a-zA-Z][a-zA-Z0-9_]*>").unwrap());
     static TAG_RE: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"</?[a-zA-Z][a-zA-Z0-9_]*[^>]*>").unwrap());
+    // Pass 1: strip matched open/close tag pairs and their content
     let pass1 = BLOCK_RE.replace_all(text, "");
-    TAG_RE.replace_all(&pass1, "").into_owned()
-}
-
-fn strip_thinking_content(text: &str) -> &str {
-    if let Some(pos) = text.rfind("</think>") {
-        return text[pos + "</think>".len()..].trim_start();
-    }
-    text
+    // Pass 2: strip orphan closing tags and everything before them
+    let pass2 = ORPHAN_CLOSE_RE.replace_all(&pass1, "");
+    // Pass 3: strip any remaining orphan opening/self-closing tags
+    TAG_RE.replace_all(&pass2, "").into_owned()
 }
 
 fn extract_short_title(text: &str) -> String {
@@ -674,8 +675,7 @@ pub trait Provider: Send + Sync {
             .iter()
             .filter_map(|c| c.as_text())
             .collect();
-        let cleaned = strip_thinking_content(&raw);
-        let description = strip_xml_tags(cleaned)
+        let description = strip_xml_tags(&raw)
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ");
@@ -774,27 +774,6 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn test_strip_thinking_content() {
-        assert_eq!(
-            strip_thinking_content("1. Analyze... 2. Think...</think>Hello"),
-            "Hello"
-        );
-        assert_eq!(
-            strip_thinking_content("long reasoning here</think>Short Title"),
-            "Short Title"
-        );
-        assert_eq!(
-            strip_thinking_content("no thinking tags here"),
-            "no thinking tags here"
-        );
-        assert_eq!(strip_thinking_content("</think>"), "");
-        assert_eq!(
-            strip_thinking_content("first</think>middle</think>last"),
-            "last"
-        );
-    }
-
-    #[test]
     fn test_strip_xml_tags() {
         assert_eq!(strip_xml_tags("<think>reasoning</think>answer"), "answer");
         assert_eq!(strip_xml_tags("before<t>mid</t>after"), "beforeafter");
@@ -805,20 +784,24 @@ mod tests {
         assert_eq!(strip_xml_tags("<think>日本語</think>hello"), "hello");
         assert_eq!(strip_xml_tags(""), "");
         assert_eq!(strip_xml_tags("<>stuff</>"), "<>stuff</>");
-        // attributes
         assert_eq!(
             strip_xml_tags(r#"<think class="deep">reasoning</think>answer"#),
             "answer"
         );
-        // self-closing tags
         assert_eq!(strip_xml_tags("<br/>self closing"), "self closing");
-        // orphan closing tags
-        assert_eq!(strip_xml_tags("orphan </think> tag"), "orphan  tag");
-        // multiline content
         assert_eq!(
             strip_xml_tags("<think>\nline1\nline2\n</think>result"),
             "result"
         );
+        assert_eq!(
+            strip_xml_tags("1. Analyze... 2. Think...</think>Hello"),
+            "Hello"
+        );
+        assert_eq!(
+            strip_xml_tags("long reasoning here</think>Short Title"),
+            "Short Title"
+        );
+        assert_eq!(strip_xml_tags("</think>"), "");
     }
 
     #[test]

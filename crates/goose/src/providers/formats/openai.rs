@@ -744,12 +744,10 @@ where
                     if !text.is_empty() {
                         if !thinking_done {
                             thinking_buffer.push_str(text);
-                            if let Some(pos) = thinking_buffer.find("</think>") {
-                                let thinking = &thinking_buffer[..pos];
-                                if !thinking.is_empty() {
-                                    content.push(MessageContent::reasoning(thinking));
+                            if let Some((before, after)) = thinking_buffer.split_once("</think>") {
+                                if !before.is_empty() {
+                                    content.push(MessageContent::reasoning(before));
                                 }
-                                let after = &thinking_buffer[pos + "</think>".len()..];
                                 if !after.is_empty() {
                                     content.push(MessageContent::text(after));
                                 }
