@@ -417,13 +417,13 @@ fn format_message_for_compacting(msg: &Message) -> String {
 /// Compute a smart tool call cutoff based on the effective context budget.
 /// When a compaction threshold is set, the effective budget is context_limit * threshold,
 /// since compaction will fire at that point anyway.
-/// Returns effective_limit / 10_000, clamped to [10, 100].
+/// Returns effective_limit / 10_000, clamped to [10, 500].
 pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: Option<f64>) -> usize {
     let effective_limit = match compaction_threshold {
         Some(t) if t > 0.0 && t < 1.0 => (context_limit as f64 * t) as usize,
         _ => context_limit,
     };
-    (effective_limit / 10_000).clamp(10, 100)
+    (effective_limit / 10_000).clamp(10, 500)
 }
 
 /// Find tool call IDs to summarize. Returns the oldest unsummarized tool call IDs
@@ -525,8 +525,6 @@ pub async fn summarize_tool_call(
     Ok(response.with_generated_id())
 }
 
-const TOOL_PAIR_BATCH_SIZE: usize = 3;
-
 pub fn maybe_summarize_tool_pairs(
     provider: Arc<dyn Provider>,
     session_id: String,
@@ -535,8 +533,10 @@ pub fn maybe_summarize_tool_pairs(
     protect_last_n: usize,
 ) -> JoinHandle<Vec<(Message, String)>> {
     tokio::spawn(async move {
-        let tool_ids =
-            tool_ids_to_summarize(&conversation, cutoff, TOOL_PAIR_BATCH_SIZE, protect_last_n);
+        // Batch size is 20% of cutoff (min 3) so summarization fires in discrete
+        // bursts with room to breathe before the next batch triggers.
+        let batch_size = (cutoff / 5).max(3);
+        let tool_ids = tool_ids_to_summarize(&conversation, cutoff, batch_size, protect_last_n);
         let mut results = Vec::new();
         for tool_id in tool_ids {
             match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
@@ -858,8 +858,8 @@ mod tests {
         // Clamp at minimum
         assert_eq!(compute_tool_call_cutoff(50_000, None), 10);
         assert_eq!(compute_tool_call_cutoff(10_000, None), 10);
-        // Clamp at maximum
-        assert_eq!(compute_tool_call_cutoff(2_000_000, None), 100);
+        // Clamp at maximum (500)
+        assert_eq!(compute_tool_call_cutoff(10_000_000, None), 500);
         // With compaction threshold — uses effective budget
         assert_eq!(compute_tool_call_cutoff(200_000, Some(0.3)), 10); // 60K effective
         assert_eq!(compute_tool_call_cutoff(1_000_000, Some(0.5)), 50); // 500K effective
