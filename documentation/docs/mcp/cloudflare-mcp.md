@@ -11,7 +11,7 @@ This tutorial covers how to add [Cloudflare's MCP Servers](https://github.com/cl
 
 Cloudflare provides multiple specialized MCP servers for different aspects of their platform, allowing you to interact with Workers, DNS, security features, analytics, and development tools.
 
-:::tip TLDR
+:::tip Quick Install
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
