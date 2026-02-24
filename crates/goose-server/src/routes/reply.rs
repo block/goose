@@ -502,6 +502,22 @@ pub async fn reply(
                     let sub_results: Vec<String> =
                         results.iter().map(|r| r.output.clone()).collect();
                     let aggregated = aggregate_results(&plan.tasks, &sub_results);
+
+                    // Best-effort persistence for orchestration memory (used by KG/observability).
+                    if let Err(e) = goose::agents::orchestration::memory::persist_orchestration_run(
+                        state.session_manager(),
+                        &session_id,
+                        &user_text,
+                        &plan,
+                        &results,
+                        max_concurrency,
+                        &aggregated,
+                    )
+                    .await
+                    {
+                        tracing::warn!(session_id = %session_id, "Failed to persist orchestration memory: {}", e);
+                    }
+
                     let aggregated_message = Message::assistant().with_text(&aggregated);
 
                     let token_state = get_token_state(state.session_manager(), &session_id).await;

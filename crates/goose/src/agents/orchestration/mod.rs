@@ -17,6 +17,8 @@ pub use super::dispatch::{
 };
 pub use super::subagent_execution_tool;
 
+pub mod memory;
+
 // pub(crate) re-exports — accessible within the crate only
 // Specialist handler is pub(crate) in the flat namespace; when code migrates
 // to use orchestration::specialist_handler, remove the #[allow].
