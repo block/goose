@@ -45,7 +45,8 @@ impl EditTools {
                         "Failed to create directory {}: {}",
                         parent.display(),
                         error
-                    ))]);
+                    ))
+                    .with_priority(0.0)]);
                 }
             }
         }
@@ -59,12 +60,14 @@ impl EditTools {
                 CallToolResult::success(vec![Content::text(format!(
                     "{} {} ({} lines)",
                     action, params.path, line_count
-                ))])
+                ))
+                .with_priority(0.0)])
             }
             Err(error) => CallToolResult::error(vec![Content::text(format!(
                 "Failed to write {}: {}",
                 params.path, error
-            ))]),
+            ))
+            .with_priority(0.0)]),
         }
     }
 
@@ -85,7 +88,8 @@ impl EditTools {
                 return CallToolResult::error(vec![Content::text(format!(
                     "Failed to read {}: {}",
                     params.path, error
-                ))]);
+                ))
+                .with_priority(0.0)]);
             }
         };
 
@@ -100,7 +104,7 @@ impl EditTools {
                 }
                 let preview = build_file_preview(&content, NO_MATCH_PREVIEW_LINES);
                 msg.push_str(&format!("\n\nFile preview:\n```\n{}\n```", preview));
-                CallToolResult::error(vec![Content::text(msg)])
+                CallToolResult::error(vec![Content::text(msg).with_priority(0.0)])
             }
             1 => {
                 let new_content = content.replacen(&params.before, &params.after, 1);
@@ -112,12 +116,14 @@ impl EditTools {
                         CallToolResult::success(vec![Content::text(format!(
                             "Edited {} ({} lines -> {} lines)",
                             params.path, old_lines, new_lines
-                        ))])
+                        ))
+                        .with_priority(0.0)])
                     }
                     Err(error) => CallToolResult::error(vec![Content::text(format!(
                         "Failed to write {}: {}",
                         params.path, error
-                    ))]),
+                    ))
+                    .with_priority(0.0)]),
                 }
             }
             n => {
@@ -141,7 +147,7 @@ impl EditTools {
                     msg.push_str(&format!("\n\n...and {} more", n - 2));
                 }
 
-                CallToolResult::error(vec![Content::text(msg)])
+                CallToolResult::error(vec![Content::text(msg).with_priority(0.0)])
             }
         }
     }

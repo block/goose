@@ -41,17 +41,22 @@ impl ShellTool {
         if params.command.trim().is_empty() {
             return CallToolResult::error(vec![Content::text(
                 "Command cannot be empty.".to_string(),
-            )]);
+            )
+            .with_priority(0.0)]);
         }
 
         let execution = match run_command(&params.command, params.timeout_secs, working_dir).await {
             Ok(execution) => execution,
-            Err(error) => return CallToolResult::error(vec![Content::text(error)]),
+            Err(error) => {
+                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
+            }
         };
 
         let mut rendered = match render_output(&execution.output) {
             Ok(rendered) => rendered,
-            Err(error) => return CallToolResult::error(vec![Content::text(error)]),
+            Err(error) => {
+                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
+            }
         };
 
         if execution.timed_out {
@@ -63,7 +68,7 @@ impl ShellTool {
             } else {
                 rendered.push_str("\n\nCommand timed out");
             }
-            return CallToolResult::error(vec![Content::text(rendered)]);
+            return CallToolResult::error(vec![Content::text(rendered).with_priority(0.0)]);
         }
 
         if execution.exit_code.unwrap_or(1) != 0 {
@@ -71,10 +76,10 @@ impl ShellTool {
                 "\n\nCommand exited with code {}",
                 execution.exit_code.unwrap_or(1)
             ));
-            return CallToolResult::error(vec![Content::text(rendered)]);
+            return CallToolResult::error(vec![Content::text(rendered).with_priority(0.0)]);
         }
 
-        CallToolResult::success(vec![Content::text(rendered)])
+        CallToolResult::success(vec![Content::text(rendered).with_priority(0.0)])
     }
 }
 

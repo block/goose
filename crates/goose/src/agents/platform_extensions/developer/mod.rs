@@ -176,29 +176,34 @@ impl McpClientTrait for DeveloperClient {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
-                ))])),
+                ))
+                .with_priority(0.0)])),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
-                ))])),
+                ))
+                .with_priority(0.0)])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
-                ))])),
+                ))
+                .with_priority(0.0)])),
             },
             "tree" => match Self::parse_args::<TreeParams>(arguments) {
                 Ok(params) => Ok(self.tree_tool.tree_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
-                ))])),
+                ))
+                .with_priority(0.0)])),
             },
             _ => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Error: Unknown tool: {name}"
-            ))])),
+            ))
+            .with_priority(0.0)])),
         }
     }
 

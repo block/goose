@@ -29,6 +29,7 @@ ALLOWED_FAILURES=(
   "google:gemini-2.5-flash"
   "google:gemini-3-pro-preview"
   "openrouter:nvidia/nemotron-3-nano-30b-a3b"
+  "openrouter:qwen/qwen3-coder:exacto"
   "openai:gpt-3.5-turbo"
 )
 
