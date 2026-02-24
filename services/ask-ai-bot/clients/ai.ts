@@ -1,4 +1,4 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import { openrouter as anthropic } from "@openrouter/ai-sdk-provider";
 
 const modelName = process.env.AI_MODEL || "claude-sonnet-4-6";
 
