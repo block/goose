@@ -351,15 +351,26 @@ impl Agent {
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
+        let tool_call_cut_off = match Config::global().get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
+        {
+            Ok(v) => v,
+            Err(_) => {
+                let context_limit = self
+                    .provider()
+                    .await
+                    .map(|p| p.get_model_config().context_limit())
+                    .unwrap_or(crate::model::DEFAULT_CONTEXT_LIMIT);
+                crate::context_mgmt::compute_tool_call_cutoff(context_limit)
+            }
+        };
+
         Ok(ReplyContext {
             conversation,
             tools,
             toolshim_tools,
             system_prompt,
             goose_mode: self.config.goose_mode,
-            tool_call_cut_off: Config::global()
-                .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
-                .unwrap_or(10),
+            tool_call_cut_off,
             initial_messages,
         })
     }
@@ -1147,7 +1158,7 @@ impl Agent {
                     break;
                 }
 
-                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pair(
+                let tool_pair_summarization_task = crate::context_mgmt::maybe_summarize_tool_pairs(
                     self.provider().await?,
                     session_config.id.clone(),
                     conversation.clone(),
@@ -1604,34 +1615,36 @@ impl Agent {
                     }
                 }
 
-                if let Ok(Some((summary_msg, tool_id))) = tool_pair_summarization_task.await {
+                if let Ok(summaries) = tool_pair_summarization_task.await {
                     let mut updated_messages = conversation.messages().clone();
 
-                    let matching: Vec<&mut Message> = updated_messages
-                        .iter_mut()
-                        .filter(|msg| {
-                            msg.id.is_some() && msg.content.iter().any(|c| match c {
-                                MessageContent::ToolRequest(req) => req.id == tool_id,
-                                MessageContent::ToolResponse(resp) => resp.id == tool_id,
-                                _ => false,
+                    for (summary_msg, tool_id) in summaries {
+                        let matching: Vec<&mut Message> = updated_messages
+                            .iter_mut()
+                            .filter(|msg| {
+                                msg.id.is_some() && msg.content.iter().any(|c| match c {
+                                    MessageContent::ToolRequest(req) => req.id == tool_id,
+                                    MessageContent::ToolResponse(resp) => resp.id == tool_id,
+                                    _ => false,
+                                })
                             })
-                        })
-                        .collect();
+                            .collect();
 
-                    if matching.len() == 2 {
-                        for msg in matching {
-                            let id = msg.id.as_ref().unwrap();
-                            msg.metadata = msg.metadata.with_agent_invisible();
-                            SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
-                                metadata.with_agent_invisible()
-                            }).await?;
+                        if matching.len() == 2 {
+                            for msg in matching {
+                                let id = msg.id.as_ref().unwrap();
+                                msg.metadata = msg.metadata.with_agent_invisible();
+                                SessionManager::update_message_metadata(&session_config.id, id, |metadata| {
+                                    metadata.with_agent_invisible()
+                                }).await?;
+                            }
+                            messages_to_add.push(summary_msg);
+                        } else {
+                            warn!("Expected a tool request/reply pair, but found {} matching messages",
+                                matching.len());
                         }
-                        conversation = Conversation::new_unvalidated(updated_messages);
-                        messages_to_add.push(summary_msg);
-                    } else {
-                        warn!("Expected a tool request/reply pair, but found {} matching messages",
-                            matching.len());
                     }
+                    conversation = Conversation::new_unvalidated(updated_messages);
                 }
 
                 for msg in &messages_to_add {
