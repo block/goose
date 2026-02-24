@@ -77,8 +77,8 @@ check_recipe_output() {
   local tmpfile=$1
   local mode=$2
 
-  # Check for delegate tool invocation (new format: "─── delegate |")
-  if grep -q "─── delegate" "$tmpfile"; then
+  # Check for delegate tool invocation (old: "─── delegate |", new: "▸ delegate")
+  if grep -qE "(─── delegate)|(▸.*delegate)" "$tmpfile"; then
     echo "✓ SUCCESS: Delegate tool invoked"
     RESULTS+=("✓ Delegate tool invocation ($mode)")
   else

@@ -1,7 +1,12 @@
 # This workflow is triggered by a comment on PR with the text ".bundle"
 # It bundles the ARM64 Desktop App, then creates a PR comment with a link to download the app.
-
+#
+# SECURITY: This workflow checks out and builds code from PRs. To prevent
+# malicious code execution (GHSA-4h72-4h3w-4587), we verify the commenter
+# has write access before proceeding.
 on:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -28,11 +33,56 @@ jobs:
     name: Trigger on ".bundle" PR comment
     runs-on: ubuntu-latest
     outputs:
-      continue: 'true'
+      continue: ${{ steps.security_check.outputs.authorized }}
       pr_number: ${{ steps.command.outputs.issue_number || github.event.inputs.pr_number }}
       pr_sha: ${{ steps.get_pr_info.outputs.sha }}
     steps:
+      # SECURITY: Verify commenter has write access BEFORE any checkout
+      # This prevents attackers from triggering builds on their own malicious PRs
+      - name: Verify commenter permissions
+        id: security_check
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        with:
+          script: |
+            // workflow_dispatch requires repo write access, so it's inherently safe
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('authorized', 'true');
+              console.log('✅ workflow_dispatch - authorized');
+              return;
+            }
+            
+            const commenter = context.payload.comment.user.login;
+            console.log(`Checking permissions for: ${commenter}`);
+            
+            try {
+              const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: commenter
+              });
+              
+              const allowed = ['admin', 'maintain', 'write'].includes(permission.permission);
+              console.log(`Permission level: ${permission.permission}, Authorized: ${allowed}`);
+              
+              if (!allowed) {
+                // Post a comment explaining the rejection
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.payload.issue.number,
+                  body: `⚠️ @${commenter} Only repository collaborators with write access can trigger builds.`
+                });
+                core.setOutput('authorized', 'false');
+              } else {
+                core.setOutput('authorized', 'true');
+              }
+            } catch (error) {
+              console.log(`Permission check failed: ${error.message}`);
+              core.setOutput('authorized', 'false');
+            }
+
       - name: Debug workflow trigger
+        if: steps.security_check.outputs.authorized == 'true'
         env:
           WORKFLOW_NAME: ${{ github.workflow }}
           WORKFLOW_REF: ${{ github.ref }}
@@ -50,6 +100,7 @@ jobs:
           echo "Repository: ${REPOSITORY}"
 
       - name: Run command action
+        if: steps.security_check.outputs.authorized == 'true'
         uses: github/command@3442f3fa1efe01bdb024b157083c337902d17372  # v2.0.3
         id: command
         with:
@@ -61,7 +112,7 @@ jobs:
       # Get the PR's SHA
       - name: Get PR info
         id: get_pr_info
-        if: ${{ steps.command.outputs.continue == 'true' || github.event_name == 'workflow_dispatch' }}
+        if: steps.security_check.outputs.authorized == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
@@ -136,4 +187,20 @@ jobs:
             [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
 
             **Instructions:**
-            After downloading, unzip the file and drag the goose.app to a location you prefer. The app is unsigned, so to run it run `xattr -r -d com.apple.quarantine '/path/to/goose.app'` and then open the app
+            
+            The easiest way is to just run the following script:
+            
+            `./scripts/pre-release.sh`
+            
+            script which will download the latest release (or you can specify the release you need), does the
+            unzip, xattr to get it out of quarantine and signs it.
+            
+            If you need to do this manually:
+            
+               * Download the file
+               * Unzip
+               * run `xattr -r -d com.apple.quarantine '/path/to/Goose.app'`
+               * optionally run `codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist '/path/to/Goose.app'`
+               * start the app
+            
+            The signing step is only needed if you do something that uses mac entitlements like speech to text

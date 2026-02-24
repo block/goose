@@ -327,20 +327,12 @@ export default function CreateEditRecipeModal({
     try {
       const recipe = getCurrentRecipe();
 
-      let saved_recipe_id = await saveRecipe(recipe, recipeId);
+      const savedId = await saveRecipe(recipe, recipeId);
 
       // Close modal first
       onClose(true);
 
-      // Open recipe in a new window instead of navigating in the same window
-      window.electron.createChatWindow(
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        saved_recipe_id
-      );
+      window.electron.createChatWindow({ recipeId: savedId });
 
       toastSuccess({
         title: recipe.title,
@@ -363,18 +355,18 @@ export default function CreateEditRecipeModal({
 
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50">
-      <div className="bg-background-default border border-border-default rounded-lg w-[90vw] max-w-4xl h-[90vh] flex flex-col">
+      <div className="bg-background-primary border border-border-primary rounded-lg w-[90vw] max-w-4xl h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-border-default">
+        <div className="flex items-center justify-between p-6 border-b border-border-primary">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-background-default rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-background-primary rounded-full flex items-center justify-center">
               <Geese className="w-6 h-6 text-iconProminent" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-text-default">
+              <h1 className="text-xl font-medium text-text-primary">
                 {isCreateMode ? 'Create Recipe' : 'View/edit recipe'}
               </h1>
-              <p className="text-text-muted text-sm">
+              <p className="text-text-secondary text-sm">
                 {isCreateMode
                   ? 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.'
                   : "You can edit the recipe below to change the agent's behavior in a new session."}{' '}
@@ -394,7 +386,7 @@ export default function CreateEditRecipeModal({
             onClick={() => onClose(false)}
             variant="ghost"
             size="sm"
-            className="p-2 hover:bg-background-muted rounded-lg transition-colors"
+            className="p-2 hover:bg-background-secondary rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -406,9 +398,9 @@ export default function CreateEditRecipeModal({
 
           {/* Deep Link Display */}
           {requiredFieldsAreFilled() && (
-            <div className="w-full p-4 bg-background-muted rounded-lg mt-6">
+            <div className="w-full p-4 bg-background-secondary rounded-lg mt-6">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-text-muted">
+                <div className="text-sm text-text-secondary">
                   Copy this link to share with friends or paste directly in Chrome to open
                 </div>
                 <Button
@@ -418,21 +410,21 @@ export default function CreateEditRecipeModal({
                   disabled={
                     !deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink'
                   }
-                  className="ml-4 p-2 hover:bg-background-default rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
+                  className="ml-4 p-2 hover:bg-background-primary rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
                 >
                   {copied ? (
                     <Check className="w-4 h-4 text-green-500" />
                   ) : (
                     <Copy className="w-4 h-4 text-iconSubtle" />
                   )}
-                  <span className="ml-1 text-sm text-text-muted">
+                  <span className="ml-1 text-sm text-text-secondary">
                     {copied ? 'Copied!' : 'Copy'}
                   </span>
                 </Button>
               </div>
               <div
                 onClick={handleCopy}
-                className="text-sm truncate font-mono cursor-pointer text-text-default"
+                className="text-sm truncate font-mono cursor-pointer text-text-primary"
               >
                 {isGeneratingDeeplink
                   ? 'Generating deeplink...'
@@ -443,11 +435,11 @@ export default function CreateEditRecipeModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-border-default">
+        <div className="flex items-center justify-between p-6 border-t border-border-primary">
           <Button
             onClick={() => onClose(false)}
             variant="ghost"
-            className="px-4 py-2 text-text-muted rounded-lg hover:bg-background-muted transition-colors"
+            className="px-4 py-2 text-text-secondary rounded-lg hover:bg-background-secondary transition-colors"
           >
             Close
           </Button>

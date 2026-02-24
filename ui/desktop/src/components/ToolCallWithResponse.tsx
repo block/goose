@@ -1,7 +1,7 @@
 import { AppEvents } from '../constants/events';
 import { ToolIconWithStatus, ToolCallStatus } from './ToolCallStatusIndicator';
 import { getToolCallIcon } from '../utils/toolIconMapping';
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { ToolCallArguments, ToolCallArgumentValue } from './ToolCallArguments';
 import MarkdownContent from './MarkdownContent';
@@ -116,16 +116,11 @@ function McpAppWrapper({
       ? requestWithMeta.toolCall.value.arguments
       : undefined;
 
-  const toolInput = useMemo(() => ({ arguments: toolArguments || {} }), [toolArguments]);
+  const toolInput = { arguments: toolArguments || {} };
 
-  const toolResult = useMemo(() => {
-    if (!toolResponse) return undefined;
-    const resultWithMeta = toolResponse.toolResult as ToolResultWithMeta;
-    if (resultWithMeta?.status === 'success' && resultWithMeta.value) {
-      return resultWithMeta.value;
-    }
-    return undefined;
-  }, [toolResponse]);
+  const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  const toolResult =
+    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
@@ -140,12 +135,6 @@ function McpAppWrapper({
         sessionId={sessionId}
         append={append}
       />
-      <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
-        <FlaskConical className="mr-2" size={20} />
-        <div className="text-sm font-sans">
-          MCP Apps are experimental and may change at any time.
-        </div>
-      </div>
     </div>
   );
 }
@@ -189,7 +178,7 @@ export default function ToolCallWithResponse({
       <div
         className={cn(
           'w-full text-sm font-sans rounded-lg overflow-hidden border',
-          showInlineApproval ? 'border-amber-500/50 bg-amber-50/5' : 'border-border-default'
+          showInlineApproval ? 'border-amber-500/50 bg-amber-50/5' : 'border-border-primary'
         )}
       >
         <ToolCallView
@@ -235,7 +224,7 @@ export default function ToolCallWithResponse({
             return (
               <div key={index} className="mt-3">
                 <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
-                <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
+                <div className="mt-3 p-4 py-3 border border-border-primary rounded-lg bg-background-secondary flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
                     MCP UI is experimental and may change at any time.
@@ -439,20 +428,20 @@ function ToolCallView({
   notifications,
   isStreamingMessage = false,
 }: ToolCallViewProps) {
-  const [responseStyle, setResponseStyle] = useState(() => localStorage.getItem('response_style'));
+  const [responseStyle, setResponseStyle] = useState<string>('concise');
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      setResponseStyle(localStorage.getItem('response_style'));
+    // Load initial value from settings
+    window.electron.getSetting('responseStyle').then(setResponseStyle);
+
+    const handleStyleChange = () => {
+      window.electron.getSetting('responseStyle').then(setResponseStyle);
     };
 
-    window.addEventListener('storage', handleStorageChange);
-
-    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
+    window.addEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
 
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStorageChange);
+      window.removeEventListener(AppEvents.RESPONSE_STYLE_CHANGED, handleStyleChange);
     };
   }, []);
 
@@ -527,7 +516,7 @@ function ToolCallView({
 
   // Function to create a descriptive representation of what the tool is doing
   const getToolDescription = (): string | null => {
-    const args = toolCall.arguments as Record<string, ToolCallArgumentValue>;
+    const args = (toolCall.arguments ?? {}) as Record<string, ToolCallArgumentValue>;
     const toolName = getToolName(toolCall.name);
 
     const getStringValue = (value: ToolCallArgumentValue): string => {
@@ -746,7 +735,7 @@ function ToolCallView({
           (typeof code === 'string' || Array.isArray(toolGraph))
         ) {
           return (
-            <div className="border-t border-border-default">
+            <div className="border-t border-border-primary">
               <CodeModeView toolGraph={toolGraph} code={code} />
             </div>
           );
@@ -754,7 +743,7 @@ function ToolCallView({
 
         if (isToolDetails) {
           return (
-            <div className="border-t border-border-default">
+            <div className="border-t border-border-primary">
               <ToolDetailsView toolCall={toolCall} isStartExpanded={isExpandToolDetails} />
             </div>
           );
@@ -764,7 +753,7 @@ function ToolCallView({
       })()}
 
       {logs && logs.length > 0 && (
-        <div className="border-t border-border-default">
+        <div className="border-t border-border-primary">
           <ToolLogsView
             logs={logs}
             working={loadingStatus === 'loading'}
@@ -778,7 +767,7 @@ function ToolCallView({
       {toolResults.length === 0 &&
         progressEntries.length > 0 &&
         progressEntries.map((entry, index) => (
-          <div className="p-3 border-t border-border-default" key={index}>
+          <div className="p-3 border-t border-border-primary" key={index}>
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
@@ -787,7 +776,7 @@ function ToolCallView({
       {!isCancelledMessage && (
         <>
           {toolResults.map((result, index) => (
-            <div key={index} className={cn('border-t border-border-default')}>
+            <div key={index} className={cn('border-t border-border-primary')}>
               <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
             </div>
           ))}
@@ -847,7 +836,7 @@ function CodeModeView({ toolGraph, code }: CodeModeViewProps) {
         <pre className="font-mono text-xs text-textSubtle whitespace-pre-wrap">{renderGraph()}</pre>
       )}
       {code && (
-        <div className="border-t border-border-default -mx-4 mt-2">
+        <div className="border-t border-border-primary -mx-4 mt-2">
           <ToolCallExpandable
             label={<span className="pl-4 font-sans text-sm">Code</span>}
             isStartExpanded={false}

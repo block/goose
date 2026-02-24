@@ -1,11 +1,11 @@
 use crate::conversation::tool_result_serde;
-use crate::mcp_utils::ToolResult;
+use crate::mcp_utils::{extract_text_from_resource, ToolResult};
 use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
     AnnotateAble, CallToolRequestParams, CallToolResult, Content, ImageContent, JsonObject,
     PromptMessage, PromptMessageContent, PromptMessageRole, RawContent, RawImageContent,
-    RawTextContent, ResourceContents, Role, TextContent,
+    RawTextContent, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
@@ -164,6 +164,7 @@ pub struct FrontendToolRequest {
 pub enum SystemNotificationType {
     ThinkingMessage,
     InlineMessage,
+    CreditsExhausted,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -173,6 +174,11 @@ pub struct SystemNotificationContent {
     pub msg: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct ReasoningContent {
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -189,6 +195,7 @@ pub enum MessageContent {
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
     SystemNotification(SystemNotificationContent),
+    Reasoning(ReasoningContent),
 }
 
 impl fmt::Display for MessageContent {
@@ -230,6 +237,7 @@ impl fmt::Display for MessageContent {
             MessageContent::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
+            MessageContent::Reasoning(r) => write!(f, "[Reasoning: {}]", r.text),
         }
     }
 }
@@ -443,6 +451,10 @@ impl MessageContent {
         })
     }
 
+    pub fn reasoning<S: Into<String>>(text: S) -> Self {
+        MessageContent::Reasoning(ReasoningContent { text: text.into() })
+    }
+
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {
         if let MessageContent::SystemNotification(ref notification) = self {
             Some(notification)
@@ -514,6 +526,14 @@ impl MessageContent {
             _ => None,
         }
     }
+
+    /// Get the reasoning content if this is a ReasoningContent variant
+    pub fn as_reasoning(&self) -> Option<&ReasoningContent> {
+        match self {
+            MessageContent::Reasoning(reasoning) => Some(reasoning),
+            _ => None,
+        }
+    }
 }
 
 impl From<Content> for MessageContent {
@@ -527,13 +547,7 @@ impl From<Content> for MessageContent {
             }
             RawContent::ResourceLink(_link) => MessageContent::text("[Resource link]"),
             RawContent::Resource(resource) => {
-                let text = match &resource.resource {
-                    ResourceContents::TextResourceContents { text, .. } => text.clone(),
-                    ResourceContents::BlobResourceContents { blob, .. } => {
-                        format!("[Binary content: {}]", blob.clone())
-                    }
-                };
-                MessageContent::text(text)
+                MessageContent::text(extract_text_from_resource(&resource.resource))
             }
             RawContent::Audio(_) => {
                 MessageContent::text("[Audio content: not supported]".to_string())
@@ -558,15 +572,7 @@ impl From<PromptMessage> for Message {
             }
             PromptMessageContent::ResourceLink { .. } => MessageContent::text("[Resource link]"),
             PromptMessageContent::Resource { resource } => {
-                // For resources, convert to text content with the resource text
-                match &resource.resource {
-                    ResourceContents::TextResourceContents { text, .. } => {
-                        MessageContent::text(text.clone())
-                    }
-                    ResourceContents::BlobResourceContents { blob, .. } => {
-                        MessageContent::text(format!("[Binary content: {}]", blob.clone()))
-                    }
-                }
+                MessageContent::text(extract_text_from_resource(&resource.resource))
             }
         };
 
@@ -1180,37 +1186,6 @@ mod tests {
 
         if let MessageContent::Text(text_content) = &message.content[0] {
             assert_eq!(text_content.text, "Resource content");
-        } else {
-            panic!("Expected MessageContent::Text");
-        }
-    }
-
-    #[test]
-    fn test_from_prompt_message_blob_resource() {
-        let resource = ResourceContents::BlobResourceContents {
-            uri: "file:///test.bin".to_string(),
-            mime_type: Some("application/octet-stream".to_string()),
-            blob: "binary_data".to_string(),
-            meta: None,
-        };
-
-        let prompt_content = PromptMessageContent::Resource {
-            resource: RawEmbeddedResource {
-                resource,
-                meta: None,
-            }
-            .no_annotation(),
-        };
-
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
-
-        let message = Message::from(prompt_message);
-
-        if let MessageContent::Text(text_content) = &message.content[0] {
-            assert_eq!(text_content.text, "[Binary content: binary_data]");
         } else {
             panic!("Expected MessageContent::Text");
         }

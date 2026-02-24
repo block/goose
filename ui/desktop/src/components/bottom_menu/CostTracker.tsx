@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import { fetchModelPricing } from '../../utils/pricing';
-import { PricingData } from '../../api';
+import { fetchCanonicalModelInfo } from '../../utils/canonical';
+import type { ModelInfoData } from '../../api';
 
 interface CostTrackerProps {
   inputTokens?: number;
@@ -19,21 +19,26 @@ interface CostTrackerProps {
 
 export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }: CostTrackerProps) {
   const { currentModel, currentProvider } = useModelAndProvider();
-  const [costInfo, setCostInfo] = useState<PricingData | null>(null);
+  const [costInfo, setCostInfo] = useState<ModelInfoData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPricing, setShowPricing] = useState(true);
   const [pricingFailed, setPricingFailed] = useState(false);
 
   // Check if pricing is enabled
   useEffect(() => {
-    const checkPricingSetting = () => {
-      const stored = localStorage.getItem('show_pricing');
-      setShowPricing(stored !== 'false');
+    const loadPricingSetting = async () => {
+      const enabled = await window.electron.getSetting('showPricing');
+      setShowPricing(enabled);
     };
 
-    checkPricingSetting();
-    window.addEventListener('storage', checkPricingSetting);
-    return () => window.removeEventListener('storage', checkPricingSetting);
+    loadPricingSetting();
+
+    const handlePricingChange = () => {
+      loadPricingSetting();
+    };
+
+    window.addEventListener('showPricingChanged', handlePricingChange);
+    return () => window.removeEventListener('showPricingChanged', handlePricingChange);
   }, []);
 
   useEffect(() => {
@@ -45,7 +50,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
 
       setIsLoading(true);
       try {
-        const costData = await fetchModelPricing(currentProvider, currentModel);
+        const costData = await fetchCanonicalModelInfo(currentProvider, currentModel);
         if (costData) {
           setCostInfo(costData);
           setPricingFailed(false);
@@ -84,8 +89,8 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         costInfo &&
         (costInfo.input_token_cost !== undefined || costInfo.output_token_cost !== undefined)
       ) {
-        const currentInputCost = inputTokens * (costInfo.input_token_cost || 0);
-        const currentOutputCost = outputTokens * (costInfo.output_token_cost || 0);
+        const currentInputCost = (inputTokens * (costInfo.input_token_cost || 0)) / 1_000_000;
+        const currentOutputCost = (outputTokens * (costInfo.output_token_cost || 0)) / 1_000_000;
         totalCost += currentInputCost + currentOutputCost;
       }
 
@@ -100,8 +105,8 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       return 0;
     }
 
-    const inputCost = inputTokens * (costInfo.input_token_cost || 0);
-    const outputCost = outputTokens * (costInfo.output_token_cost || 0);
+    const inputCost = (inputTokens * (costInfo.input_token_cost || 0)) / 1_000_000;
+    const outputCost = (outputTokens * (costInfo.output_token_cost || 0)) / 1_000_000;
     const total = inputCost + outputCost;
 
     return total;
@@ -121,10 +126,10 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
   if (isLoading) {
     return (
       <>
-        <div className="flex items-center justify-center h-full text-text-muted translate-y-[1px]">
+        <div className="flex items-center justify-center h-full text-text-secondary translate-y-[1px]">
           <span className="text-xs font-mono">...</span>
         </div>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
       </>
     );
   }
@@ -134,23 +139,16 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     !costInfo ||
     (costInfo.input_token_cost === undefined && costInfo.output_token_cost === undefined)
   ) {
-    // If it's a known free/local provider, show $0.000000 without "not available" message
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
         <>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-center h-full text-text-default/70 hover:text-text-default transition-colors cursor-default translate-y-[1px]">
-                <CoinIcon className="mr-1" size={16} />
-                <span className="text-xs font-mono">0.0000</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              {`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
-            </TooltipContent>
-          </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="flex items-center justify-center h-full text-text-primary/70 transition-colors cursor-default translate-y-[1px]">
+            <span className="text-xs font-mono">
+              {inputTokens.toLocaleString()}↑ {outputTokens.toLocaleString()}↓
+            </span>
+          </div>
+          <div className="w-px h-4 bg-border-primary mx-2" />
         </>
       );
     }
@@ -167,14 +165,14 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       <>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
               <CoinIcon className="mr-1" size={16} />
               <span className="text-xs font-mono">0.0000</span>
             </div>
           </TooltipTrigger>
           <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
         </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
       </>
     );
   }
@@ -201,8 +199,9 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       // Add current model if it has costs
       if (costInfo && (inputTokens > 0 || outputTokens > 0)) {
         const currentCost =
-          inputTokens * (costInfo.input_token_cost || 0) +
-          outputTokens * (costInfo.output_token_cost || 0);
+          (inputTokens * (costInfo.input_token_cost || 0) +
+            outputTokens * (costInfo.output_token_cost || 0)) /
+          1_000_000;
         if (currentCost > 0) {
           tooltip += `${currentProvider}/${currentModel} (current): ${costInfo.currency || '$'}${currentCost.toFixed(6)} (${inputTokens.toLocaleString()} in, ${outputTokens.toLocaleString()} out)\n`;
         }
@@ -213,21 +212,21 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     }
 
     // Default tooltip for single model
-    return `Input: ${inputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(inputTokens * (costInfo?.input_token_cost || 0)).toFixed(6)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${(outputTokens * (costInfo?.output_token_cost || 0)).toFixed(6)})`;
+    return `Input: ${inputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${((inputTokens * (costInfo?.input_token_cost || 0)) / 1_000_000).toFixed(6)}) | Output: ${outputTokens.toLocaleString()} tokens (${costInfo?.currency || '$'}${((outputTokens * (costInfo?.output_token_cost || 0)) / 1_000_000).toFixed(6)})`;
   };
 
   return (
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
             <CoinIcon className="mr-1" size={16} />
             <span className="text-xs font-mono">{formatCost(totalCost)}</span>
           </div>
         </TooltipTrigger>
         <TooltipContent>{getTooltipContent()}</TooltipContent>
       </Tooltip>
-      <div className="w-px h-4 bg-border-default mx-2" />
+      <div className="w-px h-4 bg-border-primary mx-2" />
     </>
   );
 }

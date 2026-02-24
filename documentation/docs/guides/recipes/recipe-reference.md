@@ -682,6 +682,7 @@ activities:
 ```
 
 Advanced template features include:
+- [Escaping template variables](#escaping-template-variables) for literal output
 - [Template inheritance](#template-inheritance) using `{% extends "parent.yaml" %}`
 - Blocks that can be defined and overridden:
   ```yaml
@@ -690,6 +691,35 @@ Advanced template features include:
   {% endblock %}
   ```
 - [`indent()` template filter](#indent-filter-for-multi-line-values)
+
+### Escaping Template Variables
+
+To include literal template syntax (like `{{ variable }}`) in your recipe without parameter substitution, wrap it in single quotes:
+
+```yaml
+prompt: |
+  This will be substituted: {{ actual_parameter }}
+  This will appear literally: {{'{{example_variable}}'}}
+```
+
+**Example:** Generate a configuration file template
+
+```yaml
+version: "1.0.0"
+title: "Generate Config Template"
+description: "Generate a template with placeholder values"
+parameters:
+  - key: app_name
+    input_type: string
+    requirement: required
+    description: "Application name"
+
+prompt: |
+  Create a config.yaml file for {{ app_name }} with these placeholder variables:
+  - {{'{{API_KEY}}'}} for the API key
+  - {{'{{DATABASE_URL}}'}} for the database connection
+  - {{'{{PORT}}'}} for the server port
+```
 
 ### Template Inheritance
 

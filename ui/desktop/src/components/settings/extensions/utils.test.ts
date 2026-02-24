@@ -156,6 +156,85 @@ describe('Extension Utils', () => {
         headers: [],
       });
     });
+
+    it('should not escape @ in command args', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'stdio',
+        name: 'context7',
+        description: 'Context7 MCP',
+        cmd: 'npx',
+        args: ['-y', '@upstash/context7-mcp'],
+        enabled: true,
+      };
+
+      const formData = extensionToFormData(extension);
+      expect(formData.cmd).toBe('npx -y @upstash/context7-mcp');
+    });
+
+    it('should quote args with spaces', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'stdio',
+        name: 'java-app',
+        description: 'Java app',
+        cmd: '/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java',
+        args: ['-classpath', '/path/with spaces/lib.jar', 'Main'],
+        enabled: true,
+      };
+
+      const formData = extensionToFormData(extension);
+      expect(formData.cmd).toBe(
+        '"/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java" -classpath "/path/with spaces/lib.jar" Main'
+      );
+    });
+
+    it('should roundtrip command with @ through form data', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'stdio',
+        name: 'context7',
+        description: 'Context7 MCP',
+        cmd: 'npx',
+        args: ['-y', '@upstash/context7-mcp'],
+        enabled: true,
+      };
+
+      const formData = extensionToFormData(extension);
+      const { cmd, args } = splitCmdAndArgs(formData.cmd || '');
+      expect(cmd).toBe('npx');
+      expect(args).toEqual(['-y', '@upstash/context7-mcp']);
+    });
+
+    it('should roundtrip command with spaces through form data', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'stdio',
+        name: 'java-app',
+        description: 'Java app',
+        cmd: '/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java',
+        args: ['-classpath', '/path/with spaces/lib.jar', 'Main'],
+        enabled: true,
+      };
+
+      const formData = extensionToFormData(extension);
+      const { cmd, args } = splitCmdAndArgs(formData.cmd || '');
+      expect(cmd).toBe('/Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java');
+      expect(args).toEqual(['-classpath', '/path/with spaces/lib.jar', 'Main']);
+    });
+
+    it('should roundtrip args with double quotes and spaces through form data', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'stdio',
+        name: 'test',
+        description: 'test',
+        cmd: 'node',
+        args: ['/My "Project"/bin/run'],
+        enabled: true,
+      };
+
+      const formData = extensionToFormData(extension);
+      expect(formData.cmd).toBe('node \'/My "Project"/bin/run\'');
+      const { cmd, args } = splitCmdAndArgs(formData.cmd || '');
+      expect(cmd).toBe('node');
+      expect(args).toEqual(['/My "Project"/bin/run']);
+    });
   });
 
   describe('createExtensionConfig', () => {

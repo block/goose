@@ -23,14 +23,15 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
 import 'dotenv/config';
-import { checkServerStatus, startGoosed } from './goosed';
+import { checkServerStatus } from './goosed';
+import { startGoosed } from './goosed';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import { formatAppName, errorMessage } from './utils/conversionUtils';
-import type { Settings } from './utils/settings';
-import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
+import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
+import type { Settings, SettingKey } from './utils/settings';
+import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
@@ -43,7 +44,7 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { Client, createClient, createConfig } from './api/client';
+import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
@@ -56,18 +57,27 @@ function shouldSetupUpdater(): boolean {
 // Settings management
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
-const defaultSettings: Settings = {
-  showMenuBarIcon: true,
-  showDockIcon: true,
-  enableWakelock: false,
-  spellcheckEnabled: true,
-  keyboardShortcuts: defaultKeyboardShortcuts,
-};
-
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
     const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    return JSON.parse(data);
+    const stored = JSON.parse(data) as Partial<Settings>;
+    // Deep merge to ensure nested objects get their defaults too
+    return {
+      ...defaultSettings,
+      ...stored,
+      externalGoosed: {
+        ...defaultSettings.externalGoosed,
+        ...(stored.externalGoosed ?? {}),
+      },
+      keyboardShortcuts: {
+        ...defaultSettings.keyboardShortcuts,
+        ...(stored.keyboardShortcuts ?? {}),
+      },
+      sessionSharing: {
+        ...defaultSettings.sessionSharing,
+        ...(stored.sessionSharing ?? {}),
+      },
+    };
   }
   return defaultSettings;
 }
@@ -148,17 +158,12 @@ if (process.platform !== 'darwin') {
             const deeplinkData = parseRecipeDeeplink(protocolUrl);
             const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-            createChat(
-              app,
-              undefined,
-              openDir || undefined,
-              undefined,
-              undefined,
-              undefined,
-              deeplinkData?.config,
-              scheduledJobId || undefined,
-              deeplinkData?.parameters
-            );
+            await createChat(app, {
+              dir: openDir || undefined,
+              recipeDeeplink: deeplinkData?.config,
+              scheduledJobId: scheduledJobId || undefined,
+              recipeParameters: deeplinkData?.parameters,
+            });
           });
           return; // Skip the rest of the handler
         }
@@ -207,7 +212,7 @@ async function handleProtocolUrl(url: string) {
     const targetWindow =
       existingWindows.length > 0
         ? existingWindows[0]
-        : await createChat(app, undefined, openDir || undefined);
+        : await createChat(app, { dir: openDir || undefined });
     await processProtocolUrl(parsedUrl, targetWindow);
   } else {
     // For other URL types, reuse existing window if available
@@ -219,7 +224,7 @@ async function handleProtocolUrl(url: string) {
       }
       firstOpenWindow.focus();
     } else {
-      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
+      firstOpenWindow = await createChat(app, { dir: openDir || undefined });
     }
 
     if (firstOpenWindow) {
@@ -248,17 +253,12 @@ async function processProtocolUrl(parsedUrl: URL, window: BrowserWindow) {
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
     // Create a new window and ignore the passed-in window
-    createChat(
-      app,
-      undefined,
-      openDir || undefined,
-      undefined,
-      undefined,
-      undefined,
-      deeplinkData?.config,
-      scheduledJobId || undefined,
-      deeplinkData?.parameters
-    );
+    await createChat(app, {
+      dir: openDir || undefined,
+      recipeDeeplink: deeplinkData?.config,
+      scheduledJobId: scheduledJobId || undefined,
+      recipeParameters: deeplinkData?.parameters,
+    });
     pendingDeepLink = null;
   }
 }
@@ -286,17 +286,12 @@ app.on('open-url', async (_event, url) => {
       }
       const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
 
-      await createChat(
-        app,
-        undefined,
-        openDir || undefined,
-        undefined,
-        undefined,
-        undefined,
-        deeplinkData?.config,
-        scheduledJobId || undefined,
-        deeplinkData?.parameters
-      );
+      await createChat(app, {
+        dir: openDir || undefined,
+        recipeDeeplink: deeplinkData?.config,
+        scheduledJobId: scheduledJobId || undefined,
+        recipeParameters: deeplinkData?.parameters,
+      });
       windowDeeplinkURL = null;
       return;
     }
@@ -319,7 +314,7 @@ app.on('open-url', async (_event, url) => {
       }
     } else {
       openUrlHandledLaunch = true;
-      firstOpenWindow = await createChat(app, undefined, openDir || undefined);
+      firstOpenWindow = await createChat(app, { dir: openDir || undefined });
     }
   }
 });
@@ -370,7 +365,7 @@ async function handleFileOpen(filePath: string) {
     addRecentDir(targetDir);
 
     // Create new window for the directory
-    const newWindow = await createChat(app, undefined, targetDir);
+    const newWindow = await createChat(app, { dir: targetDir });
 
     // Focus the new window
     if (newWindow) {
@@ -468,29 +463,53 @@ const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blocke
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
 
-const createChat = async (
-  app: App,
-  initialMessage?: string,
-  dir?: string,
-  _version?: string,
-  resumeSessionId?: string,
-  viewType?: string,
-  recipeDeeplink?: string, // Raw deeplink decoded on server
-  scheduledJobId?: string, // Scheduled job ID if applicable
-  recipeParameters?: Record<string, string> // Recipe parameter values from deeplink URL
-) => {
+interface CreateChatOptions {
+  initialMessage?: string;
+  dir?: string;
+  resumeSessionId?: string;
+  viewType?: string;
+  recipeDeeplink?: string;
+  recipeId?: string;
+  scheduledJobId?: string;
+  recipeParameters?: Record<string, string>;
+}
+
+const createChat = async (app: App, options: CreateChatOptions = {}) => {
+  const {
+    initialMessage,
+    dir,
+    resumeSessionId,
+    viewType,
+    recipeDeeplink,
+    recipeId,
+    scheduledJobId,
+    recipeParameters,
+  } = options;
   const settings = getSettings();
   const serverSecret = getServerSecret(settings);
 
   const goosedResult = await startGoosed({
-    app,
     serverSecret,
     dir: dir || os.homedir(),
     env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
     externalGoosed: settings.externalGoosed,
+    isPackaged: app.isPackaged,
+    resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
+    logger: log,
   });
 
-  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
+  app.on('will-quit', async () => {
+    log.info('App quitting, terminating goosed server');
+    await goosedResult.cleanup();
+  });
+
+  const {
+    baseUrl,
+    workingDir,
+    process: goosedProcess,
+    errorLog,
+    client: goosedClient,
+  } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -525,6 +544,7 @@ const createChat = async (
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
           recipeDeeplink: recipeDeeplink,
+          recipeId: recipeId,
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
           SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
@@ -543,15 +563,6 @@ const createChat = async (
       .catch((err) => log.info('failed to install react dev tools:', err));
   }
 
-  const goosedClient = createClient(
-    createConfig({
-      baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Secret-Key': serverSecret,
-      },
-    })
-  );
   goosedClients.set(mainWindow.id, goosedClient);
 
   const serverReady = await checkServerStatus(goosedClient, errorLog);
@@ -576,7 +587,7 @@ const createChat = async (
           }
         });
         mainWindow.destroy();
-        return createChat(app, initialMessage, dir);
+        return createChat(app, { initialMessage, dir });
       }
     } else {
       dialog.showMessageBoxSync({
@@ -706,7 +717,10 @@ const createChat = async (
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (appPath === '/' && (recipeDeeplink !== undefined || initialMessage)) {
+  if (
+    appPath === '/' &&
+    (recipeDeeplink !== undefined || recipeId !== undefined || initialMessage)
+  ) {
     appPath = '/pair';
   }
 
@@ -917,7 +931,7 @@ const showWindow = async () => {
     log.info('No windows are open, creating a new one...');
     const recentDirs = loadRecentDirs();
     const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-    await createChat(app, undefined, openDir || undefined);
+    await createChat(app, { dir: openDir || undefined });
     return;
   }
 
@@ -949,8 +963,8 @@ const buildRecentFilesMenu = () => {
   const recentDirs = loadRecentDirs();
   return recentDirs.map((dir) => ({
     label: dir,
-    click: () => {
-      createChat(app, undefined, dir);
+    click: async () => {
+      await createChat(app, { dir });
     },
   }));
 };
@@ -1038,18 +1052,11 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
     if (windowDeeplinkURL) {
       deeplinkData = parseRecipeDeeplink(windowDeeplinkURL);
     }
-    // Create a new window with the selected directory
-    await createChat(
-      app,
-      undefined,
-      dirToAdd,
-      undefined,
-      undefined,
-      undefined,
-      deeplinkData?.config,
-      undefined,
-      deeplinkData?.parameters
-    );
+    await createChat(app, {
+      dir: dirToAdd,
+      recipeDeeplink: deeplinkData?.config,
+      recipeParameters: deeplinkData?.parameters,
+    });
   }
   return result;
 };
@@ -1116,12 +1123,12 @@ const handleFatalError = (error: Error) => {
 };
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  console.error('Uncaught Exception:', formatErrorForLogging(error));
   handleFatalError(error);
 });
 
 process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Rejection:', error);
+  console.error('Unhandled Rejection:', formatErrorForLogging(error));
   handleFatalError(error instanceof Error ? error : new Error(String(error)));
 });
 
@@ -1187,25 +1194,44 @@ ipcMain.handle('add-recent-dir', (_event, dir: string) => {
   }
 });
 
-// Handle scheduling engine settings
-ipcMain.handle('get-settings', () => {
-  return getSettings(); // Always returns Settings (uses defaults as fallback)
+ipcMain.handle('get-setting', (_event, key: SettingKey) => {
+  const settings = getSettings();
+  return settings[key];
 });
 
-ipcMain.handle('save-settings', (_event, settings) => {
-  const oldSettings = getSettings();
+// Valid setting keys for runtime validation
+const validSettingKeys: Set<string> = new Set([
+  'showMenuBarIcon',
+  'showDockIcon',
+  'enableWakelock',
+  'spellcheckEnabled',
+  'externalGoosed',
+  'globalShortcut',
+  'keyboardShortcuts',
+  'theme',
+  'useSystemTheme',
+  'responseStyle',
+  'showPricing',
+  'sessionSharing',
+  'seenAnnouncementIds',
+]);
 
-  const oldShortcuts = getKeyboardShortcuts(oldSettings);
-  const newShortcuts = getKeyboardShortcuts(settings);
-  const shortcutsChanged = JSON.stringify(oldShortcuts) !== JSON.stringify(newShortcuts);
-
-  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-
-  if (shortcutsChanged) {
-    registerGlobalShortcuts();
+ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
+  // Validate key at runtime to prevent prototype pollution
+  if (!validSettingKeys.has(key)) {
+    console.error(`Invalid setting key rejected: ${key}`);
+    return;
   }
 
-  return true;
+  const settings = getSettings();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (settings as any)[key] = value;
+  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+
+  // Re-register shortcuts if keyboard shortcuts changed
+  if (key === 'keyboardShortcuts') {
+    registerGlobalShortcuts();
+  }
 });
 
 ipcMain.handle('get-secret-key', () => {
@@ -1582,7 +1608,7 @@ ipcMain.handle('get-allowed-extensions', async () => {
 const createNewWindow = async (app: App, dir?: string | null) => {
   const recentDirs = loadRecentDirs();
   const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
-  return await createChat(app, undefined, openDir);
+  return await createChat(app, { dir: openDir });
 };
 
 const focusWindow = () => {
@@ -1945,6 +1971,23 @@ async function appMain() {
         );
       }
     }
+
+    const viewMenu = menu.items.find((item) => item.label === 'View');
+    if (viewMenu?.submenu && shortcuts.toggleNavigation) {
+      viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
+      viewMenu.submenu.append(
+        new MenuItem({
+          label: 'Toggle Navigation',
+          accelerator: shortcuts.toggleNavigation,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              focusedWindow.webContents.send('toggle-navigation');
+            }
+          },
+        })
+      );
+    }
   }
 
   // on macOS, the topbar is hidden
@@ -1999,48 +2042,43 @@ async function appMain() {
     }
   });
 
-  ipcMain.on(
-    'create-chat-window',
-    (event, query, dir, version, resumeSessionId, viewType, recipeDeeplink) => {
-      if (!dir?.trim()) {
-        const recentDirs = loadRecentDirs();
-        dir = recentDirs.length > 0 ? recentDirs[0] : undefined;
-      }
+  ipcMain.on('create-chat-window', (event, options = {}) => {
+    const { query, dir, resumeSessionId, viewType, recipeId } = options;
 
-      const isFromLauncher = query && !resumeSessionId && !viewType && !recipeDeeplink;
-
-      if (isFromLauncher) {
-        const senderWindow = BrowserWindow.fromWebContents(event.sender);
-        const launcherWindowId = senderWindow?.id;
-        const allWindows = BrowserWindow.getAllWindows();
-
-        const existingWindows = allWindows.filter(
-          (win) => !win.isDestroyed() && win.id !== launcherWindowId
-        );
-
-        if (existingWindows.length > 0) {
-          const targetWindow = existingWindows[0];
-          targetWindow.show();
-          targetWindow.focus();
-          targetWindow.webContents.send('set-initial-message', query);
-          return;
-        }
-      }
-
-      // Otherwise, create a new window
-      createChat(
-        app,
-        query,
-        dir,
-        version,
-        resumeSessionId,
-        viewType,
-        recipeDeeplink,
-        undefined,
-        undefined
-      );
+    let resolvedDir = dir;
+    if (!resolvedDir?.trim()) {
+      const recentDirs = loadRecentDirs();
+      resolvedDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
     }
-  );
+
+    const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
+
+    if (isFromLauncher) {
+      const senderWindow = BrowserWindow.fromWebContents(event.sender);
+      const launcherWindowId = senderWindow?.id;
+      const allWindows = BrowserWindow.getAllWindows();
+
+      const existingWindows = allWindows.filter(
+        (win) => !win.isDestroyed() && win.id !== launcherWindowId
+      );
+
+      if (existingWindows.length > 0) {
+        const targetWindow = existingWindows[0];
+        targetWindow.show();
+        targetWindow.focus();
+        targetWindow.webContents.send('set-initial-message', query);
+        return;
+      }
+    }
+
+    createChat(app, {
+      initialMessage: query,
+      dir: resolvedDir,
+      resumeSessionId,
+      viewType,
+      recipeId,
+    });
+  });
 
   ipcMain.on('close-window', (event) => {
     const window = BrowserWindow.fromWebContents(event.sender);

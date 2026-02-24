@@ -2,6 +2,7 @@
 // Provides a simple way to store extension-specific data with versioned keys
 
 use crate::config::base::Config;
+use crate::config::extensions::is_extension_available;
 use crate::config::ExtensionConfig;
 use crate::session::SessionManager;
 use anyhow::Result;
@@ -112,6 +113,12 @@ impl ExtensionState for EnabledExtensionsState {
 impl EnabledExtensionsState {
     pub fn new(extensions: Vec<ExtensionConfig>) -> Self {
         Self { extensions }
+    }
+
+    pub fn from_extension_data(extension_data: &ExtensionData) -> Option<Self> {
+        let mut state = <Self as ExtensionState>::from_extension_data(extension_data)?;
+        state.extensions.retain(is_extension_available);
+        Some(state)
     }
 
     pub fn extensions_or_default(
@@ -258,5 +265,38 @@ mod tests {
             deserialized.get_extension_state("memory", "v1"),
             Some(&json!({"key": "value"}))
         );
+    }
+
+    #[test]
+    fn test_enabled_extensions_state_filters_unavailable_platform() {
+        let mut extension_data = ExtensionData::new();
+        let state = EnabledExtensionsState::new(vec![
+            ExtensionConfig::Platform {
+                name: "definitely_not_real_platform_extension".to_string(),
+                description: "unknown".to_string(),
+                display_name: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
+            ExtensionConfig::Builtin {
+                name: "developer".to_string(),
+                description: "".to_string(),
+                display_name: Some("Developer".to_string()),
+                timeout: None,
+                bundled: None,
+                available_tools: Vec::new(),
+            },
+        ]);
+
+        state.to_extension_data(&mut extension_data).unwrap();
+
+        let loaded =
+            EnabledExtensionsState::from_extension_data(&extension_data).expect("state present");
+        let names: Vec<String> = loaded.extensions.iter().map(|ext| ext.name()).collect();
+
+        assert!(names.iter().any(|name| name == "developer"));
+        assert!(!names
+            .iter()
+            .any(|name| name == "definitely_not_real_platform_extension"));
     }
 }

@@ -7,11 +7,11 @@ use axum::{
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use goose::dictation::download_manager::{get_download_manager, DownloadProgress};
 use goose::dictation::providers::{
     is_configured, transcribe_local, transcribe_with_provider, DictationProvider, PROVIDERS,
 };
 use goose::dictation::whisper;
+use goose::download_manager::{get_download_manager, DownloadProgress};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -257,11 +257,16 @@ pub async fn download_model(Path(model_id): Path<String>) -> Result<StatusCode, 
         .ok_or_else(|| ErrorResponse::bad_request("Model not found"))?;
 
     let manager = get_download_manager();
+    let model_id_for_config = model.id.to_string();
     manager
         .download_model(
             model.id.to_string(),
             model.url.to_string(),
             model.local_path(),
+            Some(Box::new(move || {
+                let _ = goose::config::Config::global()
+                    .set_param(whisper::LOCAL_WHISPER_MODEL_CONFIG_KEY, model_id_for_config);
+            })),
         )
         .await
         .map_err(convert_error)?;

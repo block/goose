@@ -97,6 +97,18 @@ export function getTextAndImageContent(message: Message): {
   return { textContent, imagePaths };
 }
 
+export function getReasoningContent(message: Message): string | null {
+  const reasoningContents = message.content
+    .filter((content) => content.type === 'reasoning')
+    .map((content) => {
+      if ('text' in content) return content.text;
+      return '';
+    })
+    .filter((text) => text.length > 0);
+
+  return reasoningContents.length > 0 ? reasoningContents.join('') : null;
+}
+
 export function getToolRequests(message: Message): (ToolRequest & { type: 'toolRequest' })[] {
   return message.content.filter(
     (content): content is ToolRequest & { type: 'toolRequest' } => content.type === 'toolRequest'

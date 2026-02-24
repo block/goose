@@ -70,7 +70,14 @@ export type AnalyticsEvent =
   | {
       name: 'onboarding_provider_selected';
       properties: {
-        method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other';
+        method:
+          | 'api_key'
+          | 'openrouter'
+          | 'tetrate'
+          | 'chatgpt_codex'
+          | 'ollama'
+          | 'local'
+          | 'other';
       };
     }
   | {
@@ -80,7 +87,10 @@ export type AnalyticsEvent =
   | { name: 'onboarding_abandoned'; properties: { step: string; duration_seconds?: number } }
   | {
       name: 'onboarding_setup_failed';
-      properties: { provider: 'openrouter' | 'tetrate' | 'chatgpt_codex'; error_message?: string };
+      properties: {
+        provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local';
+        error_message?: string;
+      };
     }
   | {
       name: 'error_occurred';
@@ -241,10 +251,10 @@ export function trackPageView(page: string, referrer?: string): void {
 export function trackError(
   errorType: string,
   options: {
-    component?: string; // React component name
-    page?: string; // Current route/page
-    action?: string; // What user was doing
-    stackSummary?: string; // Use getStackSummary() to generate
+    component?: string;
+    page?: string;
+    action?: string;
+    stackSummary?: string;
     recoverable?: boolean;
   } = {}
 ): void {
@@ -284,7 +294,7 @@ export function trackOnboardingStarted(): void {
 }
 
 export function trackOnboardingProviderSelected(
-  method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'other'
+  method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'local' | 'other'
 ): void {
   trackEvent({
     name: 'onboarding_provider_selected',
@@ -317,7 +327,7 @@ export function trackOnboardingAbandoned(step: string): void {
 }
 
 export function trackOnboardingSetupFailed(
-  provider: 'openrouter' | 'tetrate' | 'chatgpt_codex',
+  provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local',
   errorMessage?: string
 ): void {
   trackEvent({

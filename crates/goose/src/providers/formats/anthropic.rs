@@ -44,10 +44,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         for msg_content in &message.content {
             match msg_content {
                 MessageContent::Text(text) => {
-                    content.push(json!({
-                        TYPE_FIELD: TEXT_TYPE,
-                        TEXT_TYPE: text.text
-                    }));
+                    if !text.text.trim().is_empty() {
+                        content.push(json!({
+                            TYPE_FIELD: TEXT_TYPE,
+                            TEXT_TYPE: text.text
+                        }));
+                    }
                 }
                 MessageContent::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
@@ -123,6 +125,10 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             INPUT_FIELD: tool_call.arguments
                         }));
                     }
+                }
+                MessageContent::Reasoning(_reasoning) => {
+                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
+                    // Anthropic doesn't use this format, so skip it
                 }
             }
         }
@@ -391,30 +397,17 @@ pub fn create_request(
     let tool_specs = format_tools(tools);
     let system_spec = format_system(system);
 
-    // Check if we have any messages to send
     if anthropic_messages.is_empty() {
         return Err(anyhow!("No valid messages to send to Anthropic API"));
     }
 
-    // https://platform.claude.com/docs/en/about-claude/models/overview
-    // 64k output tokens works for most claude models, but not old opus:
-    let max_tokens = model_config.max_tokens.unwrap_or_else(|| {
-        let name = &model_config.model_name;
-        if name.contains("claude-3-haiku") {
-            4096
-        } else if name.contains("claude-opus-4-0") || name.contains("claude-opus-4-1") {
-            32000
-        } else {
-            64000
-        }
-    });
+    let max_tokens = model_config.max_output_tokens();
     let mut payload = json!({
         "model": model_config.model_name,
         "messages": anthropic_messages,
         "max_tokens": max_tokens,
     });
 
-    // Add system message if present
     if !system.is_empty() {
         payload
             .as_object_mut()
@@ -422,7 +415,6 @@ pub fn create_request(
             .insert("system".to_string(), json!(system_spec));
     }
 
-    // Add tools if present
     if !tool_specs.is_empty() {
         payload
             .as_object_mut()
@@ -430,7 +422,6 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tool_specs));
     }
 
-    // Add temperature if specified and not using extended thinking model
     if let Some(temp) = model_config.temperature {
         payload
             .as_object_mut()
@@ -438,10 +429,8 @@ pub fn create_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    // Add thinking parameters when CLAUDE_THINKING_ENABLED is set
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_thinking_enabled {
-        // Minimum budget_tokens is 1024
         let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
             .unwrap_or_else(|_| "16000".to_string())
             .parse()
@@ -1017,5 +1006,38 @@ mod tests {
             "Error: -32603: Tool failed"
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
+    }
+
+    #[test]
+    fn test_whitespace_only_text_blocks_are_skipped() {
+        let messages = vec![
+            Message::user().with_text("Hello"),
+            Message::assistant().with_text("").with_tool_request(
+                "tool_1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "search".into(),
+                    arguments: Some(object!({"query": "test"})),
+                }),
+            ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 3);
+
+        let assistant_content = spec[1]["content"].as_array().unwrap();
+        assert_eq!(assistant_content.len(), 1);
+        assert_eq!(assistant_content[0]["type"], "tool_use");
     }
 }

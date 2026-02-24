@@ -36,7 +36,8 @@ export default function AppsView() {
           throwOnError: true,
         });
         const cachedApps = response.data?.apps || [];
-        setApps(cachedApps);
+        // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+        setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       } catch (err) {
         console.warn('Failed to load cached apps:', err);
       } finally {
@@ -58,7 +59,8 @@ export default function AppsView() {
           query: { session_id: sessionId },
         });
         const freshApps = response.data?.apps || [];
-        setApps(freshApps);
+        // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+        setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
         setError(null);
       } catch (err) {
         console.warn('Failed to refresh apps:', err);
@@ -90,7 +92,7 @@ export default function AppsView() {
             query: { session_id: eventSessionId },
           }).then((response) => {
             if (response.data?.apps) {
-              setApps(response.data.apps);
+              setApps(response.data.apps.filter((a) => a.mcpServers?.includes('apps')));
             }
           });
         }
@@ -111,7 +113,8 @@ export default function AppsView() {
         query: { session_id: sessionId },
       });
       const fetchedApps = response.data?.apps || [];
-      setApps(fetchedApps);
+      // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+      setApps(fetchedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
     } catch (err) {
       // Only set error if we don't have apps to show
@@ -176,7 +179,9 @@ export default function AppsView() {
       const response = await listApps({
         throwOnError: true,
       });
-      setApps(response.data?.apps || []);
+      const cachedApps = response.data?.apps || [];
+      // Only show apps from the "apps" extension (vibe coded apps built by Goose)
+      setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
     } catch (err) {
       console.error('Failed to import app:', err);
@@ -207,7 +212,7 @@ export default function AppsView() {
           onChange={handleUploadApp}
           style={{ display: 'none' }}
         />
-        <div className="bg-background-default px-8 pb-8 pt-16">
+        <div className="bg-background-primary px-8 pb-8 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
               <h1 className="text-4xl font-light">Apps</h1>
@@ -222,7 +227,7 @@ export default function AppsView() {
               </Button>
             </div>
             <div className="mb-4">
-              <p className="text-sm text-text-muted mb-2">
+              <p className="text-sm text-text-secondary mb-2">
                 Applications from your MCP servers and Apps build by goose itself. You can ask it to
                 create new apps through the chat interface and they will appear here.
               </p>
@@ -233,16 +238,16 @@ export default function AppsView() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-background-muted px-8 pb-8">
+        <div className="flex-1 overflow-y-auto bg-background-secondary px-8 pb-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <p className="text-text-muted">Loading apps...</p>
+              <p className="text-text-secondary">Loading apps...</p>
             </div>
           ) : apps.length === 0 ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <h3 className="text-lg font-medium mb-2">No apps available</h3>
-                <p className="text-sm text-text-muted">
+                <p className="text-sm text-text-secondary">
                   Open a chat and ask goose for the app you want to have. It can build one for you
                   and that will appear here. Or if somebody shared an app, you can import it using
                   the button above.
@@ -256,17 +261,17 @@ export default function AppsView() {
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
-                    className="flex flex-col p-4 border rounded-lg hover:border-border-default transition-colors"
+                    className="flex flex-col p-4 border rounded-lg hover:border-border-primary transition-colors"
                   >
                     <div className="flex-1 mb-4">
-                      <h3 className="font-medium text-text-default mb-2">
+                      <h3 className="font-medium text-text-primary mb-2">
                         {formatAppName(app.name)}
                       </h3>
                       {app.description && (
-                        <p className="text-sm text-text-muted mb-2">{app.description}</p>
+                        <p className="text-sm text-text-secondary mb-2">{app.description}</p>
                       )}
                       {app.mcpServers && app.mcpServers.length > 0 && (
-                        <span className="inline-block px-2 py-1 text-xs bg-background-muted text-text-muted rounded">
+                        <span className="inline-block px-2 py-1 text-xs bg-background-secondary text-text-secondary rounded">
                           {isCustomApp ? 'Custom app' : app.mcpServers.join(', ')}
                         </span>
                       )}

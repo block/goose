@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { AlertTriangle } from 'lucide-react';
-import { errorMessage } from '../utils/conversionUtils';
+import { errorMessage, formatErrorForLogging } from '../utils/conversionUtils';
 import { trackErrorWithContext, trackEvent, getErrorType } from '../utils/analytics';
 
 function getCurrentPage(): string {
@@ -10,7 +10,8 @@ function getCurrentPage(): string {
 
 // Capture unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
-  window.electron.logInfo(`[UNHANDLED REJECTION] ${event.reason}`);
+  const reasonStr = formatErrorForLogging(event.reason);
+  window.electron.logInfo(`[UNHANDLED REJECTION] ${reasonStr}`);
   trackErrorWithContext(event.reason, {
     component: 'global',
     page: getCurrentPage(),
@@ -51,11 +52,11 @@ export function ErrorUI({ error }: { error: string }) {
         <h1 className="text-2xl font-semibold text-foreground dark:text-white">Honk!</h1>
 
         {window?.appConfig?.get('GOOSE_VERSION') !== undefined ? (
-          <p className="text-base text-text-muted dark:text-muted-foreground mb-2">
+          <p className="text-base text-text-secondary dark:text-muted-foreground mb-2">
             An error occurred in Goose v{window?.appConfig?.get('GOOSE_VERSION') as string}.
           </p>
         ) : (
-          <p className="text-base text-text-muted dark:text-muted-foreground mb-2">
+          <p className="text-base text-text-secondary dark:text-muted-foreground mb-2">
             An error occurred.
           </p>
         )}

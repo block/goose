@@ -5,6 +5,7 @@ mod elicitation;
 mod export;
 mod input;
 mod output;
+pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
 
@@ -44,7 +45,8 @@ use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use rustyline::EditMode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -159,7 +161,7 @@ pub struct CliSession {
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool,
     run_mode: RunMode,
-    scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
+    scheduled_job_id: Option<String>,
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
@@ -210,8 +212,10 @@ pub async fn classify_planner_response(
     let prompt = format!("The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}");
 
     let message = Message::user().with_text(&prompt);
+    let model_config = provider.get_model_config();
     let (result, _usage) = provider
         .complete(
+            &model_config,
             session_id,
             "Reply only with the classification label: \"plan\" or \"clarifying questions\"",
             &[message],
@@ -475,11 +479,9 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
-        output::display_greeting();
         loop {
             self.display_context_usage().await?;
 
-            // Convert conversation messages to strings for editor mode
             let conversation_strings: Vec<String> = self
                 .messages
                 .iter()
@@ -502,8 +504,9 @@ impl CliSession {
         }
 
         println!(
-            "Closing session. Session ID: {}",
-            console::style(&self.session_id).cyan()
+            "\n  {} {}",
+            console::style("●").red(),
+            console::style(format!("session closed · {}", &self.session_id)).dim()
         );
 
         Ok(())
@@ -636,10 +639,7 @@ impl CliSession {
 
                 let elapsed = start_time.elapsed();
                 let elapsed_str = format_elapsed_time(elapsed);
-                println!(
-                    "\n{}",
-                    console::style(format!("⏱️  Elapsed time: {}", elapsed_str)).dim()
-                );
+                println!("{}", console::style(format!("  ⏱ {}", elapsed_str)).dim());
             }
             RunMode::Plan => {
                 let mut plan_messages = self.messages.clone();
@@ -842,8 +842,10 @@ impl CliSession {
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
+        let model_config = reasoner.get_model_config();
         let (plan_response, _usage) = reasoner
             .complete(
+                &model_config,
                 &self.session_id,
                 &plan_prompt,
                 plan_messages.messages(),
@@ -964,6 +966,9 @@ impl CliSession {
 
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
+        let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
+        let mut prompted_credits_urls: HashSet<String> = HashSet::new();
+        let mut thinking_header_shown = false;
 
         use futures::StreamExt;
         loop {
@@ -976,6 +981,10 @@ impl CliSession {
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::DenyOnce,
+                                    }).await;
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         id,
@@ -1036,7 +1045,12 @@ impl CliSession {
                                 if is_stream_json_mode {
                                     emit_stream_event(&StreamEvent::Message { message: message.clone() });
                                 } else if !is_json_mode {
-                                    output::render_message(&message, self.debug);
+                                    output::render_message_streaming(&message, &mut markdown_buffer, &mut thinking_header_shown, self.debug);
+                                    maybe_open_credits_top_up_url(
+                                        &message,
+                                        interactive,
+                                        &mut prompted_credits_urls,
+                                    );
                                 }
                             }
                         }
@@ -1088,6 +1102,10 @@ impl CliSession {
                     break;
                 }
             }
+        }
+
+        if !is_json_mode && !is_stream_json_mode {
+            output::flush_markdown_buffer_current_theme(&mut markdown_buffer);
         }
 
         if is_json_mode {
@@ -1152,20 +1170,10 @@ impl CliSession {
                     .collect()
             });
 
+        let interrupt_prompt = "Yes — what would you like me to do?";
+
         if !tool_requests.is_empty() {
-            // Interrupted during a tool request
-            // Create tool responses for all interrupted tool requests
-            // TODO(Douwe): if we need this, it should happen in agent reply
             let mut response_message = Message::user();
-            let last_tool_name = tool_requests
-                .last()
-                .and_then(|(_, tool_call)| {
-                    tool_call
-                        .as_ref()
-                        .ok()
-                        .map(|tool| tool.name.to_string().clone())
-                })
-                .unwrap_or_else(|| "tool".to_string());
 
             let notification = if interrupt {
                 "Interrupted by the user to make a correction".to_string()
@@ -1183,36 +1191,29 @@ impl CliSession {
                 ));
             }
             self.push_message(response_message);
-            let prompt = format!(
-                "The existing call to {} was interrupted. How would you like to proceed?",
-                last_tool_name
+            self.push_message(Message::assistant().with_text(interrupt_prompt));
+            output::render_message(
+                &Message::assistant().with_text(interrupt_prompt),
+                self.debug,
             );
-            self.push_message(Message::assistant().with_text(&prompt));
-            output::render_message(&Message::assistant().with_text(&prompt), self.debug);
-        } else {
-            // An interruption occurred outside of a tool request-response.
-            if let Some(last_msg) = self.messages.last() {
-                if last_msg.role == rmcp::model::Role::User {
-                    match last_msg.content.first() {
-                        Some(MessageContent::ToolResponse(_)) => {
-                            // Interruption occurred after a tool had completed but not assistant reply
-                            let prompt = "The tool calling loop was interrupted. How would you like to proceed?";
-                            self.push_message(Message::assistant().with_text(prompt));
-                            output::render_message(
-                                &Message::assistant().with_text(prompt),
-                                self.debug,
-                            );
-                        }
-                        Some(_) => {
-                            // A real users message
-                            self.messages.pop();
-                            let prompt = "Interrupted before the model replied and removed the last message.";
-                            output::render_message(
-                                &Message::assistant().with_text(prompt),
-                                self.debug,
-                            );
-                        }
-                        None => panic!("No content in last message"),
+        } else if let Some(last_msg) = self.messages.last() {
+            if last_msg.role == rmcp::model::Role::User {
+                match last_msg.content.first() {
+                    Some(MessageContent::ToolResponse(_)) => {
+                        self.push_message(Message::assistant().with_text(interrupt_prompt));
+                        output::render_message(
+                            &Message::assistant().with_text(interrupt_prompt),
+                            self.debug,
+                        );
+                    }
+                    Some(_) => {
+                        self.messages.pop();
+                        let assistant_msg = Message::assistant().with_text(interrupt_prompt);
+                        self.push_message(assistant_msg.clone());
+                        output::render_message(&assistant_msg, self.debug);
+                    }
+                    None => {
+                        // Empty message content — nothing to do, just continue gracefully
                     }
                 }
             }
@@ -1271,11 +1272,10 @@ impl CliSession {
             return;
         }
 
-        // Print session restored message
         println!(
-            "\n{} {} messages loaded into context.",
-            console::style("Session restored:").green().bold(),
-            console::style(self.messages.len()).green()
+            "\n  {} {}",
+            console::style("↻").cyan(),
+            console::style(format!("{} messages restored", self.messages.len())).dim()
         );
 
         // Render each message
@@ -1283,11 +1283,7 @@ impl CliSession {
             output::render_message(message, self.debug);
         }
 
-        // Add a visual separator after restored messages
-        println!(
-            "\n{}\n",
-            console::style("──────── New Messages ────────").dim()
-        );
+        println!();
     }
 
     pub async fn get_session(&self) -> Result<goose::session::Session> {
@@ -1463,6 +1459,37 @@ impl CliSession {
 
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
+    }
+}
+
+fn maybe_open_credits_top_up_url(
+    message: &Message,
+    interactive: bool,
+    prompted_credits_urls: &mut HashSet<String>,
+) {
+    if !interactive || !std::io::stdout().is_terminal() {
+        return;
+    }
+
+    let Some(url) = output::get_credits_top_up_url(message) else {
+        return;
+    };
+
+    if !prompted_credits_urls.insert(url.clone()) {
+        return;
+    }
+
+    let should_open = cliclack::confirm("Open the top-up URL in your browser?")
+        .initial_value(false)
+        .interact()
+        .unwrap_or(false);
+
+    if should_open && webbrowser::open(&url).is_err() {
+        output::render_text(
+            "Could not open browser automatically. Visit the URL above.",
+            Some(Color::Yellow),
+            true,
+        );
     }
 }
 
@@ -1765,7 +1792,7 @@ fn log_tool_metrics(message: &Message, messages: &Conversation) {
         if let MessageContent::ToolRequest(tool_request) = content {
             if let Ok(tool_call) = &tool_request.tool_call {
                 tracing::info!(
-                    counter.goose.tool_calls = 1,
+                    monotonic_counter.goose.tool_calls = 1,
                     tool_name = %tool_call.name,
                     "Tool call started"
                 );
@@ -1796,7 +1823,7 @@ fn log_tool_metrics(message: &Message, messages: &Conversation) {
                 "error"
             };
             tracing::info!(
-                counter.goose.tool_completions = 1,
+                monotonic_counter.goose.tool_completions = 1,
                 tool_name = %tool_name,
                 result = %result_status,
                 "Tool call completed"
@@ -1866,7 +1893,7 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
     };
 
     let model_config =
-        ModelConfig::new_with_context_env(model, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
+        ModelConfig::new_with_context_env(model, &provider, Some("GOOSE_PLANNER_CONTEXT_LIMIT"))?;
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
     let reasoner = create(&provider, model_config, extensions).await?;
 

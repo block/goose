@@ -170,7 +170,7 @@ export function RecipeFormFields({
           <div>
             <label
               htmlFor="recipe-title"
-              className="block text-sm font-medium text-text-default mb-2"
+              className="block text-sm font-medium text-text-primary mb-2"
             >
               Title <span className="text-red-500">*</span>
             </label>
@@ -183,8 +183,8 @@ export function RecipeFormFields({
                 onTitleChange?.(e.target.value);
               }}
               onBlur={field.handleBlur}
-              className={`w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-default'
+              className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-primary'
               }`}
               placeholder="Recipe title"
               data-testid="title-input"
@@ -202,7 +202,7 @@ export function RecipeFormFields({
           <div>
             <label
               htmlFor="recipe-description"
-              className="block text-sm font-medium text-text-default mb-2"
+              className="block text-sm font-medium text-text-primary mb-2"
             >
               Description <span className="text-red-500">*</span>
             </label>
@@ -215,8 +215,8 @@ export function RecipeFormFields({
                 onDescriptionChange?.(e.target.value);
               }}
               onBlur={field.handleBlur}
-              className={`w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-default'
+              className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-primary'
               }`}
               placeholder="Brief description of what this recipe does"
               data-testid="description-input"
@@ -235,7 +235,7 @@ export function RecipeFormFields({
             <div className="flex items-center justify-between mb-2">
               <label
                 htmlFor="recipe-instructions"
-                className="block text-sm font-medium text-text-default"
+                className="block text-sm font-medium text-text-primary"
               >
                 Instructions <span className="text-red-500">*</span>
               </label>
@@ -260,14 +260,14 @@ export function RecipeFormFields({
                 field.handleBlur();
                 updateParametersFromFields();
               }}
-              className={`w-full p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
-                field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-default'
+              className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
+                field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-primary'
               }`}
               placeholder="Detailed instructions for the AI, hidden from the user"
               rows={8}
               data-testid="instructions-input"
             />
-            <p className="text-xs text-text-muted mt-1">
+            <p className="text-xs text-text-secondary mt-1">
               Use {`{{parameter_name}}`} to define parameters that can be filled in when running the
               recipe.
             </p>
@@ -297,11 +297,11 @@ export function RecipeFormFields({
           <div>
             <label
               htmlFor="recipe-prompt"
-              className="block text-sm font-medium text-text-default mb-2"
+              className="block text-sm font-medium text-text-primary mb-2"
             >
               Initial Prompt
             </label>
-            <p className="text-xs text-text-muted mt-2 mb-2">
+            <p className="text-xs text-text-secondary mt-2 mb-2">
               (Optional - Instructions or Prompt are required)
             </p>
             <textarea
@@ -315,7 +315,7 @@ export function RecipeFormFields({
                 field.handleBlur();
                 updateParametersFromFields();
               }}
-              className="w-full p-3 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full p-3 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               placeholder="Pre-filled prompt when the recipe starts"
               rows={3}
               data-testid="prompt-input"
@@ -326,9 +326,9 @@ export function RecipeFormFields({
 
       {/* Advanced Section - Collapsible */}
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="mt-6">
-        <CollapsibleTrigger className="flex items-baseline gap-2 w-full py-3 px-4 bg-background-muted hover:bg-background-muted/80 rounded-lg transition-colors border border-border-default">
+        <CollapsibleTrigger className="flex items-baseline gap-2 w-full py-3 px-4 bg-background-secondary hover:bg-background-secondary/80 rounded-lg transition-colors border border-border-primary">
           <ChevronDown
-            className={`w-4 h-4 text-text-muted transition-transform duration-200 flex-shrink-0 relative top-0.5 ${
+            className={`w-4 h-4 text-text-secondary transition-transform duration-200 flex-shrink-0 relative top-0.5 ${
               advancedOpen ? 'rotate-0' : '-rotate-90'
             }`}
           />
@@ -338,7 +338,7 @@ export function RecipeFormFields({
           </span>
         </CollapsibleTrigger>
 
-        <CollapsibleContent className="mt-4 space-y-4 pl-6 border-l-2 border-border-default ml-2">
+        <CollapsibleContent className="mt-4 space-y-4 pl-6 border-l-2 border-border-primary ml-2">
           {/* Activities Field */}
           <form.Field name="activities">
             {(field: FormFieldApi<string[]>) => (
@@ -408,10 +408,10 @@ export function RecipeFormFields({
 
               return (
                 <div>
-                  <label className="block text-md text-text-default mb-2 font-bold">
+                  <label className="block text-md text-text-primary mb-2 font-bold">
                     Parameters
                   </label>
-                  <p className="text-text-muted text-sm space-y-2 pb-4">
+                  <p className="text-text-secondary text-sm space-y-2 pb-4">
                     Parameters will be automatically detected from {`{{parameter_name}}`} syntax in
                     instructions/prompt/activities or you can manually add them below.
                   </p>
@@ -424,7 +424,7 @@ export function RecipeFormFields({
                       onChange={(e) => setNewParameterName(e.target.value)}
                       onKeyPress={handleKeyPress}
                       placeholder="Enter parameter name..."
-                      className="flex-1 px-3 py-2 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
                     <button
                       type="button"
@@ -502,10 +502,10 @@ export function RecipeFormFields({
           <form.Field name="jsonSchema">
             {(field: FormFieldApi<string | undefined>) => (
               <div>
-                <label className="block text-md text-text-default mb-2 font-bold">
+                <label className="block text-md text-text-primary mb-2 font-bold">
                   Response JSON Schema
                 </label>
-                <p className="text-text-muted text-sm space-y-2 pb-4">
+                <p className="text-text-secondary text-sm space-y-2 pb-4">
                   Define the expected structure of the AI's response using JSON Schema format
                 </p>
                 <div className="flex items-center justify-between mb-2">
@@ -522,11 +522,13 @@ export function RecipeFormFields({
 
                 {field.state.value && field.state.value.trim() && (
                   <div
-                    className={`border rounded-lg p-3 bg-background-muted ${
-                      field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-default'
+                    className={`border rounded-lg p-3 bg-background-secondary ${
+                      field.state.meta.errors.length > 0
+                        ? 'border-red-500'
+                        : 'border-border-primary'
                     }`}
                   >
-                    <pre className="text-xs font-mono text-text-default whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+                    <pre className="text-xs font-mono text-text-primary whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
                       {field.state.value}
                     </pre>
                   </div>

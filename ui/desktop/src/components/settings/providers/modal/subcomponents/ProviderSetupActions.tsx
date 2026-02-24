@@ -12,7 +12,7 @@ interface ProviderSetupActionsProps {
   onCancelDelete?: () => void;
   canDelete?: boolean;
   providerName?: string;
-  requiredParameters?: ConfigKey[];
+  primaryParameters?: ConfigKey[];
   isActiveProvider?: boolean; // Made optional with default false
 }
 
@@ -29,7 +29,7 @@ export default function ProviderSetupActions({
   onCancelDelete,
   canDelete,
   providerName,
-  requiredParameters,
+  primaryParameters,
   isActiveProvider = false, // Default value provided
 }: ProviderSetupActionsProps) {
   // If we're showing delete confirmation, render the delete confirmation buttons
@@ -50,7 +50,7 @@ export default function ProviderSetupActions({
           <Button
             variant="ghost"
             onClick={onCancelDelete}
-            className="w-full h-[60px] rounded-none hover:bg-background-muted text-text-muted hover:text-text-default text-md font-regular"
+            className="w-full h-[60px] rounded-none hover:bg-background-secondary text-text-secondary hover:text-text-primary text-md font-regular"
           >
             Ok
           </Button>
@@ -69,14 +69,14 @@ export default function ProviderSetupActions({
         </div>
         <Button
           onClick={onConfirmDelete}
-          className="w-full h-[60px] rounded-none border-b border-border-default bg-transparent hover:bg-red-900/20 text-red-500 font-medium text-md"
+          className="w-full h-[60px] rounded-none border-b border-border-primary bg-transparent hover:bg-red-900/20 text-red-500 font-medium text-md"
         >
           <Trash2 className="h-4 w-4 mr-2" /> Confirm Delete
         </Button>
         <Button
           variant="ghost"
           onClick={onCancelDelete}
-          className="w-full h-[60px] rounded-none hover:bg-background-muted text-text-muted hover:text-text-default text-md font-regular"
+          className="w-full h-[60px] rounded-none hover:bg-background-secondary text-text-secondary hover:text-text-primary text-md font-regular"
         >
           Cancel
         </Button>
@@ -91,18 +91,18 @@ export default function ProviderSetupActions({
         <Button
           type="button"
           onClick={onDelete}
-          className="w-full h-[60px] rounded-none border-t border-border-default bg-transparent hover:bg-background-muted text-red-500 font-medium text-md"
+          className="w-full h-[60px] rounded-none border-t border-border-primary bg-transparent hover:bg-background-secondary text-red-500 font-medium text-md"
         >
           <Trash2 className="h-4 w-4 mr-2" /> Delete Provider
         </Button>
       )}
-      {requiredParameters && requiredParameters.length > 0 ? (
+      {primaryParameters && primaryParameters.length > 0 ? (
         <>
           <Button
             type="submit"
             variant="ghost"
             onClick={onSubmit}
-            className="w-full h-[60px] rounded-none border-t border-border-default text-md hover:bg-background-muted text-text-default font-medium"
+            className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
           >
             Submit
           </Button>
@@ -110,7 +110,7 @@ export default function ProviderSetupActions({
             type="button"
             variant="ghost"
             onClick={onCancel}
-            className="w-full h-[60px] rounded-none border-t border-border-default hover:text-text-default text-text-muted hover:bg-background-muted text-md font-regular"
+            className="w-full h-[60px] rounded-none border-t border-border-primary hover:text-text-primary text-text-secondary hover:bg-background-secondary text-md font-regular"
           >
             Cancel
           </Button>
@@ -121,7 +121,7 @@ export default function ProviderSetupActions({
             type="submit"
             variant="ghost"
             onClick={onSubmit}
-            className="w-full h-[60px] rounded-none border-t border-border-default text-md hover:bg-background-muted text-text-default font-medium"
+            className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
           >
             Enable Provider
           </Button>
@@ -129,7 +129,7 @@ export default function ProviderSetupActions({
             type="button"
             variant="ghost"
             onClick={onCancel}
-            className="w-full h-[60px] rounded-none border-t border-border-default hover:text-text-default text-text-muted hover:bg-background-muted text-md font-regular"
+            className="w-full h-[60px] rounded-none border-t border-border-primary hover:text-text-primary text-text-secondary hover:bg-background-secondary text-md font-regular"
           >
             Cancel
           </Button>

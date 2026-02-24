@@ -9,10 +9,11 @@ import ConfigSettings from './config/ConfigSettings';
 import PromptsSettingsSection from './PromptsSettingsSection';
 import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard } from 'lucide-react';
+import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard, HardDrive } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
+import LocalInferenceSection from './localInference/LocalInferenceSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
 import { trackSettingsTabViewed } from '../../utils/analytics';
 
@@ -54,6 +55,7 @@ export default function SettingsView({
         chat: 'chat',
         prompts: 'prompts',
         keyboard: 'keyboard',
+        'local-inference': 'local-inference',
       };
 
       const targetTab = sectionToTab[viewOptions.section];
@@ -72,7 +74,7 @@ export default function SettingsView({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose();
       }
     };
@@ -88,7 +90,7 @@ export default function SettingsView({
     <>
       <MainPanelLayout>
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
+          <div className="bg-background-primary px-8 pb-8 pt-16">
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Settings</h1>
@@ -103,7 +105,7 @@ export default function SettingsView({
               className="h-full flex flex-col"
             >
               <div className="px-1">
-                <TabsList className="w-full mb-2 justify-start">
+                <TabsList className="w-full mb-2 justify-start overflow-x-auto flex-nowrap">
                   <TabsTrigger
                     value="models"
                     className="flex gap-2"
@@ -111,6 +113,14 @@ export default function SettingsView({
                   >
                     <Bot className="h-4 w-4" />
                     Models
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="local-inference"
+                    className="flex gap-2"
+                    data-testid="settings-local-inference-tab"
+                  >
+                    <HardDrive className="h-4 w-4" />
+                    Local Inference
                   </TabsTrigger>
                   <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
                     <MessageSquare className="h-4 w-4" />
@@ -153,6 +163,13 @@ export default function SettingsView({
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
                   <ModelsSection setView={setView} />
+                </TabsContent>
+
+                <TabsContent
+                  value="local-inference"
+                  className="mt-0 focus-visible:outline-none focus-visible:ring-0"
+                >
+                  <LocalInferenceSection />
                 </TabsContent>
 
                 <TabsContent
