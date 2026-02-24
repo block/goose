@@ -17,7 +17,9 @@ import { ChevronRight, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
-import { CallToolResponse, Content, EmbeddedResource } from '../api';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResponse, ContentBlock, EmbeddedResource } from '../api';
+
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 
@@ -64,7 +66,7 @@ interface ToolCallWithResponseProps {
   isApprovalClicked?: boolean;
 }
 
-function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
+function getToolResultContent(toolResult: Record<string, unknown>): ContentBlock[] {
   if (toolResult.status !== 'success') {
     return [];
   }
@@ -75,8 +77,11 @@ function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
   });
 }
 
-function isEmbeddedResource(content: Content): content is EmbeddedResource {
-  return 'resource' in content && typeof (content as Record<string, unknown>).resource === 'object';
+function isEmbeddedResource(
+  content: ContentBlock
+): content is EmbeddedResource & { type: 'resource' } {
+  const c = content as Record<string, unknown>;
+  return c.type === 'resource' && typeof c.resource === 'object' && c.resource !== null;
 }
 
 interface McpAppWrapperProps {
@@ -119,8 +124,11 @@ function McpAppWrapper({
   const toolInput = { arguments: toolArguments || {} };
 
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
+  // Wire format matches CallToolResult but generated types differ structurally
   const toolResult =
-    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
+    resultWithMeta?.status === 'success' && resultWithMeta.value
+      ? (resultWithMeta.value as unknown as CallToolResult)
+      : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;
@@ -217,13 +225,11 @@ export default function ToolCallWithResponse({
         !hasMcpAppResourceURI &&
         toolResponse?.toolResult &&
         getToolResultContent(toolResponse.toolResult).map((content, index) => {
-          const resourceContent = isEmbeddedResource(content)
-            ? { ...content, type: 'resource' as const }
-            : null;
-          if (resourceContent && isUIResource(resourceContent)) {
+          if (!isEmbeddedResource(content)) return null;
+          if (isUIResource(content)) {
             return (
               <div key={index} className="mt-3">
-                <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
+                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-border-primary rounded-lg bg-background-secondary flex items-center">
                   <FlaskConical className="mr-2" size={20} />
                   <div className="text-sm font-sans">
@@ -857,21 +863,22 @@ interface ToolResultViewProps {
     name: string;
     arguments: Record<string, unknown>;
   };
-  result: Content;
+  result: ContentBlock;
   isStartExpanded: boolean;
 }
 
 function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
-  const hasText = (c: Content): c is Content & { text: string } =>
+  const hasText = (c: ContentBlock): c is ContentBlock & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
-  const hasImage = (c: Content): c is Content & { data: string; mimeType: string } => {
+  const hasImage = (c: ContentBlock): c is ContentBlock & { data: string; mimeType: string } => {
     if (!('data' in c && 'mimeType' in c)) return false;
     const mimeType = (c as Record<string, unknown>).mimeType;
     return typeof mimeType === 'string' && mimeType.startsWith('image');
   };
 
-  const hasResource = (c: Content): c is Content & { resource: unknown } => 'resource' in c;
+  const hasResource = (c: ContentBlock): c is ContentBlock & { resource: unknown } =>
+    'resource' in c;
 
   const wrapMarkdown = (text: string): string => {
     if (
