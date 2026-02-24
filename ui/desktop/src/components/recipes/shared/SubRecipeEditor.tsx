@@ -4,6 +4,7 @@ import { Button } from '../../ui/button';
 import { SubRecipeFormData } from './recipeFormSchema';
 import SubRecipeModal from './SubRecipeModal';
 import CreateSubRecipeInline from './CreateSubRecipeInline';
+import { toastError } from '../../../toasts';
 
 interface SubRecipeEditorProps {
   subRecipes: SubRecipeFormData[];
@@ -43,11 +44,25 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
       newSubRecipes[editingIndex] = subRecipe;
       onChange(newSubRecipes);
     } else {
+      if (subRecipes.some((sr) => sr.name === subRecipe.name)) {
+        toastError({
+          title: 'Duplicate Name',
+          msg: `A subrecipe named "${subRecipe.name}" already exists. Please use a unique name.`,
+        });
+        return;
+      }
       onChange([...subRecipes, subRecipe]);
     }
   };
 
   const handleSubRecipeSaved = (subRecipe: SubRecipeFormData) => {
+    if (subRecipes.some((sr) => sr.name === subRecipe.name)) {
+      toastError({
+        title: 'Duplicate Name',
+        msg: `A subrecipe named "${subRecipe.name}" already exists. Please use a unique name.`,
+      });
+      return;
+    }
     onChange([...subRecipes, subRecipe]);
   };
 
@@ -88,7 +103,7 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
         <div className="space-y-2">
           {subRecipes.map((subRecipe, index) => (
             <div
-              key={index}
+              key={subRecipe.name}
               className="border border-border-subtle rounded-lg p-4 bg-background-default hover:bg-background-muted transition-colors"
             >
               <div className="flex items-start justify-between">
@@ -96,7 +111,7 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="text-sm font-semibold text-textProminent">{subRecipe.name}</h4>
                     {subRecipe.sequential_when_repeated && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                      <span className="text-xs px-2 py-0.5 bg-background-info/10 text-text-info rounded">
                         Sequential
                       </span>
                     )}
@@ -129,7 +144,9 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
                     onClick={() => handleEditSubRecipe(subRecipe, index)}
                     variant="ghost"
                     size="sm"
-                    className="p-2 hover:bg-blue-100 hover:text-blue-600"
+                    className="p-2 hover:bg-background-secondary hover:text-text-primary"
+                    aria-label={`Edit subrecipe ${subRecipe.name}`}
+                    title={`Edit subrecipe ${subRecipe.name}`}
                   >
                     <Edit2 className="w-4 h-4" />
                   </Button>
@@ -138,7 +155,9 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
                     onClick={() => handleDeleteSubRecipe(index)}
                     variant="ghost"
                     size="sm"
-                    className="p-2 hover:bg-red-100 hover:text-red-600"
+                    className="p-2 hover:bg-background-danger/10 hover:text-text-danger"
+                    aria-label={`Delete subrecipe ${subRecipe.name}`}
+                    title={`Delete subrecipe ${subRecipe.name}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -158,7 +177,8 @@ export default function SubRecipeEditor({ subRecipes, onChange }: SubRecipeEdito
         subRecipe={editingSubRecipe}
       />
 
-      {/* Create Subrecipe Modal */}
+      {/* SubRecipeModal (z-[500]) can be opened from within CreateSubRecipeInline (z-[400]),
+          so SubRecipeModal must have a higher z-index than this panel. */}
       <CreateSubRecipeInline
         isOpen={showCreateRecipeModal}
         onClose={() => {

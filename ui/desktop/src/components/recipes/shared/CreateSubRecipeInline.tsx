@@ -1,12 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { X, Save, Loader2, Plus, Trash2 } from 'lucide-react';
+import { X, Save, Loader2 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { toastSuccess, toastError } from '../../../toasts';
 import { saveRecipe, getStorageDirectory } from '../../../recipe/recipe_management';
 import { Recipe } from '../../../recipe';
 import { SubRecipeFormData } from './recipeFormSchema';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
+import KeyValueEditor from './KeyValueEditor';
 
 interface CreateSubRecipeInlineProps {
   isOpen: boolean;
@@ -38,30 +39,7 @@ export default function CreateSubRecipeInline({
   const [toolDescription, setToolDescription] = useState('');
   const [sequentialWhenRepeated, setSequentialWhenRepeated] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
-  const [newValueKey, setNewValueKey] = useState('');
-  const [newValueValue, setNewValueValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-
-  const handleAddValue = () => {
-    if (newValueKey.trim() && newValueValue.trim()) {
-      setValues({ ...values, [newValueKey.trim()]: newValueValue.trim() });
-      setNewValueKey('');
-      setNewValueValue('');
-    }
-  };
-
-  const handleRemoveValue = (key: string) => {
-    const newValues = { ...values };
-    delete newValues[key];
-    setValues(newValues);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent, action: () => void) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      action();
-    }
-  };
 
   const handleSave = useCallback(async () => {
     const formValues = form.state.values;
@@ -88,7 +66,15 @@ export default function CreateSubRecipeInline({
         instructions: formValues.instructions.trim(),
       };
 
-      const savedRecipeId = await saveRecipe(recipe, null);
+      // Use a human-readable sanitized title as the recipe ID so the saved
+      // filename is meaningful (e.g. security-scan.yaml) instead of a hash.
+      const sanitizedTitle = formValues.title
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      const savedRecipeId = await saveRecipe(recipe, sanitizedTitle);
 
       const subRecipe: SubRecipeFormData = {
         name: name.trim(),
@@ -141,6 +127,7 @@ export default function CreateSubRecipeInline({
             variant="ghost"
             size="sm"
             className="p-2 hover:bg-bgSubtle rounded-lg transition-colors"
+            aria-label="Close create subrecipe modal"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -154,14 +141,14 @@ export default function CreateSubRecipeInline({
               htmlFor="subrecipe-name"
               className="block text-sm font-medium text-text-standard mb-2"
             >
-              Name <span className="text-red-500">*</span>
+              Name <span className="text-text-danger">*</span>
             </label>
             <input
               id="subrecipe-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="e.g., security_scan"
             />
             <p className="text-xs text-text-muted mt-1">
@@ -177,7 +164,7 @@ export default function CreateSubRecipeInline({
                   htmlFor="subrecipe-title"
                   className="block text-sm font-medium text-text-standard mb-2"
                 >
-                  Recipe Title <span className="text-red-500">*</span>
+                  Recipe Title <span className="text-text-danger">*</span>
                 </label>
                 <input
                   id="subrecipe-title"
@@ -185,7 +172,7 @@ export default function CreateSubRecipeInline({
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="e.g., Security Analysis Tool"
                 />
               </div>
@@ -200,7 +187,7 @@ export default function CreateSubRecipeInline({
                   htmlFor="recipe-description"
                   className="block text-sm font-medium text-text-standard mb-2"
                 >
-                  Recipe Description <span className="text-red-500">*</span>
+                  Recipe Description <span className="text-text-danger">*</span>
                 </label>
                 <input
                   id="recipe-description"
@@ -208,7 +195,7 @@ export default function CreateSubRecipeInline({
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="What this recipe does when executed"
                 />
               </div>
@@ -223,14 +210,14 @@ export default function CreateSubRecipeInline({
                   htmlFor="subrecipe-instructions"
                   className="block text-sm font-medium text-text-standard mb-2"
                 >
-                  Instructions <span className="text-red-500">*</span>
+                  Instructions <span className="text-text-danger">*</span>
                 </label>
                 <textarea
                   id="subrecipe-instructions"
                   value={field.state.value}
                   onChange={(e) => field.handleChange(e.target.value)}
                   onBlur={field.handleBlur}
-                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
+                  className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none font-mono text-sm"
                   placeholder="Instructions for the AI when this subrecipe is called..."
                   rows={8}
                 />
@@ -250,7 +237,7 @@ export default function CreateSubRecipeInline({
               id="tool-description"
               value={toolDescription}
               onChange={(e) => setToolDescription(e.target.value)}
-              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full p-3 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               placeholder="Optional description shown when this is called as a tool"
               rows={2}
             />
@@ -263,7 +250,7 @@ export default function CreateSubRecipeInline({
               type="checkbox"
               checked={sequentialWhenRepeated}
               onChange={(e) => setSequentialWhenRepeated(e.target.checked)}
-              className="w-4 h-4 text-blue-500 border-border-subtle rounded focus:ring-2 focus:ring-blue-500"
+              className="w-4 h-4 border-border-subtle rounded focus:ring-2 focus:ring-ring"
             />
             <label htmlFor="subrecipe-sequential" className="text-sm text-text-standard">
               Sequential when repeated
@@ -281,63 +268,7 @@ export default function CreateSubRecipeInline({
             <p className="text-xs text-text-muted mb-3">
               Optional parameter values that are always passed to the subrecipe
             </p>
-
-            {/* Add Value Input */}
-            <div className="flex gap-2 mb-3">
-              <input
-                type="text"
-                value={newValueKey}
-                onChange={(e) => setNewValueKey(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleAddValue)}
-                placeholder="Parameter name..."
-                className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-              <input
-                type="text"
-                value={newValueValue}
-                onChange={(e) => setNewValueValue(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleAddValue)}
-                placeholder="Parameter value..."
-                className="flex-1 px-3 py-2 border border-border-subtle rounded-lg bg-background-default text-text-standard focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
-              <Button
-                type="button"
-                onClick={handleAddValue}
-                disabled={!newValueKey.trim() || !newValueValue.trim()}
-                variant="outline"
-                size="sm"
-                className="px-3"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Values List */}
-            {Object.keys(values).length > 0 && (
-              <div className="space-y-2 border border-border-subtle rounded-lg p-3">
-                {Object.entries(values).map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between p-2 bg-background-muted rounded"
-                  >
-                    <div className="flex-1">
-                      <span className="text-sm font-medium text-text-standard">{key}</span>
-                      <span className="text-sm text-text-muted mx-2">=</span>
-                      <span className="text-sm text-text-standard">{value}</span>
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={() => handleRemoveValue(key)}
-                      variant="ghost"
-                      size="sm"
-                      className="p-1 hover:bg-red-100 hover:text-red-600"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <KeyValueEditor values={values} onChange={setValues} />
           </div>
         </div>
 
@@ -355,7 +286,7 @@ export default function CreateSubRecipeInline({
               !form.state.values.instructions.trim() ||
               isSaving
             }
-            className="bg-blue-500 hover:bg-blue-600 text-white inline-flex items-center gap-2"
+            className="inline-flex items-center gap-2"
           >
             {isSaving ? (
               <>

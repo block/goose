@@ -335,7 +335,7 @@ export function RecipeFormFields({
           />
           <span className="text-sm font-medium text-textStandard">Advanced Options</span>
           <span className="text-xs text-textSubtle">
-            Activities, parameters, model, extensions, response schema, subrecipe
+            Activities, parameters, model, extensions, response schema, subrecipes
           </span>
         </CollapsibleTrigger>
 
@@ -375,7 +375,7 @@ export function RecipeFormFields({
                 }
               };
 
-              const handleKeyPress = (e: React.KeyboardEvent) => {
+              const handleKeyDown = (e: React.KeyboardEvent) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   handleAddParameter();
@@ -423,7 +423,7 @@ export function RecipeFormFields({
                       type="text"
                       value={newParameterName}
                       onChange={(e) => setNewParameterName(e.target.value)}
-                      onKeyPress={handleKeyPress}
+                      onKeyDown={handleKeyDown}
                       placeholder="Enter parameter name..."
                       className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
