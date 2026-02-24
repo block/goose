@@ -730,8 +730,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_tool_pair_summarization_workflow() {
-        let summary_response = Message::assistant()
-            .with_text("[Historical tool call summary] Tool call to list files and response with file listing");
+        let summary_response = Message::assistant().with_text(
+            "[Historical tool call summary] Tool call to list files and response with file listing",
+        );
         let provider = MockProvider::new(summary_response, 1000);
 
         let mut messages = vec![Message::user().with_text("list files").with_id("msg_1")];
