@@ -13,7 +13,6 @@ pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
 pub const AZURE_DOC_URL: &str =
     "https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models";
 pub const AZURE_DEFAULT_API_VERSION: &str = "2024-10-21";
-pub const AZURE_OPENAI_KNOWN_MODELS: &[&str] = &["gpt-4o", "gpt-4o-mini", "gpt-4"];
 
 pub struct AzureProvider;
 
@@ -47,12 +46,12 @@ impl ProviderDef for AzureProvider {
     type Provider = OpenAiCompatibleProvider;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             AZURE_PROVIDER_NAME,
             "Azure OpenAI",
             "Models through Azure OpenAI Service (uses Azure credential chain by default)",
             "gpt-4o",
-            AZURE_OPENAI_KNOWN_MODELS.to_vec(),
+            vec![],
             AZURE_DOC_URL,
             vec![
                 ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None, true),

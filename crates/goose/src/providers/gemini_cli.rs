@@ -28,12 +28,6 @@ use rmcp::model::Tool;
 
 const GEMINI_CLI_PROVIDER_NAME: &str = "gemini-cli";
 pub const GEMINI_CLI_DEFAULT_MODEL: &str = "gemini-2.5-pro";
-pub const GEMINI_CLI_KNOWN_MODELS: &[&str] = &[
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-];
-
 pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 
 #[derive(Debug, serde::Serialize)]
@@ -158,12 +152,12 @@ impl ProviderDef for GeminiCliProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             GEMINI_CLI_PROVIDER_NAME,
             "Gemini CLI",
             "Execute Gemini models via gemini CLI tool",
             GEMINI_CLI_DEFAULT_MODEL,
-            GEMINI_CLI_KNOWN_MODELS.to_vec(),
+            vec!["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
             GEMINI_CLI_DOC_URL,
             vec![ConfigKey::from_value_type::<GeminiCliCommand>(
                 true, false, true,
@@ -190,10 +184,13 @@ impl Provider for GeminiCliProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(GEMINI_CLI_KNOWN_MODELS
-            .iter()
-            .map(|s| s.to_string())
-            .collect())
+        let metadata = <Self as ProviderDef>::metadata();
+        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
+        if canonical.is_empty() {
+            Ok(vec!["gemini-2.5-pro".to_string(), "gemini-2.5-flash".to_string(), "gemini-2.5-flash-lite".to_string()])
+        } else {
+            Ok(canonical)
+        }
     }
 
     #[tracing::instrument(

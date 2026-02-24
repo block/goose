@@ -9,7 +9,7 @@ use tokio::pin;
 use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
 use super::formats::anthropic::{create_request, response_to_streaming_message};
 use super::openai_compatible::handle_status_openai_compat;
@@ -24,20 +24,6 @@ use rmcp::model::Tool;
 const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
-const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
-    // Claude 4.5 models with aliases
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-5-20250929",
-    "claude-haiku-4-5",
-    "claude-haiku-4-5-20251001",
-    "claude-opus-4-5",
-    "claude-opus-4-5-20251101",
-    // Legacy Claude 4.0 models
-    "claude-sonnet-4-0",
-    "claude-sonnet-4-20250514",
-    "claude-opus-4-0",
-    "claude-opus-4-20250514",
-];
 
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
@@ -140,17 +126,12 @@ impl ProviderDef for AnthropicProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        let models: Vec<ModelInfo> = ANTHROPIC_KNOWN_MODELS
-            .iter()
-            .map(|&model_name| ModelInfo::new(model_name, 200_000))
-            .collect();
-
-        ProviderMetadata::with_models(
+        ProviderMetadata::from_canonical(
             ANTHROPIC_PROVIDER_NAME,
             "Anthropic",
             "Claude and other models from Anthropic",
             ANTHROPIC_DEFAULT_MODEL,
-            models,
+            vec![],
             ANTHROPIC_DOC_URL,
             vec![
                 ConfigKey::new("ANTHROPIC_API_KEY", true, true, None, true),

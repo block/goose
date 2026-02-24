@@ -27,7 +27,7 @@ use rmcp::model::Tool;
 
 const CODEX_PROVIDER_NAME: &str = "codex";
 pub const CODEX_DEFAULT_MODEL: &str = "gpt-5.2-codex";
-pub const CODEX_KNOWN_MODELS: &[&str] = &[
+pub const CODEX_CLI_SUPPORTED_MODELS: &[&str] = &[
     "gpt-5.2-codex",
     "gpt-5.2",
     "gpt-5.1-codex-max",
@@ -134,7 +134,7 @@ impl CodexProvider {
 
         // Only pass model parameter if it's in the known models list
         // This allows users to set GOOSE_PROVIDER=codex without needing to specify a model
-        if CODEX_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+        if CODEX_CLI_SUPPORTED_MODELS.contains(&self.model.model_name.as_str()) {
             cmd.arg("-m").arg(&self.model.model_name);
         }
 
@@ -592,12 +592,12 @@ impl ProviderDef for CodexProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             CODEX_PROVIDER_NAME,
             "OpenAI Codex CLI",
             "Execute OpenAI models via Codex CLI tool. Requires codex CLI installed.",
             CODEX_DEFAULT_MODEL,
-            CODEX_KNOWN_MODELS.to_vec(),
+            CODEX_CLI_SUPPORTED_MODELS.to_vec(),
             CODEX_DOC_URL,
             vec![
                 ConfigKey::from_value_type::<CodexCommand>(true, false, true),
@@ -725,7 +725,7 @@ impl Provider for CodexProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(CODEX_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
+        Ok(CODEX_CLI_SUPPORTED_MODELS.iter().map(|s| s.to_string()).collect())
     }
 }
 
@@ -1007,10 +1007,10 @@ mod tests {
 
     #[test]
     fn test_known_models() {
-        assert!(CODEX_KNOWN_MODELS.contains(&"gpt-5.2-codex"));
-        assert!(CODEX_KNOWN_MODELS.contains(&"gpt-5.2"));
-        assert!(CODEX_KNOWN_MODELS.contains(&"gpt-5.1-codex-max"));
-        assert!(CODEX_KNOWN_MODELS.contains(&"gpt-5.1-codex-mini"));
+        assert!(CODEX_CLI_SUPPORTED_MODELS.contains(&"gpt-5.2-codex"));
+        assert!(CODEX_CLI_SUPPORTED_MODELS.contains(&"gpt-5.2"));
+        assert!(CODEX_CLI_SUPPORTED_MODELS.contains(&"gpt-5.1-codex-max"));
+        assert!(CODEX_CLI_SUPPORTED_MODELS.contains(&"gpt-5.1-codex-mini"));
     }
 
     #[test]

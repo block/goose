@@ -21,18 +21,6 @@ use rmcp::model::Tool;
 
 const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";
 pub const SNOWFLAKE_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
-pub const SNOWFLAKE_KNOWN_MODELS: &[&str] = &[
-    // Claude 4.5 series
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
-    // Claude 4 series
-    "claude-4-sonnet",
-    "claude-4-opus",
-    // Claude 3 series
-    "claude-3-7-sonnet",
-    "claude-3-5-sonnet",
-];
-
 pub const SNOWFLAKE_DOC_URL: &str =
     "https://docs.snowflake.com/user-guide/snowflake-cortex/aisql#choosing-a-model";
 
@@ -301,12 +289,12 @@ impl ProviderDef for SnowflakeProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             SNOWFLAKE_PROVIDER_NAME,
             "Snowflake",
             "Access the latest models using Snowflake Cortex services.",
             SNOWFLAKE_DEFAULT_MODEL,
-            SNOWFLAKE_KNOWN_MODELS.to_vec(),
+            vec!["claude-sonnet-4-5", "claude-haiku-4-5", "claude-4-sonnet", "claude-4-opus", "claude-3-7-sonnet", "claude-3-5-sonnet"],
             SNOWFLAKE_DOC_URL,
             vec![
                 ConfigKey::new("SNOWFLAKE_HOST", true, false, None, true),
@@ -334,10 +322,13 @@ impl Provider for SnowflakeProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(SNOWFLAKE_KNOWN_MODELS
-            .iter()
-            .map(|s| s.to_string())
-            .collect())
+        let metadata = <Self as ProviderDef>::metadata();
+        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
+        if canonical.is_empty() {
+            Ok(vec!["claude-sonnet-4-5".to_string(), "claude-haiku-4-5".to_string(), "claude-4-sonnet".to_string(), "claude-4-opus".to_string(), "claude-3-7-sonnet".to_string(), "claude-3-5-sonnet".to_string()])
+        } else {
+            Ok(canonical)
+        }
     }
 
     #[tracing::instrument(

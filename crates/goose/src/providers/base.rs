@@ -4,7 +4,7 @@ use futures::future::BoxFuture;
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 
-use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
+use super::canonical::{map_to_canonical_model, CanonicalModelRegistry, Modality};
 use super::errors::ProviderError;
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
@@ -133,6 +133,60 @@ impl ModelInfo {
         }
     }
 
+    /// Create a ModelInfo enriched with canonical data (context limit, pricing).
+    ///
+    /// Looks up the model in the canonical registry and fills in context_limit
+    /// and pricing when available. Falls back to default_context_limit if
+    /// canonical lookup fails.
+    pub fn from_canonical_lookup(
+        name: impl Into<String>,
+        provider: &str,
+        default_context_limit: usize,
+    ) -> Self {
+        let name = name.into();
+        if let Ok(registry) = CanonicalModelRegistry::bundled() {
+            let canonical_prov =
+                super::canonical::canonical_provider_name(provider);
+            // Try direct lookup first
+            if let Some(m) = registry.get(canonical_prov, &name) {
+                if m.modalities.input.contains(&Modality::Text) {
+                    return Self {
+                        name,
+                        context_limit: m.limit.context,
+                        input_token_cost: m.cost.input.map(|c| c / 1_000_000.0),
+                        output_token_cost: m.cost.output.map(|c| c / 1_000_000.0),
+                        currency: if m.cost.input.is_some() || m.cost.output.is_some() {
+                            Some("$".to_string())
+                        } else {
+                            None
+                        },
+                        supports_cache_control: None,
+                    };
+                }
+            }
+            // Try canonical mapping (handles version suffixes, etc.)
+            if let Some(canonical_id) = map_to_canonical_model(provider, &name, registry) {
+                if let Some((cp, cm)) = canonical_id.split_once('/') {
+                    if let Some(m) = registry.get(cp, cm) {
+                        return Self {
+                            name,
+                            context_limit: m.limit.context,
+                            input_token_cost: m.cost.input.map(|c| c / 1_000_000.0),
+                            output_token_cost: m.cost.output.map(|c| c / 1_000_000.0),
+                            currency: if m.cost.input.is_some() || m.cost.output.is_some() {
+                                Some("$".to_string())
+                            } else {
+                                None
+                            },
+                            supports_cache_control: None,
+                        };
+                    }
+                }
+            }
+        }
+        Self::new(name, default_context_limit)
+    }
+
     /// Create a new ModelInfo with cost information (per token)
     pub fn with_cost(
         name: impl Into<String>,
@@ -226,6 +280,55 @@ impl ProviderMetadata {
             description: description.to_string(),
             default_model: default_model.to_string(),
             known_models: models,
+            model_doc_link: model_doc_link.to_string(),
+            config_keys,
+        }
+    }
+
+    /// Build ProviderMetadata using the canonical model registry as the primary source.
+    ///
+    /// Tries canonical registry first via `known_models_for_provider(name)`.
+    /// Falls back to the provided `fallback_model_names` (with `with_canonical_limits()`)
+    /// when the canonical registry has no data for this provider.
+    pub fn from_canonical(
+        name: &str,
+        display_name: &str,
+        description: &str,
+        default_model: &str,
+        fallback_model_names: Vec<&str>,
+        model_doc_link: &str,
+        config_keys: Vec<ConfigKey>,
+    ) -> Self {
+        let canonical_models = CanonicalModelRegistry::bundled()
+            .ok()
+            .map(|registry| registry.known_models_for_provider(name))
+            .unwrap_or_default();
+
+        let known_models = if canonical_models.is_empty() {
+            // Fallback: use provided model names with canonical limits lookup
+            fallback_model_names
+                .iter()
+                .map(|&model_name| ModelInfo {
+                    name: model_name.to_string(),
+                    context_limit: ModelConfig::new_or_fail(model_name)
+                        .with_canonical_limits(name)
+                        .context_limit(),
+                    input_token_cost: None,
+                    output_token_cost: None,
+                    currency: None,
+                    supports_cache_control: None,
+                })
+                .collect()
+        } else {
+            canonical_models
+        };
+
+        Self {
+            name: name.to_string(),
+            display_name: display_name.to_string(),
+            description: description.to_string(),
+            default_model: default_model.to_string(),
+            known_models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
         }

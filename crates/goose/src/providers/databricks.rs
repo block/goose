@@ -34,14 +34,6 @@ const DEFAULT_TIMEOUT_SECS: u64 = 600;
 const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
 const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
-pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
-    "databricks-claude-sonnet-4-5",
-    "databricks-claude-3-7-sonnet",
-    "databricks-meta-llama-3-3-70b-instruct",
-    "databricks-meta-llama-3-1-405b-instruct",
-    "databricks-dbrx-instruct",
-];
-
 pub const DATABRICKS_DOC_URL: &str =
     "https://docs.databricks.com/en/generative-ai/external-models/index.html";
 
@@ -238,12 +230,12 @@ impl ProviderDef for DatabricksProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             DATABRICKS_PROVIDER_NAME,
             "Databricks",
             "Models on Databricks AI Gateway",
             DATABRICKS_DEFAULT_MODEL,
-            DATABRICKS_KNOWN_MODELS.to_vec(),
+            vec!["databricks-claude-sonnet-4-5", "databricks-claude-3-7-sonnet", "databricks-meta-llama-3-3-70b-instruct", "databricks-meta-llama-3-1-405b-instruct", "databricks-dbrx-instruct"],
             DATABRICKS_DOC_URL,
             vec![
                 ConfigKey::new("DATABRICKS_HOST", true, false, None, true),

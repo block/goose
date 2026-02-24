@@ -21,7 +21,7 @@ use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, Pr
 use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
     create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,
-    DEFAULT_MODEL, KNOWN_MODELS,
+    DEFAULT_MODEL,
 };
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::map_http_error_to_provider_error;
@@ -495,12 +495,12 @@ impl ProviderDef for GcpVertexAIProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             GCP_VERTEX_AI_PROVIDER_NAME,
             "GCP Vertex AI",
             "Access variety of AI models such as Claude, Gemini through Vertex AI",
             DEFAULT_MODEL,
-            KNOWN_MODELS.to_vec(),
+            vec![],
             GCP_VERTEX_AI_DOC_URL,
             vec![
                 ConfigKey::new("GCP_PROJECT_ID", true, false, None, true),
@@ -616,7 +616,13 @@ impl Provider for GcpVertexAIProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let models: Vec<String> = KNOWN_MODELS.iter().map(|s| s.to_string()).collect();
+        let metadata = <Self as ProviderDef>::metadata();
+        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
+        let models = if canonical.is_empty() {
+            vec![]
+        } else {
+            canonical
+        };
         let filtered = self.filter_by_org_policy(models).await;
         Ok(filtered)
     }

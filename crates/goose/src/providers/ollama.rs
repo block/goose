@@ -29,12 +29,6 @@ pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = 600;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
 pub const OLLAMA_DEFAULT_MODEL: &str = "qwen3";
-pub const OLLAMA_KNOWN_MODELS: &[&str] = &[
-    OLLAMA_DEFAULT_MODEL,
-    "qwen3-vl",
-    "qwen3-coder:30b",
-    "qwen3-coder:480b-cloud",
-];
 pub const OLLAMA_DOC_URL: &str = "https://ollama.com/library";
 
 #[derive(serde::Serialize)]
@@ -174,12 +168,12 @@ impl ProviderDef for OllamaProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             OLLAMA_PROVIDER_NAME,
             "Ollama",
             "Local open source models",
             OLLAMA_DEFAULT_MODEL,
-            OLLAMA_KNOWN_MODELS.to_vec(),
+            vec![OLLAMA_DEFAULT_MODEL, "qwen3-vl", "qwen3-coder:30b", "qwen3-coder:480b-cloud"],
             OLLAMA_DOC_URL,
             vec![
                 ConfigKey::new("OLLAMA_HOST", true, false, Some(OLLAMA_HOST), true),

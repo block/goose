@@ -23,7 +23,7 @@ use rmcp::model::Tool;
 
 const CURSOR_AGENT_PROVIDER_NAME: &str = "cursor-agent";
 pub const CURSOR_AGENT_DEFAULT_MODEL: &str = "auto";
-pub const CURSOR_AGENT_KNOWN_MODELS: &[&str] = &["auto", "gpt-5", "opus-4.1", "sonnet-4"];
+pub const CURSOR_CLI_SUPPORTED_MODELS: &[&str] = &["auto", "gpt-5", "opus-4.1", "sonnet-4"];
 
 pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview";
 
@@ -206,7 +206,7 @@ impl CursorAgentProvider {
         }
 
         // Only pass model parameter if it's in the known models list
-        if CURSOR_AGENT_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
+        if CURSOR_CLI_SUPPORTED_MODELS.contains(&self.model.model_name.as_str()) {
             cmd.arg("--model").arg(&self.model.model_name);
         }
 
@@ -283,12 +283,12 @@ impl ProviderDef for CursorAgentProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             CURSOR_AGENT_PROVIDER_NAME,
             "Cursor Agent",
             "Execute AI models via cursor-agent CLI tool",
             CURSOR_AGENT_DEFAULT_MODEL,
-            CURSOR_AGENT_KNOWN_MODELS.to_vec(),
+            CURSOR_CLI_SUPPORTED_MODELS.to_vec(),
             CURSOR_AGENT_DOC_URL,
             vec![ConfigKey::from_value_type::<CursorAgentCommand>(
                 true, false, true,
@@ -316,7 +316,7 @@ impl Provider for CursorAgentProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(CURSOR_AGENT_KNOWN_MODELS
+        Ok(CURSOR_CLI_SUPPORTED_MODELS
             .iter()
             .map(|s| s.to_string())
             .collect())

@@ -26,33 +26,6 @@ const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
-pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
-    // Gemini 3 models
-    "gemini-3-pro-preview",
-    "gemini-3-pro-image-preview",
-    // Gemini 2.5 Pro models
-    "gemini-2.5-pro",
-    "gemini-2.5-pro-preview-tts",
-    // Gemini 2.5 Flash models
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-preview-09-2025",
-    "gemini-2.5-flash-image",
-    "gemini-2.5-flash-image-preview",
-    "gemini-2.5-flash-native-audio-preview-09-2025",
-    "gemini-2.5-flash-preview-tts",
-    // Gemini 2.5 Flash-Lite models
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-lite-preview-09-2025",
-    // Gemini 2.0 Flash models
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-exp",
-    "gemini-2.0-flash-preview-image-generation",
-    "gemini-2.0-flash-live-001",
-    // Gemini 2.0 Flash-Lite models
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash-lite-001",
-];
 
 pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 
@@ -109,12 +82,12 @@ impl ProviderDef for GoogleProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             GOOGLE_PROVIDER_NAME,
             "Google Gemini",
             "Gemini models from Google AI",
             GOOGLE_DEFAULT_MODEL,
-            GOOGLE_KNOWN_MODELS.to_vec(),
+            vec![],
             GOOGLE_DOC_URL,
             vec![
                 ConfigKey::new("GOOGLE_API_KEY", true, true, None, true),

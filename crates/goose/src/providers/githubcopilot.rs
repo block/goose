@@ -30,18 +30,6 @@ use rmcp::model::Tool;
 
 const GITHUB_COPILOT_PROVIDER_NAME: &str = "github_copilot";
 pub const GITHUB_COPILOT_DEFAULT_MODEL: &str = "gpt-4.1";
-pub const GITHUB_COPILOT_KNOWN_MODELS: &[&str] = &[
-    "gpt-4.1",
-    "gpt-5-mini",
-    "gpt-5",
-    "gpt-4o",
-    "grok-code-fast-1",
-    "gpt-5-codex",
-    "claude-sonnet-4",
-    "claude-sonnet-4.5",
-    "claude-haiku-4.5",
-    "gemini-2.5-pro",
-];
 
 pub const GITHUB_COPILOT_STREAM_MODELS: &[&str] = &[
     "gpt-4.1",
@@ -383,12 +371,12 @@ impl ProviderDef for GithubCopilotProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             GITHUB_COPILOT_PROVIDER_NAME,
             "GitHub Copilot",
             "GitHub Copilot. Run `goose configure` and select copilot to set up.",
             GITHUB_COPILOT_DEFAULT_MODEL,
-            GITHUB_COPILOT_KNOWN_MODELS.to_vec(),
+            vec![],
             GITHUB_COPILOT_DOC_URL,
             vec![ConfigKey::new_oauth(
                 "GITHUB_COPILOT_TOKEN",

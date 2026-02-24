@@ -29,13 +29,6 @@ pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
 pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
-pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
-    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
-    "us.anthropic.claude-sonnet-4-20250514-v1:0",
-    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "us.anthropic.claude-opus-4-20250514-v1:0",
-    "us.anthropic.claude-opus-4-1-20250805-v1:0",
-];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
 pub const BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
@@ -313,12 +306,12 @@ impl ProviderDef for BedrockProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             BEDROCK_PROVIDER_NAME,
             "Amazon Bedrock",
             "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, use environment variables/credentials, or use AWS_BEARER_TOKEN_BEDROCK for bearer token authentication. Region is required for bearer token auth (can be set via AWS_REGION, AWS_DEFAULT_REGION, or AWS profile). Prompt caching can be enabled for Anthropic Claude models by setting BEDROCK_ENABLE_CACHING=true.",
             BEDROCK_DEFAULT_MODEL,
-            BEDROCK_KNOWN_MODELS.to_vec(),
+            vec![],
             BEDROCK_DOC_LINK,
             vec![
                 ConfigKey::new("AWS_PROFILE", false, false, Some("default"), true),
@@ -352,7 +345,13 @@ impl Provider for BedrockProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
+        let metadata = <Self as ProviderDef>::metadata();
+        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
+        if canonical.is_empty() {
+            Ok(vec![])
+        } else {
+            Ok(canonical)
+        }
     }
 
     #[tracing::instrument(

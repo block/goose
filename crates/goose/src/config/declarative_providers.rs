@@ -135,10 +135,11 @@ pub fn create_custom_provider(
         String::new()
     };
 
+    let catalog_provider = params.catalog_provider_id.as_deref().unwrap_or(&id);
     let model_infos: Vec<ModelInfo> = params
         .models
         .into_iter()
-        .map(|name| ModelInfo::new(name, 128000))
+        .map(|name| ModelInfo::from_canonical_lookup(name, catalog_provider, 128_000))
         .collect();
 
     let provider_config = DeclarativeProviderConfig {
@@ -193,10 +194,11 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
     };
 
     if editable {
+        let catalog_provider = params.catalog_provider_id.as_deref().unwrap_or(&params.id);
         let model_infos: Vec<ModelInfo> = params
             .models
             .into_iter()
-            .map(|name| ModelInfo::new(name, 128000))
+            .map(|name| ModelInfo::from_canonical_lookup(name, catalog_provider, 128_000))
             .collect();
 
         let updated_config = DeclarativeProviderConfig {
@@ -298,6 +300,30 @@ pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig
         .collect()
 }
 
+/// Enrich model info in a declarative provider config with canonical data.
+fn enrich_models_with_canonical(config: &mut DeclarativeProviderConfig) {
+    let provider_name = config
+        .catalog_provider_id
+        .as_deref()
+        .unwrap_or(&config.name);
+    for model in &mut config.models {
+        let enriched =
+            ModelInfo::from_canonical_lookup(&model.name, provider_name, model.context_limit);
+        if enriched.context_limit != model.context_limit && enriched.context_limit > 0 {
+            model.context_limit = enriched.context_limit;
+        }
+        if model.input_token_cost.is_none() {
+            model.input_token_cost = enriched.input_token_cost;
+        }
+        if model.output_token_cost.is_none() {
+            model.output_token_cost = enriched.output_token_cost;
+        }
+        if model.currency.is_none() {
+            model.currency = enriched.currency;
+        }
+    }
+}
+
 fn load_fixed_providers() -> Result<Vec<DeclarativeProviderConfig>> {
     let mut res = Vec::new();
     for file in FIXED_PROVIDERS.files() {
@@ -309,8 +335,11 @@ fn load_fixed_providers() -> Result<Vec<DeclarativeProviderConfig>> {
             .contents_utf8()
             .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
 
-        match serde_json::from_str(content) {
-            Ok(config) => res.push(config),
+        match serde_json::from_str::<DeclarativeProviderConfig>(content) {
+            Ok(mut config) => {
+                enrich_models_with_canonical(&mut config);
+                res.push(config);
+            }
             Err(e) => {
                 tracing::warn!(
                     "Skipping invalid declarative provider {:?}: {}",

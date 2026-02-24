@@ -394,7 +394,7 @@ export default function ChatInput({
         return;
       }
 
-      // Priority 3: Fall back to provider metadata known_models (may be outdated)
+      // Priority 3: Fall back to provider metadata known_models (sourced from canonical registry)
       const providers = await getProviders(true);
       const currentProvider = providers.find((p) => p.name === provider);
       if (currentProvider?.metadata?.known_models) {

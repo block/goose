@@ -1,5 +1,5 @@
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata};
+use super::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::errors::ProviderError;
 use super::formats::openai::{create_request, get_usage, response_to_message};
@@ -37,20 +37,6 @@ const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
-pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
-    ("gpt-4o", 128_000),
-    ("gpt-4o-mini", 128_000),
-    ("gpt-4.1", 128_000),
-    ("gpt-4.1-mini", 128_000),
-    ("o1", 200_000),
-    ("o3", 200_000),
-    ("gpt-3.5-turbo", 16_385),
-    ("gpt-4-turbo", 128_000),
-    ("o4-mini", 128_000),
-    ("gpt-5-nano", 400_000),
-    ("gpt-5.1-codex", 400_000),
-    ("gpt-5-codex", 400_000),
-];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
 
@@ -273,16 +259,12 @@ impl ProviderDef for OpenAiProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        let models = OPEN_AI_KNOWN_MODELS
-            .iter()
-            .map(|(name, limit)| ModelInfo::new(*name, *limit))
-            .collect();
-        ProviderMetadata::with_models(
+        ProviderMetadata::from_canonical(
             OPEN_AI_PROVIDER_NAME,
             "OpenAI",
             "GPT-4 and other OpenAI models, including OpenAI compatible ones",
             OPEN_AI_DEFAULT_MODEL,
-            models,
+            vec![],
             OPEN_AI_DOC_URL,
             vec![
                 ConfigKey::new("OPENAI_API_KEY", false, true, None, true),

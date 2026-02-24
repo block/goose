@@ -20,19 +20,7 @@ pub const OPENROUTER_DEFAULT_MODEL: &str = "anthropic/claude-sonnet-4";
 pub const OPENROUTER_DEFAULT_FAST_MODEL: &str = "google/gemini-2.5-flash";
 pub const OPENROUTER_MODEL_PREFIX_ANTHROPIC: &str = "anthropic";
 
-// OpenRouter can run many models, we suggest the default
-pub const OPENROUTER_KNOWN_MODELS: &[&str] = &[
-    "x-ai/grok-code-fast-1",
-    "anthropic/claude-sonnet-4.5",
-    "anthropic/claude-sonnet-4",
-    "anthropic/claude-opus-4.1",
-    "anthropic/claude-opus-4",
-    "google/gemini-2.5-pro",
-    "google/gemini-2.5-flash",
-    "deepseek/deepseek-r1-0528",
-    "qwen/qwen3-coder",
-    "moonshotai/kimi-k2",
-];
+
 pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 
 #[derive(serde::Serialize)]
@@ -150,12 +138,12 @@ impl ProviderDef for OpenRouterProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             OPENROUTER_PROVIDER_NAME,
             "OpenRouter",
             "Router for many model providers",
             OPENROUTER_DEFAULT_MODEL,
-            OPENROUTER_KNOWN_MODELS.to_vec(),
+            vec![],
             OPENROUTER_DOC_URL,
             vec![
                 ConfigKey::new("OPENROUTER_API_KEY", true, true, None, true),

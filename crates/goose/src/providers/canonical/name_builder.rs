@@ -39,7 +39,11 @@ fn is_meta_provider(provider: &str) -> bool {
     matches!(provider, "databricks" | "tetrate" | "bedrock" | "azure")
 }
 
-fn map_provider_name(provider: &str) -> &str {
+/// Map a goose provider name to the canonical (models.dev) provider name.
+///
+/// For example, `"xai"` becomes `"x-ai"`, `"azure_openai"` becomes `"azure"`, etc.
+/// Provider names that already match canonical are returned as-is.
+pub fn canonical_provider_name(provider: &str) -> &str {
     match provider {
         // Goose provider names that differ from models.dev names
         "xai" => "x-ai",
@@ -48,6 +52,10 @@ fn map_provider_name(provider: &str) -> &str {
         "gcp_vertex_ai" => "google-vertex",
         _ => provider,
     }
+}
+
+fn map_provider_name(provider: &str) -> &str {
+    canonical_provider_name(provider)
 }
 
 /// Try to map a provider/model pair to a canonical model

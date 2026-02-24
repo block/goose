@@ -46,13 +46,6 @@ const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
-pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
-    "gpt-5.2-codex",
-    "gpt-5.1-codex",
-    "gpt-5.1-codex-mini",
-    "gpt-5.1-codex-max",
-];
-
 const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
 
 #[derive(Debug)]
@@ -849,12 +842,12 @@ impl ProviderDef for ChatGptCodexProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             CHATGPT_CODEX_PROVIDER_NAME,
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
             CHATGPT_CODEX_DEFAULT_MODEL,
-            CHATGPT_CODEX_KNOWN_MODELS.to_vec(),
+            vec!["gpt-5.2-codex", "gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5.1-codex-max"],
             CHATGPT_CODEX_DOC_URL,
             vec![ConfigKey::new_oauth(
                 "CHATGPT_CODEX_TOKEN",
@@ -927,10 +920,13 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(CHATGPT_CODEX_KNOWN_MODELS
-            .iter()
-            .map(|s| s.to_string())
-            .collect())
+        let metadata = <Self as ProviderDef>::metadata();
+        let canonical: Vec<String> = metadata.known_models.into_iter().map(|m| m.name).collect();
+        if canonical.is_empty() {
+            Ok(vec!["gpt-5.2-codex".to_string(), "gpt-5.1-codex".to_string(), "gpt-5.1-codex-mini".to_string(), "gpt-5.1-codex-max".to_string()])
+        } else {
+            Ok(canonical)
+        }
     }
 }
 

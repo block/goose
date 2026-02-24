@@ -22,19 +22,6 @@ const TETRATE_PROVIDER_NAME: &str = "tetrate";
 pub const TETRATE_DOC_URL: &str = "https://router.tetrate.ai";
 pub const TETRATE_BILLING_URL: &str = "https://router.tetrate.ai/billing";
 
-pub const TETRATE_KNOWN_MODELS: &[&str] = &[
-    "claude-opus-4-1",
-    "claude-3-7-sonnet-latest",
-    "claude-sonnet-4-20250514",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gpt-5",
-    "gpt-5-mini",
-    "gpt-5-nano",
-    "gpt-4.1",
-];
-
 #[derive(serde::Serialize)]
 pub struct TetrateProvider {
     #[serde(skip)]
@@ -92,12 +79,12 @@ impl ProviderDef for TetrateProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             TETRATE_PROVIDER_NAME,
             "Tetrate Agent Router Service",
             "Enterprise router for AI models",
             TETRATE_DEFAULT_MODEL,
-            TETRATE_KNOWN_MODELS.to_vec(),
+            vec!["claude-opus-4-1", "claude-3-7-sonnet-latest", "claude-sonnet-4-20250514", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-2.0-flash-lite", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-4.1"],
             TETRATE_DOC_URL,
             vec![
                 ConfigKey::new("TETRATE_API_KEY", true, true, None, true),

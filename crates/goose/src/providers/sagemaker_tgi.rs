@@ -276,7 +276,7 @@ impl ProviderDef for SageMakerTgiProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             SAGEMAKER_TGI_PROVIDER_NAME,
             "Amazon SageMaker TGI",
             "Run Text Generation Inference models through Amazon SageMaker endpoints. Requires AWS credentials and a SageMaker endpoint URL.",

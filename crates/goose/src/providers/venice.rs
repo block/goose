@@ -68,12 +68,6 @@ pub const VENICE_DEFAULT_HOST: &str = "https://api.venice.ai";
 pub const VENICE_DEFAULT_BASE_PATH: &str = "api/v1/chat/completions";
 pub const VENICE_DEFAULT_MODELS_PATH: &str = "api/v1/models";
 
-// Fallback models to use when API is unavailable
-const FALLBACK_MODELS: [&str; 3] = [
-    "llama-3.2-3b",   // Small model with function calling
-    "llama-3.3-70b",  // Default model with function calling
-    "mistral-31-24b", // Another model with function calling
-];
 
 #[derive(Debug, Serialize)]
 pub struct VeniceProvider {
@@ -197,12 +191,12 @@ impl ProviderDef for VeniceProvider {
     type Provider = Self;
 
     fn metadata() -> ProviderMetadata {
-        ProviderMetadata::new(
+        ProviderMetadata::from_canonical(
             VENICE_PROVIDER_NAME,
             "Venice.ai",
             "Venice.ai models (Llama, DeepSeek, Mistral) with function calling",
             VENICE_DEFAULT_MODEL,
-            FALLBACK_MODELS.to_vec(),
+            vec![],
             VENICE_DOC_URL,
             vec![
                 ConfigKey::new("VENICE_API_KEY", true, true, None, true),
