@@ -100,7 +100,6 @@ impl SseEvent {
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub(crate) struct ChatRequest {
     pub(crate) user_message: Message,
     #[serde(skip_serializing_if = "Option::is_none")]

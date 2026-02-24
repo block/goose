@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "expected_tools": ["weather_extension__get_weather"],
+  "steps": [
+    {
+      "expect": { "last_user_contains": "weather" },
+      "output": {
+        "type": "tool_request",
+        "id": "weather_1",
+        "name": "weather_extension__get_weather",
+        "arguments": { "location": "Berlin, Germany" }
+      }
+    },
+    {
+      "expect": { "last_user_contains": "weather" },
+      "output": {
+        "type": "text",
+        "text": "The current weather in Berlin, Germany is cloudy with a temperature of 18°C."
+      }
+    }
+  ]
+}

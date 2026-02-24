@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "expected_tools": ["weather_extension__get_weather"],
+  "steps": [
+    {
+      "expect": { "last_user_contains": "what is your name" },
+      "output": {
+        "type": "text",
+        "text": "My name is goose, and I'm an AI agent created by Block. How can I assist you today?"
+      }
+    }
+  ]
+}

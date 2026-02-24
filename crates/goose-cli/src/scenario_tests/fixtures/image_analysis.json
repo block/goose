@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "steps": [
+    {
+      "expect": { "last_user_contains": "image" },
+      "output": {
+        "type": "text",
+        "text": "This is a photo of a goose standing near water. If you have any questions or need more information, feel free to ask!"
+      }
+    }
+  ]
+}

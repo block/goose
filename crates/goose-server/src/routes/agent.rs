@@ -63,14 +63,15 @@ pub struct GetPromptsQuery {
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
+    #[serde(alias = "workingDir")]
     working_dir: String,
     #[serde(default)]
     recipe: Option<Recipe>,
-    #[serde(default)]
+    #[serde(default, alias = "recipeId")]
     recipe_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "recipeDeeplink")]
     recipe_deeplink: Option<String>,
-    #[serde(default)]
+    #[serde(default, alias = "extensionOverrides")]
     extension_overrides: Option<Vec<ExtensionConfig>>,
 }
 

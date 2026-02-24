@@ -74,6 +74,8 @@ winapi = { version = "0.3", features = ["wincred"] }
 disable-update = []
 
 [dev-dependencies]
+goose-server = { path = "../goose-server" }
+serial_test.workspace = true
 tempfile = { workspace = true }
 test-case = { workspace = true }
 tokio = { workspace = true }

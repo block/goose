@@ -13,6 +13,7 @@ pub mod cursor_agent;
 pub mod databricks;
 pub mod embedding;
 pub mod errors;
+pub mod fixture_provider;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;

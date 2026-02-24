@@ -51,8 +51,18 @@ impl GoosedHandle {
             .header("X-Secret-Key", &self.secret_key)
             .json(&chat_request)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(anyhow::anyhow!(
+                "HTTP status client error ({}) for url ({}/reply): {}",
+                status,
+                self.base_url,
+                body
+            ));
+        }
 
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         let mut byte_stream = response.bytes_stream();
