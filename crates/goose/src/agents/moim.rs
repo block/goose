@@ -24,10 +24,18 @@ pub async fn inject_moim(
         .await
     {
         let mut messages = conversation.messages().clone();
-        let idx = messages
-            .iter()
-            .rposition(|m| m.role == Role::Assistant)
-            .unwrap_or(0);
+        let last_assistant_idx = messages.iter().rposition(|m| m.role == Role::Assistant);
+
+        // If the conversation ends with an assistant message (text-only, no tool
+        // call), inserting MOIM *before* it would leave a trailing assistant
+        // message, which violates the API constraint that conversations must end
+        // with a user message.  Insert after it instead so the MOIM becomes the
+        // final (user) message.
+        let idx = match last_assistant_idx {
+            Some(i) if i == messages.len() - 1 => messages.len(),
+            Some(i) => i,
+            None => 0,
+        };
         messages.insert(idx, Message::user().with_text(moim));
 
         let (fixed, issues) = fix_conversation(Conversation::new_unvalidated(messages));
@@ -168,6 +176,73 @@ mod tests {
         assert!(
             has_moim,
             "MOIM should be in message before latest assistant message"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_moim_trailing_assistant_text_only() {
+        // Regression test for issue #7425: when the conversation ends with a
+        // text-only assistant message (no tool call), MOIM must be inserted
+        // *after* it so the conversation ends with a user message.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        let working_dir = PathBuf::from("/test/dir");
+
+        let conv = Conversation::new_unvalidated(vec![
+            Message::user().with_text("clean up comments in check.sh"),
+            Message::assistant()
+                .with_text("Let me look at the file")
+                .with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "text_editor".into(),
+                        arguments: None,
+                    }),
+                ),
+            Message::user().with_tool_response(
+                "tool_1",
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
+            // Trailing assistant message with text only — no tool call
+            Message::assistant().with_text("Now I'll clean this up..."),
+        ]);
+
+        let result = inject_moim("test-session-id", conv, &em, &working_dir).await;
+        let msgs = result.messages();
+
+        // The conversation must end with a user message (the MOIM)
+        let last = msgs.last().expect("should have messages");
+        assert_eq!(
+            last.role,
+            Role::User,
+            "conversation must end with a user message after MOIM injection"
+        );
+
+        // The MOIM should be present
+        let has_moim = last
+            .content
+            .iter()
+            .any(|c| c.as_text().is_some_and(|t| t.contains("<info-msg>")));
+        assert!(has_moim, "last message should contain MOIM");
+
+        // The trailing assistant message should still be present (not dropped)
+        let has_trailing_assistant = msgs.iter().any(|m| {
+            m.role == Role::Assistant
+                && m.content.iter().any(|c| {
+                    c.as_text()
+                        .is_some_and(|t| t.contains("Now I'll clean this up"))
+                })
+        });
+        assert!(
+            has_trailing_assistant,
+            "trailing assistant message should be preserved"
         );
     }
 }
