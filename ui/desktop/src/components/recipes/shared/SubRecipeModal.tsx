@@ -76,7 +76,7 @@ export default function SubRecipeModal({
 
   return (
     <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/50">
-      <div className="bg-background-default border border-borderSubtle rounded-lg w-[90vw] max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-background-primary border border-borderSubtle rounded-lg w-[90vw] max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-borderSubtle">
           <div>
