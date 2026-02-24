@@ -3824,6 +3824,28 @@
           }
         }
       },
+      "AudioContentBlock": {
+        "type": "object",
+        "required": [
+          "type",
+          "data",
+          "mimeType"
+        ],
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "audio"
+            ]
+          }
+        }
+      },
       "Author": {
         "type": "object",
         "properties": {
@@ -3871,7 +3893,7 @@
         "type": "object",
         "required": [
           "content",
-          "is_error"
+          "isError"
         ],
         "properties": {
           "_meta": {
@@ -3880,13 +3902,13 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Content"
+              "$ref": "#/components/schemas/ContentBlock"
             }
           },
-          "is_error": {
+          "isError": {
             "type": "boolean"
           },
-          "structured_content": {
+          "structuredContent": {
             "nullable": true
           }
         }
@@ -4061,6 +4083,25 @@
                 "$ref": "#/components/schemas/RawResource"
               }
             ]
+          }
+        ]
+      },
+      "ContentBlock": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/TextContentBlock"
+          },
+          {
+            "$ref": "#/components/schemas/ImageContentBlock"
+          },
+          {
+            "$ref": "#/components/schemas/ResourceContentBlock"
+          },
+          {
+            "$ref": "#/components/schemas/AudioContentBlock"
+          },
+          {
+            "$ref": "#/components/schemas/ResourceLinkContentBlock"
           }
         ]
       },
@@ -5118,6 +5159,31 @@
           },
           "mimeType": {
             "type": "string"
+          }
+        }
+      },
+      "ImageContentBlock": {
+        "type": "object",
+        "required": [
+          "type",
+          "data",
+          "mimeType"
+        ],
+        "properties": {
+          "_meta": {
+            "type": "object"
+          },
+          "data": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "image"
+            ]
           }
         }
       },
@@ -6811,6 +6877,27 @@
           }
         }
       },
+      "ResourceContentBlock": {
+        "type": "object",
+        "required": [
+          "type",
+          "resource"
+        ],
+        "properties": {
+          "_meta": {
+            "type": "object"
+          },
+          "resource": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "resource"
+            ]
+          }
+        }
+      },
       "ResourceContents": {
         "anyOf": [
           {
@@ -6858,6 +6945,40 @@
             }
           }
         ]
+      },
+      "ResourceLinkContentBlock": {
+        "type": "object",
+        "required": [
+          "type",
+          "uri",
+          "name"
+        ],
+        "properties": {
+          "_meta": {
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "resource_link"
+            ]
+          },
+          "uri": {
+            "type": "string"
+          }
+        }
       },
       "ResourceMetadata": {
         "type": "object",
@@ -7794,6 +7915,27 @@
           },
           "text": {
             "type": "string"
+          }
+        }
+      },
+      "TextContentBlock": {
+        "type": "object",
+        "required": [
+          "type",
+          "text"
+        ],
+        "properties": {
+          "_meta": {
+            "type": "object"
+          },
+          "text": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text"
+            ]
           }
         }
       },

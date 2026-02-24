@@ -27,7 +27,7 @@ use goose::{
     agents::{extension::ToolInfo, extension_manager::get_parameter_names},
     config::permission::PermissionLevel,
 };
-use rmcp::model::{CallToolRequestParams, Content};
+use rmcp::model::CallToolRequestParams;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -134,13 +134,214 @@ pub struct CallToolRequest {
     arguments: Value,
 }
 
+/// Schema-only types for OpenAPI generation.
+///
+/// rmcp's `Content` uses `#[serde(tag = "type")]` so the wire format includes a
+/// `type` discriminator (e.g. `{"type":"text","text":"..."}`), but utoipa doesn't
+/// reflect that in the generated schema. These types exist solely to produce a
+/// correct OpenAPI spec — actual serialization goes through rmcp's `Content` via
+/// `serde_json::Value`.
+#[allow(dead_code)]
+pub struct TextContentBlock;
+impl<'s> utoipa::ToSchema<'s> for TextContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        use utoipa::openapi::schema::{ObjectBuilder, SchemaType};
+        (
+            "TextContentBlock",
+            ObjectBuilder::new()
+                .property(
+                    "type",
+                    ObjectBuilder::new()
+                        .schema_type(SchemaType::String)
+                        .enum_values(Some(["text"])),
+                )
+                .required("type")
+                .property("text", ObjectBuilder::new().schema_type(SchemaType::String))
+                .required("text")
+                .property(
+                    "_meta",
+                    ObjectBuilder::new().schema_type(SchemaType::Object),
+                )
+                .into(),
+        )
+    }
+}
+
+#[allow(dead_code)]
+pub struct ImageContentBlock;
+impl<'s> utoipa::ToSchema<'s> for ImageContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        use utoipa::openapi::schema::{ObjectBuilder, SchemaType};
+        (
+            "ImageContentBlock",
+            ObjectBuilder::new()
+                .property(
+                    "type",
+                    ObjectBuilder::new()
+                        .schema_type(SchemaType::String)
+                        .enum_values(Some(["image"])),
+                )
+                .required("type")
+                .property("data", ObjectBuilder::new().schema_type(SchemaType::String))
+                .required("data")
+                .property(
+                    "mimeType",
+                    ObjectBuilder::new().schema_type(SchemaType::String),
+                )
+                .required("mimeType")
+                .property(
+                    "_meta",
+                    ObjectBuilder::new().schema_type(SchemaType::Object),
+                )
+                .into(),
+        )
+    }
+}
+
+#[allow(dead_code)]
+pub struct ResourceContentBlock;
+impl<'s> utoipa::ToSchema<'s> for ResourceContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        use utoipa::openapi::schema::{ObjectBuilder, SchemaType};
+        (
+            "ResourceContentBlock",
+            ObjectBuilder::new()
+                .property(
+                    "type",
+                    ObjectBuilder::new()
+                        .schema_type(SchemaType::String)
+                        .enum_values(Some(["resource"])),
+                )
+                .required("type")
+                .property(
+                    "resource",
+                    ObjectBuilder::new().schema_type(SchemaType::Object),
+                )
+                .required("resource")
+                .property(
+                    "_meta",
+                    ObjectBuilder::new().schema_type(SchemaType::Object),
+                )
+                .into(),
+        )
+    }
+}
+
+#[allow(dead_code)]
+pub struct AudioContentBlock;
+impl<'s> utoipa::ToSchema<'s> for AudioContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        use utoipa::openapi::schema::{ObjectBuilder, SchemaType};
+        (
+            "AudioContentBlock",
+            ObjectBuilder::new()
+                .property(
+                    "type",
+                    ObjectBuilder::new()
+                        .schema_type(SchemaType::String)
+                        .enum_values(Some(["audio"])),
+                )
+                .required("type")
+                .property("data", ObjectBuilder::new().schema_type(SchemaType::String))
+                .required("data")
+                .property(
+                    "mimeType",
+                    ObjectBuilder::new().schema_type(SchemaType::String),
+                )
+                .required("mimeType")
+                .into(),
+        )
+    }
+}
+
+#[allow(dead_code)]
+pub struct ResourceLinkContentBlock;
+impl<'s> utoipa::ToSchema<'s> for ResourceLinkContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        use utoipa::openapi::schema::{ObjectBuilder, SchemaType};
+        (
+            "ResourceLinkContentBlock",
+            ObjectBuilder::new()
+                .property(
+                    "type",
+                    ObjectBuilder::new()
+                        .schema_type(SchemaType::String)
+                        .enum_values(Some(["resource_link"])),
+                )
+                .required("type")
+                .property("uri", ObjectBuilder::new().schema_type(SchemaType::String))
+                .required("uri")
+                .property("name", ObjectBuilder::new().schema_type(SchemaType::String))
+                .required("name")
+                .property(
+                    "title",
+                    ObjectBuilder::new().schema_type(SchemaType::String),
+                )
+                .property(
+                    "description",
+                    ObjectBuilder::new().schema_type(SchemaType::String),
+                )
+                .property(
+                    "mimeType",
+                    ObjectBuilder::new().schema_type(SchemaType::String),
+                )
+                .property(
+                    "_meta",
+                    ObjectBuilder::new().schema_type(SchemaType::Object),
+                )
+                .into(),
+        )
+    }
+}
+
+/// A content block in a tool response, discriminated by a `type` field.
+#[allow(dead_code)]
+pub enum ContentBlock {}
+
+impl<'s> utoipa::ToSchema<'s> for ContentBlock {
+    fn schema() -> (
+        &'s str,
+        utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>,
+    ) {
+        use utoipa::openapi::schema::{OneOfBuilder, Ref};
+        (
+            "ContentBlock",
+            OneOfBuilder::new()
+                .item(Ref::from_schema_name("TextContentBlock"))
+                .item(Ref::from_schema_name("ImageContentBlock"))
+                .item(Ref::from_schema_name("ResourceContentBlock"))
+                .item(Ref::from_schema_name("AudioContentBlock"))
+                .item(Ref::from_schema_name("ResourceLinkContentBlock"))
+                .into(),
+        )
+    }
+}
+
 #[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CallToolResponse {
-    content: Vec<Content>,
+    #[schema(value_type = Vec<ContentBlock>)]
+    content: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,
     is_error: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "_meta")]
     _meta: Option<Value>,
 }
 
@@ -968,8 +1169,15 @@ async fn call_tool(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let content = result
+        .content
+        .into_iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(CallToolResponse {
-        content: result.content,
+        content,
         structured_content: result.structured_content,
         is_error: result.is_error.unwrap_or(false),
         _meta: result.meta.and_then(|m| serde_json::to_value(m).ok()),

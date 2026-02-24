@@ -36,6 +36,12 @@ export type Annotations = {
     priority?: number;
 };
 
+export type AudioContentBlock = {
+    data: string;
+    mimeType: string;
+    type: 'audio';
+};
+
 export type Author = {
     contact?: string | null;
     metadata?: string | null;
@@ -54,9 +60,9 @@ export type CallToolRequest = {
 
 export type CallToolResponse = {
     _meta?: unknown;
-    content: Array<Content>;
-    is_error: boolean;
-    structured_content?: unknown;
+    content: Array<ContentBlock>;
+    isError: boolean;
+    structuredContent?: unknown;
 };
 
 export type ChatRequest = {
@@ -124,6 +130,8 @@ export type ConfirmToolActionRequest = {
 };
 
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
+
+export type ContentBlock = TextContentBlock | ImageContentBlock | ResourceContentBlock | AudioContentBlock | ResourceLinkContentBlock;
 
 export type Conversation = Array<Message>;
 
@@ -499,6 +507,15 @@ export type ImageContent = {
     };
     data: string;
     mimeType: string;
+};
+
+export type ImageContentBlock = {
+    _meta?: {
+        [key: string]: unknown;
+    };
+    data: string;
+    mimeType: string;
+    type: 'image';
 };
 
 export type ImportAppRequest = {
@@ -1024,6 +1041,16 @@ export type RepoVariantsResponse = {
     variants: Array<HfQuantVariant>;
 };
 
+export type ResourceContentBlock = {
+    _meta?: {
+        [key: string]: unknown;
+    };
+    resource: {
+        [key: string]: unknown;
+    };
+    type: 'resource';
+};
+
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -1037,6 +1064,18 @@ export type ResourceContents = {
     };
     blob: string;
     mimeType?: string;
+    uri: string;
+};
+
+export type ResourceLinkContentBlock = {
+    _meta?: {
+        [key: string]: unknown;
+    };
+    description?: string;
+    mimeType?: string;
+    name: string;
+    title?: string;
+    type: 'resource_link';
     uri: string;
 };
 
@@ -1328,6 +1367,14 @@ export type TextContent = {
         [key: string]: unknown;
     };
     text: string;
+};
+
+export type TextContentBlock = {
+    _meta?: {
+        [key: string]: unknown;
+    };
+    text: string;
+    type: 'text';
 };
 
 export type ThinkingContent = {
