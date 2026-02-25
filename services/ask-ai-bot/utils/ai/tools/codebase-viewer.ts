@@ -28,7 +28,7 @@ function getCodeChunk(
   const baseDir = path.resolve(getCodebaseDir());
   const fullPath = path.resolve(path.join(baseDir, filePath));
 
-  if (!fullPath.startsWith(baseDir)) {
+  if (!fullPath.startsWith(baseDir + "/")) {
     throw new Error("Invalid file path - directory traversal not allowed");
   }
 

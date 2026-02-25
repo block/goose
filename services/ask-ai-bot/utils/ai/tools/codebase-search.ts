@@ -163,7 +163,7 @@ export function searchCodebase(
   }
 
   for (const dir of searchDirs) {
-    if (scope && !dir.name.includes(scope)) continue;
+    if (scope && dir.name !== scope) continue;
 
     if (!fs.existsSync(dir.path)) {
       logger.warn(`Codebase directory not found: ${dir.path}`);
@@ -191,7 +191,7 @@ export function listCodebaseFiles(
   const baseDir = path.resolve(getCodebaseDir());
   const targetDir = path.resolve(path.join(baseDir, directory));
 
-  if (!targetDir.startsWith(baseDir)) {
+  if (!targetDir.startsWith(baseDir + "/")) {
     throw new Error("Invalid path - directory traversal not allowed");
   }
 

@@ -86,7 +86,7 @@ export const aiTools = {
         .string()
         .optional()
         .describe(
-          "Limit search to a specific area: 'ui/' for the desktop and other UIs, 'crates' for Rust backend code. Omit to search everything.",
+          "Limit search to a specific area: 'ui' for the desktop and other UIs, 'crates' for Rust backend code. Omit to search everything.",
         ),
     }),
     execute: async ({ query, limit = 20, scope }) => {
