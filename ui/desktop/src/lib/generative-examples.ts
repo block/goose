@@ -4,29 +4,21 @@
  */
 
 export const exampleDashboardSpec = {
-  type: 'Section',
-  props: { title: 'System Overview', subtitle: 'Last 24 hours' },
+  type: 'Stack',
+  props: { direction: 'vertical', gap: 'md' },
   children: [
     {
+      type: 'PageHeader',
+      props: { title: 'System Overview', description: 'Last 24 hours' },
+    },
+    {
       type: 'Grid',
-      props: { columns: 4, gap: 'md' },
+      props: { columns: 4, gap: 'sm' },
       children: [
-        {
-          type: 'MetricCard',
-          props: { label: 'Sessions', value: '142', delta: '+12%', deltaType: 'positive' },
-        },
-        {
-          type: 'MetricCard',
-          props: { label: 'Tool Calls', value: '1,847', delta: '+5%', deltaType: 'positive' },
-        },
-        {
-          type: 'MetricCard',
-          props: { label: 'Success Rate', value: '98.2%', delta: '-0.3%', deltaType: 'negative' },
-        },
-        {
-          type: 'MetricCard',
-          props: { label: 'Avg Latency', value: '1.2s', delta: 'stable', deltaType: 'neutral' },
-        },
+        { type: 'StatCard', props: { label: 'Sessions', value: '142', trend: 12 } },
+        { type: 'StatCard', props: { label: 'Tool Calls', value: '1,847', trend: 5 } },
+        { type: 'StatCard', props: { label: 'Success Rate', value: '98.2%', trend: -0.3 } },
+        { type: 'StatCard', props: { label: 'Avg Latency', value: '1.2s', trend: 0 } },
       ],
     },
     {
@@ -36,7 +28,7 @@ export const exampleDashboardSpec = {
         title: 'Sessions Over Time',
         xKey: 'date',
         yKeys: ['sessions'],
-        height: 250,
+        height: 200,
         data: [
           { date: 'Mon', sessions: 18 },
           { date: 'Tue', sessions: 24 },
@@ -50,27 +42,23 @@ export const exampleDashboardSpec = {
     },
     {
       type: 'Grid',
-      props: { columns: 2, gap: 'md' },
+      props: { columns: 2, gap: 'sm' },
       children: [
         {
-          type: 'Section',
+          type: 'Card',
           props: { title: 'Top Tools' },
           children: [
+            { type: 'ListItem', props: { title: 'developer__shell', description: '4,260 calls' } },
             {
-              type: 'List',
-              props: {
-                items: [
-                  { label: 'developer__shell', description: '4,260 calls', status: 'success' },
-                  { label: 'developer__text_editor', description: '808 calls', status: 'success' },
-                  { label: 'developer__analyze', description: '105 calls', status: 'success' },
-                  { label: 'fetch__fetch', description: '42 calls', status: 'warning' },
-                ],
-              },
+              type: 'ListItem',
+              props: { title: 'developer__text_editor', description: '808 calls' },
             },
+            { type: 'ListItem', props: { title: 'developer__analyze', description: '105 calls' } },
+            { type: 'ListItem', props: { title: 'fetch__fetch', description: '42 calls' } },
           ],
         },
         {
-          type: 'Section',
+          type: 'Card',
           props: { title: 'Provider Usage' },
           children: [
             {
@@ -95,31 +83,32 @@ export const exampleDashboardSpec = {
 };
 
 export const exampleEvalSpec = {
-  type: 'Section',
-  props: { title: 'Evaluation Results', subtitle: 'routing-tests-v2' },
+  type: 'Stack',
+  props: { direction: 'vertical', gap: 'md' },
   children: [
     {
-      type: 'EvalResult',
-      props: {
-        datasetName: 'routing-tests-v2',
-        accuracy: 87.5,
-        agentAccuracy: 92.3,
-        modeAccuracy: 85.1,
-        testCount: 40,
-        passCount: 35,
-        failCount: 5,
-      },
+      type: 'PageHeader',
+      props: { title: 'Evaluation Results', description: 'routing-tests-v2' },
     },
     {
-      type: 'AlertCard',
+      type: 'Grid',
+      props: { columns: 3, gap: 'sm' },
+      children: [
+        { type: 'StatCard', props: { label: 'Accuracy', value: '87.5%' } },
+        { type: 'StatCard', props: { label: 'Agent Accuracy', value: '92.3%' } },
+        { type: 'StatCard', props: { label: 'Mode Accuracy', value: '85.1%' } },
+      ],
+    },
+    {
+      type: 'Alert',
       props: {
         title: 'Regression Detected',
-        message: 'Mode accuracy dropped 3.2% since last run. Check debug mode routing.',
-        severity: 'warning',
+        description: 'Mode accuracy dropped 3.2% since last run. Check debug mode routing.',
+        variant: 'destructive',
       },
     },
     {
-      type: 'DataTable',
+      type: 'Table',
       props: {
         columns: [
           { key: 'input', label: 'Input', align: 'left' },
@@ -144,47 +133,54 @@ export const exampleEvalSpec = {
           { input: 'Review the PR', expected: 'pm/review', actual: 'pm/review', status: '✓' },
           { input: 'Check security', expected: 'qa/security', actual: 'qa/audit', status: '✗' },
         ],
-        sortable: true,
+        caption: 'Routing assertions',
       },
     },
   ],
 };
 
 export const exampleToolResultSpec = {
-  type: 'Section',
-  props: { title: 'Tool Execution Results' },
+  type: 'Stack',
+  props: { direction: 'vertical', gap: 'md' },
   children: [
     {
-      type: 'Grid',
-      props: { columns: 1, gap: 'sm' },
-      children: [
-        {
-          type: 'ToolResult',
-          props: {
-            toolName: 'developer__shell',
+      type: 'PageHeader',
+      props: { title: 'Tool Execution Results' },
+    },
+    {
+      type: 'Table',
+      props: {
+        columns: [
+          { key: 'tool', label: 'Tool', align: 'left' },
+          { key: 'status', label: 'Status', align: 'left' },
+          { key: 'duration', label: 'Duration', align: 'right' },
+          { key: 'output', label: 'Output', align: 'left' },
+        ],
+        rows: [
+          {
+            tool: 'developer__shell',
             status: 'success',
             duration: '0.3s',
             output: 'Build successful',
           },
-        },
-        {
-          type: 'ToolResult',
-          props: { toolName: 'developer__text_editor', status: 'success', duration: '0.1s' },
-        },
-        {
-          type: 'ToolResult',
-          props: {
-            toolName: 'fetch__fetch',
+          {
+            tool: 'developer__text_editor',
+            status: 'success',
+            duration: '0.1s',
+            output: '',
+          },
+          {
+            tool: 'fetch__fetch',
             status: 'error',
             duration: '5.0s',
             output: 'Connection timeout',
           },
-        },
-      ],
+        ],
+      },
     },
     {
-      type: 'ActionButton',
-      props: { label: 'Retry Failed', action: 'create_session', variant: 'primary' },
+      type: 'Button',
+      props: { label: 'Retry Failed', variant: 'destructive' },
     },
   ],
 };
