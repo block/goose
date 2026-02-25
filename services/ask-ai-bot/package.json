@@ -1,7 +1,7 @@
 {
   "name": "goose-ask-ai-bot",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bot created with discraft",
   "module": "index.ts",
   "type": "module",
@@ -15,9 +15,10 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@openrouter/ai-sdk-provider": "^2.1.1",
+    "@ai-sdk/anthropic": "^3.0.46",
     "ai": "^6.0.62",
     "consola": "^3.4.2",
+    "dedent": "^1.7.1",
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.3",
     "marked": "^17.0.1",

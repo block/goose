@@ -479,7 +479,6 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
-        output::display_greeting();
         loop {
             self.display_context_usage().await?;
 
@@ -982,6 +981,10 @@ impl CliSession {
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::DenyOnce,
+                                    }).await;
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         id,

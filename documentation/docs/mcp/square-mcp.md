@@ -37,7 +37,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 <Tabs groupId="remote-or-local">
   <TabItem value="remote" label="Square Remote MCP" default>
-  :::tip TLDR
+  :::tip Quick Install
   <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
     [Launch the installer](https://mcp.squareup.com/goose)
@@ -75,7 +75,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 </TabItem>
 
   <TabItem value="local" label="Square Local MCP">
-  :::tip TLDR
+  :::tip Quick Install
   <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
     [Launch the installer](goose://extension?cmd=npx&arg=square-mcp-server&arg=start&id=mcp_square_api&name=Square%20MCP%20Server&description=Square%20API%20MCP%20Server&env=ACCESS_TOKEN%3DYour%20Access%20Token&env=SANDBOX%3Dtrue)

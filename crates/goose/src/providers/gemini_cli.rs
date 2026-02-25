@@ -169,7 +169,6 @@ impl ProviderDef for GeminiCliProvider {
                 true, false, true,
             )],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(

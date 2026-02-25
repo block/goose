@@ -828,18 +828,16 @@ pub fn create_request(
         }
     }
 
-    // o1 models use max_completion_tokens instead of max_tokens
-    if let Some(tokens) = model_config.max_tokens {
-        let key = if is_ox_model {
-            "max_completion_tokens"
-        } else {
-            "max_tokens"
-        };
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert(key.to_string(), json!(tokens));
-    }
+    // o1/o3 models use max_completion_tokens instead of max_tokens
+    let key = if is_ox_model {
+        "max_completion_tokens"
+    } else {
+        "max_tokens"
+    };
+    payload
+        .as_object_mut()
+        .unwrap()
+        .insert(key.to_string(), json!(model_config.max_output_tokens()));
 
     if for_streaming {
         payload["stream"] = json!(true);

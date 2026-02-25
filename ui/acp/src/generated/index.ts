@@ -58,41 +58,6 @@ export const GOOSE_EXT_METHODS = [
     requestType: null,
     responseType: "GetExtensionsResponse",
   },
-  {
-    method: "tool/call",
-    requestType: null,
-    responseType: null,
-  },
-  {
-    method: "provider/update",
-    requestType: null,
-    responseType: null,
-  },
-  {
-    method: "container/set",
-    requestType: null,
-    responseType: null,
-  },
-  {
-    method: "apps/list",
-    requestType: null,
-    responseType: null,
-  },
-  {
-    method: "apps/export",
-    requestType: null,
-    responseType: null,
-  },
-  {
-    method: "apps/import",
-    requestType: null,
-    responseType: null,
-  },
-  {
-    method: "config/providers",
-    requestType: null,
-    responseType: null,
-  },
 ] as const;
 
 export type GooseExtMethod = (typeof GOOSE_EXT_METHODS)[number];

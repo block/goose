@@ -38,8 +38,8 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
         <div className="flex flex-col items-center justify-center min-h-[200px]">
           <Plus className="w-8 h-8 text-gray-400 mb-2" />
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-            <div>Add</div>
-            <div>Custom Provider</div>
+            <div className="font-medium">Add Provider</div>
+            <div className="text-xs text-gray-500 mt-1">From template or manual setup</div>
           </div>
         </div>
       }
@@ -239,6 +239,7 @@ function ProviderCards({
     supports_streaming: editingProvider.config.supports_streaming ?? true,
     requires_auth: editingProvider.config.requires_auth ?? true,
     headers: editingProvider.config.headers ?? undefined,
+    catalog_provider_id: editingProvider.config.catalog_provider_id ?? undefined,
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
@@ -262,7 +263,7 @@ function ProviderCards({
             isActiveProvider={isActiveProvider}
           />
         </DialogContent>
-      </Dialog>{' '}
+      </Dialog>
       {configuringProvider && (
         <ProviderConfigurationModal
           provider={configuringProvider}
