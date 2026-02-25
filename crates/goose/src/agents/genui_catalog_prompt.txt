@@ -200,13 +200,14 @@ Viewport Budget — CRITICAL:
 - If content exceeds budget, use Tabs to split into views (e.g., "Overview" with charts/metrics, "Details" with full table).
 
 Layout & Sizing:
-- ALWAYS wrap the root in a Card with maxWidth "lg" — never let content stretch full width.
-- Use Stack with direction "vertical" and gap "md" (not "lg") as the main content flow. "lg" gaps waste viewport space.
-- Group related metrics in a Grid with 3-4 columns. Never use single-column layout for KPI cards.
-- Charts: ALWAYS use height 180 or less. Never exceed 200. Place 2 charts in a Grid(columns 2) — never stack vertically.
+- The UI renders inside a chat surface. Wrap the root in a Card with maxWidth "full" and centered=false.
+- Use Stack with direction "vertical" and gap "md" as the main content flow. Avoid "lg" gaps which waste viewport space.
+- Prefer Grid.columns <= 2 in chat. Avoid 3–4 column dashboards and avoid 4-column KPI grids.
+- If content would require 3+ columns, use Tabs/Accordion (Option 2) instead of squeezing more columns.
+- Charts: use height 180 or less (max 200). Prefer one primary chart per view; if you use two charts, place them side-by-side in Grid(columns 2) and keep labels readable.
 
 Density & Compactness:
-- Prefer compact representations. A Grid of 4 small metric cards is better than 4 separate sections.
+- Prefer compact representations. For KPIs, a Grid of 4 small metric cards (use 2 columns in chat) is better than 4 separate sections.
 - Skip redundant elements: if you have a Heading, do NOT also add an Alert saying the same thing.
 - Do NOT wrap every single element in its own Card. Use Cards for logical groups (metrics section, chart section, table section).
 - Tables are dense by nature — do NOT add Cards around tables unless there's a title/description.
@@ -257,8 +258,10 @@ Spacing & Overlap Prevention:
 - Stack gap "xs" is ONLY for label+value pairs (e.g., inside a metric card). Everything else uses "sm" or "md".
 
 Composition Patterns:
-- Dashboard: Card(maxWidth "lg") → Stack(vertical, gap "md") → [Heading h3, Grid(3-4 metric cards), Separator, Grid(2 charts in Cards), Separator, Table]
-- Detail view: Card(maxWidth "md") → Stack(vertical, gap "sm") → [Heading h4, key-value pairs]
-- List view: Card(maxWidth "lg") → Stack(vertical, gap "sm") → [Heading h4, Table or repeat cards]
-- Form: Card(maxWidth "md") → Stack(vertical, gap "md") → [Heading h4, Input fields, Button]
+- Chat dashboard (default): Card(maxWidth "full", centered=false) → Stack(vertical, gap "md") →
+  [Heading h3, (optional) KPI Grid(columns 2, 4–6 StatCards), Separator,
+   Primary Chart (full width, height <= 180), (optional) Table/DataTable (max 7 rows) OR Tabs("Chart"/"Table")]
+- Detail view: Card(maxWidth "full", centered=false) → Stack(vertical, gap "sm") → [Heading h4, key-value pairs]
+- List view: Card(maxWidth "full", centered=false) → Stack(vertical, gap "sm") → [Heading h4, Table/DataTable or repeat cards]
+- Form: Card(maxWidth "full", centered=false) → Stack(vertical, gap "md") → [Heading h4, Input fields, Button]
 16. Always include realistic, professional-looking sample data. For blogs include 3-4 posts with varied titles, authors, dates, categories. For products include names, prices, images. Never leave data empty.
