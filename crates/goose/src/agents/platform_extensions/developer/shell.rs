@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Content};
@@ -20,6 +20,48 @@ pub struct ShellParams {
     pub command: String,
     #[serde(default)]
     pub timeout_secs: Option<u64>,
+}
+
+/// Resolve the user's full PATH by running a login shell.
+///
+/// When goosed is launched from a desktop app (e.g. Electron), it may inherit
+/// a minimal PATH like `/usr/bin:/bin`. This function spawns a login shell to
+/// source the user's profile and recover the full PATH.
+#[cfg(not(windows))]
+fn resolve_login_shell_path() -> Option<String> {
+    let shell = if PathBuf::from("/bin/bash").is_file() {
+        "/bin/bash".to_string()
+    } else {
+        std::env::var("SHELL").unwrap_or_else(|_| "sh".to_string())
+    };
+
+    std::process::Command::new(&shell)
+        .args(["-l", "-i", "-c", "echo $PATH"])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .and_then(|output| {
+            if output.status.success() {
+                // Take the last non-empty line — interactive shells may emit
+                // extra output from profile scripts before our echo.
+                String::from_utf8_lossy(&output.stdout)
+                    .lines()
+                    .rev()
+                    .find(|line| !line.trim().is_empty())
+                    .map(|line| line.trim().to_string())
+                    .filter(|path| !path.is_empty())
+            } else {
+                None
+            }
+        })
+}
+
+/// Returns the user's full login shell PATH, resolved once and cached.
+#[cfg(not(windows))]
+fn user_login_path() -> Option<&'static str> {
+    static CACHED: OnceLock<Option<String>> = OnceLock::new();
+    CACHED.get_or_init(resolve_login_shell_path).as_deref()
 }
 
 pub struct ShellTool;
@@ -104,6 +146,12 @@ async fn run_command(
     if let Some(path) = working_dir {
         command.current_dir(path);
     }
+
+    #[cfg(not(windows))]
+    if let Some(path) = user_login_path() {
+        command.env("PATH", path);
+    }
+
     command.stdout(Stdio::piped());
     command.stderr(Stdio::piped());
     command.stdin(Stdio::null());
