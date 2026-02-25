@@ -228,7 +228,7 @@ jobs:
           # Build the header
           HEADER="## 🎉 goose ${RELEASE_TAG} is here!
 
-📦 **Download:** ${RELEASE_URL}"
+          📦 **Download:** ${RELEASE_URL}"
 
           # Check if we need to thread (notes too long)
           HEADER_LENGTH=${#HEADER}
@@ -238,7 +238,7 @@ jobs:
             # Single message - full notes fit
             FULL_MESSAGE="${HEADER}
 
-${RELEASE_NOTES}"
+          ${RELEASE_NOTES}"
             send_discord "$FULL_MESSAGE" "$DISCORD_CHANNEL_ID"
           else
             # Notes too long - include preview in main message, full notes in thread
@@ -264,9 +264,9 @@ ${RELEASE_NOTES}"
             # Build main message with preview
             MAIN_MESSAGE="${HEADER}
 
-${PREVIEW}
+          ${PREVIEW}
 
-📝 *Full release notes in thread below...*"
+          📝 *Full release notes in thread below...*"
 
             MESSAGE_ID=$(send_discord "$MAIN_MESSAGE" "$DISCORD_CHANNEL_ID")
 
