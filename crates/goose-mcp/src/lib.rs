@@ -16,6 +16,7 @@ pub mod mcp_server_runner;
 mod memory;
 #[cfg(target_os = "macos")]
 pub mod peekaboo;
+pub mod security;
 pub mod subprocess;
 pub mod tutorial;
 
@@ -24,6 +25,7 @@ pub use computercontroller::ComputerControllerServer;
 pub use developer::rmcp_developer::DeveloperServer;
 pub use developer::rmcp_developer::WORKING_DIR_PLACEHOLDER;
 pub use memory::MemoryServer;
+pub use security::SecurityServer;
 pub use tutorial::TutorialServer;
 
 /// Type definition for a function that spawns and serves a builtin extension server
@@ -61,6 +63,7 @@ pub static BUILTIN_EXTENSIONS: Lazy<HashMap<&'static str, SpawnServerFn>> = Lazy
         builtin!(autovisualiser, AutoVisualiserRouter),
         builtin!(computercontroller, ComputerControllerServer),
         builtin!(memory, MemoryServer),
+        builtin!(security, SecurityServer),
         builtin!(tutorial, TutorialServer),
     ])
 });
