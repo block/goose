@@ -1,3 +1,4 @@
+
 # This is a **reuseable** workflow that bundles the Desktop App for Intel macOS.
 # It doesn't get triggered on its own. It gets used in multiple workflows:
 #  - release.yml
