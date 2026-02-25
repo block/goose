@@ -1,3 +1,4 @@
+
 name: Merge release PR on tag push
 
 on:
