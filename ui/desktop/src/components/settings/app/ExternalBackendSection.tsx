@@ -82,8 +82,8 @@ export default function ExternalBackendSection() {
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Use external server</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Use external server</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Connect to a goose server running elsewhere (requires app restart)
               </p>
             </div>
@@ -100,7 +100,7 @@ export default function ExternalBackendSection() {
           {config.enabled && (
             <>
               <div className="space-y-2">
-                <label htmlFor="external-url" className="text-text-default text-xs">
+                <label htmlFor="external-url" className="text-text-primary text-xs">
                   Server URL
                 </label>
                 <Input
@@ -122,7 +122,7 @@ export default function ExternalBackendSection() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="external-secret" className="text-text-default text-xs">
+                <label htmlFor="external-secret" className="text-text-primary text-xs">
                   Secret Key
                 </label>
                 <Input
@@ -134,7 +134,7 @@ export default function ExternalBackendSection() {
                   onBlur={() => saveConfig(config)}
                   disabled={isSaving}
                 />
-                <p className="text-xs text-text-muted">
+                <p className="text-xs text-text-secondary">
                   The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)
                 </p>
               </div>

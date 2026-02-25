@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
-import { Settings } from 'lucide-react';
+import { Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
-import TunnelSection from '../tunnel/TunnelSection';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -13,10 +12,83 @@ import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { NavigationModeSelector } from './NavigationModeSelector';
+import { NavigationStyleSelector } from './NavigationStyleSelector';
+import { NavigationPositionSelector } from './NavigationPositionSelector';
+import { NavigationCustomizationSettings } from './NavigationCustomizationSettings';
+import { NavigationProvider, useNavigationContextSafe } from '../../Layout/NavigationContext';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
 }
+
+const NavigationSettingsContent: React.FC = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const navContext = useNavigationContextSafe();
+  const isOverlayMode = navContext?.navigationMode === 'overlay';
+
+  return (
+    <Card className="rounded-lg">
+      <CardHeader className="pb-0">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-between text-left"
+        >
+          <div>
+            <CardTitle className="mb-1">Navigation</CardTitle>
+            <CardDescription>Customize navigation layout and behavior</CardDescription>
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-text-secondary" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-text-secondary" />
+          )}
+        </button>
+      </CardHeader>
+      {isExpanded && (
+        <CardContent className="pt-4 px-4 space-y-6">
+          <div>
+            <h3 className="text-sm font-medium text-text-primary mb-3">Mode</h3>
+            <NavigationModeSelector />
+          </div>
+          {!isOverlayMode && (
+            <div>
+              <h3 className="text-sm font-medium text-text-primary mb-3">Style</h3>
+              <NavigationStyleSelector />
+            </div>
+          )}
+          {!isOverlayMode && (
+            <div>
+              <h3 className="text-sm font-medium text-text-primary mb-3">Position</h3>
+              <NavigationPositionSelector />
+            </div>
+          )}
+          <div>
+            <h3 className="text-sm font-medium text-text-primary mb-3">Customize Items</h3>
+            <NavigationCustomizationSettings />
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+};
+
+// Navigation Settings Card - wrapped in its own provider for settings page
+const NavigationSettingsCard: React.FC = () => {
+  const navContext = useNavigationContextSafe();
+
+  // If already in a NavigationProvider context, render directly
+  if (navContext) {
+    return <NavigationSettingsContent />;
+  }
+
+  // Otherwise wrap with provider
+  return (
+    <NavigationProvider>
+      <NavigationSettingsContent />
+    </NavigationProvider>
+  );
+};
 
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
@@ -28,25 +100,19 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showPricing, setShowPricing] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
-
-  // Check if GOOSE_VERSION is set to determine if Updates section should be shown
   const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
 
-  // Check if running on macOS
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
   }, []);
 
-  // Detect theme changes
   useEffect(() => {
     const updateTheme = () => {
       setIsDarkMode(document.documentElement.classList.contains('dark'));
     };
 
-    // Initial check
     updateTheme();
 
-    // Listen for theme changes
     const observer = new MutationObserver(updateTheme);
     observer.observe(document.documentElement, {
       attributes: true,
@@ -56,22 +122,18 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     return () => observer.disconnect();
   }, []);
 
-  // Load show pricing setting
   useEffect(() => {
     window.electron.getSetting('showPricing').then(setShowPricing);
   }, []);
 
-  // Handle scrolling to update section
   useEffect(() => {
     if (scrollToSection === 'update' && updateSectionRef.current) {
-      // Use a timeout to ensure the DOM is ready
       setTimeout(() => {
         updateSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 100);
     }
   }, [scrollToSection]);
 
-  // Load menu bar and dock icon states
   useEffect(() => {
     window.electron.getMenuBarIconState().then((enabled) => {
       setMenuBarIconEnabled(enabled);
@@ -157,8 +219,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Notifications</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Notifications</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Notifications are managed by your OS{' - '}
                 <span
                   className="underline hover:cursor-pointer"
@@ -189,8 +251,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Menu bar icon</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Menu bar icon</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Show goose in the menu bar
               </p>
             </div>
@@ -206,8 +268,10 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {isMacOS && (
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-text-default text-xs">Dock icon</h3>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">Show goose in the dock</p>
+                <h3 className="text-text-primary text-xs">Dock icon</h3>
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
+                  Show goose in the dock
+                </p>
               </div>
               <div className="flex items-center">
                 <Switch
@@ -223,8 +287,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {/* Prevent Sleep */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-default text-xs">Prevent Sleep</h3>
-              <p className="text-xs text-text-muted max-w-md mt-[2px]">
+              <h3 className="text-text-primary text-xs">Prevent Sleep</h3>
+              <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 Keep your computer awake while goose is running a task (screen can still lock)
               </p>
             </div>
@@ -241,8 +305,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {COST_TRACKING_ENABLED && (
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-text-default">Cost Tracking</h3>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                <h3 className="text-text-primary">Cost Tracking</h3>
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                   Show model pricing and usage costs
                 </p>
               </div>
@@ -268,7 +332,9 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
 
-      <TunnelSection />
+      {/* Navigation Settings */}
+      <NavigationSettingsCard />
+
 
       <TelemetrySettings isWelcome={false} />
 

@@ -11,6 +11,9 @@ import { ExtensionConfig } from '../../api';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Bot, Share2, Monitor, MessageSquare, FileText, Keyboard, HardDrive } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import TunnelSection from './tunnel/TunnelSection';
+import GatewaySettingsSection from './gateways/GatewaySettingsSection';
+import { getTunnelStatus } from '../../api/sdk.gen';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
 import LocalInferenceSection from './localInference/LocalInferenceSection';
@@ -33,6 +36,7 @@ export default function SettingsView({
   viewOptions: SettingsViewOptions;
 }) {
   const [activeTab, setActiveTab] = useState('models');
+  const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const hasTrackedInitialTab = useRef(false);
 
   const handleTabChange = (tab: string) => {
@@ -55,6 +59,7 @@ export default function SettingsView({
         chat: 'chat',
         prompts: 'prompts',
         keyboard: 'keyboard',
+        gateway: 'sharing',
         'local-inference': 'local-inference',
       };
 
@@ -73,8 +78,18 @@ export default function SettingsView({
   }, [activeTab]);
 
   useEffect(() => {
+    getTunnelStatus()
+      .then(({ data }) => {
+        setTunnelDisabled(data?.state === 'disabled');
+      })
+      .catch(() => {
+        setTunnelDisabled(false);
+      });
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose();
       }
     };
@@ -90,7 +105,7 @@ export default function SettingsView({
     <>
       <MainPanelLayout>
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
+          <div className="bg-background-primary px-8 pb-8 pt-16">
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Settings</h1>
@@ -183,9 +198,15 @@ export default function SettingsView({
                   value="sharing"
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
-                  <div className="space-y-8">
+                  <div className="space-y-8 pb-8">
                     <SessionSharingSection />
                     <ExternalBackendSection />
+                    {!tunnelDisabled && (
+                      <div className="space-y-4">
+                        <TunnelSection />
+                        <GatewaySettingsSection />
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
 

@@ -17,7 +17,7 @@ This tutorial covers how to add the [Vercel MCP Server](https://vercel.com/docs/
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run installation commands, which use `npx`.
 :::
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?url=https%3A%2F%2Fmcp.vercel.com&type=streamable_http&id=vercel&name=Vercel&description=Access%20deployments%2C%20manage%20projects%2C%20and%20more%20with%20Vercel%E2%80%99s%20official%20MCP%20server)

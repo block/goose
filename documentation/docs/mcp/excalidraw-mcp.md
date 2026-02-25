@@ -13,7 +13,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 This tutorial covers how to add the [Excalidraw MCP App](https://github.com/excalidraw/excalidraw-mcp) as a goose extension that enables goose to draw hand sketched Excalidraw diagrams in real time.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
    [Launch the installer](goose://extension?cmd=http&id=excalidraw&name=Excalidraw&url=https%3A%2F%2Fexcalidraw-mcp-app.vercel.app%2Fmcp&description=Excalidraw%20MCP%20App%20for%20AI-powered%20diagramming)
