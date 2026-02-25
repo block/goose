@@ -45,10 +45,16 @@ import {
   SamplingCreateMessageParams,
   SamplingCreateMessageResponse,
 } from './types';
+import {
+  useDisplayMode,
+  AVAILABLE_DISPLAY_MODES,
+  PIP_WIDTH,
+  PIP_HEIGHT,
+  PIP_MARGIN_RIGHT,
+  PIP_MARGIN_BOTTOM,
+} from './useDisplayMode';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
-
-const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline', 'fullscreen', 'pip'];
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -129,12 +135,6 @@ async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string
     return null;
   }
 }
-
-const PIP_WIDTH = 400;
-const PIP_HEIGHT = 300;
-const PIP_MARGIN_RIGHT = 16;
-// Keeps the PiP window above the chat input area (~120px) plus padding.
-const PIP_MARGIN_BOTTOM = 140;
 
 interface McpAppRendererProps {
   resourceUri: string;
@@ -246,255 +246,25 @@ export default function McpAppRenderer({
   cachedHtml,
   onDisplayModeChange,
 }: McpAppRendererProps) {
-  // TODO: Extract display mode logic into a useDisplayMode hook. This would encapsulate:
-  // - activeDisplayMode / changeDisplayMode state machine
-  // - effectiveDisplayModes negotiation
-  // - PiP drag state + pointer/keyboard handlers
-  // - entrance animation class management
-  // - the postMessage listener for ui/request-display-mode
-  // - escape-key and PiP-reset effects
-  // This would significantly reduce McpAppRenderer's complexity (~300 lines).
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Internal display mode — starts matching the prop, but can be changed by host-side controls.
-  // Standalone mode is externally controlled (dedicated Electron window) and cannot be toggled.
-  const [activeDisplayMode, setActiveDisplayMode] = useState<GooseDisplayMode>(displayMode);
-
-  // Sync internal state when the prop changes (e.g. parent forces a mode).
-  useEffect(() => {
-    setActiveDisplayMode(displayMode);
-  }, [displayMode]);
-
-  const isStandalone = displayMode === 'standalone';
-
-  // Display modes the app declared support for during ui/initialize.
-  // null = not yet known (controls stay hidden until initialize), empty = app didn't declare any.
-  const [appDeclaredModes, setAppDeclaredModes] = useState<string[] | null>(null);
-
-  // Intersect what the host supports with what the app declared.
-  const effectiveDisplayModes = useMemo((): McpUiDisplayMode[] => {
-    if (!appDeclaredModes) return [];
-    return AVAILABLE_DISPLAY_MODES.filter((m) => appDeclaredModes.includes(m));
-  }, [appDeclaredModes]);
-
-  // Remember the inline iframe height when leaving inline mode so we can
-  // size the placeholder and landing target correctly on return.
-  const inlineHeightRef = useRef(DEFAULT_IFRAME_HEIGHT);
-
-  // Cache iframe contentWindows for O(1) message source matching instead of
-  // scanning querySelectorAll('iframe') on every postMessage event.
-  // eslint-disable-next-line no-undef
-  const iframeWindowsRef = useRef<Set<Window>>(new Set());
-
-  // Track the entrance animation class so we can clean it up on the next mode change.
-  const enterAnimRef = useRef<string | null>(null);
-  const fullscreenCloseRef = useRef<HTMLButtonElement>(null);
-
-  const changeDisplayMode = useCallback(
-    (mode: GooseDisplayMode) => {
-      const el = containerRef.current;
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      // Save inline height before leaving inline (read from DOM for accuracy)
-      if (activeDisplayMode === 'inline' && el) {
-        inlineHeightRef.current = el.getBoundingClientRect().height || DEFAULT_IFRAME_HEIGHT;
-      }
-
-      // Remove any previous entrance animation class
-      if (enterAnimRef.current && el) {
-        el.classList.remove(enterAnimRef.current);
-        enterAnimRef.current = null;
-      }
-
-      setActiveDisplayMode(mode);
-      onDisplayModeChange?.(mode);
-
-      // Apply a lightweight entrance animation to the incoming mode.
-      // The outgoing mode disappears instantly; only the new state animates in.
-      if (el && !prefersReducedMotion && mode !== activeDisplayMode) {
-        const animClass =
-          mode === 'pip'
-            ? 'mcp-enter-pip'
-            : mode === 'fullscreen'
-              ? 'mcp-enter-fullscreen'
-              : 'mcp-enter-inline';
-
-        requestAnimationFrame(() => {
-          el.classList.add(animClass);
-          enterAnimRef.current = animClass;
-
-          el.addEventListener(
-            'animationend',
-            () => {
-              el.classList.remove(animClass);
-              if (enterAnimRef.current === animClass) {
-                enterAnimRef.current = null;
-              }
-            },
-            { once: true }
-          );
-        });
-      }
-    },
-    [onDisplayModeChange, activeDisplayMode]
-  );
-
-  // PiP drag state
-  const [pipPosition, setPipPosition] = useState({ x: 0, y: 0 });
-  const pipPositionRef = useRef(pipPosition);
-  const pipDragRef = useRef<{
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-  } | null>(null);
-
-  useEffect(() => {
-    pipPositionRef.current = pipPosition;
-  }, [pipPosition]);
-
-  const clampPipPosition = useCallback((pos: { x: number; y: number }) => {
-    const minX = PIP_WIDTH + PIP_MARGIN_RIGHT - window.innerWidth;
-    const maxX = PIP_MARGIN_RIGHT;
-    const minY = PIP_HEIGHT + PIP_MARGIN_BOTTOM - window.innerHeight;
-    const maxY = PIP_MARGIN_BOTTOM;
-    return {
-      x: minX > maxX ? 0 : Math.max(minX, Math.min(maxX, pos.x)),
-      y: minY > maxY ? 0 : Math.max(minY, Math.min(maxY, pos.y)),
-    };
-  }, []);
-
-  const handlePipPointerDown = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    const { x, y } = pipPositionRef.current;
-    pipDragRef.current = { startX: e.clientX, startY: e.clientY, originX: x, originY: y };
-  }, []);
-
-  const handlePipPointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!pipDragRef.current) return;
-      const dx = e.clientX - pipDragRef.current.startX;
-      const dy = e.clientY - pipDragRef.current.startY;
-      setPipPosition(
-        clampPipPosition({
-          x: pipDragRef.current.originX + dx,
-          y: pipDragRef.current.originY + dy,
-        })
-      );
-    },
-    [clampPipPosition]
-  );
-
-  const handlePipPointerUp = useCallback((e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    pipDragRef.current = null;
-  }, []);
-
-  const handlePipLostPointerCapture = useCallback(() => {
-    pipDragRef.current = null;
-  }, []);
-
-  const handlePipKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      const step = e.shiftKey ? 32 : 8;
-      let dx = 0;
-      let dy = 0;
-      switch (e.key) {
-        case 'ArrowUp':
-          dy = -step;
-          break;
-        case 'ArrowDown':
-          dy = step;
-          break;
-        case 'ArrowLeft':
-          dx = -step;
-          break;
-        case 'ArrowRight':
-          dx = step;
-          break;
-        default:
-          return;
-      }
-      e.preventDefault();
-      setPipPosition((prev) => clampPipPosition({ x: prev.x + dx, y: prev.y + dy }));
-    },
-    [clampPipPosition]
-  );
-
-  // Cache iframe contentWindows for O(1) source matching via MutationObserver.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const refreshCache = () => {
-      const windows = iframeWindowsRef.current;
-      windows.clear();
-      container.querySelectorAll('iframe').forEach((iframe) => {
-        if (iframe.contentWindow) windows.add(iframe.contentWindow);
-      });
-    };
-
-    refreshCache();
-    const observer = new MutationObserver(refreshCache);
-    observer.observe(container, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
-
-  // Intercept app postMessages for:
-  // 1. ui/initialize — extract appCapabilities.availableDisplayModes
-  // 2. ui/request-display-mode — change display mode on behalf of the app
-  // Uses cached iframe contentWindows for O(1) source matching.
-  useEffect(() => {
-    if (isStandalone) return;
-
-    const handleMessage = (e: MessageEvent) => {
-      const data = e.data;
-      if (!data || typeof data !== 'object') return;
-      // eslint-disable-next-line no-undef
-      if (!e.source || !iframeWindowsRef.current.has(e.source as Window)) return;
-
-      // Extract app's declared display modes from ui/initialize
-      if (data.method === 'ui/initialize' && data.params) {
-        const caps = data.params.appCapabilities || data.params.capabilities;
-        if (caps?.availableDisplayModes && Array.isArray(caps.availableDisplayModes)) {
-          setAppDeclaredModes(caps.availableDisplayModes);
-        }
-      }
-
-      // Handle app-initiated display mode requests.
-      // After initialize, only allow modes both host and app agree on.
-      // Before initialize (effectiveDisplayModes empty), fall back to the full host list.
-      if (data.method === 'ui/request-display-mode' && data.params?.mode) {
-        const requested = data.params.mode as McpUiDisplayMode;
-        const allowed =
-          effectiveDisplayModes.length > 0 ? effectiveDisplayModes : AVAILABLE_DISPLAY_MODES;
-        if (allowed.includes(requested)) {
-          changeDisplayMode(requested);
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [isStandalone, changeDisplayMode, effectiveDisplayModes]);
-
-  // Escape key exits fullscreen
-  useEffect(() => {
-    if (activeDisplayMode !== 'fullscreen') return;
-    fullscreenCloseRef.current?.focus();
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') changeDisplayMode('inline');
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeDisplayMode, changeDisplayMode]);
-
-  // Reset PiP position when entering PiP mode
-  useEffect(() => {
-    if (activeDisplayMode === 'pip') {
-      setPipPosition({ x: 0, y: 0 });
-    }
-  }, [activeDisplayMode]);
+  const dm = useDisplayMode({ displayMode, onDisplayModeChange, containerRef });
+  const {
+    activeDisplayMode,
+    effectiveDisplayModes,
+    isStandalone,
+    isFullscreen,
+    isPip,
+    isFillsViewport,
+    isInline,
+    appSupportsFullscreen,
+    appSupportsPip,
+    changeDisplayMode,
+    inlineHeight,
+    pipPosition,
+    pipHandlers,
+    fullscreenCloseRef,
+  } = dm;
 
   const { resolvedTheme, mcpHostStyles } = useTheme();
 
@@ -522,7 +292,6 @@ export default function McpAppRenderer({
   });
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
   const [apiHost, setApiHost] = useState<string | null>(null);
@@ -964,8 +733,6 @@ export default function McpAppRenderer({
     );
   };
 
-  const appSupportsFullscreen = effectiveDisplayModes.includes('fullscreen');
-  const appSupportsPip = effectiveDisplayModes.includes('pip');
   const showControls = !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip);
 
   const renderDisplayModeControls = () => {
@@ -1049,11 +816,6 @@ export default function McpAppRenderer({
     );
   };
 
-  const isFullscreen = activeDisplayMode === 'fullscreen';
-  const isPip = activeDisplayMode === 'pip';
-  const isFillsViewport = isFullscreen || isStandalone;
-  const isInline = !isFillsViewport && !isPip;
-
   // Single stable container — CSS switches between inline/fullscreen/pip positioning.
   // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
@@ -1089,13 +851,13 @@ export default function McpAppRenderer({
       {isFullscreen && (
         <div
           className="invisible mt-6 mb-2"
-          style={{ width: '100%', height: `${inlineHeightRef.current}px` }}
+          style={{ width: '100%', height: `${inlineHeight}px` }}
         />
       )}
       {isPip && (
         <div
           className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-primary bg-black/[0.02] dark:bg-white/[0.02]"
-          style={{ width: '100%', height: `${inlineHeightRef.current}px` }}
+          style={{ width: '100%', height: `${inlineHeight}px` }}
         >
           <button
             onClick={() => changeDisplayMode('inline')}
@@ -1120,11 +882,11 @@ export default function McpAppRenderer({
               tabIndex={0}
               aria-label="Move Picture-in-Picture window (use arrow keys)"
               className="pointer-events-auto cursor-grab rounded-md bg-black/50 p-1 text-white backdrop-blur-sm hover:bg-black/70 active:cursor-grabbing"
-              onPointerDown={handlePipPointerDown}
-              onPointerMove={handlePipPointerMove}
-              onPointerUp={handlePipPointerUp}
-              onLostPointerCapture={handlePipLostPointerCapture}
-              onKeyDown={handlePipKeyDown}
+              onPointerDown={pipHandlers.onPointerDown}
+              onPointerMove={pipHandlers.onPointerMove}
+              onPointerUp={pipHandlers.onPointerUp}
+              onLostPointerCapture={pipHandlers.onLostPointerCapture}
+              onKeyDown={pipHandlers.onKeyDown}
             >
               <GripHorizontal size={14} />
             </div>
