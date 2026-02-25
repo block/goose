@@ -73,6 +73,26 @@
   --background-danger: var(--color-red-200);
   --background-info: var(--color-blue-200);
 
+  /* shadcn-style semantic tokens (compat for libs expecting --card/--muted/etc) */
+  --background: var(--background-default);
+  --foreground: var(--text-default);
+  --card: var(--background-default);
+  --card-foreground: var(--text-default);
+  --popover: var(--background-default);
+  --popover-foreground: var(--text-default);
+  --muted: var(--background-muted);
+  --muted-foreground: var(--text-muted);
+  --border: var(--border-default);
+  --input: var(--border-default);
+  --primary: var(--background-accent);
+  --primary-foreground: var(--text-on-accent);
+  --secondary: var(--background-muted);
+  --secondary-foreground: var(--text-default);
+  --accent: var(--background-medium);
+  --accent-foreground: var(--text-default);
+  --destructive: var(--border-danger);
+  --destructive-foreground: var(--text-inverse);
+
   --border-default: var(--color-neutral-400);
   --border-strong: var(--color-neutral-500);
   --border-danger: var(--color-red-600);
@@ -133,6 +153,26 @@
   --background-danger: var(--color-red-100);
   --background-info: var(--color-blue-100);
 
+  /* shadcn-style semantic tokens (compat for libs expecting --card/--muted/etc) */
+  --background: var(--background-default);
+  --foreground: var(--text-default);
+  --card: var(--background-default);
+  --card-foreground: var(--text-default);
+  --popover: var(--background-default);
+  --popover-foreground: var(--text-default);
+  --muted: var(--background-muted);
+  --muted-foreground: var(--text-muted);
+  --border: var(--border-default);
+  --input: var(--border-default);
+  --primary: var(--background-accent);
+  --primary-foreground: var(--text-on-accent);
+  --secondary: var(--background-muted);
+  --secondary-foreground: var(--text-default);
+  --accent: var(--background-medium);
+  --accent-foreground: var(--text-default);
+  --destructive: var(--border-danger);
+  --destructive-foreground: var(--text-inverse);
+
   --border-default: var(--color-neutral-550);
   --border-strong: var(--color-neutral-400);
   --border-danger: var(--color-red-100);
@@ -185,6 +225,27 @@
   --color-background-inverse: var(--background-inverse);
   --color-background-danger: var(--background-danger);
   --color-background-info: var(--background-info);
+
+  /* shadcn compatibility tokens (used by @json-render/shadcn components) */
+  --color-background: var(--background-default);
+  --color-foreground: var(--text-default);
+  --color-card: var(--background-default);
+  --color-card-foreground: var(--text-default);
+  --color-popover: var(--background-default);
+  --color-popover-foreground: var(--text-default);
+  --color-muted: var(--background-muted);
+  --color-muted-foreground: var(--text-muted);
+  --color-border: var(--border-default);
+  --color-input: var(--border-default);
+
+  --color-primary: var(--background-accent);
+  --color-primary-foreground: var(--text-on-accent);
+  --color-secondary: var(--background-muted);
+  --color-secondary-foreground: var(--text-default);
+  --color-accent: var(--background-medium);
+  --color-accent-foreground: var(--text-default);
+  --color-destructive: var(--border-danger);
+  --color-destructive-foreground: var(--text-inverse);
 
   --color-background-accent: var(--background-accent);
   --color-border-accent: var(--border-accent);

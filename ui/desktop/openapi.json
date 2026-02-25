@@ -10308,6 +10308,7 @@
         "type": "object",
         "description": "A task within a plan proposal, serializable for SSE transport.",
         "required": [
+          "task_id",
           "agent_name",
           "mode_slug",
           "mode_name",
@@ -10324,6 +10325,12 @@
             "type": "number",
             "format": "float"
           },
+          "depends_on": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "description": {
             "type": "string"
           },
@@ -10334,6 +10341,9 @@
             "type": "string"
           },
           "reasoning": {
+            "type": "string"
+          },
+          "task_id": {
             "type": "string"
           },
           "tool_groups": {

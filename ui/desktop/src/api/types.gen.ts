@@ -1594,10 +1594,12 @@ export type PipelineNode = {
 export type PlanTask = {
     agent_name: string;
     confidence: number;
+    depends_on?: Array<string>;
     description: string;
     mode_name: string;
     mode_slug: string;
     reasoning: string;
+    task_id: string;
     tool_groups: Array<string>;
 };
 
