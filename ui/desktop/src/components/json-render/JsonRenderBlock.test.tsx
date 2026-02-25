@@ -105,6 +105,18 @@ describe('JsonRenderBlock', () => {
       expect(screen.getByText('339')).toBeInTheDocument();
     });
 
+    it('resolves $state bindings from JSONL state', () => {
+      const spec = [
+        '{"op":"add","path":"/root","value":"t"}',
+        '{"op":"add","path":"/elements/t","value":{"type":"Text","props":{"text":{"$state":"/message"}},"children":[]}}',
+        '{"op":"add","path":"/state","value":{}}',
+        '{"op":"add","path":"/state/message","value":"hello from state"}',
+      ].join('\n');
+
+      render(<JsonRenderBlock spec={spec} />);
+      expect(screen.getByText('hello from state')).toBeInTheDocument();
+    });
+
     it('renders a multi-component dashboard header from JSONL', () => {
       const { container } = render(<JsonRenderBlock spec={JSONL_DASHBOARD_HEADER} />);
 
