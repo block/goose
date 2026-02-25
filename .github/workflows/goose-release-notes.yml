@@ -230,24 +230,50 @@ jobs:
 
           📦 **Download:** ${RELEASE_URL}"
 
-          # Check total length to decide strategy
-          HEADER_LENGTH=${#HEADER}
-          TOTAL_LENGTH=$((HEADER_LENGTH + NOTES_LENGTH + 10))
+          # Split notes into sections by ## headers
+          # Section 0 = any content before first ##, Section 1+ = each ## section
+          rm -f /tmp/section_*.txt
+          echo "$RELEASE_NOTES" | awk '
+            BEGIN { n=0; file="/tmp/section_0.txt" }
+            /^## / { 
+              if (n > 0) close(file)
+              n++
+              file = "/tmp/section_" n ".txt"
+            }
+            { print > file }
+            END { close(file) }
+          '
 
-          if [ "$TOTAL_LENGTH" -le "$SAFE_LIMIT" ]; then
-            # Single message - everything fits
-            FULL_MESSAGE="${HEADER}
+          # Get first section (usually Features)
+          FIRST_SECTION=""
+          for f in /tmp/section_0.txt /tmp/section_1.txt; do
+            if [ -f "$f" ] && [ -s "$f" ]; then
+              FIRST_SECTION=$(cat "$f")
+              FIRST_SECTION_FILE="$f"
+              break
+            fi
+          done
 
-          ${RELEASE_NOTES}"
-            send_discord "$FULL_MESSAGE" "$DISCORD_CHANNEL_ID"
-          else
-            # Notes too long - use header + thread with full notes
-            echo "Release notes exceed Discord limit (${TOTAL_LENGTH} chars), using thread..."
+          # Check if header + first section fits in one message
+          MAIN_CONTENT="${HEADER}
 
-            # Main message is just the announcement header with pointer to thread
-            MAIN_MESSAGE="${HEADER}
+          ${FIRST_SECTION}"
+          MAIN_LENGTH=${#MAIN_CONTENT}
 
-          📝 *See full release notes in thread below*"
+          # Count remaining sections
+          REMAINING_SECTIONS=0
+          for f in /tmp/section_*.txt; do
+            [ -f "$f" ] && [ "$f" != "$FIRST_SECTION_FILE" ] && REMAINING_SECTIONS=$((REMAINING_SECTIONS + 1))
+          done
+
+          if [ "$MAIN_LENGTH" -le "$SAFE_LIMIT" ] && [ "$REMAINING_SECTIONS" -eq 0 ]; then
+            # Everything fits in one message
+            send_discord "$MAIN_CONTENT" "$DISCORD_CHANNEL_ID"
+          elif [ "$MAIN_LENGTH" -le "$SAFE_LIMIT" ]; then
+            # Header + first section fits, put rest in thread
+            MAIN_MESSAGE="${MAIN_CONTENT}
+
+          📝 *More in thread...*"
 
             MESSAGE_ID=$(send_discord "$MAIN_MESSAGE" "$DISCORD_CHANNEL_ID")
 
@@ -259,65 +285,89 @@ jobs:
             echo "Created message $MESSAGE_ID, creating thread..."
             sleep 1
 
-            # Create thread from the message
             THREAD_ID=$(create_thread "$DISCORD_CHANNEL_ID" "$MESSAGE_ID" "Release Notes ${RELEASE_TAG}")
-
             if [ -z "$THREAD_ID" ]; then
-              echo "::warning::Failed to create thread, posting notes as follow-up messages"
+              echo "::warning::Failed to create thread"
               THREAD_ID="$DISCORD_CHANNEL_ID"
-            else
-              echo "Created thread $THREAD_ID"
             fi
-
             sleep 1
 
-            # Split notes into sections by ## headers, save to temp files
-            echo "$RELEASE_NOTES" | awk '
-              BEGIN { n=0; file="/tmp/section_0.txt" }
-              /^## / { 
-                if (n > 0) close(file)
-                n++
-                file = "/tmp/section_" n ".txt"
-              }
-              { print > file }
-              END { close(file) }
-            '
-
-            # Post each section file to the thread
+            # Post remaining sections to thread
             for section_file in /tmp/section_*.txt; do
               [ -f "$section_file" ] || continue
-              SECTION_CONTENT=$(cat "$section_file")
+              [ "$section_file" = "$FIRST_SECTION_FILE" ] && continue
               
-              # Skip empty sections
+              SECTION_CONTENT=$(cat "$section_file")
               [ -z "$SECTION_CONTENT" ] && continue
               
-              # If section fits in one message, send it
               if [ ${#SECTION_CONTENT} -le "$SAFE_LIMIT" ]; then
                 send_discord "$SECTION_CONTENT" "$THREAD_ID"
               else
-                # Section too long, chunk it at line boundaries
+                # Chunk large sections at line boundaries
                 REMAINING="$SECTION_CONTENT"
                 while [ -n "$REMAINING" ]; do
                   CHUNK="${REMAINING:0:$SAFE_LIMIT}"
                   REMAINING="${REMAINING:$SAFE_LIMIT}"
-                  
-                  # Break at last newline for clean splits
                   if [ -n "$REMAINING" ]; then
-                    # Find last newline in chunk
-                    BEFORE_LAST_NL="${CHUNK%$'\n'*}"
-                    if [ "$BEFORE_LAST_NL" != "$CHUNK" ] && [ ${#BEFORE_LAST_NL} -gt 200 ]; then
-                      REMAINING="${CHUNK:${#BEFORE_LAST_NL}}${REMAINING}"
-                      CHUNK="$BEFORE_LAST_NL"
+                    BEFORE_NL="${CHUNK%$'\n'*}"
+                    if [ "$BEFORE_NL" != "$CHUNK" ] && [ ${#BEFORE_NL} -gt 200 ]; then
+                      REMAINING="${CHUNK:${#BEFORE_NL}}${REMAINING}"
+                      CHUNK="$BEFORE_NL"
                     fi
                   fi
-                  
                   send_discord "$CHUNK" "$THREAD_ID"
                   sleep 1
                 done
               fi
               sleep 1
-              rm -f "$section_file"
+            done
+          else
+            # First section too long - just header in main, everything in thread
+            MAIN_MESSAGE="${HEADER}
+
+          📝 *See full release notes in thread below*"
+
+            MESSAGE_ID=$(send_discord "$MAIN_MESSAGE" "$DISCORD_CHANNEL_ID")
+
+            if [ -z "$MESSAGE_ID" ]; then
+              echo "::error::Failed to send Discord message"
+              exit 1
+            fi
+
+            sleep 1
+            THREAD_ID=$(create_thread "$DISCORD_CHANNEL_ID" "$MESSAGE_ID" "Release Notes ${RELEASE_TAG}")
+            [ -z "$THREAD_ID" ] && THREAD_ID="$DISCORD_CHANNEL_ID"
+            sleep 1
+
+            # Post all sections to thread
+            for section_file in /tmp/section_*.txt; do
+              [ -f "$section_file" ] || continue
+              SECTION_CONTENT=$(cat "$section_file")
+              [ -z "$SECTION_CONTENT" ] && continue
+              
+              if [ ${#SECTION_CONTENT} -le "$SAFE_LIMIT" ]; then
+                send_discord "$SECTION_CONTENT" "$THREAD_ID"
+              else
+                REMAINING="$SECTION_CONTENT"
+                while [ -n "$REMAINING" ]; do
+                  CHUNK="${REMAINING:0:$SAFE_LIMIT}"
+                  REMAINING="${REMAINING:$SAFE_LIMIT}"
+                  if [ -n "$REMAINING" ]; then
+                    BEFORE_NL="${CHUNK%$'\n'*}"
+                    if [ "$BEFORE_NL" != "$CHUNK" ] && [ ${#BEFORE_NL} -gt 200 ]; then
+                      REMAINING="${CHUNK:${#BEFORE_NL}}${REMAINING}"
+                      CHUNK="$BEFORE_NL"
+                    fi
+                  fi
+                  send_discord "$CHUNK" "$THREAD_ID"
+                  sleep 1
+                done
+              fi
+              sleep 1
             done
           fi
+
+          # Cleanup
+          rm -f /tmp/section_*.txt
 
           echo "::notice::Discord notification sent successfully"
