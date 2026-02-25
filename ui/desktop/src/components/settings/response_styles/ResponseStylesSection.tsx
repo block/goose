@@ -6,23 +6,24 @@ export const ResponseStylesSection = () => {
   const [currentStyle, setCurrentStyle] = useState('concise');
 
   useEffect(() => {
-    const savedStyle = localStorage.getItem('response_style');
-    if (savedStyle) {
+    async function loadResponseStyle() {
       try {
+        const savedStyle = await window.electron.getSetting('responseStyle');
         setCurrentStyle(savedStyle);
       } catch (error) {
-        console.error('Error parsing response style:', error);
+        console.error('Error loading response style:', error);
       }
-    } else {
-      // Set default to concise for new users
-      localStorage.setItem('response_style', 'concise');
-      setCurrentStyle('concise');
     }
+    loadResponseStyle();
   }, []);
 
   const handleStyleChange = async (newStyle: string) => {
     setCurrentStyle(newStyle);
-    localStorage.setItem('response_style', newStyle);
+    try {
+      await window.electron.setSetting('responseStyle', newStyle);
+    } catch (error) {
+      console.error('Error saving response style:', error);
+    }
 
     // Dispatch custom event to notify other components of the change
     window.dispatchEvent(new CustomEvent(AppEvents.RESPONSE_STYLE_CHANGED));

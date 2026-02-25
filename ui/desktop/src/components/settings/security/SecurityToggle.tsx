@@ -50,11 +50,11 @@ const ClassifierEndpointInputs = ({
     <div className="space-y-3">
       <div>
         <label
-          className={`text-sm font-medium ${disabled ? 'text-text-muted' : 'text-text-default'}`}
+          className={`text-sm font-medium ${disabled ? 'text-text-secondary' : 'text-text-primary'}`}
         >
           {endpointLabel}
         </label>
-        <p className="text-xs text-text-muted mb-2">{endpointDescription}</p>
+        <p className="text-xs text-text-secondary mb-2">{endpointDescription}</p>
         <input
           type="url"
           value={endpointValue}
@@ -62,21 +62,21 @@ const ClassifierEndpointInputs = ({
           onBlur={(e) => onEndpointBlur(e.target.value)}
           disabled={disabled}
           placeholder={endpointPlaceholder}
-          className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
+          className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-secondary ${
             disabled
-              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
-              : 'border-border-default bg-background-default text-text-default'
+              ? 'border-border-primary bg-background-secondary text-text-secondary cursor-not-allowed'
+              : 'border-border-primary bg-background-primary text-text-primary'
           }`}
         />
       </div>
 
       <div>
         <label
-          className={`text-sm font-medium ${disabled ? 'text-text-muted' : 'text-text-default'}`}
+          className={`text-sm font-medium ${disabled ? 'text-text-secondary' : 'text-text-primary'}`}
         >
           {tokenLabel}
         </label>
-        <p className="text-xs text-text-muted mb-2">{tokenDescription}</p>
+        <p className="text-xs text-text-secondary mb-2">{tokenDescription}</p>
         <input
           type="password"
           value={tokenValue}
@@ -84,10 +84,10 @@ const ClassifierEndpointInputs = ({
           onBlur={(e) => onTokenBlur(e.target.value)}
           disabled={disabled}
           placeholder={tokenPlaceholder}
-          className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-muted ${
+          className={`w-full px-3 py-2 text-sm border rounded placeholder:text-text-secondary ${
             disabled
-              ? 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
-              : 'border-border-default bg-background-default text-text-default'
+              ? 'border-border-primary bg-background-secondary text-text-secondary cursor-not-allowed'
+              : 'border-border-primary bg-background-primary text-text-primary'
           }`}
         />
       </div>
@@ -215,10 +215,10 @@ export const SecurityToggle = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between py-2 px-2 hover:bg-background-muted rounded-lg transition-all">
+      <div className="flex items-center justify-between py-2 px-2 hover:bg-background-secondary rounded-lg transition-all">
         <div>
-          <h3 className="text-text-default">Enable Prompt Injection Detection</h3>
-          <p className="text-xs text-text-muted max-w-md mt-[2px]">
+          <h3 className="text-text-primary">Enable Prompt Injection Detection</h3>
+          <p className="text-xs text-text-secondary max-w-md mt-[2px]">
             Detect and prevent potential prompt injection attacks
           </p>
         </div>
@@ -236,11 +236,11 @@ export const SecurityToggle = () => {
           {/* Detection Threshold */}
           <div className={enabled ? '' : 'opacity-50'}>
             <label
-              className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
+              className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
             >
               Detection Threshold
             </label>
-            <p className="text-xs text-text-muted mb-2">
+            <p className="text-xs text-text-secondary mb-2">
               Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)
             </p>
             <input
@@ -264,23 +264,23 @@ export const SecurityToggle = () => {
               disabled={!enabled}
               className={`w-24 px-2 py-1 text-sm border rounded ${
                 enabled
-                  ? 'border-border-default bg-background-default text-text-default'
-                  : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
+                  ? 'border-border-primary bg-background-primary text-text-primary'
+                  : 'border-border-primary bg-background-secondary text-text-secondary cursor-not-allowed'
               }`}
               placeholder="0.80"
             />
           </div>
 
           {/* Command Injection Detection Toggle */}
-          <div className="border-t border-border-default pt-4">
-            <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
+          <div className="border-t border-border-primary pt-4">
+            <div className="flex items-center justify-between py-2 hover:bg-background-secondary rounded-lg transition-all">
               <div>
                 <h4
-                  className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
+                  className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
                 >
                   Enable Command Injection ML Detection
                 </h4>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                   Use ML models to detect malicious shell commands
                 </p>
               </div>
@@ -328,15 +328,15 @@ export const SecurityToggle = () => {
           </div>
 
           {/* Prompt Injection Detection Toggle */}
-          <div className="border-t border-border-default pt-4">
-            <div className="flex items-center justify-between py-2 hover:bg-background-muted rounded-lg transition-all">
+          <div className="border-t border-border-primary pt-4">
+            <div className="flex items-center justify-between py-2 hover:bg-background-secondary rounded-lg transition-all">
               <div>
                 <h4
-                  className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
+                  className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
                 >
                   Enable Prompt Injection ML Detection
                 </h4>
-                <p className="text-xs text-text-muted max-w-md mt-[2px]">
+                <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                   Use ML models to detect potential prompt injection in your chat
                 </p>
               </div>
@@ -361,11 +361,11 @@ export const SecurityToggle = () => {
                   <div className="space-y-3">
                     <div>
                       <label
-                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
+                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-primary' : 'text-text-secondary'}`}
                       >
                         Detection Model
                       </label>
-                      <p className="text-xs text-text-muted mb-2">
+                      <p className="text-xs text-text-secondary mb-2">
                         Select which ML model to use for prompt injection detection
                       </p>
                       <select
@@ -374,8 +374,8 @@ export const SecurityToggle = () => {
                         disabled={!enabled || !mlEnabled}
                         className={`w-full px-3 py-2 text-sm border rounded ${
                           enabled && mlEnabled
-                            ? 'border-border-default bg-background-default text-text-default'
-                            : 'border-border-default bg-background-muted text-text-muted cursor-not-allowed'
+                            ? 'border-border-primary bg-background-primary text-text-primary'
+                            : 'border-border-primary bg-background-secondary text-text-secondary cursor-not-allowed'
                         }`}
                       >
                         {availablePromptModels.map((model) => (

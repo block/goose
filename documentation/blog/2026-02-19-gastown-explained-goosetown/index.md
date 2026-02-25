@@ -88,17 +88,15 @@ Goosetown uses [Beads](https://github.com/steveyegge/beads) to track progress so
 
 ## A Note from the Creator 
 
-> *I mostly use Goosetown when I'm trying to answer something that has a lot of independent angles, where missing a constraint is more expensive than spending extra tokens. For example, integration research ('how does system X actually authenticate?') or migration planning ('what would break first if we moved?')*
+> *Goosetown started as a fun experiment to push the subagent upgrade I was working on for goose to its limits. I had spent some time with Gas Town and thought that a much less sprawling riff on it would be a whimsical way to show off background subagents and how good modern goose is at orchestrating and managing projects at a very high level. I was just totally surprised at how well it worked when I started using Goosetown as my daily driver.*
 >
-> *There's a real tax to running multiple agents. If I can describe the task in one paragraph and I already know where to start, I don't need Goosetown. Parallelism improves throughput, but it adds coordination overhead.*
+> *Watching the subagents chatter to each other, each one given a personality and task by the orchestrator, was eye-opening. And funny. They rubber-duck and go back and forth just like I do with my colleagues. Even just having one model getting to bounce ideas off itself automatically in the form of different agents with different contexts makes the output better.*
 >
-> *The next improvements I care about are mostly about making failure modes cheaper. The system already has turn limits and a flat hierarchy, but it doesn't yet have good cost controls beyond that. Token budgets and basic circuit breakers would make it harder for a delegate to burn a surprising amount of compute in a tight loop.*
+> *Running flocks (swarms) of agents is obviously expensive, but the overall quality of the work is higher and much less of my time is required to get it right. Definitely a tradeoff there. goose does help with this by allowing you to set the default subagent model to a less pricey one ahead of time and by allowing your main agent to select the models it wants to use for subagents explicitly, ad-hoc.*
 >
-> *On the coordination side, I'm interested in adding a little more structure without turning it into a framework. Even lightweight conventions, like consistent prefixes on wall messages or a clearer artifact layout, can reduce synthesis work.*
+> *There are always new and exciting features being added to goose. Refactors and refinements. For Goosetown, I'll continue to make its artifact (memory) system more robust, make communications inside Goosetown flow more smoothly, and keep it just a little silly.*
 >
-> *Longer term, goose has roadmap work around more structured agent-to-agent communication. If that lands, it might replace parts of the wall. The tradeoff is the one we've been making all along: structure buys you scale and tooling; simplicity buys you debuggability and the ability to change policy by editing a markdown file.*
->
-> — Tyler Longwell
+> — Tyler
 
 ## Get Started
 

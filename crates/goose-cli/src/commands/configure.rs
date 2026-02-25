@@ -466,13 +466,11 @@ fn select_model_from_list(
                 ),
             );
 
-            if provider_meta.allows_unlisted_models {
-                model_items.push((
-                    UNLISTED_MODEL_KEY.to_string(),
-                    "Enter a model not listed...".to_string(),
-                    "",
-                ));
-            }
+            model_items.push((
+                UNLISTED_MODEL_KEY.to_string(),
+                "Enter a model not listed...".to_string(),
+                "",
+            ));
 
             let selection = cliclack::select("Select a model:")
                 .items(&model_items)
@@ -492,13 +490,11 @@ fn select_model_from_list(
         let mut model_items: Vec<(String, String, &str)> =
             models.iter().map(|m| (m.clone(), m.clone(), "")).collect();
 
-        if provider_meta.allows_unlisted_models {
-            model_items.push((
-                UNLISTED_MODEL_KEY.to_string(),
-                "Enter a model not listed...".to_string(),
-                "",
-            ));
-        }
+        model_items.push((
+            UNLISTED_MODEL_KEY.to_string(),
+            "Enter a model not listed...".to_string(),
+            "",
+        ));
 
         let selection = cliclack::select("Select a model:")
             .items(&model_items)
@@ -1973,6 +1969,7 @@ fn add_provider() -> anyhow::Result<()> {
         supports_streaming: Some(supports_streaming),
         headers,
         requires_auth,
+        catalog_provider_id: None,
     })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;

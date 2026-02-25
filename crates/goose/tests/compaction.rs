@@ -190,7 +190,6 @@ impl ProviderDef for MockCompactionProvider {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
-            allows_unlisted_models: false,
         }
     }
 

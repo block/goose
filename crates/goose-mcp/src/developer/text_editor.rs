@@ -770,7 +770,8 @@ pub fn text_editor_replace_inmem(
         .next()
         .expect("should split on already matched content")
         .matches('\n')
-        .count();
+        .count()
+        + 1; // 1-indexed
 
     let start_line = replacement_line.saturating_sub(SNIPPET_LINES);
     let end_line = replacement_line + SNIPPET_LINES + new_content.matches('\n').count();
@@ -784,11 +785,14 @@ pub fn text_editor_replace_inmem(
         .collect::<Vec<&str>>()
         .join("\n");
 
-    let output = formatdoc! {r#"
+    let user_output = formatdoc! {r#"
+        Successfully replaced text in {path} at line {line}.
         ```{language}
         {snippet}
         ```
         "#,
+        path=path.display(),
+        line=replacement_line,
         language=language,
         snippet=snippet
     };
@@ -799,12 +803,12 @@ pub fn text_editor_replace_inmem(
         Review the changes above for errors. Undo and edit the file again if necessary!
         "#,
         path.display(),
-        output
+        user_output
     };
 
     let response = vec![
         Content::text(success_message).with_audience(vec![Role::Assistant]),
-        Content::text(output)
+        Content::text(user_output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
     ];
@@ -968,14 +972,22 @@ pub fn text_editor_insert_inmem(
         .enumerate()
         .map(|(i, line)| format!("{}: {}", start_line + i, line))
         .collect();
-
     let snippet = snippet_lines.join("\n");
 
-    let output = formatdoc! {r#"
+    let summary = format!(
+        "Successfully inserted {} lines at line {} in {}",
+        new_str.lines().count(),
+        insertion_line,
+        path.display()
+    );
+
+    let user_output = formatdoc! {r#"
+        {summary}
         ```{language}
         {snippet}
         ```
         "#,
+        summary=summary,
         language=language,
         snippet=snippet
     };
@@ -987,12 +999,12 @@ pub fn text_editor_insert_inmem(
         "#,
         insertion_line,
         path.display(),
-        output
+        user_output
     };
 
     let response = vec![
         Content::text(success_message).with_audience(vec![Role::Assistant]),
-        Content::text(output)
+        Content::text(user_output)
             .with_audience(vec![Role::User])
             .with_priority(0.2),
     ];

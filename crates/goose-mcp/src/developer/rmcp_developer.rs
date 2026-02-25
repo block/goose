@@ -1835,10 +1835,9 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(
-            assistant_content.text.contains("The file")
-                && assistant_content.text.contains("has been edited")
-        );
+        assert!(assistant_content
+            .text
+            .contains("Successfully replaced text in"));
 
         // Verify the file contents changed
         let content = fs::read_to_string(&file_path).unwrap();
@@ -2308,7 +2307,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.text.contains("Text has been inserted at line 1"));
+        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 1"));
 
         // Verify the file content by reading it directly
         let file_content = fs::read_to_string(&file_path).unwrap();
@@ -2365,7 +2364,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.text.contains("Text has been inserted at line 3"));
+        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 3"));
 
         // Verify the file content by reading it directly
         let file_content = fs::read_to_string(&file_path).unwrap();
@@ -2427,7 +2426,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.text.contains("Text has been inserted at line 4"));
+        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 4"));
 
         // Verify the file content by reading it directly
         let file_content = fs::read_to_string(&file_path).unwrap();
@@ -2484,7 +2483,7 @@ mod tests {
             .as_text()
             .unwrap();
 
-        assert!(text.text.contains("Text has been inserted at line 4"));
+        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 4"));
 
         // Verify the file content by reading it directly
         let file_content = fs::read_to_string(&file_path).unwrap();

@@ -1,9 +1,14 @@
 use anyhow::Result;
 use dotenvy::dotenv;
+use futures::StreamExt;
 use goose::agents::extension_manager::ExtensionManagerCapabilities;
-use goose::agents::{ExtensionManager, GoosePlatform, PromptManager};
-use goose::config::ExtensionConfig;
-use goose::conversation::message::{Message, MessageContent};
+use goose::agents::{
+    Agent, AgentConfig, AgentEvent, ExtensionManager, GoosePlatform, PromptManager, SessionConfig,
+};
+use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
+use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
+use goose::permission::permission_confirmation::PrincipalType;
+use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
@@ -19,7 +24,7 @@ use goose::providers::openai::OPEN_AI_DEFAULT_MODEL;
 use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
-use goose::session::SessionManager;
+use goose::session::{SessionManager, SessionType};
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_SESSION_ID};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -94,6 +99,7 @@ struct ProviderTester {
     extension_manager: Arc<ExtensionManager>,
     is_cli_provider: bool,
     model_switch_name: Option<String>,
+    mcp_extension: ExtensionConfig,
 }
 
 impl ProviderTester {
@@ -103,6 +109,7 @@ impl ProviderTester {
         extension_manager: Arc<ExtensionManager>,
         is_cli_provider: bool,
         model_switch_name: Option<String>,
+        mcp_extension: ExtensionConfig,
     ) -> Self {
         Self {
             provider,
@@ -110,6 +117,7 @@ impl ProviderTester {
             extension_manager,
             is_cli_provider,
             model_switch_name,
+            mcp_extension,
         }
     }
 
@@ -381,6 +389,7 @@ impl ProviderTester {
     }
 
     async fn run_test_suite(&self) -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_MODE", Some("auto"))]);
         self.test_model_listing().await?;
         self.test_basic_response(&self.session_id_for_test("basic_response"))
             .await?;
@@ -398,7 +407,103 @@ impl ProviderTester {
             self.test_context_length_exceeded_error(&self.session_id_for_test("context_length"))
                 .await?;
         }
+        drop(_guard);
+        // codex: one-shot subprocess, no bidirectional control protocol
+        if self.name != "codex" {
+            self.test_permission_allow().await?;
+            self.test_permission_deny().await?;
+        }
         Ok(())
+    }
+
+    async fn run_permission_test(&self, permission: Permission, label: &str) -> Result<()> {
+        // Guard must live through agent.reply() — providers read GOOSE_MODE at spawn time.
+        let _guard = env_lock::lock_env([("GOOSE_MODE", Some("approve"))]);
+        let provider = if self.is_cli_provider {
+            create_with_named_model(
+                &self.name.to_lowercase(),
+                &self.provider.get_model_config().model_name,
+                vec![self.mcp_extension.clone()],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?
+        } else {
+            self.provider.clone()
+        };
+
+        let temp_dir = tempfile::tempdir()?;
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
+        let agent = Agent::with_config(AgentConfig::new(
+            session_manager.clone(),
+            permission_manager,
+            None,
+            GooseMode::Approve,
+            true,
+            GoosePlatform::GooseCli,
+        ));
+
+        let session = session_manager
+            .create_session(
+                std::env::current_dir()?,
+                "permission_test".to_string(),
+                SessionType::User,
+            )
+            .await?;
+
+        agent.update_provider(provider, &session.id).await?;
+        agent
+            .add_extension(self.mcp_extension.clone(), &session.id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        let message =
+            Message::user().with_text("Use the get_code tool and output only its result.");
+        let session_config = SessionConfig {
+            id: session.id,
+            schedule_id: None,
+            max_turns: Some(5),
+            retry_config: None,
+        };
+
+        let mut stream = agent.reply(message, session_config, None).await?;
+        let mut saw_action_required = false;
+
+        while let Some(event) = stream.next().await {
+            let event = event?;
+            if let AgentEvent::Message(ref msg) = event {
+                for content in &msg.content {
+                    if let MessageContent::ActionRequired(ar) = content {
+                        if let ActionRequiredData::ToolConfirmation { ref id, .. } = ar.data {
+                            saw_action_required = true;
+                            agent
+                                .handle_confirmation(
+                                    id.clone(),
+                                    PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: permission.clone(),
+                                    },
+                                )
+                                .await;
+                        }
+                    }
+                }
+            }
+        }
+
+        assert!(saw_action_required);
+        println!("=== {}::{} ===", self.name, label);
+        Ok(())
+    }
+
+    async fn test_permission_allow(&self) -> Result<()> {
+        self.run_permission_test(Permission::AllowOnce, "permission_allow")
+            .await
+    }
+
+    async fn test_permission_deny(&self) -> Result<()> {
+        self.run_permission_test(Permission::DenyOnce, "permission_deny")
+            .await
     }
 }
 
@@ -512,7 +617,7 @@ async fn test_provider(
         ExtensionManagerCapabilities { mcpui: false },
     ));
     extension_manager
-        .add_extension(mcp_extension, None, None, None)
+        .add_extension(mcp_extension.clone(), None, None, None)
         .await
         .expect("failed to add extension");
 
@@ -522,6 +627,7 @@ async fn test_provider(
         extension_manager,
         is_cli_provider,
         model_switch_name.map(String::from),
+        mcp_extension,
     );
     let _mcp = mcp;
     let result = tester.run_test_suite().await;

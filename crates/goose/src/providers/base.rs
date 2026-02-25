@@ -12,6 +12,7 @@ use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
+use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
 use utoipa::ToSchema;
@@ -31,6 +32,58 @@ fn strip_xml_tags(text: &str) -> String {
         LazyLock::new(|| Regex::new(r"</?[a-zA-Z][a-zA-Z0-9_]*[^>]*>").unwrap());
     let pass1 = BLOCK_RE.replace_all(text, "");
     TAG_RE.replace_all(&pass1, "").into_owned()
+}
+
+fn extract_short_title(text: &str) -> String {
+    let word_count = text.split_whitespace().count();
+    if word_count <= 8 {
+        return text.to_string();
+    }
+
+    {
+        let mut results = Vec::new();
+        let mut quote_char: Option<char> = None;
+        let mut current = String::new();
+        let mut prev_char: Option<char> = None;
+
+        for ch in text.chars() {
+            match quote_char {
+                None => {
+                    if matches!(ch, '"' | '\'' | '`') {
+                        let after_alnum = prev_char.map(|p| p.is_alphanumeric()).unwrap_or(false);
+                        if !after_alnum {
+                            quote_char = Some(ch);
+                            current.clear();
+                        }
+                    }
+                }
+                Some(q) => {
+                    if ch == q {
+                        let trimmed = current.trim().to_string();
+                        let wc = trimmed.split_whitespace().count();
+                        if (2..=8).contains(&wc) {
+                            results.push(trimmed);
+                        }
+                        quote_char = None;
+                        current.clear();
+                    } else {
+                        current.push(ch);
+                    }
+                }
+            }
+            prev_char = Some(ch);
+        }
+
+        if let Some(title) = results.last() {
+            return title.clone();
+        }
+    }
+
+    if let Some(last) = text.lines().rev().find(|l| !l.trim().is_empty()) {
+        return last.trim().to_string();
+    }
+
+    text.to_string()
 }
 
 /// A global store for the current model being used, we use this as when a provider returns, it tells us the real model, not an alias
@@ -123,9 +176,6 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
-    /// Whether this provider allows entering model names not in the fetched list
-    #[serde(default)]
-    pub allows_unlisted_models: bool,
 }
 
 impl ProviderMetadata {
@@ -158,7 +208,6 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
-            allows_unlisted_models: false,
         }
     }
 
@@ -179,7 +228,6 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
-            allows_unlisted_models: false,
         }
     }
 
@@ -192,14 +240,7 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
-            allows_unlisted_models: false,
         }
-    }
-
-    /// Set allows_unlisted_models flag (builder pattern)
-    pub fn with_unlisted_models(mut self) -> Self {
-        self.allows_unlisted_models = true;
-        self
     }
 }
 
@@ -390,6 +431,12 @@ pub trait ProviderDef: Send + Sync {
     ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PermissionRouting {
+    ActionRequired,
+    Noop,
 }
 
 /// Trait for LeadWorkerProvider-specific functionality
@@ -632,7 +679,7 @@ pub trait Provider: Send + Sync {
             .collect::<Vec<_>>()
             .join(" ");
 
-        Ok(safe_truncate(&description, 100))
+        Ok(safe_truncate(&extract_short_title(&description), 100))
     }
 
     /// Configure OAuth authentication for this provider
@@ -650,6 +697,18 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    fn permission_routing(&self) -> PermissionRouting {
+        PermissionRouting::Noop
+    }
+
+    async fn handle_permission_confirmation(
+        &self,
+        _request_id: &str,
+        _confirmation: &PermissionConfirmation,
+    ) -> bool {
+        false
     }
 }
 
@@ -749,6 +808,60 @@ mod tests {
         assert_eq!(
             strip_xml_tags("<think>\nline1\nline2\n</think>result"),
             "result"
+        );
+    }
+
+    #[test]
+    fn test_extract_short_title() {
+        assert_eq!(extract_short_title("List files"), "List files");
+        assert_eq!(
+            extract_short_title(
+                r#"blah blah blah blah blah blah blah blah blah "List files in folder""#
+            ),
+            "List files in folder"
+        );
+        assert_eq!(
+            extract_short_title(
+                "blah blah blah blah blah blah blah blah blah `View current files`"
+            ),
+            "View current files"
+        );
+        assert_eq!(
+            extract_short_title(
+                r#"stuff stuff stuff stuff stuff stuff stuff stuff "Abc title" "Zzz title""#
+            ),
+            "Zzz title"
+        );
+        assert_eq!(
+            extract_short_title(
+                "long long long long long long long long long\nList files in folder"
+            ),
+            "List files in folder"
+        );
+        assert_eq!(
+            extract_short_title(
+                r#"lots of words here and there and more and more "single" final line here"#
+            ),
+            "lots of words here and there and more and more \"single\" final line here"
+        );
+        assert_eq!(extract_short_title("Hello world"), "Hello world");
+        assert_eq!(
+            extract_short_title(
+                r#"1. Analyze the request. 2. The user's message says list files. 3. "List current folder files" fits perfectly. Result: List current folder files"#
+            ),
+            "List current folder files"
+        );
+        assert_eq!(
+            extract_short_title(
+                r#"the user's phrasing is about listing files and the user's intent is clear. "List folder files" is best"#
+            ),
+            "List folder files"
+        );
+        assert_eq!(
+            extract_short_title(
+                "lots of reasoning here about what to call it\nList current folder files"
+            ),
+            "List current folder files"
         );
     }
 
