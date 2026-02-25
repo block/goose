@@ -171,13 +171,13 @@ jobs:
     runs-on: ubuntu-latest
     needs: generate-release-notes
     # Only run if Discord bot token is configured
-    if: ${{ vars.DISCORD_RELEASE_CHANNEL_ID != '' }}
+    if: ${{ secrets.DISCORD_RELEASE_CHANNEL_ID != '' }}
 
     steps:
       - name: Post release announcement
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          DISCORD_CHANNEL_ID: ${{ vars.DISCORD_RELEASE_CHANNEL_ID }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_RELEASE_CHANNEL_ID }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           RELEASE_URL: ${{ github.event.release.html_url || format('https://github.com/block/goose/releases/tag/{0}', inputs.tag) }}
           RELEASE_NOTES: ${{ needs.generate-release-notes.outputs.release_notes }}
