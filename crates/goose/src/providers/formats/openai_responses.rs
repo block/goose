@@ -460,12 +460,10 @@ pub fn create_responses_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    if let Some(tokens) = model_config.max_tokens {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("max_output_tokens".to_string(), json!(tokens));
-    }
+    payload.as_object_mut().unwrap().insert(
+        "max_output_tokens".to_string(),
+        json!(model_config.max_output_tokens()),
+    );
 
     Ok(payload)
 }

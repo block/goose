@@ -613,19 +613,19 @@ pub fn create_request(
 
     let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
     if is_claude_sonnet && is_thinking_enabled {
-        // Minimum budget_tokens is 1024
-        let budget_tokens = std::env::var("CLAUDE_THINKING_BUDGET")
-            .unwrap_or_else(|_| "16000".to_string())
-            .parse()
-            .unwrap_or(16000);
+        // Anthropic requires budget_tokens >= 1024
+        const DEFAULT_THINKING_BUDGET: i32 = 16000;
+        let budget_tokens: i32 = std::env::var("CLAUDE_THINKING_BUDGET")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_THINKING_BUDGET);
 
-        // For Claude models with thinking enabled, we need to add max_tokens + budget_tokens
-        // Default to 8192 (Claude max output) + budget if not specified
-        let max_completion_tokens = model_config.max_tokens.unwrap_or(8192);
-        payload.as_object_mut().unwrap().insert(
-            "max_tokens".to_string(),
-            json!(max_completion_tokens + budget_tokens),
-        );
+        // With thinking enabled, max_tokens must include both output and thinking budget
+        let max_tokens = model_config.max_output_tokens() + budget_tokens;
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert("max_tokens".to_string(), json!(max_tokens));
 
         payload.as_object_mut().unwrap().insert(
             "thinking".to_string(),
@@ -650,18 +650,16 @@ pub fn create_request(
             }
         }
 
-        // open ai reasoning models use max_completion_tokens instead of max_tokens
-        if let Some(tokens) = model_config.max_tokens {
-            let key = if is_openai_reasoning_model {
-                "max_completion_tokens"
-            } else {
-                "max_tokens"
-            };
-            payload
-                .as_object_mut()
-                .unwrap()
-                .insert(key.to_string(), json!(tokens));
-        }
+        // OpenAI reasoning models use max_completion_tokens instead of max_tokens
+        let key = if is_openai_reasoning_model {
+            "max_completion_tokens"
+        } else {
+            "max_tokens"
+        };
+        payload
+            .as_object_mut()
+            .unwrap()
+            .insert(key.to_string(), json!(model_config.max_output_tokens()));
     }
 
     // Apply cache control for Claude models to enable prompt caching

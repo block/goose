@@ -1259,6 +1259,78 @@
         }
       }
     },
+    "/config/provider-catalog": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_catalog",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Filter by provider format (openai, anthropic, ollama)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider catalog retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderCatalogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid format parameter"
+          }
+        }
+      }
+    },
+    "/config/provider-catalog/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_catalog_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Provider ID from models.dev",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider template retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found in catalog"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -4107,6 +4179,10 @@
           "base_url": {
             "type": "string"
           },
+          "catalog_provider_id": {
+            "type": "string",
+            "nullable": true
+          },
           "description": {
             "type": "string",
             "nullable": true
@@ -5702,6 +5778,29 @@
           }
         }
       },
+      "ModelCapabilities": {
+        "type": "object",
+        "required": [
+          "tool_call",
+          "reasoning",
+          "attachment",
+          "temperature"
+        ],
+        "properties": {
+          "attachment": {
+            "type": "boolean"
+          },
+          "reasoning": {
+            "type": "boolean"
+          },
+          "temperature": {
+            "type": "boolean"
+          },
+          "tool_call": {
+            "type": "boolean"
+          }
+        }
+      },
       "ModelConfig": {
         "type": "object",
         "required": [
@@ -6003,6 +6102,34 @@
           }
         }
       },
+      "ModelTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "context_limit",
+          "capabilities",
+          "deprecated"
+        ],
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "context_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -6110,6 +6237,42 @@
           }
         }
       },
+      "ProviderCatalogEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "format",
+          "api_url",
+          "model_count",
+          "doc_url",
+          "env_var"
+        ],
+        "properties": {
+          "api_url": {
+            "type": "string"
+          },
+          "doc_url": {
+            "type": "string"
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "model_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -6187,6 +6350,48 @@
           "name": {
             "type": "string",
             "description": "The unique identifier for this provider"
+          }
+        }
+      },
+      "ProviderTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "format",
+          "api_url",
+          "models",
+          "supports_streaming",
+          "env_var",
+          "doc_url"
+        ],
+        "properties": {
+          "api_url": {
+            "type": "string"
+          },
+          "doc_url": {
+            "type": "string"
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelTemplate"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean"
           }
         }
       },
@@ -7951,6 +8156,10 @@
           },
           "api_url": {
             "type": "string"
+          },
+          "catalog_provider_id": {
+            "type": "string",
+            "nullable": true
           },
           "display_name": {
             "type": "string"

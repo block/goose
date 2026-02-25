@@ -32,7 +32,7 @@ import {
 } from '../../api';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
-import { generateDeepLink, encodeRecipe, Recipe, stripEmptyExtensions } from '../../recipe';
+import { generateDeepLink } from '../../recipe';
 import { useNavigation } from '../../hooks/useNavigation';
 import { CronPicker } from '../schedule/CronPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
@@ -139,12 +139,12 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChat = async (recipe: Recipe) => {
+  const handleStartRecipeChat = async (recipeId: string) => {
     try {
       const newAgent = await startAgent({
         body: {
           working_dir: getInitialWorkingDir(),
-          recipe: stripEmptyExtensions(recipe) as Recipe,
+          recipe_id: recipeId,
         },
         throwOnError: true,
       });
@@ -156,6 +156,9 @@ export default function RecipesView() {
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
+        initialMessage: session.recipe?.prompt
+          ? { msg: session.recipe.prompt, images: [] }
+          : undefined,
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
@@ -165,17 +168,13 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChatInNewWindow = async (recipe: Recipe) => {
+  const handleStartRecipeChatInNewWindow = async (recipeId: string) => {
     try {
-      const encodedRecipe = await encodeRecipe(stripEmptyExtensions(recipe) as Recipe);
-      window.electron.createChatWindow(
-        undefined,
-        getInitialWorkingDir(),
-        undefined,
-        undefined,
-        'pair',
-        encodedRecipe
-      );
+      window.electron.createChatWindow({
+        dir: getInitialWorkingDir(),
+        viewType: 'pair',
+        recipeId,
+      });
       trackRecipeStarted(true, undefined, true);
     } catch (error) {
       console.error('Failed to open recipe in new window:', error);
@@ -464,14 +463,14 @@ export default function RecipesView() {
   }: {
     recipeManifestResponse: RecipeManifest;
   }) => (
-    <Card className="py-2 px-4 mb-2 bg-background-default border-none hover:bg-background-muted transition-all duration-150">
+    <Card className="py-2 px-4 mb-2 bg-background-primary border-none hover:bg-background-secondary transition-all duration-150">
       <div className="flex justify-between items-start gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-base truncate max-w-[50vw]">{recipe.title}</h3>
           </div>
-          <p className="text-text-muted text-sm mb-2 line-clamp-2">{recipe.description}</p>
-          <div className="flex flex-col gap-1 text-xs text-text-muted">
+          <p className="text-text-secondary text-sm mb-2 line-clamp-2">{recipe.description}</p>
+          <div className="flex flex-col gap-1 text-xs text-text-secondary">
             <div className="flex items-center">
               <Calendar className="w-3 h-3 mr-1" />
               {convertToLocaleDateString(lastModified)}
@@ -509,9 +508,9 @@ export default function RecipesView() {
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              handleStartRecipeChat(recipe);
+              await handleStartRecipeChat(recipeManifestResponse.id);
             }}
             size="sm"
             className="h-8 w-8 p-0"
@@ -520,9 +519,9 @@ export default function RecipesView() {
             <Play className="w-4 h-4" />
           </Button>
           <Button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              handleStartRecipeChatInNewWindow(recipe);
+              await handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
             }}
             variant="outline"
             size="sm"
@@ -532,9 +531,9 @@ export default function RecipesView() {
             <ExternalLink className="w-4 h-4" />
           </Button>
           <Button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              handleEditRecipe(recipeManifestResponse);
+              await handleEditRecipe(recipeManifestResponse);
             }}
             variant="outline"
             size="sm"
@@ -601,7 +600,7 @@ export default function RecipesView() {
   );
 
   const RecipeSkeleton = () => (
-    <Card className="p-2 mb-2 bg-background-default">
+    <Card className="p-2 mb-2 bg-background-primary">
       <div className="flex justify-between items-start gap-4">
         <div className="min-w-0 flex-1">
           <Skeleton className="h-5 w-3/4 mb-2" />
@@ -637,7 +636,7 @@ export default function RecipesView() {
 
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-text-muted">
+        <div className="flex flex-col items-center justify-center h-full text-text-secondary">
           <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
           <p className="text-lg mb-2">Error Loading Recipes</p>
           <p className="text-sm text-center mb-4">{error}</p>
@@ -652,14 +651,14 @@ export default function RecipesView() {
       return (
         <div className="flex flex-col justify-center pt-2 h-full">
           <p className="text-lg">No saved recipes</p>
-          <p className="text-sm text-text-muted">Recipe saved from chats will show up here.</p>
+          <p className="text-sm text-text-secondary">Recipe saved from chats will show up here.</p>
         </div>
       );
     }
 
     if (filteredRecipes.length === 0 && searchTerm) {
       return (
-        <div className="flex flex-col items-center justify-center h-full text-text-muted mt-4">
+        <div className="flex flex-col items-center justify-center h-full text-text-secondary mt-4">
           <FileText className="h-12 w-12 mb-4" />
           <p className="text-lg mb-2">No matching recipes found</p>
           <p className="text-sm">Try adjusting your search terms</p>
@@ -683,7 +682,7 @@ export default function RecipesView() {
     <>
       <MainPanelLayout>
         <div className="flex-1 flex flex-col min-h-0">
-          <div className="bg-background-default px-8 pb-8 pt-16">
+          <div className="bg-background-primary px-8 pb-8 pt-16">
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
                 <h1 className="text-4xl font-light">Recipes</h1>
@@ -700,7 +699,7 @@ export default function RecipesView() {
                   <ImportRecipeButton onClick={() => setShowImportDialog(true)} />
                 </div>
               </div>
-              <p className="text-sm text-text-muted mb-1">
+              <p className="text-sm text-text-secondary mb-1">
                 View and manage your saved recipes to quickly start new sessions with predefined
                 configurations. {getSearchShortcutText()} to search.
               </p>
