@@ -246,6 +246,15 @@ export default function McpAppRenderer({
   cachedHtml,
   onDisplayModeChange,
 }: McpAppRendererProps) {
+  // TODO: Extract display mode logic into a useDisplayMode hook. This would encapsulate:
+  // - activeDisplayMode / changeDisplayMode state machine
+  // - effectiveDisplayModes negotiation
+  // - PiP drag state + pointer/keyboard handlers
+  // - entrance animation class management
+  // - the postMessage listener for ui/request-display-mode
+  // - escape-key and PiP-reset effects
+  // This would significantly reduce McpAppRenderer's complexity (~300 lines).
+
   // Internal display mode — starts matching the prop, but can be changed by host-side controls.
   // Standalone mode is externally controlled (dedicated Electron window) and cannot be toggled.
   const [activeDisplayMode, setActiveDisplayMode] = useState<GooseDisplayMode>(displayMode);
