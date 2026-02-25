@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use fs_err as fs;
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
-use goose::providers::api_client::{ApiClient, AuthMethod};
+use goose::providers::api_client::ApiClient;
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
 use goose::providers::provider_registry::ProviderConstructor;
@@ -13,8 +13,9 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionModelState, ToolCallStatus,
+    AuthMethod, McpServer, PermissionOptionKind, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
+    SessionModelState, ToolCallStatus,
 };
 use std::collections::VecDeque;
 use std::future::Future;
@@ -210,9 +211,11 @@ pub async fn spawn_acp_server_in_process(
         Arc::new(move |model_config, _extensions| {
             let base_url = base_url.clone();
             Box::pin(async move {
-                let api_client =
-                    ApiClient::new(base_url, AuthMethod::BearerToken("test-key".to_string()))
-                        .unwrap();
+                let api_client = ApiClient::new(
+                    base_url,
+                    goose::providers::api_client::AuthMethod::BearerToken("test-key".to_string()),
+                )
+                .unwrap();
                 let provider: Arc<dyn Provider> =
                     Arc::new(OpenAiProvider::new(api_client, model_config));
                 Ok(provider)
@@ -269,10 +272,12 @@ pub trait Connection: Sized {
 
     async fn new(config: TestConnectionConfig, openai: OpenAiFixture) -> Self;
     async fn new_session(&mut self) -> (Self::Session, Option<SessionModelState>);
+    #[allow(dead_code)]
     async fn load_session(
         &mut self,
         session_id: &str,
     ) -> (Self::Session, Option<SessionModelState>);
+    fn auth_methods(&self) -> &[AuthMethod];
     fn reset_openai(&self);
     fn reset_permissions(&self);
 }
@@ -332,4 +337,5 @@ pub async fn initialize_agent(agent: Arc<GooseAcpAgent>) -> sacp::schema::Initia
         .unwrap()
 }
 
+pub mod provider;
 pub mod server;

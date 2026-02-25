@@ -4232,6 +4232,7 @@ dependencies = [
 name = "goose"
 version = "1.24.0"
 dependencies = [
+ "agent-client-protocol-schema",
  "ahash",
  "anyhow",
  "async-stream",
@@ -4289,6 +4290,7 @@ dependencies = [
  "reqwest 0.13.2",
  "rmcp 0.16.0",
  "rubato",
+ "sacp",
  "schemars 1.2.1",
  "serde",
  "serde_json",

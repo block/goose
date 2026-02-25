@@ -6317,6 +6317,10 @@
           "config_keys"
         ],
         "properties": {
+          "allows_unlisted_models": {
+            "type": "boolean",
+            "description": "When true, the provider accepts model names not in known_models"
+          },
           "config_keys": {
             "type": "array",
             "items": {

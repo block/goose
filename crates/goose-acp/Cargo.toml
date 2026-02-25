@@ -22,7 +22,7 @@ workspace = true
 goose = { path = "../goose" }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
-sacp = "10.1.0"
+sacp = { workspace = true }
 agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
