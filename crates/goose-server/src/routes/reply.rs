@@ -31,6 +31,7 @@ use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
 fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
     match content {
@@ -459,6 +460,15 @@ pub async fn reply(
                         .map(|v| (*v).max(1))
                         .unwrap_or(3);
 
+                    let orchestration_run_id = uuid::Uuid::new_v4().to_string();
+                    let run_span = tracing::info_span!(
+                        "orchestration.run",
+                        session_id = %session_id,
+                        run_id = %orchestration_run_id,
+                        max_concurrency = max_concurrency,
+                        task_count = plan.tasks.len(),
+                    );
+
                     tracing::info!(
                         task_count = plan.tasks.len(),
                         max_concurrency = max_concurrency,
@@ -490,13 +500,47 @@ pub async fn reply(
                         session_id.clone(),
                     );
 
+                    let (dispatch_event_tx, mut dispatch_event_rx) =
+                        tokio::sync::broadcast::channel::<goose::agents::dispatch::DispatchEvent>(
+                            256,
+                        );
+
+                    let dispatch_event_logger = tokio::spawn({
+                        let session_id = session_id.clone();
+                        let orchestration_run_id = orchestration_run_id.clone();
+                        async move {
+                            loop {
+                                match dispatch_event_rx.recv().await {
+                                    Ok(event) => {
+                                        tracing::info!(
+                                            session_id = %session_id,
+                                            run_id = %orchestration_run_id,
+                                            ?event,
+                                            "Dispatch event"
+                                        );
+                                    }
+                                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                                        // Best-effort observability only; drop lagged events.
+                                        continue;
+                                    }
+                                }
+                            }
+                        }
+                        .instrument(run_span.clone())
+                    });
+
                     let results = goose::agents::dispatch::dispatch_compound_dag(
                         &reply_dispatcher,
                         &dispatch_tasks,
                         max_concurrency,
+                        Some(dispatch_event_tx),
                         Some(task_cancel.clone()),
                     )
+                    .instrument(run_span.clone())
                     .await;
+
+                    drop(dispatch_event_logger);
 
                     // Aggregate outputs from dispatch results
                     let sub_results: Vec<String> =

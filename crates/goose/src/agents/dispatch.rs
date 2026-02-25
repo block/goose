@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument, warn, Instrument};
 
 /// Result of dispatching a single sub-task.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -566,6 +566,7 @@ async fn dispatch_compound_one(
 pub async fn dispatch_compound_sequential(
     reply_dispatcher: &AgentReplyDispatcher,
     tasks: &[(SubTask, Option<String>)],
+    event_tx: Option<broadcast::Sender<DispatchEvent>>,
     cancel_token: Option<tokio_util::sync::CancellationToken>,
 ) -> Vec<DispatchResult> {
     let mut results = Vec::with_capacity(tasks.len());
@@ -577,10 +578,41 @@ pub async fn dispatch_compound_sequential(
             remote = a2a_url.is_some(),
             "Dispatching compound sub-task (sequential)"
         );
-        results.push(
-            dispatch_compound_one(reply_dispatcher, sub_task, a2a_url, i, cancel_token.clone())
-                .await,
+
+        if let Some(tx) = &event_tx {
+            let _ = tx.send(DispatchEvent::Started {
+                task_index: i,
+                agent_name: sub_task.routing.agent_name.clone(),
+                strategy: if a2a_url.is_some() {
+                    "RemoteA2A".to_string()
+                } else {
+                    "AgentReply".to_string()
+                },
+            });
+        }
+        let task_span = tracing::info_span!(
+            "orchestration.task",
+            task_index = i,
+            task_id = %sub_task.task_id,
+            agent_name = %sub_task.routing.agent_name,
+            mode_slug = %sub_task.routing.mode_slug,
+            remote = a2a_url.is_some(),
         );
+
+        let result =
+            dispatch_compound_one(reply_dispatcher, sub_task, a2a_url, i, cancel_token.clone())
+                .instrument(task_span)
+                .await;
+        results.push(result);
+
+        if let Some(tx) = &event_tx {
+            if let Some(result) = results.last() {
+                let _ = tx.send(DispatchEvent::Completed {
+                    task_index: i,
+                    result: result.clone(),
+                });
+            }
+        }
     }
 
     results
@@ -594,11 +626,12 @@ pub async fn dispatch_compound_dag(
     reply_dispatcher: &AgentReplyDispatcher,
     tasks: &[(SubTask, Option<String>)],
     max_concurrency: usize,
+    event_tx: Option<broadcast::Sender<DispatchEvent>>,
     cancel_token: Option<tokio_util::sync::CancellationToken>,
 ) -> Vec<DispatchResult> {
     let max_concurrency = std::cmp::max(1, max_concurrency);
     if tasks.len() <= 1 || max_concurrency == 1 {
-        return dispatch_compound_sequential(reply_dispatcher, tasks, cancel_token).await;
+        return dispatch_compound_sequential(reply_dispatcher, tasks, event_tx, cancel_token).await;
     }
 
     let mut id_to_index = std::collections::HashMap::new();
@@ -641,6 +674,7 @@ pub async fn dispatch_compound_dag(
                 break;
             };
             let (sub_task, a2a_url) = &tasks[idx];
+            let remote = a2a_url.is_some();
 
             tracing::info!(
                 task_index = idx,
@@ -654,18 +688,50 @@ pub async fn dispatch_compound_dag(
             let sub_task = sub_task.clone();
             let a2a_url = a2a_url.clone();
             let cancel_token = cancel_token.clone();
+            let event_tx = event_tx.clone();
 
-            in_flight.push(async move {
-                let result = dispatch_compound_one(
-                    &reply_dispatcher,
-                    &sub_task,
-                    &a2a_url,
-                    idx,
-                    cancel_token,
-                )
-                .await;
-                (idx, result)
-            });
+            if let Some(tx) = &event_tx {
+                let _ = tx.send(DispatchEvent::Started {
+                    task_index: idx,
+                    agent_name: sub_task.routing.agent_name.clone(),
+                    strategy: if remote {
+                        "RemoteA2A".to_string()
+                    } else {
+                        "AgentReply".to_string()
+                    },
+                });
+            }
+
+            let task_span = tracing::info_span!(
+                "orchestration.task",
+                task_index = idx,
+                task_id = %sub_task.task_id,
+                agent_name = %sub_task.routing.agent_name,
+                mode_slug = %sub_task.routing.mode_slug,
+                remote = remote,
+            );
+
+            in_flight.push(
+                async move {
+                    let result = dispatch_compound_one(
+                        &reply_dispatcher,
+                        &sub_task,
+                        &a2a_url,
+                        idx,
+                        cancel_token,
+                    )
+                    .await;
+
+                    if let Some(tx) = &event_tx {
+                        let _ = tx.send(DispatchEvent::Completed {
+                            task_index: idx,
+                            result: result.clone(),
+                        });
+                    }
+                    (idx, result)
+                }
+                .instrument(task_span),
+            );
         }
 
         if let Some((idx, result)) = futures::StreamExt::next(&mut in_flight).await {
@@ -685,6 +751,19 @@ pub async fn dispatch_compound_dag(
                 if results[i].is_some() {
                     continue;
                 }
+
+                if let Some(tx) = &event_tx {
+                    let _ = tx.send(DispatchEvent::Started {
+                        task_index: i,
+                        agent_name: sub_task.routing.agent_name.clone(),
+                        strategy: if a2a_url.is_some() {
+                            "RemoteA2A".to_string()
+                        } else {
+                            "AgentReply".to_string()
+                        },
+                    });
+                }
+
                 results[i] = Some(
                     dispatch_compound_one(
                         reply_dispatcher,
@@ -695,6 +774,15 @@ pub async fn dispatch_compound_dag(
                     )
                     .await,
                 );
+
+                if let Some(tx) = &event_tx {
+                    if let Some(result) = &results[i] {
+                        let _ = tx.send(DispatchEvent::Completed {
+                            task_index: i,
+                            result: result.clone(),
+                        });
+                    }
+                }
                 remaining = remaining.saturating_sub(1);
             }
         }
