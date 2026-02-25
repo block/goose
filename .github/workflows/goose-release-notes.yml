@@ -1,0 +1,163 @@
+# goose Release Notes Generator
+#
+# Automatically generates release notes using goose AI agent when a new release is published.
+# Updates the GitHub release with AI-generated categorized notes.
+#
+# Trigger: When a GitHub release is published (after release.yml completes)
+#
+# Required Secrets:
+#   - OPENROUTER_API_KEY: API key for OpenRouter
+#
+# Optional Variables:
+#   - GOOSE_PROVIDER: LLM provider (default: openrouter)
+#   - GOOSE_MODEL: Model name (default: anthropic/claude-sonnet-4)
+
+name: goose Release Notes Generator
+
+on:
+  release:
+    types: [published]
+
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to generate notes for (e.g., v1.25.0)'
+        required: true
+        type: string
+
+env:
+  GOOSE_RECIPE: |
+    version: "1.0.0"
+    title: "Release Notes Generator"
+    description: "Generate release notes for ${RELEASE_TAG}"
+
+    extensions:
+      - type: builtin
+        name: developer
+
+    instructions: |
+      Generate release notes for the goose release.
+
+      ## Process
+      1. You are already in the goose repository. Do NOT clone or checkout anything.
+      2. Get the previous release tag by running: git describe --tags --abbrev=0 ${RELEASE_TAG}^
+      3. Get commits between tags: git log <previous_tag>..${RELEASE_TAG} --oneline --no-merges
+      4. Analyze the commits and categorize changes
+
+      ## Output Format
+      Categorize changes into these sections (skip empty sections):
+      - ✨ **Features** - New functionality
+      - 🐛 **Bug Fixes** - Bug fixes
+      - 🔧 **Improvements** - Enhancements to existing features
+      - 📚 **Documentation** - Documentation updates
+
+      Format each item as:
+      - Concise description [#XXXX](https://github.com/block/goose/pull/XXXX)
+
+      Rules:
+      - Extract PR numbers from commit messages (look for (#XXXX) pattern)
+      - Remove redundant words like "Added", "Fixed", "Documented" - the category headers make these clear
+      - Keep descriptions user-friendly and concise
+      - Order: Features → Bug Fixes → Improvements → Documentation
+
+      ## Final Step
+      Write ONLY the release notes content to /tmp/release_notes.md (no extra commentary)
+
+    prompt: |
+      Generate release notes for ${RELEASE_TAG} in the goose repository.
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-notes-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: true
+
+jobs:
+  generate-release-notes:
+    name: Generate Release Notes
+    runs-on: ubuntu-latest
+    # Skip stable tag releases - they're just pointers to versioned releases
+    if: ${{ (github.event.release.tag_name || inputs.tag) != 'stable' }}
+
+    container:
+      image: ghcr.io/block/goose:latest
+      options: --user root
+      env:
+        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openrouter' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'anthropic/claude-sonnet-4' }}
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        HOME: /tmp/goose-home
+
+    outputs:
+      release_notes: ${{ steps.read-notes.outputs.notes }}
+      notes_length: ${{ steps.read-notes.outputs.length }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y gettext curl ripgrep git jq
+
+      - name: Run goose to generate release notes
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          mkdir -p $HOME/.local/share/goose/sessions
+          mkdir -p $HOME/.config/goose
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          # Checkout the release tag
+          git checkout "${RELEASE_TAG}"
+
+          # Create recipe from env var with variable substitution
+          echo "$GOOSE_RECIPE" | envsubst '$RELEASE_TAG' > /tmp/recipe.yaml
+
+          goose run --recipe /tmp/recipe.yaml
+
+      - name: Read release notes
+        id: read-notes
+        run: |
+          if [ -f /tmp/release_notes.md ]; then
+            # Use random delimiter to prevent injection
+            DELIMITER="EOF_$(openssl rand -hex 8)"
+            echo "notes<<$DELIMITER" >> $GITHUB_OUTPUT
+            cat /tmp/release_notes.md >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "$DELIMITER" >> $GITHUB_OUTPUT
+
+            LENGTH=$(wc -c < /tmp/release_notes.md)
+            echo "length=$LENGTH" >> $GITHUB_OUTPUT
+
+            echo "::notice::Release notes generated successfully (${LENGTH} chars)"
+          else
+            echo "::error::Release notes file not found at /tmp/release_notes.md"
+            echo "notes=Release notes generation failed." >> $GITHUB_OUTPUT
+            echo "length=0" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  update-github-release:
+    name: Update GitHub Release
+    runs-on: ubuntu-latest
+    needs: generate-release-notes
+    permissions:
+      contents: write
+
+    steps:
+      - name: Update release body
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b  # v1.20.0
+        with:
+          tag: ${{ github.event.release.tag_name || inputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body: ${{ needs.generate-release-notes.outputs.release_notes }}
+          allowUpdates: true
+          omitNameDuringUpdate: true
+          omitPrereleaseDuringUpdate: true
