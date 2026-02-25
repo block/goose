@@ -168,213 +168,216 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
   }
 
   return (
-    <div className="p-4 border rounded-xl bg-background-muted">
-      <p className="text-sm text-text-muted leading-relaxed mb-4">
-        ℹ️ Local models keep everything on your machine for full privacy. Performance and context
-        window size may vary compared to cloud providers depending on your hardware and model size.
-      </p>
-
-      {phase === 'error' && (
-        <div className="space-y-3">
-          <div className="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
-            <p className="text-sm text-red-700 dark:text-red-400">{errorMessage}</p>
-          </div>
-          <button
-            onClick={() => {
-              setErrorMessage(null);
-              setPhase('select');
-            }}
-            className="w-full px-4 py-2 bg-transparent border rounded-lg text-text-default text-sm font-medium hover:bg-background-muted/80 transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      )}
-
-      {phase === 'select' && (
-        <div className="space-y-3">
-          {recommended && (
-            <div
-              onClick={() => setSelectedModelId(recommended.id)}
-              className={`relative w-full p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
-                selectedModelId === recommended.id
-                  ? 'border-blue-500 bg-blue-500/5'
-                  : 'border-border-subtle hover:border-border-default'
-              }`}
+    <div>
+      <div className="p-4 border rounded-xl bg-background-muted">
+        {phase === 'error' && (
+          <div className="space-y-3">
+            <div className="border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
+              <p className="text-sm text-red-700 dark:text-red-400">{errorMessage}</p>
+            </div>
+            <button
+              onClick={() => {
+                setErrorMessage(null);
+                setPhase('select');
+              }}
+              className="w-full px-4 py-2 bg-transparent border rounded-lg text-text-default text-sm font-medium hover:bg-background-muted/80 transition-colors"
             >
-              <div className="absolute -top-2 -right-2 z-10">
-                <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-600 text-white rounded-full">
-                  Best for your machine
-                </span>
-              </div>
-              <div className="flex items-start gap-3">
-                <input
-                  type="radio"
-                  checked={selectedModelId === recommended.id}
-                  onChange={() => setSelectedModelId(recommended.id)}
-                  className="cursor-pointer flex-shrink-0 mt-1"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-text-default text-sm">{recommended.id}</span>
-                    {recommended.status.state === 'Downloaded' && (
-                      <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
-                        Ready
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {phase === 'select' && (
+          <div className="space-y-3">
+            {recommended && (
+              <div
+                onClick={() => setSelectedModelId(recommended.id)}
+                className={`relative w-full p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
+                  selectedModelId === recommended.id
+                    ? 'border-blue-500 bg-blue-500/5'
+                    : 'border-border-subtle hover:border-border-default'
+                }`}
+              >
+                <div className="absolute -top-2 -right-2 z-10">
+                  <span className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-600 text-white rounded-full">
+                    Best for your machine
+                  </span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input
+                    type="radio"
+                    checked={selectedModelId === recommended.id}
+                    onChange={() => setSelectedModelId(recommended.id)}
+                    className="cursor-pointer flex-shrink-0 mt-1"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-text-default text-sm">
+                        {recommended.id}
                       </span>
-                    )}
+                      {recommended.status.state === 'Downloaded' && (
+                        <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
+                          Ready
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-text-muted text-xs mt-1">
+                      {formatSize(recommended.size_bytes)}
+                    </p>
                   </div>
-                  <p className="text-text-muted text-xs mt-1">
-                    {formatSize(recommended.size_bytes)}
-                  </p>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {otherModels.length > 0 && (
-            <div>
-              <button
-                onClick={() => setShowAllModels(!showAllModels)}
-                className="text-sm text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
-              >
-                {showAllModels ? 'Hide other sizes' : `Show ${otherModels.length} other sizes`}
-                <svg
-                  className={`w-3.5 h-3.5 transition-transform ${showAllModels ? 'rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+            {otherModels.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setShowAllModels(!showAllModels)}
+                  className="text-sm text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
+                  {showAllModels ? 'Hide other sizes' : `Show ${otherModels.length} other sizes`}
+                  <svg
+                    className={`w-3.5 h-3.5 transition-transform ${showAllModels ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
 
-              {showAllModels && (
-                <div className="mt-2 space-y-2">
-                  {otherModels.map((model) => (
-                    <div
-                      key={model.id}
-                      onClick={() => setSelectedModelId(model.id)}
-                      className={`w-full p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
-                        selectedModelId === model.id
-                          ? 'border-blue-500 bg-blue-500/5'
-                          : 'border-border-subtle hover:border-border-default'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="radio"
-                          checked={selectedModelId === model.id}
-                          onChange={() => setSelectedModelId(model.id)}
-                          className="cursor-pointer flex-shrink-0 mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-text-default text-sm">
-                              {model.id}
-                            </span>
-                            <span className="text-xs text-text-muted">
-                              {formatSize(model.size_bytes)}
-                            </span>
-                            {model.status.state === 'Downloaded' && (
-                              <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
-                                Ready
+                {showAllModels && (
+                  <div className="mt-2 space-y-2">
+                    {otherModels.map((model) => (
+                      <div
+                        key={model.id}
+                        onClick={() => setSelectedModelId(model.id)}
+                        className={`w-full p-4 border rounded-lg cursor-pointer transition-all duration-200 ${
+                          selectedModelId === model.id
+                            ? 'border-blue-500 bg-blue-500/5'
+                            : 'border-border-subtle hover:border-border-default'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="radio"
+                            checked={selectedModelId === model.id}
+                            onChange={() => setSelectedModelId(model.id)}
+                            className="cursor-pointer flex-shrink-0 mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-text-default text-sm">
+                                {model.id}
                               </span>
-                            )}
+                              <span className="text-xs text-text-muted">
+                                {formatSize(model.size_bytes)}
+                              </span>
+                              {model.status.state === 'Downloaded' && (
+                                <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
+                                  Ready
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={handlePrimaryAction}
+              disabled={!selectedModelId}
+              className="w-full px-4 py-2.5 bg-background-default border rounded-lg text-text-default text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-background-default/80"
+            >
+              {selectedModel?.status.state === 'Downloaded'
+                ? `Use ${selectedModel.id}`
+                : selectedModel
+                  ? `Download ${selectedModel.id} (${formatSize(selectedModel.size_bytes)})`
+                  : 'Select a model'}
+            </button>
+
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="w-full px-4 py-2 text-text-muted text-sm hover:text-text-default transition-colors"
+              >
+                Back
+              </button>
+            )}
+          </div>
+        )}
+
+        {phase === 'downloading' && selectedModel && (
+          <div className="space-y-3">
+            <div className="border border-border-subtle rounded-lg p-4 bg-background-default">
+              <p className="font-medium text-text-default text-sm mb-3">
+                Downloading {selectedModel.id}
+              </p>
+
+              {downloadProgress ? (
+                <div className="space-y-2">
+                  <div className="w-full bg-background-subtle rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${downloadProgress.progress_percent}%` }}
+                    />
+                  </div>
+
+                  <div className="flex justify-between text-xs text-text-muted">
+                    <span>
+                      {formatBytes(downloadProgress.bytes_downloaded)} of{' '}
+                      {formatBytes(downloadProgress.total_bytes)}
+                    </span>
+                    <span>{downloadProgress.progress_percent.toFixed(0)}%</span>
+                  </div>
+
+                  <div className="flex justify-between text-xs text-text-muted">
+                    {downloadProgress.speed_bps ? (
+                      <span>{formatBytes(downloadProgress.speed_bps)}/s</span>
+                    ) : (
+                      <span />
+                    )}
+                    {downloadProgress.eta_seconds != null && downloadProgress.eta_seconds > 0 && (
+                      <span>
+                        ~
+                        {downloadProgress.eta_seconds < 60
+                          ? `${Math.round(downloadProgress.eta_seconds)}s`
+                          : `${Math.round(downloadProgress.eta_seconds / 60)}m`}{' '}
+                        remaining
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-text-muted"></div>
+                  <span className="text-sm text-text-muted">Starting download...</span>
                 </div>
               )}
             </div>
-          )}
 
-          <button
-            onClick={handlePrimaryAction}
-            disabled={!selectedModelId}
-            className="w-full px-4 py-2.5 bg-background-default border rounded-lg text-text-default text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:bg-background-default/80"
-          >
-            {selectedModel?.status.state === 'Downloaded'
-              ? `Use ${selectedModel.id}`
-              : selectedModel
-                ? `Download ${selectedModel.id} (${formatSize(selectedModel.size_bytes)})`
-                : 'Select a model'}
-          </button>
-
-          {onBack && (
             <button
-              onClick={onBack}
-              className="w-full px-4 py-2 text-text-muted text-sm hover:text-text-default transition-colors"
+              onClick={handleCancelDownload}
+              className="w-full px-4 py-2.5 bg-transparent text-text-muted border rounded-lg text-sm hover:bg-background-default/80 transition-colors"
             >
-              Back
+              Cancel Download
             </button>
-          )}
-        </div>
-      )}
-
-      {phase === 'downloading' && selectedModel && (
-        <div className="space-y-3">
-          <div className="border border-border-subtle rounded-lg p-4 bg-background-default">
-            <p className="font-medium text-text-default text-sm mb-3">
-              Downloading {selectedModel.id}
-            </p>
-
-            {downloadProgress ? (
-              <div className="space-y-2">
-                <div className="w-full bg-background-subtle rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out"
-                    style={{ width: `${downloadProgress.progress_percent}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between text-xs text-text-muted">
-                  <span>
-                    {formatBytes(downloadProgress.bytes_downloaded)} of{' '}
-                    {formatBytes(downloadProgress.total_bytes)}
-                  </span>
-                  <span>{downloadProgress.progress_percent.toFixed(0)}%</span>
-                </div>
-
-                <div className="flex justify-between text-xs text-text-muted">
-                  {downloadProgress.speed_bps ? (
-                    <span>{formatBytes(downloadProgress.speed_bps)}/s</span>
-                  ) : (
-                    <span />
-                  )}
-                  {downloadProgress.eta_seconds != null && downloadProgress.eta_seconds > 0 && (
-                    <span>
-                      ~
-                      {downloadProgress.eta_seconds < 60
-                        ? `${Math.round(downloadProgress.eta_seconds)}s`
-                        : `${Math.round(downloadProgress.eta_seconds / 60)}m`}{' '}
-                      remaining
-                    </span>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-text-muted"></div>
-                <span className="text-sm text-text-muted">Starting download...</span>
-              </div>
-            )}
           </div>
-
-          <button
-            onClick={handleCancelDownload}
-            className="w-full px-4 py-2.5 bg-transparent text-text-muted border rounded-lg text-sm hover:bg-background-default/80 transition-colors"
-          >
-            Cancel Download
-          </button>
-        </div>
-      )}
+        )}
+      </div>
+      <p className="text-xs text-text-muted mt-3 px-1 leading-relaxed">
+        Local models keep everything on your machine for full privacy. Performance and context
+        window size may vary compared to cloud providers depending on your hardware and model size.
+      </p>
     </div>
   );
 }
