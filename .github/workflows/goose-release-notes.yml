@@ -202,7 +202,7 @@ jobs:
             response=$(curl -s -X POST "https://discord.com/api/v10/channels/${channel}/messages" \
               -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "{\"content\": $content}")
+              -d "{\"content\": $content, \"flags\": 4}")
 
             echo "$response" | jq -r '.id // empty'
           }
