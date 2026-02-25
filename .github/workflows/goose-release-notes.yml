@@ -191,11 +191,6 @@ jobs:
           # Discord message character limit is ~2000 for regular messages
           SAFE_LIMIT=1800
 
-          # Build header message
-          HEADER="🚀 **Goose ${RELEASE_TAG} Released!**
-
-          📦 **Download:** ${RELEASE_URL}"
-
           # Function to send Discord message via bot API, returns message ID
           send_discord() {
             local content="$1"
@@ -230,24 +225,50 @@ jobs:
             echo "$response" | jq -r '.id // empty'
           }
 
+          # Build the header
+          HEADER="## 🎉 goose ${RELEASE_TAG} is here!
+
+📦 **Download:** ${RELEASE_URL}"
+
           # Check if we need to thread (notes too long)
           HEADER_LENGTH=${#HEADER}
-          TOTAL_LENGTH=$((HEADER_LENGTH + NOTES_LENGTH + 10))
+          TOTAL_LENGTH=$((HEADER_LENGTH + NOTES_LENGTH + 50))
 
           if [ "$TOTAL_LENGTH" -le "$SAFE_LIMIT" ]; then
-            # Single message - notes fit
+            # Single message - full notes fit
             FULL_MESSAGE="${HEADER}
 
-          ${RELEASE_NOTES}"
+${RELEASE_NOTES}"
             send_discord "$FULL_MESSAGE" "$DISCORD_CHANNEL_ID"
           else
-            # Need to thread - send header first, create thread, then post notes in thread
+            # Notes too long - include preview in main message, full notes in thread
             echo "Release notes exceed Discord limit (${TOTAL_LENGTH} chars), using thread..."
 
-            # Send header message
-            MESSAGE_ID=$(send_discord "${HEADER}
+            # Extract first section (usually Features) for preview
+            # Look for content up to the second ## header or take first ~800 chars
+            PREVIEW=$(echo "$RELEASE_NOTES" | awk '
+              /^## / { if (seen++) exit }
+              { print }
+            ')
+            
+            # If preview is too long or empty, just take first ~800 chars at a newline
+            if [ ${#PREVIEW} -gt 800 ] || [ -z "$PREVIEW" ]; then
+              PREVIEW="${RELEASE_NOTES:0:800}"
+              # Break at last newline
+              LAST_NL=$(echo "$PREVIEW" | grep -bo $'\n' | tail -1 | cut -d: -f1 || echo "")
+              if [ -n "$LAST_NL" ] && [ "$LAST_NL" -gt 200 ]; then
+                PREVIEW="${PREVIEW:0:$LAST_NL}"
+              fi
+            fi
 
-          📝 *Full release notes in thread below*" "$DISCORD_CHANNEL_ID")
+            # Build main message with preview
+            MAIN_MESSAGE="${HEADER}
+
+${PREVIEW}
+
+📝 *Full release notes in thread below...*"
+
+            MESSAGE_ID=$(send_discord "$MAIN_MESSAGE" "$DISCORD_CHANNEL_ID")
 
             if [ -z "$MESSAGE_ID" ]; then
               echo "::error::Failed to send Discord message"
