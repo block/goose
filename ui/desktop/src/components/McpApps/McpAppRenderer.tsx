@@ -379,6 +379,10 @@ export default function McpAppRenderer({
     pipDragRef.current = null;
   }, []);
 
+  const handlePipLostPointerCapture = useCallback(() => {
+    pipDragRef.current = null;
+  }, []);
+
   const handlePipKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const step = e.shiftKey ? 32 : 8;
@@ -1108,6 +1112,7 @@ export default function McpAppRenderer({
               onPointerDown={handlePipPointerDown}
               onPointerMove={handlePipPointerMove}
               onPointerUp={handlePipPointerUp}
+              onLostPointerCapture={handlePipLostPointerCapture}
               onKeyDown={handlePipKeyDown}
             >
               <GripHorizontal size={14} />
