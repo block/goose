@@ -77,7 +77,11 @@ function recoverJsonLine(line: string): string {
  * Parse a JSONL streaming spec into the flat Spec format using createSpecStreamCompiler.
  * Pre-processes lines to recover from common LLM JSON errors (extra trailing braces).
  */
-function parseJsonlSpec(text: string): { spec: Spec; recoveredLineCount: number; lineCount: number } {
+function parseJsonlSpec(text: string): {
+  spec: Spec;
+  recoveredLineCount: number;
+  lineCount: number;
+} {
   let recoveredLineCount = 0;
   const lines = text.split('\n');
   const recovered = lines
@@ -231,7 +235,7 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
   if (!parsedSpec || !parsedSpec.root) return null;
 
   return (
-    <div className="my-4 json-render-block">
+    <div className="my-4 json-render-block w-full min-w-0">
       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
       <CatalogRenderer spec={parsedSpec as any} />
     </div>

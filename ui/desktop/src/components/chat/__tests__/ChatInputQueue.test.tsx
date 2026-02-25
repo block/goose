@@ -1,8 +1,8 @@
-import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
+import type React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import ChatInput from '../ChatInput';
 import { ChatState } from '../../../types/chatState';
+import ChatInput from '../ChatInput';
 
 vi.mock('../../ui/atoms/Tooltip', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -14,8 +14,8 @@ vi.mock('lodash/debounce', () => {
   return {
     default: (fn: (...args: unknown[]) => void) => {
       const wrapped = (...args: unknown[]) => fn(...args);
-      // @ts-expect-error test helper
-      wrapped.cancel = vi.fn();
+      // Attach a cancel fn to match debounce API
+      (wrapped as typeof wrapped & { cancel: () => void }).cancel = vi.fn();
       return wrapped;
     },
   };
@@ -34,7 +34,9 @@ vi.mock('../../../contexts/ConfigContext', () => ({
 
 vi.mock('../../../contexts/ModelAndProviderContext', () => ({
   useModelAndProvider: () => ({
-    getCurrentModelAndProvider: vi.fn(() => Promise.resolve({ model: 'gpt-4o', provider: 'openai' })),
+    getCurrentModelAndProvider: vi.fn(() =>
+      Promise.resolve({ model: 'gpt-4o', provider: 'openai' })
+    ),
   }),
 }));
 
@@ -79,11 +81,15 @@ vi.mock('../../alerts', () => ({
 }));
 
 // Render-only dependencies — keep ChatInput tests focused on queue logic.
-vi.mock('../../bottom_menu/BottomMenuAgentSelection', () => ({ BottomMenuAgentSelection: () => null }));
+vi.mock('../../bottom_menu/BottomMenuAgentSelection', () => ({
+  BottomMenuAgentSelection: () => null,
+}));
 vi.mock('../../bottom_menu/BottomMenuExtensionSelection', () => ({
   BottomMenuExtensionSelection: () => null,
 }));
-vi.mock('../../bottom_menu/BottomMenuModeSelection', () => ({ BottomMenuModeSelection: () => null }));
+vi.mock('../../bottom_menu/BottomMenuModeSelection', () => ({
+  BottomMenuModeSelection: () => null,
+}));
 vi.mock('../../bottom_menu/CostTracker', () => ({ CostTracker: () => null }));
 vi.mock('../../bottom_menu/DirSwitcher', () => ({ DirSwitcher: () => null }));
 vi.mock('../../recipes/CreateEditRecipeModal', () => ({ default: () => null }));

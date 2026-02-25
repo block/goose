@@ -93,6 +93,13 @@ const catalog = defineCatalog(schema, { components: pickedDefs });
  *
  * This adapter extracts element.props and forwards it.
  */
+function mergeClassName(existing: unknown, add: string) {
+  if (typeof existing === 'string' && existing.trim().length > 0) return `${existing} ${add}`;
+  return add;
+}
+
+const FORCE_FULL_WIDTH = new Set<string>(['Tabs', 'Card', 'Table', 'Grid', 'Stack']);
+
 function adaptShadcnComponents(
   components: Record<
     string,
@@ -102,7 +109,11 @@ function adaptShadcnComponents(
   const adapted: Record<string, React.ComponentType<ComponentRenderProps>> = {};
   for (const [name, ShadcnComponent] of Object.entries(components)) {
     const AdaptedComponent = ({ element, children }: ComponentRenderProps) => {
-      return React.createElement(ShadcnComponent, { props: element.props, children });
+      const props = FORCE_FULL_WIDTH.has(name)
+        ? { ...element.props, className: mergeClassName(element.props.className, 'w-full min-w-0') }
+        : element.props;
+
+      return React.createElement(ShadcnComponent, { props, children });
     };
     AdaptedComponent.displayName = `Adapted${name}`;
     adapted[name] = AdaptedComponent;

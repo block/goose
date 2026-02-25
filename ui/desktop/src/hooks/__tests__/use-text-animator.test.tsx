@@ -1,4 +1,3 @@
-import React from 'react';
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useTextAnimator } from '../use-text-animator';
@@ -40,8 +39,7 @@ describe('useTextAnimator', () => {
     const disconnect = vi.fn();
     const observe = vi.fn();
 
-    // @ts-expect-error test-only global
-    global.ResizeObserver = class {
+    (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
       observe = observe;
       disconnect = disconnect;
       unobserve = vi.fn();

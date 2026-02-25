@@ -159,7 +159,7 @@ export function Chart(props: ChartProps) {
   return (
     <figure
       ref={ref}
-      className="overflow-hidden"
+      className="overflow-hidden w-full min-w-0"
       style={{ minHeight: effectiveHeight, maxHeight: effectiveHeight + 24 }}
     >
       {props.title && (

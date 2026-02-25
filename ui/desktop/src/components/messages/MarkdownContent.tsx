@@ -141,7 +141,7 @@ const MarkdownCode = memo(
       const lang = match[1];
       if (lang === 'json-render' || lang === 'jsonrender') {
         return (
-          <div className="not-prose">
+          <div className="not-prose" data-json-render-block="true">
             <JsonRenderBlock spec={String(children).replace(/\n$/, '')} />
           </div>
         );
@@ -226,14 +226,33 @@ const MarkdownContent = memo(function MarkdownContent({
         ]}
         components={{
           pre: ({ children }) => {
-            const only = Array.isArray(children) ? children[0] : children;
-            if (
-              React.isValidElement(only) &&
-              typeof only.type === 'string' &&
-              only.type === 'code' &&
-              typeof only.props?.className === 'string' &&
-              /language-json-?render\b/.test(only.props.className)
-            ) {
+            const childArray = React.Children.toArray(children);
+            const elementChildren = childArray.filter((c): c is React.ReactElement =>
+              React.isValidElement(c)
+            );
+
+            const jsonRenderChild = elementChildren.find((el) =>
+              Boolean(
+                (el.props as { ['data-json-render-block']?: unknown })?.['data-json-render-block']
+              )
+            );
+
+            // If the code renderer already swapped in our json-render block, unwrap <pre>
+            // so charts/tables can measure/layout normally (Recharts ResponsiveContainer
+            // will often see 0px width inside a preformatted block).
+            if (jsonRenderChild) {
+              return <div className="not-prose">{children}</div>;
+            }
+
+            // Fallback: if this is still a raw ```json-render code fence (before our
+            // code renderer swaps it), don't render inside <pre>.
+            const rawJsonRenderCode = elementChildren.find((el) => {
+              if (typeof el.type !== 'string' || el.type !== 'code') return false;
+              const className = (el.props as { className?: unknown })?.className;
+              return typeof className === 'string' && /language-json-?render\b/.test(className);
+            });
+
+            if (rawJsonRenderCode) {
               return <div className="not-prose">{children}</div>;
             }
 
