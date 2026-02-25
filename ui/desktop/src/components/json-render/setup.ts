@@ -114,12 +114,24 @@ function adaptShadcnComponents(
         ? { ...element.props, className: mergeClassName(element.props.className, 'w-full min-w-0') }
         : element.props;
 
-      // The shadcn Card supports maxWidth and centered. When omitted, some generated UIs
-      // end up cramped (e.g., dense dashboards inside chat). Default to a readable width.
-      const props =
-        name === 'Card' && (baseProps as { maxWidth?: unknown }).maxWidth == null
-          ? { ...baseProps, maxWidth: 'full' }
-          : baseProps;
+      const props = (() => {
+        if (name !== 'Card') return baseProps;
+
+        // GenUI runs inside a chat-width surface. The shadcn Card "maxWidth" defaults
+        // commonly produce cramped dashboards (e.g. max-w-md + mx-auto). Make the
+        // default *and* the common "lg" choice expand to full width.
+        const maxWidth = (element.props as { maxWidth?: unknown }).maxWidth;
+        const centered = (element.props as { centered?: unknown }).centered;
+
+        const effectiveMaxWidth = maxWidth === 'lg' || maxWidth == null ? 'full' : maxWidth;
+        const effectiveCentered = effectiveMaxWidth === 'full' ? false : centered;
+
+        return {
+          ...baseProps,
+          maxWidth: effectiveMaxWidth,
+          ...(effectiveCentered === undefined ? {} : { centered: effectiveCentered }),
+        };
+      })();
 
       return React.createElement(ShadcnComponent, { props, children });
     };

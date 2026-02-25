@@ -27,10 +27,16 @@ DESIGN PRINCIPLES:
 - Use Chart for any numeric distribution or trend data
 - Use StatCard (not Badge) for key metrics and numbers
 - Use Grid columns=2 to place charts side-by-side
-- Wrap root in Card with maxWidth "lg" for contained layout
+- Wrap root in Card with maxWidth "full" (avoid narrow/centered layouts in chat)
 - Use h3 for section titles, h4 for sub-sections
 - Maximum 2 charts, 1-2 tables per dashboard
 - Tables: max 7 rows, sorted by value descending
 - Include realistic sample data
+
+CHAT-SAFE LAYOUT RULES (IMPORTANT):
+- NEVER use more than 2 columns for dashboards in chat (Grid.columns <= 2). Avoid 4-column KPI grids.
+- Prefer Tabs/Accordion for secondary views instead of adding more columns.
+- Avoid nested Cards inside Cards. Use Stack + Separator for section spacing.
+- Do not leave placeholder/missing values: StatCard values, Chart.data, and (Data)Table.rows must be populated.
 
 First gather the data you need using available tools, then render it visually.

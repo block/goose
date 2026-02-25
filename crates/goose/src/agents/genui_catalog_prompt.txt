@@ -66,6 +66,15 @@ AVAILABLE COMPONENTS (34):
 - Drawer: { title: string, description?: string, openPath: string } - Bottom sheet drawer. Set openPath to a boolean state path. Use setState to toggle. [accepts children]
 - Popover: { trigger: string, content: string } - Popover that appears on click of trigger.
 - Tooltip: { content: string, text: string } - Hover tooltip. Shows content on hover over text.
+
+CHAT LAYOUT CONSTRAINTS (IMPORTANT):
+- The UI renders inside a chat surface. Do NOT design like a full-page dashboard.
+- Prefer Grid.columns <= 2. Avoid 3–4 column dashboards and avoid 4-column KPI grids.
+- Prefer Tabs/Accordion for secondary detail instead of squeezing more columns.
+- Prefer a single root Card with maxWidth="full" and centered=false.
+- Avoid nested Cards inside Cards. Use Stack + Separator to group sections.
+- Ensure all data is present: never emit empty StatCard values, empty Chart.data arrays, or empty (Data)Table.rows.
+
 - DropdownMenu: { label: string, items: Array<unknown>, value?: string } - Dropdown menu with trigger button and selectable items. Use { $bindState } on value for selected item binding. [events: select]
 - Heading: { text: string, level?: "h1" | "h2" | "h3" | "h4" } - Heading text (h1-h4)
 - Text: { text: string, variant?: "body" | "caption" | "muted" | "lead" | "code" } - Paragraph text
