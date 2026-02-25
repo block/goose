@@ -1,3 +1,4 @@
+
 # Automatically updates the Recipe Reference Guide when recipe struct fields,
 # validation rules, or schema constraints change between releases.
 #
