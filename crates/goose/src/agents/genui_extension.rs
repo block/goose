@@ -122,83 +122,166 @@ impl GenUiClient {
 
     fn validate_spec(value: &JsonValue) -> Vec<String> {
         let mut errors = Vec::new();
-        Self::validate_recursive(value, &mut errors);
+        let state = value
+            .as_object()
+            .and_then(|o| o.get("state"))
+            .filter(|v| !v.is_null());
+        Self::validate_recursive(value, state, &mut errors);
         errors
     }
 
-    fn validate_recursive(value: &JsonValue, errors: &mut Vec<String>) {
-        if let Some(obj) = value.as_object() {
-            // Support nested format: { "root": { type, props, children } }
+    fn validate_recursive(value: &JsonValue, state: Option<&JsonValue>, errors: &mut Vec<String>) {
+        let Some(obj) = value.as_object() else {
+            return;
+        };
+
+        // Support specs that wrap the UI tree in a top-level `root` field (nested)
+        // or a flat spec container (`root`: string, plus `elements`).
+        if obj.get("type").is_none() {
             if let Some(root) = obj.get("root") {
-                Self::validate_recursive(root, errors);
+                Self::validate_recursive(root, state, errors);
+            }
+            if let Some(elements) = obj.get("elements") {
+                Self::validate_recursive(elements, state, errors);
+            }
+
+            // If this object isn't a known wrapper but looks like an `elements` map, walk values.
+            if obj.get("root").is_none() && obj.get("elements").is_none() {
+                for (_, v) in obj {
+                    Self::validate_recursive(v, state, errors);
+                }
+            }
+
+            return;
+        }
+
+        let Some(type_val) = obj.get("type").and_then(|v| v.as_str()) else {
+            return;
+        };
+
+        if !KNOWN_COMPONENTS.contains(&type_val) {
+            errors.push(format!("Unknown component: '{type_val}'"));
+        }
+
+        fn state_pointer<'a>(
+            state: Option<&'a JsonValue>,
+            binding: &JsonValue,
+        ) -> Option<&'a JsonValue> {
+            let ptr = binding
+                .as_object()
+                .and_then(|o| o.get("$state"))
+                .and_then(|v| v.as_str())?;
+            state.and_then(|s| s.pointer(ptr))
+        }
+
+        if let Some(props) = obj.get("props").and_then(|v| v.as_object()) {
+            match type_val {
+                "Grid" => {
+                    if let Some(n) = props.get("columns").and_then(|v| v.as_u64()) {
+                        if n > 2 {
+                            errors.push("Grid.columns must be <= 2".to_string());
+                        }
+                    }
+                }
+                "Table" | "DataTable" => {
+                    if let Some(rows) = props.get("rows") {
+                        if let Some(arr) = rows.as_array() {
+                            if arr.is_empty() {
+                                errors.push(format!("{type_val}.rows must not be empty"));
+                            }
+                        } else if let Some(v) = state_pointer(state, rows) {
+                            match v.as_array() {
+                                Some(arr) if arr.is_empty() => errors.push(format!(
+                                    "{type_val}.rows state binding must not resolve to an empty array"
+                                )),
+                                Some(_) => {}
+                                None => errors.push(format!(
+                                    "{type_val}.rows state binding must resolve to an array"
+                                )),
+                            }
+                        } else if rows.as_object().and_then(|o| o.get("$state")).is_some() {
+                            errors.push(format!(
+                                "{type_val}.rows uses a $state binding but no matching state value was found"
+                            ));
+                        }
+                    }
+                }
+                "Chart" => {
+                    if let Some(data) = props.get("data") {
+                        if let Some(arr) = data.as_array() {
+                            if arr.is_empty() {
+                                errors.push("Chart.data must not be empty".to_string());
+                            }
+                        } else if let Some(v) = state_pointer(state, data) {
+                            match v.as_array() {
+                                Some(arr) if arr.is_empty() => errors.push(
+                                    "Chart.data state binding must not resolve to an empty array"
+                                        .to_string(),
+                                ),
+                                Some(_) => {}
+                                None => errors.push(
+                                    "Chart.data state binding must resolve to an array".to_string(),
+                                ),
+                            }
+                        } else if data.as_object().and_then(|o| o.get("$state")).is_some() {
+                            errors.push(
+                                "Chart.data uses a $state binding but no matching state value was found"
+                                    .to_string(),
+                            );
+                        }
+                    }
+                }
+                "StatCard" => {
+                    let Some(value) = props.get("value") else {
+                        errors.push("StatCard.value is required".to_string());
+                        return;
+                    };
+
+                    match value {
+                        JsonValue::String(s) if s.trim().is_empty() => {
+                            errors.push("StatCard.value must not be empty".to_string())
+                        }
+                        JsonValue::Null => {
+                            errors.push("StatCard.value must not be null".to_string())
+                        }
+                        v if v.as_object().and_then(|o| o.get("$state")).is_some() => {
+                            if let Some(resolved) = state_pointer(state, v) {
+                                if resolved.is_null() {
+                                    errors.push(
+                                        "StatCard.value state binding must not resolve to null"
+                                            .to_string(),
+                                    );
+                                } else if let Some(s) = resolved.as_str() {
+                                    if s.trim().is_empty() {
+                                        errors.push(
+                                            "StatCard.value state binding must not resolve to an empty string"
+                                                .to_string(),
+                                        );
+                                    }
+                                }
+                            } else {
+                                errors.push(
+                                    "StatCard.value uses a $state binding but no matching state value was found"
+                                        .to_string(),
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
             }
         }
 
-        if let Some(obj) = value.as_object() {
-            if let Some(type_val) = obj.get("type").and_then(|v| v.as_str()) {
-                if !KNOWN_COMPONENTS.contains(&type_val) {
-                    errors.push(format!("Unknown component: '{type_val}'"));
-                }
+        if let Some(children) = obj.get("children").and_then(|v| v.as_array()) {
+            for child in children {
+                Self::validate_recursive(child, state, errors);
+            }
+        }
 
-                // Quality checks (best-effort; used to prevent blank templates).
-                let props = obj.get("props").and_then(|v| v.as_object());
-                match type_val {
-                    "Grid" => {
-                        if let Some(columns) = props
-                            .and_then(|p| p.get("columns"))
-                            .and_then(|v| v.as_u64())
-                        {
-                            if columns > 2 {
-                                errors.push(format!(
-                                    "Grid.columns must be <= 2 in chat (found {columns})"
-                                ));
-                            }
-                        }
-                    }
-                    "Table" | "DataTable" => {
-                        if let Some(rows) =
-                            props.and_then(|p| p.get("rows")).and_then(|v| v.as_array())
-                        {
-                            if rows.is_empty() {
-                                errors.push(format!("{type_val}.rows must not be empty"));
-                            }
-                        }
-                    }
-                    "Chart" => {
-                        if let Some(data) =
-                            props.and_then(|p| p.get("data")).and_then(|v| v.as_array())
-                        {
-                            if data.is_empty() {
-                                errors.push("Chart.data must not be empty".to_string());
-                            }
-                        }
-                    }
-                    "StatCard" => {
-                        let value = props.and_then(|p| p.get("value"));
-                        match value {
-                            None => errors.push("StatCard.value is required".to_string()),
-                            Some(JsonValue::String(s)) if s.trim().is_empty() => {
-                                errors.push("StatCard.value must not be empty".to_string())
-                            }
-                            Some(JsonValue::Null) => {
-                                errors.push("StatCard.value must not be null".to_string())
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            if let Some(children) = obj.get("children").and_then(|v| v.as_array()) {
-                for child in children {
-                    Self::validate_recursive(child, errors);
-                }
-            }
-            // Validate element values in flat format
-            if let Some(elements) = obj.get("elements").and_then(|v| v.as_object()) {
-                for (_, element) in elements {
-                    Self::validate_recursive(element, errors);
-                }
+        if let Some(elements) = obj.get("elements").and_then(|v| v.as_object()) {
+            for (_, element) in elements {
+                Self::validate_recursive(element, state, errors);
             }
         }
     }
