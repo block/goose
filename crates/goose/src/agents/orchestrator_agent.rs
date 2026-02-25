@@ -683,6 +683,12 @@ impl OrchestratorAgent {
             .set_orchestrator_context(is_orchestrator_enabled())
             .await;
 
+        // Persist the active mode slug so downstream systems (like genui validation)
+        // can apply mode-specific behavior.
+        agent
+            .set_active_mode_slug(Some(primary.mode_slug.clone()))
+            .await;
+
         // Apply mode-specific tool groups
         let tool_groups = self.get_tool_groups_for_routing(&primary.agent_name, &primary.mode_slug);
         if !tool_groups.is_empty() {

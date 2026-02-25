@@ -51,10 +51,13 @@ use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
     ServerNotification, Tool,
 };
+use rmcp::object;
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
+
+use json_patch as json_patch_crate;
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
@@ -158,6 +161,8 @@ pub struct Agent {
     /// Allowed extensions for this agent — empty means all extensions available
     pub allowed_extensions: tokio::sync::RwLock<Vec<String>>,
     pub is_orchestrator_context: tokio::sync::RwLock<bool>,
+    /// Mode slug applied by orchestrator routing (when available).
+    pub active_mode_slug: tokio::sync::RwLock<Option<String>>,
     container: Mutex<Option<Container>>,
     /// Dual identity: user + agent, threaded through all execution.
     pub execution_identity: tokio::sync::RwLock<Option<crate::identity::ExecutionIdentity>>,
@@ -236,6 +241,76 @@ where
 }
 
 impl Agent {
+    async fn validate_json_render_spec_via_genui_tool(
+        &self,
+        session: &Session,
+        spec: &str,
+        cancel_token: Option<CancellationToken>,
+    ) -> Result<(), String> {
+        fn looks_like_jsonl_patch(spec: &str) -> bool {
+            let first_line = spec
+                .lines()
+                .find(|l| !l.trim().is_empty())
+                .unwrap_or("")
+                .trim();
+            if !first_line.starts_with('{') {
+                return false;
+            }
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(first_line) else {
+                return false;
+            };
+            v.get("op").and_then(|op| op.as_str()).is_some()
+                && v.get("path").and_then(|p| p.as_str()).is_some()
+        }
+
+        let spec_value: serde_json::Value = if looks_like_jsonl_patch(spec) {
+            let mut doc = serde_json::json!({});
+            for line in spec.lines() {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+                let op: json_patch_crate::PatchOperation = serde_json::from_str(line)
+                    .map_err(|e| format!("Invalid JSONL patch line: {e}"))?;
+                json_patch_crate::patch(&mut doc, std::slice::from_ref(&op))
+                    .map_err(|e| format!("Failed to apply JSON patch: {e}"))?;
+            }
+            doc
+        } else {
+            serde_json::from_str(spec.trim())
+                .map_err(|e| format!("Invalid json-render JSON: {e}"))?
+        };
+
+        let tool_call = CallToolRequestParams {
+            meta: None,
+            task: None,
+            name: "genui__render".into(),
+            arguments: Some(object!({"spec": spec_value})),
+        };
+
+        let request_id = format!("genui_validate_{}", Uuid::new_v4());
+        let (_request_id, tool_result) = self
+            .dispatch_tool_call(tool_call, request_id, cancel_token, session)
+            .await;
+
+        let tool_result = tool_result.map_err(|e| e.to_string())?;
+        let call_result = tool_result.result.await.map_err(|e| e.to_string())?;
+
+        if call_result.is_error.unwrap_or(false) {
+            let msg = call_result
+                .content
+                .iter()
+                .filter_map(|c| c.as_text().map(|t| t.text.as_str()))
+                .next()
+                .unwrap_or("genui__render validation failed")
+                .trim()
+                .to_string();
+            return Err(msg);
+        }
+
+        Ok(())
+    }
+
     pub fn new() -> Self {
         Self::with_config(AgentConfig::new(
             Arc::new(SessionManager::instance()),
@@ -290,6 +365,7 @@ impl Agent {
             active_tool_groups: tokio::sync::RwLock::new(Vec::new()),
             allowed_extensions: tokio::sync::RwLock::new(Vec::new()),
             is_orchestrator_context: tokio::sync::RwLock::new(false),
+            active_mode_slug: tokio::sync::RwLock::new(None),
             container: Mutex::new(None),
             execution_identity: tokio::sync::RwLock::new(None),
         }
@@ -511,6 +587,14 @@ impl Agent {
 
     pub async fn set_orchestrator_context(&self, is_orchestrator: bool) {
         *self.is_orchestrator_context.write().await = is_orchestrator;
+    }
+
+    pub async fn set_active_mode_slug(&self, mode_slug: Option<String>) {
+        *self.active_mode_slug.write().await = mode_slug;
+    }
+
+    pub async fn get_active_mode_slug(&self) -> Option<String> {
+        self.active_mode_slug.read().await.clone()
     }
 
     pub async fn set_execution_identity(&self, identity: crate::identity::ExecutionIdentity) {
@@ -1315,6 +1399,63 @@ impl Agent {
                                     .clone()
                                     .strip_tool_call_tags()
                                     .extract_json_render_specs();
+
+                                // In orchestrated genui mode, always validate any emitted
+                                // json-render specs via genui__render before showing them.
+                                // This prevents "blank template" / invalid specs from
+                                // being displayed and forces deterministic correction.
+                                let is_genui_mode = self
+                                    .get_active_mode_slug()
+                                    .await
+                                    .as_deref()
+                                    == Some("genui");
+                                if is_genui_mode {
+                                    let specs: Vec<String> = display_response
+                                        .content
+                                        .iter()
+                                        .filter_map(|c| match c {
+                                            MessageContent::JsonRenderSpec(s) => {
+                                                Some(s.spec.clone())
+                                            }
+                                            _ => None,
+                                        })
+                                        .collect();
+
+                                    if !specs.is_empty() {
+                                        if let Err(e) = self
+                                            .validate_json_render_spec_via_genui_tool(
+                                                &session,
+                                                specs
+                                                    .first()
+                                                    .map(|s| s.as_str())
+                                                    .unwrap_or(""),
+                                                cancel_token.clone(),
+                                            )
+                                            .await
+                                        {
+                                            yield AgentEvent::Message(
+                                                Message::assistant().with_system_notification(
+                                                    SystemNotificationType::InlineMessage,
+                                                    "Visualization failed validation; regenerating…",
+                                                ),
+                                            );
+
+                                            messages_to_add.push(
+                                                Message::user()
+                                                    .with_text(format!(
+                                                        "Your last json-render output failed validation: {e}. Regenerate a complete json-render spec (no prose).",
+                                                    ))
+                                                    .agent_only(),
+                                            );
+
+                                            // Force another iteration instead of exiting on a
+                                            // no-tools response.
+                                            no_tools_called = false;
+                                            break;
+                                        }
+                                    }
+                                }
+
                                 yield AgentEvent::Message(display_response.clone());
                                 tokio::task::yield_now().await;
 

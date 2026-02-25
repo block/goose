@@ -93,10 +93,10 @@ impl GenUiClient {
             \n\
             Markdown fences are optional. If you use a fence, it MUST be ```json-render.\n\
             \n\
-            Example workflow:\n\
-            1. Gather data using developer tools\n\
-            2. Call `genui__render` to VALIDATE your spec (optional)\n\
-            3. Output the JSONL spec in your response (fenced or unfenced)\n\
+            Example workflow:
+            1. Gather data using developer tools
+            2. Call `genui__render` to VALIDATE your spec (required)
+            3. Output the JSONL spec in your response (fenced or unfenced)
             \n\
             ## Component Catalog\n\
             {CATALOG_PROMPT}\n"
