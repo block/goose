@@ -13,7 +13,7 @@ import {
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
-import { ChevronRight, FlaskConical } from 'lucide-react';
+import { ChevronRight, ExternalLink, FlaskConical } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
@@ -62,6 +62,11 @@ interface ToolCallWithResponseProps {
   append?: (value: string) => void;
   confirmationContent?: ToolConfirmationData;
   isApprovalClicked?: boolean;
+}
+
+function getSubagentSessionId(toolResponse?: ToolResponseMessageContent): string | null {
+  const sessionId = toolResponse?.metadata?.subagent_session_id;
+  return typeof sessionId === 'string' ? sessionId : null;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -627,6 +632,25 @@ function ToolCallView({
         }
         break;
 
+      case 'delegate': {
+        if (args.instructions) {
+          const instr = getStringValue(args.instructions);
+          const truncated = instr.length > 80 ? instr.substring(0, 80) + '…' : instr;
+          return `delegating: ${truncated}`;
+        }
+        if (args.source) {
+          return `delegating to ${getStringValue(args.source)}`;
+        }
+        return 'delegating task';
+      }
+
+      case 'load': {
+        if (args.source) {
+          return `loading ${getStringValue(args.source)}`;
+        }
+        return 'loading source';
+      }
+
       case 'final_output':
         return 'final output';
 
@@ -782,6 +806,27 @@ function ToolCallView({
           ))}
         </>
       )}
+
+      {(() => {
+        const subagentSessionId = getSubagentSessionId(toolResponse);
+        if (!subagentSessionId) return null;
+        return (
+          <div className="border-t border-border-primary">
+            <button
+              onClick={() => {
+                window.electron.createChatWindow({
+                  resumeSessionId: subagentSessionId,
+                  viewType: 'pair',
+                });
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2 text-xs text-text-secondary hover:text-text-primary hover:bg-background-secondary transition-colors cursor-pointer"
+            >
+              <ExternalLink className="w-3 h-3 flex-shrink-0" />
+              <span>View subagent session</span>
+            </button>
+          </div>
+        );
+      })()}
     </ToolCallExpandable>
   );
 }
@@ -916,6 +961,26 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
   );
 }
 
+function SubagentLogEntry({ log }: { log: string }) {
+  const subagentMatch = log.match(/^\[subagent:(\w+)\]\s*(.*)/);
+  if (!subagentMatch) {
+    return <span className="font-sans text-sm text-textSubtle">{log}</span>;
+  }
+
+  const [, , rest] = subagentMatch;
+  const parts = rest.split(' | ');
+  const toolName = parts[0]?.trim() || rest;
+  const extensionName = parts[1]?.trim();
+
+  return (
+    <span className="font-sans text-sm text-textSubtle flex items-center gap-1.5">
+      <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+      <span className="font-medium text-text-secondary">{toolName}</span>
+      {extensionName && <span className="text-textSubtle opacity-60">· {extensionName}</span>}
+    </span>
+  );
+}
+
 function ToolLogsView({
   logs,
   working,
@@ -940,11 +1005,14 @@ function ToolLogsView({
   // in this case, this is array of strings which once added do not change so this cuts
   // down on the possibility of unwanted runs
 
+  const subagentLogCount = logs.filter((l) => l.startsWith('[subagent:')).length;
+  const labelText = subagentLogCount > 0 ? `Activity (${subagentLogCount})` : 'Logs';
+
   return (
     <ToolCallExpandable
       label={
         <span className="pl-4 py-1 font-sans text-sm flex items-center">
-          <span>Logs</span>
+          <span>{labelText}</span>
           {working && (
             <div className="mx-2 inline-block">
               <span
@@ -964,9 +1032,7 @@ function ToolLogsView({
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
         {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-textSubtle">
-            {log}
-          </span>
+          <SubagentLogEntry key={i} log={log} />
         ))}
       </div>
     </ToolCallExpandable>
