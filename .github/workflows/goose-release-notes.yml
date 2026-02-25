@@ -208,6 +208,11 @@ jobs:
               -H "Content-Type: application/json" \
               -d "{\"content\": $content, \"flags\": 4}")
 
+            # Debug: show response if there's an error
+            if echo "$response" | jq -e '.code' > /dev/null 2>&1; then
+              echo "::warning::Discord API error: $(echo "$response" | jq -c '.')" >&2
+            fi
+
             echo "$response" | jq -r '.id // empty'
           }
 
