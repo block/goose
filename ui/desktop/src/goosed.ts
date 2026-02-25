@@ -292,19 +292,52 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   const goosedProcess = spawn(spawnCommand, spawnArgs, spawnOptions);
 
+  // Avoid calling data.toString() directly inside stream 'data' handlers.
+  // Buffer.toString() invokes node::StringBytes::Encode → v8::String::NewFromUtf8
+  // on the main thread, which can hit a V8 CHECK/FATAL (brk #0 → EXC_BREAKPOINT)
+  // under GC pressure or near-OOM conditions. Instead, accumulate raw Buffers and
+  // convert to string in a setImmediate callback to reduce V8 string allocation
+  // pressure during active libuv I/O processing.
+  let stdoutPending: Buffer[] = [];
+  let stderrPending: Buffer[] = [];
+  let stdoutFlushScheduled = false;
+  let stderrFlushScheduled = false;
+
   goosedProcess.stdout?.on('data', (data: Buffer) => {
-    logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${data.toString()}`);
+    stdoutPending.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
+    if (!stdoutFlushScheduled) {
+      stdoutFlushScheduled = true;
+      globalThis.setImmediate(() => {
+        stdoutFlushScheduled = false;
+        if (stdoutPending.length > 0) {
+          const text = Buffer.concat(stdoutPending).toString('utf8');
+          stdoutPending = [];
+          logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${text}`);
+        }
+      });
+    }
   });
 
   goosedProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n');
-    for (const line of lines) {
-      if (line.trim()) {
-        errorLog.push(line);
-        if (isFatalError(line)) {
-          logger.error(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
+    stderrPending.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
+    if (!stderrFlushScheduled) {
+      stderrFlushScheduled = true;
+      globalThis.setImmediate(() => {
+        stderrFlushScheduled = false;
+        if (stderrPending.length > 0) {
+          const text = Buffer.concat(stderrPending).toString('utf8');
+          stderrPending = [];
+          const lines = text.split('\n');
+          for (const line of lines) {
+            if (line.trim()) {
+              errorLog.push(line);
+              if (isFatalError(line)) {
+                logger.error(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
+              }
+            }
+          }
         }
-      }
+      });
     }
   });
 

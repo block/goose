@@ -22,6 +22,7 @@ import started from 'electron-squirrel-startup';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'child_process';
+import { Buffer } from 'node:buffer';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
 import { startGoosed } from './goosed';
@@ -1461,21 +1462,32 @@ ipcMain.handle('check-ollama', async () => {
       const ps = spawn('ps', ['aux']);
       const grep = spawn('grep', ['-iw', '[o]llama']);
 
-      let output = '';
-      let errorOutput = '';
+      // Accumulate raw Buffers to avoid calling data.toString() in the 'data'
+      // event handler. Converting to string inside the handler invokes
+      // node::StringBytes::Encode → v8::String::NewFromUtf8 on the main thread
+      // which can hit a V8 CHECK/FATAL (brk #0 → EXC_BREAKPOINT) under GC
+      // pressure or near-OOM conditions. Deferring toString() to the 'close'
+      // handler (after the stream has ended) avoids this race.
+      const outputChunks: Buffer[] = [];
+      const errorChunks: Buffer[] = [];
 
       // Pipe ps output to grep
       ps.stdout.pipe(grep.stdin);
 
-      grep.stdout.on('data', (data) => {
-        output += data.toString();
+      grep.stdout.on('data', (data: Buffer) => {
+        outputChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
       });
 
-      grep.stderr.on('data', (data) => {
-        errorOutput += data.toString();
+      grep.stderr.on('data', (data: Buffer) => {
+        errorChunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
       });
 
       grep.on('close', (code) => {
+        // Safe to convert to string now — stream has ended, no concurrent
+        // V8 string allocations from libuv callbacks on this data.
+        const output = Buffer.concat(outputChunks).toString('utf8');
+        const errorOutput = Buffer.concat(errorChunks).toString('utf8');
+
         if (code !== null && code !== 0 && code !== 1) {
           // grep returns 1 when no matches found
           console.error('Error executing grep command:', errorOutput);
@@ -1514,37 +1526,15 @@ ipcMain.handle('check-ollama', async () => {
 ipcMain.handle('read-file', async (_event, filePath) => {
   try {
     const expandedPath = expandTilde(filePath);
-    if (process.platform === 'win32') {
-      const buffer = await fs.readFile(expandedPath);
-      return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
-    }
-    // Non-Windows: keep previous behavior via cat for parity
-    return await new Promise((resolve) => {
-      const cat = spawn('cat', [expandedPath]);
-      let output = '';
-      let errorOutput = '';
-
-      cat.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      cat.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      cat.on('close', (code) => {
-        if (code !== 0) {
-          resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
-          return;
-        }
-        resolve({ file: output, filePath: expandedPath, error: null, found: true });
-      });
-
-      cat.on('error', (error) => {
-        console.error('Error reading file:', error);
-        resolve({ file: '', filePath: expandedPath, error, found: false });
-      });
-    });
+    // Use fs.readFile on all platforms. The previous non-Windows path spawned
+    // `cat` and called data.toString() inside stream 'data' handlers, which
+    // triggers node::StringBytes::Encode → v8::String::NewFromUtf8 on the main
+    // thread. Under GC pressure or near-OOM, V8 can fail the allocation and
+    // hit a CHECK/FATAL (brk #0 → EXC_BREAKPOINT crash). fs.readFile returns
+    // a single Buffer after the read completes, avoiding per-chunk string
+    // allocation in V8 during active I/O.
+    const buffer = await fs.readFile(expandedPath);
+    return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
   } catch (error) {
     console.error('Error reading file:', error);
     return { file: '', filePath: expandTilde(filePath), error, found: false };
