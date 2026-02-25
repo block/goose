@@ -1,4 +1,5 @@
 use crate::agents::extension_manager::ExtensionManager;
+use crate::config::base::Config;
 use crate::conversation::message::Message;
 use crate::conversation::{fix_conversation, Conversation};
 use rmcp::model::Role;
@@ -16,6 +17,13 @@ pub async fn inject_moim(
     working_dir: &Path,
 ) -> Conversation {
     if SKIP.with(|f| f.get()) {
+        return conversation;
+    }
+
+    if Config::global()
+        .get_goose_disable_moim()
+        .unwrap_or(false)
+    {
         return conversation;
     }
 

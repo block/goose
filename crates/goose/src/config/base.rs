@@ -976,6 +976,7 @@ config_value!(GOOSE_MODEL, String);
 config_value!(GOOSE_PROMPT_EDITOR, Option<String>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
+config_value!(GOOSE_DISABLE_MOIM, bool);
 config_value!(GEMINI3_THINKING_LEVEL, String);
 
 /// Load init-config.yaml from workspace root if it exists.
