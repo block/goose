@@ -6,7 +6,14 @@ use std::collections::HashMap;
 /// in the list will be remove from user list; The experiment names in the ground-truth list but not
 /// in users' experiment list will be added to user list with default value false;
 /// TODO: keep this up to date with the experimental-features.md documentation page
-const ALL_EXPERIMENTS: &[(&str, bool)] = &[];
+const ALL_EXPERIMENTS: &[(&str, bool)] = &[
+    ("ollama_toolshim", false),
+    ("mobile_access", false),
+    ("vscode_extension", false),
+    ("acp_clients", false),
+    ("mcp_ui", false),
+    ("parallel_subrecipes", false),
+];
 
 /// Experiment configuration management
 pub struct ExperimentManager;
