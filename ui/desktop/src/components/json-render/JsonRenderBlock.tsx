@@ -177,7 +177,7 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
           }
 
           // Surface light debug info without noisy logs
-          if (recoveredLineCount > 0 && import.meta.env.MODE !== 'production') {
+          if (recoveredLineCount > 0 && import.meta.env.DEV && import.meta.env.MODE !== 'test') {
             console.debug(`[json-render] recovered ${recoveredLineCount} malformed JSONL line(s)`);
           }
 

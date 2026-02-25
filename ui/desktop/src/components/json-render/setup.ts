@@ -110,9 +110,16 @@ function adaptShadcnComponents(
   const adapted: Record<string, React.ComponentType<ComponentRenderProps>> = {};
   for (const [name, ShadcnComponent] of Object.entries(components)) {
     const AdaptedComponent = ({ element, children }: ComponentRenderProps) => {
-      const props = FORCE_FULL_WIDTH.has(name)
+      const baseProps = FORCE_FULL_WIDTH.has(name)
         ? { ...element.props, className: mergeClassName(element.props.className, 'w-full min-w-0') }
         : element.props;
+
+      // The shadcn Card supports maxWidth and centered. When omitted, some generated UIs
+      // end up cramped (e.g., dense dashboards inside chat). Default to a readable width.
+      const props =
+        name === 'Card' && (baseProps as { maxWidth?: unknown }).maxWidth == null
+          ? { ...baseProps, maxWidth: 'full' }
+          : baseProps;
 
       return React.createElement(ShadcnComponent, { props, children });
     };

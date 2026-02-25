@@ -38,6 +38,33 @@ export interface ChartProps {
   className?: string;
 }
 
+function toNumberMaybe(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return null;
+    const n = Number(trimmed);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function normalizeChartData(
+  data: Array<Record<string, string | number>>,
+  yKeys: string[]
+): Array<Record<string, string | number>> {
+  // Recharts is sensitive to numeric data types. Some LLM outputs will emit numbers as strings
+  // (e.g., "107"), which results in empty plots. Coerce numeric-looking strings for yKeys.
+  return data.map((row) => {
+    const next: Record<string, string | number> = { ...row };
+    for (const key of yKeys) {
+      const coerced = toNumberMaybe(row[key]);
+      if (coerced != null) next[key] = coerced;
+    }
+    return next;
+  });
+}
+
 function ChartInner({
   type,
   data,
@@ -48,6 +75,17 @@ function ChartInner({
   className,
 }: ChartProps) {
   const effectiveHeight = Math.min(height, MAX_HEIGHT);
+  const normalizedData = normalizeChartData(data, yKeys);
+
+  if (import.meta.env.DEV && import.meta.env.MODE !== 'test') {
+    const coerced = data.some((row) =>
+      yKeys.some((k) => typeof row[k] === 'string' && toNumberMaybe(row[k]) != null)
+    );
+    if (coerced) {
+      // eslint-disable-next-line no-console
+      console.debug('[chart] coerced numeric string values for yKeys', { yKeys });
+    }
+  }
 
   if (type === 'pie' && yKeys.length === 0) {
     return (
@@ -61,12 +99,21 @@ function ChartInner({
   }
 
   if (type === 'pie') {
+    const dataKey = yKeys[0];
+
     return (
       <div className={`space-y-1 ${className ?? ''}`}>
         <ResponsiveContainer width="100%" height={effectiveHeight}>
           <PieChart>
-            <Pie data={data} dataKey={yKeys[0]} nameKey={xKey} cx="50%" cy="50%" outerRadius={60}>
-              {data.map((entry, i) => (
+            <Pie
+              data={normalizedData}
+              dataKey={dataKey}
+              nameKey={xKey}
+              cx="50%"
+              cy="50%"
+              outerRadius={60}
+            >
+              {normalizedData.map((entry, i) => (
                 <Cell
                   key={entry[xKey]?.toString() ?? `cell-${i}`}
                   fill={colors[i % colors.length]}
@@ -94,7 +141,7 @@ function ChartInner({
   return (
     <div className={`w-full min-w-0 space-y-1 ${className ?? ''}`}>
       <ResponsiveContainer width="100%" height={effectiveHeight} minWidth={1}>
-        <ChartComponent data={data}>
+        <ChartComponent data={normalizedData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
           <XAxis dataKey={xKey} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} />
           <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} width={35} />
@@ -137,6 +184,10 @@ export function Chart(props: ChartProps) {
       return;
     }
 
+    // IntersectionObserver can be flaky in nested scroll containers.
+    // Use IO when it works, but also fall back to a short timer so charts don't stay blank.
+    const fallback = window.setTimeout(() => setVisible(true), 300);
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -147,8 +198,33 @@ export function Chart(props: ChartProps) {
       { threshold: 0.1 }
     );
     observer.observe(el);
-    return () => observer.disconnect();
+
+    return () => {
+      window.clearTimeout(fallback);
+      observer.disconnect();
+    };
   }, []);
+
+  // Dev-only trace to catch "1px chart" layout regressions (skip tests).
+  useEffect(() => {
+    if (!visible) return;
+    if (!import.meta.env.DEV) return;
+    if (import.meta.env.MODE === 'test') return;
+
+    const el = ref.current;
+    if (!el) return;
+
+    const width = el.getBoundingClientRect().width;
+    if (width <= 8) {
+      // eslint-disable-next-line no-console
+      console.debug('[chart] tiny container width', {
+        width,
+        type: props.type,
+        xKey: props.xKey,
+        yKeys: props.yKeys,
+      });
+    }
+  }, [visible, props.type, props.xKey, props.yKeys]);
 
   const effectiveHeight = Math.min(props.height ?? 180, MAX_HEIGHT);
 
