@@ -1,16 +1,20 @@
 # goose Release Notes Generator
 #
 # Automatically generates release notes using goose AI agent when a new release is published.
-# Updates the GitHub release with AI-generated categorized notes.
+# Updates the GitHub release with AI-generated categorized notes and posts to Discord.
 #
 # Trigger: When a GitHub release is published (after release.yml completes)
 #
 # Required Secrets:
 #   - OPENROUTER_API_KEY: API key for OpenRouter
 #
+# Optional Secrets (for Discord):
+#   - DISCORD_BOT_TOKEN: Discord bot token for posting release announcements
+#
 # Optional Variables:
 #   - GOOSE_PROVIDER: LLM provider (default: openrouter)
 #   - GOOSE_MODEL: Model name (default: anthropic/claude-sonnet-4)
+#   - DISCORD_RELEASE_CHANNEL_ID: Discord channel ID for release announcements
 
 name: goose Release Notes Generator
 
@@ -161,3 +165,121 @@ jobs:
           allowUpdates: true
           omitNameDuringUpdate: true
           omitPrereleaseDuringUpdate: true
+
+  post-to-discord:
+    name: Post to Discord
+    runs-on: ubuntu-latest
+    needs: generate-release-notes
+    # Only run if Discord bot token is configured
+    if: ${{ vars.DISCORD_RELEASE_CHANNEL_ID != '' }}
+
+    steps:
+      - name: Post release announcement
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ vars.DISCORD_RELEASE_CHANNEL_ID }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_URL: ${{ github.event.release.html_url || format('https://github.com/block/goose/releases/tag/{0}', inputs.tag) }}
+          RELEASE_NOTES: ${{ needs.generate-release-notes.outputs.release_notes }}
+          NOTES_LENGTH: ${{ needs.generate-release-notes.outputs.notes_length }}
+        shell: bash
+        run: |
+          # Discord message character limit is ~2000 for regular messages
+          SAFE_LIMIT=1800
+
+          # Build header message
+          HEADER="🚀 **Goose ${RELEASE_TAG} Released!**
+
+          📦 **Download:** ${RELEASE_URL}"
+
+          # Function to send Discord message via bot API, returns message ID
+          send_discord() {
+            local content="$1"
+            local channel="$2"
+
+            content=$(echo "$content" | jq -Rs .)
+
+            response=$(curl -s -X POST "https://discord.com/api/v10/channels/${channel}/messages" \
+              -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"content\": $content}")
+
+            echo "$response" | jq -r '.id // empty'
+          }
+
+          # Function to create a thread from a message
+          create_thread() {
+            local channel="$1"
+            local message_id="$2"
+            local thread_name="$3"
+
+            response=$(curl -s -X POST "https://discord.com/api/v10/channels/${channel}/messages/${message_id}/threads" \
+              -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\": \"${thread_name}\"}")
+
+            echo "$response" | jq -r '.id // empty'
+          }
+
+          # Check if we need to thread (notes too long)
+          HEADER_LENGTH=${#HEADER}
+          TOTAL_LENGTH=$((HEADER_LENGTH + NOTES_LENGTH + 10))
+
+          if [ "$TOTAL_LENGTH" -le "$SAFE_LIMIT" ]; then
+            # Single message - notes fit
+            FULL_MESSAGE="${HEADER}
+
+          ${RELEASE_NOTES}"
+            send_discord "$FULL_MESSAGE" "$DISCORD_CHANNEL_ID"
+          else
+            # Need to thread - send header first, create thread, then post notes in thread
+            echo "Release notes exceed Discord limit (${TOTAL_LENGTH} chars), using thread..."
+
+            # Send header message
+            MESSAGE_ID=$(send_discord "${HEADER}
+
+          📝 *Full release notes in thread below*" "$DISCORD_CHANNEL_ID")
+
+            if [ -z "$MESSAGE_ID" ]; then
+              echo "::error::Failed to send Discord message"
+              exit 1
+            fi
+
+            echo "Created message $MESSAGE_ID, creating thread..."
+            sleep 1
+
+            # Create thread from the message
+            THREAD_ID=$(create_thread "$DISCORD_CHANNEL_ID" "$MESSAGE_ID" "Release Notes ${RELEASE_TAG}")
+
+            if [ -z "$THREAD_ID" ]; then
+              echo "::warning::Failed to create thread, posting notes as follow-up messages"
+              THREAD_ID="$DISCORD_CHANNEL_ID"
+            else
+              echo "Created thread $THREAD_ID"
+            fi
+
+            sleep 1
+
+            # Post release notes in chunks to the thread
+            REMAINING="$RELEASE_NOTES"
+
+            while [ -n "$REMAINING" ]; do
+              CHUNK="${REMAINING:0:$SAFE_LIMIT}"
+              REMAINING="${REMAINING:$SAFE_LIMIT}"
+
+              # Try to break at a newline for cleaner splits
+              if [ -n "$REMAINING" ]; then
+                LAST_NEWLINE=$(echo "$CHUNK" | tail -c +1000 | grep -bo $'\n' | tail -1 | cut -d: -f1 || echo "")
+                if [ -n "$LAST_NEWLINE" ]; then
+                  BREAK_POINT=$((1000 + LAST_NEWLINE))
+                  REMAINING="${CHUNK:$BREAK_POINT}${REMAINING}"
+                  CHUNK="${CHUNK:0:$BREAK_POINT}"
+                fi
+              fi
+
+              send_discord "$CHUNK" "$THREAD_ID"
+              sleep 1
+            done
+          fi
+
+          echo "::notice::Discord notification sent successfully"
