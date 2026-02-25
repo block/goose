@@ -9,7 +9,6 @@ pub struct AcpServerFactoryConfig {
     pub builtins: Vec<String>,
     pub data_dir: std::path::PathBuf,
     pub config_dir: std::path::PathBuf,
-    pub acp_editor_tools: bool,
 }
 
 pub struct AcpServer {
@@ -51,7 +50,6 @@ impl AcpServer {
             self.config.config_dir.clone(),
             goose_mode,
             disable_session_naming,
-            self.config.acp_editor_tools,
         )
         .await?;
         info!("Created new ACP agent");

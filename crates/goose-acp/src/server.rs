@@ -1,5 +1,6 @@
 use crate::custom_requests::*;
 use crate::tools::AcpTools;
+use agent_client_protocol_schema::ClientCapabilities;
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
@@ -60,7 +61,7 @@ pub struct GooseAcpAgent {
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
     builtins: Vec<String>,
-    acp_editor_tools: bool,
+    client_capabilities: Mutex<ClientCapabilities>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -306,7 +307,6 @@ impl GooseAcpAgent {
         config_dir: std::path::PathBuf,
         goose_mode: goose::config::GooseMode,
         disable_session_naming: bool,
-        acp_editor_tools: bool,
     ) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(data_dir));
         let permission_manager = Arc::new(PermissionManager::new(config_dir.clone()));
@@ -320,7 +320,7 @@ impl GooseAcpAgent {
             goose_mode,
             disable_session_naming,
             builtins,
-            acp_editor_tools,
+            client_capabilities: Mutex::new(ClientCapabilities::default()),
         })
     }
 
@@ -335,12 +335,19 @@ impl GooseAcpAgent {
         ));
         let agent = Arc::new(agent);
 
-        if !self.acp_editor_tools {
-            let config_path = self.config_dir.join(CONFIG_YAML_NAME);
-            if let Ok(config_file) = Config::new(&config_path, "goose") {
-                let extensions = get_enabled_extensions_with_config(&config_file);
-                add_extensions(&agent, extensions).await;
+        let exclude_developer = {
+            let capabilities = self.client_capabilities.lock().await;
+            capabilities.terminal
+                || capabilities.fs.read_text_file
+                || capabilities.fs.write_text_file
+        };
+        let config_path = self.config_dir.join(CONFIG_YAML_NAME);
+        if let Ok(config_file) = Config::new(&config_path, "goose") {
+            let mut extensions = get_enabled_extensions_with_config(&config_file);
+            if exclude_developer {
+                extensions.retain(|ext| ext.name() != "developer");
             }
+            add_extensions(&agent, extensions).await;
         }
         add_builtins(&agent, self.builtins.clone()).await;
 
@@ -676,6 +683,11 @@ impl GooseAcpAgent {
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
 
+        {
+            let mut client_capabilities = self.client_capabilities.lock().await;
+            *client_capabilities = args.client_capabilities;
+        }
+
         let capabilities = AgentCapabilities::new()
             .load_session(true)
             .prompt_capabilities(
@@ -737,11 +749,22 @@ impl GooseAcpAgent {
             }
         }
 
-        if self.acp_editor_tools {
+        let (fs_read, fs_write, terminal) = {
+            let capabilities = self.client_capabilities.lock().await;
+            (
+                capabilities.fs.read_text_file,
+                capabilities.fs.write_text_file,
+                capabilities.terminal,
+            )
+        };
+        if fs_read || fs_write || terminal {
             let acp_tools = Arc::new(AcpTools::new(
                 cx,
                 SessionId::new(goose_session.id.clone()),
                 args.cwd.clone(),
+                fs_read,
+                fs_write,
+                terminal,
             ));
             agent
                 .extension_manager
@@ -1365,7 +1388,7 @@ where
     })
 }
 
-pub async fn run(builtins: Vec<String>, acp_editor_tools: bool) -> Result<()> {
+pub async fn run(builtins: Vec<String>) -> Result<()> {
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
     info!("listening on stdio");
 
@@ -1377,7 +1400,6 @@ pub async fn run(builtins: Vec<String>, acp_editor_tools: bool) -> Result<()> {
             builtins,
             data_dir: Paths::data_dir(),
             config_dir: Paths::config_dir(),
-            acp_editor_tools,
         });
     let agent = server.create_agent().await?;
     serve(agent, incoming, outgoing).await

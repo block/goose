@@ -18,10 +18,17 @@ use schemars::{schema_for, JsonSchema};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
+struct Capabilities {
+    filesystem_read: bool,
+    filesystem_write: bool,
+    terminal: bool,
+}
+
 pub struct AcpTools {
     cx: JrConnectionCx<AgentToClient>,
     session_id: sacp::schema::SessionId,
     working_dir: PathBuf,
+    capabilities: Capabilities,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -74,9 +81,11 @@ macro_rules! schema {
     };
 }
 
-static TOOL_DEFS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
+static FILESYSTEM_READ_TOOL_DEFS: LazyLock<Vec<Tool>> =
+    LazyLock::new(|| vec![Tool::new("read", "Read files", schema!(ReadParams))]);
+
+static FILESYSTEM_WRITE_TOOL_DEFS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
     vec![
-        Tool::new("read", "Read files", schema!(ReadParams)),
         Tool::new("write", "Write files", schema!(WriteParams)),
         Tool::new(
             "str_replace",
@@ -84,8 +93,15 @@ static TOOL_DEFS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
             schema!(StrReplaceParams),
         ),
         Tool::new("insert", "Insert strings into files", schema!(InsertParams)),
-        Tool::new("shell", "Execute shell commands", schema!(ShellParams)),
     ]
+});
+
+static TERMINAL_TOOL_DEFS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
+    vec![Tool::new(
+        "shell",
+        "Execute shell commands",
+        schema!(ShellParams),
+    )]
 });
 
 async fn handle_tool_call<Req, Fut>(
@@ -149,11 +165,19 @@ impl AcpTools {
         cx: JrConnectionCx<AgentToClient>,
         session_id: sacp::schema::SessionId,
         working_dir: PathBuf,
+        filesystem_read: bool,
+        filesystem_write: bool,
+        terminal: bool,
     ) -> Self {
         AcpTools {
             cx,
             session_id,
             working_dir,
+            capabilities: Capabilities {
+                filesystem_read,
+                filesystem_write,
+                terminal,
+            },
         }
     }
 
@@ -369,7 +393,23 @@ impl McpClientTrait for AcpTools {
         _next_cursor: Option<String>,
         _cancel_token: CancellationToken,
     ) -> Result<ListToolsResult, ServiceError> {
-        Ok(ListToolsResult::with_all_items(TOOL_DEFS.clone()))
+        let tools = [
+            (
+                self.capabilities.filesystem_read,
+                &*FILESYSTEM_READ_TOOL_DEFS,
+            ),
+            (
+                self.capabilities.filesystem_write,
+                &*FILESYSTEM_WRITE_TOOL_DEFS,
+            ),
+            (self.capabilities.terminal, &*TERMINAL_TOOL_DEFS),
+        ]
+        .into_iter()
+        .filter(|(enabled, _)| *enabled)
+        .flat_map(|(_, defs)| defs.clone())
+        .collect();
+
+        Ok(ListToolsResult::with_all_items(tools))
     }
 
     async fn call_tool(
