@@ -107,7 +107,7 @@ candle-core = { version = "0.9", default-features = false }
 candle-nn = { version = "0.9", default-features = false }
 candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
-tokenizers = "0.21.0"
+tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
 hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
