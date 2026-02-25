@@ -321,6 +321,17 @@ export default function McpAppRenderer({
         requestAnimationFrame(() => {
           el.classList.add(animClass);
           enterAnimRef.current = animClass;
+
+          el.addEventListener(
+            'animationend',
+            () => {
+              el.classList.remove(animClass);
+              if (enterAnimRef.current === animClass) {
+                enterAnimRef.current = null;
+              }
+            },
+            { once: true }
+          );
         });
       }
     },
