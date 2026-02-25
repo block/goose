@@ -195,11 +195,11 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
             <div className="flex-col max-w-[85%] w-fit">
               <div className="flex flex-col group">
                 {textContent.trim() && (
-                  <div className="flex bg-background-accent text-text-on-accent rounded-xl py-2.5 px-4">
+                  <div className="flex bg-[var(--message-user-bg)] text-[var(--message-user-fg)] rounded-xl py-2.5 px-4 border border-border-default">
                     <div ref={contentRef}>
                       <MarkdownContent
                         content={textContent}
-                        className="text-text-on-accent prose-a:text-text-on-accent prose-headings:text-text-on-accent prose-strong:text-text-on-accent prose-em:text-text-on-accent user-message"
+                        className="text-[var(--message-user-fg)] prose-a:text-[var(--message-user-fg)] prose-headings:text-[var(--message-user-fg)] prose-strong:text-[var(--message-user-fg)] prose-em:text-[var(--message-user-fg)] user-message"
                       />
                     </div>
                   </div>

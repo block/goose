@@ -140,7 +140,11 @@ const MarkdownCode = memo(
     if (!inline && match) {
       const lang = match[1];
       if (lang === 'json-render' || lang === 'jsonrender') {
-        return <JsonRenderBlock spec={String(children).replace(/\n$/, '')} />;
+        return (
+          <div className="not-prose">
+            <JsonRenderBlock spec={String(children).replace(/\n$/, '')} />
+          </div>
+        );
       }
       return <CodeBlock language={lang}>{String(children).replace(/\n$/, '')}</CodeBlock>;
     }
@@ -148,7 +152,7 @@ const MarkdownCode = memo(
       <code
         ref={ref}
         {...props}
-        className="break-words bg-inline-code whitespace-pre-wrap font-mono"
+        className="break-words bg-[var(--inline-code-bg)] text-[var(--inline-code-fg)] whitespace-pre-wrap font-mono px-1 py-0.5 rounded"
       >
         {children}
       </code>
@@ -192,6 +196,7 @@ const MarkdownContent = memo(function MarkdownContent({
       className={`w-full overflow-x-hidden prose prose-sm text-text-default dark:prose-invert max-w-full word-break font-sans
       prose-pre:p-0 prose-pre:m-0 !p-0
       prose-code:break-words prose-code:whitespace-pre-wrap prose-code:font-mono
+      prose-pre:bg-transparent prose-pre:overflow-visible
       prose-a:break-words prose-a:overflow-wrap-anywhere
       prose-table:table prose-table:w-full
       prose-blockquote:text-inherit
@@ -220,6 +225,20 @@ const MarkdownContent = memo(function MarkdownContent({
           ],
         ]}
         components={{
+          pre: ({ children }) => {
+            const only = Array.isArray(children) ? children[0] : children;
+            if (
+              React.isValidElement(only) &&
+              typeof only.type === 'string' &&
+              only.type === 'code' &&
+              typeof only.props?.className === 'string' &&
+              /language-json-?render\b/.test(only.props.className)
+            ) {
+              return <div className="not-prose">{children}</div>;
+            }
+
+            return <pre>{children}</pre>;
+          },
           a: (props) => {
             const href = props.href;
             return (

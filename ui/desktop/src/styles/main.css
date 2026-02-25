@@ -73,6 +73,16 @@
   --background-danger: var(--color-red-200);
   --background-info: var(--color-blue-200);
 
+  /* Message surfaces (DS-first; do not reuse accent as a reading surface) */
+  --message-user-bg: var(--background-medium);
+  --message-user-fg: var(--text-default);
+  --message-user-inline-code-bg: var(--background-muted);
+  --message-user-inline-code-fg: var(--text-default);
+
+  /* Inline code (global) */
+  --inline-code-bg: var(--background-muted);
+  --inline-code-fg: var(--text-default);
+
   /* shadcn-style semantic tokens (compat for libs expecting --card/--muted/etc) */
   --background: var(--background-default);
   --foreground: var(--text-default);
@@ -152,6 +162,16 @@
   --background-inverse: var(--color-neutral-200);
   --background-danger: var(--color-red-100);
   --background-info: var(--color-blue-100);
+
+  /* Message surfaces (DS-first; do not reuse accent as a reading surface) */
+  --message-user-bg: var(--background-medium);
+  --message-user-fg: var(--text-default);
+  --message-user-inline-code-bg: var(--background-muted);
+  --message-user-inline-code-fg: var(--text-default);
+
+  /* Inline code (global) */
+  --inline-code-bg: var(--background-muted);
+  --inline-code-fg: var(--text-default);
 
   /* shadcn-style semantic tokens (compat for libs expecting --card/--muted/etc) */
   --background: var(--background-default);
@@ -617,13 +637,15 @@ body {
 }
 
 .bg-inline-code {
-  border-radius: 4px;
-  color: var(--color-neutral-200);
-  font-family: monospace;
+  border-radius: 6px;
+  background-color: var(--inline-code-bg);
+  color: var(--inline-code-fg);
+  font-family: var(--font-mono);
   font-size: 12px;
   font-style: normal;
-  font-weight: 400;
+  font-weight: 500;
   line-height: normal;
+  padding: 2px 4px;
 }
 
 .bg-inline-code:before {
@@ -636,8 +658,7 @@ pre:has(> code.bg-inline-code) {
 
 li > code.bg-inline-code,
 p > code.bg-inline-code {
-  color: var(--color-block-orange);
-  padding: 2px 4px;
+  color: var(--inline-code-fg);
 }
 
 .bg-inline-code:after {
