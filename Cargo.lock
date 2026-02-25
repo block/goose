@@ -4143,6 +4143,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "getopts"
+version = "0.2.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe4fbac503b8d1f88e6676011885f34b7174f46e59956bba534ba83abded4df"
+dependencies = [
+ "unicode-width 0.2.2",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4230,7 +4239,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4284,6 +4293,7 @@ dependencies = [
  "paste",
  "pctx_code_mode",
  "posthog-rs",
+ "pulldown-cmark",
  "rand 0.8.5",
  "regex",
  "reqwest 0.13.2",
@@ -4328,7 +4338,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "agent-client-protocol-schema",
  "anyhow",
@@ -4374,7 +4384,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -4427,7 +4437,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4477,7 +4487,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -4504,6 +4514,7 @@ dependencies = [
  "serde_path_to_error",
  "serde_yaml",
  "socket2 0.6.2",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
@@ -4523,7 +4534,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4531,7 +4542,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "axum 0.7.9",
  "rmcp 0.16.0",
@@ -7492,6 +7503,25 @@ dependencies = [
  "idna",
  "psl-types",
 ]
+
+[[package]]
+name = "pulldown-cmark"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e8bbe1a966bd2f362681a44f6edce3c2310ac21e4d5067a6e7ec396297a6ea0"
+dependencies = [
+ "bitflags 2.10.0",
+ "getopts",
+ "memchr",
+ "pulldown-cmark-escape",
+ "unicase",
+]
+
+[[package]]
+name = "pulldown-cmark-escape"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "pulp"

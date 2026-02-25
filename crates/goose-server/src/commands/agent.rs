@@ -26,6 +26,12 @@ async fn shutdown_signal() {
 }
 
 pub async fn run() -> Result<()> {
+    // Install the rustls crypto provider early, before any spawned tasks (tunnel,
+    // gateways, etc.) try to open TLS connections. Both `ring` and `aws-lc-rs`
+    // features are enabled on rustls (via different transitive deps), so rustls
+    // cannot auto-detect a provider — we must pick one explicitly.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     crate::logging::setup_logging(Some("goosed"))?;
 
     let settings = configuration::Settings::new()?;
@@ -53,6 +59,11 @@ pub async fn run() -> Result<()> {
     let tunnel_manager = app_state.tunnel_manager.clone();
     tokio::spawn(async move {
         tunnel_manager.check_auto_start().await;
+    });
+
+    let gateway_manager = app_state.gateway_manager.clone();
+    tokio::spawn(async move {
+        gateway_manager.check_auto_start().await;
     });
 
     axum::serve(listener, app)
