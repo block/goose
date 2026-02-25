@@ -10,6 +10,10 @@
 # Include documentation (only docs subfolder needed)
 !documentation/docs/
 
+# Include codebase source for code browsing
+!ui/
+!crates/
+
 # Exclude unnecessary files from included directories
 services/ask-ai-bot/node_modules
 services/ask-ai-bot/dist
@@ -19,3 +23,6 @@ services/ask-ai-bot/.discraft
 
 # Exclude large assets from docs that aren't needed for search
 documentation/docs/assets
+
+# Exclude build artifacts from crates
+crates/**/target
