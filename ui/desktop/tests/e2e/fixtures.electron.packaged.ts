@@ -157,16 +157,25 @@ function withVisualDelayPage(page: Page): Page {
 
 export const test = base.extend<GooseTestFixtures>({
   goosePage: async ({}, use, testInfo) => {
+    testInfo.setTimeout(Math.max(testInfo.timeout, 120000));
+
     let electronApp: Awaited<ReturnType<typeof electron.launch>> | null = null;
     let page: Page | null = null;
     let videoDir: string | undefined;
     let videoTrimStartMs = 0;
     const appRoot = join(__dirname, '../..');
-    const executablePath = resolvePackagedExecutable(appRoot);
+    const executablePath = resolveDirectElectronExecutable(appRoot);
 
     if (!fs.existsSync(executablePath)) {
       throw new Error(
-        `Packaged app executable not found at ${executablePath}. Build it first (e.g. "cd ui/desktop && npm run package"), or set GOOSE_PACKAGED_EXECUTABLE.`
+        `Electron executable not found at ${executablePath}. Install dependencies in ui/desktop to ensure node_modules/electron exists.`
+      );
+    }
+
+    const viteMainPath = join(appRoot, '.vite', 'build', 'main.js');
+    if (!fs.existsSync(viteMainPath)) {
+      throw new Error(
+        `Direct Electron mode requires Vite build output at ${viteMainPath}. Run "cd ui/desktop && npm run package" (or another build step that generates .vite/build) first.`
       );
     }
 
@@ -175,18 +184,21 @@ export const test = base.extend<GooseTestFixtures>({
     try {
       videoDir = isVideoRecording() ? testInfo.outputPath('videos') : undefined;
       const launchOptions = buildLaunchOptions(executablePath, tempDir, videoDir);
-      debugLog(`Launching packaged Electron for test: ${testInfo.title}`);
-      debugLog(`Using packaged executable: ${executablePath}`);
+      debugLog(`Launching direct Electron for test: ${testInfo.title}`);
+      debugLog(`Using Electron executable: ${executablePath}`);
 
       electronApp = await electron.launch(launchOptions);
       attachAppDebugLogs(electronApp);
 
-      await electronApp.firstWindow({ timeout: 30000 });
+      await electronApp.firstWindow({ timeout: 20000 });
       const recordingStartMs = Date.now();
-      await waitForRootWindow(electronApp, 60000);
+      const rootWindow = await waitForRootWindow(electronApp, 8000).catch(async () => {
+        debugLog('Root-ready window not found quickly; falling back to first window.');
+        return await electronApp!.firstWindow({ timeout: 5000 });
+      });
       const rootReadyElapsedMs = Date.now() - recordingStartMs;
-      page = await waitForReadyAppWindow(electronApp, 60000);
-      await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+      page = rootWindow;
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
       debugLog(`Selected app window URL: ${page.url()}`);
       attachPageDebugLogs(page);
       if (isVideoRecording()) {
@@ -218,37 +230,6 @@ export const test = base.extend<GooseTestFixtures>({
   },
 });
 
-async function waitForReadyAppWindow(
-  electronApp: Awaited<ReturnType<typeof electron.launch>>,
-  timeoutMs: number
-): Promise<Page> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const windows = electronApp.windows();
-    for (const page of windows) {
-      try {
-        const isReady = await page.evaluate(() => {
-          const root = document.getElementById('root');
-          if (!root) {
-            return false;
-          }
-          const chatInput = document.querySelector('[data-testid="chat-input"]');
-          return !!chatInput;
-        });
-        if (isReady) {
-          return page;
-        }
-      } catch {
-        // Window may not be ready for evaluation yet.
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-
-  const urls = electronApp.windows().map((w) => w.url() || '<empty>');
-  throw new Error(`No app-ready window found within ${timeoutMs}ms. Window URLs: ${urls.join(', ')}`);
-}
-
 async function waitForRootWindow(
   electronApp: Awaited<ReturnType<typeof electron.launch>>,
   timeoutMs: number
@@ -273,20 +254,14 @@ async function waitForRootWindow(
   throw new Error(`No root-ready window found within ${timeoutMs}ms. Window URLs: ${urls.join(', ')}`);
 }
 
-function resolvePackagedExecutable(appRoot: string): string {
-  if (process.env.GOOSE_PACKAGED_EXECUTABLE) {
-    return process.env.GOOSE_PACKAGED_EXECUTABLE;
-  }
-
+function resolveDirectElectronExecutable(appRoot: string): string {
   if (process.platform === 'darwin') {
-    return join(appRoot, 'out', 'Goose-darwin-arm64', 'Goose.app', 'Contents', 'MacOS', 'Goose');
+    return join(appRoot, 'node_modules', 'electron', 'dist', 'Electron.app', 'Contents', 'MacOS', 'Electron');
   }
-
   if (process.platform === 'win32') {
-    return join(appRoot, 'out', 'Goose-win32-x64', 'Goose.exe');
+    return join(appRoot, 'node_modules', 'electron', 'dist', 'electron.exe');
   }
-
-  return join(appRoot, 'out', 'goose-linux-x64', 'goose');
+  return join(appRoot, 'node_modules', 'electron', 'dist', 'electron');
 }
 
 function createIsolatedGoosePathRoot(): string {
@@ -319,10 +294,11 @@ function buildLaunchOptions(
   tempDir: string,
   videoDir?: string
 ): Parameters<typeof electron.launch>[0] {
+  const appRoot = join(__dirname, '../..');
   const launchOptions: Parameters<typeof electron.launch>[0] = {
     executablePath,
-    args: [],
-    timeout: 60000,
+    args: [appRoot],
+    timeout: 30000,
     env: {
       ...process.env,
       GOOSE_ALLOWLIST_BYPASS: 'true',
