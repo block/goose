@@ -78,14 +78,21 @@ test.describe('Goose App', () => {
         .first()
     ).toBeVisible();
 
-    await resumedChatInput.fill('Tell 100 words joke');
+    const workingDirButton = mainWindow.locator('[data-testid="bottom-menu-dir-switcher"]:visible').first();
+    await expect(workingDirButton).toBeVisible();
+    const oldWorkingDir = (await workingDirButton.textContent())?.trim() ?? '';
+    await workingDirButton.click();
+    if (oldWorkingDir) {
+      await expect(workingDirButton).not.toContainText(oldWorkingDir);
+    }
+    const updatedWorkingDir = (await workingDirButton.textContent())?.trim() ?? '';
+    expect(updatedWorkingDir.length).toBeGreaterThan(0);
+
+    await resumedChatInput.fill('what is your working directory? reply with exact path only');
     await resumedChatInput.press('Enter');
     await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
-    await expect(
-      mainWindow
-        .locator('[data-testid="message-container"]:visible')
-        .filter({ hasText: 'Tell 100 words joke' })
-        .first()
-    ).toBeVisible();
+    await expect(mainWindow.locator('[data-testid="message-container"]:visible').last()).toContainText(
+      updatedWorkingDir
+    );
   });
 });

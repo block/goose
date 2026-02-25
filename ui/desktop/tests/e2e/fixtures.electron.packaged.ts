@@ -188,6 +188,13 @@ export const test = base.extend<GooseTestFixtures>({
       debugLog(`Using Electron executable: ${executablePath}`);
 
       electronApp = await electron.launch(launchOptions);
+      await electronApp.evaluate(({ ipcMain }, chooserDir) => {
+        ipcMain.removeHandler('directory-chooser');
+        ipcMain.handle('directory-chooser', async () => ({
+          canceled: false,
+          filePaths: [chooserDir],
+        }));
+      }, tempDir);
       attachAppDebugLogs(electronApp);
 
       await electronApp.firstWindow({ timeout: 20000 });
@@ -304,6 +311,7 @@ function buildLaunchOptions(
       GOOSE_ALLOWLIST_BYPASS: 'true',
       GOOSE_DISABLE_KEYRING: '1',
       GOOSE_PATH_ROOT: tempDir,
+      GOOSE_WORKING_DIR: tempDir,
       RUST_LOG: 'info',
     },
   };
