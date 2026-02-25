@@ -237,7 +237,7 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
   return (
     <div className="my-4 json-render-block w-full min-w-0">
       {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <CatalogRenderer spec={parsedSpec as any} />
+      <CatalogRenderer spec={parsedSpec as any} state={(parsedSpec.state ?? {}) as any} />
     </div>
   );
 });
