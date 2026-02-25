@@ -292,6 +292,12 @@ export default function McpAppRenderer({
   });
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
+  // When inline, use the larger of iframeHeight (from size-changed) and inlineHeight
+  // (saved before detaching). This avoids a one-frame flash of the wrong height when
+  // returning from fullscreen/pip — iframeHeight may be stale since size-changed
+  // notifications are ignored while detached (see handleSizeChanged).
+  const effectiveInlineHeight = Math.max(iframeHeight, inlineHeight) || DEFAULT_IFRAME_HEIGHT;
+
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
   const [apiHost, setApiHost] = useState<string | null>(null);
@@ -539,11 +545,14 @@ export default function McpAppRenderer({
     []
   );
 
-  const handleSizeChanged = useCallback(({ height }: McpUiSizeChangedNotification['params']) => {
-    if (height !== undefined && height > 0) {
-      setIframeHeight(height);
-    }
-  }, []);
+  const handleSizeChanged = useCallback(
+    ({ height }: McpUiSizeChangedNotification['params']) => {
+      if (height !== undefined && height > 0 && isInline) {
+        setIframeHeight(height);
+      }
+    },
+    [isInline]
+  );
 
   // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
   useEffect(() => {
@@ -841,7 +850,7 @@ export default function McpAppRenderer({
           }
         : {
             width: '100%',
-            height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
+            height: `${effectiveInlineHeight}px`,
           }),
   };
 
