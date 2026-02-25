@@ -3051,7 +3051,7 @@
   },
   {
     "id": "anthropic/claude-3.7-sonnet",
-    "name": "Claude Sonnet 3.7",
+    "name": "Claude Sonnet 3.7 (latest)",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": true,
@@ -3084,7 +3084,7 @@
   },
   {
     "id": "anthropic/claude-haiku-4.5",
-    "name": "Claude Haiku 4.5 (latest)",
+    "name": "Claude Haiku 4.5",
     "family": "claude-haiku",
     "attachment": true,
     "reasoning": true,
@@ -3216,15 +3216,15 @@
   },
   {
     "id": "anthropic/claude-opus-4.5",
-    "name": "Claude Opus 4.5 (latest)",
+    "name": "Claude Opus 4.5",
     "family": "claude-opus",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2025-03-31",
-    "release_date": "2025-11-24",
-    "last_updated": "2025-11-24",
+    "release_date": "2025-11-01",
+    "last_updated": "2025-11-01",
     "modalities": {
       "input": [
         "text",
@@ -3348,7 +3348,7 @@
   },
   {
     "id": "anthropic/claude-sonnet-4.5",
-    "name": "Claude Sonnet 4.5 (latest)",
+    "name": "Claude Sonnet 4.5",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": true,
@@ -6880,6 +6880,74 @@
     }
   },
   {
+    "id": "google-vertex/gemini-3.1-pro-preview",
+    "name": "Gemini 3.1 Pro Preview",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 12.0,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
+    "id": "google-vertex/gemini-3.1-pro-preview-customtools",
+    "name": "Gemini 3.1 Pro Preview Custom Tools",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 12.0,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
     "id": "google-vertex/gemini-embedding-001",
     "name": "Gemini Embedding 001",
     "family": "gemini",
@@ -7873,6 +7941,74 @@
     "limit": {
       "context": 1000000,
       "output": 64000
+    }
+  },
+  {
+    "id": "google/gemini-3.1-pro-preview",
+    "name": "Gemini 3.1 Pro Preview",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 12.0,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
+    "id": "google/gemini-3.1-pro-preview-customtools",
+    "name": "Gemini 3.1 Pro Preview Custom Tools",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video",
+        "audio",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 12.0,
+      "cache_read": 0.2
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
     }
   },
   {
@@ -9011,15 +9147,15 @@
   },
   {
     "id": "openai/gpt-4o",
-    "name": "GPT-4o",
+    "name": "GPT-4o (2024-11-20)",
     "family": "gpt",
     "attachment": true,
     "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2023-09",
-    "release_date": "2024-05-13",
-    "last_updated": "2024-08-06",
+    "release_date": "2024-11-20",
+    "last_updated": "2024-11-20",
     "modalities": {
       "input": [
         "text",
@@ -10319,6 +10455,37 @@
     }
   },
   {
+    "id": "openrouter/anthropic/claude-sonnet-4.6",
+    "name": "Claude Sonnet 4.6",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-17",
+    "last_updated": "2026-02-17",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "openrouter/arcee-ai/trinity-large-preview:free",
     "name": "Trinity Large Preview",
     "family": "trinity",
@@ -10393,8 +10560,7 @@
         "text"
       ],
       "output": [
-        "image",
-        "text"
+        "image"
       ]
     },
     "open_weights": false,
@@ -10424,8 +10590,7 @@
         "text"
       ],
       "output": [
-        "image",
-        "text"
+        "image"
       ]
     },
     "open_weights": true,
@@ -10455,8 +10620,7 @@
         "text"
       ],
       "output": [
-        "image",
-        "text"
+        "image"
       ]
     },
     "open_weights": false,
@@ -10486,8 +10650,7 @@
         "text"
       ],
       "output": [
-        "image",
-        "text"
+        "image"
       ]
     },
     "open_weights": false,
@@ -10517,8 +10680,7 @@
         "text"
       ],
       "output": [
-        "image",
-        "text"
+        "image"
       ]
     },
     "open_weights": true,
@@ -11362,6 +11524,39 @@
     "limit": {
       "context": 1050000,
       "output": 66000
+    }
+  },
+  {
+    "id": "openrouter/google/gemini-3.1-pro-preview",
+    "name": "Gemini 3.1 Pro Preview",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 12.0
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
     }
   },
   {
@@ -15491,8 +15686,8 @@
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
-    "release_date": "2026-01-15",
-    "last_updated": "2026-02-18",
+    "release_date": "2026-02-17",
+    "last_updated": "2026-02-19",
     "modalities": {
       "input": [
         "text",
@@ -15641,6 +15836,39 @@
     "limit": {
       "context": 198000,
       "output": 49500
+    }
+  },
+  {
+    "id": "venice/gemini-3.1-pro-preview",
+    "name": "Gemini 3.1 Pro Preview",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.5,
+      "output": 15.0,
+      "cache_read": 0.5,
+      "cache_write": 0.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 65000
     }
   },
   {
@@ -15919,7 +16147,7 @@
     "tool_call": true,
     "temperature": true,
     "release_date": "2026-02-12",
-    "last_updated": "2026-02-13",
+    "last_updated": "2026-02-19",
     "modalities": {
       "input": [
         "text"
@@ -15928,7 +16156,7 @@
         "text"
       ]
     },
-    "open_weights": false,
+    "open_weights": true,
     "cost": {
       "input": 0.4,
       "output": 1.6,
@@ -16379,14 +16607,14 @@
   },
   {
     "id": "x-ai/grok-2",
-    "name": "Grok 2 Latest",
+    "name": "Grok 2 (1212)",
     "family": "grok",
     "attachment": false,
     "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2024-08",
-    "release_date": "2024-08-20",
+    "release_date": "2024-12-12",
     "last_updated": "2024-12-12",
     "modalities": {
       "input": [
@@ -16470,7 +16698,7 @@
   },
   {
     "id": "x-ai/grok-3-fast",
-    "name": "Grok 3 Fast",
+    "name": "Grok 3 Fast Latest",
     "family": "grok",
     "attachment": false,
     "reasoning": false,
@@ -16500,7 +16728,7 @@
   },
   {
     "id": "x-ai/grok-3-mini",
-    "name": "Grok 3 Mini",
+    "name": "Grok 3 Mini Latest",
     "family": "grok",
     "attachment": false,
     "reasoning": true,
@@ -16530,7 +16758,7 @@
   },
   {
     "id": "x-ai/grok-3-mini-fast",
-    "name": "Grok 3 Mini Fast Latest",
+    "name": "Grok 3 Mini Fast",
     "family": "grok",
     "attachment": false,
     "reasoning": true,
