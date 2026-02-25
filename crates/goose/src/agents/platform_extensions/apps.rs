@@ -277,8 +277,9 @@ impl AppsManagerClient {
         let existing_apps = self.list_stored_apps().unwrap_or_default();
         let existing_names = existing_apps.join(", ");
 
-        let context: HashMap<&str, &str> = HashMap::new();
-        let system_prompt = render_template("apps_create.md", &context)
+        let mut context: HashMap<&str, bool> = HashMap::new();
+        context.insert("is_new", true);
+        let system_prompt = render_template("apps.md", &context)
             .map_err(|e| format!("Failed to render template: {}", e))?;
 
         let user_prompt = format!(
@@ -310,8 +311,9 @@ impl AppsManagerClient {
     ) -> Result<UpdateAppContentResponse, String> {
         let provider = self.get_provider().await?;
 
-        let context: HashMap<&str, &str> = HashMap::new();
-        let system_prompt = render_template("apps_iterate.md", &context)
+        let mut context: HashMap<&str, bool> = HashMap::new();
+        context.insert("is_new", false);
+        let system_prompt = render_template("apps.md", &context)
             .map_err(|e| format!("Failed to render template: {}", e))?;
 
         let user_prompt = format!(
@@ -631,6 +633,8 @@ impl McpClientTrait for AppsManagerClient {
             .text
             .unwrap_or_else(|| String::from("No content"));
 
+        let html = inject_sdk_script(&html);
+
         Ok(ReadResourceResult {
             contents: vec![ResourceContents::text(html, uri)],
         })
@@ -679,4 +683,28 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
     }
 
     Err(format!("LLM did not call the required tool: {}", tool_name))
+}
+
+/// Inject the MCP Apps SDK script tag into Goose app HTML.
+///
+/// This makes `@modelcontextprotocol/ext-apps` available to Goose apps via:
+///   `import { App, PostMessageTransport } from '/mcp-app-sdk.js';`
+///
+/// The SDK is served by goosed at `/mcp-app-sdk.js` and is loadable because
+/// the sandbox iframe has `allow-same-origin` and the CSP allows `script-src 'self'`.
+fn inject_sdk_script(html: &str) -> String {
+    const SDK_TAG: &str = r#"<script type="module" src="/mcp-app-sdk.js"></script>"#;
+
+    // We search for ASCII-only patterns so all positions are valid split points.
+    if let Some(pos) = html.find("<head>") {
+        let mut result = String::with_capacity(html.len() + SDK_TAG.len());
+        let (before, after) = html.split_at(pos + "<head>".len());
+        result.push_str(before);
+        result.push_str(SDK_TAG);
+        result.push_str(after);
+        result
+    } else {
+        // No <head> tag — prepend SDK in a new <head> block
+        format!("<head>{SDK_TAG}</head>{html}")
+    }
 }

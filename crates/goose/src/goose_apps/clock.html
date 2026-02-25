@@ -27,7 +27,7 @@
     - Second hand sweeps smoothly in small increments (10 updates/second)
     - Distinctive "pause and jump" behavior: second hand pauses at 12 o'clock for ~1.5 seconds before jumping to the next minute
     - Hour and minute hands update continuously based on current time
-    - Clean white face with simple black hour markers
+    - Clean face with simple hour markers
 
     ### Swiss Clock Behavior
     - Second hand: smooth sweep with characteristic pause at top
@@ -36,12 +36,13 @@
     - Mimics the synchronization behavior of Swiss railway station clocks
 
     ### Visual Design
-    - Circular white clock face
-    - Black outline circle
-    - Simple black tick marks at hour positions
+    - Circular clock face (white in light mode, dark gray in dark mode)
+    - Outline circle adapts to theme
+    - Simple tick marks at hour positions
     - Red lollipop-style second hand (round tip)
-    - Black tapered hour and minute hands
+    - Tapered hour and minute hands (black in light, white in dark)
     - Centered on widget canvas
+    - Responds to host theme changes via MCP Apps SDK
 
     ## Default Dimensions
     - Width: 300px
@@ -50,8 +51,9 @@
 
     ## Technical Requirements
     - Uses HTML5 canvas for rendering
-    - Updates 10 times per second for smooth animation
+    - Updates via requestAnimationFrame for smooth animation
     - Properly implements Swiss railway clock timing behavior
+    - Uses MCP Apps SDK to detect and respond to host theme (light/dark)
     - Cleans up animation loop when widget closes
   </script>
   <style>
@@ -61,6 +63,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
+      background: transparent;
     }
 
     body {
@@ -95,6 +98,32 @@
       this.animationFrame = null;
       this.lastSecond = -1;
       this.pauseUntil = 0;
+      this.theme = 'light';
+    }
+
+    get colors() {
+      if (this.theme === 'dark') {
+        return {
+          face: '#1e1e2e',
+          border: '#585868',
+          tick: '#cdd6f4',
+          hand: '#cdd6f4',
+          text: '#cdd6f4',
+          accent: '#d32f2f',
+        };
+      }
+      return {
+        face: '#ffffff',
+        border: '#000000',
+        tick: '#000000',
+        hand: '#000000',
+        text: '#000000',
+        accent: '#d32f2f',
+      };
+    }
+
+    setTheme(theme) {
+      this.theme = theme;
     }
 
     onMount() {
@@ -117,6 +146,7 @@
     drawClock() {
       const now = Date.now();
       const date = new Date(now);
+      const c = this.colors;
 
       const canvas = this.canvas;
       const ctx = this.ctx;
@@ -128,9 +158,9 @@
 
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius - 5, 0, 2 * Math.PI);
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = c.face;
       ctx.fill();
-      ctx.strokeStyle = 'black';
+      ctx.strokeStyle = c.border;
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -147,7 +177,7 @@
           ctx.beginPath();
           ctx.moveTo(x1, y1);
           ctx.lineTo(x2, y2);
-          ctx.strokeStyle = 'black';
+          ctx.strokeStyle = c.tick;
           ctx.lineWidth = 8;
           ctx.lineCap = 'butt';
           ctx.stroke();
@@ -160,7 +190,7 @@
           ctx.beginPath();
           ctx.moveTo(x1, y1);
           ctx.lineTo(x2, y2);
-          ctx.strokeStyle = 'black';
+          ctx.strokeStyle = c.tick;
           ctx.lineWidth = 2;
           ctx.lineCap = 'butt';
           ctx.stroke();
@@ -168,7 +198,7 @@
       }
 
       ctx.font = '16px sans-serif';
-      ctx.fillStyle = 'black';
+      ctx.fillStyle = c.text;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('GOOSE CLOCK', centerX, centerY - 65);
@@ -185,10 +215,10 @@
       const minutes = date.getMinutes();
 
       const hourAngle = ((hours + minutes / 60) * 30) * Math.PI / 180;
-      this.drawHand(ctx, centerX, centerY, hourAngle, radius * 0.65, 11, 'black');
+      this.drawHand(ctx, centerX, centerY, hourAngle, radius * 0.65, 11, c.hand);
 
       const minuteAngle = ((minutes + seconds / 60) * 6) * Math.PI / 180;
-      this.drawHand(ctx, centerX, centerY, minuteAngle, radius * 0.90, 8, 'black');
+      this.drawHand(ctx, centerX, centerY, minuteAngle, radius * 0.90, 8, c.hand);
 
       let secondAngle;
       if (now < this.pauseUntil) {
@@ -200,7 +230,7 @@
 
       ctx.beginPath();
       ctx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
-      ctx.fillStyle = '#d32f2f';
+      ctx.fillStyle = c.accent;
       ctx.fill();
     }
 
@@ -218,6 +248,7 @@
     }
 
     drawSecondHand(ctx, x, y, angle, length) {
+      const c = this.colors;
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(angle);
@@ -225,14 +256,14 @@
       ctx.beginPath();
       ctx.moveTo(0, length * 0.2);
       ctx.lineTo(0, -length);
-      ctx.strokeStyle = '#d32f2f';
+      ctx.strokeStyle = c.accent;
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'butt';
       ctx.stroke();
 
       ctx.beginPath();
       ctx.arc(0, -length, 10, 0, 2 * Math.PI);
-      ctx.fillStyle = '#d32f2f';
+      ctx.fillStyle = c.accent;
       ctx.fill();
 
       ctx.restore();
@@ -245,6 +276,28 @@
   window.addEventListener('beforeunload', () => {
     widget.onClose();
   });
+</script>
+
+<script type="module">
+  import { App, PostMessageTransport } from '/mcp-app-sdk.js';
+
+  try {
+    const app = new App({ name: 'clock', version: '1.0.0' }, {});
+    await app.connect(new PostMessageTransport(window.parent, window.parent));
+
+    const context = app.getHostContext();
+    if (context?.theme) {
+      widget.setTheme(context.theme);
+    }
+
+    app.onhostcontextchanged = (params) => {
+      if (params.theme) {
+        widget.setTheme(params.theme);
+      }
+    };
+  } catch (e) {
+    console.warn('MCP Apps SDK not available, using default theme:', e.message);
+  }
 </script>
 </body>
 </html>

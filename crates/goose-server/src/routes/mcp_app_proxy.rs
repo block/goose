@@ -21,6 +21,7 @@ struct ProxyQuery {
 }
 
 const MCP_APP_PROXY_HTML: &str = include_str!("templates/mcp_app_proxy.html");
+const MCP_APP_SDK_JS: &str = include_str!("templates/mcp_app_sdk.js");
 
 /// Build the outer sandbox CSP based on declared domains.
 ///
@@ -141,8 +142,27 @@ async fn mcp_app_proxy(
         .into_response()
 }
 
+/// Serve the MCP Apps SDK (`@modelcontextprotocol/ext-apps`) as a JavaScript module.
+///
+/// Guest apps inside the sandbox can load this via:
+///   `<script type="module">import { App } from '/mcp-app-sdk.js';</script>`
+///
+/// This works because the sandbox iframe has `allow-same-origin` and the CSP
+/// includes `script-src 'self'`, allowing script loads from the goosed origin.
+async fn mcp_app_sdk() -> Response {
+    (
+        [(
+            header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
+        MCP_APP_SDK_JS,
+    )
+        .into_response()
+}
+
 pub fn routes(secret_key: String) -> Router {
     Router::new()
         .route("/mcp-app-proxy", get(mcp_app_proxy))
+        .route("/mcp-app-sdk.js", get(mcp_app_sdk))
         .with_state(secret_key)
 }
