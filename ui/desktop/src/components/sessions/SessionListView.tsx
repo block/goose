@@ -610,6 +610,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       return (
         <Card
+          data-testid="session-history-card"
           onClick={handleCardClick}
           className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
           ref={(el) => setSessionRefs(session.id, el)}

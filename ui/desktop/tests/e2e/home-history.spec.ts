@@ -1,46 +1,91 @@
-import { test, expect } from './fixtures.electron.packaged';
+import { test, expect, waitForLoadingDone } from './fixtures.electron.packaged';
 
-const DEFAULT_TIMEOUT = 10000;
+const LLM_TIMEOUT = 30000;
 
 test.describe('Goose App', () => {
   test('history is empty before first session', async ({ goosePage }) => {
     const mainWindow = goosePage;
 
-    const showAll = mainWindow.getByText('Show All', { exact: true }).first();
-    if (!(await showAll.isVisible().catch(() => false))) {
-      const chatButton = mainWindow.getByRole('button', { name: /^chat$/i }).first();
-      await expect(chatButton).toBeVisible({ timeout: DEFAULT_TIMEOUT });
-      await chatButton.click();
-    }
-
-    await expect(mainWindow.getByTestId('chat-sessions-list')).toBeVisible({
-      timeout: DEFAULT_TIMEOUT,
-    });
-    await expect(mainWindow.getByTestId('chat-start-new')).toBeVisible({ timeout: DEFAULT_TIMEOUT });
+    await mainWindow.getByTestId('sidebar-chat-button').click();
+    await expect(mainWindow.getByRole('button', { name: 'New Chat' }).first()).toBeVisible();
     await expect(mainWindow.getByTestId('chat-show-all')).toHaveCount(0);
 
-    const chatInput = mainWindow.getByTestId('chat-input');
-    if (!(await chatInput.isVisible().catch(() => false))) {
-      const sidebarHomeButton = mainWindow.getByTestId('sidebar-home-button');
-      if (await sidebarHomeButton.isVisible().catch(() => false)) {
-        await sidebarHomeButton.click();
-      } else {
-        const homeButton = mainWindow.getByRole('button', { name: /^home$/i }).first();
-        await expect(homeButton).toBeVisible({ timeout: DEFAULT_TIMEOUT });
-        await homeButton.click();
-      }
+    await mainWindow.getByTestId('sidebar-home-button').click();
+    const chatInput = mainWindow.locator('[data-testid="chat-input"]:visible').first();
+    await expect(chatInput).toBeVisible();
+
+    const costTrigger = mainWindow.getByTestId('bottom-menu-cost-trigger').first();
+    const costTooltip = mainWindow.getByTestId('bottom-menu-cost-tooltip').first();
+    await expect(costTrigger).toContainText('0.0000');
+    await costTrigger.hover();
+    await expect(costTooltip).toContainText(
+      'Input: 0 tokens ($0.000000) | Output: 0 tokens ($0.000000)'
+    );
+
+    await chatInput.fill('Hello First');
+    await chatInput.press('Enter');
+
+    await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
+    await expect(mainWindow.locator('[data-testid="message-container"]:visible').last()).toBeVisible();
+
+    await chatInput.fill('Hello First');
+    await chatInput.press('Enter');
+    await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
+    
+    await costTrigger.hover();
+    await expect(costTrigger).not.toContainText('0.0000');
+    await expect(costTooltip).not.toContainText(
+      'Input: 0 tokens ($0.000000) | Output: 0 tokens ($0.000000)'
+    );
+
+    const showAllAfterChat = mainWindow.getByTestId('chat-show-all').first();
+    if (!(await showAllAfterChat.isVisible().catch(() => false))) {
+      await mainWindow.getByTestId('sidebar-chat-button').click();
     }
-    await expect(chatInput).toBeVisible({ timeout: DEFAULT_TIMEOUT });
+    await expect(showAllAfterChat).toBeVisible();
+    await showAllAfterChat.click();
+    await expect(mainWindow.getByRole('heading', { name: 'Chat history' })).toBeVisible();
+    const historyCards = mainWindow.getByTestId('session-history-card');
+    const historyCountAfterFirstConversation = await historyCards.count();
+    expect(historyCountAfterFirstConversation).toBeGreaterThanOrEqual(1);
 
-    const alertTrigger = mainWindow.getByTestId('bottom-menu-alert-trigger');
-    await expect(alertTrigger).toBeVisible({ timeout: DEFAULT_TIMEOUT });
-    await alertTrigger.click();
+    await mainWindow.getByTestId('sidebar-home-button').click();
+    const hubChatInput = mainWindow.locator('[data-testid="chat-input"]:visible').first();
+    await expect(hubChatInput).toBeVisible();
+    await expect(mainWindow.locator('[data-testid="message-container"]:visible')).toHaveCount(0);
 
-    const contextWindowAlert = mainWindow
-      .getByTestId('alert-box')
-      .filter({ has: mainWindow.getByText('Context window', { exact: true }) })
-      .first();
-    await expect(contextWindowAlert).toBeVisible({ timeout: DEFAULT_TIMEOUT });
-    await expect(contextWindowAlert.getByTestId('alert-progress-current')).toHaveText(/^0$/);
+    await hubChatInput.fill('Hello from hub');
+    await hubChatInput.press('Enter');
+    await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
+    await expect(mainWindow.locator('[data-testid="message-container"]:visible')).toHaveCount(2);
+
+    const showAllAfterHubConversation = mainWindow.getByTestId('chat-show-all').first();
+    if (!(await showAllAfterHubConversation.isVisible().catch(() => false))) {
+      await mainWindow.getByTestId('sidebar-chat-button').click();
+    }
+    await expect(showAllAfterHubConversation).toBeVisible();
+    await showAllAfterHubConversation.click();
+    await expect(mainWindow.getByRole('heading', { name: 'Chat history' })).toBeVisible();
+
+    const originalSessionCard = mainWindow.getByTestId('session-history-card').nth(1);
+    await originalSessionCard.click();
+    const resumedChatInput = mainWindow.locator('[data-testid="chat-input"]:visible').first();
+    await expect(resumedChatInput).toBeVisible();
+    await expect(
+      mainWindow
+        .locator('[data-testid="message-container"]:visible')
+        .filter({ hasText: 'Hello First' })
+        .first()
+    ).toBeVisible();
+
+    await resumedChatInput.fill('Tell 100 words joke');
+    await resumedChatInput.press('Enter');
+    await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
+    await expect(
+      mainWindow
+        .locator('[data-testid="message-container"]:visible')
+        .filter({ hasText: 'Tell 100 words joke' })
+        .first()
+    ).toBeVisible();
   });
 });
