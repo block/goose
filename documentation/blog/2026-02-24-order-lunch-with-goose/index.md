@@ -7,7 +7,7 @@ authors:
 
 ![Ba'al Falafel salads menu in goose showing Couscous Salad, Red Cabbage Salad, and Beets Apple Salad with photos and prices](banner.png)
 
-If you're anything like me, deciding what to eat for lunch is harder than it should be. Now add dietary restrictions on top of that, I'm coeliac so have to eat gluten-free, and suddenly finding a restaurant becomes a whole research project. Searching menus, cross-referencing reviews, checking if that one sandwich actually has gluten in it... it's exhausting.
+If you're anything like me, deciding what to eat for lunch is harder than it should be. Now add dietary restrictions on top of that (I'm coeliac so have to eat gluten-free) and suddenly finding a restaurant becomes a whole research project. Searching menus, cross-referencing reviews, checking if that one sandwich actually has gluten in it... it's exhausting.
 
 What if your AI agent could just handle all of that for you?
 
@@ -34,7 +34,7 @@ Once installed, make sure the extension is enabled in your current chat session.
 Here's where it gets fun. Instead of opening a delivery app and scrolling through hundreds of options, you just tell goose what you need:
 
 ```bash
-Use the neighborhood extension for this. I'm looking to get lunch today.
+I'm looking to get lunch today. I'm at 375 West Broadway, New York. I'm gluten-free and I'm playing sport later, so looking for something light. Use the neighborhood extension to find options for me.
 I'm at 375 West Broadway, New York. I'm gluten-free and I'm playing sport
 later, so looking for something light.
 ```
