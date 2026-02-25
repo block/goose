@@ -133,6 +133,7 @@ async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string
 const PIP_WIDTH = 400;
 const PIP_HEIGHT = 300;
 const PIP_MARGIN_RIGHT = 16;
+// Keeps the PiP window above the chat input area (~120px) plus padding.
 const PIP_MARGIN_BOTTOM = 140;
 
 interface McpAppRendererProps {
