@@ -382,6 +382,10 @@ impl ClaudeCodeProvider {
 
         let control_protocol_enabled = Self::apply_permission_flags(&mut cmd)?;
 
+        if std::env::var("GOOSE_NO_SESSION").unwrap_or_default() == "true" {
+            cmd.arg("--no-session-persistence");
+        }
+
         let mut child = cmd.spawn().map_err(|e| {
             ProviderError::RequestFailed(format!(
                 "Failed to spawn Claude CLI command '{:?}': {}.",
