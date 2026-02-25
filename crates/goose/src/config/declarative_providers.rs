@@ -42,6 +42,8 @@ pub struct DeclarativeProviderConfig {
     pub supports_streaming: Option<bool>,
     #[serde(default = "default_requires_auth")]
     pub requires_auth: bool,
+    #[serde(default)]
+    pub catalog_provider_id: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -102,6 +104,7 @@ pub struct CreateCustomProviderParams {
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
+    pub catalog_provider_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -115,6 +118,7 @@ pub struct UpdateCustomProviderParams {
     pub supports_streaming: Option<bool>,
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
+    pub catalog_provider_id: Option<String>,
 }
 
 pub fn create_custom_provider(
@@ -154,6 +158,7 @@ pub fn create_custom_provider(
         timeout_seconds: None,
         supports_streaming: params.supports_streaming,
         requires_auth: params.requires_auth,
+        catalog_provider_id: params.catalog_provider_id,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -215,6 +220,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             timeout_seconds: existing_config.timeout_seconds,
             supports_streaming: params.supports_streaming,
             requires_auth: params.requires_auth,
+            catalog_provider_id: params.catalog_provider_id,
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));
@@ -260,7 +266,10 @@ pub fn load_provider(id: &str) -> Result<LoadedProvider> {
             .contents_utf8()
             .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
 
-        let config: DeclarativeProviderConfig = serde_json::from_str(content)?;
+        let config: DeclarativeProviderConfig = match serde_json::from_str(content) {
+            Ok(config) => config,
+            Err(_) => continue,
+        };
         if config.name == id {
             return Ok(LoadedProvider {
                 config,
@@ -300,8 +309,16 @@ fn load_fixed_providers() -> Result<Vec<DeclarativeProviderConfig>> {
             .contents_utf8()
             .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
 
-        let config: DeclarativeProviderConfig = serde_json::from_str(content)?;
-        res.push(config)
+        match serde_json::from_str(content) {
+            Ok(config) => res.push(config),
+            Err(e) => {
+                tracing::warn!(
+                    "Skipping invalid declarative provider {:?}: {}",
+                    file.path(),
+                    e
+                );
+            }
+        }
     }
 
     Ok(res)

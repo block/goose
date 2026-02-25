@@ -3,7 +3,7 @@ import type { Message, ThreadChannel } from "discord.js";
 import { model } from "../../clients/ai";
 import { logger } from "../logger";
 import { chunkMarkdown } from "./chunk-markdown";
-import { MAX_STEPS, SYSTEM_PROMPT } from "./system-prompt";
+import { MAX_STEPS, buildSystemPrompt } from "./system-prompt";
 import { ToolTracker } from "./tool-tracker";
 import { aiTools } from "./tools";
 
@@ -19,6 +19,7 @@ export interface AnswerQuestionOptions {
   userId: string;
   messageHistory?: MessageHistoryItem[];
   statusMessage?: Message;
+  serverContext?: string;
 }
 
 export async function answerQuestion({
@@ -27,6 +28,7 @@ export async function answerQuestion({
   userId,
   messageHistory,
   statusMessage,
+  serverContext,
 }: AnswerQuestionOptions): Promise<void> {
   try {
     let prompt = question;
@@ -42,10 +44,11 @@ export async function answerQuestion({
     }
 
     const tracker = new ToolTracker();
+    const systemPrompt = buildSystemPrompt(serverContext);
 
     const result = streamText({
       model,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       prompt,
       tools: aiTools,
       stopWhen: stepCountIs(MAX_STEPS),

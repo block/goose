@@ -149,7 +149,7 @@ impl SageMakerTgiProvider {
         let request = json!({
             "inputs": prompt,
             "parameters": {
-                "max_new_tokens": self.model.max_tokens.unwrap_or(150),
+                "max_new_tokens": self.model.max_output_tokens(),
                 "temperature": self.model.temperature.unwrap_or(0.7),
                 "do_sample": true,
                 "return_full_text": false

@@ -15,6 +15,7 @@ export interface KeyboardShortcuts {
   findNext: string | null;
   findPrevious: string | null;
   alwaysOnTop: string | null;
+  toggleNavigation: string | null;
 }
 
 export type DefaultKeyboardShortcuts = {
@@ -58,6 +59,7 @@ export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
   findNext: 'CommandOrControl+G',
   findPrevious: 'CommandOrControl+Shift+G',
   alwaysOnTop: 'CommandOrControl+Shift+T',
+  toggleNavigation: 'CommandOrControl+/',
 };
 
 export const defaultSettings: Settings = {
@@ -104,5 +106,5 @@ export function getKeyboardShortcuts(settings: Settings): KeyboardShortcuts {
       quickLauncher: launcherShortcut,
     };
   }
-  return settings.keyboardShortcuts || defaultKeyboardShortcuts;
+  return { ...defaultKeyboardShortcuts, ...settings.keyboardShortcuts };
 }

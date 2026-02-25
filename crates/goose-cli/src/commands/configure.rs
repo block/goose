@@ -1969,6 +1969,7 @@ fn add_provider() -> anyhow::Result<()> {
         supports_streaming: Some(supports_streaming),
         headers,
         requires_auth,
+        catalog_provider_id: None,
     })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;

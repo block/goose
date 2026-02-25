@@ -6,6 +6,7 @@ import {
   type OmitPartialGroupDMChannel,
 } from "discord.js";
 import { answerQuestion } from "../utils/ai";
+import { buildServerContext } from "../utils/discord/server-context";
 import { logger } from "../utils/logger";
 
 export default {
@@ -17,6 +18,8 @@ export default {
     if (message.author.bot) return;
 
     const questionChannelId = process.env.QUESTION_CHANNEL_ID;
+    const guild = message.guild;
+    const serverContext = guild ? await buildServerContext(guild) : "";
 
     // Handle messages in threads
     if (message.channel.isThread()) {
@@ -72,6 +75,7 @@ export default {
           thread: message.channel,
           userId: message.author.id,
           messageHistory: sortedMessages,
+          serverContext,
         });
 
         logger.verbose(
@@ -105,6 +109,7 @@ export default {
             thread,
             userId: message.author.id,
             statusMessage,
+            serverContext,
           });
 
           logger.verbose(`Answered question for ${message.author.username}`);

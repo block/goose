@@ -592,18 +592,11 @@ pub fn create_request(
 
     let thinking_config = get_thinking_config(model_config);
 
-    let generation_config = if model_config.temperature.is_some()
-        || model_config.max_tokens.is_some()
-        || thinking_config.is_some()
-    {
-        Some(GenerationConfig {
-            temperature: model_config.temperature.map(|t| t as f64),
-            max_output_tokens: model_config.max_tokens,
-            thinking_config,
-        })
-    } else {
-        None
-    };
+    let generation_config = Some(GenerationConfig {
+        temperature: model_config.temperature.map(|t| t as f64),
+        max_output_tokens: Some(model_config.max_output_tokens()),
+        thinking_config,
+    });
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {
