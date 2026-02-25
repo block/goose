@@ -32,6 +32,20 @@ export function Table({
 }: TableProps) {
   const ariaLabel = caption || 'Data table';
 
+  if (columns.length === 0) {
+    return (
+      <div
+        className={cn(
+          'rounded-lg border border-border-default bg-background-muted/30 px-4 py-3 text-sm text-text-muted',
+          className
+        )}
+        {...props}
+      >
+        No columns
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn('overflow-x-auto rounded-lg border border-border-default', className)}
@@ -58,29 +72,40 @@ export function Table({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => {
-            const contentKey = columns.map((c) => String(row[c.key] ?? '')).join('|');
-            const rowKey = `${i}-${contentKey}`;
-            return (
-              <tr
-                key={rowKey}
-                className={cn(
-                  'border-b border-border-default last:border-0',
-                  striped && i % 2 === 1 && 'bg-background-muted/50',
-                  hoverable && 'hover:bg-background-muted/30'
-                )}
-              >
-                {columns.map((col, colIndex) => (
-                  <td
-                    key={`${col.key}-${colIndex}`}
-                    className={cn('px-4 py-2.5 text-text-default', alignClass[col.align || 'left'])}
-                  >
-                    {String(row[col.key] ?? '')}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
+          {rows.length === 0 ? (
+            <tr className="border-b border-border-default last:border-0">
+              <td colSpan={columns.length} className="px-4 py-3 text-text-muted">
+                No rows
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, i) => {
+              const contentKey = columns.map((c) => String(row[c.key] ?? '')).join('|');
+              const rowKey = `${i}-${contentKey}`;
+              return (
+                <tr
+                  key={rowKey}
+                  className={cn(
+                    'border-b border-border-default last:border-0',
+                    striped && i % 2 === 1 && 'bg-background-muted/50',
+                    hoverable && 'hover:bg-background-muted/30'
+                  )}
+                >
+                  {columns.map((col, colIndex) => (
+                    <td
+                      key={`${col.key}-${colIndex}`}
+                      className={cn(
+                        'px-4 py-2.5 text-text-default',
+                        alignClass[col.align || 'left']
+                      )}
+                    >
+                      {String(row[col.key] ?? '')}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })
+          )}
         </tbody>
       </table>
     </div>

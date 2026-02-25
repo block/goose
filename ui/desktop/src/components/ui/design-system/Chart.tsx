@@ -77,6 +77,17 @@ function ChartInner({
   const effectiveHeight = Math.min(height, MAX_HEIGHT);
   const normalizedData = normalizeChartData(data, yKeys);
 
+  if (normalizedData.length === 0) {
+    return (
+      <div
+        className={`flex items-center justify-center rounded bg-background-muted text-xs text-text-muted ${className ?? ''}`}
+        style={{ height: effectiveHeight }}
+      >
+        No chart data provided
+      </div>
+    );
+  }
+
   if (import.meta.env.DEV && import.meta.env.MODE !== 'test') {
     const coerced = data.some((row) =>
       yKeys.some((k) => typeof row[k] === 'string' && toNumberMaybe(row[k]) != null)
@@ -88,6 +99,17 @@ function ChartInner({
   }
 
   if (type === 'pie' && yKeys.length === 0) {
+    return (
+      <div
+        className={`flex items-center justify-center rounded bg-background-muted text-xs text-text-muted ${className ?? ''}`}
+        style={{ height: effectiveHeight }}
+      >
+        No data keys provided
+      </div>
+    );
+  }
+
+  if (type !== 'pie' && yKeys.length === 0) {
     return (
       <div
         className={`flex items-center justify-center rounded bg-background-muted text-xs text-text-muted ${className ?? ''}`}

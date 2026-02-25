@@ -120,7 +120,7 @@ impl GenUiClient {
         })
     }
 
-    fn validate_component_names(value: &JsonValue) -> Vec<String> {
+    fn validate_spec(value: &JsonValue) -> Vec<String> {
         let mut errors = Vec::new();
         Self::validate_recursive(value, &mut errors);
         errors
@@ -128,9 +128,65 @@ impl GenUiClient {
 
     fn validate_recursive(value: &JsonValue, errors: &mut Vec<String>) {
         if let Some(obj) = value.as_object() {
+            // Support nested format: { "root": { type, props, children } }
+            if let Some(root) = obj.get("root") {
+                Self::validate_recursive(root, errors);
+            }
+        }
+
+        if let Some(obj) = value.as_object() {
             if let Some(type_val) = obj.get("type").and_then(|v| v.as_str()) {
                 if !KNOWN_COMPONENTS.contains(&type_val) {
                     errors.push(format!("Unknown component: '{type_val}'"));
+                }
+
+                // Quality checks (best-effort; used to prevent blank templates).
+                let props = obj.get("props").and_then(|v| v.as_object());
+                match type_val {
+                    "Grid" => {
+                        if let Some(columns) = props
+                            .and_then(|p| p.get("columns"))
+                            .and_then(|v| v.as_u64())
+                        {
+                            if columns > 2 {
+                                errors.push(format!(
+                                    "Grid.columns must be <= 2 in chat (found {columns})"
+                                ));
+                            }
+                        }
+                    }
+                    "Table" | "DataTable" => {
+                        if let Some(rows) =
+                            props.and_then(|p| p.get("rows")).and_then(|v| v.as_array())
+                        {
+                            if rows.is_empty() {
+                                errors.push(format!("{type_val}.rows must not be empty"));
+                            }
+                        }
+                    }
+                    "Chart" => {
+                        if let Some(data) =
+                            props.and_then(|p| p.get("data")).and_then(|v| v.as_array())
+                        {
+                            if data.is_empty() {
+                                errors.push("Chart.data must not be empty".to_string());
+                            }
+                        }
+                    }
+                    "StatCard" => {
+                        let value = props.and_then(|p| p.get("value"));
+                        match value {
+                            None => errors.push("StatCard.value is required".to_string()),
+                            Some(JsonValue::String(s)) if s.trim().is_empty() => {
+                                errors.push("StatCard.value must not be empty".to_string())
+                            }
+                            Some(JsonValue::Null) => {
+                                errors.push("StatCard.value must not be null".to_string())
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {}
                 }
             }
             if let Some(children) = obj.get("children").and_then(|v| v.as_array()) {
@@ -151,8 +207,8 @@ impl GenUiClient {
         let args = arguments.ok_or("Missing arguments")?;
         let spec = args.get("spec").ok_or("Missing 'spec' argument")?;
 
-        // Validate component names
-        let validation_errors = Self::validate_component_names(spec);
+        // Validate component names + basic quality rules
+        let validation_errors = Self::validate_spec(spec);
         if !validation_errors.is_empty() {
             return Err(format!(
                 "Invalid components: {}. Available: Card, Stack, Grid, Heading, Text, Badge, \
@@ -263,11 +319,11 @@ impl McpClientTrait for GenUiClient {
             Tool results (including genui__render results) are collapsed and hidden from the user.\n\
             Markdown fences are optional; if you use a fence, it MUST be ```json-render.\n\n\
             VISUAL QUALITY RULES:\n\
-            1. Wrap root in Card(maxWidth \"lg\") — never stretch full width.\n\
+            1. Wrap root in Card(maxWidth \"full\", centered=false) for chat — avoid narrow centered layouts.\n\
             2. Use h3 for section titles, h4 for sub-sections — never h1 or h2.\n\
             3. Numbers go in StatCard or Heading inside Card — never in Badge.\n\
             4. Charts max height 180px, max 2 per dashboard, place side-by-side in Grid columns=2.\n\
-            5. Tables max 7 rows, sorted by value descending, right-align numbers.\n\
+            5. Use DataTable for sortable rankings; Table for basic display. Keep max 7 rows and right-align numbers.\n\
             6. Text must be variant \"default\" on backgrounds — never \"muted\" for primary content.\n\
             7. Every chart and table must be wrapped in its own Card.\n\
             8. Use Separator between major sections.\n\

@@ -25,7 +25,14 @@ export function StatCard({
   variant = 'default',
   className,
 }: StatCardProps) {
-  const ariaLabel = `${label}: ${typeof value === 'number' ? value.toLocaleString() : value}`;
+  const displayValue =
+    typeof value === 'string' && value.trim().length === 0
+      ? '—'
+      : typeof value === 'number'
+        ? value.toLocaleString()
+        : value;
+
+  const ariaLabel = `${label}: ${displayValue}`;
 
   return (
     <div
@@ -44,7 +51,7 @@ export function StatCard({
       </div>
       <div className="flex items-baseline gap-2">
         <span className={cn('text-2xl font-semibold', variantTextColor[variant])}>
-          {typeof value === 'number' ? value.toLocaleString() : value}
+          {displayValue}
         </span>
         {trend && (
           <span
