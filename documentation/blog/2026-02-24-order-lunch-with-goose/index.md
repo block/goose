@@ -35,7 +35,6 @@ Here's where it gets fun. Instead of opening a delivery app and scrolling throug
 
 ```bash
 I'm looking to get lunch today. I'm at 375 West Broadway, New York. I'm gluten-free and I'm playing sport later, so looking for something light. Use the neighborhood extension to find options for me.
-later, so looking for something light.
 ```
 
 That's it. One prompt. goose takes your location, your dietary needs, and even the fact that you are playing sport later, and uses all of it to find the right restaurants.
