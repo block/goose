@@ -23,7 +23,12 @@ export function TooltipWrapper({
       <Tooltip>
         <TooltipTrigger asChild>{children}</TooltipTrigger>
         <Portal>
-          <TooltipContent side={side} align={align} className={className}>
+          <TooltipContent
+            data-testid="tooltip-wrapper-content"
+            side={side}
+            align={align}
+            className={className}
+          >
             {typeof tooltipContent === 'string' ? <p>{tooltipContent}</p> : tooltipContent}
           </TooltipContent>
         </Portal>

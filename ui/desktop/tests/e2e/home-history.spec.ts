@@ -3,7 +3,7 @@ import { test, expect, waitForLoadingDone } from './fixtures.electron.packaged';
 const LLM_TIMEOUT = 30000;
 
 test.describe('Goose App', () => {
-  test('history is empty before first session', async ({ goosePage }) => {
+  test('goose conversation', async ({ goosePage }) => {
     const mainWindow = goosePage;
 
     await mainWindow.getByTestId('sidebar-chat-button').click();
@@ -94,5 +94,28 @@ test.describe('Goose App', () => {
     await expect(mainWindow.locator('[data-testid="message-container"]:visible').last()).toContainText(
       updatedWorkingDir
     );
+  });
+
+  test('developer tool is called', async ({ goosePage }) => {
+    const mainWindow = goosePage;
+
+    await mainWindow.getByTestId('sidebar-home-button').click();
+    const chatInput = mainWindow.locator('[data-testid="chat-input"]:visible').first();
+    await expect(chatInput).toBeVisible();
+
+    const toolCalls = mainWindow.locator('.goose-message-tool');
+    await expect(toolCalls).toHaveCount(0);
+
+    await chatInput.fill('show the number of files in current directory');
+    await chatInput.press('Enter');
+    await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
+
+    await expect(toolCalls).toHaveCount(1);
+    const newestToolCall = toolCalls.first();
+    await expect(newestToolCall).toBeVisible();
+    const tooltipTrigger = newestToolCall.locator('button.group.w-full span.cursor-pointer').first();
+    await expect(tooltipTrigger).toBeVisible();
+    await tooltipTrigger.hover();
+    await expect(mainWindow.getByTestId('tooltip-wrapper-content').first()).toContainText('developer extension');
   });
 });
