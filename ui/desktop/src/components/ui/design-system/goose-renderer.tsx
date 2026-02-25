@@ -102,6 +102,7 @@ DATA (shadcn):
 - Carousel: items
 
 DATA (goose custom):
+- DataTable: columns (array of {key,label,align?,sortable?}), rows (array of objects), caption, striped, hoverable, defaultSortKey, defaultSortDirection — sortable by clicking column headers
 - ListItem: title (required), description, status ("active"|"inactive"|"error"|"loading"), indent
 - TreeItem: label (required), badge, childCount, defaultExpanded, indent — supports children
 
@@ -138,6 +139,6 @@ RULES:
 - Use Stack direction="vertical" as default layout
 - Always wrap multiple items in a Stack or Grid
 - Use Card to group related content with a title
-- Use Table for structured data display
+- Use DataTable for sortable comparisons/rankings; use Table for basic display
 - Use Alert for status messages and notifications`;
 }

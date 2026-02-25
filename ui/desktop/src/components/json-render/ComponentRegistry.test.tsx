@@ -1,8 +1,8 @@
 /**
  * End-to-end component registry tests.
  *
- * Verifies that every component registered in the unified 45-component
- * registry (33 shadcn + 12 goose custom) renders without crashing when
+ * Verifies that every component registered in the unified 46-component
+ * registry (33 shadcn + 13 goose custom) renders without crashing when
  * given a minimal valid spec via JsonRenderBlock.
  */
 
@@ -165,6 +165,29 @@ describe('Component Registry — End-to-End Rendering', () => {
         ],
       });
       render(<JsonRenderBlock spec={spec} />);
+      expect(screen.getByText('Atoms')).toBeInTheDocument();
+      expect(screen.getByText('Molecules')).toBeInTheDocument();
+    });
+
+    it('renders DataTable with sortable columns', () => {
+      const spec = nestedSpec('DataTable', {
+        caption: 'Sortable table',
+        columns: [
+          { key: 'name', label: 'Name', sortable: true },
+          { key: 'count', label: 'Count', align: 'right', sortable: true },
+        ],
+        rows: [
+          { name: 'Atoms', count: 14 },
+          { name: 'Molecules', count: 28 },
+        ],
+        striped: true,
+        hoverable: true,
+        defaultSortKey: 'count',
+        defaultSortDirection: 'desc',
+      });
+
+      render(<JsonRenderBlock spec={spec} />);
+      expect(screen.getByText('Sortable table')).toBeInTheDocument();
       expect(screen.getByText('Atoms')).toBeInTheDocument();
       expect(screen.getByText('Molecules')).toBeInTheDocument();
     });

@@ -15,7 +15,8 @@ SCOPE:
 COMPONENT HIGHLIGHTS:
 - Chart: bar, line, area, pie charts for data visualization
 - StatCard: KPI numbers with labels and trends
-- Table: sorted data with columns and alignment
+- DataTable: sortable tables (click column headers) for comparisons/rankings
+- Table: basic data table when sorting isn’t needed
 - Progress: percentage bars with color coding
 - Card: containers for grouping content
 - Grid: multi-column layouts for dashboards

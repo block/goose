@@ -1,6 +1,6 @@
 /**
  * Unified json-render setup — merges shadcn components (33) with goose
- * custom components (11) into a single registry.
+ * custom components (13) into a single registry.
  *
  * Both goose-ui and json-render code blocks use this CatalogRenderer.
  */
@@ -56,6 +56,7 @@ export const GOOSE_CUSTOM_COMPONENT_KEYS = [
   'PageHeader',
   'DataCard',
   'StatCard',
+  'DataTable',
   'ListItem',
   'TreeItem',
   'EmptyState',

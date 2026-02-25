@@ -41,6 +41,7 @@ const KNOWN_COMPONENTS: &[&str] = &[
     "Badge",
     "Alert",
     "Table",
+    "DataTable",
     "Carousel",
     "Progress",
     "Skeleton",
@@ -155,7 +156,7 @@ impl GenUiClient {
         if !validation_errors.is_empty() {
             return Err(format!(
                 "Invalid components: {}. Available: Card, Stack, Grid, Heading, Text, Badge, \
-                 Alert, Table, Progress, Button, Tabs, etc.",
+                 Alert, Table, DataTable, Progress, Button, Tabs, etc.",
                 validation_errors.join(", ")
             ));
         }

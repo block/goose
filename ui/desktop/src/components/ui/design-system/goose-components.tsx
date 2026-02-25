@@ -26,6 +26,7 @@ import { Table } from '../atoms/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../molecules/card';
 import { Chart } from './Chart';
 import { DataCard } from './DataCard';
+import { DataTable } from './DataTable';
 import { ElementErrorBoundary } from './ElementErrorBoundary';
 import { EmptyState } from './EmptyState';
 import { ErrorState } from './ErrorState';
@@ -359,6 +360,35 @@ function TableComponent({ element }: AnyComponentRenderProps) {
   );
 }
 
+function DataTableComponent({ element }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    columns?: Array<{
+      key: string;
+      label: string;
+      align?: 'left' | 'center' | 'right';
+      sortable?: boolean;
+    }>;
+    rows?: Array<Record<string, unknown>>;
+    striped?: boolean;
+    hoverable?: boolean;
+    caption?: string;
+    defaultSortKey?: string;
+    defaultSortDirection?: 'asc' | 'desc';
+  };
+
+  return (
+    <DataTable
+      columns={p.columns || []}
+      rows={p.rows || []}
+      striped={p.striped}
+      hoverable={p.hoverable}
+      caption={p.caption}
+      defaultSortKey={p.defaultSortKey}
+      defaultSortDirection={p.defaultSortDirection}
+    />
+  );
+}
+
 function AlertComponent({ element }: AnyComponentRenderProps) {
   const p = (element.props || {}) as {
     title?: string;
@@ -468,8 +498,9 @@ const rawComponents: Record<string, React.ComponentType<AnyComponentRenderProps>
   ErrorState: ErrorStateComponent,
   SearchInput: SearchInputComponent,
   TabBar: TabBarComponent,
-  // DS Atoms (Table, Alert, Select, Progress, CodeBlock)
+  // DS Atoms (Table, DataTable, Alert, Select, Progress, CodeBlock)
   Table: TableComponent,
+  DataTable: DataTableComponent,
   Alert: AlertComponent,
   Select: SelectComponent,
   Progress: ProgressComponent,

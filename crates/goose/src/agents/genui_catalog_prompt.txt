@@ -53,7 +53,7 @@ For lists where users can add/remove items (todos, carts, etc.), use pushState a
 
 IMPORTANT: State paths use RFC 6901 JSON Pointer syntax (e.g. "/todos/0/title"). Do NOT use JavaScript-style dot notation (e.g. "/todos.length" is WRONG). To generate unique IDs for new items, use "$id" instead of trying to read array length.
 
-AVAILABLE COMPONENTS (33):
+AVAILABLE COMPONENTS (34):
 
 - Card: { title?: string, description?: string, maxWidth?: "sm" | "md" | "lg" | "full", centered?: boolean } - Container card for content sections. Use for forms/content boxes, NOT for page headers. [accepts children]
 - Stack: { direction?: "horizontal" | "vertical", gap?: "none" | "sm" | "md" | "lg", align?: "start" | "center" | "end" | "stretch", justify?: "start" | "center" | "end" | "between" | "around" } - Flex container for layouts [accepts children]
@@ -74,6 +74,8 @@ AVAILABLE COMPONENTS (33):
 - Badge: { text: string, variant?: "default" | "secondary" | "destructive" | "outline" } - Status badge
 - Alert: { title: string, message?: string, type?: "info" | "success" | "warning" | "error" } - Alert banner
 - Table: { columns: Array<unknown>, rows: Array<unknown>, caption?: string } - Data table. columns: header labels. rows: 2D array of cell strings, e.g. [["Alice","admin"],["Bob","user"]].
+- DataTable: { columns: Array<{ key: string, label: string, align?: "left" | "center" | "right", sortable?: boolean }>, rows: Array<Record<string, unknown>>, caption?: string, striped?: boolean, hoverable?: boolean, defaultSortKey?: string, defaultSortDirection?: "asc" | "desc" } - Sortable data table. Use for rankings/comparisons. Users can click column headers to sort.
+
 - Carousel: { items: Array<unknown> } - Horizontally scrollable carousel of cards.
 - Progress: { value: number, max?: number, label?: string } - Progress bar (value 0-100)
 - Skeleton: { width?: string, height?: string, rounded?: boolean } - Loading placeholder skeleton

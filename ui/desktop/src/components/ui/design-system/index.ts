@@ -8,6 +8,7 @@
  */
 
 export { DataCard } from './DataCard';
+export { DataTable } from './DataTable';
 export { ElementErrorBoundary } from './ElementErrorBoundary';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
