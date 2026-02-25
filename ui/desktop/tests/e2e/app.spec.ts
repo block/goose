@@ -1,4 +1,4 @@
-import { test as base, expect } from './fixtures.electron.packaged';
+import { test as base, expect, waitForLoadingDone } from './fixtures.electron.packaged';
 import { Page } from '@playwright/test';
 import { showTestName, clearTestName } from './test-overlay';
 import { join } from 'path';
@@ -169,7 +169,7 @@ test.describe('Goose App', () => {
 
           // Wait for response to complete
           console.log('Waiting for response...');
-          await expect(mainWindow.getByTestId('loading-indicator')).toHaveCount(0, { timeout: LLM_TIMEOUT });
+          await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
           console.log('Response complete');
 
           // Verify response
@@ -188,7 +188,7 @@ test.describe('Goose App', () => {
           await chatInput.press('Enter');
 
           // Wait for response to complete
-          await expect(mainWindow.getByTestId('loading-indicator')).toHaveCount(0, { timeout: LLM_TIMEOUT });
+          await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
 
           // Verify response
           const response = mainWindow.getByTestId('message-container').last();
@@ -236,7 +236,7 @@ test.describe('Goose App', () => {
           await chatInput.press('Enter');
 
           // Wait for goose to finish responding
-          await expect(mainWindow.getByTestId('loading-indicator')).toHaveCount(0, { timeout: LLM_TIMEOUT });
+          await waitForLoadingDone(mainWindow, LLM_TIMEOUT);
 
           // Verify the response contains a known quote
           const lastMessage = mainWindow.locator('.goose-message').last();
