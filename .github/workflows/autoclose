@@ -1,3 +1,4 @@
+
 name: Close inactive issues
 on:
   schedule:
