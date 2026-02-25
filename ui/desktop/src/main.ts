@@ -17,6 +17,7 @@ import {
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
+import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -101,11 +102,10 @@ async function configureProxy() {
 if (started) app.quit();
 
 // Accept self-signed certificates from the local goosed server.
-// certificate-error (renderer webContents) always accepts localhost so page
-// loads and iframe resources never fail.
-// setCertificateVerifyProc (main-process net.fetch) pins the exact cert
-// fingerprint emitted by goosed at startup, rejecting any other self-signed
-// cert on the same port.
+// Both certificate-error (renderer) and setCertificateVerifyProc (main-process
+// net.fetch) pin to the exact cert fingerprint emitted by goosed at startup.
+// Before the fingerprint is available (during the health-check bootstrap
+// window) any localhost cert is accepted so the server can come up.
 let pinnedCertFingerprint: string | null = null;
 
 function isLocalhost(hostname: string): boolean {
@@ -124,14 +124,23 @@ function normalizeFingerprint(fp: string): string {
   return fp.toUpperCase();
 }
 
-// Renderer requests: always accept localhost so page loads never break.
-app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+// Renderer requests: pin to the exact cert goosed generated once known.
+// Before the fingerprint is available (during the health-check bootstrap
+// window) any localhost cert is accepted so the server can come up.
+app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
   const parsed = new URL(url);
-  if (isLocalhost(parsed.hostname)) {
+  if (!isLocalhost(parsed.hostname)) {
+    callback(false);
+    return;
+  }
+  if (pinnedCertFingerprint) {
+    const match =
+      normalizeFingerprint(certificate.fingerprint) === pinnedCertFingerprint.toUpperCase();
+    event.preventDefault();
+    callback(match);
+  } else {
     event.preventDefault();
     callback(true);
-  } else {
-    callback(false);
   }
 });
 
@@ -147,8 +156,7 @@ app.whenReady().then(() => {
       return;
     }
     const match =
-      normalizeFingerprint(request.certificate.fingerprint) ===
-      pinnedCertFingerprint.toUpperCase();
+      normalizeFingerprint(request.certificate.fingerprint) === pinnedCertFingerprint.toUpperCase();
     callback(match ? 0 : -3);
   });
 });
@@ -559,12 +567,7 @@ const createChat = async (
     await goosedResult.cleanup();
   });
 
-  const {
-    baseUrl,
-    workingDir,
-    process: goosedProcess,
-    errorLog,
-  } = goosedResult;
+  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
