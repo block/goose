@@ -170,8 +170,6 @@ jobs:
     name: Post to Discord
     runs-on: ubuntu-latest
     needs: generate-release-notes
-    # Only run if Discord bot token is configured
-    if: ${{ secrets.DISCORD_RELEASE_CHANNEL_ID != '' }}
 
     steps:
       - name: Post release announcement
@@ -184,6 +182,12 @@ jobs:
           NOTES_LENGTH: ${{ needs.generate-release-notes.outputs.notes_length }}
         shell: bash
         run: |
+          # Skip if Discord is not configured
+          if [ -z "$DISCORD_CHANNEL_ID" ] || [ -z "$DISCORD_BOT_TOKEN" ]; then
+            echo "::notice::Discord not configured, skipping"
+            exit 0
+          fi
+
           # Discord message character limit is ~2000 for regular messages
           SAFE_LIMIT=1800
 
