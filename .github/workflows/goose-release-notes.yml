@@ -225,48 +225,29 @@ jobs:
             echo "$response" | jq -r '.id // empty'
           }
 
-          # Build the header
+          # Build the announcement header
           HEADER="## 🎉 goose ${RELEASE_TAG} is here!
 
           📦 **Download:** ${RELEASE_URL}"
 
-          # Check if we need to thread (notes too long)
+          # Check total length to decide strategy
           HEADER_LENGTH=${#HEADER}
-          TOTAL_LENGTH=$((HEADER_LENGTH + NOTES_LENGTH + 50))
+          TOTAL_LENGTH=$((HEADER_LENGTH + NOTES_LENGTH + 10))
 
           if [ "$TOTAL_LENGTH" -le "$SAFE_LIMIT" ]; then
-            # Single message - full notes fit
+            # Single message - everything fits
             FULL_MESSAGE="${HEADER}
 
           ${RELEASE_NOTES}"
             send_discord "$FULL_MESSAGE" "$DISCORD_CHANNEL_ID"
           else
-            # Notes too long - include preview in main message, full notes in thread
+            # Notes too long - use header + thread with full notes
             echo "Release notes exceed Discord limit (${TOTAL_LENGTH} chars), using thread..."
 
-            # Extract first section (usually Features) for preview
-            # Look for content up to the second ## header or take first ~800 chars
-            PREVIEW=$(echo "$RELEASE_NOTES" | awk '
-              /^## / { if (seen++) exit }
-              { print }
-            ')
-            
-            # If preview is too long or empty, just take first ~800 chars at a newline
-            if [ ${#PREVIEW} -gt 800 ] || [ -z "$PREVIEW" ]; then
-              PREVIEW="${RELEASE_NOTES:0:800}"
-              # Break at last newline
-              LAST_NL=$(echo "$PREVIEW" | grep -bo $'\n' | tail -1 | cut -d: -f1 || echo "")
-              if [ -n "$LAST_NL" ] && [ "$LAST_NL" -gt 200 ]; then
-                PREVIEW="${PREVIEW:0:$LAST_NL}"
-              fi
-            fi
-
-            # Build main message with preview
+            # Main message is just the announcement header with pointer to thread
             MAIN_MESSAGE="${HEADER}
 
-          ${PREVIEW}
-
-          📝 *Full release notes in thread below...*"
+          📝 *See full release notes in thread below*"
 
             MESSAGE_ID=$(send_discord "$MAIN_MESSAGE" "$DISCORD_CHANNEL_ID")
 
@@ -290,25 +271,52 @@ jobs:
 
             sleep 1
 
-            # Post release notes in chunks to the thread
-            REMAINING="$RELEASE_NOTES"
+            # Split notes into sections by ## headers, save to temp files
+            echo "$RELEASE_NOTES" | awk '
+              BEGIN { n=0; file="/tmp/section_0.txt" }
+              /^## / { 
+                if (n > 0) close(file)
+                n++
+                file = "/tmp/section_" n ".txt"
+              }
+              { print > file }
+              END { close(file) }
+            '
 
-            while [ -n "$REMAINING" ]; do
-              CHUNK="${REMAINING:0:$SAFE_LIMIT}"
-              REMAINING="${REMAINING:$SAFE_LIMIT}"
-
-              # Try to break at a newline for cleaner splits
-              if [ -n "$REMAINING" ]; then
-                LAST_NEWLINE=$(echo "$CHUNK" | tail -c +1000 | grep -bo $'\n' | tail -1 | cut -d: -f1 || echo "")
-                if [ -n "$LAST_NEWLINE" ]; then
-                  BREAK_POINT=$((1000 + LAST_NEWLINE))
-                  REMAINING="${CHUNK:$BREAK_POINT}${REMAINING}"
-                  CHUNK="${CHUNK:0:$BREAK_POINT}"
-                fi
+            # Post each section file to the thread
+            for section_file in /tmp/section_*.txt; do
+              [ -f "$section_file" ] || continue
+              SECTION_CONTENT=$(cat "$section_file")
+              
+              # Skip empty sections
+              [ -z "$SECTION_CONTENT" ] && continue
+              
+              # If section fits in one message, send it
+              if [ ${#SECTION_CONTENT} -le "$SAFE_LIMIT" ]; then
+                send_discord "$SECTION_CONTENT" "$THREAD_ID"
+              else
+                # Section too long, chunk it at line boundaries
+                REMAINING="$SECTION_CONTENT"
+                while [ -n "$REMAINING" ]; do
+                  CHUNK="${REMAINING:0:$SAFE_LIMIT}"
+                  REMAINING="${REMAINING:$SAFE_LIMIT}"
+                  
+                  # Break at last newline for clean splits
+                  if [ -n "$REMAINING" ]; then
+                    # Find last newline in chunk
+                    BEFORE_LAST_NL="${CHUNK%$'\n'*}"
+                    if [ "$BEFORE_LAST_NL" != "$CHUNK" ] && [ ${#BEFORE_LAST_NL} -gt 200 ]; then
+                      REMAINING="${CHUNK:${#BEFORE_LAST_NL}}${REMAINING}"
+                      CHUNK="$BEFORE_LAST_NL"
+                    fi
+                  fi
+                  
+                  send_discord "$CHUNK" "$THREAD_ID"
+                  sleep 1
+                done
               fi
-
-              send_discord "$CHUNK" "$THREAD_ID"
               sleep 1
+              rm -f "$section_file"
             done
           fi
 
