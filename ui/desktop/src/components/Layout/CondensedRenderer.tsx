@@ -3,7 +3,7 @@ import { GripVertical, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../../utils';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { ChatSessionsDropdown, SessionsList } from './navigation';
+import { ChatSessionsDropdown, SessionsList, getSidebarButtonTestId } from './navigation';
 import type { NavigationRendererProps } from './navigation/types';
 
 export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
@@ -76,6 +76,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
             const isDragging = drag.draggedItem === item.id;
             const isDragOver = drag.dragOverItem === item.id;
             const isChatItem = item.id === 'chat';
+            const navButtonTestId = getSidebarButtonTestId(item.id);
 
             return (
               <motion.div
@@ -107,6 +108,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                     <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
                       <DropdownMenuTrigger asChild>
                         <button
+                          data-testid={navButtonTestId}
                           className={cn(
                             'flex items-center justify-center',
                             'rounded-lg transition-colors duration-200 no-drag',
@@ -135,6 +137,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                       {isChatItem && !isCondensedIconOnly ? (
                         <div className="relative">
                           <motion.button
+                            data-testid={navButtonTestId}
                             onClick={onToggleChatExpanded}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
@@ -184,6 +187,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                         </div>
                       ) : (
                         <motion.button
+                          data-testid={navButtonTestId}
                           onClick={() => onNavClick(item.path)}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
@@ -260,6 +264,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
           const isDragging = drag.draggedItem === item.id;
           const isDragOver = drag.dragOverItem === item.id;
           const isChatItem = item.id === 'chat';
+          const navButtonTestId = getSidebarButtonTestId(item.id);
 
           return (
             <motion.div
@@ -283,6 +288,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                   <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
                     <DropdownMenuTrigger asChild>
                       <motion.button
+                        data-testid={navButtonTestId}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         className={cn(
@@ -313,6 +319,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                   </DropdownMenu>
                 ) : (
                   <motion.button
+                    data-testid={navButtonTestId}
                     onClick={() => onNavClick(item.path)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}

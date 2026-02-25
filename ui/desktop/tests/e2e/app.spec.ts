@@ -5,7 +5,6 @@ import { join } from 'path';
 
 const { runningQuotes } = require('./basic-mcp');
 
-const DEFAULT_TIMEOUT = 10000;
 const LLM_TIMEOUT = 30000;
 
 // Define provider interface
@@ -58,7 +57,7 @@ async function selectProvider(mainWindow: Page, provider: Provider) {
   // The config is seeded with GOOSE_PROVIDER, so the chat interface should be available.
   const chatInput = mainWindow.getByTestId('chat-input');
   try {
-    await expect(chatInput).toBeVisible({ timeout: DEFAULT_TIMEOUT });
+    await expect(chatInput).toBeVisible();
     console.log('Provider already configured, chat interface is available');
     return;
   } catch {
@@ -104,26 +103,8 @@ async function selectProvider(mainWindow: Page, provider: Provider) {
   }
 
   // Wait for chat interface to appear
-  await expect(mainWindow.getByTestId('chat-input')).toBeVisible({ timeout: DEFAULT_TIMEOUT });
+  await expect(mainWindow.getByTestId('chat-input')).toBeVisible();
 
-}
-
-async function openSettings(mainWindow: Page) {
-  const settingsButton = mainWindow.getByRole('button', { name: /^settings$/i }).first();
-  await expect(settingsButton).toBeVisible({ timeout: DEFAULT_TIMEOUT });
-  await settingsButton.click();
-}
-
-async function openHome(mainWindow: Page) {
-  const homeButton = mainWindow.getByRole('button', { name: /^home$/i }).first();
-  await expect(homeButton).toBeVisible({ timeout: DEFAULT_TIMEOUT });
-  await homeButton.click();
-}
-
-async function openExtensions(mainWindow: Page) {
-  const extensionsButton = mainWindow.getByRole('button', { name: /^extensions$/i }).first();
-  await expect(extensionsButton).toBeVisible({ timeout: DEFAULT_TIMEOUT });
-  await extensionsButton.click();
 }
 
 test.describe('Goose App', () => {
@@ -132,10 +113,10 @@ test.describe('Goose App', () => {
     test('dark mode toggle', async () => {
       console.log('Testing dark mode toggle...');
 
-      await expect(mainWindow.getByTestId('chat-input')).toBeVisible({ timeout: DEFAULT_TIMEOUT });
+      await expect(mainWindow.getByTestId('chat-input')).toBeVisible();
 
       // Navigate to Settings via sidebar
-      await openSettings(mainWindow);
+      await mainWindow.getByTestId('sidebar-settings-button').click();
 
       // Navigate to App tab
       await mainWindow.getByTestId('settings-app-tab').click();
@@ -165,7 +146,7 @@ test.describe('Goose App', () => {
       await lightModeButton.click();
 
       // Navigate back to home
-      await openHome(mainWindow);
+      await mainWindow.getByTestId('sidebar-home-button').click();
     });
   });
 
@@ -225,7 +206,7 @@ test.describe('Goose App', () => {
 
       test('MCP integration - add extension and use tool', async () => {
           // Navigate to Extensions via sidebar
-          await openExtensions(mainWindow);
+          await mainWindow.getByTestId('sidebar-extensions-button').click();
 
           // Add custom extension
           await mainWindow.getByRole('button', { name: 'Add custom extension' }).click();
@@ -240,13 +221,13 @@ test.describe('Goose App', () => {
           await mainWindow.getByTestId('extension-submit-btn').click();
 
           // Wait for the extension to appear and be enabled
-          await mainWindow.locator('#extension-running-quotes').waitFor({ timeout: DEFAULT_TIMEOUT });
+          await expect(mainWindow.locator('#extension-running-quotes')).toBeVisible();
           await expect(
             mainWindow.locator('#extension-running-quotes button[role="switch"][data-state="checked"]')
-          ).toBeVisible({ timeout: DEFAULT_TIMEOUT });
+          ).toBeVisible();
 
           // Navigate back to home
-          await openHome(mainWindow);
+          await mainWindow.getByTestId('sidebar-home-button').click();
 
           // Send a message requesting a running quote
           const chatInput = mainWindow.getByTestId('chat-input');

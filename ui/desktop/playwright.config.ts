@@ -4,7 +4,7 @@ const config: PlaywrightTestConfig = {
   testDir: './tests/e2e',
   timeout: 60000,
   expect: {
-    timeout: 30000
+    timeout: 10000
   },
   fullyParallel: false,
   workers: 1,
@@ -13,7 +13,7 @@ const config: PlaywrightTestConfig = {
     ['list']
   ],
   use: {
-    actionTimeout: 30000,
+    actionTimeout: 10000,
     navigationTimeout: 30000,
     video: 'on',
     screenshot: 'only-on-failure'
