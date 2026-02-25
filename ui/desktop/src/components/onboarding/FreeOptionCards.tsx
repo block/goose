@@ -6,7 +6,7 @@ import LocalModelPicker from './LocalModelPicker';
 import { HardDrive } from 'lucide-react';
 
 const TETRATE = 'tetrate' as const;
-const NANOGPT = 'nanogpt' as const;
+const NANOGPT = 'nano-gpt' as const;
 const LOCAL_PROVIDER = 'local' as const;
 type FreeOption = typeof TETRATE | typeof NANOGPT | typeof LOCAL_PROVIDER;
 
