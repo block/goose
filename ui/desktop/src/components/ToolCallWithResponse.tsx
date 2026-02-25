@@ -962,22 +962,30 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
 }
 
 function SubagentLogEntry({ log }: { log: string }) {
-  const subagentMatch = log.match(/^\[subagent:(\w+)\]\s*(.*)/);
+  const subagentMatch = log.match(/^\[subagent:(\w+)\]\s*([\s\S]*)/);
   if (!subagentMatch) {
     return <span className="font-sans text-sm text-textSubtle">{log}</span>;
   }
 
   const [, , rest] = subagentMatch;
-  const parts = rest.split(' | ');
-  const toolName = parts[0]?.trim() || rest;
+  const [firstLine, ...detailLines] = rest.split('\n');
+  const parts = firstLine.split(' | ');
+  const toolName = parts[0]?.trim() || firstLine;
   const extensionName = parts[1]?.trim();
 
   return (
-    <span className="font-sans text-sm text-textSubtle flex items-center gap-1.5">
-      <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
-      <span className="font-medium text-text-secondary">{toolName}</span>
-      {extensionName && <span className="text-textSubtle opacity-60">· {extensionName}</span>}
-    </span>
+    <div className="font-sans text-sm text-textSubtle">
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+        <span className="font-medium text-text-secondary">{toolName}</span>
+        {extensionName && <span className="text-textSubtle opacity-60">· {extensionName}</span>}
+      </span>
+      {detailLines.length > 0 && (
+        <pre className="ml-3 mt-0.5 text-xs text-textSubtle whitespace-pre-wrap">
+          {detailLines.join('\n')}
+        </pre>
+      )}
+    </div>
   );
 }
 
