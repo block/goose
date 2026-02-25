@@ -3,6 +3,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
+use std::sync::OnceLock;
+use tracing::warn;
 
 use crate::agents::extension::ExtensionConfig;
 use crate::agents::types::RetryConfig;
@@ -225,11 +227,27 @@ pub struct RecipeBuilder {
     retry: Option<RetryConfig>,
 }
 
+fn delegate_pattern() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"\bdelegate\s*\(").expect("valid regex"))
+}
+
 impl Recipe {
-    fn ensure_summon_for_subrecipes(&mut self) {
-        if self.sub_recipes.is_none() {
+    fn ensure_summon(&mut self) {
+        let uses_delegate = self
+            .instructions
+            .as_deref()
+            .map(|instr| delegate_pattern().is_match(instr))
+            .unwrap_or(false);
+
+        if self.sub_recipes.is_none() && !uses_delegate {
             return;
         }
+
+        if uses_delegate {
+            warn!("recipe instructions reference delegate(); auto-injecting summon extension");
+        }
+
         let summon = ExtensionConfig::Platform {
             name: "summon".to_string(),
             description: String::new(),
@@ -239,7 +257,7 @@ impl Recipe {
         };
         match &mut self.extensions {
             Some(exts) if !exts.iter().any(|e| e.name() == "summon") => exts.push(summon),
-            None => self.extensions = Some(vec![summon]),
+            // None means "use all global extensions" which already includes summon
             _ => {}
         }
     }
@@ -309,7 +327,7 @@ impl Recipe {
                 .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?,
         };
 
-        recipe.ensure_summon_for_subrecipes();
+        recipe.ensure_summon();
         Ok(recipe)
     }
 }
@@ -846,5 +864,98 @@ isGlobal: true"#;
             error_msg,
             "settings.temperature: invalid type: string \"not_a_number\", expected f32"
         );
+    }
+
+    #[test]
+    fn test_ensure_summon_injected_when_delegate_in_instructions() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Call delegate() to run subagent",
+            "extensions": []
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+        assert!(extensions.iter().any(|e| e.name() == "summon"));
+    }
+
+    #[test]
+    fn test_ensure_summon_not_duplicated_when_already_present() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Call delegate() to run subagent",
+            "extensions": [
+                {
+                    "type": "platform",
+                    "name": "summon",
+                    "description": "Summon extension"
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 1);
+        assert!(extensions.iter().filter(|e| e.name() == "summon").count() == 1);
+    }
+
+    #[test]
+    fn test_ensure_summon_not_injected_without_delegate() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "No delegate call here",
+            "extensions": []
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_some());
+        let extensions = recipe.extensions.unwrap();
+        assert_eq!(extensions.len(), 0);
+    }
+
+    #[test]
+    fn test_ensure_summon_none_extensions_unchanged() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Call delegate() to run subagent"
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_none());
+    }
+
+    #[test]
+    fn test_ensure_summon_sub_recipes_none_extensions_unchanged() {
+        let content = r#"{
+            "version": "1.0.0",
+            "title": "Test Recipe",
+            "description": "A test recipe",
+            "instructions": "Test instructions",
+            "sub_recipes": [
+                {
+                    "name": "test_sub_recipe",
+                    "path": "test_sub_recipe.yaml"
+                }
+            ]
+        }"#;
+
+        let recipe = Recipe::from_content(content).unwrap();
+
+        assert!(recipe.extensions.is_none());
     }
 }
