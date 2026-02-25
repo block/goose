@@ -264,6 +264,30 @@ impl Agent {
         }
 
         let spec_value: serde_json::Value = if looks_like_jsonl_patch(spec) {
+            // JSONL patch streams must create `/state` explicitly before adding `/state/...`
+            // because json-render's stream compiler does not reliably auto-create parents.
+            let mut has_state_root = false;
+            let mut has_state_child = false;
+            for line in spec.lines().map(|l| l.trim()).filter(|l| !l.is_empty()) {
+                let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+                    continue;
+                };
+                let Some(path) = v.get("path").and_then(|p| p.as_str()) else {
+                    continue;
+                };
+                if path == "/state" {
+                    has_state_root = true;
+                } else if path.starts_with("/state/") {
+                    has_state_child = true;
+                }
+            }
+
+            if has_state_child && !has_state_root {
+                return Err(
+                    "json-render JSONL streams that write to /state/... must include an explicit {\"op\":\"add\",\"path\":\"/state\",\"value\":{}} patch before any /state/* patches".to_string(),
+                );
+            }
+
             let mut doc = serde_json::json!({});
             for line in spec.lines() {
                 let line = line.trim();
