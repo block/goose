@@ -260,6 +260,12 @@ export default function McpAppRenderer({
   // null = not yet known (controls stay hidden until initialize), empty = app didn't declare any.
   const [appDeclaredModes, setAppDeclaredModes] = useState<string[] | null>(null);
 
+  // Intersect what the host supports with what the app declared.
+  const effectiveDisplayModes = useMemo((): McpUiDisplayMode[] => {
+    if (!appDeclaredModes) return [];
+    return AVAILABLE_DISPLAY_MODES.filter((m) => appDeclaredModes.includes(m));
+  }, [appDeclaredModes]);
+
   // Remember the inline iframe height when leaving inline mode so we can
   // size the placeholder and landing target correctly on return.
   const inlineHeightRef = useRef(DEFAULT_IFRAME_HEIGHT);
@@ -431,11 +437,13 @@ export default function McpAppRenderer({
       }
 
       // Handle app-initiated display mode requests.
-      // Only allow modes the host supports — effective modes aren't available
-      // yet during initialize, so fall back to the full host list.
+      // After initialize, only allow modes both host and app agree on.
+      // Before initialize (effectiveDisplayModes empty), fall back to the full host list.
       if (data.method === 'ui/request-display-mode' && data.params?.mode) {
         const requested = data.params.mode as McpUiDisplayMode;
-        if (AVAILABLE_DISPLAY_MODES.includes(requested)) {
+        const allowed =
+          effectiveDisplayModes.length > 0 ? effectiveDisplayModes : AVAILABLE_DISPLAY_MODES;
+        if (allowed.includes(requested)) {
           changeDisplayMode(requested);
         }
       }
@@ -443,7 +451,7 @@ export default function McpAppRenderer({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isStandalone, changeDisplayMode]);
+  }, [isStandalone, changeDisplayMode, effectiveDisplayModes]);
 
   // Escape key exits fullscreen
   useEffect(() => {
@@ -824,13 +832,6 @@ export default function McpAppRenderer({
       csp: mcpUiCsp,
     };
   }, [readySandboxUrl, meta.permissions, mcpUiCsp]);
-
-  // Intersect what the host supports with what the app declared.
-  // Only offer modes that both sides agree on.
-  const effectiveDisplayModes = useMemo((): McpUiDisplayMode[] => {
-    if (!appDeclaredModes) return [];
-    return AVAILABLE_DISPLAY_MODES.filter((m) => appDeclaredModes.includes(m));
-  }, [appDeclaredModes]);
 
   const hostContext = useMemo((): McpUiHostContext => {
     const context: McpUiHostContext = {
