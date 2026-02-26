@@ -3051,7 +3051,7 @@
   },
   {
     "id": "anthropic/claude-3.7-sonnet",
-    "name": "Claude Sonnet 3.7 (latest)",
+    "name": "Claude Sonnet 3.7",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": true,
@@ -3084,7 +3084,7 @@
   },
   {
     "id": "anthropic/claude-haiku-4.5",
-    "name": "Claude Haiku 4.5",
+    "name": "Claude Haiku 4.5 (latest)",
     "family": "claude-haiku",
     "attachment": true,
     "reasoning": true,
@@ -3216,15 +3216,15 @@
   },
   {
     "id": "anthropic/claude-opus-4.5",
-    "name": "Claude Opus 4.5",
+    "name": "Claude Opus 4.5 (latest)",
     "family": "claude-opus",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2025-03-31",
-    "release_date": "2025-11-01",
-    "last_updated": "2025-11-01",
+    "release_date": "2025-11-24",
+    "last_updated": "2025-11-24",
     "modalities": {
       "input": [
         "text",
@@ -3348,7 +3348,7 @@
   },
   {
     "id": "anthropic/claude-sonnet-4.5",
-    "name": "Claude Sonnet 4.5",
+    "name": "Claude Sonnet 4.5 (latest)",
     "family": "claude-sonnet",
     "attachment": true,
     "reasoning": true,
@@ -9147,15 +9147,15 @@
   },
   {
     "id": "openai/gpt-4o",
-    "name": "GPT-4o (2024-11-20)",
+    "name": "GPT-4o",
     "family": "gpt",
     "attachment": true,
     "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2023-09",
-    "release_date": "2024-11-20",
-    "last_updated": "2024-11-20",
+    "release_date": "2024-05-13",
+    "last_updated": "2024-08-06",
     "modalities": {
       "input": [
         "text",
@@ -16607,14 +16607,14 @@
   },
   {
     "id": "x-ai/grok-2",
-    "name": "Grok 2 (1212)",
+    "name": "Grok 2 Latest",
     "family": "grok",
     "attachment": false,
     "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "knowledge": "2024-08",
-    "release_date": "2024-12-12",
+    "release_date": "2024-08-20",
     "last_updated": "2024-12-12",
     "modalities": {
       "input": [
@@ -16698,7 +16698,7 @@
   },
   {
     "id": "x-ai/grok-3-fast",
-    "name": "Grok 3 Fast Latest",
+    "name": "Grok 3 Fast",
     "family": "grok",
     "attachment": false,
     "reasoning": false,
@@ -16728,7 +16728,7 @@
   },
   {
     "id": "x-ai/grok-3-mini",
-    "name": "Grok 3 Mini Latest",
+    "name": "Grok 3 Mini",
     "family": "grok",
     "attachment": false,
     "reasoning": true,
@@ -16758,7 +16758,7 @@
   },
   {
     "id": "x-ai/grok-3-mini-fast",
-    "name": "Grok 3 Mini Fast",
+    "name": "Grok 3 Mini Fast Latest",
     "family": "grok",
     "attachment": false,
     "reasoning": true,
