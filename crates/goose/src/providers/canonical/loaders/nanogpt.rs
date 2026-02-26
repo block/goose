@@ -77,9 +77,7 @@ fn convert_model(model: NanoGptModel) -> CanonicalModel {
     }
 
     let release_date = model.created.map(timestamp_to_date);
-    let display_name = model
-        .name
-        .unwrap_or_else(|| model.id.clone());
+    let display_name = model.name.unwrap_or_else(|| model.id.clone());
 
     let canonical_id = format!("{}/{}", NANOGPT_PROVIDER, model.id);
 

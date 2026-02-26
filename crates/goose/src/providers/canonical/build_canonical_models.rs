@@ -537,6 +537,7 @@ async fn build_canonical_models() -> Result<()> {
 
     // Phase 2: Fetch from provider-specific loaders and replace models.dev data
     let custom_loaders = loaders::all_loaders();
+    let mut loader_counts: HashMap<String, usize> = HashMap::new();
     if !custom_loaders.is_empty() {
         println!("\n{SEPARATOR}");
         println!("Fetching from provider-specific APIs...");
@@ -547,6 +548,12 @@ async fn build_canonical_models() -> Result<()> {
             println!("\nLoading from {} API...", provider);
 
             match loader.load_models().await {
+                Ok(models) if models.is_empty() => {
+                    println!(
+                        "  ⚠ {} API returned 0 models. Keeping models.dev data.",
+                        provider
+                    );
+                }
                 Ok(models) => {
                     let old_count = registry.get_all_models_for_provider(&provider).len();
                     registry.remove_provider(&provider);
@@ -562,6 +569,7 @@ async fn build_canonical_models() -> Result<()> {
                     }
 
                     total_models = total_models - old_count + new_count;
+                    loader_counts.insert(provider.clone(), new_count);
                     println!(
                         "  ✓ Replaced {} models.dev models with {} from {} API",
                         old_count, new_count, provider
@@ -586,7 +594,14 @@ async fn build_canonical_models() -> Result<()> {
     );
 
     println!("\n\nCollecting provider metadata from models.dev...");
-    let provider_metadata_list = collect_provider_metadata(providers_obj);
+    let mut provider_metadata_list = collect_provider_metadata(providers_obj);
+
+    // Patch model counts for providers whose data came from a custom loader
+    for metadata in &mut provider_metadata_list {
+        if let Some(&count) = loader_counts.get(&metadata.id) {
+            metadata.model_count = count;
+        }
+    }
 
     let provider_metadata_path = data_file_path("provider_metadata.json");
     let provider_metadata_json = serde_json::to_string_pretty(&provider_metadata_list)?;
