@@ -1,3 +1,4 @@
+
 # How to Use AI with goose  
 _A practical guide for contributing to goose using AI coding assistants_
 
