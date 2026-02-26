@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Area,
   AreaChart,
@@ -154,10 +155,15 @@ function RegressionCard({
   );
 }
 
-function RecentRunRow({ run }: { run: EvalRunSummary }) {
+function RecentRunRow({ run, onOpen }: { run: EvalRunSummary; onOpen: (runId: string) => void }) {
   const accColor = accuracyColor(run.overallAccuracy);
   return (
-	<div className="flex items-center gap-3 py-2.5 px-3 rounded-md hover:bg-background-defaultHover transition-colors">
+	<button
+		type="button"
+		className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+		onClick={() => onOpen(run.id)}
+		aria-label={`Open eval run ${run.id}`}
+	>
 	  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accColor }} />
 	  <div className="flex-1 min-w-0">
 		<div className="flex items-center gap-2">
@@ -178,11 +184,21 @@ function RecentRunRow({ run }: { run: EvalRunSummary }) {
           {run.overallAccuracy.toFixed(1)}%
         </span>
       </div>
-    </div>
+	</button>
   );
 }
 
 function EmptyDashboard() {
+  const navigate = useNavigate();
+
+  const goToChat = useCallback(() => {
+    navigate('/pair');
+  }, [navigate]);
+
+  const goToDatasets = useCallback(() => {
+    navigate('/evaluate', { state: { tab: 'datasets' } });
+  }, [navigate]);
+
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 text-center max-w-lg mx-auto">
       <div className="text-5xl mb-4">🚀</div>
@@ -193,7 +209,11 @@ function EmptyDashboard() {
       </p>
 
 	  <div className="w-full space-y-3">
-		<div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors text-left">
+		<button
+			type="button"
+			className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+			onClick={goToChat}
+		>
 		  <span className="text-2xl">💬</span>
 		  <div>
 			<h3 className="text-sm font-semibold text-text-default">Start using Goose</h3>
@@ -202,9 +222,13 @@ function EmptyDashboard() {
 			  usage dashboard.
 			</p>
 		  </div>
-		</div>
+		</button>
 
-		<div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors text-left">
+		<button
+			type="button"
+			className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+			onClick={goToDatasets}
+		>
 		  <span className="text-2xl">🧪</span>
 		  <div>
 			<h3 className="text-sm font-semibold text-text-default">Create an eval dataset</h3>
@@ -212,9 +236,13 @@ function EmptyDashboard() {
 			  Define test prompts with expected agent routing to start measuring accuracy.
 			</p>
 		  </div>
-		</div>
+		</button>
 
-		<div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors text-left">
+		<button
+			type="button"
+			className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+			onClick={goToDatasets}
+		>
 		  <span className="text-2xl">📦</span>
 		  <div>
 			<h3 className="text-sm font-semibold text-text-default">Import a YAML dataset</h3>
@@ -222,7 +250,7 @@ function EmptyDashboard() {
 			  Already have test cases? Upload a YAML file and run your first evaluation in seconds.
 			</p>
 		  </div>
-		</div>
+		</button>
 	  </div>
     </div>
   );
@@ -247,11 +275,19 @@ function LoadingSkeleton() {
 
 // --- Main Dashboard ---
 export default function AnalyticsDashboard() {
+  const navigate = useNavigate();
   const [usage, setUsage] = useState<SessionAnalytics | null>(null);
   const [evalOverview, setEvalOverview] = useState<EvalOverview | null>(null);
   const [recentRuns, setRecentRuns] = useState<EvalRunSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const openRecentRun = useCallback(
+    (runId: string) => {
+      navigate('/evaluate', { state: { tab: 'runs', runId } });
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -398,7 +434,7 @@ export default function AnalyticsDashboard() {
             ) : (
               <div className="space-y-0.5">
                 {recentRuns.map((run) => (
-                  <RecentRunRow key={run.id} run={run} />
+                  <RecentRunRow key={run.id} run={run} onOpen={openRecentRun} />
                 ))}
               </div>
             )}

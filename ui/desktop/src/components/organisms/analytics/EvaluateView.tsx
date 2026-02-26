@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PageHeader } from '@/components/molecules/design-system/page-header';
 import { TabBar } from '@/components/molecules/design-system/tab-bar';
 import DatasetsTab from './DatasetsTab';
@@ -24,14 +25,32 @@ const TAB_GROUPS = [
 const COMPONENTS: Record<string, React.FC> = {
   overview: EvalOverviewTab,
   datasets: DatasetsTab,
-  runs: RunHistoryTab,
   topics: TopicsTab,
   inspector: RoutingInspector,
   'eval-runner': EvalRunner,
 };
 
+type EvaluateLocationState = {
+  tab?: string;
+  runId?: string;
+};
+
+function getEvaluateState(state: unknown): EvaluateLocationState {
+  if (!state || typeof state !== 'object') {
+    return {};
+  }
+
+  const maybe = state as Partial<EvaluateLocationState>;
+  return {
+    tab: typeof maybe.tab === 'string' ? maybe.tab : undefined,
+    runId: typeof maybe.runId === 'string' ? maybe.runId : undefined,
+  };
+}
+
 export default function EvaluateView() {
-  const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
+  const evalState = useMemo(() => getEvaluateState(location.state), [location.state]);
+  const [activeTab, setActiveTab] = useState(evalState.tab || 'overview');
   const ActiveComponent = COMPONENTS[activeTab];
 
   return (
@@ -47,7 +66,11 @@ export default function EvaluateView() {
         />
       </div>
       <div className="flex-1 overflow-y-auto px-6 py-4">
-        {ActiveComponent && <ActiveComponent />}
+        {activeTab === 'runs' ? (
+          <RunHistoryTab initialRunId={evalState.runId} />
+        ) : (
+          ActiveComponent && <ActiveComponent />
+        )}
       </div>
     </div>
   );

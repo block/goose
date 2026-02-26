@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getEvalRun, listEvalDatasets, listEvalRuns, runEval, type EvalDatasetSummary, type EvalRunDetail, type EvalRunSummary } from '@/api';
 import RunComparisonView from './RunComparisonView';
 import SankeyDiagram from './SankeyDiagram';
@@ -211,7 +211,7 @@ function RunDetailPanel({ detail, onClose }: { detail: EvalRunDetail; onClose: (
   );
 }
 
-export default function RunHistoryTab() {
+export default function RunHistoryTab({ initialRunId }: { initialRunId?: string }) {
   const [runs, setRuns] = useState<EvalRunSummary[]>([]);
   const [datasets, setDatasets] = useState<EvalDatasetSummary[]>([]);
   const [selectedDetail, setSelectedDetail] = useState<EvalRunDetail | null>(null);
@@ -222,6 +222,8 @@ export default function RunHistoryTab() {
   const [compareMode, setCompareMode] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
   const [showComparison, setShowComparison] = useState(false);
+
+  const didOpenInitialRun = useRef(false);
 
   const toggleRunSelection = (runId: string) => {
     setSelectedForCompare((prev) => {
@@ -267,14 +269,27 @@ export default function RunHistoryTab() {
     }
   };
 
-  const handleViewDetail = async (runId: string) => {
+  const handleViewDetail = useCallback(async (runId: string) => {
     try {
       const res = await getEvalRun({ path: { id: runId } });
       if (res.data) setSelectedDetail(res.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load run detail');
     }
-  };
+  }, []);
+
+  const openInitialRun = useCallback(async () => {
+    if (!initialRunId || didOpenInitialRun.current) {
+      return;
+    }
+
+    didOpenInitialRun.current = true;
+    await handleViewDetail(initialRunId);
+  }, [handleViewDetail, initialRunId]);
+
+  useEffect(() => {
+    void openInitialRun();
+  }, [openInitialRun]);
 
   if (showComparison && selectedForCompare.length === 2) {
     return (
