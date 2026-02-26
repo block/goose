@@ -6,7 +6,7 @@
 # Trigger: When a GitHub release is published (after release.yml completes)
 #
 # Required Secrets:
-#   - ANTHROPIC_API_KEY: API key for Anthropic
+#   - RELEASE_BOT_ANTHROPIC_KEY: API key for Anthropic
 #
 # Optional Secrets (for Discord):
 #   - DISCORD_BOT_TOKEN: Discord bot token for posting release announcements
@@ -91,7 +91,7 @@ jobs:
       env:
         GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
         GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-5' }}
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ secrets.RELEASE_BOT_ANTHROPIC_KEY }}
         HOME: /tmp/goose-home
 
     outputs:
