@@ -1430,6 +1430,20 @@ impl SummonClient {
                 extensions = Vec::new();
             } else {
                 extensions.retain(|ext| filter.contains(&ext.name()));
+                for name in filter {
+                    if extensions.iter().any(|ext| &ext.name() == name) {
+                        continue;
+                    }
+                    if let Some(def) = super::PLATFORM_EXTENSIONS.get(name.as_str()) {
+                        extensions.push(crate::agents::extension::ExtensionConfig::Platform {
+                            name: def.name.to_string(),
+                            description: def.description.to_string(),
+                            display_name: Some(def.display_name.to_string()),
+                            bundled: Some(true),
+                            available_tools: Vec::new(),
+                        });
+                    }
+                }
             }
         }
 
