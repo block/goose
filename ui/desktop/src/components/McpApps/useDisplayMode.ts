@@ -82,7 +82,10 @@ export function useDisplayMode({
     return AVAILABLE_DISPLAY_MODES.filter((m) => appDeclaredModes.includes(m));
   }, [appDeclaredModes]);
 
-  const inlineHeightRef = useRef(DEFAULT_IFRAME_HEIGHT);
+  // Snapshot of the container height captured when leaving inline mode.
+  // Stored as state (not a ref) so consumers re-render with the correct value
+  // for placeholders and for restoring the inline container on return.
+  const [savedInlineHeight, setSavedInlineHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
   // Cache iframe contentWindows for O(1) message source matching.
   // eslint-disable-next-line no-undef
@@ -99,7 +102,7 @@ export function useDisplayMode({
       const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       if (activeDisplayMode === 'inline' && el) {
-        inlineHeightRef.current = el.getBoundingClientRect().height || DEFAULT_IFRAME_HEIGHT;
+        setSavedInlineHeight(el.getBoundingClientRect().height || DEFAULT_IFRAME_HEIGHT);
       }
 
       if (enterAnimRef.current && el) {
@@ -319,7 +322,7 @@ export function useDisplayMode({
 
     changeDisplayMode,
 
-    inlineHeight: inlineHeightRef.current,
+    inlineHeight: savedInlineHeight,
     pipPosition,
 
     pipHandlers: {
