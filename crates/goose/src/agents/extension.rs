@@ -544,6 +544,9 @@ pub struct ToolInfo {
     pub description: String,
     pub parameters: Vec<String>,
     pub permission: Option<PermissionLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
+    pub input_schema: Option<serde_json::Value>,
 }
 
 impl ToolInfo {
@@ -558,7 +561,13 @@ impl ToolInfo {
             description: description.to_string(),
             parameters,
             permission,
+            input_schema: None,
         }
+    }
+
+    pub fn with_input_schema(mut self, schema: serde_json::Value) -> Self {
+        self.input_schema = Some(schema);
+        self
     }
 }
 

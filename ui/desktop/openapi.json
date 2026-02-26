@@ -7976,6 +7976,9 @@
           "description": {
             "type": "string"
           },
+          "input_schema": {
+            "type": "object"
+          },
           "name": {
             "type": "string"
           },

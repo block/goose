@@ -1392,6 +1392,9 @@ export type ToolExecution = {
  */
 export type ToolInfo = {
     description: string;
+    input_schema?: {
+        [key: string]: unknown;
+    };
     name: string;
     parameters: Array<string>;
     permission?: PermissionLevel | null;
