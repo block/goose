@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-23T18:23:49.176777+00:00",
+  "timestamp": "2026-02-26T17:06:15.978466+00:00",
   "unmapped_models": [
     {
       "provider": "anthropic",
@@ -48,10 +48,6 @@
     {
       "provider": "databricks",
       "model": "cmg-test-iris"
-    },
-    {
-      "provider": "databricks",
-      "model": "codellama-7b-hf-ift"
     },
     {
       "provider": "databricks",
@@ -136,6 +132,10 @@
     {
       "provider": "databricks",
       "model": "goose-cerebras-glm-4-6"
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-gemini-3-1-pro"
     },
     {
       "provider": "databricks",
@@ -335,11 +335,7 @@
     },
     {
       "provider": "google",
-      "model": "gemini-3.1-pro-preview"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-3.1-pro-preview-customtools"
+      "model": "gemini-3.1-flash-image-preview"
     },
     {
       "provider": "google",
@@ -1488,6 +1484,22 @@
     {
       "provider": "openai",
       "model": "ft:gpt-4-0613:square:tarkin:9ckg1W41"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:cash-supportml-user-simulator-tiny-data:DDLecf45:ckpt-step-100"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:cash-supportml-user-simulator-tiny-data:DDLedI9N:ckpt-step-200"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:cash-supportml-user-simulator-tiny-data:DDLedo4L"
+    },
+    {
+      "provider": "openai",
+      "model": "ft:gpt-4.1-2025-04-14:square:cash-supportml-user-simulator:DD08TqyZ"
     },
     {
       "provider": "openai",
@@ -2815,6 +2827,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "aion-labs/aion-2.0"
+    },
+    {
+      "provider": "openrouter",
       "model": "aion-labs/aion-rp-llama-3.1-8b"
     },
     {
@@ -2983,7 +2999,7 @@
     },
     {
       "provider": "openrouter",
-      "model": "google/gemini-3.1-pro-preview"
+      "model": "google/gemini-3.1-flash-image-preview"
     },
     {
       "provider": "openrouter",
@@ -3016,6 +3032,10 @@
     {
       "provider": "openrouter",
       "model": "kwaipilot/kat-coder-pro"
+    },
+    {
+      "provider": "openrouter",
+      "model": "liquid/lfm-2-24b-a2b"
     },
     {
       "provider": "openrouter",
@@ -3111,10 +3131,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct-v0.2"
-    },
-    {
-      "provider": "openrouter",
       "model": "mistralai/mistral-7b-instruct-v0.3"
     },
     {
@@ -3180,10 +3196,6 @@
     {
       "provider": "openrouter",
       "model": "nvidia/llama-3.1-nemotron-70b-instruct"
-    },
-    {
-      "provider": "openrouter",
-      "model": "nvidia/llama-3.1-nemotron-ultra-253b-v1"
     },
     {
       "provider": "openrouter",
@@ -3396,6 +3408,22 @@
     {
       "provider": "openrouter",
       "model": "qwen/qwen3-vl-8b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-122b-a10b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-27b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-35b-a3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-flash-02-23"
     },
     {
       "provider": "openrouter",
@@ -4081,6 +4109,10 @@
         "canonical_model": "openai/gpt-5.2-codex"
       },
       {
+        "provider_model": "databricks-gpt-5-3-codex",
+        "canonical_model": "openai/gpt-5.3-codex"
+      },
+      {
         "provider_model": "databricks-gpt-5-mini",
         "canonical_model": "openai/gpt-5-mini"
       },
@@ -4143,6 +4175,10 @@
       {
         "provider_model": "goose-claude-4-6-opus",
         "canonical_model": "anthropic/claude-opus-4.6"
+      },
+      {
+        "provider_model": "goose-claude-4-6-sonnet",
+        "canonical_model": "anthropic/claude-sonnet-4.6"
       },
       {
         "provider_model": "goose-claude-4-opus",
@@ -4305,6 +4341,10 @@
         "canonical_model": "openai/gpt-5"
       },
       {
+        "provider_model": "kgoose-gpt-5-2",
+        "canonical_model": "openai/gpt-5.2"
+      },
+      {
         "provider_model": "kgoose-gpt-5-mini",
         "canonical_model": "openai/gpt-5-mini"
       },
@@ -4426,6 +4466,14 @@
       {
         "provider_model": "gemini-3-pro-preview",
         "canonical_model": "google/gemini-3-pro-preview"
+      },
+      {
+        "provider_model": "gemini-3.1-pro-preview",
+        "canonical_model": "google/gemini-3.1-pro-preview"
+      },
+      {
+        "provider_model": "gemini-3.1-pro-preview-customtools",
+        "canonical_model": "google/gemini-3.1-pro-preview-customtools"
       },
       {
         "provider_model": "gemini-embedding-001",
@@ -4610,6 +4658,10 @@
         "canonical_model": "openai/gpt-5.2-pro"
       },
       {
+        "provider_model": "gpt-5.3-codex",
+        "canonical_model": "openai/gpt-5.3-codex"
+      },
+      {
         "provider_model": "o1",
         "canonical_model": "openai/o1"
       },
@@ -4733,7 +4785,7 @@
       },
       {
         "provider_model": "anthropic/claude-sonnet-4.6",
-        "canonical_model": "anthropic/claude-sonnet-4.6"
+        "canonical_model": "openrouter/anthropic/claude-sonnet-4.6"
       },
       {
         "provider_model": "arcee-ai/trinity-large-preview:free",
@@ -4770,10 +4822,6 @@
       {
         "provider_model": "deepseek/deepseek-chat-v3.1",
         "canonical_model": "openrouter/deepseek/deepseek-chat-v3.1"
-      },
-      {
-        "provider_model": "deepseek/deepseek-r1-0528:free",
-        "canonical_model": "openrouter/deepseek/deepseek-r1-0528:free"
       },
       {
         "provider_model": "deepseek/deepseek-r1-distill-llama-70b",
@@ -4830,6 +4878,14 @@
       {
         "provider_model": "google/gemini-3-pro-preview",
         "canonical_model": "openrouter/google/gemini-3-pro-preview"
+      },
+      {
+        "provider_model": "google/gemini-3.1-pro-preview",
+        "canonical_model": "openrouter/google/gemini-3.1-pro-preview"
+      },
+      {
+        "provider_model": "google/gemini-3.1-pro-preview-customtools",
+        "canonical_model": "google/gemini-3.1-pro-preview-customtools"
       },
       {
         "provider_model": "google/gemma-2-9b-it",
@@ -5148,6 +5204,10 @@
         "canonical_model": "openrouter/openai/gpt-5.2-pro"
       },
       {
+        "provider_model": "openai/gpt-5.3-codex",
+        "canonical_model": "openai/gpt-5.3-codex"
+      },
+      {
         "provider_model": "openai/gpt-oss-120b",
         "canonical_model": "openrouter/openai/gpt-oss-120b"
       },
@@ -5358,28 +5418,8 @@
     ],
     "tetrate": [
       {
-        "provider_model": "claude-3-5-haiku-20241022",
-        "canonical_model": "anthropic/claude-3.5-haiku"
-      },
-      {
-        "provider_model": "claude-3-5-haiku-latest",
-        "canonical_model": "anthropic/claude-3.5-haiku"
-      },
-      {
-        "provider_model": "claude-3-7-sonnet-20250219",
-        "canonical_model": "anthropic/claude-3.7-sonnet"
-      },
-      {
-        "provider_model": "claude-3-7-sonnet-latest",
-        "canonical_model": "anthropic/claude-3.7-sonnet"
-      },
-      {
         "provider_model": "claude-3-haiku-20240307",
         "canonical_model": "anthropic/claude-3-haiku"
-      },
-      {
-        "provider_model": "claude-3-opus-20240229",
-        "canonical_model": "anthropic/claude-3-opus"
       },
       {
         "provider_model": "claude-haiku-4-5",
@@ -5436,10 +5476,6 @@
       {
         "provider_model": "claude-sonnet-4-6",
         "canonical_model": "anthropic/claude-sonnet-4.6"
-      },
-      {
-        "provider_model": "deepinfra/anthropic/claude-3-7-sonnet-latest",
-        "canonical_model": "anthropic/claude-3.7-sonnet"
       },
       {
         "provider_model": "deepinfra/anthropic/claude-4-opus",
@@ -5963,6 +5999,12 @@
     },
     {
       "provider": "databricks",
+      "model": "databricks-gpt-5-3-codex",
+      "canonical": "openai/gpt-5.3-codex",
+      "recommended": true
+    },
+    {
+      "provider": "databricks",
       "model": "databricks-gpt-5-mini",
       "canonical": "openai/gpt-5-mini",
       "recommended": true
@@ -6055,6 +6097,12 @@
       "provider": "databricks",
       "model": "goose-claude-4-6-opus",
       "canonical": "anthropic/claude-opus-4.6",
+      "recommended": true
+    },
+    {
+      "provider": "databricks",
+      "model": "goose-claude-4-6-sonnet",
+      "canonical": "anthropic/claude-sonnet-4.6",
       "recommended": true
     },
     {
@@ -6299,6 +6347,12 @@
     },
     {
       "provider": "databricks",
+      "model": "kgoose-gpt-5-2",
+      "canonical": "openai/gpt-5.2",
+      "recommended": true
+    },
+    {
+      "provider": "databricks",
       "model": "kgoose-gpt-5-mini",
       "canonical": "openai/gpt-5-mini",
       "recommended": true
@@ -6475,6 +6529,18 @@
       "provider": "google",
       "model": "gemini-3-pro-preview",
       "canonical": "google/gemini-3-pro-preview",
+      "recommended": true
+    },
+    {
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview",
+      "canonical": "google/gemini-3.1-pro-preview",
+      "recommended": true
+    },
+    {
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview-customtools",
+      "canonical": "google/gemini-3.1-pro-preview-customtools",
       "recommended": true
     },
     {
@@ -6749,6 +6815,12 @@
     },
     {
       "provider": "openai",
+      "model": "gpt-5.3-codex",
+      "canonical": "openai/gpt-5.3-codex",
+      "recommended": true
+    },
+    {
+      "provider": "openai",
       "model": "o1",
       "canonical": "openai/o1",
       "recommended": true
@@ -6930,7 +7002,7 @@
     {
       "provider": "openrouter",
       "model": "anthropic/claude-sonnet-4.6",
-      "canonical": "anthropic/claude-sonnet-4.6",
+      "canonical": "openrouter/anthropic/claude-sonnet-4.6",
       "recommended": true
     },
     {
@@ -6986,12 +7058,6 @@
       "model": "deepseek/deepseek-chat-v3.1",
       "canonical": "openrouter/deepseek/deepseek-chat-v3.1",
       "recommended": true
-    },
-    {
-      "provider": "openrouter",
-      "model": "deepseek/deepseek-r1-0528:free",
-      "canonical": "openrouter/deepseek/deepseek-r1-0528:free",
-      "recommended": false
     },
     {
       "provider": "openrouter",
@@ -7075,6 +7141,18 @@
       "provider": "openrouter",
       "model": "google/gemini-3-pro-preview",
       "canonical": "openrouter/google/gemini-3-pro-preview",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemini-3.1-pro-preview",
+      "canonical": "openrouter/google/gemini-3.1-pro-preview",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemini-3.1-pro-preview-customtools",
+      "canonical": "google/gemini-3.1-pro-preview-customtools",
       "recommended": true
     },
     {
@@ -7553,6 +7631,12 @@
     },
     {
       "provider": "openrouter",
+      "model": "openai/gpt-5.3-codex",
+      "canonical": "openai/gpt-5.3-codex",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "openai/gpt-oss-120b",
       "canonical": "openrouter/openai/gpt-oss-120b",
       "recommended": true
@@ -7865,38 +7949,8 @@
     },
     {
       "provider": "tetrate",
-      "model": "claude-3-5-haiku-20241022",
-      "canonical": "anthropic/claude-3.5-haiku",
-      "recommended": true
-    },
-    {
-      "provider": "tetrate",
-      "model": "claude-3-5-haiku-latest",
-      "canonical": "anthropic/claude-3.5-haiku",
-      "recommended": true
-    },
-    {
-      "provider": "tetrate",
-      "model": "claude-3-7-sonnet-20250219",
-      "canonical": "anthropic/claude-3.7-sonnet",
-      "recommended": true
-    },
-    {
-      "provider": "tetrate",
-      "model": "claude-3-7-sonnet-latest",
-      "canonical": "anthropic/claude-3.7-sonnet",
-      "recommended": true
-    },
-    {
-      "provider": "tetrate",
       "model": "claude-3-haiku-20240307",
       "canonical": "anthropic/claude-3-haiku",
-      "recommended": true
-    },
-    {
-      "provider": "tetrate",
-      "model": "claude-3-opus-20240229",
-      "canonical": "anthropic/claude-3-opus",
       "recommended": true
     },
     {
@@ -7981,12 +8035,6 @@
       "provider": "tetrate",
       "model": "claude-sonnet-4-6",
       "canonical": "anthropic/claude-sonnet-4.6",
-      "recommended": true
-    },
-    {
-      "provider": "tetrate",
-      "model": "deepinfra/anthropic/claude-3-7-sonnet-latest",
-      "canonical": "anthropic/claude-3.7-sonnet",
       "recommended": true
     },
     {
@@ -8486,18 +8534,17 @@
     "anthropic": 11,
     "aws_bedrock": 0,
     "azure_openai": 0,
-    "databricks": 168,
+    "databricks": 171,
     "gcp_vertex_ai": 0,
-    "google": 43,
-    "openai": 659,
-    "openrouter": 337,
-    "tetrate": 207,
+    "google": 44,
+    "openai": 664,
+    "openrouter": 343,
+    "tetrate": 201,
     "venice": 0,
     "xai": 13
   },
   "canonical_models_used": [
     "anthropic/claude-3-haiku",
-    "anthropic/claude-3-opus",
     "anthropic/claude-3.5-haiku",
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3.7-sonnet",
@@ -8529,6 +8576,8 @@
     "google/gemini-2.5-pro-preview-tts",
     "google/gemini-3-flash-preview",
     "google/gemini-3-pro-preview",
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.1-pro-preview-customtools",
     "google/gemini-embedding-001",
     "google/gemini-flash",
     "google/gemini-flash-lite",
@@ -8561,6 +8610,7 @@
     "openai/gpt-5.2-chat",
     "openai/gpt-5.2-codex",
     "openai/gpt-5.2-pro",
+    "openai/gpt-5.3-codex",
     "openai/o1",
     "openai/o1-mini",
     "openai/o1-preview",
@@ -8583,12 +8633,12 @@
     "openrouter/anthropic/claude-opus-4.6",
     "openrouter/anthropic/claude-sonnet-4",
     "openrouter/anthropic/claude-sonnet-4.5",
+    "openrouter/anthropic/claude-sonnet-4.6",
     "openrouter/arcee-ai/trinity-large-preview:free",
     "openrouter/arcee-ai/trinity-mini:free",
     "openrouter/cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
     "openrouter/deepseek/deepseek-chat-v3",
     "openrouter/deepseek/deepseek-chat-v3.1",
-    "openrouter/deepseek/deepseek-r1-0528:free",
     "openrouter/deepseek/deepseek-r1-distill-llama-70b",
     "openrouter/deepseek/deepseek-v3.1-terminus",
     "openrouter/deepseek/deepseek-v3.1-terminus:exacto",
@@ -8602,6 +8652,7 @@
     "openrouter/google/gemini-2.5-pro-preview-05-06",
     "openrouter/google/gemini-3-flash-preview",
     "openrouter/google/gemini-3-pro-preview",
+    "openrouter/google/gemini-3.1-pro-preview",
     "openrouter/google/gemma-2-9b-it",
     "openrouter/google/gemma-3-12b-it",
     "openrouter/google/gemma-3-12b-it:free",
