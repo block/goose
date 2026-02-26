@@ -457,7 +457,7 @@ export default function McpAppRenderer({
         throw new Error('Session not initialized for MCP request');
       }
 
-      const fullToolName = `${extensionName}__${name}`;
+      const fullToolName = name.includes('__') ? name : `${extensionName}__${name}`;
       const response = await callTool({
         body: {
           session_id: sessionId,

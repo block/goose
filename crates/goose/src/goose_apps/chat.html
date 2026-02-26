@@ -17,8 +17,11 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
-    body { display: flex; flex-direction: column; background: #fff; }
-    
+
+    body { display: flex; flex-direction: column; }
+    body.light { background: #fff; color: #000; }
+    body.dark { background: #1e1e2e; color: #cdd6f4; }
+
     .messages {
       flex: 1;
       overflow-y: auto;
@@ -27,7 +30,7 @@
       flex-direction: column;
       gap: 12px;
     }
-    
+
     .message {
       max-width: 80%;
       padding: 10px 14px;
@@ -36,60 +39,50 @@
       font-size: 14px;
       word-wrap: break-word;
     }
-    
-    .message.user {
-      align-self: flex-end;
-      background: #000;
-      color: #fff;
-    }
-    
-    .message.assistant {
-      align-self: flex-start;
-      background: #f0f0f0;
-      color: #000;
-    }
-    
-    .message.loading {
-      font-style: italic;
-      color: #666;
-    }
-    
+
+    body.light .message.user { align-self: flex-end; background: #000; color: #fff; }
+    body.light .message.assistant { align-self: flex-start; background: #f0f0f0; color: #000; }
+    body.dark .message.user { align-self: flex-end; background: #89b4fa; color: #1e1e2e; }
+    body.dark .message.assistant { align-self: flex-start; background: #313244; color: #cdd6f4; }
+
+    .message.loading { font-style: italic; opacity: 0.6; }
+
     .input-area {
       display: flex;
       gap: 8px;
       padding: 12px;
-      border-top: 1px solid #e0e0e0;
-      background: #fafafa;
     }
-    
+
+    body.light .input-area { border-top: 1px solid #e0e0e0; background: #fafafa; }
+    body.dark .input-area { border-top: 1px solid #45475a; background: #181825; }
+
     #messageInput {
       flex: 1;
       padding: 10px 14px;
-      border: 1px solid #ddd;
       border-radius: 20px;
       font-size: 14px;
       outline: none;
     }
-    
-    #messageInput:focus { border-color: #999; }
-    
+
+    body.light #messageInput { border: 1px solid #ddd; background: #fff; color: #000; }
+    body.light #messageInput:focus { border-color: #999; }
+    body.dark #messageInput { border: 1px solid #45475a; background: #313244; color: #cdd6f4; }
+    body.dark #messageInput:focus { border-color: #89b4fa; }
+
     #sendBtn {
       padding: 10px 20px;
-      background: #000;
-      color: #fff;
       border: none;
       border-radius: 20px;
       font-size: 14px;
       cursor: pointer;
     }
-    
-    #sendBtn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
+
+    body.light #sendBtn { background: #000; color: #fff; }
+    body.dark #sendBtn { background: #89b4fa; color: #1e1e2e; }
+    #sendBtn:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
-<body>
+<body class="light">
   <div class="messages" id="messages"></div>
   <div class="input-area">
     <input type="text" id="messageInput" placeholder="Type a message..." />
@@ -101,8 +94,6 @@
     const inputEl = document.getElementById('messageInput');
     const sendBtn = document.getElementById('sendBtn');
     const conversationHistory = [];
-    const pendingRequests = new Map();
-    let requestId = 0;
 
     function addMessage(role, text, isLoading = false) {
       const div = document.createElement('div');
@@ -112,33 +103,6 @@
       messagesEl.scrollTop = messagesEl.scrollHeight;
       return div;
     }
-
-    function request(method, params) {
-      return new Promise((resolve, reject) => {
-        const id = ++requestId;
-        pendingRequests.set(id, { resolve, reject });
-        window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
-      });
-    }
-
-    window.addEventListener('message', (event) => {
-      const data = event.data;
-      if (!data || typeof data !== 'object') return;
-      
-      if ('id' in data && pendingRequests.has(data.id)) {
-        const { resolve, reject } = pendingRequests.get(data.id);
-        pendingRequests.delete(data.id);
-        if (data.error) {
-          reject(new Error(data.error.message || 'Unknown error'));
-        } else {
-          resolve(data.result);
-        }
-      }
-    });
-
-    request('ui/initialize', {}).then(() => {
-      window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
-    });
 
     async function sendMessage() {
       const text = inputEl.value.trim();
@@ -153,15 +117,14 @@
       const loadingEl = addMessage('assistant', 'Thinking...', true);
 
       try {
-        const response = await request('sampling/createMessage', {
-          messages: conversationHistory,
+        const response = await goose.chat(conversationHistory, {
           systemPrompt: 'You are a helpful assistant. Keep responses concise.',
-          maxTokens: 1000
+          maxTokens: 1000,
         });
 
         const responseText = response.content.text;
         conversationHistory.push({ role: 'assistant', content: { type: 'text', text: responseText } });
-        
+
         loadingEl.textContent = responseText;
         loadingEl.classList.remove('loading');
       } catch (err) {
@@ -178,7 +141,11 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    inputEl.focus();
+    goose.onReady = () => {
+      document.body.className = goose.theme;
+      inputEl.focus();
+    };
+    goose.onThemeChange = (theme) => document.body.className = theme;
   </script>
 </body>
 </html>

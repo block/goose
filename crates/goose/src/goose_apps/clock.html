@@ -132,12 +132,6 @@
       this.animate();
     }
 
-    onClose() {
-      if (this.animationFrame) {
-        cancelAnimationFrame(this.animationFrame);
-      }
-    }
-
     animate() {
       this.drawClock();
       this.animationFrame = requestAnimationFrame(() => this.animate());
@@ -269,35 +263,16 @@
       ctx.restore();
     }
   }
-
-  const widget = new ClockWidget();
-  widget.onMount();
-
-  window.addEventListener('beforeunload', () => {
-    widget.onClose();
-  });
 </script>
 
-<script type="module">
-  import { App, PostMessageTransport } from '/mcp-app-sdk.js';
+<script>
+  const widget = new ClockWidget();
 
-  try {
-    const app = new App({ name: 'clock', version: '1.0.0' }, {});
-    await app.connect(new PostMessageTransport(window.parent, window.parent));
-
-    const context = app.getHostContext();
-    if (context?.theme) {
-      widget.setTheme(context.theme);
-    }
-
-    app.onhostcontextchanged = (params) => {
-      if (params.theme) {
-        widget.setTheme(params.theme);
-      }
-    };
-  } catch (e) {
-    console.warn('MCP Apps SDK not available, using default theme:', e.message);
-  }
+  goose.onReady = () => {
+    widget.onMount();
+    widget.setTheme(goose.theme);
+  };
+  goose.onThemeChange = (theme) => widget.setTheme(theme);
 </script>
 </body>
 </html>

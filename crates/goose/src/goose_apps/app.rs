@@ -28,6 +28,8 @@ pub struct GooseApp {
     pub prd: Option<String>,
 }
 
+const BRIDGE_JS: &str = include_str!("goose_bridge.js");
+
 impl GooseApp {
     const METADATA_SCRIPT_TYPE: &'static str = "application/ld+json";
     const PRD_SCRIPT_TYPE: &'static str = "application/x-goose-prd";
@@ -123,7 +125,20 @@ impl GooseApp {
         })
     }
 
+    /// Produce HTML for rendering in the sandbox, with the Goose bridge injected.
+    pub fn to_render_html(&self) -> Result<String, String> {
+        let bridge = format!(
+            "<script>\n{}\n</script>\n",
+            BRIDGE_JS.replace("'{{APP_NAME}}'", &format!("'{}'", self.resource.name))
+        );
+        self.to_html_inner(Some(&bridge))
+    }
+
     pub fn to_html(&self) -> Result<String, String> {
+        self.to_html_inner(None)
+    }
+
+    fn to_html_inner(&self, extra_head: Option<&str>) -> Result<String, String> {
         let html = self
             .resource
             .text
@@ -173,15 +188,20 @@ impl GooseApp {
             String::new()
         };
 
-        let scripts = if prd_script.is_empty() {
-            format!("{}\n", metadata_script)
-        } else {
-            format!("{}\n{}\n", metadata_script, prd_script)
-        };
+        let mut head_content = String::new();
+        if let Some(extra) = extra_head {
+            head_content.push_str(extra);
+        }
+        head_content.push_str(&metadata_script);
+        head_content.push('\n');
+        if !prd_script.is_empty() {
+            head_content.push_str(&prd_script);
+            head_content.push('\n');
+        }
 
         let result = if let Some(head_pos) = html.find("</head>") {
             let mut result = html.clone();
-            result.insert_str(head_pos, &scripts);
+            result.insert_str(head_pos, &head_content);
             result
         } else if let Some(html_pos) = html.find("<html") {
             let after_html = html
@@ -190,15 +210,15 @@ impl GooseApp {
                 .map(|p| html_pos + p + 1);
             if let Some(pos) = after_html {
                 let mut result = html.clone();
-                result.insert_str(pos, &format!("\n<head>\n{}</head>", scripts));
+                result.insert_str(pos, &format!("\n<head>\n{}</head>", head_content));
                 result
             } else {
-                format!("<head>\n{}</head>\n{}", scripts, html)
+                format!("<head>\n{}</head>\n{}", head_content, html)
             }
         } else {
             format!(
                 "<html>\n<head>\n{}</head>\n<body>\n{}\n</body>\n</html>",
-                scripts, html
+                head_content, html
             )
         };
 
@@ -307,3 +327,5 @@ pub async fn fetch_mcp_apps(
 
     Ok(apps)
 }
+
+

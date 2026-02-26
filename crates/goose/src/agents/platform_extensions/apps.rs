@@ -223,6 +223,122 @@ impl AppsManagerClient {
             .result_with_platform_notification(result, EXTENSION_NAME, event_type, params)
     }
 
+    /// Platform extensions that should not be exposed to Goose apps.
+    const HIDDEN_EXTENSIONS: &'static [&'static str] = &[
+        "apps",
+        "extensionmanager",
+        "extension_manager",
+        "code_execution",
+        "summon",
+        "tom",
+        "chatrecall",
+        "todo",
+    ];
+
+    async fn get_available_tools_description(&self, session_id: &str) -> String {
+        let extension_manager = match self
+            .context
+            .extension_manager
+            .as_ref()
+            .and_then(|weak| weak.upgrade())
+        {
+            Some(em) => em,
+            None => return String::new(),
+        };
+
+        let tools = match extension_manager
+            .get_prefixed_tools_excluding(session_id, EXTENSION_NAME)
+            .await
+        {
+            Ok(tools) => tools,
+            Err(_) => return String::new(),
+        };
+
+        if tools.is_empty() {
+            return String::new();
+        }
+
+        // Get extension descriptions via get_extensions_info
+        let working_dir = self
+            .context
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .ok()
+            .map(|s| s.working_dir)
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+        let ext_infos = extension_manager.get_extensions_info(&working_dir).await;
+        let ext_descriptions: HashMap<String, String> = ext_infos
+            .into_iter()
+            .map(|info| {
+                let desc = info
+                    .instructions
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .to_string();
+                (info.name, desc)
+            })
+            .collect();
+
+        // Group tools by extension, filtering out platform extensions
+        let mut by_extension: HashMap<String, Vec<(String, String, String)>> = HashMap::new();
+        for tool in &tools {
+            let name = tool.name.to_string();
+            if let Some((ext, tool_name)) = name.split_once("__") {
+                if Self::HIDDEN_EXTENSIONS.contains(&ext) {
+                    continue;
+                }
+                let desc = tool
+                    .description
+                    .as_ref()
+                    .map(|d| d.to_string())
+                    .unwrap_or_default();
+                let params = tool
+                    .input_schema
+                    .get("properties")
+                    .and_then(|p| p.as_object())
+                    .map(|props| {
+                        props
+                            .keys()
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    })
+                    .unwrap_or_default();
+                by_extension
+                    .entry(ext.to_string())
+                    .or_default()
+                    .push((tool_name.to_string(), desc, params));
+            }
+        }
+
+        let mut lines = Vec::new();
+        let mut extensions: Vec<_> = by_extension.into_iter().collect();
+        extensions.sort_by(|a, b| a.0.cmp(&b.0));
+        for (ext, ext_tools) in extensions {
+            let ext_desc = ext_descriptions
+                .get(&ext)
+                .filter(|d| !d.is_empty())
+                .map(|d| format!(" — {d}"))
+                .unwrap_or_default();
+            lines.push(format!("  goose.{ext}:{ext_desc}"));
+            for (tool_name, desc, params) in &ext_tools {
+                let sig = if params.is_empty() {
+                    format!("goose.{ext}.{tool_name}()")
+                } else {
+                    format!("goose.{ext}.{tool_name}({{{params}}})")
+                };
+                let short_desc = desc
+                    .split_once(". ")
+                    .map(|(first, _)| first.to_string())
+                    .unwrap_or_else(|| desc.clone());
+                lines.push(format!("    await {sig} - {short_desc}"));
+            }
+        }
+        lines.join("\n")
+    }
+
     async fn get_provider(&self) -> Result<Arc<dyn Provider>, String> {
         let extension_manager = self
             .context
@@ -277,8 +393,8 @@ impl AppsManagerClient {
         let existing_apps = self.list_stored_apps().unwrap_or_default();
         let existing_names = existing_apps.join(", ");
 
-        let mut context: HashMap<&str, bool> = HashMap::new();
-        context.insert("is_new", true);
+        let available_tools = self.get_available_tools_description(session_id).await;
+        let context = json!({"is_new": true, "available_tools": available_tools});
         let system_prompt = render_template("apps.md", &context)
             .map_err(|e| format!("Failed to render template: {}", e))?;
 
@@ -290,6 +406,12 @@ impl AppsManagerClient {
 
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::create_app_content_tool()];
+
+        // Dump the full prompt for debugging
+        let _ = std::fs::write(
+            "/tmp/prompt.txt",
+            format!("=== SYSTEM ===\n{}\n\n=== USER ===\n{}", system_prompt, user_prompt),
+        );
 
         let mut model_config = provider.get_model_config();
         model_config.max_tokens = Some(16384);
@@ -311,8 +433,8 @@ impl AppsManagerClient {
     ) -> Result<UpdateAppContentResponse, String> {
         let provider = self.get_provider().await?;
 
-        let mut context: HashMap<&str, bool> = HashMap::new();
-        context.insert("is_new", false);
+        let available_tools = self.get_available_tools_description(session_id).await;
+        let context = json!({"is_new": false, "available_tools": available_tools});
         let system_prompt = render_template("apps.md", &context)
             .map_err(|e| format!("Failed to render template: {}", e))?;
 
@@ -514,12 +636,12 @@ impl McpClientTrait for AppsManagerClient {
             ),
             McpTool::new(
                 "create_app".to_string(),
-                "Create a new Goose app based on a description or PRD. The extension will use an LLM to generate the HTML/CSS/JavaScript. Apps are sandboxed and run in standalone windows.".to_string(),
+                "Create a new Goose app based on a description or PRD. Apps can call MCP tools at runtime (e.g., goose.developer.shell to run commands, goose.developer.text_editor to read files), so describe what data the app needs and which tools to use rather than embedding static data. The PRD should focus on what the app does and how it gets its data.".to_string(),
                 schema::<CreateAppParams>(),
             ),
             McpTool::new(
                 "iterate_app".to_string(),
-                "Improve an existing app based on feedback. The extension will use an LLM to update the HTML while preserving the app's intent.".to_string(),
+                "Improve an existing app based on feedback. Apps can call MCP tools at runtime for live data. The extension will use an LLM to update the HTML while preserving the app's intent.".to_string(),
                 schema::<IterateAppParams>(),
             ),
             McpTool::new(
@@ -629,11 +751,8 @@ impl McpClientTrait for AppsManagerClient {
             .map_err(|_| Error::TransportClosed)?;
 
         let html = app
-            .resource
-            .text
-            .unwrap_or_else(|| String::from("No content"));
-
-        let html = inject_sdk_script(&html);
+            .to_render_html()
+            .map_err(|_| Error::TransportClosed)?;
 
         Ok(ReadResourceResult {
             contents: vec![ResourceContents::text(html, uri)],
@@ -685,26 +804,4 @@ fn extract_tool_response<T: serde::de::DeserializeOwned>(
     Err(format!("LLM did not call the required tool: {}", tool_name))
 }
 
-/// Inject the MCP Apps SDK script tag into Goose app HTML.
-///
-/// This makes `@modelcontextprotocol/ext-apps` available to Goose apps via:
-///   `import { App, PostMessageTransport } from '/mcp-app-sdk.js';`
-///
-/// The SDK is served by goosed at `/mcp-app-sdk.js` and is loadable because
-/// the sandbox iframe has `allow-same-origin` and the CSP allows `script-src 'self'`.
-fn inject_sdk_script(html: &str) -> String {
-    const SDK_TAG: &str = r#"<script type="module" src="/mcp-app-sdk.js"></script>"#;
 
-    // We search for ASCII-only patterns so all positions are valid split points.
-    if let Some(pos) = html.find("<head>") {
-        let mut result = String::with_capacity(html.len() + SDK_TAG.len());
-        let (before, after) = html.split_at(pos + "<head>".len());
-        result.push_str(before);
-        result.push_str(SDK_TAG);
-        result.push_str(after);
-        result
-    } else {
-        // No <head> tag — prepend SDK in a new <head> block
-        format!("<head>{SDK_TAG}</head>{html}")
-    }
-}
