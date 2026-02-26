@@ -1,23 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getRecipeJsonSchema } from './validation';
 
-/**
- * Tests for recipe validation utilities.
- *
- * The module under test does three things:
- *   1. getRecipeSchema() - extracts Recipe from OpenAPI components
- *   2. resolveRefs() - recursively resolves $ref, allOf, oneOf, anyOf in schemas
- *   3. getRecipeJsonSchema() - returns a fully-resolved JSON Schema with fallback
- *
- * resolveRefs is not exported, so we test it indirectly through getRecipeJsonSchema
- * and by mocking the openapi.json import to inject controlled schemas.
- */
-
-// ── helpers ──────────────────────────────────────────────────────────
-// We use vi.mock to swap the openapi.json import so we can control
-// exactly which schemas resolveRefs encounters.
-
-/** Build a minimal OpenAPI spec with the given Recipe schema and extra component schemas. */
 function fakeSpec(
   recipeSchema: Record<string, unknown> | undefined,
   extraSchemas: Record<string, unknown> = {}
@@ -32,7 +15,6 @@ function fakeSpec(
   };
 }
 
-// ── getRecipeJsonSchema with real OpenAPI spec ──────────────────────
 describe('getRecipeJsonSchema (real spec)', () => {
   it('returns a valid JSON Schema object with required top-level properties', () => {
     const schema = getRecipeJsonSchema();
@@ -48,7 +30,6 @@ describe('getRecipeJsonSchema (real spec)', () => {
   it('includes resolved properties from the Recipe schema', () => {
     const schema = getRecipeJsonSchema();
 
-    // Recipe schema has required fields: title, description
     expect(schema.required).toEqual(expect.arrayContaining(['title', 'description']));
     expect(schema.properties).toBeDefined();
     expect(typeof schema.properties).toBe('object');
@@ -58,8 +39,6 @@ describe('getRecipeJsonSchema (real spec)', () => {
     const schema = getRecipeJsonSchema();
     const props = schema.properties as Record<string, Record<string, unknown>>;
 
-    // Walk top-level properties and verify none are bare $ref objects.
-    // A resolved property should have 'type' or 'enum' or similar, not '$ref'.
     for (const [key, value] of Object.entries(props)) {
       if (typeof value === 'object' && value !== null) {
         expect(value).not.toHaveProperty('$ref', expect.any(String));
@@ -72,23 +51,17 @@ describe('getRecipeJsonSchema (real spec)', () => {
   });
 });
 
-// ── getRecipeJsonSchema with mocked specs ───────────────────────────
-// Each describe block below targets a specific resolveRefs code path.
-
 describe('getRecipeJsonSchema (mocked spec)', () => {
-  // Reset module cache between groups so vi.mock changes take effect
   beforeEach(() => {
     vi.resetModules();
   });
 
-  // Helper: mock openapi.json and re-import the module
   async function importWithSpec(spec: Record<string, unknown>) {
     vi.doMock('../../openapi.json', () => ({ default: spec }));
     const mod = await import('./validation');
     return mod.getRecipeJsonSchema;
   }
 
-  // ── fallback when Recipe schema is missing ─────────────────────
   describe('fallback schema', () => {
     it('returns a minimal fallback when Recipe schema is absent', async () => {
       const getSchema = await importWithSpec(fakeSpec(undefined));
@@ -123,7 +96,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
     });
   });
 
-  // ── $ref resolution ────────────────────────────────────────────
   describe('$ref resolution', () => {
     it('resolves a simple $ref to another schema', async () => {
       const spec = fakeSpec(
@@ -177,7 +149,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       const getSchema = await importWithSpec(spec);
       const schema = getSchema();
 
-      // Can't resolve, so the $ref stays (or falls through)
       const brokenProp = (schema.properties as Record<string, any>).broken;
       expect(brokenProp.$ref).toBe('#/components/schemas/DoesNotExist');
     });
@@ -197,13 +168,11 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       const getSchema = await importWithSpec(spec);
       const schema = getSchema();
 
-      // resolveRefs returns the original $ref schema when resolved is not an object
       const primProp = (schema.properties as Record<string, any>).prim;
       expect(primProp.$ref).toBe('#/components/schemas/JustAString');
     });
   });
 
-  // ── allOf merging ──────────────────────────────────────────────
   describe('allOf merging', () => {
     it('merges multiple allOf schemas into one', async () => {
       const spec = fakeSpec({
@@ -215,7 +184,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       const getSchema = await importWithSpec(spec);
       const schema = getSchema();
 
-      // allOf should be absent after merge
       expect(schema).not.toHaveProperty('allOf');
       expect(schema.properties).toEqual(
         expect.objectContaining({
@@ -232,14 +200,12 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       const getSchema = await importWithSpec(spec);
       const schema = getSchema();
 
-      // "description" from rest spread should survive (may be overridden by wrapper)
       expect(schema).not.toHaveProperty('allOf');
     });
 
     it('resolves $ref inside allOf items', async () => {
-      // allOf merges via Object.assign/spread, so later items' top-level keys
-      // overwrite earlier ones. To verify $ref resolution inside allOf, use
-      // non-overlapping top-level keys.
+      // allOf spread merges top-level keys left-to-right; use non-overlapping keys
+      // to verify $ref resolution without key collisions.
       const spec = fakeSpec(
         {
           allOf: [
@@ -255,19 +221,17 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       const schema = getSchema();
 
       expect(schema).not.toHaveProperty('allOf');
-      // type and properties come from the resolved Base $ref
       expect(schema.type).toBe('object');
       expect(schema.properties).toEqual(
         expect.objectContaining({
           id: { type: 'integer' },
         })
       );
-      // description comes from the second allOf entry
       expect(schema.description).toBe('Extended type');
     });
 
     it('rest properties override merged allOf values', async () => {
-      // Implementation does { ...merged, ...rest }, so rest keys win over allOf keys
+      // { ...merged, ...rest } means rest keys win over allOf keys
       const spec = fakeSpec({
         allOf: [{ type: 'object', description: 'from-allOf' }],
         description: 'from-rest',
@@ -275,8 +239,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       const getSchema = await importWithSpec(spec);
       const schema = getSchema();
 
-      // rest spread's description wins over allOf's, then getRecipeJsonSchema
-      // applies its own fallback, but the resolved schema should have 'from-rest'
       expect(schema.description).toBe('from-rest');
     });
 
@@ -302,7 +264,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
     });
   });
 
-  // ── oneOf resolution ───────────────────────────────────────────
   describe('oneOf resolution', () => {
     it('resolves $ref inside oneOf variants', async () => {
       const spec = fakeSpec(
@@ -341,7 +302,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
     });
   });
 
-  // ── anyOf resolution ───────────────────────────────────────────
   describe('anyOf resolution', () => {
     it('resolves $ref inside anyOf variants', async () => {
       const spec = fakeSpec(
@@ -369,7 +329,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
     });
   });
 
-  // ── object properties resolution ───────────────────────────────
   describe('object properties resolution', () => {
     it('recursively resolves $ref in nested object properties', async () => {
       const spec = fakeSpec(
@@ -414,7 +373,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
     });
   });
 
-  // ── array items resolution ─────────────────────────────────────
   describe('array items resolution', () => {
     it('resolves $ref in array items', async () => {
       const spec = fakeSpec(
@@ -457,7 +415,6 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
     });
   });
 
-  // ── passthrough / no-op ────────────────────────────────────────
   describe('passthrough behavior', () => {
     it('returns schema as-is when there are no refs to resolve', async () => {
       const spec = fakeSpec({
@@ -479,19 +436,15 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       ['numeric input', 42],
       ['string input', 'hello'],
     ])('handles non-object Recipe schema gracefully (%s)', async (_label, value) => {
-      // When getRecipeSchema returns a non-object, resolveRefs early-returns it,
-      // then getRecipeJsonSchema wraps it with $schema/title/description
       const spec = fakeSpec(value as any);
       const getSchema = await importWithSpec(spec);
       const schema = getSchema();
 
-      // Should still produce a valid JSON Schema envelope
       expect(schema.$schema).toBe('http://json-schema.org/draft-07/schema#');
       expect(schema.title).toBeDefined();
     });
   });
 
-  // ── title/description defaults ─────────────────────────────────
   describe('title and description defaults', () => {
     it('uses schema title when present', async () => {
       const spec = fakeSpec({
