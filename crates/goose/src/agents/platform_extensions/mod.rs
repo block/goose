@@ -1,6 +1,7 @@
 pub mod apps;
 pub mod chatrecall;
 pub mod code_execution;
+pub mod developer;
 pub mod ext_manager;
 pub mod summon;
 pub mod todo;
@@ -99,6 +100,18 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 client_factory: |ctx| {
                     Box::new(code_execution::CodeExecutionClient::new(ctx).unwrap())
                 },
+            },
+        );
+
+        map.insert(
+            developer::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: developer::EXTENSION_NAME,
+                display_name: "Developer",
+                description: "Write and edit files, and execute shell commands",
+                default_enabled: true,
+                unprefixed_tools: true,
+                client_factory: |ctx| Box::new(developer::DeveloperClient::new(ctx).unwrap()),
             },
         );
 

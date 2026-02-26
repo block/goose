@@ -637,6 +637,7 @@ export default function McpAppRenderer({
     return {
       content: toolResult.content as unknown as CallToolResult['content'],
       structuredContent: toolResult.structuredContent as { [key: string]: unknown } | undefined,
+      _meta: toolResult._meta,
     };
   }, [toolResult]);
 

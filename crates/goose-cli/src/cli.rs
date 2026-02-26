@@ -6,9 +6,7 @@ use goose::config::Config;
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
 use goose_mcp::mcp_server_runner::{serve, McpCommand};
-use goose_mcp::{
-    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
-};
+use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer};
 
 use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
 use crate::commands::info::handle_info;
@@ -593,6 +591,37 @@ enum SchedulerCommand {
 }
 
 #[derive(Subcommand)]
+enum GatewayCommand {
+    #[command(about = "Show gateway status")]
+    Status {},
+
+    #[command(about = "Start a gateway")]
+    Start {
+        #[arg(help = "Gateway type (e.g., 'telegram')")]
+        gateway_type: String,
+
+        #[arg(
+            long = "bot-token",
+            help = "Bot token for the gateway platform",
+            long_help = "Authentication token for the gateway platform (e.g., Telegram bot token)"
+        )]
+        bot_token: String,
+    },
+
+    #[command(about = "Stop a running gateway")]
+    Stop {
+        #[arg(help = "Gateway type to stop (e.g., 'telegram')")]
+        gateway_type: String,
+    },
+
+    #[command(about = "Generate a pairing code for a gateway")]
+    Pair {
+        #[arg(help = "Gateway type to generate pairing code for")]
+        gateway_type: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum RecipeCommand {
     /// Validate a recipe file
     #[command(about = "Validate a recipe")]
@@ -783,6 +812,16 @@ enum Command {
     Schedule {
         #[command(subcommand)]
         command: SchedulerCommand,
+    },
+
+    /// Manage gateways for external platform integrations (e.g., Telegram)
+    #[command(
+        about = "Manage gateways for external platform integrations",
+        visible_alias = "gw"
+    )]
+    Gateway {
+        #[command(subcommand)]
+        command: GatewayCommand,
     },
 
     /// Update the goose CLI version
@@ -998,6 +1037,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Project {}) => "project",
         Some(Command::Projects) => "projects",
         Some(Command::Run { .. }) => "run",
+        Some(Command::Gateway { .. }) => "gateway",
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
         Some(Command::Recipe { .. }) => "recipe",
@@ -1018,7 +1058,6 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
         McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
         McpCommand::Memory => serve(MemoryServer::new()).await?,
         McpCommand::Tutorial => serve(TutorialServer::new()).await?,
-        McpCommand::Developer => serve(DeveloperServer::new()).await?,
     }
     Ok(())
 }
@@ -1390,6 +1429,23 @@ async fn handle_run_command(
     }
 }
 
+async fn handle_gateway_command(command: GatewayCommand) -> Result<()> {
+    use crate::commands::gateway;
+
+    match command {
+        GatewayCommand::Status {} => gateway::handle_gateway_status().await,
+        GatewayCommand::Start {
+            gateway_type,
+            bot_token,
+        } => {
+            let platform_config = serde_json::json!({ "bot_token": bot_token });
+            gateway::handle_gateway_start(gateway_type, platform_config).await
+        }
+        GatewayCommand::Stop { gateway_type } => gateway::handle_gateway_stop(gateway_type).await,
+        GatewayCommand::Pair { gateway_type } => gateway::handle_gateway_pair(gateway_type).await,
+    }
+}
+
 async fn handle_schedule_command(command: SchedulerCommand) -> Result<()> {
     match command {
         SchedulerCommand::Add {
@@ -1714,6 +1770,7 @@ pub async fn cli() -> anyhow::Result<()> {
             )
             .await
         }
+        Some(Command::Gateway { command }) => handle_gateway_command(command).await,
         Some(Command::Schedule { command }) => handle_schedule_command(command).await,
         Some(Command::Update {
             canary,

@@ -39,7 +39,7 @@ use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
-use crate::providers::base::Provider;
+use crate::providers::base::{PermissionRouting, Provider};
 use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
@@ -846,9 +846,26 @@ impl Agent {
         request_id: String,
         confirmation: PermissionConfirmation,
     ) {
+        let provider = self.provider.lock().await.clone();
+        if let Some(provider) = provider.as_ref() {
+            if provider.permission_routing() == PermissionRouting::ActionRequired
+                && provider
+                    .handle_permission_confirmation(&request_id, &confirmation)
+                    .await
+            {
+                return;
+            }
+        }
         if let Err(e) = self.confirmation_tx.send((request_id, confirmation)).await {
             error!("Failed to send confirmation: {}", e);
         }
+    }
+
+    pub async fn supports_action_required_permissions(&self) -> bool {
+        if let Some(provider) = self.provider.lock().await.as_ref() {
+            return provider.permission_routing() == PermissionRouting::ActionRequired;
+        }
+        false
     }
 
     #[instrument(
@@ -2014,7 +2031,118 @@ impl Agent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::permission::permission_confirmation::PrincipalType;
+    use crate::providers::base::PermissionRouting;
     use crate::recipe::Response;
+
+    struct ActionRequiredProvider {
+        handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
+    }
+
+    impl ActionRequiredProvider {
+        fn new() -> Self {
+            Self {
+                handled: tokio::sync::Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl std::fmt::Debug for ActionRequiredProvider {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("ActionRequiredProvider").finish()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for ActionRequiredProvider {
+        fn get_name(&self) -> &str {
+            "test-action-required"
+        }
+        fn get_model_config(&self) -> crate::model::ModelConfig {
+            crate::model::ModelConfig::new("test").unwrap()
+        }
+        async fn stream(
+            &self,
+            _: &crate::model::ModelConfig,
+            _: &str,
+            _: &str,
+            _: &[crate::conversation::message::Message],
+            _: &[rmcp::model::Tool],
+        ) -> Result<crate::providers::base::MessageStream, crate::providers::errors::ProviderError>
+        {
+            unimplemented!()
+        }
+        fn permission_routing(&self) -> PermissionRouting {
+            PermissionRouting::ActionRequired
+        }
+        async fn handle_permission_confirmation(
+            &self,
+            request_id: &str,
+            confirmation: &PermissionConfirmation,
+        ) -> bool {
+            self.handled
+                .lock()
+                .await
+                .push((request_id.to_string(), confirmation.clone()));
+            request_id == "known"
+        }
+    }
+
+    #[tokio::test]
+    async fn test_handle_confirmation_routes_to_provider() {
+        let agent = Agent::new();
+        let provider = Arc::new(ActionRequiredProvider::new());
+        *agent.provider.lock().await =
+            Some(provider.clone() as Arc<dyn crate::providers::base::Provider>);
+
+        // Known request_id → provider handles it, confirmation_tx NOT called
+        agent
+            .handle_confirmation(
+                "known".to_string(),
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: crate::permission::Permission::AllowOnce,
+                },
+            )
+            .await;
+        assert_eq!(provider.handled.lock().await.len(), 1);
+
+        // Unknown request_id → provider returns false, falls through to confirmation_tx
+        agent
+            .handle_confirmation(
+                "unknown".to_string(),
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: crate::permission::Permission::DenyOnce,
+                },
+            )
+            .await;
+        assert_eq!(provider.handled.lock().await.len(), 2);
+        // Verify the fallthrough went to confirmation_rx
+        let mut rx = agent.confirmation_rx.lock().await;
+        let (id, conf) = rx.recv().await.unwrap();
+        assert_eq!(id, "unknown");
+        assert_eq!(conf.permission, crate::permission::Permission::DenyOnce);
+    }
+
+    #[tokio::test]
+    async fn test_handle_confirmation_noop_provider() {
+        let agent = Agent::new();
+        // No provider set → Noop routing, goes straight to confirmation_tx
+        agent
+            .handle_confirmation(
+                "any".to_string(),
+                PermissionConfirmation {
+                    principal_type: PrincipalType::Tool,
+                    permission: crate::permission::Permission::AllowOnce,
+                },
+            )
+            .await;
+
+        let mut rx = agent.confirmation_rx.lock().await;
+        let (id, _) = rx.recv().await.unwrap();
+        assert_eq!(id, "any");
+    }
 
     #[tokio::test]
     async fn test_add_final_output_tool() -> Result<()> {

@@ -24,7 +24,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
     Versions 2025.2 and later have built-in MCP server support and generate a dynamic configuration specific to your IDE instance. See your IDE's documentation for more details (e.g. [MCP Server](https://www.jetbrains.com/help/idea/mcp-server.html) for IntelliJ IDEA).
 
     <!-- hide until parsing bugs for paths with spaces are fixed in Desktop and CLI
-    :::tip TLDR
+    :::tip Quick Install
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
       Use `Add custom extension` in Settings → Extensions with the command from `Copy Stdio Config` in your IDE.
@@ -117,7 +117,7 @@ This tutorial covers how to add the JetBrains extension to integrate with any Je
 
     Versions 2025.1 and earlier require installing the MCP Server plugin and using the [JetBrains MCP Proxy Server](https://github.com/JetBrains/mcp-jetbrains).
 
-    :::tip TLDR
+    :::tip Quick Install
     <Tabs groupId="interface">
       <TabItem value="ui" label="goose Desktop" default>
       [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40jetbrains%2Fmcp-proxy&id=jetbrains&name=JetBrains&description=Integrate%20goose%20with%20any%20JetBrains%20IDE)

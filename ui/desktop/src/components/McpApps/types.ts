@@ -40,6 +40,7 @@ export type McpAppToolCancelled = McpUiToolCancelledNotification['params'];
 export type McpAppToolResult = {
   content: Content[];
   structuredContent?: unknown;
+  _meta?: { [key: string]: unknown };
 };
 
 export type SamplingMessage = {

@@ -70,6 +70,11 @@ export async function setupGoosed({
     error: (...args) => console.error('[goosed]', ...args),
   };
 
+  // Accept self-signed TLS certs from the local goosed server.
+  // In Electron this is handled by setCertificateVerifyProc, but integration
+  // tests run in plain Node.js where fetch rejects self-signed certs.
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
   const additionalEnv: Record<string, string> = {
     GOOSE_PATH_ROOT: tempDir,
   };

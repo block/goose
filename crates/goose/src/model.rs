@@ -280,7 +280,6 @@ impl ModelConfig {
             return tokens;
         }
 
-        // Priority 2: Global default
         4_096
     }
 
