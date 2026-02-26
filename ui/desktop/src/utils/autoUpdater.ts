@@ -12,8 +12,7 @@ import {
   shell,
   type Tray,
 } from 'electron';
-import type { UpdateInfo } from 'electron-updater';
-import { autoUpdater } from 'electron-updater';
+import { autoUpdater, type UpdateInfo } from 'electron-updater';
 import {
   trackUpdateCheckCompleted,
   trackUpdateCheckStarted,

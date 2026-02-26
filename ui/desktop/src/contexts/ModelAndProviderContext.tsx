@@ -1,7 +1,6 @@
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { ProviderMetadata } from '@/api';
-import { setConfigProvider, updateAgentProvider } from '@/api';
+import { setConfigProvider, updateAgentProvider, type ProviderMetadata } from '@/api';
 import type Model from '@/components/organisms/settings/models/modelInterface';
 import { getProviderMetadata } from '@/components/organisms/settings/models/modelInterface';
 import {

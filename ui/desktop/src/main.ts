@@ -38,14 +38,12 @@ import { errorMessage, formatAppName } from '@/utils/conversionUtils';
 import log from '@/utils/logger';
 import { expandTilde } from '@/utils/pathUtils';
 import { addRecentDir, loadRecentDirs } from '@/utils/recentDirs';
-import type { Settings } from '@/utils/settings';
-import { defaultKeyboardShortcuts, getKeyboardShortcuts } from '@/utils/settings';
+import { defaultKeyboardShortcuts, getKeyboardShortcuts, type Settings } from '@/utils/settings';
 import { ensureWinShims } from '@/utils/winShims';
 import './utils/recipeHash';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import type { GooseApp } from '@/api';
-import type { Client } from '@/api/client';
-import { createClient, createConfig } from '@/api/client';
+import { createClient, createConfig, type Client } from '@/api/client';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from '@/utils/urlSecurity';
 
 function shouldSetupUpdater(): boolean {

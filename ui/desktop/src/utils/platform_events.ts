@@ -1,5 +1,4 @@
-import type { GooseApp } from '@/api';
-import { listApps } from '@/api';
+import { listApps, type GooseApp } from '@/api';
 
 interface PlatformEventData {
   extension: string;

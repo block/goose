@@ -1,5 +1,4 @@
-import type { Recipe } from '@/api';
-import { updateAgentProvider, updateFromSession } from '@/api';
+import { updateAgentProvider, updateFromSession, type Recipe } from '@/api';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,

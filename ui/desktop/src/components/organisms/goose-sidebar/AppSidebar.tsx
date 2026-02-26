@@ -23,8 +23,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { Session } from '@/api';
-import { deleteSession, listSessions, updateSessionName } from '@/api';
+import { deleteSession, listSessions, updateSessionName, type Session } from '@/api';
 import { AppEvents } from '@/constants/events';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '@/contexts/ChatContext';
 import { useConfig } from '@/contexts/ConfigContext';

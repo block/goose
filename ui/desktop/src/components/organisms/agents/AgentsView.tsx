@@ -29,8 +29,7 @@ import {
 import type { BuiltinAgentMode } from '@/api/types.gen';
 import { useInstances } from '@/hooks/useInstances';
 import { PageShell } from '@/components/templates/layout/PageShell';
-import type { TabGroup } from '@/components/molecules/design-system';
-import { TabBar } from '@/components/molecules/design-system';
+import { TabBar, type TabGroup } from '@/components/molecules/design-system';
 import { InstanceDetail } from './InstanceDetail';
 import { InstanceList } from './InstanceList';
 import { SpawnInstanceModal } from './SpawnInstanceModal';

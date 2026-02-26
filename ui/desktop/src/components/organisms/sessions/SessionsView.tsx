@@ -1,8 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { Session } from '@/api';
-import { getSession } from '@/api';
+import { getSession, type Session } from '@/api';
 import { useNavigation } from '@/hooks/useNavigation';
 import SessionHistoryView from './SessionHistoryView';
 import SessionListView from './SessionListView';

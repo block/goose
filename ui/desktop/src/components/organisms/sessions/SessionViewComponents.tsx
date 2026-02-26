@@ -1,8 +1,7 @@
 import { AlertCircle, MessageSquare } from 'lucide-react';
 import type React from 'react';
 import type { Message } from '@/api';
-import type { ToolRequestMessageContent, ToolResponseMessageContent } from '@/types/message';
-import { getTextAndImageContent } from '@/types/message';
+import { getTextAndImageContent, type ToolRequestMessageContent, type ToolResponseMessageContent } from '@/types/message';
 import { formatMessageTimestamp } from '@/utils/timeUtils';
 import MarkdownContent from '../messages/MarkdownContent';
 import ToolCallWithResponse from '../messages/ToolCallWithResponse';

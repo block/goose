@@ -1,10 +1,8 @@
-import type { ExtensionConfig, Session } from '@/api';
-import { startAgent } from '@/api';
+import { startAgent, type ExtensionConfig, type Session } from '@/api';
 import { AppEvents } from '@/constants/events';
 import type { FixedExtensionEntry } from '@/contexts/ConfigContext';
 import type { setViewType } from '@/hooks/useNavigation';
-import type { Recipe } from '@/recipe';
-import { decodeRecipe } from '@/recipe';
+import { decodeRecipe, type Recipe } from '@/recipe';
 import {
   clearExtensionOverrides,
   getExtensionConfigsWithOverrides,

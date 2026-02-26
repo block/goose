@@ -13,8 +13,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInstanceEvents } from '@/hooks/useInstanceEvents';
-import type { InstanceResponse, InstanceResultResponse, InstanceStatus } from '@/lib/instances';
-import { getInstanceResult } from '@/lib/instances';
+import { getInstanceResult, type InstanceResponse, type InstanceResultResponse, type InstanceStatus } from '@/lib/instances';
 import { InstanceEventLog } from './InstanceEventLog';
 import { InstanceStatusBadge } from './InstanceStatusBadge';
 

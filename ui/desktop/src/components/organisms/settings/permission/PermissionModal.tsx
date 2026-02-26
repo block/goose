@@ -1,7 +1,6 @@
 import { AlertCircle, ChevronDownIcon, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { PermissionLevel, ToolInfo } from '@/api';
-import { getTools, upsertPermissions } from '@/api';
+import { getTools, upsertPermissions, type PermissionLevel, type ToolInfo } from '@/api';
 import { useChatContext } from '@/contexts/ChatContext';
 import { Button } from '@/components/atoms/button';
 import {

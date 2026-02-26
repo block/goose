@@ -1,8 +1,6 @@
-import type { ToastOptions } from 'react-toastify';
-import { toast } from 'react-toastify';
+import { toast, type ToastOptions } from 'react-toastify';
 import Copy from '@/components/atoms/icons/Copy';
-import type { ExtensionLoadingStatus } from '@/components/organisms/shared/GroupedExtensionLoadingToast';
-import { GroupedExtensionLoadingToast } from '@/components/organisms/shared/GroupedExtensionLoadingToast';
+import { GroupedExtensionLoadingToast, type ExtensionLoadingStatus } from '@/components/organisms/shared/GroupedExtensionLoadingToast';
 import { Button } from '@/components/atoms/button';
 import {
   Tooltip,

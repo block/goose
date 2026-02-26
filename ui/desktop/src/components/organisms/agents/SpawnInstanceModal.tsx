@@ -1,8 +1,7 @@
 import { AlertCircle, ChevronDown, Rocket } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import type { ProviderDetails } from '@/api';
-import { providers as fetchProviders, getProviderModels } from '@/api';
+import { providers as fetchProviders, getProviderModels, type ProviderDetails } from '@/api';
 import type { SpawnInstanceRequest } from '@/lib/instances';
 import {
   Dialog,

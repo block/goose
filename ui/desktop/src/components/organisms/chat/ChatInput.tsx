@@ -1,14 +1,12 @@
 import debounce from 'lodash/debounce';
 import { Bug, ChefHat, ScrollText } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Message } from '@/api';
-import { getSession } from '@/api';
+import { getSession, type Message } from '@/api';
 import { AppEvents } from '@/constants/events';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
-import type { DroppedFile } from '@/hooks/useFileDrop';
-import { useFileDrop } from '@/hooks/useFileDrop';
+import { useFileDrop, type DroppedFile } from '@/hooks/useFileDrop';
 import type { Recipe } from '@/recipe';
 import { toastError } from '@/toasts';
 import { ChatState } from '@/types/chatState';
@@ -44,8 +42,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/atoms/tool
 import { DiagnosticsModal } from '@/components/molecules/ui/diagnostics';
 import type { DisplayItemWithMatch } from './MentionPopover';
 import MentionPopover from './MentionPopover';
-import type { QueuedMessage } from './MessageQueue';
-import { MessageQueue } from './MessageQueue';
+import { MessageQueue, type QueuedMessage } from './MessageQueue';
 
 interface PastedImage {
   id: string;

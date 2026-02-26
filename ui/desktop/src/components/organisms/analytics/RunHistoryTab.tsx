@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { EvalDatasetSummary, EvalRunDetail, EvalRunSummary } from '@/api';
-import { getEvalRun, listEvalDatasets, listEvalRuns, runEval } from '@/api';
+import { getEvalRun, listEvalDatasets, listEvalRuns, runEval, type EvalDatasetSummary, type EvalRunDetail, type EvalRunSummary } from '@/api';
 import RunComparisonView from './RunComparisonView';
 import SankeyDiagram from './SankeyDiagram';
 

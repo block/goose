@@ -9,8 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { TopicAnalytics } from '@/api';
-import { getEvalTopics } from '@/api';
+import { getEvalTopics, type TopicAnalytics } from '@/api';
 
 const COLORS = [
   '#3b82f6',

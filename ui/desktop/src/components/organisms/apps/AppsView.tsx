@@ -1,7 +1,6 @@
 import { Download, Play, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { GooseApp } from '@/api';
-import { exportApp, importApp, listApps } from '@/api';
+import { exportApp, importApp, listApps, type GooseApp } from '@/api';
 import { useChatContext } from '@/contexts/ChatContext';
 import { errorMessage, formatAppName } from '@/utils/conversionUtils';
 import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';

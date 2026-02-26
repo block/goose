@@ -7,8 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CommandType } from '@/api';
-import { getSlashCommands } from '@/api';
+import { getSlashCommands, type CommandType } from '@/api';
 import { getInitialWorkingDir } from '@/utils/workingDir';
 import { ItemIcon } from '../shared/ItemIcon';
 

@@ -1,8 +1,7 @@
 import type { Edge, Node } from '@xyflow/react';
 import { Clock, FileText, FolderOpen, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import type { Pipeline } from '@/api';
-import { deletePipeline, getPipeline, listPipelines, savePipeline } from '@/api';
+import { deletePipeline, getPipeline, listPipelines, savePipeline, type Pipeline } from '@/api';
 import { DagEditor } from './DagEditor';
 import { pipelineToFlow } from './serialization';
 import type { DagNodeData, PipelineMetadata } from './types';

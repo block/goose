@@ -10,8 +10,7 @@ import {
 } from '@/api';
 import { AppEvents } from '@/constants/events';
 import { ChatState } from '@/types/chatState';
-import type { NotificationEvent, UserInput } from '@/types/message';
-import { createElicitationResponseMessage, createUserMessage } from '@/types/message';
+import { createElicitationResponseMessage, createUserMessage, type NotificationEvent, type UserInput } from '@/types/message';
 import { errorMessage } from '@/utils/conversionUtils';
 import { showExtensionLoadResults } from '@/utils/extensionErrorUtils';
 import { streamFromResponse } from './chatStream/streamDecoder';

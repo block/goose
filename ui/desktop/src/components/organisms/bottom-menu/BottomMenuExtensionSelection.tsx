@@ -1,10 +1,8 @@
 import { Puzzle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ExtensionConfig } from '@/api';
-import { getSessionExtensions } from '@/api';
+import { getSessionExtensions, type ExtensionConfig } from '@/api';
 import { AppEvents } from '@/constants/events';
-import type { FixedExtensionEntry } from '@/contexts/ConfigContext';
-import { useConfig } from '@/contexts/ConfigContext';
+import { useConfig, type FixedExtensionEntry } from '@/contexts/ConfigContext';
 import {
   getExtensionOverride,
   getExtensionOverrides,

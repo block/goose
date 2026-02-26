@@ -11,8 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { EvalDatasetSummary, EvalOverview } from '@/api';
-import { getEvalOverview, listEvalDatasets, runEval } from '@/api';
+import { getEvalOverview, listEvalDatasets, runEval, type EvalDatasetSummary, type EvalOverview } from '@/api';
 
 const COLORS = {
   green: '#22c55e',

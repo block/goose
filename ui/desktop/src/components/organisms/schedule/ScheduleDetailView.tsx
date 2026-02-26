@@ -2,8 +2,7 @@ import cronstrue from 'cronstrue';
 import { Edit, Eye, Loader2, Pause, Play, Square } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import type { Session } from '@/api';
-import { getSession } from '@/api';
+import { getSession, type Session } from '@/api';
 import type { ScheduledJob } from '@/schedule';
 import {
   getScheduleSessions,
@@ -24,8 +23,7 @@ import { Button } from '@/components/atoms/button';
 import { ScrollArea } from '@/components/atoms/scroll-area';
 import BackButton from '@/components/molecules/ui/back-button';
 import { Card } from '@/components/molecules/ui/card';
-import type { NewSchedulePayload } from './ScheduleModal';
-import { ScheduleModal } from './ScheduleModal';
+import { ScheduleModal, type NewSchedulePayload } from './ScheduleModal';
 
 interface ScheduleSessionMeta {
   id: string;

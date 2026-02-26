@@ -1,7 +1,6 @@
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { useState } from 'react';
-import type { ProviderDetails } from '@/api';
-import { configureProviderOauth, removeCustomProvider } from '@/api';
+import { configureProviderOauth, removeCustomProvider, type ProviderDetails } from '@/api';
 import { Button } from '@/components/atoms/button';
 import { useConfig } from '@/contexts/ConfigContext';
 import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';

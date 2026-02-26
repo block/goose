@@ -18,10 +18,8 @@ import type { LoadingStatus } from '@/components/atoms/dot';
 import MarkdownContent from './MarkdownContent';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
-import type { ToolCallArgumentValue } from './ToolCallArguments';
-import { ToolCallArguments } from './ToolCallArguments';
-import type { ToolCallStatus } from './ToolCallStatusIndicator';
-import { ToolIconWithStatus } from './ToolCallStatusIndicator';
+import { ToolCallArguments, type ToolCallArgumentValue } from './ToolCallArguments';
+import { ToolIconWithStatus, type ToolCallStatus } from './ToolCallStatusIndicator';
 
 interface ToolGraphNode {
   tool: string;

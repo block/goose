@@ -1,8 +1,7 @@
 import { ChevronRight } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import type { FixedExtensionEntry } from '@/contexts/ConfigContext';
-import { useConfig } from '@/contexts/ConfigContext';
+import { useConfig, type FixedExtensionEntry } from '@/contexts/ConfigContext';
 import { Button } from '@/components/atoms/button';
 import { ScrollArea } from '@/components/atoms/scroll-area';
 import BackButton from '@/components/molecules/ui/back-button';

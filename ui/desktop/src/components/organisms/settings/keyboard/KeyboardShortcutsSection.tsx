@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { trackSettingToggled } from '@/utils/analytics';
-import type { KeyboardShortcuts } from '@/utils/settings';
-import { defaultKeyboardShortcuts } from '@/utils/settings';
+import { defaultKeyboardShortcuts, type KeyboardShortcuts } from '@/utils/settings';
 import { Button } from '@/components/atoms/button';
 import { Switch } from '@/components/atoms/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules/ui/card';

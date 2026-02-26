@@ -24,8 +24,7 @@ import { PageShell } from '@/components/templates/layout/PageShell';
 import { Button } from '@/components/atoms/button';
 import { Card } from '@/components/molecules/ui/card';
 import ScheduleDetailView from './ScheduleDetailView';
-import type { NewSchedulePayload } from './ScheduleModal';
-import { ScheduleModal } from './ScheduleModal';
+import { ScheduleModal, type NewSchedulePayload } from './ScheduleModal';
 
 interface SchedulesViewProps {
   onClose?: () => void;

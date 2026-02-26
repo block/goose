@@ -2,8 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlertBox } from '../AlertBox';
-import type { Alert } from '../types';
-import { AlertType } from '../types';
+import { AlertType, type Alert } from '../types';
 
 // Mock the ConfigContext
 vi.mock('@/contexts/ConfigContext', () => ({

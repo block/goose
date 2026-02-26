@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '@/api';
-import type { WorkBlock } from '../assistantWorkBlocks';
-import { identifyWorkBlocks } from '../assistantWorkBlocks';
+import { identifyWorkBlocks, type WorkBlock } from '../assistantWorkBlocks';
 
 // Helper to create a minimal Message-like object
 function msg(

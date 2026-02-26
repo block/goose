@@ -7,8 +7,7 @@
 import type React from 'react';
 import type { Message, MessageEvent, TokenState } from '@/api';
 import { ChatState } from '@/types/chatState';
-import type { MessageWithAttribution, NotificationEvent, RoutingInfo } from '@/types/message';
-import { getCompactingMessage, getThinkingMessage } from '@/types/message';
+import { getCompactingMessage, getThinkingMessage, type MessageWithAttribution, type NotificationEvent, type RoutingInfo } from '@/types/message';
 import { errorMessage } from '@/utils/conversionUtils';
 import { maybeHandlePlatformEvent } from '@/utils/platform_events';
 import type { StreamAction } from './streamReducer';

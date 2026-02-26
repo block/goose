@@ -14,8 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { EvalOverview, EvalRunSummary, SessionAnalytics } from '@/api';
-import { getEvalOverview, getSessionAnalytics, listEvalRuns } from '@/api';
+import { getEvalOverview, getSessionAnalytics, listEvalRuns, type EvalOverview, type EvalRunSummary, type SessionAnalytics } from '@/api';
 
 // --- Design tokens ---
 const COLORS = {

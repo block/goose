@@ -29,8 +29,7 @@ import {
 import { AppEvents } from '@/constants/events';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useNavigation } from '@/hooks/useNavigation';
-import type { Recipe } from '@/recipe';
-import { encodeRecipe, generateDeepLink, stripEmptyExtensions } from '@/recipe';
+import { encodeRecipe, generateDeepLink, stripEmptyExtensions, type Recipe } from '@/recipe';
 import { convertToLocaleDateString, listSavedRecipes } from '@/recipe/recipe_management';
 import { toastError, toastSuccess } from '@/toasts';
 import {

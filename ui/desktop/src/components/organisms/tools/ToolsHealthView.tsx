@@ -8,8 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ToolAnalytics, ToolUsageStat } from '@/api';
-import { getToolAnalytics } from '@/api';
+import { getToolAnalytics, type ToolAnalytics, type ToolUsageStat } from '@/api';
 
 const COLORS = {
   success: '#22c55e',

@@ -1,5 +1,4 @@
-import type { ExtensionConfig } from '@/api';
-import { agentAddExtension, agentRemoveExtension } from '@/api';
+import { agentAddExtension, agentRemoveExtension, type ExtensionConfig } from '@/api';
 import { toastService } from '@/toasts';
 import { errorMessage } from '@/utils/conversionUtils';
 import {
