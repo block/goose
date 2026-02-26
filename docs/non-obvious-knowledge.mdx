@@ -195,6 +195,49 @@ The order matters: Extension layers must be ABOVE `from_fn(authorize_middleware)
 Maps HTTP method + path to policy action/resource pairs:
 - `POST /reply` → `execute:reply`
 - `GET /sessions` → `session:list`
+
+---
+
+## GenUI / json-render
+
+### `$state` does **not** read from `spec.state` unless we pass it explicitly
+
+`JsonRenderBlock` parses JSONL (RFC6902-style) patch streams into a flat `Spec` object that can include a top-level `state` field (coming from `/state/...` patches).
+
+However, `@json-render/react`’s `createRenderer()` does **not** automatically use `spec.state` as its state model. It uses the `state` prop passed to `CatalogRenderer` (wired into `StateProvider initialState=state`).
+
+**Implication:** if you render only:
+
+```tsx
+<CatalogRenderer spec={parsedSpec} />
+```
+
+then `$state` / `$bindState` / `$bindItem` expressions resolve against an empty state model, even if `parsedSpec.state` exists.
+
+**Fix:** always pass `state={parsedSpec.state ?? {}}`:
+
+```tsx
+<CatalogRenderer spec={parsedSpec as any} state={(parsedSpec.state ?? {}) as any} />
+```
+
+**Symptom when broken:** charts/tables render their empty states (e.g. “No chart data provided”, “No rows”) even though the JSONL patch stream clearly includes `/state/...` patches.
+
+### JSONL streams must create `/state` before writing `/state/*`
+
+In practice, models often emit patches like `{"op":"add","path":"/state/foo","value":...}` without first emitting `{"op":"add","path":"/state","value":{}}`.
+
+We reject this pattern during orchestrated GenUI validation because it frequently results in missing state at runtime (so `$state` bindings resolve to nothing).
+
+### Debugging searches: escape `$` in ripgrep
+
+`rg "$state"` won’t match because `$` is a regex metacharacter. Use either:
+
+```bash
+rg -nF '$state' <file>
+# or
+rg -n '\\$state' <file>
+```
+
 - `POST /sessions/*/reply` → `execute:reply`
 - `GET /agents/*` → `read:agents`
 - `POST /control-plane/v1/policies` → `manage:policies`
