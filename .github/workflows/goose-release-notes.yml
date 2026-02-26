@@ -9,12 +9,12 @@
 #   - RELEASE_BOT_ANTHROPIC_KEY: API key for Anthropic
 #
 # Optional Secrets (for Discord):
-#   - DISCORD_BOT_TOKEN: Discord bot token for posting release announcements
+#   - DISCORD_RELEASE_BOT_TOKEN: Discord bot token for posting release announcements
+#   - DISCORD_RELEASE_BOT_CHANNEL_ID: Discord channel ID for release announcements
 #
 # Optional Variables:
 #   - GOOSE_PROVIDER: LLM provider (default: anthropic)
 #   - GOOSE_MODEL: Model name (default: claude-opus-4-5)
-#   - DISCORD_RELEASE_CHANNEL_ID: Discord channel ID for release announcements
 
 name: goose Release Notes Generator
 
@@ -174,8 +174,8 @@ jobs:
     steps:
       - name: Post release announcement
         env:
-          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_RELEASE_CHANNEL_ID }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_RELEASE_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_RELEASE_BOT_CHANNEL_ID }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
           RELEASE_URL: ${{ github.event.release.html_url || format('https://github.com/block/goose/releases/tag/{0}', inputs.tag) }}
           RELEASE_NOTES: ${{ needs.generate-release-notes.outputs.release_notes }}
