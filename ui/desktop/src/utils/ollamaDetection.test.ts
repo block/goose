@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* global AbortSignal, TextEncoder, EventListener */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,18 +8,22 @@ import {
   getPreferredModel,
   hasModel,
   pollForOllama,
+  type PullProgress,
   pullOllamaModel,
 } from './ollamaDetection';
 
-// Mock fetch globally
-globalThis.fetch = vi.fn();
+const fetchMock = vi.fn<
+  (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+>();
+
+globalThis.fetch = fetchMock as unknown as typeof fetch;
 
 // Define global objects for testing environment if they don't exist
 if (typeof globalThis.AbortSignal === 'undefined') {
   globalThis.AbortSignal = class AbortSignal {
     aborted = false;
-    reason: any = undefined;
-    onabort: ((this: AbortSignal, ev: Event) => any) | null = null;
+    reason: unknown = undefined;
+    onabort: ((this: AbortSignal, ev: Event) => unknown) | null = null;
 
     addEventListener(_type: string, _listener: EventListener): void {
       // Mock implementation
@@ -33,15 +36,26 @@ if (typeof globalThis.AbortSignal === 'undefined') {
     dispatchEvent(_event: Event): boolean {
       return true;
     }
-  } as any;
+  } as unknown as typeof AbortSignal;
 }
 
 if (typeof globalThis.TextEncoder === 'undefined') {
   globalThis.TextEncoder = class TextEncoder {
+    readonly encoding = 'utf-8';
+
     encode(str: string): Uint8Array {
       return new Uint8Array(str.split('').map((c) => c.charCodeAt(0)));
     }
-  } as any;
+
+    encodeInto(source: string, destination: Uint8Array): TextEncoderEncodeIntoResult {
+      const encoded = this.encode(source);
+      destination.set(encoded.subarray(0, destination.length));
+      return {
+        read: Math.min(source.length, destination.length),
+        written: Math.min(encoded.length, destination.length),
+      };
+    }
+  } as unknown as typeof TextEncoder;
 }
 
 describe('ollamaDetection', () => {
@@ -56,10 +70,10 @@ describe('ollamaDetection', () => {
 
   describe('checkOllamaStatus', () => {
     it('should return isRunning: true when Ollama is accessible', async () => {
-      (globalThis.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ models: [] }),
-      });
+      } as unknown as Response);
 
       const result = await checkOllamaStatus();
 
@@ -74,7 +88,7 @@ describe('ollamaDetection', () => {
     });
 
     it('should return isRunning: false when Ollama is not accessible', async () => {
-      (globalThis.fetch as any).mockRejectedValueOnce(new Error('Connection refused'));
+      fetchMock.mockRejectedValueOnce(new Error('Connection refused'));
 
       const result = await checkOllamaStatus();
 
@@ -88,11 +102,11 @@ describe('ollamaDetection', () => {
     it('should timeout after 2 seconds', async () => {
       let abortSignal: AbortSignal | undefined;
 
-      (globalThis.fetch as any).mockImplementationOnce((_url: string, options: any) => {
-        abortSignal = options.signal;
+      fetchMock.mockImplementationOnce((_input: RequestInfo | URL, options?: RequestInit) => {
+        abortSignal = options?.signal as AbortSignal | undefined;
         return new Promise((_, reject) => {
           // Listen for abort signal
-          options.signal.addEventListener('abort', () => {
+          abortSignal?.addEventListener('abort', () => {
             reject(new Error('The operation was aborted'));
           });
         });
@@ -119,10 +133,10 @@ describe('ollamaDetection', () => {
         { name: 'gpt-oss:20b', size: 13780173839, digest: 'def456', modified_at: '2023-10-02' },
       ];
 
-      (globalThis.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ models: mockModels }),
-      });
+      } as unknown as Response);
 
       const result = await getOllamaModels();
 
@@ -130,7 +144,7 @@ describe('ollamaDetection', () => {
     });
 
     it('should return empty array when API call fails', async () => {
-      (globalThis.fetch as any).mockRejectedValueOnce(new Error('Network error'));
+      fetchMock.mockRejectedValueOnce(new Error('Network error'));
 
       const result = await getOllamaModels();
 
@@ -138,10 +152,10 @@ describe('ollamaDetection', () => {
     });
 
     it('should handle non-ok responses', async () => {
-      (globalThis.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: false,
         statusText: 'Not Found',
-      });
+      } as unknown as Response);
 
       const result = await getOllamaModels();
 
@@ -151,7 +165,7 @@ describe('ollamaDetection', () => {
 
   describe('hasModel', () => {
     it('should return true when model exists', async () => {
-      (globalThis.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           models: [
@@ -161,10 +175,15 @@ describe('ollamaDetection', () => {
               digest: 'abc123',
               modified_at: '2023-10-01',
             },
-            { name: 'gpt-oss:20b', size: 13780173839, digest: 'def456', modified_at: '2023-10-02' },
+            {
+              name: 'gpt-oss:20b',
+              size: 13780173839,
+              digest: 'def456',
+              modified_at: '2023-10-02',
+            },
           ],
         }),
-      });
+      } as unknown as Response);
 
       const result = await hasModel('gpt-oss:20b');
 
@@ -172,7 +191,7 @@ describe('ollamaDetection', () => {
     });
 
     it('should return false when model does not exist', async () => {
-      (globalThis.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           models: [
@@ -184,7 +203,7 @@ describe('ollamaDetection', () => {
             },
           ],
         }),
-      });
+      } as unknown as Response);
 
       const result = await hasModel('gpt-oss:20b');
 
@@ -194,7 +213,7 @@ describe('ollamaDetection', () => {
 
   describe('pullOllamaModel', () => {
     it('should successfully pull a model and report progress', async () => {
-      const progressUpdates: any[] = [];
+      const progressUpdates: PullProgress[] = [];
       const onProgress = vi.fn((progress) => progressUpdates.push(progress));
 
       const mockResponse = {
@@ -224,7 +243,7 @@ describe('ollamaDetection', () => {
         },
       };
 
-      (globalThis.fetch as any).mockResolvedValueOnce(mockResponse);
+      fetchMock.mockResolvedValueOnce(mockResponse as unknown as Response);
 
       const result = await pullOllamaModel('gpt-oss:20b', onProgress);
 
@@ -244,10 +263,10 @@ describe('ollamaDetection', () => {
     });
 
     it('should return false on API error', async () => {
-      (globalThis.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: false,
         statusText: 'Model not found',
-      });
+      } as unknown as Response);
 
       const result = await pullOllamaModel('invalid-model');
 
@@ -260,7 +279,7 @@ describe('ollamaDetection', () => {
       const onDetected = vi.fn();
 
       // First call: Ollama not running
-      (globalThis.fetch as any).mockRejectedValueOnce(new Error('Connection refused'));
+      fetchMock.mockRejectedValueOnce(new Error('Connection refused'));
 
       const stopPolling = pollForOllama(onDetected, 100);
 
@@ -268,14 +287,14 @@ describe('ollamaDetection', () => {
       expect(globalThis.fetch).toHaveBeenCalledTimes(1);
 
       // Second call: Still not running
-      (globalThis.fetch as any).mockRejectedValueOnce(new Error('Connection refused'));
+      fetchMock.mockRejectedValueOnce(new Error('Connection refused'));
       vi.advanceTimersByTime(100);
 
       // Third call: Ollama is running
-      (globalThis.fetch as any).mockResolvedValueOnce({
+      fetchMock.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ models: [] }),
-      });
+      } as unknown as Response);
       vi.advanceTimersByTime(100);
 
       // Wait for async operations
@@ -292,7 +311,7 @@ describe('ollamaDetection', () => {
     it('should stop polling when stop function is called', () => {
       const onDetected = vi.fn();
 
-      (globalThis.fetch as any).mockRejectedValue(new Error('Connection refused'));
+      fetchMock.mockRejectedValue(new Error('Connection refused'));
 
       const stopPolling = pollForOllama(onDetected, 100);
 

@@ -1,7 +1,7 @@
 import cronstrue from 'cronstrue';
 import { CircleDotDashed, Edit, Eye, Pause, Play, Plus, RefreshCw, Square } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { ScheduledJob } from '@/schedule';
 import {
@@ -198,7 +198,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const [actionsInProgress, setActionsInProgress] = useState<Set<string>>(new Set());
   const [viewingScheduleId, setViewingScheduleId] = useState<string | null>(null);
 
-  const fetchSchedules = async () => {
+  const fetchSchedules = useCallback(async () => {
     setIsLoading(true);
     setApiError(null);
     try {
@@ -210,7 +210,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (viewingScheduleId === null) {

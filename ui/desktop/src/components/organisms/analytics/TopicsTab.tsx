@@ -86,8 +86,8 @@ export default function TopicsTab() {
       <div className="space-y-4 animate-pulse">
         <div className="h-8 w-48 rounded bg-background-muted" />
         <div className="h-64 rounded-lg bg-background-muted" />
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-14 rounded-lg bg-background-muted" />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={`topic-skeleton-${i + 1}`} className="h-14 rounded-lg bg-background-muted" />
         ))}
       </div>
     );

@@ -114,16 +114,18 @@ function Field({
   label,
   required,
   hint,
+  id,
   children,
 }: {
   label: string;
   required?: boolean;
   hint?: string;
+  id: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="text-xs font-medium text-muted-foreground">
+      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
         {label}
         {required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
@@ -260,7 +262,8 @@ export default function AuthSection() {
   }, [oidc.issuer, loginWithOidc]);
 
   const preset = AUTH_PRESETS.find((p) => p.id === selected);
-  const isOidc = preset && 'issuer' in preset;
+  const oidcPreset = preset && 'issuer' in preset ? preset : null;
+  const isOidc = oidcPreset != null;
 
   return (
     <div className="space-y-6">
@@ -331,8 +334,14 @@ export default function AuthSection() {
 
       {selected === 'apikey' && (
         <div className="space-y-3 max-w-md">
-          <Field label="API Key" required hint="Clients must include this in the X-Api-Key header.">
+          <Field
+            label="API Key"
+            required
+            hint="Clients must include this in the X-Api-Key header."
+            id="auth-apikey"
+          >
             <Input
+              id="auth-apikey"
               type="password"
               placeholder="Enter shared secret"
               value={apiKey}
@@ -344,32 +353,45 @@ export default function AuthSection() {
 
       {isOidc && (
         <div className="space-y-4 max-w-md">
-          {preset && 'docs' in preset && (
-            <p className="text-xs text-muted-foreground">{preset.docs}</p>
+          {oidcPreset && 'docs' in oidcPreset && (
+            <p className="text-xs text-muted-foreground">{oidcPreset.docs}</p>
           )}
 
-          <Field label="Issuer URL" required hint="The OpenID Connect discovery endpoint">
+          <Field
+            label="Issuer URL"
+            required
+            hint="The OpenID Connect discovery endpoint"
+            id="auth-issuer"
+          >
             <Input
+              id="auth-issuer"
               placeholder={
-                (('issuerPlaceholder' in preset!
-                  ? preset.issuerPlaceholder
-                  : preset?.issuer) as string) || 'https://...'
+                (('issuerPlaceholder' in oidcPreset
+                  ? oidcPreset.issuerPlaceholder
+                  : oidcPreset.issuer) as string) || 'https://...'
               }
               value={oidc.issuer}
               onChange={(e) => setOidc((prev) => ({ ...prev, issuer: e.target.value }))}
             />
           </Field>
 
-          <Field label="Client ID" required hint="Also called audience or application ID">
+          <Field
+            label="Client ID"
+            required
+            hint="Also called audience or application ID"
+            id="auth-client-id"
+          >
             <Input
+              id="auth-client-id"
               placeholder="your-client-id"
               value={oidc.audience}
               onChange={(e) => setOidc((prev) => ({ ...prev, audience: e.target.value }))}
             />
           </Field>
 
-          <Field label="Client Secret" hint="Required for confidential clients">
+          <Field label="Client Secret" hint="Required for confidential clients" id="auth-client-secret">
             <Input
+              id="auth-client-secret"
               type="password"
               placeholder="Optional"
               value={oidc.clientSecret}
@@ -383,22 +405,29 @@ export default function AuthSection() {
               Advanced ▸
             </summary>
             <div className="mt-3 space-y-3 pl-3 border-l border-border/30">
-              <Field label="Tenant Claim" hint="JWT claim for tenant ID (e.g., tid)">
+              <Field label="Tenant Claim" hint="JWT claim for tenant ID (e.g., tid)" id="auth-tenant-claim">
                 <Input
+                  id="auth-tenant-claim"
                   placeholder="tid"
                   value={oidc.tenantClaim}
                   onChange={(e) => setOidc((prev) => ({ ...prev, tenantClaim: e.target.value }))}
                 />
               </Field>
-              <Field label="Group Claim" hint="JWT claim for group membership">
+              <Field label="Group Claim" hint="JWT claim for group membership" id="auth-group-claim">
                 <Input
+                  id="auth-group-claim"
                   placeholder="groups"
                   value={oidc.groupClaim}
                   onChange={(e) => setOidc((prev) => ({ ...prev, groupClaim: e.target.value }))}
                 />
               </Field>
-              <Field label="Required Groups" hint="Comma-separated list of required groups">
+              <Field
+                label="Required Groups"
+                hint="Comma-separated list of required groups"
+                id="auth-required-groups"
+              >
                 <Input
+                  id="auth-required-groups"
                   placeholder="admin, developers"
                   value={oidc.requiredGroups}
                   onChange={(e) => setOidc((prev) => ({ ...prev, requiredGroups: e.target.value }))}

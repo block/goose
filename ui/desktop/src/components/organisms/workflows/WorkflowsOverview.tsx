@@ -47,117 +47,122 @@ function WorkflowCard({ category }: { category: WorkflowCategory }) {
   const hasMore = category.items.length > 4;
 
   return (
-    <div
-      className="group relative bg-background-default border border-border-default rounded-xl p-6 hover:border-border-accent hover:shadow-lg transition-all cursor-pointer"
-      onClick={() => navigate(category.route)}
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{
-              backgroundColor: `${category.color}20`,
-              color: category.color,
-            }}
-          >
-            {category.icon}
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-text-default">{category.label}</h3>
-            <p className="text-sm text-text-muted">{category.description}</p>
-          </div>
-        </div>
-        <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
+    <div className="group relative bg-background-default border border-border-default rounded-xl p-6 hover:border-border-accent hover:shadow-lg transition-all">
+      <button
+        type="button"
+        className="absolute inset-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-border-accent"
+        aria-label={`Open ${category.label}`}
+        onClick={() => navigate(category.route)}
+      />
 
-      <div className="flex items-center gap-4 mb-4">
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="text-text-default font-medium">{category.items.length}</span>
-          <span className="text-text-muted">total</span>
-        </div>
-        {active > 0 && (
-          <div className="flex items-center gap-1.5 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-text-success" />
-            <span className="text-text-default font-medium">{active}</span>
-            <span className="text-text-muted">active</span>
-          </div>
-        )}
-        {errors > 0 && (
-          <div className="flex items-center gap-1.5 text-sm">
-            <AlertCircle className="w-4 h-4 text-text-danger" />
-            <span className="text-text-danger font-medium">{errors}</span>
-            <span className="text-text-muted">issues</span>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
-        {visibleItems.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-background-muted transition-colors"
-          >
+      <div className="relative z-10 pointer-events-none">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
             <div
-              className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                item.status === 'active'
-                  ? 'bg-green-500'
-                  : item.status === 'paused'
-                    ? 'bg-amber-500'
-                    : item.status === 'error'
-                      ? 'bg-red-500'
-                      : 'bg-gray-400'
-              }`}
-            />
-            <span className="text-text-default truncate text-sm">{item.name}</span>
-            {item.type && (
-              <span className="text-xs text-text-muted px-1.5 py-0.5 rounded bg-background-default flex-shrink-0">
-                {item.type}
-              </span>
-            )}
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{
+                backgroundColor: `${category.color}20`,
+                color: category.color,
+              }}
+            >
+              {category.icon}
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-text-default">{category.label}</h3>
+              <p className="text-sm text-text-muted">{category.description}</p>
+            </div>
           </div>
-        ))}
-        {hasMore && (
-          <button type="button"
-            className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-muted transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-          >
-            {expanded ? '▲ Show less' : `▼ +${category.items.length - 4} more`}
-          </button>
-        )}
-        {category.items.length === 0 && !category.loading && (
-          <div className="text-sm text-text-muted text-center py-3">
-            No items yet — click to get started
+          <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-1.5 text-sm">
+            <span className="text-text-default font-medium">{category.items.length}</span>
+            <span className="text-text-muted">total</span>
           </div>
-        )}
-        {category.loading && (
-          <div className="space-y-1.5">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-8 bg-background-muted rounded-md animate-pulse" />
+          {active > 0 && (
+            <div className="flex items-center gap-1.5 text-sm">
+              <CheckCircle2 className="w-4 h-4 text-text-success" />
+              <span className="text-text-default font-medium">{active}</span>
+              <span className="text-text-muted">active</span>
+            </div>
+          )}
+          {errors > 0 && (
+            <div className="flex items-center gap-1.5 text-sm">
+              <AlertCircle className="w-4 h-4 text-text-danger" />
+              <span className="text-text-danger font-medium">{errors}</span>
+              <span className="text-text-muted">issues</span>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          {visibleItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-background-muted transition-colors"
+            >
+              <div
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  item.status === 'active'
+                    ? 'bg-green-500'
+                    : item.status === 'paused'
+                      ? 'bg-amber-500'
+                      : item.status === 'error'
+                        ? 'bg-red-500'
+                        : 'bg-gray-400'
+                }`}
+              />
+              <span className="text-text-default truncate text-sm">{item.name}</span>
+              {item.type && (
+                <span className="text-xs text-text-muted px-1.5 py-0.5 rounded bg-background-default flex-shrink-0">
+                  {item.type}
+                </span>
+              )}
+            </div>
+          ))}
+          {hasMore && (
+            <button
+              type="button"
+              className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-muted transition-colors pointer-events-auto"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? '▲ Show less' : `▼ +${category.items.length - 4} more`}
+            </button>
+          )}
+          {category.items.length === 0 && !category.loading && (
+            <div className="text-sm text-text-muted text-center py-3">
+              No items yet — click to get started
+            </div>
+          )}
+          {category.loading && (
+            <div className="space-y-1.5">
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={`workflow-item-skeleton-${n}`}
+                  className="h-8 bg-background-muted rounded-md animate-pulse"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {category.actions.length > 0 && (
+          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
+            {category.actions.map((action) => (
+              <button
+                type="button"
+                key={action.label}
+                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-muted transition-colors pointer-events-auto"
+                onClick={action.onClick}
+              >
+                {action.icon}
+                {action.label}
+              </button>
             ))}
           </div>
         )}
       </div>
-
-      {category.actions.length > 0 && (
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
-          {category.actions.map((action, i) => (
-            <button type="button"
-              key={i}
-              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-muted transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                action.onClick();
-              }}
-            >
-              {action.icon}
-              {action.label}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

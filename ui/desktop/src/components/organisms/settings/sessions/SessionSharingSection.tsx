@@ -167,7 +167,7 @@ export default function SessionSharingSection() {
           <div className="space-y-4">
             {/* Toggle for enabling session sharing */}
             <div className="flex items-center gap-3">
-              <label className="text-sm cursor-pointer">
+              <label htmlFor="session-sharing-enabled" className="text-sm cursor-pointer">
                 {(envBaseUrlShare as string)
                   ? 'Session sharing has already been configured'
                   : 'Enable session sharing'}
@@ -177,6 +177,7 @@ export default function SessionSharingSection() {
                 <Lock className="w-5 h-5 text-text-muted" />
               ) : (
                 <Switch
+                  id="session-sharing-enabled"
                   checked={sessionSharingConfig.enabled}
                   disabled={!!envBaseUrlShare}
                   onCheckedChange={toggleSharing}

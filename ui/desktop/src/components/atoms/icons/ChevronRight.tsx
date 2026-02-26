@@ -1,10 +1,6 @@
-interface Props {
-  className?: string;
-  // eslint-disable-next-line
-  [key: string]: any; // This will allow any other SVG props to pass through
-}
+import type { SVGProps } from 'react';
 
-export function ChevronRight({ className = '', ...props }: Props) {
+export function ChevronRight({ className = '', ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
       className={className}

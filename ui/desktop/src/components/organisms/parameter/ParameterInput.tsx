@@ -21,62 +21,51 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
 }) => {
   const { key, description, requirement } = parameter;
   const defaultValue = parameter.default || '';
-
-  const handleToggleExpanded = (e: React.MouseEvent) => {
-    // Only toggle if we're not clicking on the delete button
-    if (onToggleExpanded && !(e.target as HTMLElement).closest('button')) {
-      onToggleExpanded(key);
-    }
-  };
+  const idBase = `recipe-param-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 
   return (
     <div className="parameter-input my-4 border rounded-lg bg-background-muted shadow-sm relative">
       {/* Collapsed header - always visible */}
       <div
-        className={`flex items-center justify-between p-4 ${onToggleExpanded ? 'cursor-pointer hover:bg-background-default/50' : ''} transition-colors`}
-        onClick={handleToggleExpanded}
+        className={`flex items-center justify-between p-4 ${onToggleExpanded ? 'hover:bg-background-default/50' : ''} transition-colors`}
       >
-        <div className="flex items-center gap-2 flex-1">
-          {onToggleExpanded && (
-            <button
-              type="button"
-              className="p-1 hover:bg-background-default rounded transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleExpanded(key);
-              }}
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-text-muted" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-text-muted" />
-              )}
-            </button>
-          )}
+        <button
+          type="button"
+          disabled={!onToggleExpanded}
+          onClick={() => onToggleExpanded?.(key)}
+          className={
+            onToggleExpanded
+              ? 'flex items-center gap-2 flex-1 text-left'
+              : 'flex items-center gap-2 flex-1 text-left cursor-default'
+          }
+        >
+          {onToggleExpanded &&
+            (isExpanded ? (
+              <ChevronDown className="w-4 h-4 text-text-muted" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-text-muted" />
+            ))}
 
           <div className="flex items-center gap-2">
             <span className="text-md font-bold text-text-default">
               <code className="bg-background-default px-2 py-1 rounded-md">{parameter.key}</code>
             </span>
             {isUnused && (
-              <div
+              <span
                 className="flex items-center gap-1"
                 title="This parameter is not used in the instructions or prompt. It will be available for manual input but may not be needed."
               >
                 <AlertTriangle className="w-4 h-4 text-orange-500" />
                 <span className="text-xs text-orange-500 font-normal">Unused</span>
-              </div>
+              </span>
             )}
           </div>
-        </div>
+        </button>
 
         {onDelete && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(key);
-            }}
+            onClick={() => onDelete(key)}
             className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
             title={`Delete parameter: ${key}`}
           >
@@ -90,10 +79,14 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
         <div className="px-4 pb-4 border-t border-border-default">
           <div className="pt-4">
             <div className="mb-4">
-              <label className="block text-md text-text-default mb-2 font-semibold">
+              <label
+                htmlFor={`${idBase}-description`}
+                className="block text-md text-text-default mb-2 font-semibold"
+              >
                 description
               </label>
               <input
+                id={`${idBase}-description`}
                 type="text"
                 value={description || ''}
                 onChange={(e) => onChange(key, { description: e.target.value })}
@@ -108,10 +101,14 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
             {/* Controls for requirement, input type, and default value */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-md text-text-default mb-2 font-semibold">
+                <label
+                  htmlFor={`${idBase}-input-type`}
+                  className="block text-md text-text-default mb-2 font-semibold"
+                >
                   Input Type
                 </label>
                 <select
+                  id={`${idBase}-input-type`}
                   className="w-full p-3 border rounded-lg bg-background-default text-text-default"
                   value={parameter.input_type || 'string'}
                   onChange={(e) =>
@@ -126,10 +123,14 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
               </div>
 
               <div>
-                <label className="block text-md text-text-default mb-2 font-semibold">
+                <label
+                  htmlFor={`${idBase}-requirement`}
+                  className="block text-md text-text-default mb-2 font-semibold"
+                >
                   Requirement
                 </label>
                 <select
+                  id={`${idBase}-requirement`}
                   className="w-full p-3 border rounded-lg bg-background-default text-text-default"
                   value={requirement}
                   onChange={(e) =>
@@ -144,10 +145,14 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
               {/* The default value input is only shown for optional parameters */}
               {requirement === 'optional' && (
                 <div>
-                  <label className="block text-md text-text-default mb-2 font-semibold">
+                  <label
+                    htmlFor={`${idBase}-default-value`}
+                    className="block text-md text-text-default mb-2 font-semibold"
+                  >
                     Default Value
                   </label>
                   <input
+                    id={`${idBase}-default-value`}
                     type="text"
                     value={defaultValue}
                     onChange={(e) => onChange(key, { default: e.target.value })}
@@ -161,10 +166,14 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
             {/* Options field for select input type */}
             {parameter.input_type === 'select' && (
               <div className="mt-4">
-                <label className="block text-md text-text-default mb-2 font-semibold">
+                <label
+                  htmlFor={`${idBase}-options`}
+                  className="block text-md text-text-default mb-2 font-semibold"
+                >
                   Options (one per line)
                 </label>
                 <textarea
+                  id={`${idBase}-options`}
                   value={(parameter.options || []).join('\n')}
                   onChange={(e) => {
                     // Don't filter out empty lines - preserve them so user can type on new lines

@@ -123,7 +123,10 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4 mb-4">
               {parameters.map((param) => (
                 <div key={param.key}>
-                  <label className="block text-md font-medium text-text-default mb-2">
+                  <label
+                    htmlFor={`recipe-param-${param.key}-input`}
+                    className="block text-md font-medium text-text-default mb-2"
+                  >
                     {param.description || param.key}
                     {param.requirement === 'required' && (
                       <span className="text-red-500 ml-1">*</span>
@@ -133,6 +136,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                   {/* Render different input types */}
                   {param.input_type === 'select' && param.options ? (
                     <select
+                      id={`recipe-param-${param.key}-input`}
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
                       className={`w-full p-3 border rounded-lg bg-background-muted text-text-default focus:outline-none focus:ring-2 ${
@@ -150,6 +154,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     </select>
                   ) : param.input_type === 'boolean' ? (
                     <select
+                      id={`recipe-param-${param.key}-input`}
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
                       className={`w-full p-3 border rounded-lg bg-background-muted text-text-default focus:outline-none focus:ring-2 ${
@@ -164,6 +169,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     </select>
                   ) : (
                     <input
+                      id={`recipe-param-${param.key}-input`}
                       type={param.input_type === 'number' ? 'number' : 'text'}
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}

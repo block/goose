@@ -11,6 +11,8 @@ export default function ExtensionTimeoutField({
   onChange,
   submitAttempted,
 }: ExtensionTimeoutFieldProps) {
+  const inputId = 'extension-timeout';
+
   const isTimeoutValid = () => {
     // Check if timeout is not undefined, null, or empty string
     if (timeout === undefined || timeout === null) {
@@ -27,19 +29,22 @@ export default function ExtensionTimeoutField({
   return (
     <div className="flex flex-col gap-4 mb-6">
       {/* Row with Timeout and timeout input side by side */}
-      <div className="flex flex-col">
+      <div className="flex flex-col relative">
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block text-text-default">Timeout</label>
+          <label htmlFor={inputId} className="text-sm font-medium mb-2 block text-text-default">
+            Timeout
+          </label>
         </div>
 
         <Input
+          id={inputId}
+          type="number"
           value={timeout}
           onChange={(e) => onChange('timeout', e.target.value)}
-          defaultValue={300}
           className={`${!submitAttempted || isTimeoutValid() ? 'border-border-default' : 'border-red-500'} text-text-default focus:border-border-default`}
         />
         {submitAttempted && !isTimeoutValid() && (
-          <div className="absolute text-xs text-red-500 mt-1">Timeout </div>
+          <div className="text-xs text-red-500 mt-1">Timeout is required</div>
         )}
       </div>
     </div>

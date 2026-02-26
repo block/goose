@@ -246,8 +246,7 @@ export default function ReasoningDetailPanel() {
     ? workBlockData.title || 'Work Block'
     : detail?.title || 'Reasoning';
 
-  const showAgentBadge =
-    workBlockData && workBlockData.agentName && workBlockData.agentName !== 'default';
+  const showAgentBadge = workBlockData?.agentName && workBlockData.agentName !== 'default';
 
   const activityEntries = useMemo(() => {
     if (!workBlockData) return [];

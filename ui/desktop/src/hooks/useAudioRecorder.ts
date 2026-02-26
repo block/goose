@@ -190,7 +190,9 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
 
     audioContextRef.current?.close();
     audioContextRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((t) => {
+      t.stop();
+    });
     streamRef.current = null;
     setIsRecording(false);
   }, []);
@@ -235,7 +237,9 @@ export const useAudioRecorder = ({ onTranscription, onError }: UseAudioRecorderO
   useEffect(() => {
     return () => {
       audioContextRef.current?.close();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((t) => {
+        t.stop();
+      });
     };
   }, []);
 

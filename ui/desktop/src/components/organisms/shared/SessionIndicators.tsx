@@ -34,7 +34,7 @@ export const SessionIndicators = React.memo<SessionIndicatorsProps>(
     if (hasUnread) {
       return (
         <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-green-500 rounded-full" aria-label="Has new activity" />
+          <span role="img" aria-label="Has new activity" className="w-2 h-2 bg-green-500 rounded-full" />
         </div>
       );
     }

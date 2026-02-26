@@ -343,7 +343,7 @@ export default function ChatInput({
   }, [textAreaRef]);
 
   // Load model limits from the API
-  const getModelLimits = async () => {
+  const getModelLimits = useCallback(async () => {
     try {
       const response = await read('model-limits', false);
       if (response) {
@@ -354,15 +354,15 @@ export default function ChatInput({
       console.error('Error fetching model limits:', err);
     }
     return [];
-  };
+  }, [read]);
 
-  const findModelLimit = (modelName: string, modelLimits: ModelLimit[]): number | null => {
+  const findModelLimit = useCallback((modelName: string, modelLimits: ModelLimit[]): number | null => {
     if (!modelName) return null;
     const matchingLimit = modelLimits.find((limit) =>
       modelName.toLowerCase().includes(limit.pattern.toLowerCase())
     );
     return matchingLimit ? matchingLimit.context_limit : null;
-  };
+  }, []);
 
   // Load providers and get current model's token limit
   const loadProviderDetails = useCallback(async () => {
@@ -420,7 +420,7 @@ export default function ChatInput({
       setTokenLimit(TOKEN_LIMIT_DEFAULT);
       setIsTokenLimitLoaded(true);
     }
-  }, [getCurrentModelAndProvider, getProviders, read]);
+  }, [findModelLimit, getCurrentModelAndProvider, getModelLimits, getProviders]);
 
   // Initial load and refresh when model changes
   useEffect(() => {
@@ -1173,6 +1173,7 @@ export default function ChatInput({
   };
 
   return (
+    /* biome-ignore lint/a11y/noStaticElementInteractions: drop zone only (pointer interaction), keyboard users can still attach via the paperclip button */
     <div
       className={`flex flex-col relative h-auto p-4 transition-colors ${
         disableAnimation ? '' : 'page-transition'
@@ -1386,7 +1387,7 @@ export default function ChatInput({
               {img.dataUrl && (
                 <img
                   src={img.dataUrl}
-                  alt={`Pasted image ${img.id}`}
+                  alt={`Pasted attachment ${img.id}`}
                   className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-border-default'}`}
                 />
               )}

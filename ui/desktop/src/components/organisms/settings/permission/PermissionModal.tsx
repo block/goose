@@ -190,9 +190,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                   className="flex items-center justify-between grid grid-cols-12"
                 >
                   <div className="flex flex-col col-span-8">
-                    <label className="block text-sm font-medium text-text-default">
-                      {tool.name}
-                    </label>
+                    <div className="block text-sm font-medium text-text-default">{tool.name}</div>
                     <p className="text-sm text-text-muted mb-2">
                       {getFirstSentence(tool.description)}
                     </p>

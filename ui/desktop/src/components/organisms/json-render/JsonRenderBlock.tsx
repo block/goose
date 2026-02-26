@@ -234,10 +234,14 @@ const JsonRenderBlock = React.memo(function JsonRenderBlock({ spec }: JsonRender
 
   if (!parsedSpec || !parsedSpec.root) return null;
 
+  type CatalogRendererProps = React.ComponentProps<typeof CatalogRenderer>;
+
   return (
     <div className="my-4 json-render-block w-full min-w-0">
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      <CatalogRenderer spec={parsedSpec as any} state={(parsedSpec.state ?? {}) as any} />
+      <CatalogRenderer
+        spec={parsedSpec as CatalogRendererProps['spec']}
+        state={(parsedSpec.state ?? {}) as CatalogRendererProps['state']}
+      />
     </div>
   );
 });

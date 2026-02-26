@@ -180,7 +180,7 @@ export default function CustomProviderForm({
       )}
 
       <div>
-        <label className="block text-sm font-medium text-text-default mb-2">Authentication</label>
+        <div className="block text-sm font-medium text-text-default mb-2">Authentication</div>
         <p className="text-sm text-text-muted mb-3">
           Local LLMs like Ollama typically don't require an API key.
         </p>

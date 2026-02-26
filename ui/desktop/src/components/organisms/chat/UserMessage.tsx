@@ -207,8 +207,8 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
                 {imagePaths.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {imagePaths.map((imagePath, index) => (
-                      <ImagePreview key={index} src={imagePath} />
+                    {imagePaths.map((imagePath) => (
+                      <ImagePreview key={imagePath} src={imagePath} />
                     ))}
                   </div>
                 )}

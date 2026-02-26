@@ -1067,7 +1067,11 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                       {zone.route ? (
                         <SidebarGroupLabel
                           className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-text-muted uppercase tracking-wider cursor-pointer hover:text-text-default transition-colors select-none"
-                          onClick={() => navigate(zone.route!)}
+                          onClick={() => {
+                            if (zone.route) {
+                              navigate(zone.route);
+                            }
+                          }}
                         >
                           <ZoneIcon className="w-3.5 h-3.5" />
                           <span>{zone.label}</span>

@@ -89,8 +89,8 @@ export default function RunComparisonView({
       <div className="space-y-4 animate-pulse">
         <div className="h-8 bg-background-default rounded w-1/3" />
         <div className="grid grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 bg-background-default rounded-lg" />
+          {[1, 2, 3].map((n) => (
+            <div key={`skeleton-${n}`} className="h-24 bg-background-default rounded-lg" />
           ))}
         </div>
         <div className="h-64 bg-background-default rounded-lg" />
@@ -263,9 +263,9 @@ export default function RunComparisonView({
                 </tr>
               </thead>
               <tbody>
-                {comparison.newFailures.map((f, i) => (
+                {comparison.newFailures.map((f) => (
                   <tr
-                    key={i}
+                    key={`${f.input}-${f.expectedAgent}-${f.expectedMode}`}
                     className="border-t border-border-muted hover:bg-background-danger-muted"
                   >
                     <td className="px-3 py-2 text-text-default max-w-xs truncate">{f.input}</td>
@@ -299,9 +299,9 @@ export default function RunComparisonView({
                 </tr>
               </thead>
               <tbody>
-                {comparison.fixedCases.map((f, i) => (
+                {comparison.fixedCases.map((f) => (
                   <tr
-                    key={i}
+                    key={`${f.input}-${f.agent}-${f.mode}`}
                     className="border-t border-border-muted hover:bg-background-success-muted"
                   >
                     <td className="px-3 py-2 text-text-default max-w-xs truncate">{f.input}</td>

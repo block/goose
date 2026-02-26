@@ -45,6 +45,7 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
     const [checked, setChecked] = useState(currentMode === mode.key);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+    const radioId = `goose-mode-${mode.key}`;
 
     useEffect(() => {
       setChecked(currentMode === mode.key);
@@ -52,9 +53,18 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
 
     return (
       <div ref={ref} className="group hover:cursor-pointer text-sm">
-        <div
+        <input
+          id={radioId}
+          type="radio"
+          name="modes"
+          value={mode.key}
+          checked={checked}
+          onChange={() => handleModeChange(mode.key)}
+          className="peer sr-only"
+        />
+        <label
+          htmlFor={radioId}
           className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
-          onClick={() => handleModeChange(mode.key)}
         >
           <div className="flex">
             <div>
@@ -66,8 +76,10 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
           <div className="relative flex items-center gap-2">
             {!isApproveModeConfigure &&
               (mode.key === 'approve' || mode.key === 'smart_approve') && (
-                <button type="button"
+                <button
+                  type="button"
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation(); // Prevent triggering the mode change
                     setIsPermissionModalOpen(true);
                   }}
@@ -75,14 +87,6 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
                   <Gear className="w-4 h-4 text-text-muted hover:text-text-default" />
                 </button>
               )}
-            <input
-              type="radio"
-              name="modes"
-              value={mode.key}
-              checked={checked}
-              onChange={() => handleModeChange(mode.key)}
-              className="peer sr-only"
-            />
             <div
               className="h-4 w-4 rounded-full border border-border-default 
                     peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
@@ -90,7 +94,7 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
                     transition-all duration-200 ease-in-out group-hover:border-border-default"
             ></div>
           </div>
-        </div>
+        </label>
         <div>
           <div>
             {isDialogOpen ? (

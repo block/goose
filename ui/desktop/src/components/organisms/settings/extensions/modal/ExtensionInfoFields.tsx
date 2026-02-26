@@ -16,6 +16,9 @@ export default function ExtensionInfoFields({
   onChange,
   submitAttempted,
 }: ExtensionInfoFieldsProps) {
+  const nameInputId = 'extension-name';
+  const descriptionInputId = 'extension-description';
+
   const isNameValid = () => {
     return name.trim() !== '';
   };
@@ -25,9 +28,12 @@ export default function ExtensionInfoFields({
       {/* Top row with Name and Type side by side */}
       <div className="flex justify-between gap-4">
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block text-text-default">Extension Name</label>
+          <label htmlFor={nameInputId} className="text-sm font-medium mb-2 block text-text-default">
+            Extension Name
+          </label>
           <div className="relative">
             <Input
+              id={nameInputId}
               value={name}
               onChange={(e) => onChange('name', e.target.value)}
               placeholder="Enter extension name..."
@@ -41,7 +47,7 @@ export default function ExtensionInfoFields({
 
         {/* Type Dropdown */}
         <div className="w-[200px]">
-          <label className="text-sm font-medium mb-2 block text-text-default">Type</label>
+          <div className="text-sm font-medium mb-2 block text-text-default">Type</div>
           <Select
             value={{
               value: type,
@@ -71,9 +77,15 @@ export default function ExtensionInfoFields({
 
       {/* Bottom row with Description spanning full width */}
       <div className="w-full">
-        <label className="text-sm font-medium mb-2 block text-text-default">Description</label>
+        <label
+          htmlFor={descriptionInputId}
+          className="text-sm font-medium mb-2 block text-text-default"
+        >
+          Description
+        </label>
         <div className="relative">
           <Input
+            id={descriptionInputId}
             value={description}
             onChange={(e) => onChange('description', e.target.value)}
             placeholder="Optional description..."

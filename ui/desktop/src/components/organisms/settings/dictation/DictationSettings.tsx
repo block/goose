@@ -55,11 +55,12 @@ export const DictationSettings = () => {
     if (!provider) return;
     const providerConfig = providerStatuses[provider];
     if (!providerConfig || providerConfig.uses_provider_config) return;
+    if (!providerConfig.config_key) return;
 
     const trimmedKey = apiKey.trim();
     if (!trimmedKey) return;
 
-    const keyName = providerConfig.config_key!;
+    const keyName = providerConfig.config_key;
     await upsert(keyName, trimmedKey, true);
     setApiKey('');
     setIsEditingKey(false);
@@ -73,7 +74,9 @@ export const DictationSettings = () => {
     const providerConfig = providerStatuses[provider];
     if (!providerConfig || providerConfig.uses_provider_config) return;
 
-    const keyName = providerConfig.config_key!;
+    if (!providerConfig.config_key) return;
+
+    const keyName = providerConfig.config_key;
     await remove(keyName, true);
     setApiKey('');
     setIsEditingKey(false);
@@ -102,7 +105,8 @@ export const DictationSettings = () => {
           </p>
         </div>
         <div className="relative">
-          <button type="button"
+          <button
+            type="button"
             onClick={handleDropdownToggle}
             className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-default rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
           >
@@ -112,7 +116,8 @@ export const DictationSettings = () => {
 
           {showProviderDropdown && (
             <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => handleProviderChange(null)}
                 className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap first:rounded-t-md"
               >
@@ -123,7 +128,8 @@ export const DictationSettings = () => {
               </button>
 
               {(Object.keys(providerStatuses) as DictationProvider[]).map((p) => (
-                <button type="button"
+                <button
+                  type="button"
                   key={p}
                   onClick={() => handleProviderChange(p)}
                   className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"

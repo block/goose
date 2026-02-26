@@ -16,6 +16,7 @@ interface SecurityConfig {
 }
 
 interface ClassifierEndpointInputsProps {
+  idBase: string;
   endpointValue: string;
   tokenValue: string;
   onEndpointChange: (value: string) => void;
@@ -32,6 +33,7 @@ interface ClassifierEndpointInputsProps {
 }
 
 const ClassifierEndpointInputs = ({
+  idBase,
   endpointValue,
   tokenValue,
   onEndpointChange,
@@ -46,16 +48,21 @@ const ClassifierEndpointInputs = ({
   tokenLabel = 'API Token (Optional)',
   tokenDescription = 'Authentication token for the classification service',
 }: ClassifierEndpointInputsProps) => {
+  const endpointInputId = `${idBase}-endpoint`;
+  const tokenInputId = `${idBase}-token`;
+
   return (
     <div className="space-y-3">
       <div>
         <label
+          htmlFor={endpointInputId}
           className={`text-sm font-medium ${disabled ? 'text-text-muted' : 'text-text-default'}`}
         >
           {endpointLabel}
         </label>
         <p className="text-xs text-text-muted mb-2">{endpointDescription}</p>
         <input
+          id={endpointInputId}
           type="url"
           value={endpointValue}
           onChange={(e) => onEndpointChange(e.target.value)}
@@ -72,12 +79,14 @@ const ClassifierEndpointInputs = ({
 
       <div>
         <label
+          htmlFor={tokenInputId}
           className={`text-sm font-medium ${disabled ? 'text-text-muted' : 'text-text-default'}`}
         >
           {tokenLabel}
         </label>
         <p className="text-xs text-text-muted mb-2">{tokenDescription}</p>
         <input
+          id={tokenInputId}
           type="password"
           value={tokenValue}
           onChange={(e) => onTokenChange(e.target.value)}
@@ -236,6 +245,7 @@ export const SecurityToggle = () => {
           {/* Detection Threshold */}
           <div className={enabled ? '' : 'opacity-50'}>
             <label
+              htmlFor="security-detection-threshold"
               className={`text-sm font-medium ${enabled ? 'text-text-default' : 'text-text-muted'}`}
             >
               Detection Threshold
@@ -244,6 +254,7 @@ export const SecurityToggle = () => {
               Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)
             </p>
             <input
+              id="security-detection-threshold"
               type="number"
               min={0.01}
               max={1.0}
@@ -311,6 +322,7 @@ export const SecurityToggle = () => {
               >
                 <div className={enabled && effectiveCommandClassifierEnabled ? '' : 'opacity-50'}>
                   <ClassifierEndpointInputs
+                    idBase="security-command"
                     endpointValue={commandEndpointInput}
                     tokenValue={commandTokenInput}
                     onEndpointChange={setCommandEndpointInput}
@@ -361,6 +373,7 @@ export const SecurityToggle = () => {
                   <div className="space-y-3">
                     <div>
                       <label
+                        htmlFor="security-prompt-model"
                         className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-default' : 'text-text-muted'}`}
                       >
                         Detection Model
@@ -369,6 +382,7 @@ export const SecurityToggle = () => {
                         Select which ML model to use for prompt injection detection
                       </p>
                       <select
+                        id="security-prompt-model"
                         value={effectiveModel}
                         onChange={(e) => handleModelChange(e.target.value)}
                         disabled={!enabled || !mlEnabled}
@@ -388,6 +402,7 @@ export const SecurityToggle = () => {
                   </div>
                 ) : (
                   <ClassifierEndpointInputs
+                    idBase="security-prompt"
                     endpointValue={endpointInput}
                     tokenValue={tokenInput}
                     onEndpointChange={setEndpointInput}

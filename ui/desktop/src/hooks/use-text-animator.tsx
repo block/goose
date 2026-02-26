@@ -206,9 +206,13 @@ export class TextAnimator {
   }
 
   reset() {
-    this.activeTimeouts.forEach((timeoutId) => clearTimeout(timeoutId));
+    this.activeTimeouts.forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
     this.activeTimeouts = [];
-    this.activeAnimations.forEach((animation) => animation.cancel());
+    this.activeAnimations.forEach((animation) => {
+      animation.cancel();
+    });
     this.activeAnimations = [];
 
     const chars = this.splitter.getChars();

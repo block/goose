@@ -98,7 +98,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
 
                   return (
                     <Card
-                      key={index}
+                      key={message.id ?? `${message.created}-${message.role}`}
                       className={`p-4 ${
                         message.role === 'user'
                           ? 'bg-bgSecondary border border-border-default'
@@ -125,8 +125,8 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
 
                         {imagePaths.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2 mb-2">
-                            {imagePaths.map((imagePath, imageIndex) => (
-                              <ImagePreview key={imageIndex} src={imagePath} />
+                            {imagePaths.map((imagePath) => (
+                              <ImagePreview key={imagePath} src={imagePath} />
                             ))}
                           </div>
                         )}

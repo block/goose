@@ -107,11 +107,13 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
     return (
       <div className={`relative ${className}`}>
         {/* Compact Header */}
-        <div
-          className="flex items-center justify-between px-4 py-2.5 bg-background border-b border-border/20 cursor-pointer hover:bg-muted/30 transition-all duration-200"
-          onClick={() => setIsExpanded(true)}
-        >
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className="flex items-center justify-between px-4 py-2.5 bg-background border-b border-border/20">
+          <button
+            type="button"
+            className="flex items-center gap-3 flex-1 min-w-0 text-left hover:bg-muted/30 transition-all duration-200 rounded-md -mx-2 px-2 py-1"
+            aria-label="Expand message queue"
+            onClick={() => setIsExpanded(true)}
+          >
             <div className="flex items-center gap-2">
               {isPaused ? (
                 <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
@@ -122,8 +124,6 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                 {isPaused ? 'Paused' : 'Next'}
               </span>
             </div>
-
-            {/* Next message preview */}
             <div className="flex-1 min-w-0">
               <p className="text-sm text-muted-foreground truncate" title={nextMessage.content}>
                 {nextMessage.content.length > 40
@@ -138,7 +138,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                 <span>+{remainingCount}</span>
               </div>
             )}
-          </div>
+          </button>
 
           <div className="flex items-center gap-2">
             {/* Quick Send Now button */}
@@ -161,6 +161,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setIsExpanded(true)}
               className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
               title="Expand queue"
             >
@@ -250,9 +251,9 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
       )}
 
       {/* Message Bubbles */}
-      <div className="p-4 space-y-3 bg-background max-h-80 overflow-y-auto">
+      <ul className="p-4 space-y-3 bg-background max-h-80 overflow-y-auto">
         {queuedMessages.map((message, index) => (
-          <div
+          <li
             key={message.id}
             className="group relative"
             draggable={!!onReorderMessages}
@@ -349,8 +350,9 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <p
-                    className="text-sm text-foreground leading-relaxed cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5 transition-colors"
+                  <button
+                    type="button"
+                    className="text-sm text-foreground leading-relaxed text-left hover:bg-muted/30 rounded px-1 py-0.5 transition-colors"
                     title={`${message.content} (Click to edit)`}
                     onClick={() => {
                       setEditingMessage(message.id);
@@ -361,7 +363,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                     {message.content.length > 80
                       ? `${message.content.substring(0, 80)}...`
                       : message.content}
-                  </p>
+                  </button>
                 )}
               </div>
 
@@ -417,9 +419,9 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                 Next
               </div>
             )}
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
 
       {/* Drag instructions */}
       {onReorderMessages && queuedMessages.length > 1 && (

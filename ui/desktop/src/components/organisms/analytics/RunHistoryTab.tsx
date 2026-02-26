@@ -109,9 +109,9 @@ function RunDetailPanel({ detail, onClose }: { detail: EvalRunDetail; onClose: (
             Failed Cases ({detail.failures.length})
           </h4>
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {detail.failures.map((f, i) => (
+            {detail.failures.map((f) => (
               <div
-                key={i}
+                key={`${f.input}-${f.expectedAgent}-${f.expectedMode}-${f.actualAgent}-${f.actualMode}`}
                 className="rounded bg-background-muted/80 border border-border-muted p-3"
               >
                 <p className="text-sm text-text-default mb-2 line-clamp-2">&quot;{f.input}&quot;</p>
@@ -184,9 +184,10 @@ function RunDetailPanel({ detail, onClose }: { detail: EvalRunDetail; onClose: (
                     <td className="px-3 py-2 text-text-muted font-medium">{expected}</td>
                     {detail.confusionMatrix.matrix[ri]?.map((count, ci) => {
                       const isDiagonal = ri === ci;
+                      const actual = detail.confusionMatrix.labels[ci] ?? String(ci);
                       return (
                         <td
-                          key={ci}
+                          key={actual}
                           className={`px-3 py-2 text-center ${
                             count > 0
                               ? isDiagonal
@@ -359,8 +360,8 @@ export default function RunHistoryTab() {
 
       {loading ? (
         <div className="space-y-3 animate-pulse">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-14 rounded-lg bg-background-muted" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={`run-skeleton-${i + 1}`} className="h-14 rounded-lg bg-background-muted" />
           ))}
         </div>
       ) : runs.length === 0 ? (

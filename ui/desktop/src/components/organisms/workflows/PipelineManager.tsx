@@ -242,39 +242,43 @@ export function PipelineManager() {
                 key={pipeline.id}
                 className="group relative border border-border-default rounded-lg p-4
                            bg-background-default hover:border-border-accent
-                           cursor-pointer transition-colors"
-                onClick={() => handleOpenPipeline(pipeline.id)}
+                           transition-colors"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileText size={18} className="text-text-accent" />
-                    <h3 className="text-sm font-medium text-text-default">{pipeline.name}</h3>
+                <button
+                  type="button"
+                  className="w-full text-left"
+                  onClick={() => handleOpenPipeline(pipeline.id)}
+                >
+                  <div className="flex items-start justify-between pr-8">
+                    <div className="flex items-center gap-2">
+                      <FileText size={18} className="text-text-accent" />
+                      <h3 className="text-sm font-medium text-text-default">{pipeline.name}</h3>
+                    </div>
                   </div>
-                  <button type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeletePipeline(pipeline.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded
-                               hover:bg-background-danger-muted text-text-muted
-                               hover:text-text-danger transition-all"
-                    title="Delete pipeline"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                {pipeline.description && (
-                  <p className="text-xs text-text-muted mt-1.5 line-clamp-2">
-                    {pipeline.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-3 mt-3 text-xs text-text-subtle">
-                  <span>{pipeline.node_count} nodes</span>
-                  <span className="flex items-center gap-1">
-                    <Clock size={10} />
-                    {new Date(pipeline.updated_at).toLocaleDateString()}
-                  </span>
-                </div>
+                  {pipeline.description && (
+                    <p className="text-xs text-text-muted mt-1.5 line-clamp-2">
+                      {pipeline.description}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3 mt-3 text-xs text-text-subtle">
+                    <span>{pipeline.node_count} nodes</span>
+                    <span className="flex items-center gap-1">
+                      <Clock size={10} />
+                      {new Date(pipeline.updated_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDeletePipeline(pipeline.id)}
+                  className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 p-1 rounded
+                             hover:bg-background-danger-muted text-text-muted
+                             hover:text-text-danger transition-all"
+                  title="Delete pipeline"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             ))}
           </div>

@@ -225,9 +225,9 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
           <div className="space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+                <div className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
                   Lead Model
-                </label>
+                </div>
                 {isLeadCustomModel && (
                   <button
                     type="button"
@@ -277,9 +277,9 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
+                <div className={`text-sm ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}>
                   Worker Model
-                </label>
+                </div>
                 {isWorkerCustomModel && (
                   <button
                     type="button"
@@ -334,11 +334,13 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
             >
               <div className="space-y-2">
                 <label
+                  htmlFor="lead-worker-initial-lead-turns"
                   className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}
                 >
                   Initial Lead Turns
                 </label>
                 <Input
+                  id="lead-worker-initial-lead-turns"
                   type="number"
                   min={1}
                   max={10}
@@ -354,11 +356,13 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
 
               <div className="space-y-2">
                 <label
+                  htmlFor="lead-worker-failure-threshold"
                   className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}
                 >
                   Failure Threshold
                 </label>
                 <Input
+                  id="lead-worker-failure-threshold"
                   type="number"
                   min={1}
                   max={5}
@@ -374,11 +378,13 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
 
               <div className="space-y-2">
                 <label
+                  htmlFor="lead-worker-fallback-turns"
                   className={`text-sm flex items-center gap-1 ${!isEnabled ? 'text-text-muted' : 'text-text-muted'}`}
                 >
                   Fallback Turns
                 </label>
                 <Input
+                  id="lead-worker-fallback-turns"
                   type="number"
                   min={1}
                   max={5}

@@ -102,41 +102,48 @@ export function GroupedExtensionLoadingToast({
                         {getStatusIcon(ext.status)}
                         <div className="flex-1 min-w-0 truncate">{friendlyName}</div>
                       </div>
-                      {ext.status === 'error' && ext.error && (
-                        <div className="ml-7 flex flex-col gap-2">
-                          <div className="text-xs opacity-75 break-words">
-                            {formatExtensionErrorMessage(ext.error, 'Failed to add extension')}
-                          </div>
-                          <div className="flex gap-2">
-                            {ext.recoverHints && setView && (
+                      {(() => {
+                        const errorText = ext.status === 'error' ? ext.error : undefined;
+                        if (!errorText) {
+                          return null;
+                        }
+
+                        return (
+                          <div className="ml-7 flex flex-col gap-2">
+                            <div className="text-xs opacity-75 break-words">
+                              {formatExtensionErrorMessage(errorText, 'Failed to add extension')}
+                            </div>
+                            <div className="flex gap-2">
+                              {ext.recoverHints && setView && (
+                                <Button
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startNewSession(
+                                      ext.recoverHints,
+                                      setView,
+                                      getInitialWorkingDir()
+                                    );
+                                  }}
+                                >
+                                  Ask goose
+                                </Button>
+                              )}
                               <Button
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  startNewSession(
-                                    ext.recoverHints,
-                                    setView,
-                                    getInitialWorkingDir()
-                                  );
+                                  navigator.clipboard.writeText(errorText);
+                                  setCopiedExtension(ext.name);
+                                  setTimeout(() => setCopiedExtension(null), 2000);
                                 }}
                               >
-                                Ask goose
+                                {copiedExtension === ext.name ? 'Copied!' : 'Copy error'}
                               </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(ext.error!);
-                                setCopiedExtension(ext.name);
-                                setTimeout(() => setCopiedExtension(null), 2000);
-                              }}
-                            >
-                              {copiedExtension === ext.name ? 'Copied!' : 'Copy error'}
-                            </Button>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   );
                 })}

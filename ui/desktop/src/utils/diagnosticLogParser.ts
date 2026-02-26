@@ -208,7 +208,7 @@ function textPreview(content: RawLogContent[], maxLen = 120): string {
     }
   }
   const combined = parts.join(' ');
-  return combined.length > maxLen ? combined.slice(0, maxLen - 3) + '...' : combined;
+  return combined.length > maxLen ? `${combined.slice(0, maxLen - 3)}...` : combined;
 }
 
 // ── User message classification ──────────────────────────────────────
@@ -466,12 +466,16 @@ function buildTimeline(
   const timeline: TimelineEntry[] = [];
   let currentBlock: CategorizedItem[] = [];
 
+  function uniqueToolNames(items: CategorizedItem[]): string[] {
+    return [...new Set(items.flatMap((item) => (item.toolName ? [item.toolName] : [])))];
+  }
+
   function flushBlock() {
     if (currentBlock.length === 0) return;
     const toolCalls = currentBlock.filter((i) => i.category === Category.TOOL_REQUEST).length;
     const toolResults = currentBlock.filter((i) => i.category === Category.TOOL_RESULT).length;
     const intermediate = currentBlock.filter((i) => i.category === Category.INTERMEDIATE_TEXT).length;
-    const names = [...new Set(currentBlock.filter((i) => i.toolName).map((i) => i.toolName!))];
+    const names = uniqueToolNames(currentBlock);
 
     timeline.push({
       type: 'work_block',
@@ -508,7 +512,7 @@ function buildTimeline(
         zone: Zone.MAIN_PANEL,
         source: streamingChunks[0].source,
         role: 'assistant',
-        summary: fullText.length > 120 ? fullText.slice(0, 117) + '...' : fullText,
+        summary: fullText.length > 120 ? `${fullText.slice(0, 117)}...` : fullText,
         text: fullText,
       },
       chunkCount: streamingChunks.length,
@@ -519,7 +523,7 @@ function buildTimeline(
   function flushResponseBlock() {
     if (responseBlock.length === 0) return;
     const toolCalls = responseBlock.filter((i) => i.category === Category.TOOL_REQUEST).length;
-    const names = [...new Set(responseBlock.filter((i) => i.toolName).map((i) => i.toolName!))];
+    const names = uniqueToolNames(responseBlock);
     timeline.push({
       type: 'work_block',
       toolCalls,
@@ -607,11 +611,14 @@ export function parseSession(fileContents: Map<string, string[]>): ParsedSession
   // Categorize the canonical conversation
   const conversationItems: CategorizedItem[] = [];
   if (bestFile) {
-    const msgs = parsed.get(bestFile)!.inputMsgs;
-    const workBlocks = identifyLogWorkBlocks(msgs);
-    for (let idx = 0; idx < msgs.length; idx++) {
-      const source = `${bestFile}:msg[${idx}]`;
-      conversationItems.push(categorizeInputMessage(msgs[idx], idx, msgs, source, workBlocks));
+    const data = parsed.get(bestFile);
+    if (data) {
+      const msgs = data.inputMsgs;
+      const workBlocks = identifyLogWorkBlocks(msgs);
+      for (let idx = 0; idx < msgs.length; idx++) {
+        const source = `${bestFile}:msg[${idx}]`;
+        conversationItems.push(categorizeInputMessage(msgs[idx], idx, msgs, source, workBlocks));
+      }
     }
   }
 

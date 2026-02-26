@@ -93,9 +93,9 @@ export default function RecipeActivityEditor({
       {/* Regular Activities */}
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-text-default mb-2">
+          <div className="block text-sm font-medium text-text-default mb-2">
             Activity Buttons
-          </label>
+          </div>
           <p className="text-xs text-text-muted mb-3">
             Clickable buttons that will appear below the message to help users interact with your
             recipe.
@@ -104,9 +104,9 @@ export default function RecipeActivityEditor({
 
         {nonMessageActivities.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            {nonMessageActivities.map((activity, index) => (
+            {nonMessageActivities.map((activity) => (
               <div
-                key={index}
+                key={activity}
                 className="inline-flex items-center bg-background-default border-2 border-border-default rounded-full px-4 py-2 text-sm text-text-default"
                 title={activity.length > 100 ? activity : undefined}
               >

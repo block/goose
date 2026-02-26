@@ -9,14 +9,19 @@ import {
 } from '@/api';
 
 interface TestCaseRow {
+  id: string;
   input: string;
   expectedAgent: string;
   expectedMode: string;
   tags: string;
 }
 
+function newRowId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
+}
+
 function emptyRow(): TestCaseRow {
-  return { input: '', expectedAgent: '', expectedMode: '', tags: '' };
+  return { id: newRowId(), input: '', expectedAgent: '', expectedMode: '', tags: '' };
 }
 
 function DatasetEditor({
@@ -33,6 +38,7 @@ function DatasetEditor({
   const [rows, setRows] = useState<TestCaseRow[]>(() => {
     if (dataset?.cases && dataset.cases.length > 0) {
       return dataset.cases.map((tc) => ({
+        id: tc.id,
         input: tc.input,
         expectedAgent: tc.expectedAgent,
         expectedMode: tc.expectedMode,
@@ -134,8 +140,11 @@ function DatasetEditor({
     <div className="space-y-4">
       <div className="flex gap-4">
         <div className="flex-1">
-          <label className="text-xs text-text-muted block mb-1">Dataset Name</label>
+          <label htmlFor="dataset-name" className="text-xs text-text-muted block mb-1">
+            Dataset Name
+          </label>
           <input
+            id="dataset-name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -144,8 +153,11 @@ function DatasetEditor({
           />
         </div>
         <div className="flex-1">
-          <label className="text-xs text-text-muted block mb-1">Description</label>
+          <label htmlFor="dataset-description" className="text-xs text-text-muted block mb-1">
+            Description
+          </label>
           <input
+            id="dataset-description"
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -191,7 +203,7 @@ function DatasetEditor({
               </thead>
               <tbody>
                 {rows.map((row, i) => (
-                  <tr key={i} className="border-t border-border-muted">
+                  <tr key={row.id} className="border-t border-border-muted">
                     <td className="px-3 py-1.5 text-text-muted text-xs">{i + 1}</td>
                     <td className="px-1 py-1.5">
                       <input
@@ -353,8 +365,8 @@ export default function DatasetsTab() {
 
       {loading ? (
         <div className="space-y-3 animate-pulse">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-16 rounded-lg bg-background-muted" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={`dataset-skeleton-${i + 1}`} className="h-16 rounded-lg bg-background-muted" />
           ))}
         </div>
       ) : datasets.length === 0 ? (

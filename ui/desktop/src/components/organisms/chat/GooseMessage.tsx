@@ -401,8 +401,8 @@ export default function GooseMessage({
 
             {jsonRenderSpecs.length > 0 && (
               <div className="mt-3 rounded-xl border border-border-default bg-background-default overflow-hidden">
-                {jsonRenderSpecs.map((spec, idx) => (
-                  <JsonRenderBlock key={idx} spec={spec} />
+                {jsonRenderSpecs.map((spec) => (
+                  <JsonRenderBlock key={spec} spec={spec} />
                 ))}
               </div>
             )}
@@ -425,8 +425,8 @@ export default function GooseMessage({
 
             {imagePaths.length > 0 && (
               <div className="mt-4">
-                {imagePaths.map((imagePath, index) => (
-                  <ImagePreview key={index} src={imagePath} />
+                {imagePaths.map((imagePath) => (
+                  <ImagePreview key={imagePath} src={imagePath} />
                 ))}
               </div>
             )}

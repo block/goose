@@ -26,7 +26,7 @@ interface NodePaletteProps {
 }
 
 export function NodePalette({ onDragStart }: NodePaletteProps) {
-  const handleDragStart = (kind: NodeKind) => (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragStart = (kind: NodeKind) => (event: React.DragEvent<HTMLButtonElement>) => {
     event.dataTransfer.setData('application/dagnode', kind);
     event.dataTransfer.effectAllowed = 'move';
     onDragStart(kind);
@@ -42,12 +42,14 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
         {NODE_PALETTE.map((item) => {
           const Icon = ICONS[item.icon];
           return (
-            <div
+            <button
               key={item.kind}
+              type="button"
               draggable
               onDragStart={handleDragStart(item.kind)}
               className="flex items-center gap-2 p-2 rounded-md cursor-grab active:cursor-grabbing
                          hover:bg-background-muted transition-colors group"
+              aria-label={`Drag ${item.label} to canvas`}
             >
               <GripVertical
                 size={12}
@@ -63,7 +65,7 @@ export function NodePalette({ onDragStart }: NodePaletteProps) {
                 <div className="text-sm font-medium text-text-default">{item.label}</div>
                 <div className="text-xs text-text-muted truncate">{item.description}</div>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

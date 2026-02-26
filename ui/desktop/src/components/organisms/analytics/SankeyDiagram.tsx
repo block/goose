@@ -200,7 +200,7 @@ export default function SankeyDiagram({ labels, matrix, height: propHeight }: Sa
         style={{ minHeight: Math.min(height, 500) }}
       >
         {/* Links */}
-        {links.map((link, i) => {
+        {links.map((link) => {
           const sourceX = padding + nodeWidth;
           const targetX = width - padding - nodeWidth;
           const midX = (sourceX + targetX) / 2;
@@ -208,7 +208,7 @@ export default function SankeyDiagram({ labels, matrix, height: propHeight }: Sa
           const ty = link.targetY + link.width / 2;
 
           return (
-            <g key={i}>
+            <g key={`${link.source}-${link.target}`}>
               <path
                 d={`M ${sourceX} ${sy} C ${midX} ${sy}, ${midX} ${ty}, ${targetX} ${ty}`}
                 fill="none"

@@ -125,7 +125,7 @@ export default function CreateEditRecipeModal({
     });
 
     // Parse response schema if provided
-    let responseConfig;
+    let responseConfig: Recipe['response'] | undefined;
     if (jsonSchema?.trim()) {
       try {
         const parsedSchema = JSON.parse(jsonSchema);
@@ -417,14 +417,19 @@ export default function CreateEditRecipeModal({
                   </span>
                 </Button>
               </div>
-              <div
+              <button
+                type="button"
                 onClick={handleCopy}
                 className="text-sm truncate font-mono cursor-pointer text-text-default"
+                disabled={
+                  !deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink'
+                }
+                title="Copy deeplink"
               >
                 {isGeneratingDeeplink
                   ? 'Generating deeplink...'
                   : deeplink || 'Click to generate deeplink'}
-              </div>
+              </button>
             </div>
           )}
         </div>

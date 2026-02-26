@@ -14,16 +14,22 @@ export default function ImagePreview({ src }: ImagePreviewProps) {
 
   return (
     <div className={`image-preview mt-2 mb-2`}>
-      <img
-        src={src}
-        alt="goose image"
-        onError={() => setError(true)}
+      <button
+        type="button"
         onClick={() => setIsExpanded(!isExpanded)}
+        aria-expanded={isExpanded}
         className={`rounded border border-border-default cursor-pointer hover:border-border-default transition-all ${
           isExpanded ? 'max-w-full max-h-96' : 'max-h-40 max-w-40'
         }`}
-        style={{ objectFit: 'contain' }}
-      />
+      >
+        <img
+          src={src}
+          alt="Goose attachment"
+          onError={() => setError(true)}
+          className={`${isExpanded ? 'max-w-full max-h-96' : 'max-h-40 max-w-40'}`}
+          style={{ objectFit: 'contain' }}
+        />
+      </button>
       <div className="text-xs text-text-muted mt-1">
         Click to {isExpanded ? 'collapse' : 'expand'}
       </div>

@@ -160,8 +160,11 @@ describe('interruptionDetector', () => {
 
   describe('getInterruptionMessage', () => {
     it('returns correct message for stop action', () => {
+      const keyword = INTERRUPTION_KEYWORDS.find((k) => k.action === 'stop');
+      if (!keyword) throw new Error('Missing interruption keyword for action "stop"');
+
       const match: InterruptionMatch = {
-        keyword: INTERRUPTION_KEYWORDS.find((k) => k.action === 'stop')!,
+        keyword,
         matchedText: 'stop',
         confidence: 1.0,
         shouldInterrupt: true,
@@ -170,8 +173,11 @@ describe('interruptionDetector', () => {
     });
 
     it('returns correct message for pause action', () => {
+      const keyword = INTERRUPTION_KEYWORDS.find((k) => k.action === 'pause');
+      if (!keyword) throw new Error('Missing interruption keyword for action "pause"');
+
       const match: InterruptionMatch = {
-        keyword: INTERRUPTION_KEYWORDS.find((k) => k.action === 'pause')!,
+        keyword,
         matchedText: 'wait',
         confidence: 1.0,
         shouldInterrupt: true,
@@ -180,8 +186,11 @@ describe('interruptionDetector', () => {
     });
 
     it('returns correct message for redirect action', () => {
+      const keyword = INTERRUPTION_KEYWORDS.find((k) => k.action === 'redirect');
+      if (!keyword) throw new Error('Missing interruption keyword for action "redirect"');
+
       const match: InterruptionMatch = {
-        keyword: INTERRUPTION_KEYWORDS.find((k) => k.action === 'redirect')!,
+        keyword,
         matchedText: 'actually',
         confidence: 1.0,
         shouldInterrupt: true,

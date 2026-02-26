@@ -21,7 +21,7 @@ interface PropertiesPanelProps {
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="block text-xs font-medium text-text-muted mb-1">{children}</label>;
+  return <div className="block text-xs font-medium text-text-muted mb-1">{children}</div>;
 }
 
 function TextInput({

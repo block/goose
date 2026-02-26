@@ -21,7 +21,9 @@ export default function MessageCopyLink({ text, contentRef }: MessageCopyLinkPro
 
         // Clean up any copy buttons from the content
         const copyButtons = container.querySelectorAll('button');
-        copyButtons.forEach((button) => button.remove());
+        copyButtons.forEach((button) => {
+          button.remove();
+        });
 
         // Create the clipboard data
         const clipboardData = new ClipboardItem({

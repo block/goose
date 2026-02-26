@@ -17,13 +17,21 @@ export default function ExtensionConfigFields({
   submitAttempted = false,
   isValid,
 }: ExtensionConfigFieldsProps) {
+  const inputId = type === 'stdio' ? 'extension-config-command' : 'extension-config-endpoint';
+
   if (type === 'stdio') {
     return (
       <div className="space-y-4">
         <div>
-          <label className="text-sm font-medium mb-2 block text-text-default">Command</label>
+          <label
+            htmlFor={inputId}
+            className="text-sm font-medium mb-2 block text-text-default"
+          >
+            Command
+          </label>
           <div className="relative">
             <Input
+              id={inputId}
               value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
               placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"
@@ -39,9 +47,15 @@ export default function ExtensionConfigFields({
   } else {
     return (
       <div>
-        <label className="text-sm font-medium mb-2 block text-text-default">Endpoint</label>
+        <label
+          htmlFor={inputId}
+          className="text-sm font-medium mb-2 block text-text-default"
+        >
+          Endpoint
+        </label>
         <div className="relative">
           <Input
+            id={inputId}
             value={endpoint}
             onChange={(e) => onChange('endpoint', e.target.value)}
             placeholder="Enter endpoint URL..."

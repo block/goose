@@ -26,12 +26,13 @@ export const ToolCallStatusIndicator: React.FC<ToolCallStatusIndicatorProps> = (
   };
 
   return (
-    <div
+    <span
       className={cn(
         'absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-border-default',
         getStatusStyles(),
         className
       )}
+      role="img"
       aria-label={`Tool status: ${status}`}
     />
   );

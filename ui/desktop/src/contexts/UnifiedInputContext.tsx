@@ -169,21 +169,28 @@ export function useRegisterSession(
         setView: state.setView ?? prev.setView,
       };
     });
-    // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally tracks primitive/length values to reduce churn
   }, [
     state.sessionId,
     state.chatState,
     state.toolCount,
     state.totalTokens,
-    state.messages?.length,
+    state.messages,
     state.accumulatedInputTokens,
     state.accumulatedOutputTokens,
-    state.droppedFiles?.length,
-    state.commandHistory?.length,
+    state.droppedFiles,
+    state.onFilesProcessed,
+    state.commandHistory,
+    state.onStop,
     state.recipe,
-    state.recipeAccepted,
     state.recipeId,
+    state.recipeAccepted,
     state.initialPrompt,
+    state.sessionCosts,
+    state.setChatState,
+    state.setView,
+    state.append,
+    state.inputRef,
+    state.onWorkingDirChange,
   ]);
 }
 

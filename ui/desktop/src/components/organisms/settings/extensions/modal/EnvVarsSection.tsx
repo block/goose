@@ -94,9 +94,7 @@ export default function EnvVarsSection({
   return (
     <div>
       <div className="relative mb-2">
-        <label className="text-sm font-medium text-text-default mb-2 block">
-          Environment Variables
-        </label>
+        <div className="text-sm font-medium text-text-default mb-2">Environment Variables</div>
         <p className="text-xs text-text-muted mb-4">
           Add key-value pairs for environment variables. Click the "+" button to add after filling
           both fields. For existing secret values, click the edit button to modify.
@@ -105,7 +103,7 @@ export default function EnvVarsSection({
       <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
         {/* Existing environment variables */}
         {envVars.map((envVar, index) => (
-          <React.Fragment key={index}>
+          <React.Fragment key={`${envVar.key}-${envVar.value}`}>
             <div className="relative">
               <Input
                 value={envVar.key}
@@ -147,7 +145,7 @@ export default function EnvVarsSection({
               </Button>
             )}
             {(envVar.value !== '••••••••' || envVar.isEdited) && (
-              <div className="w-8 h-8"></div> /* Empty div to maintain grid spacing */
+              <div className="w-8 h-8" />
             )}
             <Button
               onClick={() => onRemove(index)}

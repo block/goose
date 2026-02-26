@@ -166,12 +166,13 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               <h3 className="text-text-default text-xs">Notifications</h3>
               <p className="text-xs text-text-muted max-w-md mt-[2px]">
                 Notifications are managed by your OS{' - '}
-                <span
-                  className="underline hover:cursor-pointer"
+                <button
+                  type="button"
+                  className="underline"
                   onClick={() => setShowNotificationModal(true)}
                 >
                   Configuration guide
-                </span>
+                </button>
               </p>
             </div>
             <div className="flex items-center">

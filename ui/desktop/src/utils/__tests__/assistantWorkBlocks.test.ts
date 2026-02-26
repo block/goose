@@ -66,6 +66,14 @@ function toolRequestAndTextMsg(toolName: string, text: string, id?: string) {
   );
 }
 
+function requireBlock(map: Map<number, WorkBlock>, index: number): WorkBlock {
+  const block = map.get(index);
+  if (!block) {
+    throw new Error(`Expected a work block at index ${index}`);
+  }
+  return block;
+}
+
 describe('identifyWorkBlocks', () => {
   it('returns empty map for empty messages', () => {
     const result = identifyWorkBlocks([], false);
@@ -103,7 +111,10 @@ describe('identifyWorkBlocks', () => {
     // Index 0 (user message) should NOT be in the block
     expect(result.has(0)).toBe(false);
 
-    const block = result.get(1)!;
+    const block = result.get(1);
+    if (!block) {
+      throw new Error('Expected a work block at index 1');
+    }
     expect(block.finalIndex).toBe(3);
     expect(block.isStreaming).toBe(false);
     expect(block.toolCallCount).toBeGreaterThanOrEqual(1);
@@ -129,7 +140,10 @@ describe('identifyWorkBlocks', () => {
     // Final answer should NOT be in the block
     expect(result.has(5)).toBe(false);
 
-    const block = result.get(1)!;
+    const block = result.get(1);
+    if (!block) {
+      throw new Error('Expected a work block at index 1');
+    }
     expect(block.finalIndex).toBe(5);
     expect(block.toolCallCount).toBe(2);
   });
@@ -148,7 +162,7 @@ describe('identifyWorkBlocks', () => {
     expect(result.has(2)).toBe(true);
     expect(result.has(3)).toBe(true);
 
-    const block = result.get(1)!;
+    const block = requireBlock(result, 1);
     expect(block.finalIndex).toBe(-1);
     expect(block.isStreaming).toBe(true);
   });
@@ -217,7 +231,7 @@ describe('identifyWorkBlocks', () => {
 
     // Index 3 should be the final answer (has text + tool)
     expect(result.has(3)).toBe(false); // Final answer is excluded from block
-    const block = result.get(1)!;
+    const block = requireBlock(result, 1);
     expect(block.finalIndex).toBe(3);
   });
 
@@ -232,7 +246,10 @@ describe('identifyWorkBlocks', () => {
     ];
     const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
-    const block = result.get(1)!;
+    const block = result.get(1);
+    if (!block) {
+      throw new Error('Expected a work block at index 1');
+    }
     // Should prefer index 5 (pure text) over index 3 (text+tool)
     expect(block.finalIndex).toBe(5);
     expect(result.has(5)).toBe(false); // Final answer excluded
@@ -248,8 +265,11 @@ describe('identifyWorkBlocks', () => {
     ];
     const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
+    const block = result.get(1);
+    if (!block) {
+      throw new Error('Expected a work block at index 1');
+    }
     // No assistant message has display text → finalIndex should be -1
-    const block = result.get(1)!;
     expect(block.finalIndex).toBe(-1);
 
     // ALL assistant messages should be in the block (nothing leaks out)
@@ -271,7 +291,10 @@ describe('identifyWorkBlocks', () => {
 
     // Count unique blocks
     const uniqueBlocks = new Set<WorkBlock>();
-    result.forEach((block) => uniqueBlocks.add(block));
+
+    for (const block of result.values()) {
+      uniqueBlocks.add(block);
+    }
     expect(uniqueBlocks.size).toBe(1);
   });
 
@@ -283,30 +306,36 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('shell', 'file1.txt'),
     ];
     const streamingResult = identifyWorkBlocks(streamingMessages as unknown as Message[], true);
-    const streamingBlock = streamingResult.get(1)!;
+    const streamingBlock = streamingResult.get(1);
+    if (!streamingBlock) {
+      throw new Error('Expected a streaming work block at index 1');
+    }
     expect(streamingBlock.isStreaming).toBe(true);
     expect(streamingBlock.finalIndex).toBe(-1);
 
     // Second call: completed (final answer arrived)
     const completedMessages = [...streamingMessages, textMsg('assistant', 'Here are the files')];
     const completedResult = identifyWorkBlocks(completedMessages as unknown as Message[], false);
-    const completedBlock = completedResult.get(1)!;
+    const completedBlock = completedResult.get(1);
+    if (!completedBlock) {
+      throw new Error('Expected a completed work block at index 1');
+    }
     expect(completedBlock.isStreaming).toBe(false);
     expect(completedBlock.finalIndex).toBe(3);
     expect(completedResult.has(3)).toBe(false); // Final answer excluded
   });
 
-  it('allBlockIndices includes all messages except final answer', () => {
-    const messages = [
-      textMsg('user', 'Do it'),
-      toolRequestMsg('tool1'),
-      toolResponseMsg('tool1', 'r1'),
-      toolRequestMsg('tool2'),
-      toolResponseMsg('tool2', 'r2'),
-      textMsg('assistant', 'Done'),
-    ];
-    const result = identifyWorkBlocks(messages as unknown as Message[], false);
-    const block = result.get(1)!;
+	  it('allBlockIndices includes all messages except final answer', () => {
+	    const messages = [
+	      textMsg('user', 'Do it'),
+	      toolRequestMsg('tool1'),
+	      toolResponseMsg('tool1', 'r1'),
+	      toolRequestMsg('tool2'),
+	      toolResponseMsg('tool2', 'r2'),
+	      textMsg('assistant', 'Done'),
+	    ];
+	    const result = identifyWorkBlocks(messages as unknown as Message[], false);
+	    const block = requireBlock(result, 1);
 
     // allBlockIndices should contain 1, 2, 3, 4 but NOT 5 (final) or 0 (user)
     expect(block.allBlockIndices.has(1)).toBe(true);
@@ -317,17 +346,17 @@ describe('identifyWorkBlocks', () => {
     expect(block.allBlockIndices.has(0)).toBe(false);
   });
 
-  it('intermediateIndices contains only assistant messages', () => {
-    const messages = [
-      textMsg('user', 'Do it'),
-      toolRequestMsg('tool1'),
-      toolResponseMsg('tool1', 'r1'),
-      toolRequestMsg('tool2'),
-      toolResponseMsg('tool2', 'r2'),
-      textMsg('assistant', 'Done'),
-    ];
-    const result = identifyWorkBlocks(messages as unknown as Message[], false);
-    const block = result.get(1)!;
+	  it('intermediateIndices contains only assistant messages', () => {
+	    const messages = [
+	      textMsg('user', 'Do it'),
+	      toolRequestMsg('tool1'),
+	      toolResponseMsg('tool1', 'r1'),
+	      toolRequestMsg('tool2'),
+	      toolResponseMsg('tool2', 'r2'),
+	      textMsg('assistant', 'Done'),
+	    ];
+	    const result = identifyWorkBlocks(messages as unknown as Message[], false);
+	    const block = requireBlock(result, 1);
 
     // intermediateIndices should be assistant messages only (1, 3)
     // NOT tool response messages (2, 4) which are user role
@@ -415,7 +444,10 @@ describe('identifyWorkBlocks', () => {
     // The pure-text message at index 5 is the final answer — NOT in the block
     expect(result.has(5)).toBe(false);
 
-    const block = result.get(1)!;
+    const block = result.get(1);
+    if (!block) {
+      throw new Error('Expected a work block at index 1');
+    }
     expect(block.finalIndex).toBe(5);
     expect(block.isStreaming).toBe(true);
     // The text-only message at index 5 is the final answer, not intermediate
@@ -437,7 +469,7 @@ describe('identifyWorkBlocks', () => {
     expect(result.has(2)).toBe(true);
     expect(result.has(3)).toBe(true);
 
-    const block = result.get(1)!;
+    const block = requireBlock(result, 1);
     expect(block.finalIndex).toBe(-1);
     expect(block.isStreaming).toBe(true);
   });
@@ -458,7 +490,7 @@ describe('identifyWorkBlocks', () => {
 
     // Despite lastMessage being user role, a streaming work block should exist
     expect(result.size).toBeGreaterThan(0);
-    const block = result.get(1)!;
+    const block = requireBlock(result, 1);
     expect(block.isStreaming).toBe(true);
     // This is used by ProgressiveMessageList to suppress the pending indicator
   });
@@ -477,7 +509,7 @@ describe('identifyWorkBlocks', () => {
     expect(result.has(2)).toBe(true);
     expect(result.has(4)).toBe(true);
     // The block should be streaming with finalIndex=-1
-    const block = result.get(1)!;
+    const block = requireBlock(result, 1);
     expect(block.isStreaming).toBe(true);
     expect(block.finalIndex).toBe(-1);
   });
@@ -492,7 +524,7 @@ describe('identifyWorkBlocks', () => {
     ];
     const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
-    const block = result.get(1)!;
+    const block = requireBlock(result, 1);
     // Pure text message (index 3) should be the final answer, not text+tools (index 1)
     expect(block.finalIndex).toBe(3);
     expect(result.has(3)).toBe(false); // Final answer excluded from block
@@ -509,7 +541,10 @@ describe('identifyWorkBlocks', () => {
     ];
     const result = identifyWorkBlocks(messages as unknown as Message[], false);
 
-    const block = result.get(1)!;
+    const block = result.get(1);
+    if (!block) {
+      throw new Error('Expected a work block at index 1');
+    }
     // text+tools message (index 3) should be final answer when no pure text exists
     expect(block.finalIndex).toBe(3);
     expect(result.has(3)).toBe(false); // Final answer excluded from block
@@ -539,7 +574,10 @@ describe('identifyWorkBlocks', () => {
     expect(result.has(4)).toBe(true);
     expect(result.has(5)).toBe(true);
 
-    const block = result.get(1)!;
+    const block = result.get(1);
+    if (!block) {
+      throw new Error('Expected a work block at index 1');
+    }
     // Final answer should be the last text message
     expect(block.finalIndex).toBe(7);
     expect(result.has(7)).toBe(false);

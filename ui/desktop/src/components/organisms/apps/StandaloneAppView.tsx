@@ -144,11 +144,31 @@ export default function StandaloneAppView() {
   }
 
   if (cachedHtml || sessionId) {
+    if (!resourceUri || !extensionName) {
+      return (
+        <div
+          style={{
+            width: '100vw',
+            height: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'column',
+            gap: '16px',
+            padding: '24px',
+          }}
+        >
+          <h2 style={{ color: 'var(--text-error, #ef4444)' }}>Failed to Load App</h2>
+          <p style={{ color: 'var(--text-muted, #6b7280)' }}>Missing required parameters</p>
+        </div>
+      );
+    }
+
     return (
       <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
         <McpAppRenderer
-          resourceUri={resourceUri!}
-          extensionName={extensionName!}
+          resourceUri={resourceUri}
+          extensionName={extensionName}
           sessionId={sessionId || null}
           fullscreen={true}
           cachedHtml={cachedHtml || undefined}

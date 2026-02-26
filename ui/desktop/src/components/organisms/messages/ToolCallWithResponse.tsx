@@ -227,13 +227,14 @@ export default function ToolCallWithResponse({
       {shouldShowMcpContent &&
         !hasMcpAppResourceURI &&
         toolResponse?.toolResult &&
-        getToolResultContent(toolResponse.toolResult).map((content, index) => {
+        getToolResultContent(toolResponse.toolResult).map((content) => {
           const resourceContent = isEmbeddedResource(content)
             ? { ...content, type: 'resource' as const }
             : null;
           if (resourceContent && isUIResource(resourceContent)) {
+            const embeddedUri = (resourceContent as unknown as { resource: { uri?: string } }).resource.uri;
             return (
-              <div key={index} className="mt-3">
+              <div key={embeddedUri ?? JSON.stringify(resourceContent.resource)} className="mt-3">
                 <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
                 <div className="mt-3 p-4 py-3 border border-border-default rounded-lg bg-background-muted flex items-center">
                   <FlaskConical className="mr-2" size={20} />
@@ -724,6 +725,22 @@ function ToolCallView({
 
   const extensionName = getExtensionName(toolCall.name);
 
+  const toolResultKey = (result: Content): string => {
+    if ('text' in result && typeof (result as { text?: unknown }).text === 'string') {
+      const text = (result as { text: string }).text;
+      return `text:${text.slice(0, 80)}`;
+    }
+    if ('data' in result && typeof (result as { data?: unknown }).data === 'string') {
+      const data = (result as { data: string }).data;
+      return `data:${data.slice(0, 32)}`;
+    }
+    if ('resource' in result) {
+      const uri = (result as unknown as { resource?: { uri?: string } }).resource?.uri;
+      return uri ? `resource:${uri}` : 'resource';
+    }
+    return 'result';
+  };
+
   const toolLabel = (
     <span
       className={cn(
@@ -795,16 +812,16 @@ function ToolCallView({
 
       {toolResults.length === 0 &&
         progressEntries.length > 0 &&
-        progressEntries.map((entry, index) => (
-          <div className="p-3 border-t border-border-default" key={index}>
+        progressEntries.map((entry) => (
+          <div className="p-3 border-t border-border-default" key={entry.progressToken}>
             <ProgressBar progress={entry.progress} total={entry.total} message={entry.message} />
           </div>
         ))}
 
       {/* Tool Output */}
       {!isCancelledMessage &&
-        toolResults.map((result, index) => (
-          <div key={index} className={cn('border-t border-border-default')}>
+        toolResults.map((result) => (
+          <div key={toolResultKey(result)} className={cn('border-t border-border-default')}>
             <ToolResultView toolCall={toolCall} result={result} isStartExpanded={false} />
           </div>
         ))}
@@ -976,9 +993,9 @@ function ToolLogsView({
               <span
                 className="inline-block animate-spin rounded-full border-2 border-t-transparent border-current"
                 style={{ width: 8, height: 8 }}
-                role="status"
-                aria-label="Loading spinner"
+					aria-hidden="true"
               />
+				<span className="sr-only">Loading</span>
             </div>
           )}
         </span>
@@ -989,23 +1006,23 @@ function ToolLogsView({
         ref={boxRef}
         className={`flex flex-col items-start space-y-2 overflow-y-auto p-4 ${working ? 'max-h-[4rem]' : 'max-h-[20rem]'}`}
       >
-        {logs.map((log, i) => (
-          <span key={i} className="font-sans text-sm text-text-muted">
+        {logs.map((log) => (
+          <span key={log} className="font-sans text-sm text-text-muted">
             {log}
           </span>
         ))}
       </div>
     </ToolCallExpandable>
-  );
+	);
 }
 
 const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken'>) => {
-  const isDeterminate = typeof total === 'number';
-  const percent = isDeterminate ? Math.min((progress / total!) * 100, 100) : 0;
+	const isDeterminate = typeof total === 'number' && total > 0;
+	const percent = isDeterminate ? Math.min((progress / total) * 100, 100) : 0;
 
-  return (
-    <div className="w-full space-y-2">
-      {message && <div className="font-sans text-sm text-text-muted">{message}</div>}
+	return (
+		<div className="w-full space-y-2">
+			{message && <div className="font-sans text-sm text-text-muted">{message}</div>}
 
       <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (

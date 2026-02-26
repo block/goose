@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
@@ -17,7 +15,8 @@ const mockElectron = {
   off: vi.fn(),
 };
 
-(window as any).electron = mockElectron;
+(window as unknown as { electron: Window['electron'] }).electron =
+  mockElectron as unknown as Window['electron'];
 
 vi.mock('@/contexts/ConfigContext', () => ({
   useConfig: () => ({

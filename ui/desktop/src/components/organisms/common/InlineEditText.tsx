@@ -166,7 +166,8 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
   }
 
   return (
-    <div
+    <button
+      type="button"
       className={`
         cursor-pointer px-2 py-1 rounded
         hover:bg-background-hover
@@ -177,8 +178,9 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       title={disabled ? '' : singleClickEdit ? 'Click to edit' : 'Double-click to edit'}
+      disabled={disabled}
     >
       {value || <span className="text-text-subtle italic">{placeholder}</span>}
-    </div>
+    </button>
   );
 };

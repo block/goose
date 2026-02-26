@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronUp, Download, Trash2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   cancelDownload as cancelDownloadApi,
   type DownloadProgress,
@@ -32,7 +32,7 @@ export const LocalModelManager = () => {
   const [showAllModels, setShowAllModels] = useState(false);
   const { read, upsert } = useConfig();
 
-  const loadSelectedModel = async () => {
+  const loadSelectedModel = useCallback(async () => {
     try {
       const value = await read(LOCAL_WHISPER_MODEL_CONFIG_KEY, false);
       if (value && typeof value === 'string') {
@@ -44,14 +44,14 @@ export const LocalModelManager = () => {
       console.error('Failed to load selected model:', error);
       setSelectedModelId(null);
     }
-  };
+  }, [read]);
 
   const selectModel = async (modelId: string) => {
     await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, modelId, false);
     setSelectedModelId(modelId);
   };
 
-  const loadModels = async () => {
+  const loadModels = useCallback(async () => {
     try {
       const response = await listModels();
       if (response.data) {
@@ -60,7 +60,7 @@ export const LocalModelManager = () => {
     } catch (error) {
       console.error('Failed to load models:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadModels();

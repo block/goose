@@ -63,16 +63,14 @@ Use {{parameter_name}} syntax for any user-provided values.`;
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50"
-      onClick={(e) => {
-        // Close modal when clicking backdrop
-        if (e.target === e.currentTarget) {
-          handleCancel();
-        }
-      }}
-    >
-      <div className="bg-background-default border border-border-default rounded-lg p-6 w-[900px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[400] flex items-center justify-center">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50"
+        aria-label="Close instructions editor"
+        onClick={handleCancel}
+      />
+      <div className="relative z-10 bg-background-default border border-border-default rounded-lg p-6 w-[900px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-text-default">Instructions Editor</h3>
           <button
@@ -87,7 +85,9 @@ Use {{parameter_name}} syntax for any user-provided values.`;
         <div className="flex-1 flex flex-col min-h-0">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-text-default">Instructions</label>
+              <label htmlFor="instructions-editor" className="block text-sm font-medium text-text-default">
+                Instructions
+              </label>
               <Button
                 type="button"
                 onClick={insertExample}
@@ -106,6 +106,7 @@ Use {{parameter_name}} syntax for any user-provided values.`;
 
           <div className="flex-1 min-h-0">
             <textarea
+              id="instructions-editor"
               value={localValue}
               onChange={(e) => setLocalValue(e.target.value)}
               className={`w-full h-full min-h-[500px] p-3 border rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${

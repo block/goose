@@ -170,7 +170,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         (ext) =>
           ({
             ...ext,
-            enabled: hubOverrides.has(ext.name) ? hubOverrides.get(ext.name)! : ext.enabled,
+            enabled: hubOverrides.get(ext.name) ?? ext.enabled,
           }) as FixedExtensionEntry
       );
     }
@@ -274,20 +274,23 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
                   className={`flex items-center justify-between px-2 py-2 transition-all duration-300 ${
                     isToggling ? 'cursor-wait opacity-70' : 'cursor-pointer'
                   }`}
-                  onClick={() => !isToggling && handleToggle(ext)}
                   title={ext.description || ext.name}
                 >
-                  <div className="text-sm font-medium text-text-default">
+                  <button
+                    type="button"
+                    className="flex-1 text-left text-sm font-medium text-text-default"
+                    onClick={() => !isToggling && handleToggle(ext)}
+                    disabled={isToggling}
+                  >
                     {formatExtensionName(ext.name)}
-                  </div>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Switch
-                      checked={ext.enabled}
-                      onCheckedChange={() => handleToggle(ext)}
-                      variant="mono"
-                      disabled={isToggling}
-                    />
-                  </div>
+                  </button>
+                  <Switch
+                    checked={ext.enabled}
+                    onCheckedChange={() => handleToggle(ext)}
+                    onClick={(e) => e.stopPropagation()}
+                    variant="mono"
+                    disabled={isToggling}
+                  />
                 </div>
               );
             })

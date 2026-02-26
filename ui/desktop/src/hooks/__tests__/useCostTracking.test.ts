@@ -6,6 +6,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useCostTracking } from '../useCostTracking';
+import type { Session } from '@/api';
 
 const mockUseModelAndProvider = vi.fn();
 vi.mock('../../contexts/ModelAndProviderContext', () => ({
@@ -29,7 +30,7 @@ describe('useCostTracking', () => {
           sessionOutputTokens: outTok,
           localInputTokens: 0,
           localOutputTokens: 0,
-          session: { id: 's1' } as any,
+          session: { id: 's1' } as unknown as Session,
         }),
       { initialProps: { inTok: 0, outTok: 0 } }
     );
@@ -76,7 +77,7 @@ describe('useCostTracking', () => {
           sessionOutputTokens: outTok,
           localInputTokens: 0,
           localOutputTokens: 0,
-          session: { id: sessionId } as any,
+          session: { id: sessionId } as unknown as Session,
         }),
       { initialProps: { sessionId: 's1', inTok: 0, outTok: 0 } }
     );

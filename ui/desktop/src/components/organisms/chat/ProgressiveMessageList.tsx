@@ -70,15 +70,20 @@ export default function ProgressiveMessageList({
   const [isLoading, setIsLoading] = useState(() => messages.length > showLoadingThreshold);
   const timeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
-  const hasOnlyToolResponses = (message: Message) =>
-    message.content.every((c) => c.type === 'toolResponse');
 
-  const hasInlineSystemNotification = (message: Message): boolean => {
-    return message.content.some(
-      (content) =>
-        content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
-    );
-  };
+  const hasOnlyToolResponses = useCallback(
+    (message: Message) => message.content.every((c) => c.type === 'toolResponse'),
+    []
+  );
+
+  const hasInlineSystemNotification = useCallback(
+    (message: Message): boolean =>
+      message.content.some(
+        (content) =>
+          content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
+      ),
+    []
+  );
 
   // Simple progressive loading - start immediately when component mounts if needed
   useEffect(() => {

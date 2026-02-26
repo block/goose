@@ -1,19 +1,19 @@
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/utils';
 
-interface Tab {
+export interface Tab {
   id: string;
   label: string;
   icon?: LucideIcon;
   badge?: string | number;
 }
 
-interface TabGroup {
+export interface TabGroup {
   label?: string;
   tabs: Tab[];
 }
 
-interface TabBarProps {
+export interface TabBarProps {
   groups: TabGroup[];
   activeTab: string;
   onTabChange: (tabId: string) => void;
@@ -36,38 +36,43 @@ export function TabBar({
         className
       )}
     >
-      {groups.map((group, gi) => (
-        <div key={gi} className="flex items-center gap-1">
+      {groups.map((group) => (
+        <div
+          key={group.label ?? group.tabs.map((t) => t.id).join('|')}
+          className="flex items-center gap-1"
+        >
           {group.label && (
             <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mr-1 ml-2 first:ml-0">
               {group.label}
             </span>
           )}
+
           {group.tabs.map((tab) => {
             const isActive = tab.id === activeTab;
             const Icon = tab.icon;
+
             return (
-              <button type="button"
+              <button
+                type="button"
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors',
-                  variant === 'default' && [
-                    isActive
+                  variant === 'default' &&
+                    (isActive
                       ? 'bg-background-muted text-text-default'
-                      : 'text-text-muted hover:text-text-default hover:bg-background-muted/50',
-                  ],
-                  variant === 'pill' && [
-                    isActive
+                      : 'text-text-muted hover:text-text-default hover:bg-background-muted/50'),
+                  variant === 'pill' &&
+                    (isActive
                       ? 'bg-background-accent text-text-on-accent'
-                      : 'text-text-muted hover:text-text-default hover:bg-background-muted',
-                  ],
-                  variant === 'underline' && [
-                    'rounded-none border-b-2 -mb-px',
-                    isActive
-                      ? 'border-border-accent text-text-default'
-                      : 'border-transparent text-text-muted hover:text-text-default hover:border-border-default',
-                  ]
+                      : 'text-text-muted hover:text-text-default hover:bg-background-muted'),
+                  variant === 'underline' &&
+                    cn(
+                      'rounded-none border-b-2 -mb-px',
+                      isActive
+                        ? 'border-border-accent text-text-default'
+                        : 'border-transparent text-text-muted hover:text-text-default hover:border-border-default'
+                    )
                 )}
               >
                 {Icon && <Icon className="h-3.5 w-3.5" />}
@@ -92,5 +97,3 @@ export function TabBar({
     </div>
   );
 }
-
-export type { Tab, TabGroup, TabBarProps };

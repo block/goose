@@ -61,7 +61,10 @@ export const RecipeExtensionSelector = ({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-md text-text-default font-semibold mb-2 font-bold">
+        <label
+          htmlFor="recipe-extension-selector"
+          className="block text-md text-text-default font-semibold mb-2 font-bold"
+        >
           Extensions (Optional)
         </label>
         <p className="text-text-muted text-sm mb-4">
@@ -70,6 +73,7 @@ export const RecipeExtensionSelector = ({
         </p>
 
         <Input
+          id="recipe-extension-selector"
           type="text"
           placeholder="Search extensions..."
           value={searchQuery}
@@ -107,13 +111,13 @@ export const RecipeExtensionSelector = ({
                     <div className="text-xs text-text-muted truncate mt-1">{ext.description}</div>
                   )}
                 </div>
-                <div onClick={(e) => e.stopPropagation()} className="ml-4">
-                  <Switch
-                    checked={isSelected}
-                    onCheckedChange={() => handleToggle(ext)}
-                    variant="mono"
-                  />
-                </div>
+                <Switch
+                  className="ml-4"
+                  checked={isSelected}
+                  onCheckedChange={() => handleToggle(ext)}
+                  onClick={(e) => e.stopPropagation()}
+                  variant="mono"
+                />
               </button>
             );
           })

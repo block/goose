@@ -49,13 +49,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [internalValidationError, setInternalValidationError] = useState<string | null>(null);
   const [isValid, setIsValid] = useState(true);
 
-  const setScheduleIdFromTitle = (title: string) => {
+  const setScheduleIdFromTitle = useCallback((title: string) => {
     const cleanId = title
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-');
     setScheduleId(cleanId);
-  };
+  }, []);
 
   const handleDeepLinkChange = useCallback(
     async (value: string) => {
@@ -213,7 +213,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </div>
 
               <div>
-                <label className={modalLabelClassName}>Source:</label>
+                <div className={modalLabelClassName}>Source:</div>
                 <div className="space-y-2">
                   <div className="flex bg-gray-100 dark:bg-gray-700 rounded-full p-1">
                     <button
@@ -288,7 +288,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           )}
 
           <div>
-            <label className={modalLabelClassName}>Schedule:</label>
+            <div className={modalLabelClassName}>Schedule:</div>
             <CronPicker schedule={schedule} onChange={setCronExpression} isValid={setIsValid} />
           </div>
         </form>

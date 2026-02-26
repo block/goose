@@ -22,7 +22,7 @@ export function ShortcutRecorder({
   const [capturedShortcut, setCapturedShortcut] = useState(value);
   const [displayShortcut, setDisplayShortcut] = useState('');
   const [conflict, setConflict] = useState<string | null>(null);
-  const inputRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -132,7 +132,8 @@ export function ShortcutRecorder({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <div
+        <button
+          type="button"
           ref={inputRef}
           onKeyDown={handleKeyDown}
           onClick={handleStartRecording}
@@ -148,6 +149,7 @@ export function ShortcutRecorder({
             focus:outline-none focus:ring-1
             w-64 text-center
           `}
+          aria-label="Record shortcut"
         >
           {recording ? (
             <span className="text-text-muted animate-pulse">Press shortcut...</span>
@@ -162,7 +164,7 @@ export function ShortcutRecorder({
           ) : (
             <span className="text-text-muted">Click to record...</span>
           )}
-        </div>
+        </button>
         <Button
           variant="secondary"
           size="sm"

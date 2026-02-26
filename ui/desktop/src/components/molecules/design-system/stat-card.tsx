@@ -35,8 +35,7 @@ export function StatCard({
   const ariaLabel = `${label}: ${displayValue}`;
 
   return (
-    <div
-      role="group"
+    <section
       aria-label={ariaLabel}
       className={cn(
         'bg-background-default border border-border-default rounded-lg p-4 flex flex-col gap-2',
@@ -64,6 +63,6 @@ export function StatCard({
           </span>
         )}
       </div>
-    </div>
+    </section>
   );
 }

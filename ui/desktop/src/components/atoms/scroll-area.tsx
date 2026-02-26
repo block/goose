@@ -1,10 +1,9 @@
-// biome-ignore lint/style/useImportType: React must be imported before Radix UI primitives
 import * as React from 'react';
 import * as ScrollAreaPrimitive from '@radix-ui/react-scroll-area';
 
-type ScrollBehavior = 'auto' | 'smooth';
-
 import { cn } from '@/utils';
+
+type ScrollBehavior = 'auto' | 'smooth';
 
 export interface ScrollAreaHandle {
   scrollToBottom: () => void;

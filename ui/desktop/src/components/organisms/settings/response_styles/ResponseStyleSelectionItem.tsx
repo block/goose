@@ -38,6 +38,7 @@ export function ResponseStyleSelectionItem({
   handleStyleChange,
 }: ResponseStyleSelectionItemProps) {
   const [checked, setChecked] = useState(currentStyle === style.key);
+  const radioId = `response-style-${style.key}`;
 
   useEffect(() => {
     setChecked(currentStyle === style.key);
@@ -45,9 +46,18 @@ export function ResponseStyleSelectionItem({
 
   return (
     <div className="group hover:cursor-pointer text-sm">
-      <div
+      <input
+        id={radioId}
+        type="radio"
+        name="responseStyles"
+        value={style.key}
+        checked={checked}
+        onChange={() => handleStyleChange(style.key)}
+        className="peer sr-only"
+      />
+      <label
+        htmlFor={radioId}
         className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
-        onClick={() => handleStyleChange(style.key)}
       >
         <div className="flex">
           <div>
@@ -59,14 +69,6 @@ export function ResponseStyleSelectionItem({
         </div>
 
         <div className="relative flex items-center gap-2">
-          <input
-            type="radio"
-            name="responseStyles"
-            value={style.key}
-            checked={checked}
-            onChange={() => handleStyleChange(style.key)}
-            className="peer sr-only"
-          />
           <div
             className="h-4 w-4 rounded-full border border-border-default 
                   peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
@@ -74,7 +76,7 @@ export function ResponseStyleSelectionItem({
                   transition-all duration-200 ease-in-out group-hover:border-border-default"
           ></div>
         </div>
-      </div>
+      </label>
     </div>
   );
 }

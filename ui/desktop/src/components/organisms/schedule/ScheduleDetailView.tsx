@@ -1,7 +1,7 @@
 import cronstrue from 'cronstrue';
 import { Edit, Eye, Loader2, Pause, Play, Square } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getSession, type Session } from '@/api';
 import type { ScheduledJob } from '@/schedule';
 import {
@@ -62,7 +62,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const fetchSessions = async (sId: string) => {
+  const fetchSessions = useCallback(async (sId: string) => {
     setIsLoadingSessions(true);
     setSessionsError(null);
     try {
@@ -73,9 +73,9 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     } finally {
       setIsLoadingSessions(false);
     }
-  };
+  }, []);
 
-  const fetchSchedule = async (sId: string) => {
+  const fetchSchedule = useCallback(async (sId: string) => {
     setIsLoadingSchedule(true);
     setScheduleError(null);
     try {
@@ -91,7 +91,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     } finally {
       setIsLoadingSchedule(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (scheduleId && !selectedSession) {

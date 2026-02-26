@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { getPrompt, getPrompts, resetPrompt, savePrompt, type PromptContentResponse, type Template } from '@/api';
 import { Button } from '@/components/atoms/button';
@@ -12,7 +12,7 @@ export default function PromptsSettingsSection() {
   const [content, setContent] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
-  const fetchPrompts = async () => {
+  const fetchPrompts = useCallback(async () => {
     try {
       const response = await getPrompts();
       if (response.data) {
@@ -22,7 +22,7 @@ export default function PromptsSettingsSection() {
       console.error('Failed to fetch prompts:', error);
       toast.error('Failed to load prompts');
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchPrompts();
@@ -194,7 +194,7 @@ export default function PromptsSettingsSection() {
 
             <div className="space-y-2 flex-1 flex flex-col min-h-0">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Editing: {selectedPrompt}</label>
+                <div className="text-sm font-medium">Editing: {selectedPrompt}</div>
                 {promptData?.is_customized && content !== promptData.default_content && (
                   <Button
                     variant="ghost"

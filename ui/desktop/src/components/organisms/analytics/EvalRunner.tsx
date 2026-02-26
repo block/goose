@@ -246,8 +246,11 @@ export default function EvalRunner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {result.results.map((r, i) => (
-                    <tr key={i} className="border-b border-border-muted">
+                  {result.results.map((r) => (
+                    <tr
+                      key={`${r.input}-${r.expected_agent}-${r.expected_mode}-${r.actual_agent}-${r.actual_mode}`}
+                      className="border-b border-border-muted"
+                    >
                       <td className="px-4 py-2">
                         {r.pass ? (
                           <span className="text-text-success" title="Pass">

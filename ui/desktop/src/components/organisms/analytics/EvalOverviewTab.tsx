@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -65,8 +65,8 @@ function LoadingSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
       <div className="grid grid-cols-5 gap-4">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-24 rounded-lg bg-background-muted" />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={`kpi-skeleton-${i + 1}`} className="h-24 rounded-lg bg-background-muted" />
         ))}
       </div>
       <div className="h-64 rounded-lg bg-background-muted" />
@@ -89,7 +89,7 @@ export default function EvalOverviewTab() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [ovRes, dsRes] = await Promise.all([getEvalOverview(), listEvalDatasets()]);
@@ -101,7 +101,7 @@ export default function EvalOverviewTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -287,9 +287,9 @@ export default function EvalOverviewTab() {
             </div>
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {overview.regressions.map((r, i) => (
+              {overview.regressions.map((r) => (
                 <div
-                  key={i}
+                  key={`${r.description}-${r.severity}-${r.delta}-${r.versionTag ?? ''}`}
                   className="flex items-start gap-2 p-2 rounded bg-background-danger-muted border border-border-default"
                 >
                   <span className="text-text-danger text-sm mt-0.5">⚠</span>
@@ -343,9 +343,9 @@ export default function EvalOverviewTab() {
                   }}
                 />
                 <Bar dataKey="accuracy" radius={[0, 4, 4, 0]}>
-                  {overview.perAgentAccuracy.map((entry, i) => (
+                  {overview.perAgentAccuracy.map((entry) => (
                     <Cell
-                      key={i}
+                      key={entry.agent}
                       fill={
                         entry.accuracy >= 0.9
                           ? COLORS.green

@@ -12,7 +12,7 @@ import {
   Search,
   Wrench,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getExtensions, listAgents, listBuiltinAgents } from '@/api';
 import { listSavedRecipes } from '@/recipe/recipe_management';
@@ -48,112 +48,119 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
 
   return (
     <div
-      className="group relative bg-background-default border border-border-default rounded-xl p-6 hover:border-border-accent hover:shadow-lg transition-all cursor-pointer"
-      onClick={() => navigate(category.route)}
+      className="group relative bg-background-default border border-border-default rounded-xl p-6 hover:border-border-accent hover:shadow-lg transition-all"
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: `${category.color}20`, color: category.color }}
-          >
-            {category.icon}
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-text-default">{category.label}</h3>
-            <p className="text-sm text-text-muted">{category.description}</p>
-          </div>
-        </div>
-        <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
+      <button
+        type="button"
+        className="absolute inset-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-border-accent"
+        aria-label={`Open ${category.label}`}
+        onClick={() => navigate(category.route)}
+      />
 
-      <div className="flex items-center gap-4 mb-4">
-        <div className="flex items-center gap-1.5 text-sm">
-          <CheckCircle2 className="w-4 h-4 text-green-500" />
-          <span className="text-text-default font-medium">{installed}</span>
-          <span className="text-text-muted">installed</span>
-        </div>
-        {errors > 0 && (
-          <div className="flex items-center gap-1.5 text-sm">
-            <AlertCircle className="w-4 h-4 text-red-500" />
-            <span className="text-red-400 font-medium">{errors}</span>
-            <span className="text-text-muted">issues</span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5 text-sm">
-          <Package className="w-4 h-4 text-text-muted" />
-          <span className="text-text-default font-medium">{category.items.length}</span>
-          <span className="text-text-muted">total</span>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        {visibleItems.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-background-subtle"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <div
-                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  item.status === 'installed'
-                    ? 'bg-green-500'
-                    : item.status === 'error'
-                      ? 'bg-red-500'
-                      : 'bg-gray-400'
-                }`}
-              />
-              <span className="text-text-default truncate">{item.name}</span>
+      <div className="relative z-10 pointer-events-none">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: `${category.color}20`, color: category.color }}
+            >
+              {category.icon}
             </div>
-            {item.type && (
-              <span className="text-xs text-text-muted px-1.5 py-0.5 rounded bg-background-default flex-shrink-0">
-                {item.type}
-              </span>
-            )}
+            <div>
+              <h3 className="text-lg font-semibold text-text-default">{category.label}</h3>
+              <p className="text-sm text-text-muted">{category.description}</p>
+            </div>
           </div>
-        ))}
-        {hasMore && (
-          <button type="button"
-            className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-          >
-            {expanded ? '▲ Show less' : `▼ +${category.items.length - 3} more`}
-          </button>
-        )}
-        {category.items.length === 0 && !category.loading && (
-          <div className="text-sm text-text-muted text-center py-3">
-            No items yet — click to browse
+          <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-1.5 text-sm">
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <span className="text-text-default font-medium">{installed}</span>
+            <span className="text-text-muted">installed</span>
           </div>
-        )}
-        {category.loading && (
-          <div className="space-y-1.5">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-8 bg-background-subtle rounded-md animate-pulse" />
+          {errors > 0 && (
+            <div className="flex items-center gap-1.5 text-sm">
+              <AlertCircle className="w-4 h-4 text-red-500" />
+              <span className="text-red-400 font-medium">{errors}</span>
+              <span className="text-text-muted">issues</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 text-sm">
+            <Package className="w-4 h-4 text-text-muted" />
+            <span className="text-text-default font-medium">{category.items.length}</span>
+            <span className="text-text-muted">total</span>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          {visibleItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-background-subtle"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div
+                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                    item.status === 'installed'
+                      ? 'bg-green-500'
+                      : item.status === 'error'
+                        ? 'bg-red-500'
+                        : 'bg-gray-400'
+                  }`}
+                />
+                <span className="text-text-default truncate">{item.name}</span>
+              </div>
+              {item.type && (
+                <span className="text-xs text-text-muted px-1.5 py-0.5 rounded bg-background-default flex-shrink-0">
+                  {item.type}
+                </span>
+              )}
+            </div>
+          ))}
+          {hasMore && (
+            <button
+              type="button"
+              className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors pointer-events-auto"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? '▲ Show less' : `▼ +${category.items.length - 3} more`}
+            </button>
+          )}
+          {category.items.length === 0 && !category.loading && (
+            <div className="text-sm text-text-muted text-center py-3">
+              No items yet — click to browse
+            </div>
+          )}
+          {category.loading && (
+            <div className="space-y-1.5">
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={`catalog-item-skeleton-${n}`}
+                  className="h-8 bg-background-subtle rounded-md animate-pulse"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {category.actions.length > 0 && (
+          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
+            {category.actions.map((action) => (
+              <button
+                type="button"
+                key={action.label}
+                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors pointer-events-auto"
+                onClick={action.onClick}
+              >
+                {action.icon}
+                {action.label}
+              </button>
             ))}
           </div>
         )}
       </div>
-
-      {category.actions.length > 0 && (
-        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
-          {category.actions.map((action, i) => (
-            <button type="button"
-              key={i}
-              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                action.onClick();
-              }}
-            >
-              {action.icon}
-              {action.label}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -164,11 +171,7 @@ export default function CatalogsOverview() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    loadCatalogs();
-  }, [loadCatalogs]);
-
-  async function loadCatalogs() {
+  const loadCatalogs = useCallback(async () => {
     setLoading(true);
 
     const initial: CatalogCategory[] = [
@@ -318,7 +321,11 @@ export default function CatalogsOverview() {
     }
 
     setLoading(false);
-  }
+  }, [navigate]);
+
+  useEffect(() => {
+    loadCatalogs();
+  }, [loadCatalogs]);
 
   const totalInstalled = categories.reduce(
     (sum, c) => sum + c.items.filter((i) => i.status === 'installed').length,
@@ -379,7 +386,8 @@ export default function CatalogsOverview() {
           <div className="space-y-2">
             {filteredCategories.flatMap((c) =>
               c.items.map((item) => (
-                <div
+                <button
+                  type="button"
                   key={`${c.id}-${item.id}`}
                   className="flex items-center justify-between p-3 rounded-lg hover:bg-background-subtle cursor-pointer"
                   onClick={() => navigate(c.route)}
@@ -413,7 +421,7 @@ export default function CatalogsOverview() {
                       }`}
                     />
                   </div>
-                </div>
+                </button>
               ))
             )}
             {filteredCategories.every((c) => c.items.length === 0) && (

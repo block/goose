@@ -17,8 +17,7 @@ import { RecipeExtensionSelector } from './RecipeExtensionSelector';
 import { RecipeModelSelector } from './RecipeModelSelector';
 import type { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
 
-// Type for field API to avoid linting issues - use any to bypass complex type constraints
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: tanstack/react-form FieldApi types are too complex; this component only needs a minimal subset.
 type FormFieldApi<_T = any> = any;
 
 interface RecipeFormFieldsProps {
@@ -36,10 +35,10 @@ interface RecipeFormFieldsProps {
 export const extractTemplateVariables = (content: string): string[] => {
   const templateVarRegex = /\{\{(.*?)\}\}/g;
   const variables: string[] = [];
-  let match;
 
-  while ((match = templateVarRegex.exec(content)) !== null) {
-    const variable = match[1].trim();
+  let match: RegExpExecArray | null = templateVarRegex.exec(content);
+  while (match) {
+    const variable = match[1]?.trim();
 
     if (variable && !variables.includes(variable)) {
       // Filter out complex variables that aren't valid parameter names
@@ -49,6 +48,8 @@ export const extractTemplateVariables = (content: string): string[] => {
         variables.push(variable);
       }
     }
+
+    match = templateVarRegex.exec(content);
   }
 
   return variables;
@@ -410,9 +411,9 @@ export function RecipeFormFields({
 
               return (
                 <div>
-                  <label className="block text-md text-text-default mb-2 font-bold">
+                  <div className="block text-md text-text-default mb-2 font-bold">
                     Parameters
-                  </label>
+                  </div>
                   <p className="text-text-muted text-sm space-y-2 pb-4">
                     Parameters will be automatically detected from {`{{parameter_name}}`} syntax in
                     instructions/prompt/activities or you can manually add them below.
@@ -504,9 +505,9 @@ export function RecipeFormFields({
           <form.Field name="jsonSchema">
             {(field: FormFieldApi<string | undefined>) => (
               <div>
-                <label className="block text-md text-text-default mb-2 font-bold">
+                <div className="block text-md text-text-default mb-2 font-bold">
                   Response JSON Schema
-                </label>
+                </div>
                 <p className="text-text-muted text-sm space-y-2 pb-4">
                   Define the expected structure of the AI's response using JSON Schema format
                 </p>

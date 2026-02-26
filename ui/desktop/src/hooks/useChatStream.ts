@@ -199,18 +199,23 @@ export function useChatStream({
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
 
+        if (!loadedSession) {
+          dispatch({ type: 'STREAM_ERROR', payload: 'Failed to load session' });
+          return;
+        }
+
         dispatch({
           type: 'SESSION_LOADED',
           payload: {
-            session: loadedSession!,
-            messages: loadedSession?.conversation || [],
+            session: loadedSession,
+            messages: loadedSession.conversation || [],
             tokenState: {
-              inputTokens: loadedSession?.input_tokens ?? 0,
-              outputTokens: loadedSession?.output_tokens ?? 0,
-              totalTokens: loadedSession?.total_tokens ?? 0,
-              accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-              accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-              accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+              inputTokens: loadedSession.input_tokens ?? 0,
+              outputTokens: loadedSession.output_tokens ?? 0,
+              totalTokens: loadedSession.total_tokens ?? 0,
+              accumulatedInputTokens: loadedSession.accumulated_input_tokens ?? 0,
+              accumulatedOutputTokens: loadedSession.accumulated_output_tokens ?? 0,
+              accumulatedTotalTokens: loadedSession.accumulated_total_tokens ?? 0,
             },
           },
         });

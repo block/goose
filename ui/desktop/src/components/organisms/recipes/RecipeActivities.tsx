@@ -49,11 +49,11 @@ export default function RecipeActivities({
         )}
 
         <div className="flex flex-wrap gap-2 animate-[fadein_500ms_ease-in_forwards]">
-          {remainingPills.map((content, index) => {
+          {remainingPills.map((content) => {
             const substitutedContent = substituteParameters(content, parameterValues);
             return (
               <Card
-                key={index}
+                key={content}
                 onClick={() => append(substitutedContent)}
                 title={substitutedContent.length > 60 ? substitutedContent : undefined}
                 className="cursor-pointer px-3 py-1.5 text-sm hover:bg-background-muted transition-colors"

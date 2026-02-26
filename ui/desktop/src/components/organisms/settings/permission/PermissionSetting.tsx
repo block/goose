@@ -78,8 +78,7 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
 
   useEffect(() => {
     fetchExtensions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchExtensions]);
 
   return (
     <div className="bg-background-default h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
@@ -116,17 +115,13 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
               {/* Extension Rules Section */}
               <RulesSection
                 title="Extension rules"
-                rules={
-                  <>
-                    {extensions.map((extension) => (
-                      <RuleItem
-                        key={extension.name}
-                        title={extension.name}
-                        description={'description' in extension ? extension.description || '' : ''}
-                      />
-                    ))}
-                  </>
-                }
+                rules={extensions.map((extension) => (
+                  <RuleItem
+                    key={extension.name}
+                    title={extension.name}
+                    description={'description' in extension ? extension.description || '' : ''}
+                  />
+                ))}
               />
             </div>
           </div>

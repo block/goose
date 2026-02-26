@@ -41,11 +41,14 @@ export function pipelineToFlow(pipeline: Pipeline): {
   const layers: string[][] = [];
   const remaining = new Set(pipeline.nodes.map((n) => n.id));
   const placed = new Set<string>();
-
   while (remaining.size > 0) {
     const layer: string[] = [];
     for (const id of remaining) {
-      const node = nodeMap.get(id)!;
+      const node = nodeMap.get(id);
+      if (!node) {
+        continue;
+      }
+
       const deps = node.depends ?? [];
       if (deps.every((d) => placed.has(d))) {
         layer.push(id);
@@ -71,7 +74,10 @@ export function pipelineToFlow(pipeline: Pipeline): {
 
     for (let i = 0; i < layer.length; i++) {
       const nodeId = layer[i];
-      const pNode = nodeMap.get(nodeId)!;
+      const pNode = nodeMap.get(nodeId);
+      if (!pNode) {
+        continue;
+      }
 
       nodes.push({
         id: nodeId,

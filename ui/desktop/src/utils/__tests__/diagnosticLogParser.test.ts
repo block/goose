@@ -343,13 +343,19 @@ describe('work block categorization', () => {
     // User message → main panel
     const user = session.conversationItems.find((i) => i.category === Category.USER_INPUT);
     expect(user).toBeDefined();
-    expect(user!.zone).toBe(Zone.MAIN_PANEL);
+    if (!user) {
+      throw new Error('Expected a user input item');
+    }
+    expect(user.zone).toBe(Zone.MAIN_PANEL);
 
     // Final answer → main panel (last assistant with text, no tools)
     const answer = session.conversationItems.find((i) => i.category === Category.ASSISTANT_TEXT);
     expect(answer).toBeDefined();
-    expect(answer!.zone).toBe(Zone.MAIN_PANEL);
-    expect(answer!.summary).toContain('fixed the bug');
+    if (!answer) {
+      throw new Error('Expected an assistant answer item');
+    }
+    expect(answer.zone).toBe(Zone.MAIN_PANEL);
+    expect(answer.summary).toContain('fixed the bug');
 
     // Tool requests and results → work block
     const tools = session.conversationItems.filter((i) => i.zone === Zone.WORK_BLOCK);

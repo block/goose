@@ -149,8 +149,8 @@ export default function LiveMonitoringTab() {
     return (
       <div className="p-6 space-y-6 animate-pulse">
         <div className="grid grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 bg-background-default rounded-lg" />
+          {['kpi-1', 'kpi-2', 'kpi-3', 'kpi-4'].map((key) => (
+            <div key={key} className="h-24 bg-background-default rounded-lg" />
           ))}
         </div>
         <div className="h-64 bg-background-default rounded-lg" />
@@ -370,8 +370,11 @@ export default function LiveMonitoringTab() {
             </div>
           ) : (
             <div className="space-y-3">
-              {metrics.recent_errors.map((err, i) => (
-                <div key={i} className="border-l-2 border-border-default pl-3 py-1">
+              {metrics.recent_errors.map((err) => (
+                <div
+                  key={`${err.occurred_at}-${err.tool_name}`}
+                  className="border-l-2 border-border-default pl-3 py-1"
+                >
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-text-default font-mono">{err.tool_name}</span>
                     <span className="text-xs text-text-subtle flex items-center gap-1">

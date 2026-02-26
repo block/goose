@@ -50,6 +50,5 @@ export const recipeFormSchema = z.object({
 
 export type RecipeFormData = z.infer<typeof recipeFormSchema>;
 
-// Type for the form API - using any to avoid complex generic constraints
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// biome-ignore lint/suspicious/noExplicitAny: tanstack/react-form types are too complex here; treat as opaque.
 export type RecipeFormApi = any;

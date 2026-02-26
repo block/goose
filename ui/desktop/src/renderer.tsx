@@ -40,7 +40,12 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
     }
   }
 
-  ReactDOM.createRoot(document.getElementById('root')!).render(
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    throw new Error("Missing root element with id 'root'");
+  }
+
+  ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <Suspense fallback={SuspenseLoader()}>
         <ConfigProvider>

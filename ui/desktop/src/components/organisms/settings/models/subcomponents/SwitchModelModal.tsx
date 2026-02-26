@@ -381,19 +381,34 @@ export const SwitchModelModal = ({
           {usePredefinedModels ? (
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-text-default">Choose a model:</label>
+                <div className="text-sm font-medium text-text-default">Choose a model:</div>
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {predefinedModels.map((model) => (
+                  (() => {
+                    const rawId = model.id || model.name;
+                    const safeId = String(rawId).replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const radioId = `predefined-model-${safeId}`;
+
+                    return (
                   <div key={model.id || model.name} className="group hover:cursor-pointer text-sm">
-                    <div
+                    <input
+                      id={radioId}
+                      type="radio"
+                      name="predefined-model"
+                      value={model.name}
+                      checked={selectedPredefinedModel?.name === model.name}
+                      onChange={() => setSelectedPredefinedModel(model)}
+                      className="peer sr-only"
+                    />
+                    <label
+                      htmlFor={radioId}
                       className={`flex items-center justify-between text-text-default py-2 px-2 ${
                         selectedPredefinedModel?.name === model.name
                           ? 'bg-background-muted'
                           : 'bg-background-default hover:bg-background-muted'
                       } rounded-lg transition-all`}
-                      onClick={() => setSelectedPredefinedModel(model)}
                     >
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
@@ -414,14 +429,6 @@ export const SwitchModelModal = ({
                       </div>
 
                       <div className="relative flex items-center ml-3">
-                        <input
-                          type="radio"
-                          name="predefined-model"
-                          value={model.name}
-                          checked={selectedPredefinedModel?.name === model.name}
-                          onChange={() => setSelectedPredefinedModel(model)}
-                          className="peer sr-only"
-                        />
                         <div
                           className="h-4 w-4 rounded-full border border-border-default
                                 peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
@@ -429,8 +436,10 @@ export const SwitchModelModal = ({
                                 transition-all duration-200 ease-in-out group-hover:border-border-default"
                         ></div>
                       </div>
-                    </div>
+                    </label>
                   </div>
+                    );
+                  })()
                 ))}
               </div>
 
@@ -440,10 +449,10 @@ export const SwitchModelModal = ({
 
               {isGemini3Model && (
                 <div className="mt-2">
-                  <label className="text-sm text-text-muted mb-1 block">
+                  <div className="text-sm text-text-muted mb-1 block">
                     Thinking Level
                     <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
-                  </label>
+                  </div>
                   <Select
                     options={THINKING_LEVEL_OPTIONS}
                     value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}
@@ -534,7 +543,9 @@ export const SwitchModelModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
-                        <label className="text-sm text-text-muted">Custom model name</label>
+                        <label htmlFor="custom-model-name" className="text-sm text-text-muted">
+                          Custom model name
+                        </label>
                         <button type="button"
                           onClick={() => setIsCustomModel(false)}
                           className="text-sm text-text-muted"
@@ -543,6 +554,7 @@ export const SwitchModelModal = ({
                         </button>
                       </div>
                       <Input
+                        id="custom-model-name"
                         className="border-2 px-4 py-5"
                         placeholder="Type model name here"
                         onChange={(event) => setModel(event.target.value)}
@@ -556,10 +568,10 @@ export const SwitchModelModal = ({
 
                   {isGemini3Model && (
                     <div className="mt-2">
-                      <label className="text-sm text-text-muted mb-1 block">
+                      <div className="text-sm text-text-muted mb-1 block">
                         Thinking Level
                         <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
-                      </label>
+                      </div>
                       <Select
                         options={THINKING_LEVEL_OPTIONS}
                         value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}

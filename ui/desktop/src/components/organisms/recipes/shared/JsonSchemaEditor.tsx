@@ -83,16 +83,14 @@ export default function JsonSchemaEditor({
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50"
-      onClick={(e) => {
-        // Close modal when clicking backdrop
-        if (e.target === e.currentTarget) {
-          handleCancel();
-        }
-      }}
-    >
-      <div className="bg-background-default border border-border-default rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[400] flex items-center justify-center">
+      <button
+        type="button"
+        className="absolute inset-0 bg-black/50"
+        aria-label="Close JSON schema editor"
+        onClick={handleCancel}
+      />
+      <div className="relative z-10 bg-background-default border border-border-default rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-text-default">JSON Schema Editor</h3>
           <button
@@ -107,7 +105,7 @@ export default function JsonSchemaEditor({
         <div className="flex-1 flex flex-col min-h-0">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-text-default">
+              <label htmlFor="json-schema-editor" className="block text-sm font-medium text-text-default">
                 Response JSON Schema
               </label>
               <Button
@@ -127,6 +125,7 @@ export default function JsonSchemaEditor({
 
           <div className="flex-1 min-h-0">
             <textarea
+              id="json-schema-editor"
               value={localValue}
               onChange={(e) => {
                 setLocalValue(e.target.value);

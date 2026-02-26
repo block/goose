@@ -236,11 +236,24 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       {isOpen && (
         <div
           ref={popoverRef}
+          role="dialog"
+          aria-label="Alerts"
+          tabIndex={-1}
           className="fixed w-[275px] p-0 rounded-lg overflow-hidden bg-app border z-50 shadow-lg pointer-events-auto text-left"
           style={{
             top: `${popoverPosition.top}px`,
             left: `${popoverPosition.left}px`,
             visibility: popoverPosition.top === 0 ? 'hidden' : 'visible',
+          }}
+          onFocus={() => {
+            setIsHovered(true);
+            if (hideTimerRef.current) {
+              clearTimeout(hideTimerRef.current);
+            }
+          }}
+          onBlur={() => {
+            setIsHovered(false);
+            setIsOpen(false);
           }}
           onMouseEnter={() => {
             setIsHovered(true);
@@ -255,7 +268,12 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
         >
           <div className="flex flex-col">
             {alerts.map((alert, index) => (
-              <div key={index} className={cn(index > 0 && 'border-t border-white/20')}>
+              <div
+                key={`${alert.type}-${alert.message}-${alert.action?.text ?? ''}-${alert.autoShow ?? false}-${
+                  alert.progress?.current ?? ''
+                }-${alert.progress?.total ?? ''}`}
+                className={cn(index > 0 && 'border-t border-white/20')}
+              >
                 <AlertBox alert={alert} />
               </div>
             ))}

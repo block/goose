@@ -30,7 +30,7 @@ describe('atomic design import boundaries', () => {
     // - import X from '@/components/pages/Foo'
     // - import X from '@/components/pages/Foo'
     // - import X from '@/components/pages/Foo' (if we ever introduce aliases)
-    const forbidden = /from\s+['"][^'\"]*(?:\/|\.)pages\//;
+    const forbidden = /from\s+['"][^'"]*(?:\/|\.)pages\//;
 
     for (const file of files) {
       const text = read(file);

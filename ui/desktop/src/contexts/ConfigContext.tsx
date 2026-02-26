@@ -119,7 +119,10 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       return extensionsList;
     }
 
-    const extensionResponse: ExtensionResponse = result.data!;
+    const extensionResponse = result.data as ExtensionResponse | undefined;
+    if (!extensionResponse) {
+      return extensionsList;
+    }
     setExtensionsList(extensionResponse.extensions);
     setExtensionWarnings(extensionResponse.warnings || []);
     return extensionResponse.extensions;

@@ -36,20 +36,8 @@ export default function CardContainer({
   testId,
   borderStyle = 'solid',
 }: CardContainerProps) {
-  return (
-    <div
-      data-testid={testId}
-      className={`relative h-full p-[2px] overflow-hidden rounded-[9px] group/card
-                 ${
-                   grayedOut
-                     ? 'bg-background-muted hover:bg-gray-700'
-                     : 'bg-background-muted hover:bg-transparent hover:duration-300'
-                 }`}
-      onClick={!grayedOut ? onClick : undefined}
-      style={{
-        cursor: !grayedOut ? 'pointer' : 'default',
-      }}
-    >
+  const inner = (
+    <>
       {!grayedOut && <GlowingRing />}
       <div
         className={`relative bg-background-default rounded-lg p-3 transition-all duration-200 h-[160px] flex flex-col
@@ -69,6 +57,32 @@ export default function CardContainer({
 
         <div>{body}</div>
       </div>
-    </div>
+    </>
+  );
+
+  const wrapperClassName = `relative h-full p-[2px] overflow-hidden rounded-[9px] group/card
+                 ${
+                   grayedOut
+                     ? 'bg-background-muted hover:bg-gray-700'
+                     : 'bg-background-muted hover:bg-transparent hover:duration-300'
+                 }`;
+
+  if (grayedOut) {
+    return (
+      <div data-testid={testId} className={wrapperClassName}>
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      className={wrapperClassName}
+      onClick={onClick}
+    >
+      {inner}
+    </button>
   );
 }

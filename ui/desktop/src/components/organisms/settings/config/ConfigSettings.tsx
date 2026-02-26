@@ -112,6 +112,8 @@ export default function ConfigSettings() {
 
   const currentProvider = typedConfig.GOOSE_PROVIDER || '';
 
+  const toDomId = (key: string) => `config-${key.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+
   const configEntries: [string, ConfigValue][] = useMemo(() => {
     const currentProviderPrefixes = providerPrefixes[currentProvider] || [];
     const allProviderPrefixes = Object.values(providerPrefixes).flat();
@@ -175,10 +177,15 @@ export default function ConfigSettings() {
                 ) : (
                   configEntries.map(([key, _value]) => (
                     <div key={key} className="grid grid-cols-[200px_1fr_auto] gap-3 items-center">
-                      <label className="text-sm font-medium text-text-default" title={key}>
+                      <label
+                        htmlFor={toDomId(key)}
+                        className="text-sm font-medium text-text-default"
+                        title={key}
+                      >
                         {getUiNames(key)}
                       </label>
                       <Input
+                        id={toDomId(key)}
                         value={String(configValues[key] || '')}
                         onChange={(e) => handleChange(key, e.target.value)}
                         className={cn(

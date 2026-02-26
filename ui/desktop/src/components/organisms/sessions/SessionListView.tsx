@@ -671,10 +671,15 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+						<button
+							type="button"
+							className="flex items-center"
+							onClick={(e) => e.stopPropagation()}
+							aria-label="Show extensions"
+						>
                         <Puzzle className="w-3 h-3 mr-1" />
                         <span className="font-mono">{extensionNames.length}</span>
-                      </div>
+						</button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
                       <div className="text-xs">

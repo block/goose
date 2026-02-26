@@ -1,6 +1,6 @@
 import kebabCase from 'lodash/kebabCase';
 import { Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ExtensionConfig } from '@/api';
 import { useConfig } from '@/contexts/ConfigContext';
 import { getSearchShortcutText } from '@/utils/keyboardShortcuts';
@@ -38,7 +38,7 @@ export default function ExtensionsView({
     }
   }, [viewOptions.deepLinkConfig, viewOptions.showEnvVars]);
 
-  const scrollToExtension = (extensionName: string) => {
+  const scrollToExtension = useCallback((extensionName: string) => {
     setTimeout(() => {
       const element = document.getElementById(`extension-${kebabCase(extensionName)}`);
       if (element) {
@@ -53,7 +53,7 @@ export default function ExtensionsView({
         }, 2000);
       }
     }, 200);
-  };
+  }, []);
 
   // Scroll to extension whenever extensionId is provided (after refresh)
   useEffect(() => {

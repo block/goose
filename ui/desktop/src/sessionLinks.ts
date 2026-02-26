@@ -50,8 +50,12 @@ export async function openSharedSessionFromDeepLink(
       }
     }
 
+    if (!baseUrl) {
+      throw new Error('Session sharing is not configured');
+    }
+
     // Fetch the shared session details
-    const sessionDetails = await fetchSharedSessionDetails(baseUrl!, shareToken);
+    const sessionDetails = await fetchSharedSessionDetails(baseUrl, shareToken);
 
     // Navigate to the shared session view
     setView('sharedSession', {

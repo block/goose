@@ -339,9 +339,8 @@ app.on('open-file', async (event, filePath) => {
 // Handle multiple files/folders (macOS only)
 if (process.platform === 'darwin') {
   // Use type assertion for non-standard Electron event
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  app.on('open-files' as any, async (event: any, filePaths: string[]) => {
-    event.preventDefault();
+  app.on('open-files' as unknown as never, async (event: unknown, filePaths: string[]) => {
+    (event as { preventDefault: () => void }).preventDefault();
     for (const filePath of filePaths) {
       await handleFileOpen(filePath);
     }
@@ -699,9 +698,8 @@ const createChat = async (
 
   // Handle new-window events (alternative approach for external links)
   // Use type assertion for non-standard Electron event
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mainWindow.webContents.on('new-window' as any, (event: any, url: string) => {
-    event.preventDefault();
+  mainWindow.webContents.on('new-window' as unknown as never, (event: unknown, url: string) => {
+    (event as { preventDefault: () => void }).preventDefault();
     try {
       const protocol = new URL(url).protocol;
       if (BLOCKED_PROTOCOLS.includes(protocol)) {
@@ -778,8 +776,7 @@ const createChat = async (
 
   // Handle mouse back button (button 3)
   // Use type assertion for non-standard Electron event
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mainWindow.webContents.on('mouse-up' as any, (_event: any, mouseButton: number) => {
+  mainWindow.webContents.on('mouse-up' as unknown as never, (_event: unknown, mouseButton: number) => {
     // MouseButton 3 is the back button.
     if (mouseButton === 3) {
       mainWindow.webContents.send('mouse-back-button-clicked');
@@ -795,8 +792,8 @@ const createChat = async (
     // Clean up pending initial message
     pendingInitialMessages.delete(windowId);
 
-    if (windowPowerSaveBlockers.has(windowId)) {
-      const blockerId = windowPowerSaveBlockers.get(windowId)!;
+    const blockerId = windowPowerSaveBlockers.get(windowId);
+    if (blockerId !== undefined) {
       try {
         powerSaveBlocker.stop(blockerId);
       } catch (error) {
@@ -1157,8 +1154,8 @@ ipcMain.on('react-ready', (event) => {
   const windowId = window?.id;
 
   // Send any pending initial message for this window
-  if (windowId && pendingInitialMessages.has(windowId)) {
-    const initialMessage = pendingInitialMessages.get(windowId)!;
+  const initialMessage = windowId ? pendingInitialMessages.get(windowId) : undefined;
+  if (windowId && initialMessage) {
     log.info('Sending pending initial message to window:', initialMessage);
     window.webContents.send('set-initial-message', initialMessage);
     pendingInitialMessages.delete(windowId);

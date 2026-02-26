@@ -232,8 +232,8 @@ function LoadingSkeleton() {
   return (
     <div className="p-6 space-y-6 animate-pulse">
       <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 bg-background-defaultHover rounded-lg" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={`dashboard-kpi-skeleton-${i + 1}`} className="h-24 bg-background-defaultHover rounded-lg" />
         ))}
       </div>
       <div className="h-64 bg-background-defaultHover rounded-lg" />
@@ -375,9 +375,9 @@ export default function AnalyticsDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                {evalOverview.regressions.map((r, i) => (
+                {evalOverview.regressions.map((r) => (
                   <RegressionCard
-                    key={i}
+                    key={r.runId}
                     severity={r.severity}
                     description={r.description}
                     delta={r.delta}
@@ -589,8 +589,8 @@ export default function AnalyticsDashboard() {
                     nameKey="provider"
                     strokeWidth={0}
                   >
-                    {usage.providerUsage.map((_, i) => (
-                      <Cell key={i} fill={COLORS.chart[i % COLORS.chart.length]} />
+                    {usage.providerUsage.map((entry, i) => (
+                      <Cell key={entry.provider} fill={COLORS.chart[i % COLORS.chart.length]} />
                     ))}
                   </Pie>
                   <Tooltip

@@ -138,9 +138,11 @@ describe('useAlerts', () => {
         { type: AlertType.Info, message: 'Fourth' },
       ];
 
-      act(() => {
-        alerts.forEach((alert) => result.current.addAlert(alert));
-      });
+	    act(() => {
+	      for (const alert of alerts) {
+	        result.current.addAlert(alert);
+	      }
+	    });
 
       expect(result.current.alerts).toHaveLength(4);
       alerts.forEach((alert, index) => {
@@ -178,7 +180,9 @@ describe('useAlerts', () => {
       ];
 
       act(() => {
-        alertTypes.forEach((alert) => result.current.addAlert(alert));
+        for (const alert of alertTypes) {
+          result.current.addAlert(alert);
+        }
       });
 
       expect(result.current.alerts).toHaveLength(3);

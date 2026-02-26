@@ -381,11 +381,11 @@ const MentionPopover = forwardRef<
       }
     }, [scanDirectoryFromRoot, currentWorkingDir]);
 
-    const compareByType = (a: DisplayItemWithMatch, b: DisplayItemWithMatch) => {
+    const compareByType = useCallback((a: DisplayItemWithMatch, b: DisplayItemWithMatch) => {
       const orderA = typeOrder[a.itemType] ?? Number.MAX_SAFE_INTEGER;
       const orderB = typeOrder[b.itemType] ?? Number.MAX_SAFE_INTEGER;
       return orderA - orderB;
-    };
+    }, []);
 
     const displayItems = useMemo((): DisplayItemWithMatch[] => {
       if (!query.trim()) {
@@ -550,7 +550,8 @@ const MentionPopover = forwardRef<
                 style={{ maxHeight: '280px' }}
               >
                 {displayItems.map((item, index) => (
-                  <div
+                  <button
+                    type="button"
                     key={item.extra}
                     onClick={() => handleItemClick(index)}
                     data-selected={index === selectedIndex}
@@ -565,7 +566,7 @@ const MentionPopover = forwardRef<
                       <div className="text-sm truncate text-text-default">{item.name}</div>
                       <div className="text-xs truncate text-text-muted">{item.extra}</div>
                     </div>
-                  </div>
+                  </button>
                 ))}
 
                 {!isLoading && displayItems.length === 0 && query && (

@@ -113,8 +113,6 @@ export const useCostTracking = ({
     currentProvider,
     totalInputTokens,
     totalOutputTokens,
-    // sessionId ensures we never attribute across sessions even if counters continue to update.
-    sessionId,
   ]);
 
   return {

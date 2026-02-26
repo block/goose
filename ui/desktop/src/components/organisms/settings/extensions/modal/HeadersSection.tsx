@@ -84,7 +84,7 @@ export default function HeadersSection({
   return (
     <div>
       <div className="relative mb-2">
-        <label className="text-sm font-medium text-text-default mb-2 block">Request Headers</label>
+        <div className="text-sm font-medium text-text-default mb-2">Request Headers</div>
         <p className="text-xs text-text-muted mb-4">
           Add custom HTTP headers to include in requests to the MCP server. Click the "+" button to
           add after filling both fields.
@@ -93,7 +93,7 @@ export default function HeadersSection({
       <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
         {/* Existing headers */}
         {headers.map((header, index) => (
-          <React.Fragment key={index}>
+          <React.Fragment key={`${header.key}-${header.value}`}>
             <div className="relative">
               <Input
                 value={header.key}

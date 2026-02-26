@@ -127,7 +127,16 @@ export async function addExtensionFromDeepLink(
     }
   }
 
-  const name = parsedUrl.searchParams.get('name')!;
+  const name = parsedUrl.searchParams.get('name');
+  if (!name) {
+    toastService.handleError(
+      'Missing Field',
+      "Failed to install extension: The link is missing required field 'name'",
+      { shouldThrow: true }
+    );
+    throw new Error("Missing required query param 'name'");
+  }
+
   const parsedTimeout = parsedUrl.searchParams.get('timeout');
   const timeout = parsedTimeout ? parseInt(parsedTimeout, 10) : DEFAULT_EXTENSION_TIMEOUT;
   const description = parsedUrl.searchParams.get('description');
@@ -135,6 +144,14 @@ export async function addExtensionFromDeepLink(
 
   const cmd = parsedUrl.searchParams.get('cmd');
   const remoteUrl = parsedUrl.searchParams.get('url');
+
+  if (!remoteUrl && !cmd) {
+    toastService.handleError(
+      'Missing Field',
+      "Failed to install extension: The link must include 'url' for remote extensions or 'cmd' for stdio extensions",
+      { shouldThrow: true }
+    );
+  }
 
   const headerParams = parsedUrl.searchParams.getAll('header');
   const headers =
@@ -161,7 +178,7 @@ export async function addExtensionFromDeepLink(
 
   const baseConfig = remoteUrl
     ? getStreamableHttpConfig(remoteUrl, name, description || '', timeout, headers, envs)
-    : getStdioConfig(cmd!, parsedUrl, name, description || '', timeout);
+    : getStdioConfig(cmd ?? '', parsedUrl, name, description || '', timeout);
 
   const config = {
     ...baseConfig,

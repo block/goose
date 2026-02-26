@@ -7,8 +7,7 @@ const STORAGE_KEY = 'goose-chat-history';
 const MAX_MESSAGES = 500;
 const EXPIRY_DAYS = 30;
 
-export class LocalMessageStorage {
-  private static getStoredMessages(): StoredMessage[] {
+function getStoredMessages(): StoredMessage[] {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) return [];
@@ -24,7 +23,7 @@ export class LocalMessageStorage {
 
       // If we filtered any messages, update storage
       if (validMessages.length !== messages.length) {
-        LocalMessageStorage.setStoredMessages(validMessages);
+        setStoredMessages(validMessages);
       }
 
       return validMessages;
@@ -32,20 +31,20 @@ export class LocalMessageStorage {
       console.error('Error reading message history:', error);
       return [];
     }
-  }
+}
 
-  private static setStoredMessages(messages: StoredMessage[]) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    } catch (error) {
-      console.error('Error saving message history:', error);
-    }
+function setStoredMessages(messages: StoredMessage[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  } catch (error) {
+    console.error('Error saving message history:', error);
   }
+}
 
-  static addMessage(content: string) {
+function addMessage(content: string) {
     if (!content.trim()) return;
 
-    const messages = LocalMessageStorage.getStoredMessages();
+    const messages = getStoredMessages();
     const now = Date.now();
 
     // Don't add duplicate of last message
@@ -61,16 +60,21 @@ export class LocalMessageStorage {
     // Keep only the most recent MAX_MESSAGES
     const validMessages = messages.slice(-MAX_MESSAGES);
 
-    LocalMessageStorage.setStoredMessages(validMessages);
-  }
+    setStoredMessages(validMessages);
+}
 
-  static getRecentMessages(): string[] {
-    return LocalMessageStorage.getStoredMessages()
+function getRecentMessages(): string[] {
+    return getStoredMessages()
       .map((msg) => msg.content)
       .reverse(); // Most recent first
-  }
-
-  static clearHistory() {
-    localStorage.removeItem(STORAGE_KEY);
-  }
 }
+
+function clearHistory() {
+    localStorage.removeItem(STORAGE_KEY);
+}
+
+export const LocalMessageStorage = {
+  addMessage,
+  getRecentMessages,
+  clearHistory,
+} as const;

@@ -17,7 +17,7 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RecipeManifest } from '@/api';
 import {
   deleteRecipe,
@@ -169,7 +169,7 @@ export default function RecipesView() {
     });
   };
 
-  const loadSavedRecipes = async () => {
+  const loadSavedRecipes = useCallback(async () => {
     try {
       setLoading(true);
       setShowSkeleton(true);
@@ -183,7 +183,7 @@ export default function RecipesView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadSavedRecipes();
@@ -740,7 +740,8 @@ export default function RecipesView() {
             {/* Parent recipe row */}
             <div className="flex items-center gap-1">
               {group.children.length > 0 && (
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => toggleParentExpanded(group.parent.id)}
                   className="p-1 rounded hover:bg-background-muted transition-colors"
                   title={expandedParents.has(group.parent.id) ? 'Collapse' : 'Expand'}

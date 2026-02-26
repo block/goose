@@ -14,7 +14,6 @@ vi.mock('split-type', () => {
     chars = splitTypeInstance.chars;
     split = splitTypeInstance.split;
     revert = splitTypeInstance.revert;
-    constructor(_el: Element, _options?: unknown) {}
   }
   return { default: SplitTypeMock };
 });
@@ -40,7 +39,6 @@ describe('useTextAnimator', () => {
       disconnect = disconnect;
       unobserve = vi.fn();
       takeRecords = vi.fn(() => []);
-      constructor(_cb: ResizeObserverCallback) {}
     };
 
     function Test() {

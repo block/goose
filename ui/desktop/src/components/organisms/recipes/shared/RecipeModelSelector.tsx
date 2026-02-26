@@ -132,13 +132,17 @@ export const RecipeModelSelector = ({
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium text-text-default mb-2">
+        <label
+          htmlFor="recipe-provider-select"
+          className="block text-sm font-medium text-text-default mb-2"
+        >
           Provider (Optional)
         </label>
         <p className="text-xs text-text-muted mb-2">
           Leave empty to use the default provider configured in settings
         </p>
         <Select
+          inputId="recipe-provider-select"
           options={providerOptions}
           value={
             selectedProvider
@@ -153,7 +157,9 @@ export const RecipeModelSelector = ({
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium text-text-default">Model (Optional)</label>
+          <label htmlFor="recipe-model-select" className="block text-sm font-medium text-text-default">
+            Model (Optional)
+          </label>
           {isCustomModel && (
             <button
               type="button"
@@ -172,6 +178,7 @@ export const RecipeModelSelector = ({
         </p>
         {isCustomModel ? (
           <Input
+            id="recipe-model-select"
             type="text"
             placeholder="Enter custom model name"
             value={selectedModel || ''}
@@ -179,6 +186,7 @@ export const RecipeModelSelector = ({
           />
         ) : (
           <Select
+            inputId="recipe-model-select"
             options={loadingModels ? [] : filteredModelOptions}
             value={
               loadingModels
