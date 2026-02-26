@@ -37,7 +37,7 @@ interface PairRouteState {
   initialMessage?: UserInput;
 }
 
-import { AppLayout } from './components/Layout/AppLayout';
+import { AppLayout } from './components/templates/layout/AppLayout';
 import LauncherView from './components/pages/LauncherView';
 import SchedulesView from './components/schedule/SchedulesView';
 import SessionsView from './components/sessions/SessionsView';
@@ -48,7 +48,7 @@ import SettingsView from './components/settings/SettingsView';
 import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 
 import 'react-toastify/dist/ReactToastify.css';
-import AgentsView from './components/agents/AgentsView';
+import AgentsView from './components/organisms/agents/AgentsView';
 import EvaluateView from './components/analytics/EvaluateView';
 import MonitoringView from './components/analytics/MonitoringView';
 import AppsView from './components/apps/AppsView';
