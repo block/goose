@@ -1,0 +1,27 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  securepilot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write       # needed to post PR comments
+      security-events: write     # needed for SARIF upload
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SecurePilot Security Scan
+        uses: securepilot/securepilot-action@v1
+
+      - name: Upload SARIF to GitHub Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: securepilot-results.sarif
+          
