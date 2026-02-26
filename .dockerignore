@@ -1,5 +1,4 @@
-# Build artifacts
-target/
+# Build artifactstarget/
 **/target/
 
 # Node modules and build outputs
