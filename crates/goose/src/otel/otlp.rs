@@ -1,17 +1,22 @@
+use opentelemetry::logs::{AnyValue, LogRecord};
 use opentelemetry::trace::TracerProvider;
-use opentelemetry::{global, KeyValue};
+use opentelemetry::{global, Key, KeyValue};
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_sdk::logs::{SdkLogger, SdkLoggerProvider};
+use opentelemetry_sdk::error::OTelSdkResult;
+use opentelemetry_sdk::logs::{LogProcessor, SdkLogRecord, SdkLogger, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::{SdkMeterProvider, Temporality};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector};
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
+use std::cell::RefCell;
 use std::env;
 use std::sync::Mutex;
+use tracing::field::{Field, Visit};
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 use tracing_subscriber::filter::FilterFn;
+use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer as _;
 
 pub type OtlpTracingLayer =
@@ -114,6 +119,76 @@ fn create_resource() -> Resource {
     builder.build()
 }
 
+// Propagates session.id from tracing spans to OTel log records via a thread-local,
+// similar to opentelemetry-appender-tracing's experimental_span_attributes feature.
+// Remove once https://github.com/open-telemetry/opentelemetry-rust/pull/3387 is released.
+// SessionIdBridge must be inner to the bridge layer so its on_event fires first.
+
+thread_local! {
+    static CURRENT_SESSION_ID: RefCell<Option<String>> = const { RefCell::new(None) };
+}
+
+struct SessionId(String);
+
+#[derive(Debug)]
+pub struct SessionIdBridge;
+
+impl<S> tracing_subscriber::Layer<S> for SessionIdBridge
+where
+    S: tracing::Subscriber + for<'a> LookupSpan<'a>,
+{
+    fn on_new_span(
+        &self,
+        attrs: &tracing::span::Attributes<'_>,
+        id: &tracing::span::Id,
+        ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        struct V(Option<String>);
+        impl Visit for V {
+            fn record_str(&mut self, field: &Field, value: &str) {
+                if field.name() == "session.id" {
+                    self.0 = Some(value.to_string());
+                }
+            }
+            fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+                if field.name() == "session.id" {
+                    self.0 = Some(format!("{value:?}"));
+                }
+            }
+        }
+        let mut v = V(None);
+        attrs.record(&mut v);
+        if let Some(sid) = v.0 {
+            if let Some(span) = ctx.span(id) {
+                span.extensions_mut().insert(SessionId(sid));
+            }
+        }
+    }
+
+    fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
+        let sid = ctx.event_scope(event).and_then(|scope| {
+            scope
+                .from_root()
+                .find_map(|span| span.extensions().get::<SessionId>().map(|s| s.0.clone()))
+        });
+        CURRENT_SESSION_ID.with(|cell| *cell.borrow_mut() = sid);
+    }
+}
+
+impl LogProcessor for SessionIdBridge {
+    fn emit(&self, record: &mut SdkLogRecord, _: &opentelemetry::InstrumentationScope) {
+        CURRENT_SESSION_ID.with(|cell| {
+            if let Some(ref id) = *cell.borrow() {
+                record.add_attribute(Key::new("session.id"), AnyValue::from(id.clone()));
+            }
+        });
+    }
+
+    fn force_flush(&self) -> OTelSdkResult {
+        Ok(())
+    }
+}
+
 /// Initializes all OTLP signal layers (traces, metrics, logs) and propagation.
 /// Returns boxed layers ready to add to a subscriber.
 pub fn init_otlp_layers(
@@ -131,8 +206,10 @@ pub fn init_otlp_layers(
     if let Ok(layer) = create_otlp_metrics_layer() {
         layers.push(layer.with_filter(create_otlp_metrics_filter()).boxed());
     }
-    if let Ok(layer) = create_otlp_logs_layer() {
-        layers.push(layer.with_filter(create_otlp_logs_filter()).boxed());
+    if let Ok(bridge) = create_otlp_logs_layer() {
+        // SessionIdBridge must be first so on_event fires before bridge in Vec iteration
+        layers.push(SessionIdBridge.boxed());
+        layers.push(bridge.with_filter(create_otlp_logs_filter()).boxed());
     }
 
     if !layers.is_empty() {
@@ -227,6 +304,7 @@ fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
                 .with_http()
                 .build()?;
             SdkLoggerProvider::builder()
+                .with_log_processor(SessionIdBridge)
                 .with_batch_exporter(exporter)
                 .with_resource(resource)
                 .build()
@@ -234,6 +312,7 @@ fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
         ExporterType::Console => {
             let exporter = opentelemetry_stdout::LogExporter::default();
             SdkLoggerProvider::builder()
+                .with_log_processor(SessionIdBridge)
                 .with_simple_exporter(exporter)
                 .with_resource(resource)
                 .build()
@@ -368,69 +447,9 @@ pub fn shutdown_otlp() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opentelemetry::metrics::{Meter, MeterProvider};
-    use opentelemetry::InstrumentationScope;
+    use goose_test_support::otel::clear_otel_env;
     use opentelemetry_sdk::metrics::Temporality;
-    use std::sync::Arc;
     use test_case::test_case;
-
-    // set_meter_provider requires P: MeterProvider, not Arc<dyn MeterProvider>
-    struct SavedMeterProvider(Arc<dyn MeterProvider + Send + Sync>);
-
-    impl MeterProvider for SavedMeterProvider {
-        fn meter_with_scope(&self, scope: InstrumentationScope) -> Meter {
-            self.0.meter_with_scope(scope)
-        }
-    }
-
-    struct OtelTestGuard {
-        _env: env_lock::EnvGuard<'static>,
-        prev_tracer: global::GlobalTracerProvider,
-        prev_meter: Arc<dyn MeterProvider + Send + Sync>,
-    }
-
-    impl Drop for OtelTestGuard {
-        fn drop(&mut self) {
-            global::set_tracer_provider(self.prev_tracer.clone());
-            global::set_meter_provider(SavedMeterProvider(self.prev_meter.clone()));
-        }
-    }
-
-    fn clear_otel_env(overrides: &[(&'static str, &'static str)]) -> OtelTestGuard {
-        let prev_tracer = global::tracer_provider();
-        let prev_meter = global::meter_provider();
-
-        let mut keys: Vec<&'static str> = vec![
-            "OTEL_EXPORTER_OTLP_ENDPOINT",
-            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
-            "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
-            "OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE",
-            "OTEL_EXPORTER_OTLP_TIMEOUT",
-            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-            "OTEL_LOG_LEVEL",
-            "OTEL_LOGS_EXPORTER",
-            "OTEL_METRICS_EXPORTER",
-            "OTEL_RESOURCE_ATTRIBUTES",
-            "OTEL_SDK_DISABLED",
-            "OTEL_SERVICE_NAME",
-            "OTEL_TRACES_EXPORTER",
-        ];
-        for &(k, _) in overrides {
-            if !keys.contains(&k) {
-                keys.push(k);
-            }
-        }
-
-        let guard = env_lock::lock_env(keys.into_iter().map(|k| (k, None::<&str>)));
-        for &(k, v) in overrides {
-            env::set_var(k, v);
-        }
-        OtelTestGuard {
-            _env: guard,
-            prev_tracer,
-            prev_meter,
-        }
-    }
 
     #[test]
     fn exporter_type_from_env_value() {

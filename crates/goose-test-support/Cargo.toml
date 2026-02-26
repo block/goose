@@ -9,6 +9,8 @@ description.workspace = true
 
 [dependencies]
 axum = "0.7"
+env-lock = { workspace = true }
+opentelemetry = { workspace = true }
 rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
 serde_json.workspace = true
 tokio.workspace = true
