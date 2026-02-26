@@ -1094,7 +1094,7 @@ async fn export_app(
             status: StatusCode::NOT_FOUND,
         })?;
 
-    let html = app.to_html().map_err(|e| ErrorResponse {
+    let html = app.to_html(None).map_err(|e| ErrorResponse {
         message: format!("Failed to generate HTML: {}", e),
         status: StatusCode::INTERNAL_SERVER_ERROR,
     })?;

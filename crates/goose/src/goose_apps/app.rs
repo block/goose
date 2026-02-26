@@ -131,14 +131,10 @@ impl GooseApp {
             "<script>\n{}\n</script>\n",
             BRIDGE_JS.replace("'{{APP_NAME}}'", &format!("'{}'", self.resource.name))
         );
-        self.to_html_inner(Some(&bridge))
+        self.to_html(Some(&bridge))
     }
 
-    pub fn to_html(&self) -> Result<String, String> {
-        self.to_html_inner(None)
-    }
-
-    fn to_html_inner(&self, extra_head: Option<&str>) -> Result<String, String> {
+    pub fn to_html(&self, extra_head: Option<&str>) -> Result<String, String> {
         let html = self
             .resource
             .text
@@ -188,15 +184,14 @@ impl GooseApp {
             String::new()
         };
 
-        let mut head_content = String::new();
-        if let Some(extra) = extra_head {
-            head_content.push_str(extra);
-        }
-        head_content.push_str(&metadata_script);
+        let mut head_content = metadata_script;
         head_content.push('\n');
         if !prd_script.is_empty() {
             head_content.push_str(&prd_script);
             head_content.push('\n');
+        }
+        if let Some(extra) = extra_head {
+            head_content.push_str(extra);
         }
 
         let result = if let Some(head_pos) = html.find("</head>") {

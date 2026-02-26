@@ -22,7 +22,6 @@ struct ProxyQuery {
 
 const MCP_APP_PROXY_HTML: &str = include_str!("templates/mcp_app_proxy.html");
 
-
 /// Build the outer sandbox CSP based on declared domains.
 ///
 /// This CSP acts as a ceiling - the inner guest UI iframe cannot exceed these

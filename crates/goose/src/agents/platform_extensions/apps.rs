@@ -196,7 +196,7 @@ impl AppsManagerClient {
     fn save_app(&self, app: &GooseApp) -> Result<(), String> {
         let path = self.apps_dir.join(format!("{}.html", app.resource.name));
 
-        let html_content = app.to_html()?;
+        let html_content = app.to_html(None)?;
 
         fs::write(&path, html_content).map_err(|e| format!("Failed to write app file: {}", e))?;
 
@@ -223,17 +223,10 @@ impl AppsManagerClient {
             .result_with_platform_notification(result, EXTENSION_NAME, event_type, params)
     }
 
-    /// Platform extensions that should not be exposed to Goose apps.
-    const HIDDEN_EXTENSIONS: &'static [&'static str] = &[
-        "apps",
-        "extensionmanager",
-        "extension_manager",
-        "code_execution",
-        "summon",
-        "tom",
-        "chatrecall",
-        "todo",
-    ];
+    fn is_platform_extension(name: &str) -> bool {
+        use super::PLATFORM_EXTENSIONS;
+        PLATFORM_EXTENSIONS.contains_key(name)
+    }
 
     async fn get_available_tools_description(&self, session_id: &str) -> String {
         let extension_manager = match self
@@ -258,7 +251,6 @@ impl AppsManagerClient {
             return String::new();
         }
 
-        // Get extension descriptions via get_extensions_info
         let working_dir = self
             .context
             .session_manager
@@ -281,12 +273,11 @@ impl AppsManagerClient {
             })
             .collect();
 
-        // Group tools by extension, filtering out platform extensions
         let mut by_extension: HashMap<String, Vec<(String, String, String)>> = HashMap::new();
         for tool in &tools {
             let name = tool.name.to_string();
             if let Some((ext, tool_name)) = name.split_once("__") {
-                if Self::HIDDEN_EXTENSIONS.contains(&ext) {
+                if Self::is_platform_extension(ext) {
                     continue;
                 }
                 let desc = tool
