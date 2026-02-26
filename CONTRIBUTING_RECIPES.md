@@ -78,7 +78,7 @@ Our team will:
 3. 🔒 **Security scan** (if approved for review)
 4. 🎉 **Merge** your recipe!
 
-## ✅ Recipe Requirements
+## ✅ Recipe Rmoequirements
 
 Your recipe should:
 
@@ -131,3 +131,4 @@ Need inspiration? Consider recipes for:
 **Ready to contribute?** [Fork the repo](https://github.com/block/goose/fork) and start creating! 
 
 *Questions? Ask in your PR or hop into [discord](https://discord.gg/goose-oss) - we're here to help!* 💙
+
