@@ -164,7 +164,7 @@ vi.mock('./contexts/ChatContext', () => ({
   DEFAULT_CHAT_TITLE: 'New Chat', // Keep this from HEAD
 }));
 
-vi.mock('./components/ui/molecules/ConfirmationModal', () => ({
+vi.mock('./components/molecules/ui/ConfirmationModal', () => ({
   ConfirmationModal: () => null,
 }));
 
