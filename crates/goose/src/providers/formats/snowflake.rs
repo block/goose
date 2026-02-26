@@ -16,6 +16,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         let role = match message.role {
             Role::User => "user",
             Role::Assistant => "assistant",
+            _ => "user",
         };
 
         let mut text_content = String::new();

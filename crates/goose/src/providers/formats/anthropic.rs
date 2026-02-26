@@ -108,6 +108,7 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         let role = match message.role {
             Role::User => USER_ROLE,
             Role::Assistant => ASSISTANT_ROLE,
+            _ => USER_ROLE,
         };
 
         let mut content = Vec::new();

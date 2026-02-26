@@ -489,6 +489,7 @@ impl CliSession {
                     let role = match msg.role {
                         rmcp::model::Role::User => "User",
                         rmcp::model::Role::Assistant => "Assistant",
+                        _ => "User",
                     };
                     format!("## {}: {}", role, msg.as_concat_text())
                 })

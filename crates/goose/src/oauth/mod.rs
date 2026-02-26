@@ -106,6 +106,12 @@ pub async fn oauth_flow(
             client_id,
             token_response,
             granted_scopes: vec![],
+            token_received_at: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs(),
+            ),
         })
         .await?;
 

@@ -343,6 +343,7 @@ impl Provider for VeniceProvider {
                 "role": match msg.role {
                     Role::User => "user",
                     Role::Assistant => "assistant",
+                    _ => "user",
                 },
                 "content": content
             });

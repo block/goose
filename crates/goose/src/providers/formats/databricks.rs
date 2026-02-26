@@ -112,6 +112,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
             role: match message.role {
                 Role::User => "user".to_string(),
                 Role::Assistant => "assistant".to_string(),
+                _ => "user".to_string(),
             },
             tool_calls: None,
             tool_call_id: None,

@@ -159,8 +159,10 @@ pub fn to_bedrock_tool_result_content_block(
             ResourceContents::BlobResourceContents { .. } => {
                 bail!("Blob resource content is not supported by Bedrock provider yet")
             }
+            _ => bail!("Unsupported resource content type for Bedrock provider"),
         },
         RawContent::Audio(..) => bail!("Audio is not supported by Bedrock provider"),
+        _ => bail!("Unsupported content type for Bedrock provider"),
     })
 }
 
@@ -168,6 +170,7 @@ pub fn to_bedrock_role(role: &Role) -> bedrock::ConversationRole {
     match role {
         Role::User => bedrock::ConversationRole::User,
         Role::Assistant => bedrock::ConversationRole::Assistant,
+        _ => bedrock::ConversationRole::User,
     }
 }
 
@@ -264,6 +267,7 @@ fn to_bedrock_document(
         ResourceContents::BlobResourceContents { .. } => {
             bail!("Blob resource content is not supported by Bedrock provider yet")
         }
+        _ => bail!("Unsupported resource content type for Bedrock provider"),
     };
 
     let filename = Path::new(uri)

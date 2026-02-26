@@ -313,6 +313,9 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                                     blob.len()
                                 ));
                             }
+                            _ => {
+                                md.push_str("[unsupported resource type]\n\n");
+                            }
                         }
                     }
                     RawContent::ResourceLink(_link) => {
@@ -321,6 +324,9 @@ pub fn tool_response_to_markdown(resp: &ToolResponse, export_all_content: bool) 
                     }
                     RawContent::Audio(_) => {
                         md.push_str("[audio content not displayed in Markdown export]\n\n")
+                    }
+                    _ => {
+                        md.push_str("[unsupported content type]\n\n");
                     }
                 }
             }

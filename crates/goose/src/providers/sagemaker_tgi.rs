@@ -136,6 +136,7 @@ impl SageMakerTgiProvider {
                     }
                     prompt.push_str("\n\n");
                 }
+                _ => {}
             }
         }
 

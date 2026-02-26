@@ -84,6 +84,7 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
         let role = match message.role {
             Role::User => Some("user"),
             Role::Assistant => Some("assistant"),
+            _ => Some("user"),
         };
         let mut content_items: Vec<Value> = Vec::new();
 

@@ -318,6 +318,7 @@ fn export_session_to_markdown(
             let role_prefix = match message.role {
                 rmcp::model::Role::User => "### User:\n",
                 rmcp::model::Role::Assistant => "### Assistant:\n",
+                _ => "### User:\n",
             };
             markdown_output.push_str(role_prefix);
         }

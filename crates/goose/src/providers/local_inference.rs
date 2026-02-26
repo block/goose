@@ -520,6 +520,7 @@ impl Provider for LocalInferenceProvider {
             let role = match msg.role {
                 Role::User => "user",
                 Role::Assistant => "assistant",
+                _ => "user",
             };
             let content = extract_text_content(msg);
             if !content.trim().is_empty() {
@@ -555,7 +556,7 @@ impl Provider for LocalInferenceProvider {
             "system": &system_prompt,
             "messages": messages.iter().map(|m| {
                 serde_json::json!({
-                    "role": match m.role { Role::User => "user", Role::Assistant => "assistant" },
+                    "role": match m.role { Role::User => "user", Role::Assistant => "assistant", _ => "user" },
                     "content": extract_text_content(m),
                 })
             }).collect::<Vec<_>>(),

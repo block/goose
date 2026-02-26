@@ -929,6 +929,7 @@ async fn read_resource(
             };
             (uri, mime_type, decoded, meta)
         }
+        _ => return Err(StatusCode::INTERNAL_SERVER_ERROR),
     };
 
     let meta_map = meta.map(|m| m.0);

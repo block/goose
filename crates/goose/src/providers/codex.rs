@@ -434,6 +434,7 @@ fn prepare_input(
         let role_prefix = match message.role {
             Role::User => "Human: ",
             Role::Assistant => "Assistant: ",
+            _ => "Human: ",
         };
         prompt.push_str(role_prefix);
 

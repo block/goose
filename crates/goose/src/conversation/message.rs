@@ -552,6 +552,7 @@ impl From<Content> for MessageContent {
             RawContent::Audio(_) => {
                 MessageContent::text("[Audio content: not supported]".to_string())
             }
+            _ => MessageContent::text("[Unsupported content type]"),
         }
     }
 }
@@ -562,6 +563,7 @@ impl From<PromptMessage> for Message {
         let message = match prompt_message.role {
             PromptMessageRole::User => Message::user(),
             PromptMessageRole::Assistant => Message::assistant(),
+            _ => Message::user(),
         };
 
         // Convert and add the content
@@ -574,6 +576,7 @@ impl From<PromptMessage> for Message {
             PromptMessageContent::Resource { resource } => {
                 MessageContent::text(extract_text_from_resource(&resource.resource))
             }
+            _ => MessageContent::text("[Unsupported content type]"),
         };
 
         message.with_content(content)

@@ -643,12 +643,14 @@ fn build_tool_call_content(tool_result: &ToolResult<CallToolResult>) -> Vec<Tool
                             BlobResourceContents::new(blob.clone(), uri.clone())
                                 .mime_type(mime_type.clone()),
                         ),
+                        _ => return None,
                     };
                     Some(ToolCallContent::Content(Content::new(
                         ContentBlock::Resource(EmbeddedResource::new(resource)),
                     )))
                 }
                 RawContent::Audio(_) | RawContent::ResourceLink(_) => None,
+                _ => None,
             })
             .collect(),
         Err(_) => Vec::new(),
@@ -822,6 +824,7 @@ impl GooseAcpAgent {
                         let update = match message.role {
                             Role::User => SessionUpdate::UserMessageChunk(chunk),
                             Role::Assistant => SessionUpdate::AgentMessageChunk(chunk),
+                            _ => SessionUpdate::UserMessageChunk(chunk),
                         };
                         cx.send_notification(SessionNotification::new(
                             args.session_id.clone(),

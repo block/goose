@@ -72,6 +72,7 @@ impl CursorAgentProvider {
             let role_prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
+                _ => "Human: ",
             };
             full_prompt.push_str(role_prefix);
 

@@ -285,6 +285,7 @@ impl ClaudeCodeProvider {
             let prefix = match message.role {
                 Role::User => "Human: ",
                 Role::Assistant => "Assistant: ",
+                _ => "Human: ",
             };
             let mut text_parts = Vec::new();
             for content in &message.content {

@@ -370,6 +370,7 @@ fn fix_tool_calling(mut messages: Vec<Message>) -> (Vec<Message>, Vec<String>) {
                     }
                 }
             }
+            _ => {}
         }
 
         for &idx in content_to_remove.iter().rev() {
@@ -431,6 +432,7 @@ pub fn effective_role(message: &Message) -> String {
         match message.role {
             Role::User => "user".to_string(),
             Role::Assistant => "assistant".to_string(),
+            _ => "user".to_string(),
         }
     }
 }

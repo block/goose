@@ -228,6 +228,7 @@ impl ClientHandler for GooseClient {
                 let base = match msg.role {
                     Role::User => crate::conversation::message::Message::user(),
                     Role::Assistant => crate::conversation::message::Message::assistant(),
+                    _ => crate::conversation::message::Message::user(),
                 };
 
                 match msg.content.first().and_then(|c| c.as_text()) {
@@ -308,6 +309,13 @@ impl ClientHandler for GooseClient {
             }
             CreateElicitationRequestParams::UrlElicitationParams { message, url, .. } => {
                 (message.clone(), serde_json::json!({ "url": url }))
+            }
+            _ => {
+                return Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "Unsupported elicitation request type",
+                    None,
+                ));
             }
         };
 

@@ -410,6 +410,7 @@ fn format_message_for_compacting(msg: &Message) -> String {
     let role_str = match msg.role {
         Role::User => "user",
         Role::Assistant => "assistant",
+        _ => "user",
     };
 
     if content_parts.is_empty() {

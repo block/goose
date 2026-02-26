@@ -390,6 +390,7 @@ fn role_to_string(role: &Role) -> &'static str {
     match role {
         Role::User => "user",
         Role::Assistant => "assistant",
+        _ => "user",
     }
 }
 

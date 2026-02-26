@@ -41,6 +41,7 @@ async fn create_message(
             let base = match msg.role {
                 Role::User => Message::user(),
                 Role::Assistant => Message::assistant(),
+                _ => Message::user(),
             };
             content_to_message(base, &msg.content)
         })
@@ -73,6 +74,7 @@ fn content_to_message(base: Message, content: &SamplingContent<SamplingMessageCo
     let items = match content {
         SamplingContent::Single(item) => vec![item],
         SamplingContent::Multiple(items) => items.iter().collect(),
+        _ => vec![],
     };
 
     let mut msg = base;

@@ -297,6 +297,7 @@ fn add_conversation_history(input_items: &mut Vec<Value>, messages: &[Message]) 
         let role = match message.role {
             Role::User => "user",
             Role::Assistant => "assistant",
+            _ => "user",
         };
 
         let mut content_items = Vec::new();
