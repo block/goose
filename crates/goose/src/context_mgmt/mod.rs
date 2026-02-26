@@ -414,13 +414,30 @@ fn format_message_for_compacting(msg: &Message) -> String {
     }
 }
 
-/// Find the id of a tool call to summarize. We only do this if we have more than
-/// cutoff tool calls that aren't summarized yet
-pub fn tool_id_to_summarize(conversation: &Conversation, cutoff: usize) -> Option<String> {
+/// Compute a smart tool call cutoff based on the effective context budget.
+/// When a compaction threshold is set, the effective budget is context_limit * threshold,
+/// since compaction will fire at that point anyway.
+/// Returns effective_limit / 10_000, clamped to [10, 500].
+pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: Option<f64>) -> usize {
+    let effective_limit = match compaction_threshold {
+        Some(t) if t > 0.0 && t < 1.0 => (context_limit as f64 * t) as usize,
+        _ => context_limit,
+    };
+    (effective_limit / 10_000).clamp(10, 500)
+}
+
+/// Find tool call IDs to summarize. Returns the oldest unsummarized tool call IDs
+/// that exceed the cutoff, up to `batch_size` at once. Tool calls from the current
+/// turn (identified by `protect_last_n`) are never summarized.
+pub fn tool_ids_to_summarize(
+    conversation: &Conversation,
+    cutoff: usize,
+    batch_size: usize,
+    protect_last_n: usize,
+) -> Vec<String> {
     let messages = conversation.messages();
 
-    let mut tool_call_count = 0;
-    let mut first_tool_call_id = None;
+    let mut tool_call_ids: Vec<String> = Vec::new();
 
     for msg in messages.iter() {
         if !msg.is_agent_visible() {
@@ -429,17 +446,24 @@ pub fn tool_id_to_summarize(conversation: &Conversation, cutoff: usize) -> Optio
 
         for content in &msg.content {
             if let MessageContent::ToolRequest(req) = content {
-                if first_tool_call_id.is_none() {
-                    first_tool_call_id = Some(req.id.clone());
-                }
-                tool_call_count += 1;
-                if tool_call_count > cutoff {
-                    return first_tool_call_id;
-                }
+                tool_call_ids.push(req.id.clone());
             }
         }
     }
-    None
+
+    if tool_call_ids.len() <= cutoff {
+        return Vec::new();
+    }
+
+    // Never summarize the last N tool calls (current turn)
+    let eligible = tool_call_ids.len().saturating_sub(protect_last_n);
+    if eligible <= cutoff {
+        return Vec::new();
+    }
+
+    let excess = eligible - cutoff;
+    let to_summarize = excess.min(batch_size);
+    tool_call_ids.into_iter().take(to_summarize).collect()
 }
 
 pub async fn summarize_tool_call(
@@ -485,10 +509,9 @@ pub async fn summarize_tool_call(
                 structured output. So the tool might ask to look up something on github and the
                 reply might be a json document. So you could reply with something like:
 
-                "A call to github was made to get the project status"
+                "[Historical tool call summary] A call to github was made to get the project status"
 
-                if that is what it was.
-
+                if that is what it was. Always start your reply with "[Historical tool call summary]".
             "#};
 
     let (mut response, _) = provider
@@ -502,25 +525,29 @@ pub async fn summarize_tool_call(
     Ok(response.with_generated_id())
 }
 
-pub fn maybe_summarize_tool_pair(
+pub fn maybe_summarize_tool_pairs(
     provider: Arc<dyn Provider>,
     session_id: String,
     conversation: Conversation,
     cutoff: usize,
-) -> JoinHandle<Option<(Message, String)>> {
+    protect_last_n: usize,
+) -> JoinHandle<Vec<(Message, String)>> {
     tokio::spawn(async move {
-        if let Some(tool_id) = tool_id_to_summarize(&conversation, cutoff) {
+        // Batch size is 20% of cutoff (min 3) so summarization fires in discrete
+        // bursts with room to breathe before the next batch triggers.
+        let batch_size = (cutoff / 5).max(3);
+        let tool_ids = tool_ids_to_summarize(&conversation, cutoff, batch_size, protect_last_n);
+        let mut results = Vec::new();
+        for tool_id in tool_ids {
             match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
             {
-                Ok(summary) => Some((summary, tool_id)),
+                Ok(summary) => results.push((summary, tool_id)),
                 Err(e) => {
                     warn!("Failed to summarize tool pair: {}", e);
-                    None
                 }
             }
-        } else {
-            None
         }
+        results
     })
 }
 
@@ -533,6 +560,38 @@ mod tests {
     };
     use async_trait::async_trait;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
+
+    fn create_tool_pair(
+        call_id: &str,
+        response_id: &str,
+        tool_name: &str,
+        response_text: &str,
+    ) -> Vec<Message> {
+        vec![
+            Message::assistant()
+                .with_tool_request(
+                    call_id,
+                    Ok(CallToolRequestParams {
+                        task: None,
+                        name: tool_name.to_string().into(),
+                        arguments: None,
+                        meta: None,
+                    }),
+                )
+                .with_id(call_id),
+            Message::user()
+                .with_tool_response(
+                    call_id,
+                    Ok(rmcp::model::CallToolResult {
+                        content: vec![RawContent::text(response_text).no_annotation()],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                )
+                .with_id(response_id),
+        ]
+    }
 
     struct MockProvider {
         message: Message,
@@ -686,40 +745,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_tool_pair_summarization_workflow() {
-        fn create_tool_pair(
-            call_id: &str,
-            response_id: &str,
-            tool_name: &str,
-            response_text: &str,
-        ) -> Vec<Message> {
-            vec![
-                Message::assistant()
-                    .with_tool_request(
-                        call_id,
-                        Ok(CallToolRequestParams {
-                            task: None,
-                            name: tool_name.to_string().into(),
-                            arguments: None,
-                            meta: None,
-                        }),
-                    )
-                    .with_id(call_id),
-                Message::user()
-                    .with_tool_response(
-                        call_id,
-                        Ok(rmcp::model::CallToolResult {
-                            content: vec![RawContent::text(response_text).no_annotation()],
-                            structured_content: None,
-                            is_error: Some(false),
-                            meta: None,
-                        }),
-                    )
-                    .with_id(response_id),
-            ]
-        }
-
-        let summary_response = Message::assistant()
-            .with_text("Tool call to list files and response with file listing");
+        let summary_response = Message::assistant().with_text(
+            "[Historical tool call summary] Tool call to list files and response with file listing",
+        );
         let provider = MockProvider::new(summary_response, 1000);
 
         let mut messages = vec![Message::user().with_text("list files").with_id("msg_1")];
@@ -744,13 +772,13 @@ mod tests {
 
         let conversation = Conversation::new_unvalidated(messages);
 
-        let result = tool_id_to_summarize(&conversation, 2);
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 0);
         assert!(
-            result.is_some(),
-            "Should return a pair to summarize when tool calls exceed cutoff"
+            !result.is_empty(),
+            "Should return pairs to summarize when tool calls exceed cutoff"
         );
 
-        let tool_call_id = result.unwrap();
+        let tool_call_id = result[0].clone();
         assert_eq!(tool_call_id, "call1");
 
         let summary = summarize_tool_call(&provider, "test-session", &conversation, &tool_call_id)
@@ -760,6 +788,12 @@ mod tests {
         assert_eq!(summary.role, Role::User);
         assert!(summary.metadata.agent_visible);
         assert!(!summary.metadata.user_visible);
+        assert!(
+            summary
+                .as_concat_text()
+                .starts_with("[Historical tool call summary]"),
+            "Summary should have historical framing prefix"
+        );
 
         let mut updated_messages = conversation.messages().clone();
         for msg in updated_messages.iter_mut() {
@@ -802,7 +836,8 @@ mod tests {
             .find(|m| {
                 m.metadata.agent_visible
                     && !m.metadata.user_visible
-                    && m.as_concat_text().contains("Tool call")
+                    && m.as_concat_text()
+                        .contains("[Historical tool call summary]")
             })
             .unwrap();
         assert!(
@@ -810,7 +845,86 @@ mod tests {
             "Summary should not be user visible"
         );
 
-        let result = tool_id_to_summarize(&updated_conversation, 3);
-        assert!(result.is_none(), "Nothing left to summarize");
+        let result = tool_ids_to_summarize(&updated_conversation, 3, 3, 0);
+        assert!(result.is_empty(), "Nothing left to summarize");
+    }
+
+    #[test]
+    fn test_compute_tool_call_cutoff_scales_with_context() {
+        // No threshold (uses full context)
+        assert_eq!(compute_tool_call_cutoff(128_000, None), 12);
+        assert_eq!(compute_tool_call_cutoff(200_000, None), 20);
+        assert_eq!(compute_tool_call_cutoff(1_000_000, None), 100);
+        // Clamp at minimum
+        assert_eq!(compute_tool_call_cutoff(50_000, None), 10);
+        assert_eq!(compute_tool_call_cutoff(10_000, None), 10);
+        // Clamp at maximum (500)
+        assert_eq!(compute_tool_call_cutoff(10_000_000, None), 500);
+        // With compaction threshold — uses effective budget
+        assert_eq!(compute_tool_call_cutoff(200_000, Some(0.3)), 10); // 60K effective
+        assert_eq!(compute_tool_call_cutoff(1_000_000, Some(0.5)), 50); // 500K effective
+        assert_eq!(compute_tool_call_cutoff(200_000, Some(0.8)), 16); // 160K effective
+    }
+
+    #[test]
+    fn test_tool_ids_to_summarize_respects_batch_size() {
+        let mut messages = vec![Message::user().with_text("hello")];
+        // Add 5 tool pairs, cutoff=2 means 3 should be summarized, but batch_size=2 caps it
+        for i in 0..5 {
+            messages.extend(create_tool_pair(
+                &format!("call{}", i),
+                &format!("resp{}", i),
+                "read_file",
+                "content",
+            ));
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let result = tool_ids_to_summarize(&conversation, 2, 2, 0);
+        assert_eq!(result.len(), 2, "Should be capped at batch_size=2");
+        assert_eq!(result[0], "call0");
+        assert_eq!(result[1], "call1");
+    }
+
+    #[test]
+    fn test_tool_ids_to_summarize_returns_empty_under_cutoff() {
+        let mut messages = vec![Message::user().with_text("hello")];
+        messages.extend(create_tool_pair("call0", "resp0", "read_file", "content"));
+        messages.extend(create_tool_pair("call1", "resp1", "read_file", "content"));
+        let conversation = Conversation::new_unvalidated(messages);
+
+        let result = tool_ids_to_summarize(&conversation, 5, 3, 0);
+        assert!(result.is_empty(), "Under cutoff, nothing to summarize");
+    }
+
+    #[test]
+    fn test_tool_ids_to_summarize_protects_current_turn() {
+        let mut messages = vec![Message::user().with_text("hello")];
+        // 6 tool pairs total, cutoff=2
+        for i in 0..6 {
+            messages.extend(create_tool_pair(
+                &format!("call{}", i),
+                &format!("resp{}", i),
+                "read_file",
+                "content",
+            ));
+        }
+        let conversation = Conversation::new_unvalidated(messages);
+
+        // Protect last 3 (current turn) — 6 total, 3 eligible, cutoff 2 → 1 to summarize
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 3);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], "call0");
+
+        // Protect last 5 — only 1 eligible, under cutoff
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 5);
+        assert!(
+            result.is_empty(),
+            "Should not summarize when protected count leaves too few eligible"
+        );
+
+        // Protect all — nothing eligible
+        let result = tool_ids_to_summarize(&conversation, 2, 3, 6);
+        assert!(result.is_empty());
     }
 }
