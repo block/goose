@@ -230,9 +230,9 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                 </label>
                 {isLeadCustomModel && (
                   <button
+                    type="button"
                     onClick={() => setIsLeadCustomModel(false)}
                     className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'} hover:underline`}
-                    type="button"
                   >
                     Back to model list
                   </button>
@@ -282,9 +282,9 @@ export function LeadWorkerSettings({ isOpen, onClose }: LeadWorkerSettingsProps)
                 </label>
                 {isWorkerCustomModel && (
                   <button
+                    type="button"
                     onClick={() => setIsWorkerCustomModel(false)}
                     className={`text-xs ${!isEnabled ? 'text-text-muted' : 'text-text-muted'} hover:underline`}
-                    type="button"
                   >
                     Back to model list
                   </button>

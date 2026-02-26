@@ -354,24 +354,26 @@ describe('App Component - Brand New State', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('should handle config recovery gracefully', async () => {
-    // Mock config error that triggers recovery
-    const { readAllConfig } = await import('@/api');
-    vi.mocked(readAllConfig).mockRejectedValueOnce(new Error('Config read error'));
-
+  it('should handle config read errors gracefully', async () => {
     mockElectron.getConfig.mockReturnValue({
       GOOSE_DEFAULT_PROVIDER: null,
       GOOSE_DEFAULT_MODEL: null,
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
+    // Simulate config read failure inside ProviderGuard
+    mockConfigRead.mockImplementation(async () => {
+      throw new Error('Config read error');
+    });
+
     render(<AppInner />);
 
-    // Wait for initialization and recovery
     await waitFor(() => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/welcome', { replace: true });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/welcome', { replace: true });
+    });
   });
 });

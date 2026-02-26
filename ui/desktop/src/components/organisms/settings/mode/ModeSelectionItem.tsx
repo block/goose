@@ -66,7 +66,7 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
           <div className="relative flex items-center gap-2">
             {!isApproveModeConfigure &&
               (mode.key === 'approve' || mode.key === 'smart_approve') && (
-                <button
+                <button type="button"
                   onClick={(e) => {
                     e.stopPropagation(); // Prevent triggering the mode change
                     setIsPermissionModalOpen(true);

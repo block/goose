@@ -301,7 +301,7 @@ const SessionItem: React.FC<{
         }`}
       />
       <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
-      <button
+      <button type="button"
         onClick={() => onSessionClick(session)}
         className={`w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
           activeSessionId === session.id
@@ -327,7 +327,7 @@ const SessionItem: React.FC<{
         <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
       </button>
       {onDeleteSession && !isStreaming && (
-        <button
+        <button type="button"
           onClick={handleDelete}
           className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/session:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
           title="Delete session"
@@ -449,7 +449,7 @@ const SessionList = React.memo<{
           return (
             <div key={group.project}>
               <div className="flex items-center group/project">
-                <button
+                <button type="button"
                   onClick={() => toggleCollapsed(group.project)}
                   className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30"
                 >
@@ -466,7 +466,7 @@ const SessionList = React.memo<{
                 {/* Hover action strip — inline icons that appear on hover */}
                 <div className="flex-shrink-0 flex items-center gap-0 opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto transition-opacity duration-150">
                   {onNewSessionInProject && (
-                    <button
+                    <button type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onNewSessionInProject(group.sessions[0]?.working_dir || '');
@@ -477,7 +477,7 @@ const SessionList = React.memo<{
                       <Plus className="w-3.5 h-3.5 text-text-muted hover:text-text-default" />
                     </button>
                   )}
-                  <button
+                  <button type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       togglePin(group.project);
@@ -491,7 +491,7 @@ const SessionList = React.memo<{
                       <Pin className="w-3.5 h-3.5 text-text-muted hover:text-text-default" />
                     )}
                   </button>
-                  <button
+                  <button type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       onCloseProject(
@@ -951,7 +951,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                       sideOffset={8}
                       className="z-[60] w-56 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95 data-[side=right]:slide-in-from-left-2"
                     >
-                      <button
+                      <button type="button"
                         onClick={handleBrowseForProject}
                         className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
                       >
@@ -964,7 +964,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                             Recent Projects
                           </div>
                           {recentDirs.map((dir) => (
-                            <button
+                            <button type="button"
                               key={dir}
                               onClick={() => handleOpenProjectFromDir(dir)}
                               className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
@@ -993,7 +993,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     onCloseProject={handleCloseProject}
                     onNewSessionInProject={handleNewSessionInProject}
                   />
-                  <button
+                  <button type="button"
                     onClick={handleViewAllClick}
                     className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
                   >
@@ -1081,7 +1081,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         </CollapsibleTrigger>
                       )}
                       <CollapsibleTrigger asChild>
-                        <button className="px-1.5 py-1.5 hover:bg-background-medium/50 rounded transition-colors">
+                        <button type="button" className="px-1.5 py-1.5 hover:bg-background-medium/50 rounded transition-colors">
                           <ChevronRight className="w-3 h-3 text-text-muted transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
                         </button>
                       </CollapsibleTrigger>

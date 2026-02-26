@@ -87,7 +87,7 @@ function ThinkingSection({
 
   return (
     <div className="mb-2">
-      <button
+      <button type="button"
         onClick={handleClick}
         className={cn(
           'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors select-none group',

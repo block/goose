@@ -102,7 +102,7 @@ export const DictationSettings = () => {
           </p>
         </div>
         <div className="relative">
-          <button
+          <button type="button"
             onClick={handleDropdownToggle}
             className="flex items-center gap-2 px-3 py-1.5 text-sm border border-border-default rounded-md hover:border-border-default transition-colors text-text-default bg-background-default"
           >
@@ -112,7 +112,7 @@ export const DictationSettings = () => {
 
           {showProviderDropdown && (
             <div className="absolute right-0 mt-1 w-max min-w-[250px] max-w-[350px] bg-background-default border border-border-default rounded-md shadow-lg z-50">
-              <button
+              <button type="button"
                 onClick={() => handleProviderChange(null)}
                 className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap first:rounded-t-md"
               >
@@ -123,7 +123,7 @@ export const DictationSettings = () => {
               </button>
 
               {(Object.keys(providerStatuses) as DictationProvider[]).map((p) => (
-                <button
+                <button type="button"
                   key={p}
                   onClick={() => handleProviderChange(p)}
                   className="w-full px-3 py-2 text-left text-sm transition-colors hover:bg-background-muted text-text-default whitespace-nowrap last:rounded-b-md"

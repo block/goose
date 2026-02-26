@@ -227,7 +227,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }}
     >
       <DropdownMenuTrigger asChild>
-        <button
+        <button type="button"
           className={`flex items-center [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs cursor-pointer ${allExtensions.length === 0 || (!isHubView && !isSessionExtensionsLoaded) ? 'invisible' : ''}`}
           title="manage extensions"
         >

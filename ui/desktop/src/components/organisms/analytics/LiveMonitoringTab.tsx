@@ -164,7 +164,7 @@ export default function LiveMonitoringTab() {
       <div className="p-6 flex flex-col items-center justify-center gap-4 text-text-muted">
         <AlertTriangle className="w-8 h-8 text-text-warning" />
         <p>{error}</p>
-        <button
+        <button type="button"
           onClick={fetchMetrics}
           className="px-4 py-2 bg-background-default hover:bg-background-muted rounded-lg text-sm"
         >
@@ -191,7 +191,7 @@ export default function LiveMonitoringTab() {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <button
+          <button type="button"
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs ${
               autoRefresh
@@ -202,7 +202,7 @@ export default function LiveMonitoringTab() {
             <Activity className="w-3 h-3" />
             {autoRefresh ? 'Live' : 'Paused'}
           </button>
-          <button
+          <button type="button"
             onClick={fetchMetrics}
             className="p-2 hover:bg-background-default rounded-lg text-text-muted hover:text-text-default transition"
           >

@@ -80,7 +80,7 @@ export const BottomMenuAgentSelection = () => {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <button
+        <button type="button"
           className="flex items-center [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs cursor-pointer"
           title={`${activeCount} agents · ${totalModes} modes`}
         >

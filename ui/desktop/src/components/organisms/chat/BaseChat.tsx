@@ -381,7 +381,7 @@ export default function BaseChat({
                   <h3 className="font-semibold mb-2">Failed to Load Session</h3>
                   <p className="text-sm">{sessionLoadError}</p>
                 </div>
-                <button
+                <button type="button"
                   onClick={() => {
                     setView('chat');
                   }}

@@ -95,7 +95,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
         }}
       >
         <TooltipTrigger asChild>
-          <button
+          <button type="button"
             className={`z-[100] ${isDirectoryChooserOpen ? 'opacity-50' : 'hover:cursor-pointer hover:text-text-default'} text-text-default/70 text-xs flex items-center transition-colors pl-1 [&>svg]:size-4 ${className}`}
             onClick={handleDirectoryClick}
             disabled={isDirectoryChooserOpen}

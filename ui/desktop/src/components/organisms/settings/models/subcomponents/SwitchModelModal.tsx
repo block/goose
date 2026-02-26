@@ -535,7 +535,7 @@ export const SwitchModelModal = ({
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
                         <label className="text-sm text-text-muted">Custom model name</label>
-                        <button
+                        <button type="button"
                           onClick={() => setIsCustomModel(false)}
                           className="text-sm text-text-muted"
                         >

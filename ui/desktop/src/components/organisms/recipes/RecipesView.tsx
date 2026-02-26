@@ -740,7 +740,7 @@ export default function RecipesView() {
             {/* Parent recipe row */}
             <div className="flex items-center gap-1">
               {group.children.length > 0 && (
-                <button
+                <button type="button"
                   onClick={() => toggleParentExpanded(group.parent.id)}
                   className="p-1 rounded hover:bg-background-muted transition-colors"
                   title={expandedParents.has(group.parent.id) ? 'Collapse' : 'Expand'}

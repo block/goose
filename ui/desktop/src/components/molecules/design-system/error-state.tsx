@@ -24,7 +24,7 @@ export function ErrorState({
       <h3 className="text-sm font-medium text-text-default mb-1">{title}</h3>
       {message && <p className="text-sm text-text-muted max-w-sm">{message}</p>}
       {onRetry && (
-        <button
+        <button type="button"
           onClick={onRetry}
           className="mt-4 flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-text-default bg-background-muted hover:bg-background-default border border-border-default rounded-md transition-colors"
         >

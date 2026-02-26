@@ -41,7 +41,7 @@ export function TreeItem({
 
   return (
     <div className={className}>
-      <button
+      <button type="button"
         onClick={hasChildren ? handleToggle : undefined}
         className={cn(
           'flex items-center gap-2 w-full px-3 py-2 rounded-md text-left text-sm',

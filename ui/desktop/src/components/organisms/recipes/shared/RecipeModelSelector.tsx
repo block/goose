@@ -156,12 +156,12 @@ export const RecipeModelSelector = ({
           <label className="block text-sm font-medium text-text-default">Model (Optional)</label>
           {isCustomModel && (
             <button
+              type="button"
               onClick={() => {
                 setIsCustomModel(false);
                 onModelChange(undefined);
               }}
               className="text-xs text-text-muted hover:underline"
-              type="button"
             >
               Back to model list
             </button>

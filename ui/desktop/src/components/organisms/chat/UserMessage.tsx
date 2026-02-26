@@ -218,7 +218,7 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                     {timestamp}
                   </div>
                   <div className="absolute right-0 pt-1 flex items-center gap-2">
-                    <button
+                    <button type="button"
                       onClick={handleEditClick}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {

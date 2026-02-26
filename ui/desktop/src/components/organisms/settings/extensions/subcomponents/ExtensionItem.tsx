@@ -83,7 +83,7 @@ export default function ExtensionItem({
         <CardAction>
           <div className="flex items-center justify-end gap-2">
             {editable && (
-              <button
+              <button type="button"
                 className="text-text-muted hover:text-text-default"
                 aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
                 onClick={() => onConfigure?.(extension)}

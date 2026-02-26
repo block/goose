@@ -147,7 +147,7 @@ export function GroupedExtensionLoadingToast({
           {/* Toggle button */}
           {totalCount > 0 && (
             <CollapsibleTrigger asChild>
-              <button
+              <button type="button"
                 className="flex items-center justify-center gap-1 text-xs opacity-60 hover:opacity-100 transition-opacity mt-2 py-1.5 w-full"
                 aria-label={isOpen ? 'Collapse details' : 'Expand details'}
               >

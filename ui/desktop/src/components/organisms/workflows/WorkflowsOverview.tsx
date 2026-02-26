@@ -117,7 +117,7 @@ function WorkflowCard({ category }: { category: WorkflowCategory }) {
           </div>
         ))}
         {hasMore && (
-          <button
+          <button type="button"
             className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-muted transition-colors"
             onClick={(e) => {
               e.stopPropagation();
@@ -144,7 +144,7 @@ function WorkflowCard({ category }: { category: WorkflowCategory }) {
       {category.actions.length > 0 && (
         <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
           {category.actions.map((action, i) => (
-            <button
+            <button type="button"
               key={i}
               className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-muted transition-colors"
               onClick={(e) => {
@@ -375,7 +375,7 @@ export default function WorkflowsOverview() {
               className="pl-9 pr-4 py-2 text-sm bg-background-default border border-border-default rounded-lg text-text-default placeholder-text-subtle focus:outline-none focus:border-border-accent w-64"
             />
           </div>
-          <button
+          <button type="button"
             onClick={() => loadWorkflows()}
             className="p-2 text-text-muted hover:text-text-default hover:bg-background-muted rounded-lg transition-colors"
             title="Refresh"

@@ -90,7 +90,7 @@ function PresetCard({
   onSelect: () => void;
 }) {
   return (
-    <button
+    <button type="button"
       onClick={onSelect}
       className={`relative flex flex-col items-center justify-center gap-1 rounded-lg border p-4 text-center transition-all duration-200 h-[100px]
         ${

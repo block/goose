@@ -144,7 +144,7 @@ export default function WelcomeState({ onSubmit }: WelcomeStateProps) {
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full">
         {CAPABILITIES.map((cap) => (
-          <button
+          <button type="button"
             key={cap.label}
             onClick={() => cap.prompt && onSubmit(cap.prompt)}
             disabled={!cap.prompt}

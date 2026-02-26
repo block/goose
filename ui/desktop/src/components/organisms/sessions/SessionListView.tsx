@@ -692,35 +692,35 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             </div>
           </div>
           <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
+            <button type="button"
               onClick={handleOpenInNewWindowClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Open in new window"
             >
               <ExternalLink className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
-            <button
+            <button type="button"
               onClick={handleEditClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Edit session name"
             >
               <Edit2 className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
-            <button
+            <button type="button"
               onClick={handleDuplicateClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Duplicate session"
             >
               <Copy className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
-            <button
+            <button type="button"
               onClick={handleDeleteClick}
               className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
               title="Delete session"
             >
               <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
             </button>
-            <button
+            <button type="button"
               onClick={handleExportClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Export session"
@@ -815,7 +815,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               key={pg.project}
               className="border border-border-default rounded-lg overflow-hidden"
             >
-              <button
+              <button type="button"
                 onClick={() => toggleProjectCollapse(pg.project)}
                 className="w-full flex items-center gap-3 px-4 py-3 bg-background-default hover:bg-background-default/80 transition-colors cursor-pointer"
               >

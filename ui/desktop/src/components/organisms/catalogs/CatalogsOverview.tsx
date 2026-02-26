@@ -113,7 +113,7 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
           </div>
         ))}
         {hasMore && (
-          <button
+          <button type="button"
             className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors"
             onClick={(e) => {
               e.stopPropagation();
@@ -140,7 +140,7 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
       {category.actions.length > 0 && (
         <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
           {category.actions.map((action, i) => (
-            <button
+            <button type="button"
               key={i}
               className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors"
               onClick={(e) => {
@@ -353,7 +353,7 @@ export default function CatalogsOverview() {
               className="pl-9 pr-4 py-2 bg-background-subtle border border-border-default rounded-lg text-sm text-text-default placeholder-text-muted focus:outline-none focus:border-border-accent w-64"
             />
           </div>
-          <button
+          <button type="button"
             onClick={loadCatalogs}
             className="p-2 text-text-muted hover:text-text-default rounded-lg hover:bg-background-subtle transition-colors"
             title="Refresh"

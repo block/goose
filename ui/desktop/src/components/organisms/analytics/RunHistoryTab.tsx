@@ -35,7 +35,7 @@ function RunDetailPanel({ detail, onClose }: { detail: EvalRunDetail; onClose: (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <button
+          <button type="button"
             onClick={onClose}
             className="text-sm text-text-accent hover:text-text-accent mb-2"
           >
@@ -305,7 +305,7 @@ export default function RunHistoryTab() {
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-semibold text-text-default">Run History</h3>
           {runs.length >= 2 && (
-            <button
+            <button type="button"
               onClick={() => {
                 setCompareMode(!compareMode);
                 if (compareMode) setSelectedForCompare([]);
@@ -320,7 +320,7 @@ export default function RunHistoryTab() {
             </button>
           )}
           {compareMode && selectedForCompare.length === 2 && (
-            <button
+            <button type="button"
               onClick={() => setShowComparison(true)}
               className="px-3 py-1 rounded-lg text-xs font-medium bg-background-success-muted hover:bg-background-success-muted text-text-default transition-colors"
             >
@@ -347,7 +347,7 @@ export default function RunHistoryTab() {
               </option>
             ))}
           </select>
-          <button
+          <button type="button"
             onClick={handleRunEval}
             disabled={running || !selectedDataset}
             className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-on-accent text-sm font-medium transition-colors"

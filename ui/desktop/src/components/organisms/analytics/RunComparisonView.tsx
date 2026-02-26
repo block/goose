@@ -102,7 +102,7 @@ export default function RunComparisonView({
     return (
       <div className="text-center py-12">
         <div className="text-text-danger mb-2">⚠️ {error || 'No data'}</div>
-        <button onClick={onClose} className="text-sm text-text-muted hover:text-text-default">
+        <button type="button" onClick={onClose} className="text-sm text-text-muted hover:text-text-default">
           ← Back to runs
         </button>
       </div>
@@ -116,7 +116,7 @@ export default function RunComparisonView({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <button
+          <button type="button"
             onClick={onClose}
             className="text-sm text-text-muted hover:text-text-default mb-2 flex items-center gap-1"
           >

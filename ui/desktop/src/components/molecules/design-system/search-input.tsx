@@ -60,7 +60,7 @@ export function SearchInput({
         className="w-full pl-9 pr-8 py-2 text-sm bg-background-default border border-border-default rounded-md text-text-default placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-border-accent transition-colors"
       />
       {currentValue && (
-        <button
+        <button type="button"
           onClick={handleClear}
           className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-background-muted transition-colors"
         >

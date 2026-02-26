@@ -73,7 +73,7 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
   const toggleDescription = 'Help improve goose by sharing anonymous usage statistics.';
 
   const learnMoreLink = (
-    <button
+    <button type="button"
       onClick={() => setShowModal(true)}
       className="text-blue-600 dark:text-blue-400 hover:underline"
     >

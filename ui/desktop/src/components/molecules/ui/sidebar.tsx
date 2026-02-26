@@ -248,7 +248,7 @@ function SidebarToggleButton() {
   const isCollapsed = state === 'collapsed';
 
   return (
-    <button
+    <button type="button"
       data-sidebar="toggle-button"
       aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       aria-expanded={!isCollapsed}
@@ -296,7 +296,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<'button'>) {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <button
+    <button type="button"
       data-sidebar="rail"
       data-slot="sidebar-rail"
       aria-label="Toggle Sidebar"

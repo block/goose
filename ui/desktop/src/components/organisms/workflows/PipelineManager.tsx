@@ -153,7 +153,7 @@ export function PipelineManager() {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border-default bg-background-default">
-          <button
+          <button type="button"
             onClick={handleBack}
             className="text-xs text-text-muted hover:text-text-default transition-colors"
           >
@@ -190,7 +190,7 @@ export function PipelineManager() {
             Visual DAG workflows for multi-agent orchestration
           </p>
         </div>
-        <button
+        <button type="button"
           onClick={handleNewPipeline}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                      bg-background-accent text-text-on-accent text-sm font-medium
@@ -205,7 +205,7 @@ export function PipelineManager() {
       {error && (
         <div className="mx-6 mt-4 p-3 bg-background-danger-muted border border-border-default rounded-lg text-sm text-text-danger">
           {error}
-          <button onClick={() => setError(null)} className="ml-2 underline">
+          <button type="button" onClick={() => setError(null)} className="ml-2 underline">
             Dismiss
           </button>
         </div>
@@ -225,7 +225,7 @@ export function PipelineManager() {
               Create your first visual workflow by connecting agents, tools, and conditions in a
               DAG.
             </p>
-            <button
+            <button type="button"
               onClick={handleNewPipeline}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                          bg-background-accent text-text-on-accent text-sm font-medium
@@ -250,7 +250,7 @@ export function PipelineManager() {
                     <FileText size={18} className="text-text-accent" />
                     <h3 className="text-sm font-medium text-text-default">{pipeline.name}</h3>
                   </div>
-                  <button
+                  <button type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeletePipeline(pipeline.id);

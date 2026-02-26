@@ -306,7 +306,7 @@ export default function ToolsHealthView() {
               />
               <div className="flex gap-1 text-xs">
                 {(['calls', 'errors', 'rate'] as const).map((s) => (
-                  <button
+                  <button type="button"
                     key={s}
                     onClick={() => setSortBy(s)}
                     className={`px-2 py-1 rounded-md transition-colors ${

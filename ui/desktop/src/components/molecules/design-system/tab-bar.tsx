@@ -47,7 +47,7 @@ export function TabBar({
             const isActive = tab.id === activeTab;
             const Icon = tab.icon;
             return (
-              <button
+              <button type="button"
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(

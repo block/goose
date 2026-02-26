@@ -150,7 +150,7 @@ export default function TunnelSection() {
                   <ExternalLink className="h-3 w-3" />
                 </a>
                 {' or '}
-                <button
+                <button type="button"
                   onClick={() => setShowAppStoreQRModal(true)}
                   className="inline-flex items-center gap-1 underline hover:no-underline"
                 >
@@ -228,7 +228,7 @@ export default function TunnelSection() {
               </div>
 
               <div className="border-t pt-4">
-                <button
+                <button type="button"
                   onClick={() => setShowDetails(!showDetails)}
                   className="flex items-center justify-between w-full text-sm font-medium hover:opacity-70 transition-opacity"
                 >

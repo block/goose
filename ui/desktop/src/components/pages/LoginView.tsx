@@ -63,7 +63,7 @@ export default function LoginView() {
         {oidcProviders.length > 0 && (
           <div className="space-y-2">
             {oidcProviders.map((provider) => (
-              <button
+              <button type="button"
                 key={provider.issuer}
                 onClick={() => handleOidcLogin(provider.issuer)}
                 disabled={loggingIn}
