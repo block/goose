@@ -3,13 +3,13 @@ import { toast } from 'react-toastify';
 import Copy from './components/icons/Copy';
 import type { ExtensionLoadingStatus } from './components/shared/GroupedExtensionLoadingToast';
 import { GroupedExtensionLoadingToast } from './components/shared/GroupedExtensionLoadingToast';
-import { Button } from './components/ui/atoms/button';
+import { Button } from './components/atoms/button';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from './components/ui/atoms/Tooltip';
+} from './components/atoms/Tooltip';
 import { useNavigation } from './hooks/useNavigation';
 import { startNewSession } from './sessions';
 import { getInitialWorkingDir } from './utils/workingDir';

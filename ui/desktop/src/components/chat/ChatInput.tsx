@@ -39,7 +39,7 @@ import CreateRecipeFromSessionModal from '../recipes/CreateRecipeFromSessionModa
 import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
 import { getPredefinedModelsFromEnv } from '../settings/models/predefinedModelsUtils';
 import { Button } from '../ui/atoms/button';
-import Stop from '../ui/atoms/Stop';
+import Stop from '../atoms/Stop';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
 import { DiagnosticsModal } from '../ui/molecules/Diagnostics';
 import type { DisplayItemWithMatch } from './MentionPopover';

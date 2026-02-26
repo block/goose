@@ -1,9 +1,5 @@
-import { ChevronUp } from 'lucide-react';
+// Deprecated re-export shim.
+// Canonical module: src/components/atoms/Expand.tsx
 
-export default function Expand({ size, isExpanded }: { size: number; isExpanded: boolean }) {
-  return (
-    <ChevronUp
-      className={`shrink-0 w-${size} h-${size} text-text-muted transition-all origin-center ${isExpanded ? 'rotate-180' : 'rotate-90'}`}
-    />
-  );
-}
+export { default } from '../../atoms/Expand';
+export * from '../../atoms/Expand';

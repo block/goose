@@ -18,7 +18,7 @@ import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
 import LoginView from './components/pages/LoginView';
 import WelcomePage from './components/pages/WelcomePage';
 import { ErrorUI } from './components/shared/ErrorBoundary';
-import { TooltipProvider } from './components/ui/atoms/Tooltip';
+import { TooltipProvider } from './components/atoms/Tooltip';
 import { AuthProvider } from './hooks/useAuth';
 import { setupAuthInterceptor } from './lib/authInterceptor';
 import { openSharedSessionFromDeepLink } from './sessionLinks';

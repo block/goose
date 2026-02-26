@@ -1,13 +1,4 @@
-import { cn } from '../../../utils';
+// Deprecated re-export shim.
+// Canonical module: src/components/atoms/skeleton.tsx
 
-function Skeleton({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="skeleton"
-      className={cn('bg-background-muted animate-pulse rounded-md', className)}
-      {...props}
-    />
-  );
-}
-
-export { Skeleton };
+export * from '../../atoms/skeleton';
