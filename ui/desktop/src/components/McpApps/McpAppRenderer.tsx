@@ -38,7 +38,6 @@ import {
   McpAppToolCancelled,
   McpAppToolInput,
   McpAppToolInputPartial,
-  McpAppToolResult,
   DimensionLayout,
   SamplingCreateMessageParams,
   SamplingCreateMessageResponse,
@@ -134,7 +133,7 @@ interface McpAppRendererProps {
   sessionId?: string | null;
   toolInput?: McpAppToolInput;
   toolInputPartial?: McpAppToolInputPartial;
-  toolResult?: McpAppToolResult;
+  toolResult?: CallToolResult;
   toolCancelled?: McpAppToolCancelled;
   append?: (text: string) => void;
   displayMode?: GooseDisplayMode;
@@ -466,14 +465,16 @@ export default function McpAppRenderer({
         },
       });
 
-      // rmcp serializes Content with a `type` discriminator via #[serde(tag = "type")].
-      // Our generated TS types don't reflect this, but the wire format matches CallToolResult.content.
+      // Content blocks arrive with a `type` discriminator (e.g. "text", "image") matching
+      // CallToolResult.content, but the generated ContentBlock union isn't structurally
+      // identical to the SDK's content types (e.g. resource field typing differs).
       return {
         content: (response.data?.content || []) as unknown as CallToolResult['content'],
-        isError: response.data?.is_error || false,
-        structuredContent: response.data?.structured_content as
+        isError: response.data?.isError || false,
+        structuredContent: response.data?.structuredContent as
           | { [key: string]: unknown }
           | undefined,
+        _meta: response.data?._meta as { [key: string]: unknown } | undefined,
       };
     },
     [sessionId, extensionName]
@@ -630,17 +631,6 @@ export default function McpAppRenderer({
     return context;
   }, [resolvedTheme, mcpHostStyles, displayMode, containerWidth, containerHeight]);
 
-  const appToolResult = useMemo((): CallToolResult | undefined => {
-    if (!toolResult) return undefined;
-    // rmcp serializes Content with a `type` discriminator via #[serde(tag = "type")].
-    // Our generated TS types don't reflect this, but the wire format matches CallToolResult.content.
-    return {
-      content: toolResult.content as unknown as CallToolResult['content'],
-      structuredContent: toolResult.structuredContent as { [key: string]: unknown } | undefined,
-      _meta: toolResult._meta,
-    };
-  }, [toolResult]);
-
   const isToolCancelled = !!toolCancelled;
   const isError = state.status === 'error';
   const isReady = state.status === 'ready';
@@ -681,7 +671,7 @@ export default function McpAppRenderer({
         toolInputPartial={toolInputPartial ? { arguments: toolInputPartial.arguments } : undefined}
         toolCancelled={isToolCancelled}
         hostContext={hostContext}
-        toolResult={appToolResult}
+        toolResult={toolResult}
         onOpenLink={handleOpenLink}
         onMessage={handleMessage}
         onCallTool={handleCallTool}
