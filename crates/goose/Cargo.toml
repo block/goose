@@ -107,7 +107,7 @@ candle-core = { version = "0.9", default-features = false }
 candle-nn = { version = "0.9", default-features = false }
 candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
-tokenizers = "0.21.0"
+tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
 hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
@@ -127,7 +127,7 @@ which = { workspace = true }
 pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
-llama-cpp-2 = { version = "0.1.133", features = ["sampler"] }
+llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler"] }
 encoding_rs = "0.8.35"
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -137,7 +137,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9", default-features = false, features = ["metal"] }
 candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
-llama-cpp-2 = { version = "0.1.133", features = ["sampler", "metal"] }
+llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler", "metal"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
