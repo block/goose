@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { getExtensions, listAgents, listBuiltinAgents } from '@/api';
 import { listSavedRecipes } from '@/recipe/recipe_management';
 import { PageShell } from '@/components/templates/layout/PageShell';
+import { OverlayActionCard } from '@/components/molecules/interactive/OverlayActionCard';
 
 interface CatalogItem {
   id: string;
@@ -47,17 +48,11 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
   const hasMore = category.items.length > 3;
 
   return (
-    <div
-      className="group relative bg-background-default border border-border-default rounded-xl p-6 hover:border-border-accent hover:shadow-lg transition-all"
+    <OverlayActionCard
+      ariaLabel={`Open ${category.label}`}
+      onActivate={() => navigate(category.route)}
+      className="p-6"
     >
-      <button
-        type="button"
-        className="absolute inset-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-border-accent"
-        aria-label={`Open ${category.label}`}
-        onClick={() => navigate(category.route)}
-      />
-
-      <div className="relative z-10 pointer-events-none">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div
@@ -120,13 +115,15 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
             </div>
           ))}
           {hasMore && (
-            <button
-              type="button"
-              className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors pointer-events-auto"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? '▲ Show less' : `▼ +${category.items.length - 3} more`}
-            </button>
+            <OverlayActionCard.Actions>
+              <button
+                type="button"
+                className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? '▲ Show less' : `▼ +${category.items.length - 3} more`}
+              </button>
+            </OverlayActionCard.Actions>
           )}
           {category.items.length === 0 && !category.loading && (
             <div className="text-sm text-text-muted text-center py-3">
@@ -146,22 +143,21 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
         </div>
 
         {category.actions.length > 0 && (
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
+          <OverlayActionCard.Actions className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
             {category.actions.map((action) => (
               <button
                 type="button"
                 key={action.label}
-                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors pointer-events-auto"
+                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors"
                 onClick={action.onClick}
               >
                 {action.icon}
                 {action.label}
               </button>
             ))}
-          </div>
+          </OverlayActionCard.Actions>
         )}
-      </div>
-    </div>
+    </OverlayActionCard>
   );
 }
 
