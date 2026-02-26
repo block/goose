@@ -1,6 +1,9 @@
-/// Build canonical models from models.dev API
+/// Build canonical models from multiple sources
 ///
-/// This script fetches models from models.dev and converts them to canonical format.
+/// This script fetches models from models.dev as a baseline, then calls
+/// provider-specific loaders (e.g. NanoGPT) to get fresher/more complete data.
+/// Loader data replaces the models.dev data for that provider.
+///
 /// By default, it also checks which models from top providers are properly mapped.
 ///
 /// Usage:
@@ -10,7 +13,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use goose::providers::canonical::{
-    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality, Pricing,
+    canonical_name, loaders, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality,
+    Pricing,
 };
 use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
@@ -528,6 +532,48 @@ async fn build_canonical_models() -> Result<()> {
                 process_model(model_id, model_data, normalized_provider)?;
             registry.register(normalized_provider, &model_name, canonical_model);
             total_models += 1;
+        }
+    }
+
+    // Phase 2: Fetch from provider-specific loaders and replace models.dev data
+    let custom_loaders = loaders::all_loaders();
+    if !custom_loaders.is_empty() {
+        println!("\n{SEPARATOR}");
+        println!("Fetching from provider-specific APIs...");
+        println!("{SEPARATOR}");
+
+        for loader in custom_loaders {
+            let provider = loader.provider_name().to_string();
+            println!("\nLoading from {} API...", provider);
+
+            match loader.load_models().await {
+                Ok(models) => {
+                    let old_count = registry.get_all_models_for_provider(&provider).len();
+                    registry.remove_provider(&provider);
+
+                    let new_count = models.len();
+                    for model in models {
+                        let model_name = model
+                            .id
+                            .strip_prefix(&format!("{}/", provider))
+                            .unwrap_or(&model.id)
+                            .to_string();
+                        registry.register(&provider, &model_name, model);
+                    }
+
+                    total_models = total_models - old_count + new_count;
+                    println!(
+                        "  ✓ Replaced {} models.dev models with {} from {} API",
+                        old_count, new_count, provider
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "  ⚠ Failed to load from {} API: {}. Keeping models.dev data.",
+                        provider, e
+                    );
+                }
+            }
         }
     }
 

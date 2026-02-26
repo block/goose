@@ -9,6 +9,14 @@ const NANOGPT_PROVIDER: &str = "nano-gpt";
 
 pub struct NanoGptLoader;
 
+/// Fetch canonical models fresh from the NanoGPT API.
+///
+/// This is the same loader used by `build_canonical_models`, but can be
+/// called directly at runtime for fresher data.
+pub async fn load_models() -> Result<Vec<CanonicalModel>> {
+    NanoGptLoader.load_models().await
+}
+
 #[derive(Debug, Deserialize)]
 struct NanoGptModelsResponse {
     data: Vec<NanoGptModel>,

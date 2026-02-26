@@ -79,29 +79,16 @@ impl CanonicalModelRegistry {
             .insert((provider.to_string(), model.to_string()), canonical_model);
     }
 
-    /// Look up a canonical model by provider and model name.
-    /// Note: this only checks the bundled registry. Use `get_with_overrides`
-    /// to also check runtime overrides from provider-specific loaders.
     pub fn get(&self, provider: &str, model: &str) -> Option<&CanonicalModel> {
         self.models.get(&(provider.to_string(), model.to_string()))
     }
 
-    /// Look up a canonical model, checking runtime overrides first.
-    /// Provider-specific loaders can populate overrides with fresher data.
-    pub fn get_with_overrides(&self, provider: &str, model: &str) -> Option<CanonicalModel> {
-        if let Some(override_model) = super::loaders::get_override(provider, model) {
-            return Some(override_model);
-        }
-        self.get(provider, model).cloned()
+    /// Remove all models for a given provider.
+    pub fn remove_provider(&mut self, provider: &str) {
+        self.models.retain(|(p, _), _| p != provider);
     }
 
     pub fn get_all_models_for_provider(&self, provider: &str) -> Vec<CanonicalModel> {
-        // If runtime overrides exist for this provider, use those instead
-        let overrides = super::loaders::get_all_overrides_for_provider(provider);
-        if !overrides.is_empty() {
-            return overrides;
-        }
-
         self.models
             .iter()
             .filter(|((p, _), _)| p == provider)
