@@ -530,8 +530,25 @@ const createChat = async (
   });
 
   if (!app.isPackaged) {
+    // During Playwright runs we don't need DevTools and some bundlers/providers can
+    // produce a non-callable default export for electron-devtools-installer.
+    if (process.env.ENABLE_PLAYWRIGHT === 'true') {
+      // Skip DevTools setup.
+    } else {
     // Try electron-devtools-installer first, fall back to loading from local Chromium installation
-    installExtension(REACT_DEVELOPER_TOOLS)
+    const installExtensionFn: ((...args: unknown[]) => Promise<{ name: string }>) | null =
+      typeof installExtension === 'function'
+        ? (installExtension as unknown as (...args: unknown[]) => Promise<{ name: string }>)
+        : typeof (installExtension as unknown as { default?: unknown }).default === 'function'
+          ? ((installExtension as unknown as { default: (...args: unknown[]) => Promise<{ name: string }> }).default)
+          : null;
+
+    if (!installExtensionFn) {
+      log.warn(
+        'DevTools installer is not callable; skipping React DevTools installation. '
+      );
+    } else {
+      installExtensionFn(REACT_DEVELOPER_TOOLS)
       .then((ext) => log.info(`Added extension: ${ext.name}`))
       .catch(async (err: Error) => {
         log.info(
@@ -567,6 +584,8 @@ const createChat = async (
         }
         log.info('React DevTools not found in any Chromium installation');
       });
+    }
+    }
   }
 
   const goosedClient = createClient(
