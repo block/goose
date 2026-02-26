@@ -228,9 +228,9 @@ describe('AlertBox', () => {
       };
 
       render(
-        <div onClick={mockParentClick}>
+        <button type="button" onClick={mockParentClick}>
           <AlertBox alert={alert} />
-        </div>
+        </button>
       );
 
       const compactButton = screen.getByText('Compact now');

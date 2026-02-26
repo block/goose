@@ -193,9 +193,13 @@ export default function McpAppRenderer({
         case 'tools/call': {
           const { name, arguments: args } = params as McpMethodParams['tools/call'];
           const fullToolName = `${extensionName}__${name}`;
+          const sid = sessionId;
+          if (!sid) {
+            throw new Error('Session not initialized for MCP request');
+          }
           const response = await callTool({
             body: {
-              session_id: sessionId!,
+              session_id: sid,
               name: fullToolName,
               arguments: args || {},
             },
@@ -211,9 +215,13 @@ export default function McpAppRenderer({
 
         case 'resources/read': {
           const { uri } = params as McpMethodParams['resources/read'];
+          const sid = sessionId;
+          if (!sid) {
+            throw new Error('Session not initialized for MCP request');
+          }
           const response = await readResource({
             body: {
-              session_id: sessionId!,
+              session_id: sid,
               uri,
               extension_name: extensionName,
             },
@@ -268,6 +276,7 @@ export default function McpAppRenderer({
       <iframe
         ref={iframeRef}
         src={proxyUrl}
+        title="MCP app"
         style={{
           width: '100%',
           height: '100%',
@@ -301,6 +310,7 @@ export default function McpAppRenderer({
         <iframe
           ref={iframeRef}
           src={proxyUrl}
+          title="MCP app"
           style={{
             width: iframeWidth ? `${iframeWidth}px` : '100%',
             maxWidth: '100%',

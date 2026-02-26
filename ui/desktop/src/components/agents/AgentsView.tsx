@@ -322,6 +322,7 @@ export default function AgentsView() {
           <>
             {activeTab === 'catalog' && (
               <button
+                type="button"
                 onClick={() => setShowConnect(!showConnect)}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >
@@ -331,6 +332,7 @@ export default function AgentsView() {
             )}
             {activeTab === 'instances' && (
               <button
+                type="button"
                 onClick={() => {
                   setSpawnDefaultPersona('');
                   setSpawnModalOpen(true);
@@ -342,6 +344,7 @@ export default function AgentsView() {
               </button>
             )}
             <button
+              type="button"
               onClick={() => {
                 fetchAgents();
                 refreshInstances();
@@ -370,7 +373,11 @@ export default function AgentsView() {
         {error && (
           <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm flex justify-between">
             <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="text-red-400 hover:text-red-600"
+            >
               ✕
             </button>
           </div>
@@ -392,12 +399,14 @@ export default function AgentsView() {
                     className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 outline-none"
                   />
                   <button
+                    type="button"
                     onClick={handleConnect}
                     className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                   >
                     Connect
                   </button>
                   <button
+                    type="button"
                     onClick={() => setShowConnect(false)}
                     className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700"
                   >
@@ -436,9 +445,11 @@ export default function AgentsView() {
                       }`}
                     >
                       {/* Card Header */}
-                      <div
-                        className="p-4 cursor-pointer select-none"
+                      <button
+                        type="button"
+                        className="p-4 cursor-pointer select-none text-left w-full"
                         onClick={() => setExpandedAgent(isExpanded ? null : agent.id)}
+                        aria-expanded={isExpanded}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3">
@@ -463,6 +474,7 @@ export default function AgentsView() {
                             {/* Deploy button */}
                             {agent.enabled && (
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeployFromCatalog(agent.name);
@@ -477,6 +489,7 @@ export default function AgentsView() {
                             {/* Enable/Disable toggle for builtin agents */}
                             {agent.kind === 'builtin' && (
                               <button
+                                type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleToggleAgent(agent);
@@ -513,6 +526,7 @@ export default function AgentsView() {
                         {agent.kind === 'external' && (
                           <div className="mt-3 flex gap-2">
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDisconnect(agent.id);
@@ -524,7 +538,7 @@ export default function AgentsView() {
                             </button>
                           </div>
                         )}
-                      </div>
+                      </button>
 
                       {/* Expanded: Extensions */}
                       {isExpanded && (
@@ -538,6 +552,7 @@ export default function AgentsView() {
                             </div>
                             {agent.kind === 'builtin' && (
                               <button
+                                type="button"
                                 onClick={() =>
                                   setShowBindForm(showBindForm === agent.id ? null : agent.id)
                                 }
@@ -558,6 +573,7 @@ export default function AgentsView() {
                                 className="flex-1 px-2.5 py-1.5 text-xs border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 outline-none"
                               />
                               <button
+                                type="button"
                                 onClick={() => handleBindExtension(agent.name)}
                                 className="px-3 py-1.5 text-xs bg-blue-500 text-white rounded-md hover:bg-blue-600"
                               >
@@ -576,6 +592,7 @@ export default function AgentsView() {
                                   <Puzzle className="w-3 h-3" />
                                   {ext}
                                   <button
+                                    type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleUnbindExtension(agent.name, ext);
@@ -610,7 +627,8 @@ export default function AgentsView() {
                               const isSelected = selectedMode === `${agent.id}:${mode.slug}`;
                               const isDefault = mode.slug === agent.defaultMode;
                               return (
-                                <div
+                                <button
+                                  type="button"
                                   key={mode.slug}
                                   onClick={() =>
                                     setSelectedMode(isSelected ? null : `${agent.id}:${mode.slug}`)
@@ -664,7 +682,7 @@ export default function AgentsView() {
                                       ))}
                                     </div>
                                   )}
-                                </div>
+                                </button>
                               );
                             })}
                           </div>

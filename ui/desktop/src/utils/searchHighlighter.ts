@@ -137,13 +137,18 @@ export class SearchHighlighter {
     let node: Text | null;
 
     // Find all matches
-    while ((node = walker.nextNode() as Text)) {
+    // (Biome prefers avoiding assignment in loop conditions)
+    while (true) {
+      node = walker.nextNode() as Text | null;
+      if (!node) break;
       const text = node.textContent || '';
-      let match;
 
       // Reset lastIndex to ensure we find all matches
       regex.lastIndex = 0;
-      while ((match = regex.exec(text)) !== null) {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const match = regex.exec(text);
+        if (!match) break;
         matches.push({
           node,
           startOffset: match.index,
@@ -272,7 +277,9 @@ export class SearchHighlighter {
   }
 
   clearHighlights() {
-    this.highlights.forEach((h) => h.remove());
+    this.highlights.forEach((h) => {
+      h.remove();
+    });
     this.highlights = [];
     this.currentTerm = '';
     this.currentMatchIndex = -1;

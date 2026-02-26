@@ -29,6 +29,12 @@ export function SpawnInstanceModal({
   defaultPersona = '',
   personas = [],
 }: SpawnInstanceModalProps) {
+  const personaId = 'spawn-instance-persona';
+  const instructionsId = 'spawn-instance-instructions';
+  const providerId = 'spawn-instance-provider';
+  const modelId = 'spawn-instance-model';
+  const maxTurnsId = 'spawn-instance-max-turns';
+
   const [persona, setPersona] = useState(defaultPersona || '');
   const [instructions, setInstructions] = useState('');
   const [provider, setProvider] = useState('');
@@ -150,10 +156,13 @@ export function SpawnInstanceModal({
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           {/* Persona */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Persona</label>
+            <label htmlFor={personaId} className="block text-sm font-medium mb-1.5">
+              Persona
+            </label>
             {personas.length > 0 ? (
               <div className="relative">
                 <select
+                  id={personaId}
                   value={persona}
                   onChange={(e) => setPersona(e.target.value)}
                   className="w-full appearance-none px-3 py-2 pr-8 text-sm rounded-lg border border-border-default bg-background-default focus:ring-2 focus:ring-accent-default focus:border-transparent outline-none"
@@ -169,6 +178,7 @@ export function SpawnInstanceModal({
               </div>
             ) : (
               <input
+                id={personaId}
                 type="text"
                 value={persona}
                 onChange={(e) => setPersona(e.target.value)}
@@ -181,8 +191,11 @@ export function SpawnInstanceModal({
 
           {/* Instructions */}
           <div>
-            <label className="block text-sm font-medium mb-1.5">Instructions</label>
+            <label htmlFor={instructionsId} className="block text-sm font-medium mb-1.5">
+              Instructions
+            </label>
             <textarea
+              id={instructionsId}
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
               placeholder="What should this agent do?"
@@ -206,12 +219,13 @@ export function SpawnInstanceModal({
                 <div className="grid grid-cols-2 gap-3">
                   {/* Provider dropdown */}
                   <div>
-                    <label className="block text-xs font-medium mb-1 text-text-muted">
+                    <label htmlFor={providerId} className="block text-xs font-medium mb-1 text-text-muted">
                       Provider
                     </label>
                     {configuredProviders.length > 0 ? (
                       <div className="relative">
                         <select
+                          id={providerId}
                           value={provider}
                           onChange={(e) => setProvider(e.target.value)}
                           className="w-full appearance-none px-2.5 py-1.5 pr-7 text-xs rounded-md border border-border-default bg-background-default outline-none focus:ring-1 focus:ring-accent-default"
@@ -227,6 +241,7 @@ export function SpawnInstanceModal({
                       </div>
                     ) : (
                       <input
+                        id={providerId}
                         type="text"
                         value={provider}
                         onChange={(e) => setProvider(e.target.value)}
@@ -238,10 +253,13 @@ export function SpawnInstanceModal({
 
                   {/* Model dropdown */}
                   <div>
-                    <label className="block text-xs font-medium mb-1 text-text-muted">Model</label>
+                    <label htmlFor={modelId} className="block text-xs font-medium mb-1 text-text-muted">
+                      Model
+                    </label>
                     {modelList.length > 0 ? (
                       <div className="relative">
                         <select
+                          id={modelId}
                           value={model}
                           onChange={(e) => setModel(e.target.value)}
                           className="w-full appearance-none px-2.5 py-1.5 pr-7 text-xs rounded-md border border-border-default bg-background-default outline-none focus:ring-1 focus:ring-accent-default"
@@ -262,6 +280,7 @@ export function SpawnInstanceModal({
                       </div>
                     ) : (
                       <input
+                        id={modelId}
                         type="text"
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
@@ -280,10 +299,11 @@ export function SpawnInstanceModal({
                 )}
 
                 <div>
-                  <label className="block text-xs font-medium mb-1 text-text-muted">
+                  <label htmlFor={maxTurnsId} className="block text-xs font-medium mb-1 text-text-muted">
                     Max turns
                   </label>
                   <input
+                    id={maxTurnsId}
                     type="number"
                     value={maxTurns}
                     onChange={(e) =>

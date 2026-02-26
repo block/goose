@@ -8,20 +8,16 @@ const splitTypeInstance = {
   lines: [],
   chars: [],
 };
-
 vi.mock('split-type', () => {
   class SplitTypeMock {
     lines = splitTypeInstance.lines;
     chars = splitTypeInstance.chars;
     split = splitTypeInstance.split;
     revert = splitTypeInstance.revert;
-    constructor(_el: Element, _options?: unknown) {
-      return splitTypeInstance as unknown as SplitTypeMock;
-    }
+    constructor(_el: Element, _options?: unknown) {}
   }
   return { default: SplitTypeMock };
 });
-
 describe('useTextAnimator', () => {
   it('disconnects ResizeObserver and reverts SplitType on unmount', () => {
     Object.defineProperty(window, 'matchMedia', {

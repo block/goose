@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { Message } from '../../../api';
+import type { Message } from '../../../api';
 import {
   buildToolResponseMap,
   extractActivityEntries,
-  ToolActivityEntry,
+  type ToolActivityEntry,
 } from '../ReasoningDetailPanel';
 
 // ── Helpers ──────────────────────────────────────────────────────────

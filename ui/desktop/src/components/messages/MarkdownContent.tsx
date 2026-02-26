@@ -233,6 +233,7 @@ const MarkdownContent = memo(function MarkdownContent({
 
             const jsonRenderChild = elementChildren.find((el) =>
               Boolean(
+                // biome-ignore lint/complexity/useLiteralKeys: data attribute uses a dashed key
                 (el.props as { ['data-json-render-block']?: unknown })?.['data-json-render-block']
               )
             );

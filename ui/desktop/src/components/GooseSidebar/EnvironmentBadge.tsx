@@ -19,6 +19,7 @@ const EnvironmentBadge: React.FC<EnvironmentBadgeProps> = ({ className = '' }) =
     <div
       className={`${bgColor} w-2 h-2 rounded-full cursor-default ${className}`}
       data-testid="environment-badge"
+      role="img"
       aria-label={label}
       title={label}
     />

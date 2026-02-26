@@ -69,6 +69,7 @@ export default function RoutingInspector() {
           className="flex-1 rounded-md border border-border-default bg-background-muted px-3 py-2 text-sm text-text-default placeholder-text-subtle focus:border-border-accent focus:outline-none"
         />
         <button
+          type="button"
           onClick={handleSubmit}
           disabled={loading || !message.trim()}
           className="rounded-md bg-background-accent px-4 py-2 text-sm font-medium text-text-on-accent hover:bg-background-accent disabled:opacity-50"

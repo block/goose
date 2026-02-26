@@ -107,6 +107,7 @@ export function InstanceDetail({ instance, onClose, onCancel }: InstanceDetailPr
           {isRunning && (
             <>
               <button
+                type="button"
                 onClick={handleJoinSession}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-accent-default hover:bg-accent-default/10 rounded-md transition-colors"
                 title="Join this agent's session"
@@ -115,6 +116,7 @@ export function InstanceDetail({ instance, onClose, onCancel }: InstanceDetailPr
                 Join
               </button>
               <button
+                type="button"
                 onClick={handleCancel}
                 disabled={cancelling}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-error-default hover:bg-error-muted rounded-md transition-colors disabled:opacity-50"
@@ -126,6 +128,7 @@ export function InstanceDetail({ instance, onClose, onCancel }: InstanceDetailPr
             </>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="p-1.5 rounded-md hover:bg-background-muted transition-colors"
             title="Close detail"
@@ -139,6 +142,7 @@ export function InstanceDetail({ instance, onClose, onCancel }: InstanceDetailPr
       <div className="px-4 py-3 border-b border-border-default space-y-2">
         <div className="flex items-center gap-2 text-xs text-text-muted">
           <button
+            type="button"
             onClick={handleCopyId}
             className="flex items-center gap-1 font-mono hover:text-text-default transition-colors"
             title="Copy instance ID"

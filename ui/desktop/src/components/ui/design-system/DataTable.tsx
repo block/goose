@@ -55,6 +55,17 @@ export function DataTable({
 
   const ariaLabel = caption || 'Data table';
 
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows;
+
+    const sorted = [...rows].sort((ra, rb) => {
+      const cmp = compareValues(ra[sortKey], rb[sortKey]);
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [rows, sortKey, sortDirection]);
+
   if (columns.length === 0) {
     return (
       <div
@@ -68,17 +79,6 @@ export function DataTable({
       </div>
     );
   }
-
-  const sortedRows = useMemo(() => {
-    if (!sortKey) return rows;
-
-    const sorted = [...rows].sort((ra, rb) => {
-      const cmp = compareValues(ra[sortKey], rb[sortKey]);
-      return sortDirection === 'asc' ? cmp : -cmp;
-    });
-
-    return sorted;
-  }, [rows, sortKey, sortDirection]);
 
   return (
     <div

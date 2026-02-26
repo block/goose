@@ -140,6 +140,7 @@ export function InstanceList({
             />
           </div>
           <button
+            type="button"
             onClick={() =>
               handleSort(
                 sortField === 'status' ? 'elapsed' : sortField === 'elapsed' ? 'persona' : 'status'
@@ -156,6 +157,7 @@ export function InstanceList({
           <SlidersHorizontal className="w-3.5 h-3.5 text-text-subtle mr-1" />
           {statusFilters.map((f) => (
             <button
+              type="button"
               key={f.value}
               onClick={() => setStatusFilter(f.value)}
               className={`px-2.5 py-1 text-xs rounded-full transition-colors ${
@@ -187,6 +189,7 @@ export function InstanceList({
                 Deploy an agent from the Catalog tab to get started
               </p>
               <button
+                type="button"
                 onClick={onSpawnClick}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-accent-default text-white rounded-lg hover:bg-accent-default/90 transition-colors"
               >
@@ -205,6 +208,7 @@ export function InstanceList({
         <div className="space-y-2">
           {filtered.map((inst) => (
             <button
+              type="button"
               key={inst.id}
               onClick={() => onSelect(inst.id)}
               className={`w-full text-left p-4 rounded-xl border transition-all duration-150 ${

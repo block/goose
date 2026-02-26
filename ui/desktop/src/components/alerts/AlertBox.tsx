@@ -102,12 +102,6 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   return (
     <div
       className={cn('flex flex-col gap-2 px-3 py-3', alertStyles[alert.type], className)}
-      onMouseDown={(e) => {
-        // Prevent popover from closing when clicking inside the alert box
-        if (isEditingThreshold) {
-          e.stopPropagation();
-        }
-      }}
     >
       {alert.progress ? (
         <div className="flex flex-col gap-2">
@@ -124,6 +118,9 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                   max="100"
                   step="1"
                   value={thresholdValue}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
                     // Allow empty input for easier editing
@@ -214,7 +211,9 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
                 }
               }
 
-              return [...Array(30)].map((_, i) => {
+              const dotKeys = Array.from({ length: 30 }, (_, idx) => `dot-${idx}`);
+
+              return dotKeys.map((dotKey, i) => {
                 const progress = (alert.progress?.current ?? 0) / (alert.progress?.total ?? 1);
                 const progressPercentage = Math.round(progress * 100);
                 const dotPosition = i / 29; // 0 to 1 range for 30 dots
@@ -238,7 +237,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
 
                 return (
                   <div
-                    key={i}
+                    key={dotKey}
                     className={cn(
                       'rounded-full transition-all relative',
                       isThresholdDot
@@ -266,6 +265,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           </div>
           {alert.showCompactButton && alert.onCompact && (
             <button
+              type="button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();

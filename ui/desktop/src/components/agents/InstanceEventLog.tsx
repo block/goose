@@ -80,6 +80,7 @@ export function InstanceEventLog({
           )}
         </div>
         <button
+          type="button"
           onClick={toggleAutoScroll}
           className={`p-1 rounded text-xs transition-colors ${
             autoScroll ? 'text-cyan-500 hover:text-cyan-400' : 'text-gray-400 hover:text-gray-300'
@@ -100,10 +101,11 @@ export function InstanceEventLog({
         {events.length === 0 ? (
           <div className="text-gray-600 italic">Waiting for events...</div>
         ) : (
-          events.map((event, i) => {
+          events.map((event) => {
             const colorClass = eventTypeColors[event.type] || 'text-gray-400';
+            const stableKey = `${event.timestamp}-${event.type}-${event.data.slice(0, 32)}`;
             return (
-              <div key={i} className="flex gap-2 leading-relaxed">
+              <div key={stableKey} className="flex gap-2 leading-relaxed">
                 <span className="text-gray-600 shrink-0">{formatTimestamp(event.timestamp)}</span>
                 <span className={`shrink-0 ${colorClass}`}>[{event.type}]</span>
                 <span className="text-gray-300 break-all">{event.data}</span>

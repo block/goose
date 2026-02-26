@@ -49,6 +49,7 @@ const EXAMPLE_YAML = `# Eval test set — YAML format
 `;
 
 export default function EvalRunner() {
+  const yamlInputId = 'eval-runner-yaml-input';
   const [yamlInput, setYamlInput] = useState(EXAMPLE_YAML);
   const [result, setResult] = useState<EvalResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -110,8 +111,11 @@ export default function EvalRunner() {
       {/* Input area */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-text-default">Eval Test Set (YAML)</label>
+          <label htmlFor={yamlInputId} className="text-sm font-medium text-text-default">
+            Eval Test Set (YAML)
+          </label>
           <button
+            type="button"
             onClick={handleFileLoad}
             className="rounded-md border border-border-default px-3 py-1 text-xs text-text-muted hover:bg-background-muted hover:text-text-default"
           >
@@ -119,6 +123,7 @@ export default function EvalRunner() {
           </button>
         </div>
         <textarea
+          id={yamlInputId}
           value={yamlInput}
           onChange={(e) => setYamlInput(e.target.value)}
           rows={10}
@@ -126,6 +131,7 @@ export default function EvalRunner() {
           placeholder="Paste YAML eval set here..."
         />
         <button
+          type="button"
           onClick={handleRun}
           disabled={loading || !yamlInput.trim()}
           className="rounded-md bg-background-accent px-4 py-2 text-sm font-medium text-text-on-accent hover:bg-background-accent disabled:opacity-50"

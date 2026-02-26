@@ -220,8 +220,13 @@ const mockAppConfig = {
 };
 
 // Attach mocks to window
-(window as any).electron = mockElectron;
-(window as any).appConfig = mockAppConfig;
+const windowWithMocks = window as unknown as {
+  electron: typeof mockElectron;
+  appConfig: typeof mockAppConfig;
+};
+
+windowWithMocks.electron = mockElectron;
+windowWithMocks.appConfig = mockAppConfig;
 
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
