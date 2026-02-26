@@ -123,6 +123,7 @@ impl Default for EditTools {
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn string_replace(content: &str, before: &str, after: &str) -> Result<String, CallToolResult> {
     let matches: Vec<_> = content.match_indices(before).collect();
 

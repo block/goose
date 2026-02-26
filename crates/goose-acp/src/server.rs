@@ -514,7 +514,7 @@ impl GooseAcpAgent {
                 session
                     .agent
                     .extension_manager
-                    .resolve_tool(&*session_id.0, &tool_call.name)
+                    .resolve_tool(&session_id.0, &tool_call.name)
                     .await
                     .is_ok_and(|res| res.extension_name == "tools")
             } else {

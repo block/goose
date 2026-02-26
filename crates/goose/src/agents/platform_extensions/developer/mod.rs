@@ -169,7 +169,7 @@ impl McpClientTrait for DeveloperClient {
         arguments: Option<JsonObject>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let working_dir = ctx.working_dir.as_ref().map(|p| p.as_path());
+        let working_dir = ctx.working_dir.as_deref();
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
