@@ -27,7 +27,40 @@ import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
+const MAX_CACHED_SESSIONS = 5;
+const MAX_ENTRY_WEIGHT = 200;
+
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
+
+function messageWeight(messages: Message[]): number {
+  let weight = 0;
+  for (const msg of messages) {
+    for (const content of msg.content) {
+      weight += content.type === 'toolResponse' || content.type === 'toolRequest' ? 3 : 1;
+    }
+  }
+  return weight;
+}
+
+function resultsCacheSet(key: string, value: { messages: Message[]; session: Session }) {
+  if (messageWeight(value.messages) > MAX_ENTRY_WEIGHT) {
+    resultsCache.delete(key);
+    return;
+  }
+
+  resultsCache.delete(key);
+  resultsCache.set(key, value);
+
+  while (resultsCache.size > MAX_CACHED_SESSIONS) {
+    const oldest = resultsCache.keys().next().value;
+    if (oldest !== undefined) resultsCache.delete(oldest);
+    else break;
+  }
+}
+
+export function evictSessionFromCache(sessionId: string) {
+  resultsCache.delete(sessionId);
+}
 
 interface UseChatStreamProps {
   sessionId: string;
@@ -345,10 +378,10 @@ export function useChatStream({
   }, [sessionId]);
 
   useEffect(() => {
-    if (state.session) {
-      resultsCache.set(sessionId, { session: state.session, messages: state.messages });
+    if (state.session && state.chatState === ChatState.Idle) {
+      resultsCacheSet(sessionId, { session: state.session, messages: state.messages });
     }
-  }, [sessionId, state.session, state.messages]);
+  }, [sessionId, state.session, state.messages, state.chatState]);
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
