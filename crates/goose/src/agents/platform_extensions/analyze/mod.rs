@@ -164,13 +164,14 @@ impl AnalyzeClient {
 
     fn structure_mode(&self, dir: &Path, max_depth: u32, force: bool) -> CallToolResult {
         let files = Self::collect_files(dir, max_depth);
+        let total_files = files.len();
 
         let analyses: Vec<FileAnalysis> = files
             .par_iter()
             .filter_map(|f| Self::analyze_file(f))
             .collect();
 
-        let output = format::format_structure(&analyses, dir, max_depth);
+        let output = format::format_structure(&analyses, dir, max_depth, total_files);
         Self::finish(output, force)
     }
 

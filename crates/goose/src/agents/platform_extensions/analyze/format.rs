@@ -8,7 +8,12 @@ use super::parser::FileAnalysis;
 const SIZE_LIMIT: usize = 50_000;
 const MULTILINE_THRESHOLD: usize = 10;
 
-pub fn format_structure(analyses: &[FileAnalysis], root: &Path, depth: u32) -> String {
+pub fn format_structure(
+    analyses: &[FileAnalysis],
+    root: &Path,
+    depth: u32,
+    total_files: usize,
+) -> String {
     let mut out = String::new();
 
     let total_loc: usize = analyses.iter().map(|a| a.loc).sum();
@@ -29,6 +34,11 @@ pub fn format_structure(analyses: &[FileAnalysis], root: &Path, depth: u32) -> S
         total_classes,
         depth_str
     );
+
+    let skipped = total_files.saturating_sub(analyses.len());
+    if skipped > 0 {
+        let _ = writeln!(out, "({} files skipped: no parser)", skipped);
+    }
 
     let mut lang_loc: HashMap<&str, usize> = HashMap::new();
     for a in analyses {

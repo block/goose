@@ -124,7 +124,6 @@ fn extract_classes(
                 let name_text = node_text(source, &cap.node).to_string();
                 let line = cap.node.start_position().row + 1;
 
-                // Capture superclass / inheritance info per language
                 let mut name = name_text;
                 if let Some(parent_node) = cap.node.parent() {
                     let inheritance = extract_inheritance(info.name, &parent_node, source);
@@ -133,7 +132,6 @@ fn extract_classes(
                     }
                 }
 
-                // Extract field summary from the class/struct body
                 let detail = extract_class_detail(cap.node, source, info);
                 symbols.push(Symbol {
                     name,
@@ -171,7 +169,6 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
         // class_declaration → class_heritage → extends_clause → type_identifier
         // interface_declaration → extends_type_clause → type_identifier
         "typescript" | "tsx" => {
-            // class extends
             if let Some(heritage) = find_child_by_kind(class_node, "class_heritage") {
                 if let Some(extends_clause) = find_child_by_kind(&heritage, "extends_clause") {
                     if let Some(ti) = find_descendant_by_kind(&extends_clause, "type_identifier")
@@ -181,7 +178,6 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
                     }
                 }
             }
-            // interface extends
             if let Some(extends_clause) = find_child_by_kind(class_node, "extends_type_clause") {
                 if let Some(ti) = find_descendant_by_kind(&extends_clause, "type_identifier")
                     .or_else(|| find_descendant_by_kind(&extends_clause, "identifier"))
@@ -214,7 +210,6 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
                     return node_text(source, &ti).to_string();
                 }
             }
-            // interface extends
             if let Some(extends) = find_child_by_kind(class_node, "extends_interfaces") {
                 if let Some(ti) = find_descendant_by_kind(&extends, "type_identifier")
                     .or_else(|| find_descendant_by_kind(&extends, "identifier"))
@@ -286,11 +281,9 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
         // Rust: impl Display for MyType → "MyType(impl Display)"
         // impl_item with "for" keyword: trait is the first type_identifier, type is after "for"
         "rust" => {
-            // Only for impl_item nodes
             if class_node.kind() != "impl_item" {
                 return String::new();
             }
-            // Check if there's a "for" keyword child — indicates trait impl
             let mut has_for = false;
             for i in 0..class_node.child_count() as u32 {
                 if let Some(child) = class_node.child(i) {
@@ -304,9 +297,6 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
                 // Inherent impl (no trait) — return "impl" to distinguish from struct definition
                 return "impl".to_string();
             }
-            // Find the trait name: it's the type before "for"
-            // In tree-sitter-rust, impl_item has: "impl" <trait_type> "for" <type>
-            // The trait is typically a type_identifier or scoped_type_identifier before "for"
             let mut trait_name = String::new();
             let mut found_for = false;
             for i in 0..class_node.child_count() as u32 {
@@ -337,7 +327,6 @@ fn find_enclosing_class(node: tree_sitter::Node, source: &str, info: &LangInfo) 
     let mut cur = node;
     while let Some(parent) = cur.parent() {
         if info.class_kinds.contains(&parent.kind()) {
-            // For Rust impl_item: get the type name
             if parent.kind() == "impl_item" {
                 return find_child_by_kind(&parent, "type_identifier")
                     .map(|n| node_text(source, &n).to_string());
@@ -354,7 +343,6 @@ fn find_enclosing_class(node: tree_sitter::Node, source: &str, info: &LangInfo) 
                 }
                 return None;
             }
-            // Generic: find the name child (identifier, type_identifier, constant, etc.)
             let name_kinds = &[
                 "identifier",
                 "type_identifier",
@@ -375,12 +363,10 @@ fn find_enclosing_class(node: tree_sitter::Node, source: &str, info: &LangInfo) 
 
 /// Extract a compact function signature: "(params) -> ReturnType"
 fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<String> {
-    // The name_node is the identifier inside the function node; go to the function node
     let fn_node = name_node.parent()?;
 
     let mut parts = String::new();
 
-    // Find parameter list child
     let param_kinds = &[
         "parameters",
         "formal_parameters",
@@ -398,7 +384,6 @@ fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<St
         if raw.len() <= 60 {
             parts.push_str(raw);
         } else {
-            // Count commas to estimate arg count
             let count = raw.matches(',').count() + 1;
             parts.push_str(&format!("({} args)", count));
         }
@@ -406,7 +391,6 @@ fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<St
         parts.push_str("()");
     }
 
-    // Find return type annotation
     let ret_kinds = &["type", "return_type", "type_annotation"];
     // For Rust: look for a child that is "->" followed by a type
     // For Python: look for "return_type" or "type" child
@@ -442,7 +426,6 @@ fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<St
     }
 
     if parts == "()" {
-        // No useful info extracted
         return None;
     }
     Some(parts)
@@ -456,7 +439,6 @@ fn extract_class_detail(
 ) -> Option<String> {
     let class_node = name_node.parent()?;
 
-    // Determine field node kinds based on language
     let (body_kinds, field_kinds): (&[&str], &[&str]) = match info.name {
         "rust" => (&["field_declaration_list"], &["field_declaration"]),
         "go" => (
@@ -467,12 +449,10 @@ fn extract_class_detail(
         _ => return None, // Skip Python (hard), JS/TS/Ruby/Swift for now
     };
 
-    // Find the body node
     let body = body_kinds
         .iter()
         .find_map(|kind| find_descendant_by_kind(&class_node, kind))?;
 
-    // Collect field names
     let mut fields: Vec<String> = Vec::new();
     collect_field_names(&body, field_kinds, source, &mut fields);
 
@@ -487,7 +467,6 @@ fn extract_class_detail(
     }
 }
 
-/// Collect field names from a body node.
 fn collect_field_names(
     node: &tree_sitter::Node,
     field_kinds: &[&str],
@@ -497,7 +476,6 @@ fn collect_field_names(
     for i in 0..node.child_count() as u32 {
         if let Some(child) = node.child(i) {
             if field_kinds.contains(&child.kind()) {
-                // Find the field name: first identifier-like child
                 let name_kinds = &["field_identifier", "identifier", "type_identifier"];
                 for nk in name_kinds {
                     if let Some(n) = find_child_by_kind(&child, nk) {

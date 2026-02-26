@@ -34,7 +34,6 @@ impl CallGraph {
         let mut incoming: HashMap<NodeKey, HashSet<NodeKey>> = HashMap::new();
         let mut outgoing: HashMap<NodeKey, HashSet<NodeKey>> = HashMap::new();
 
-        // Register all symbols (functions + classes) as nodes
         for a in analyses {
             let register = |sym: &Symbol, nodes: &mut HashMap<NodeKey, Node>| {
                 let key = (a.path.clone(), sym.name.clone(), sym.line);
@@ -73,10 +72,8 @@ impl CallGraph {
         let lang_index: HashMap<&PathBuf, &str> =
             analyses.iter().map(|a| (&a.path, a.language)).collect();
 
-        // Register edges from calls
         for a in analyses {
             for call in &a.calls {
-                // Resolve caller: find the definition whose line is nearest-before the call site
                 let caller_key = resolve_caller_key(a, call, &def_lines);
                 // Resolve callee: same-file first, then cross-file (same language only)
                 let callee_keys = resolve_callee(a, call, &name_index, &lang_index);
@@ -209,7 +206,6 @@ fn resolve_caller_key(
 ) -> Option<NodeKey> {
     let caller_name = &call.caller;
     if let Some(lines) = def_lines.get(&(&analysis.path, caller_name.as_str())) {
-        // Binary search for the largest definition line ≤ call.line
         let line = match lines.binary_search(&call.line) {
             Ok(idx) => lines[idx],
             Err(0) => return None, // call is before any definition — shouldn't happen

@@ -85,8 +85,9 @@ fn main() {
     } else {
         // Structure mode: directory overview
         let files = collect_files(&path, cli.depth);
+        let total_files = files.len();
         let analyses: Vec<_> = files.par_iter().filter_map(|f| analyze_file(f)).collect();
-        format::format_structure(&analyses, &path, cli.depth)
+        format::format_structure(&analyses, &path, cli.depth, total_files)
     };
 
     match format::check_size(&output, cli.force) {
