@@ -48,3 +48,4 @@ Designed for maximum flexibility, goose works with any LLM and supports multi-mo
 - [Twitter/X](https://x.com/goose_oss)
 - [Bluesky](https://bsky.app/profile/opensource.block.xyz)
 - [Nostr](https://njump.me/opensource@block.xyz)
+
