@@ -1,3 +1,4 @@
+
 # Building goose Desktop on Linux
 
 This guide covers building the goose Desktop application from source on various Linux distributions.
