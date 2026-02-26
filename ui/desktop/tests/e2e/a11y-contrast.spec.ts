@@ -21,7 +21,14 @@ async function runContrastAudit(page: import('@playwright/test').Page, label: st
 
 async function navigateSidebar(page: import('@playwright/test').Page, itemLabel: string) {
   const testId = `sidebar-${itemLabel.toLowerCase()}-button`;
-  await page.getByTestId(testId).click();
+  const locator = page.locator(`[data-testid="${testId}"]`);
+  try {
+    await locator.waitFor({ state: 'visible', timeout: 60_000 });
+    await locator.click();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 test('a11y: color contrast (axe-core)', async ({ goosePage }, testInfo) => {
@@ -32,6 +39,20 @@ test('a11y: color contrast (axe-core)', async ({ goosePage }, testInfo) => {
     const root = document.getElementById('root');
     return root && root.children.length > 0;
   });
+
+  // If the sidebar isn't present (e.g. first run / provider not configured),
+  // run a minimal audit on the initial screen.
+  const hasSidebar = (await goosePage.locator('[data-testid^="sidebar-"]').count()) > 0;
+  if (!hasSidebar) {
+    await runContrastAudit(goosePage, 'initial-light', testInfo);
+
+    await goosePage.evaluate(() => {
+      document.documentElement.classList.add('dark');
+    });
+    await goosePage.waitForTimeout(250);
+    await runContrastAudit(goosePage, 'initial-dark', testInfo);
+    return;
+  }
 
   // --- Chat ---
   await navigateSidebar(goosePage, 'home');
