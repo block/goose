@@ -48,26 +48,26 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
     const radioId = `goose-mode-${mode.key}`;
 
     useEffect(() => {
-      setChecked(currentMode === mode.key);
-    }, [currentMode, mode.key]);
+		setChecked(currentMode === mode.key);
+	}, [currentMode, mode.key]);
 
-    return (
-      <div ref={ref} className="group hover:cursor-pointer text-sm">
-        <input
-          id={radioId}
-          type="radio"
+	return (
+		<div ref={ref} className="group text-sm">
+			<input
+				id={radioId}
+				type="radio"
           name="modes"
           value={mode.key}
           checked={checked}
           onChange={() => handleModeChange(mode.key)}
           className="peer sr-only"
-        />
-        <label
-          htmlFor={radioId}
-          className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
-        >
-          <div className="flex">
-            <div>
+			/>
+			<label
+				htmlFor={radioId}
+				className={`flex cursor-pointer items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
+			>
+				<div className="flex">
+					<div>
               <h3 className="text-text-default">{mode.label}</h3>
               {showDescription && <p className="text-text-muted mt-[2px]">{mode.description}</p>}
             </div>

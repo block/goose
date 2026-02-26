@@ -41,26 +41,26 @@ export function ResponseStyleSelectionItem({
   const radioId = `response-style-${style.key}`;
 
   useEffect(() => {
-    setChecked(currentStyle === style.key);
-  }, [currentStyle, style.key]);
+	setChecked(currentStyle === style.key);
+}, [currentStyle, style.key]);
 
-  return (
-    <div className="group hover:cursor-pointer text-sm">
-      <input
-        id={radioId}
-        type="radio"
+	return (
+		<div className="group text-sm">
+			<input
+				id={radioId}
+				type="radio"
         name="responseStyles"
         value={style.key}
         checked={checked}
         onChange={() => handleStyleChange(style.key)}
         className="peer sr-only"
-      />
-      <label
-        htmlFor={radioId}
-        className={`flex items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
-      >
-        <div className="flex">
-          <div>
+			/>
+			<label
+				htmlFor={radioId}
+				className={`flex cursor-pointer items-center justify-between text-text-default py-2 px-2 ${checked ? 'bg-background-muted' : 'bg-background-default hover:bg-background-muted'} rounded-lg transition-all`}
+			>
+				<div className="flex">
+					<div>
             <h3 className="text-text-default">{style.label}</h3>
             {showDescription && (
               <p className="text-xs text-text-muted mt-[2px]">{style.description}</p>

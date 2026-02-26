@@ -157,10 +157,10 @@ function RegressionCard({
 function RecentRunRow({ run }: { run: EvalRunSummary }) {
   const accColor = accuracyColor(run.overallAccuracy);
   return (
-    <div className="flex items-center gap-3 py-2.5 px-3 rounded-md hover:bg-background-defaultHover transition-colors cursor-pointer">
-      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accColor }} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+	<div className="flex items-center gap-3 py-2.5 px-3 rounded-md hover:bg-background-defaultHover transition-colors">
+	  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accColor }} />
+	  <div className="flex-1 min-w-0">
+		<div className="flex items-center gap-2">
           <span className="text-sm font-medium text-text-default truncate">{run.datasetName}</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-background-defaultHover text-text-muted shrink-0">
             v{run.gooseVersion}
@@ -192,11 +192,11 @@ function EmptyDashboard() {
         regressions before they impact users.
       </p>
 
-      <div className="w-full space-y-3">
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
-          <span className="text-2xl">💬</span>
-          <div>
-            <h3 className="text-sm font-semibold text-text-default">Start using Goose</h3>
+	  <div className="w-full space-y-3">
+		<div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors text-left">
+		  <span className="text-2xl">💬</span>
+		  <div>
+			<h3 className="text-sm font-semibold text-text-default">Start using Goose</h3>
             <p className="text-xs text-text-muted mt-0.5">
               Have conversations — we&apos;ll automatically track routing decisions and build your
               usage dashboard.
@@ -204,10 +204,10 @@ function EmptyDashboard() {
           </div>
         </div>
 
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
-          <span className="text-2xl">🧪</span>
-          <div>
-            <h3 className="text-sm font-semibold text-text-default">Create an eval dataset</h3>
+		<div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors text-left">
+		  <span className="text-2xl">📦</span>
+		  <div>
+			<h3 className="text-sm font-semibold text-text-default">Import a YAML dataset</h3>
             <p className="text-xs text-text-muted mt-0.5">
               Define test prompts with expected agent routing to start measuring accuracy.
             </p>
