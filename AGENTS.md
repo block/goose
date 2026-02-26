@@ -99,3 +99,4 @@ Never: Comment self-evident operations (`// Initialize`, `// Return result`), ge
 - Server: crates/goose-server/src/main.rs
 - UI: ui/desktop/src/main.ts
 - Agent: crates/goose/src/agents/agent.rs
+
