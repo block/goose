@@ -3,20 +3,8 @@
 # Automatically generates release notes using goose AI agent when a new release is published.
 # Updates the GitHub release with AI-generated categorized notes and posts to Discord.
 #
-# Trigger: When the Release workflow completes successfully
-#   Note: Uses workflow_run instead of release:published because GitHub doesn't trigger
-#   workflows for events created by GITHUB_TOKEN (to prevent infinite loops).
-#
-# Required Secrets:
-#   - RELEASE_BOT_ANTHROPIC_KEY: API key for Anthropic
-#
-# Optional Secrets (for Discord):
-#   - DISCORD_RELEASE_BOT_TOKEN: Discord bot token for posting release announcements
-#   - DISCORD_RELEASE_BOT_CHANNEL_ID: Discord channel ID for release announcements
-#
-# Optional Variables:
-#   - GOOSE_PROVIDER: LLM provider (default: anthropic)
-#   - GOOSE_MODEL: Model name (default: claude-opus-4-5)
+# Uses workflow_run instead of release:published because GitHub doesn't trigger
+# workflows for events created by GITHUB_TOKEN (to prevent infinite loops).
 
 name: goose Release Notes Generator
 
