@@ -226,14 +226,13 @@ jobs:
           }
 
           # Build the announcement header
-          HEADER="@everyone
-
-          ## 🎉 goose ${RELEASE_TAG} is here!
+          HEADER="## 🎉 goose ${RELEASE_TAG} is here!
 
           📦 **Release:** ${RELEASE_URL}"
 
           FOOTER="
 
+          @everyone
           📝 *More in thread...*"
           HEADER_LEN=${#HEADER}
           FOOTER_LEN=${#FOOTER}
