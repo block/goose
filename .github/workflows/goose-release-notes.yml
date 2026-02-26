@@ -226,9 +226,11 @@ jobs:
           }
 
           # Build the announcement header
-          HEADER="## 🎉 goose ${RELEASE_TAG} is here!
+          HEADER="@everyone
 
-          📦 **Download:** ${RELEASE_URL}"
+          ## 🎉 goose ${RELEASE_TAG} is here!
+
+          📦 **Release:** ${RELEASE_URL}"
 
           FOOTER="
 
