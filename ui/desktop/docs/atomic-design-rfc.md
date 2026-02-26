@@ -47,6 +47,20 @@ Subfolders inside each layer are allowed (e.g. `atoms/forms`, `organisms/agents`
 - `components/pages/*` is reserved for **route-level screens only**.
   - Reusable “view sections” should be extracted into `components/organisms/*` and imported by pages.
 
+## Import boundaries (layering rules)
+
+- **Pages may import Organisms** (pages are route-level composition).
+- **Organisms must not import Pages** (keep route wiring out of reusable feature sections).
+- **Atoms/Molecules should not import Organisms/Pages** (keep the lower layers reusable).
+
+## Enforcement
+
+We enforce **"Organisms must not import Pages"** via a lightweight unit test:
+
+- `src/__tests__/atomicDesignImportBoundaries.test.ts`
+
+This intentionally stays simple (string match on import specifiers) to keep it fast and low-maintenance.
+
 ### Transitional compatibility policy
 To avoid huge churn, we can keep the old paths as **thin re-export barrels only** during a transition window.
 
