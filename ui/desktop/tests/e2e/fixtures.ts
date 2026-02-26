@@ -31,6 +31,20 @@ export const test = base.extend<GooseTestFixtures>({
   goosePage: async ({}, use, testInfo) => {
     console.log(`Launching fresh Electron app for test: ${testInfo.title}`);
 
+    if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
+      throw new Error(
+        [
+          'Playwright E2E requires a display server on Linux.',
+          'No DISPLAY/WAYLAND_DISPLAY detected.',
+          '',
+          'Fix options:',
+          '  1) Install Xvfb and re-run (recommended for CI):',
+          '       sudo apt-get update && sudo apt-get install -y xvfb',
+          '  2) Run in a desktop session (set DISPLAY or WAYLAND_DISPLAY).',
+        ].join('\n')
+      );
+    }
+
     let appProcess: ChildProcess | null = null;
     let browser: Browser | null = null;
 
@@ -40,9 +54,10 @@ export const test = base.extend<GooseTestFixtures>({
       const debugPort = 9222 + (testInfo.parallelIndex * 10);
       console.log(`Using debug port ${debugPort} for parallel test execution`);
 
-      // Start the electron-forge process with Playwright remote debugging enabled
-      // Use detached mode on Unix to create a process group we can kill together
-      appProcess = spawn('npm', ['run', 'start-gui'], {
+      // Start the electron-forge process with Playwright remote debugging enabled.
+      // Use the dedicated script so we don't redundantly run generate-api inside each test.
+      // Use detached mode on Unix to create a process group we can kill together.
+      appProcess = spawn('npm', ['run', 'start-gui:playwright'], {
         cwd: join(__dirname, '../..'),
         stdio: 'pipe',
         detached: process.platform !== 'win32',
@@ -71,7 +86,7 @@ export const test = base.extend<GooseTestFixtures>({
       // Wait for the app to start and remote debugging to be available
       // Retry connection until it succeeds (app is ready) or timeout
       console.log(`Waiting for Electron app to start on port ${debugPort}...`);
-      const maxRetries = 100; // 100 retries * 100ms = 10 seconds max
+      const maxRetries = 300; // 300 retries * 100ms = 30 seconds max
       const retryDelay = 100; // 100ms between retries
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
