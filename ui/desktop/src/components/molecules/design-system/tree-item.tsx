@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { cn } from '../../../utils';
+import { cn } from '@/utils';
 
 interface TreeItemProps {
   label: string;

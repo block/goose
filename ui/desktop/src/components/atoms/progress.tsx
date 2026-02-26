@@ -1,6 +1,6 @@
 import type * as React from 'react';
 import { useId } from 'react';
-import { cn } from '../../utils';
+import { cn } from '@/utils';
 
 type ProgressColor = 'default' | 'success' | 'warning' | 'danger' | 'info';
 

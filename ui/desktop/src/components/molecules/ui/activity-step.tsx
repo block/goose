@@ -11,7 +11,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { cn } from '../../../utils';
+import { cn } from '@/utils';
 
 // ── Tool icon mapping ───────────────────────────────────────────────
 

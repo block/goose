@@ -1,3 +1,8 @@
+// Many components import from `@/components/atoms/icons` expecting the full generated icon set.
+// This file also contains a few inline icons (BotIcon, UserIcon, etc.), so we re-export
+// the full directory barrel to avoid `icons.tsx` shadowing `icons/index.tsx` in module resolution.
+export * from './icons/index';
+
 export const BotIcon = () => {
   return (
     <svg

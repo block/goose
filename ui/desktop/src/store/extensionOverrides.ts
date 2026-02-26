@@ -2,7 +2,7 @@
 // These overrides allow temporarily enabling/disabling extensions before creating a session
 // Resets after session creation
 
-import type { ExtensionConfig } from '../api';
+import type { ExtensionConfig } from '@/api';
 
 // Map of extension name -> enabled state (overrides from hub view)
 type ExtensionOverrides = Map<string, boolean>;

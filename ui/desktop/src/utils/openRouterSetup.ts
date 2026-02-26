@@ -1,4 +1,4 @@
-import { startOpenrouterSetup } from '../api';
+import { startOpenrouterSetup } from '@/api';
 
 export interface OpenRouterSetupStatus {
   isRunning: boolean;

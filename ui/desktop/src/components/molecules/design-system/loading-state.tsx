@@ -1,5 +1,5 @@
-import { cn } from '../../../utils';
-import { Skeleton } from '../../atoms/skeleton';
+import { cn } from '@/utils';
+import { Skeleton } from '@/components/atoms/skeleton';
 
 interface LoadingStateProps {
   variant?: 'spinner' | 'skeleton' | 'pulse';

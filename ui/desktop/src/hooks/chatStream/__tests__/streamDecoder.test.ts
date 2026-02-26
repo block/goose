@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { pushMessage } from '../streamDecoder';
-import type { Message } from '../../../api';
+import type { Message } from '@/api';
 
 function makeTextMessage(
   text: string,

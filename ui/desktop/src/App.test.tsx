@@ -75,16 +75,31 @@ vi.mock('./utils/ollamaDetection', () => ({
 }));
 
 // Mock the ConfigContext module
-vi.mock('./contexts/ConfigContext', () => ({
+const mockConfigRead = vi.fn().mockResolvedValue(null);
+
+vi.mock('@/contexts/ConfigContext', () => ({
   useConfig: () => ({
-    read: vi.fn().mockResolvedValue(null),
+    read: mockConfigRead,
     update: vi.fn(),
     getExtensions: vi.fn().mockReturnValue([]),
     extensionsList: [],
     getProviders: vi.fn().mockResolvedValue([]),
     addExtension: vi.fn(),
     updateExtension: vi.fn(),
-    createProviderDefaults: vi.fn(),
+  }),
+  ConfigProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// Back-compat for any remaining relative imports in the test file.
+vi.mock('./contexts/ConfigContext', () => ({
+  useConfig: () => ({
+    read: mockConfigRead,
+    update: vi.fn(),
+    getExtensions: vi.fn().mockReturnValue([]),
+    extensionsList: [],
+    getProviders: vi.fn().mockResolvedValue([]),
+    addExtension: vi.fn(),
+    updateExtension: vi.fn(),
   }),
   ConfigProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -113,7 +128,7 @@ vi.mock('./hooks/useAuth', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('./components/guards/AuthGuard', () => ({
+vi.mock('@/components/organisms/guards/AuthGuard', () => ({
   AuthGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
@@ -176,7 +191,7 @@ vi.mock('./components/settings/chat/GoosehintsModal', () => ({
   GoosehintsModal: () => null,
 }));
 
-vi.mock('./components/modals/AnnouncementModal', () => ({
+vi.mock('./components/organisms/modals/AnnouncementModal', () => ({
   default: () => null,
 }));
 
@@ -259,18 +274,28 @@ describe('App Component - Brand New State', () => {
     window.location.pathname = '/';
     window.sessionStorage.clear();
     window.localStorage.clear();
+
+    // Reset config read mock per-test; some tests override implementation.
+    mockConfigRead.mockReset();
+    mockConfigRead.mockResolvedValue(null);
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should redirect to "/" when app is brand new (no provider configured)', async () => {
+  it('should redirect to /welcome when app is brand new (no provider configured)', async () => {
     // Mock no provider configured
     mockElectron.getConfig.mockReturnValue({
       GOOSE_DEFAULT_PROVIDER: null,
       GOOSE_DEFAULT_MODEL: null,
       GOOSE_ALLOWLIST_WARNING: false,
+    });
+
+    mockConfigRead.mockImplementation(async (key: string) => {
+      if (key === 'GOOSE_DEFAULT_PROVIDER') return '';
+      if (key === 'GOOSE_PROVIDER') return '';
+      return null;
     });
 
     render(<AppInner />);
@@ -280,9 +305,7 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    // The app should initialize without any navigation calls since we're already at "/"
-    // No navigate calls should be made when no provider is configured
-    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/welcome', { replace: true });
   });
 
   it('should handle deep links correctly when app is brand new', async () => {
@@ -303,7 +326,7 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(/Welcome to Goose!/)).toBeInTheDocument();
+    expect(screen.getByText(/Welcome to Goose/i)).toBeInTheDocument();
   });
 
   it('should not redirect to /welcome when provider is configured', async () => {
@@ -312,6 +335,12 @@ describe('App Component - Brand New State', () => {
       GOOSE_DEFAULT_PROVIDER: 'openai',
       GOOSE_DEFAULT_MODEL: 'gpt-4',
       GOOSE_ALLOWLIST_WARNING: false,
+    });
+
+    mockConfigRead.mockImplementation(async (key: string) => {
+      if (key === 'GOOSE_DEFAULT_PROVIDER') return 'openai';
+      if (key === 'GOOSE_PROVIDER') return '';
+      return null;
     });
 
     render(<AppInner />);
@@ -327,8 +356,7 @@ describe('App Component - Brand New State', () => {
 
   it('should handle config recovery gracefully', async () => {
     // Mock config error that triggers recovery
-    const { readAllConfig, recoverConfig } = await import('./api');
-    console.log(recoverConfig);
+    const { readAllConfig } = await import('@/api');
     vi.mocked(readAllConfig).mockRejectedValueOnce(new Error('Config read error'));
 
     mockElectron.getConfig.mockReturnValue({
@@ -344,7 +372,6 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    // App should still initialize without any navigation calls
-    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith('/welcome', { replace: true });
   });
 });

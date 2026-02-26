@@ -10,68 +10,68 @@ import {
   useSearchParams,
 } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
-import { AuthGuard } from './components/guards/AuthGuard';
-import ProviderGuard from './components/guards/ProviderGuard';
-import AnnouncementModal from './components/modals/AnnouncementModal';
-import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
-import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
-import LoginView from './components/pages/LoginView';
-import AgentsPage from './components/pages/AgentsPage';
-import AppsPage from './components/pages/AppsPage';
-import CatalogsPage from './components/pages/CatalogsPage';
-import EvaluatePage from './components/pages/EvaluatePage';
-import MonitoringPage from './components/pages/MonitoringPage';
-import PipelinesPage from './components/pages/PipelinesPage';
-import RecipesPage from './components/pages/RecipesPage';
-import SchedulesPage from './components/pages/SchedulesPage';
-import SessionsPage from './components/pages/SessionsPage';
-import ToolsPage from './components/pages/ToolsPage';
-import WorkflowsPage from './components/pages/WorkflowsPage';
-import WelcomePage from './components/pages/WelcomePage';
-import { ErrorUI } from './components/shared/ErrorBoundary';
-import { TooltipProvider } from './components/ui/atoms/tooltip';
-import { AuthProvider } from './hooks/useAuth';
-import { setupAuthInterceptor } from './lib/authInterceptor';
+import { AuthGuard } from '@/components/organisms/guards/AuthGuard';
+import ProviderGuard from '@/components/organisms/guards/ProviderGuard';
+import AnnouncementModal from '@/components/organisms/modals/AnnouncementModal';
+import { ExtensionInstallModal } from '@/components/organisms/modals/ExtensionInstallModal';
+import TelemetryOptOutModal from '@/components/organisms/modals/TelemetryOptOutModal';
+import LoginView from '@/components/pages/LoginView';
+import AgentsPage from '@/components/pages/AgentsPage';
+import AppsPage from '@/components/pages/AppsPage';
+import CatalogsPage from '@/components/pages/CatalogsPage';
+import EvaluatePage from '@/components/pages/EvaluatePage';
+import MonitoringPage from '@/components/pages/MonitoringPage';
+import PipelinesPage from '@/components/pages/PipelinesPage';
+import RecipesPage from '@/components/pages/RecipesPage';
+import SchedulesPage from '@/components/pages/SchedulesPage';
+import SessionsPage from '@/components/pages/SessionsPage';
+import ToolsPage from '@/components/pages/ToolsPage';
+import WorkflowsPage from '@/components/pages/WorkflowsPage';
+import WelcomePage from '@/components/pages/WelcomePage';
+import { ErrorUI } from '@/components/organisms/shared/ErrorBoundary';
+import { TooltipProvider } from '@/components/atoms/tooltip';
+import { AuthProvider } from '@/hooks/useAuth';
+import { setupAuthInterceptor } from '@/lib/authInterceptor';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
-import { createSession } from './sessions';
+import { createSession } from '@/sessions';
 import type { SharedSessionDetails } from './sharedSessions';
 
 // Initialize auth interceptor before any API calls — attaches
 // the Bearer token from localStorage to every outgoing request
 setupAuthInterceptor();
 
-import type { ChatType } from './types/chat';
-import type { UserInput } from './types/message';
+import type { ChatType } from '@/types/chat';
+import type { UserInput } from '@/types/message';
 
 interface PairRouteState {
   resumeSessionId?: string;
   initialMessage?: UserInput;
 }
 
-import { AppLayout } from './components/templates/layout/AppLayout';
-import LauncherView from './components/pages/LauncherView';
-import SharedSessionView from './components/sessions/SharedSessionView';
-import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
-import type { SettingsViewOptions } from './components/settings/SettingsView';
-import SettingsView from './components/settings/SettingsView';
-import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
+import { AppLayout } from '@/components/templates/layout/AppLayout';
+import LauncherView from '@/components/pages/LauncherView';
+import SharedSessionView from '@/components/organisms/sessions/SharedSessionView';
+import ProviderSettings from '@/components/organisms/settings/providers/ProviderSettingsPage';
+import type { SettingsViewOptions } from '@/components/organisms/settings/SettingsView';
+import SettingsView from '@/components/organisms/settings/SettingsView';
+import { ChatProvider, DEFAULT_CHAT_TITLE } from '@/contexts/ChatContext';
 
 import 'react-toastify/dist/ReactToastify.css';
-import StandaloneAppView from './components/apps/StandaloneAppView';
-import type { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
-import ExtensionsView from './components/extensions/ExtensionsView';
-import PermissionSettingsView from './components/settings/permission/PermissionSetting';
-import { AppEvents } from './constants/events';
-import { useConfig } from './contexts/ConfigContext';
-import { ModelAndProviderProvider } from './contexts/ModelAndProviderContext';
-import { ThemeProvider } from './contexts/ThemeContext';
-import { usePageViewTracking } from './hooks/useAnalytics';
-import { useNavigation } from './hooks/useNavigation';
-import { trackErrorWithContext } from './utils/analytics';
-import { errorMessage } from './utils/conversionUtils';
-import type { View, ViewOptions } from './utils/navigationUtils';
-import { registerPlatformEventHandlers } from './utils/platform_events';
-import { getInitialWorkingDir } from './utils/workingDir';
+import StandaloneAppView from '@/components/organisms/apps/StandaloneAppView';
+import type { ExtensionsViewOptions } from '@/components/organisms/extensions/ExtensionsView';
+import ExtensionsView from '@/components/organisms/extensions/ExtensionsView';
+import PermissionSettingsView from '@/components/organisms/settings/permission/PermissionSetting';
+import { AppEvents } from '@/constants/events';
+import { useConfig } from '@/contexts/ConfigContext';
+import { ModelAndProviderProvider } from '@/contexts/ModelAndProviderContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { usePageViewTracking } from '@/hooks/useAnalytics';
+import { useNavigation } from '@/hooks/useNavigation';
+import { trackErrorWithContext } from '@/utils/analytics';
+import { errorMessage } from '@/utils/conversionUtils';
+import type { View, ViewOptions } from '@/utils/navigationUtils';
+import { registerPlatformEventHandlers } from '@/utils/platform_events';
+import { getInitialWorkingDir } from '@/utils/workingDir';
 
 function PageViewTracker() {
   usePageViewTracking();
@@ -346,7 +346,7 @@ const ExtensionsRoute = () => {
   return (
     <ExtensionsView
       onClose={() => navigate(-1)}
-      setView={(view, options) => {
+      setView={(view: View, options?: ViewOptions) => {
         switch (view) {
           case 'chat':
             navigate('/');

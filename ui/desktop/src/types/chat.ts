@@ -1,5 +1,5 @@
-import type { Message } from '../api';
-import type { Recipe } from '../recipe';
+import type { Message } from '@/api';
+import type { Recipe } from '@/recipe';
 
 export interface ChatType {
   sessionId: string;

@@ -30,6 +30,12 @@
     "sourceMap": true,
     "inlineSources": true,
 
+    /* Module resolution */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
     /* Additional Safety */
     "noImplicitAny": true,
     "strictNullChecks": true,

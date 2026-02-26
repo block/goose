@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useState } from 'react';
-import { Button } from '../../atoms/button';
-import { Input } from '../../atoms/input';
+import { Button } from '@/components/atoms/button';
+import { Input } from '@/components/atoms/input';
 
 interface JsonSchemaProperty {
   type?: string;

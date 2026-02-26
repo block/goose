@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { Message } from '../api';
+import type { Message } from '@/api';
 
 export interface ReasoningDetail {
   title: string;

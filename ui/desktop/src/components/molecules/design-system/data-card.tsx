@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '../../../utils';
+import { cn } from '@/utils';
 
 type DataCardVariant = 'default' | 'interactive' | 'stat';
 

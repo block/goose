@@ -1,4 +1,4 @@
-import ToolsHealthView from '../tools/ToolsHealthView';
+import ToolsHealthView from '@/components/organisms/tools/ToolsHealthView';
 
 export default function ToolsPage() {
   return <ToolsHealthView />;

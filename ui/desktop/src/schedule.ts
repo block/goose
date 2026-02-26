@@ -1,4 +1,4 @@
-import type { Recipe, SessionDisplayInfo } from './api';
+import type { Recipe, SessionDisplayInfo } from '@/api';
 import {
   createSchedule as apiCreateSchedule,
   deleteSchedule as apiDeleteSchedule,
@@ -10,7 +10,7 @@ import {
   runNowHandler as apiRunScheduleNow,
   unpauseSchedule as apiUnpauseSchedule,
   updateSchedule as apiUpdateSchedule,
-} from './api';
+} from '@/api';
 
 export interface ScheduledJob {
   id: string;

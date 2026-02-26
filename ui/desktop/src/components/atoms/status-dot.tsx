@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { cn } from '../../utils';
+import { cn } from '@/utils';
 
 interface StatusDotProps extends React.ComponentProps<'span'> {
   status: 'active' | 'completed' | 'idle';

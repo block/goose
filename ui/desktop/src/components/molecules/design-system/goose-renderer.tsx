@@ -13,7 +13,7 @@
 'use client';
 
 import type { Spec } from '@json-render/react';
-import { CatalogRenderer } from '../../json-render/setup';
+import { CatalogRenderer } from '@/components/organisms/json-render/setup';
 import { ElementErrorBoundary } from './element-error-boundary';
 
 

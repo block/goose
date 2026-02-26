@@ -13,7 +13,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { trackPageView } from '../utils/analytics';
+import { trackPageView } from '@/utils/analytics';
 
 export function usePageViewTracking(): void {
   const location = useLocation();

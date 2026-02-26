@@ -21,11 +21,11 @@ import {
   useState,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { Message, Recipe } from '../api';
-import type { DroppedFile } from '../hooks/useFileDrop';
-import { ChatState } from '../types/chatState';
-import type { UserInput } from '../types/message';
-import type { View, ViewOptions } from '../utils/navigationUtils';
+import type { Message, Recipe } from '@/api';
+import type { DroppedFile } from '@/hooks/useFileDrop';
+import { ChatState } from '@/types/chatState';
+import type { UserInput } from '@/types/message';
+import type { View, ViewOptions } from '@/utils/navigationUtils';
 
 // ─── Zone & Slash Command Types ───────────────────────────────────
 

@@ -9,7 +9,7 @@ import {
   logout as apiLogout,
   oidcAuthUrl as apiOidcAuthUrl,
   oidcCodeExchange as apiOidcCodeExchange,
-} from '../api';
+} from '@/api';
 
 interface User {
   id: string;

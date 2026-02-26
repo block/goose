@@ -7,7 +7,7 @@ import type {
   ExtensionResponse,
   ProviderDetails,
   UpsertConfigQuery,
-} from '../api';
+} from '@/api';
 import {
   addExtension as apiAddExtension,
   getExtensions as apiGetExtensions,
@@ -17,10 +17,10 @@ import {
   readConfig,
   removeConfig,
   upsertConfig,
-} from '../api';
-import { syncBundledExtensions } from '../components/settings/extensions';
+} from '@/api';
+import { syncBundledExtensions } from '@/components/organisms/settings/extensions';
 
-export type { ExtensionConfig } from '../api/types.gen';
+export type { ExtensionConfig } from '@/api/types.gen';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {

@@ -1,7 +1,7 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { cn } from '../../../utils';
-import MarkdownContent from '../../messages/MarkdownContent';
-import { Button } from '../../atoms/button';
+import { cn } from '@/utils';
+import MarkdownContent from '../../organisms/messages/MarkdownContent';
+import { Button } from '@/components/atoms/button';
 import {
   Dialog,
   DialogDescription,

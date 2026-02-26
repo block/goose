@@ -13,16 +13,16 @@
  */
 import type { ComponentRenderProps } from '@json-render/react';
 import type React from 'react';
-import { cn } from '../../../utils';
-import { Alert } from '../../atoms/alert';
-import { Badge } from '../../atoms/badge';
-import { Button } from '../../atoms/button';
-import { CodeBlock } from '../../atoms/code-block';
-import { Input } from '../../atoms/input';
-import { NativeSelect } from '../../atoms/native-select';
-import { Progress } from '../../atoms/progress';
-import { Separator } from '../../atoms/separator';
-import { Table } from '../../atoms/table';
+import { cn } from '@/utils';
+import { Alert } from '@/components/atoms/alert';
+import { Badge } from '@/components/atoms/badge';
+import { Button } from '@/components/atoms/button';
+import { CodeBlock } from '@/components/atoms/code-block';
+import { Input } from '@/components/atoms/input';
+import { NativeSelect } from '@/components/atoms/native-select';
+import { Progress } from '@/components/atoms/progress';
+import { Separator } from '@/components/atoms/separator';
+import { Table } from '@/components/atoms/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Chart } from './chart';
 import { CardGrid } from './card-grid';

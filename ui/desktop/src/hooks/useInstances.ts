@@ -3,13 +3,13 @@ import type {
   InstanceResponse,
   InstanceResultResponse,
   SpawnInstanceRequest,
-} from '../lib/instances';
+} from '@/lib/instances';
 import {
   cancelInstance as cancelInstanceApi,
   getInstanceResult,
   listInstances,
   spawnInstance,
-} from '../lib/instances';
+} from '@/lib/instances';
 
 const POLL_INTERVAL_ACTIVE_MS = 3000;
 const POLL_INTERVAL_IDLE_MS = 15000;

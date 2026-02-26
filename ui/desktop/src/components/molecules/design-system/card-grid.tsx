@@ -1,5 +1,5 @@
 import type React from 'react';
-import { cn } from '../../../utils';
+import { cn } from '@/utils';
 
 export type CardGridSize = 'xs' | 's' | 'm' | 'l' | 'wl';
 

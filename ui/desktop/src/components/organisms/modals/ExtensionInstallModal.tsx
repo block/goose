@@ -1,0 +1,334 @@
+import type { IpcRendererEvent } from 'electron';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ExtensionConfig } from '@/api/types.gen';
+import { useConfig } from '@/contexts/ConfigContext';
+import { toastService } from '@/toasts';
+import { errorMessage } from '@/utils/conversionUtils';
+import type { View, ViewOptions } from '@/utils/navigationUtils';
+import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
+import { extractExtensionName } from '../settings/extensions/utils';
+import { Button } from '@/components/atoms/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/molecules/ui/dialog';
+
+type ModalType = 'blocked' | 'untrusted' | 'trusted';
+
+interface ExtensionInfo {
+  name: string;
+  command?: string;
+  remoteUrl?: string;
+  link: string;
+}
+
+interface ExtensionModalState {
+  isOpen: boolean;
+  modalType: ModalType;
+  extensionInfo: ExtensionInfo | null;
+  isPending: boolean;
+  error: string | null;
+}
+
+interface ExtensionModalConfig {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  showSingleButton: boolean;
+  isBlocked: boolean;
+}
+
+interface ExtensionInstallModalProps {
+  addExtension?: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
+  setView: (view: View, options?: ViewOptions) => void;
+}
+
+function extractCommand(link: string): string {
+  const url = new URL(link);
+
+  // For remote extensions (SSE or Streaming HTTP), return the URL
+  const remoteUrl = url.searchParams.get('url');
+  if (remoteUrl) {
+    return remoteUrl;
+  }
+
+  // For stdio extensions, return the command
+  const cmd = url.searchParams.get('cmd') || 'Unknown Command';
+  const args = url.searchParams.getAll('arg').map(decodeURIComponent);
+  return `${cmd} ${args.join(' ')}`.trim();
+}
+
+function extractRemoteUrl(link: string): string | null {
+  const url = new URL(link);
+  return url.searchParams.get('url');
+}
+
+export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstallModalProps) {
+  const { getExtensions } = useConfig();
+  const getExtensionsRef = useRef(getExtensions);
+  const processingLinkRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    getExtensionsRef.current = getExtensions;
+  }, [getExtensions]);
+
+  const [modalState, setModalState] = useState<ExtensionModalState>({
+    isOpen: false,
+    modalType: 'trusted',
+    extensionInfo: null,
+    isPending: false,
+    error: null,
+  });
+
+  const [pendingLink, setPendingLink] = useState<string | null>(null);
+
+  const determineModalType = useCallback(
+    async (command: string, _remoteUrl: string | null): Promise<ModalType> => {
+      try {
+        const config = window.electron.getConfig();
+        const ALLOWLIST_WARNING_MODE = config.GOOSE_ALLOWLIST_WARNING === true;
+
+        if (ALLOWLIST_WARNING_MODE) {
+          return 'untrusted';
+        }
+
+        const allowedCommands = await window.electron.getAllowedExtensions();
+
+        if (!allowedCommands || allowedCommands.length === 0) {
+          return 'trusted';
+        }
+
+        const isCommandAllowed = allowedCommands.some((allowedCmd: string) =>
+          command.startsWith(allowedCmd)
+        );
+
+        return isCommandAllowed ? 'trusted' : 'blocked';
+      } catch (error) {
+        console.error('Error checking allowlist:', error);
+        return 'trusted';
+      }
+    },
+    []
+  );
+
+  const generateModalConfig = (
+    modalType: ModalType,
+    extensionInfo: ExtensionInfo
+  ): ExtensionModalConfig => {
+    const { name, command, remoteUrl } = extensionInfo;
+
+    switch (modalType) {
+      case 'blocked':
+        return {
+          title: 'Extension Installation Blocked',
+          message: `\n\nThis extension command is not in the allowed list and its installation is blocked.\n\nExtension: ${name}\nCommand: ${command || remoteUrl}\n\nContact your administrator to request approval for this extension.`,
+          confirmLabel: 'OK',
+          cancelLabel: '',
+          showSingleButton: true,
+          isBlocked: true,
+        };
+
+      case 'untrusted': {
+        const securityMessage = `\n\nThis extension command is not in the allowed list and will be able to access your conversations and provide additional functionality.\n\nInstalling extensions from untrusted sources may pose security risks.`;
+
+        return {
+          title: 'Install Untrusted Extension?',
+          message: `${securityMessage}\n\nExtension: ${name}\n${remoteUrl ? `URL: ${remoteUrl}` : `Command: ${command}`}\n\nContact your administrator if you are unsure about this.`,
+          confirmLabel: 'Install Anyway',
+          cancelLabel: 'Cancel',
+          showSingleButton: false,
+          isBlocked: false,
+        };
+      }
+      default:
+        return {
+          title: 'Confirm Extension Installation',
+          message: `Are you sure you want to install the ${name} extension?\n\nCommand: ${command || remoteUrl}`,
+          confirmLabel: 'Yes',
+          cancelLabel: 'No',
+          showSingleButton: false,
+          isBlocked: false,
+        };
+    }
+  };
+
+  const handleExtensionRequest = useCallback(
+    async (link: string): Promise<void> => {
+      if (processingLinkRef.current === link) {
+        return;
+      }
+      processingLinkRef.current = link;
+
+      try {
+        const command = extractCommand(link);
+        const remoteUrl = extractRemoteUrl(link);
+        const extName = extractExtensionName(link);
+        const extensionsList = await getExtensionsRef.current(true);
+
+        if (extensionsList?.find((ext) => ext.name === extName)) {
+          toastService.success({
+            title: `Extension '${extName}' Already Installed`,
+            msg: `'${extName}' extension has already been installed successfully. Start a new chat session to use it.`,
+          });
+          return;
+        }
+
+        const extensionInfo: ExtensionInfo = {
+          name: extName,
+          command: command,
+          remoteUrl: remoteUrl || undefined,
+          link: link,
+        };
+
+        const modalType = await determineModalType(command, remoteUrl);
+
+        setModalState({
+          isOpen: true,
+          modalType,
+          extensionInfo,
+          isPending: false,
+          error: null,
+        });
+
+        setPendingLink(modalType === 'blocked' ? null : link);
+
+        window.electron.logInfo(`Extension modal opened: ${modalType} for ${extName}`);
+      } catch (error) {
+        console.error('Error processing extension request:', error);
+        setModalState((prev) => ({
+          ...prev,
+          error: errorMessage(error, 'Unknown error'),
+        }));
+      } finally {
+        processingLinkRef.current = null;
+      }
+    },
+    [determineModalType]
+  );
+
+  const dismissModal = useCallback(() => {
+    setModalState({
+      isOpen: false,
+      modalType: 'trusted',
+      extensionInfo: null,
+      isPending: false,
+      error: null,
+    });
+    setPendingLink(null);
+  }, []);
+
+  const confirmInstall = useCallback(async (): Promise<void> => {
+    if (!pendingLink) {
+      return;
+    }
+
+    setModalState((prev) => ({ ...prev, isPending: true }));
+
+    try {
+      if (addExtension) {
+        await addExtensionFromDeepLink(
+          pendingLink,
+          addExtension,
+          (view: string, options?: ViewOptions) => {
+            setView(view as View, options);
+          }
+        );
+      } else {
+        throw new Error('addExtension function not provided to component');
+      }
+      dismissModal();
+    } catch (error) {
+      setModalState((prev) => ({
+        ...prev,
+        error: errorMessage(error, 'Installation failed'),
+        isPending: false,
+      }));
+    }
+  }, [pendingLink, dismissModal, addExtension, setView]);
+
+  useEffect(() => {
+    const handleAddExtension = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+      const link = args[0] as string;
+      await handleExtensionRequest(link);
+    };
+
+    window.electron.on('add-extension', handleAddExtension);
+
+    return () => {
+      window.electron.off('add-extension', handleAddExtension);
+    };
+  }, [handleExtensionRequest]);
+
+  const getModalConfig = (): ExtensionModalConfig | null => {
+    if (!modalState.extensionInfo) return null;
+    return generateModalConfig(modalState.modalType, modalState.extensionInfo);
+  };
+
+  const config = getModalConfig();
+  if (!config) return null;
+
+  const getConfirmButtonVariant = () => {
+    switch (modalState.modalType) {
+      case 'blocked':
+        return 'outline';
+      case 'untrusted':
+        return 'destructive';
+      default:
+        return 'default';
+    }
+  };
+
+  const getTitleClassName = () => {
+    switch (modalState.modalType) {
+      case 'blocked':
+        return 'text-text-danger';
+      case 'untrusted':
+        return 'text-text-warning';
+      default:
+        return '';
+    }
+  };
+
+  return (
+    <Dialog open={modalState.isOpen} onOpenChange={(open) => !open && dismissModal()}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle className={getTitleClassName()}>{config.title}</DialogTitle>
+          <DialogDescription className="text-left whitespace-pre-wrap">
+            {config.message}
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="pt-4">
+          {config.showSingleButton ? (
+            <Button
+              onClick={dismissModal}
+              disabled={modalState.isPending}
+              variant={getConfirmButtonVariant()}
+            >
+              {config.confirmLabel}
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={dismissModal} disabled={modalState.isPending}>
+                {config.cancelLabel}
+              </Button>
+              <Button
+                onClick={confirmInstall}
+                disabled={modalState.isPending}
+                variant={getConfirmButtonVariant()}
+              >
+                {modalState.isPending ? 'Installing...' : config.confirmLabel}
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

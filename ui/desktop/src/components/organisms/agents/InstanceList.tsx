@@ -1,7 +1,7 @@
 import { Activity, ArrowUpDown, Clock, Cpu, Rocket, Search, SlidersHorizontal } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { InstanceResponse, InstanceStatus } from '../../../lib/instances';
-import { StatCard } from '../../molecules/design-system';
+import type { InstanceResponse, InstanceStatus } from '@/lib/instances';
+import { StatCard } from '@/components/molecules/design-system';
 import { InstanceStatusBadge } from './InstanceStatusBadge';
 
 function formatElapsed(secs?: number): string {

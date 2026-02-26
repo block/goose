@@ -1,4 +1,4 @@
-import { PipelineManager } from '../workflows';
+import { PipelineManager } from '@/components/organisms/workflows';
 
 export default function PipelinesPage() {
   return <PipelineManager />;

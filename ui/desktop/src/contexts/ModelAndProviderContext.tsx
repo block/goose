@@ -1,15 +1,15 @@
 import type React from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { ProviderMetadata } from '../api';
-import { setConfigProvider, updateAgentProvider } from '../api';
-import type Model from '../components/settings/models/modelInterface';
-import { getProviderMetadata } from '../components/settings/models/modelInterface';
+import type { ProviderMetadata } from '@/api';
+import { setConfigProvider, updateAgentProvider } from '@/api';
+import type Model from '@/components/organisms/settings/models/modelInterface';
+import { getProviderMetadata } from '@/components/organisms/settings/models/modelInterface';
 import {
   getModelDisplayName,
   getProviderDisplayName,
-} from '../components/settings/models/predefinedModelsUtils';
-import { toastError, toastSuccess } from '../toasts';
-import { errorMessage } from '../utils/conversionUtils';
+} from '@/components/organisms/settings/models/predefinedModelsUtils';
+import { toastError, toastSuccess } from '@/toasts';
+import { errorMessage } from '@/utils/conversionUtils';
 import { useConfig } from './ConfigContext';
 
 export const UNKNOWN_PROVIDER_TITLE = 'Provider name lookup';

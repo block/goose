@@ -1,5 +1,5 @@
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { cn } from '../../../utils';
+import { cn } from '@/utils';
 
 interface ErrorStateProps {
   title?: string;

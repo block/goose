@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { cn } from '../../../utils';
+import { cn } from '@/utils';
 
 interface Tab {
   id: string;

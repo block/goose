@@ -12,9 +12,9 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useInstanceEvents } from '../../../hooks/useInstanceEvents';
-import type { InstanceResponse, InstanceResultResponse, InstanceStatus } from '../../../lib/instances';
-import { getInstanceResult } from '../../../lib/instances';
+import { useInstanceEvents } from '@/hooks/useInstanceEvents';
+import type { InstanceResponse, InstanceResultResponse, InstanceStatus } from '@/lib/instances';
+import { getInstanceResult } from '@/lib/instances';
 import { InstanceEventLog } from './InstanceEventLog';
 import { InstanceStatusBadge } from './InstanceStatusBadge';
 

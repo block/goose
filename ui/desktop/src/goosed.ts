@@ -6,10 +6,10 @@ import os from 'node:os';
 import path from 'node:path';
 import type Electron from 'electron';
 import type { App } from 'electron';
-import { status } from './api';
-import type { Client } from './api/client';
-import log from './utils/logger';
-import type { ExternalGoosedConfig } from './utils/settings';
+import { status } from '@/api';
+import type { Client } from '@/api/client';
+import log from '@/utils/logger';
+import type { ExternalGoosedConfig } from '@/utils/settings';
 
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, _reject) => {

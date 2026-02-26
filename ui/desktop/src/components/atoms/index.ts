@@ -19,7 +19,7 @@ export {
   MasonryIcon,
   UserIcon,
   VercelIcon,
-} from './icons';
+} from '@/components/atoms/icons';
 export { Input } from './input';
 export { NativeSelect } from './native-select';
 export { Progress } from './progress';

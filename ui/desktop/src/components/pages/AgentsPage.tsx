@@ -1,4 +1,4 @@
-import AgentsView from '../organisms/agents/AgentsView';
+import AgentsView from '@/components/organisms/agents/AgentsView';
 
 export default function AgentsPage() {
   return <AgentsView />;

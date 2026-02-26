@@ -25,12 +25,12 @@ import {
   listBuiltinAgents,
   toggleBuiltinAgent,
   unbindExtensionFromAgent,
-} from '../../../api/sdk.gen';
-import type { BuiltinAgentMode } from '../../../api/types.gen';
-import { useInstances } from '../../../hooks/useInstances';
-import { PageShell } from '../../templates/layout/PageShell';
-import type { TabGroup } from '../../molecules/design-system';
-import { TabBar } from '../../molecules/design-system';
+} from '@/api/sdk.gen';
+import type { BuiltinAgentMode } from '@/api/types.gen';
+import { useInstances } from '@/hooks/useInstances';
+import { PageShell } from '@/components/templates/layout/PageShell';
+import type { TabGroup } from '@/components/molecules/design-system';
+import { TabBar } from '@/components/molecules/design-system';
 import { InstanceDetail } from './InstanceDetail';
 import { InstanceList } from './InstanceList';
 import { SpawnInstanceModal } from './SpawnInstanceModal';

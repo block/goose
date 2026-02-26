@@ -14,7 +14,7 @@
  *   HIDDEN      → SYSTEM_INFO, TITLE_GENERATION, USAGE_STATS
  */
 
-import type { Message, MessageContent } from '../api';
+import type { Message, MessageContent } from '@/api';
 
 // ── Enums ────────────────────────────────────────────────────────────
 

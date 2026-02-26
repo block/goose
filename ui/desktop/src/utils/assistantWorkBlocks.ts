@@ -1,4 +1,4 @@
-import type { Message } from '../api';
+import type { Message } from '@/api';
 
 export interface WorkBlock {
   /** Indices of intermediate (collapsed) assistant messages */

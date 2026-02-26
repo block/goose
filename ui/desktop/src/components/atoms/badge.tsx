@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { cn } from '../../utils';
+import { cn } from '@/utils';
 
 type BadgeVariant = 'default' | 'secondary' | 'accent' | 'muted' | 'outline';
 type BadgeSize = 'sm' | 'md';

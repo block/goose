@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type React from 'react';
 
-import ArrowDown from '../../icons/ArrowDown';
-import ArrowUp from '../../icons/ArrowUp';
-import { cn } from '../../../utils';
+import ArrowDown from '@/components/atoms/icons/ArrowDown';
+import ArrowUp from '@/components/atoms/icons/ArrowUp';
+import { cn } from '@/utils';
 
 export interface DataTableColumn {
   key: string;

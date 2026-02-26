@@ -1,4 +1,4 @@
-import type { Session } from '../api';
+import type { Session } from '@/api';
 
 export interface DateGroup {
   label: string;

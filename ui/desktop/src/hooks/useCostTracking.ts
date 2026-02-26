@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Session } from '../api';
-import { useModelAndProvider } from '../contexts/ModelAndProviderContext';
-import { fetchModelPricing } from '../utils/pricing';
+import type { Session } from '@/api';
+import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
+import { fetchModelPricing } from '@/utils/pricing';
 
 type ModelKey = `${string}/${string}`;
 

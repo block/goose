@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { createNavigationHandler } from '../utils/navigationUtils';
+import { createNavigationHandler } from '@/utils/navigationUtils';
 
 /**
  * Custom hook that provides a navigation handler function.

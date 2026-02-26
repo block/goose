@@ -1,18 +1,18 @@
 import type { ToastOptions } from 'react-toastify';
 import { toast } from 'react-toastify';
-import Copy from './components/icons/Copy';
-import type { ExtensionLoadingStatus } from './components/shared/GroupedExtensionLoadingToast';
-import { GroupedExtensionLoadingToast } from './components/shared/GroupedExtensionLoadingToast';
-import { Button } from './components/atoms/button';
+import Copy from '@/components/atoms/icons/Copy';
+import type { ExtensionLoadingStatus } from '@/components/organisms/shared/GroupedExtensionLoadingToast';
+import { GroupedExtensionLoadingToast } from '@/components/organisms/shared/GroupedExtensionLoadingToast';
+import { Button } from '@/components/atoms/button';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from './components/ui/atoms/tooltip';
-import { useNavigation } from './hooks/useNavigation';
-import { startNewSession } from './sessions';
-import { getInitialWorkingDir } from './utils/workingDir';
+} from '@/components/atoms/tooltip';
+import { useNavigation } from '@/hooks/useNavigation';
+import { startNewSession } from '@/sessions';
+import { getInitialWorkingDir } from '@/utils/workingDir';
 
 export interface ToastServiceOptions {
   silent?: boolean;

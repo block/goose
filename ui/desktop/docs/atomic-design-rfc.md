@@ -64,10 +64,7 @@ This intentionally stays simple (string match on import specifiers) to keep it f
 ### Transitional compatibility policy
 To avoid huge churn, we can keep the old paths as **thin re-export barrels only** during a transition window.
 
-Example:
-
-- New canonical file: `src/components/molecules/Card/Card.tsx`
-- Old file remains temporarily: `src/components/ui/molecules/card.tsx` exporting from the new path.
+**Update:** the legacy `src/components/ui/**` shim tree has been removed now that all imports point at the canonical `src/components/{atoms,molecules,...}` paths.
 
 ## Proposed mapping rules (first pass)
 

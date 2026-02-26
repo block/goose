@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { containsHTML, wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
+import { containsHTML, wrapHTMLInCodeBlock } from '@/utils/htmlSecurity';
 
 describe('HTML Security Detection', () => {
   describe('containsHTML', () => {

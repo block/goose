@@ -1,5 +1,5 @@
 import type * as React from 'react';
-import { cn } from '../../utils';
+import { cn } from '@/utils';
 
 type AlertSeverity = 'info' | 'success' | 'warning' | 'error';
 

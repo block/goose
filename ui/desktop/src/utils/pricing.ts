@@ -1,5 +1,5 @@
-import type { PricingData } from '../api';
-import { getPricing } from '../api';
+import type { PricingData } from '@/api';
+import { getPricing } from '@/api';
 
 // OpenRouter model pricing — cached in memory
 let openRouterCache: Map<string, PricingData> | null = null;

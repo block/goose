@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { getInitialWorkingDir } from '../../utils/workingDir';
+import { getInitialWorkingDir } from '@/utils/workingDir';
 
 export default function LauncherView() {
   const [query, setQuery] = useState('');

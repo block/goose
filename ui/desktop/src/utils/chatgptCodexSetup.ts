@@ -1,4 +1,4 @@
-import { configureProviderOauth } from '../api';
+import { configureProviderOauth } from '@/api';
 
 export async function startChatGptCodexSetup(): Promise<{ success: boolean; message: string }> {
   try {

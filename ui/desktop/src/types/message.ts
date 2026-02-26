@@ -5,7 +5,7 @@ import type {
   ToolConfirmationRequest,
   ToolRequest,
   ToolResponse,
-} from '../api';
+} from '@/api';
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };

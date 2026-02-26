@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import SchedulesView from '../schedule/SchedulesView';
+import SchedulesView from '@/components/organisms/schedule/SchedulesView';
 
 export default function SchedulesPage() {
   const navigate = useNavigate();

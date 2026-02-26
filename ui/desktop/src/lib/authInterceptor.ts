@@ -15,7 +15,7 @@
  * API client (@hey-api/openapi-ts).
  */
 
-import { client } from '../api/client.gen';
+import { client } from '@/api/client.gen';
 
 const TOKEN_KEY = 'goose_auth_token';
 const SECRET_KEY_STORAGE = 'secretKey';

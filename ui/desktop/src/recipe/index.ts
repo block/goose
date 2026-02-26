@@ -1,14 +1,14 @@
-import type { RecipeParameter } from '../api';
+import type { RecipeParameter } from '@/api';
 import {
   decodeRecipe as apiDecodeRecipe,
   encodeRecipe as apiEncodeRecipe,
   parseRecipe as apiParseRecipe,
   scanRecipe as apiScanRecipe,
-} from '../api';
+} from '@/api';
 
 // Re-export OpenAPI types with frontend-specific additions
 export type Parameter = RecipeParameter;
-export type Recipe = import('../api').Recipe & {
+export type Recipe = import('@/api').Recipe & {
   // TODO: Separate these from the raw recipe type
   // Properties added for scheduled execution
   scheduledJobId?: string;

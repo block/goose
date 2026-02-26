@@ -1,6 +1,6 @@
 import type { NavigateFunction } from 'react-router-dom';
-import type { Recipe } from '../api';
-import type { UserInput } from '../types/message';
+import type { Recipe } from '@/api';
+import type { UserInput } from '@/types/message';
 
 export type View =
   | 'welcome'

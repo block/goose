@@ -18,7 +18,7 @@
  * - Personal identifiable information
  */
 
-import { sendTelemetryEvent } from '../api';
+import { sendTelemetryEvent } from '@/api';
 
 let telemetryEnabled: boolean | null = null;
 

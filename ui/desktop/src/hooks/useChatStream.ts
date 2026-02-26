@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
-import type { Message, Session, TokenState } from '../api';
+import type { Message, Session, TokenState } from '@/api';
 import {
   getSession,
   listApps,
@@ -7,13 +7,13 @@ import {
   resumeAgent,
   updateFromSession,
   updateSessionUserRecipeValues,
-} from '../api';
-import { AppEvents } from '../constants/events';
-import { ChatState } from '../types/chatState';
-import type { NotificationEvent, UserInput } from '../types/message';
-import { createElicitationResponseMessage, createUserMessage } from '../types/message';
-import { errorMessage } from '../utils/conversionUtils';
-import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
+} from '@/api';
+import { AppEvents } from '@/constants/events';
+import { ChatState } from '@/types/chatState';
+import type { NotificationEvent, UserInput } from '@/types/message';
+import { createElicitationResponseMessage, createUserMessage } from '@/types/message';
+import { errorMessage } from '@/utils/conversionUtils';
+import { showExtensionLoadResults } from '@/utils/extensionErrorUtils';
 import { streamFromResponse } from './chatStream/streamDecoder';
 import { initialState, streamReducer } from './chatStream/streamReducer';
 
@@ -445,7 +445,7 @@ export function useChatStream({
       dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
 
       try {
-        const { forkSession } = await import('../api');
+        const { forkSession } = await import('@/api');
         const message = currentState.messages.find((m) => m.id === messageId);
 
         if (!message) {
@@ -481,7 +481,7 @@ export function useChatStream({
           window.dispatchEvent(event);
           window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
         } else {
-          const { getSession } = await import('../api');
+          const { getSession } = await import('@/api');
           const sessionResponse = await getSession({
             path: { session_id: targetSessionId },
             throwOnError: true,
@@ -530,7 +530,7 @@ export function useChatStream({
         dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
-        const { toastError } = await import('../toasts');
+        const { toastError } = await import('@/toasts');
         toastError({
           title: 'Failed to edit message',
           msg: errorMsg,

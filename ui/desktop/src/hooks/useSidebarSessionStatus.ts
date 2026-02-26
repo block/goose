@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppEvents } from '../constants/events';
+import { AppEvents } from '@/constants/events';
 
 type StreamState = 'idle' | 'streaming' | 'error';
 

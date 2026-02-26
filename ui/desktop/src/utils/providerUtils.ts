@@ -1,10 +1,10 @@
-import type { Recipe } from '../api';
-import { updateAgentProvider, updateFromSession } from '../api';
+import type { Recipe } from '@/api';
+import { updateAgentProvider, updateFromSession } from '@/api';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
-} from '../components/settings/extensions';
-import type { ExtensionConfig, FixedExtensionEntry } from '../contexts/ConfigContext';
+} from '@/components/organisms/settings/extensions';
+import type { ExtensionConfig, FixedExtensionEntry } from '@/contexts/ConfigContext';
 
 // Helper function to substitute parameters in text
 export const substituteParameters = (text: string, params: Record<string, string>): string => {

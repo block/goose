@@ -5,4 +5,4 @@
  * of truth for the model-visible catalog/prompt and the renderer behavior.
  */
 
-export { registry } from '../components/json-render/setup';
+export { registry } from '@/components/organisms/json-render/setup';

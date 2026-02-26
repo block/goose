@@ -1,4 +1,4 @@
-import { startTetrateSetup as startTetrateSetupApi } from '../api';
+import { startTetrateSetup as startTetrateSetupApi } from '@/api';
 
 export interface TetrateSetupStatus {
   isRunning: boolean;

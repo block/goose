@@ -1,5 +1,5 @@
 import type React from 'react';
-import { cn } from '../../../utils';
+import { cn } from '@/utils';
 
 type PageWidth = 'narrow' | 'default' | 'wide' | 'full';
 

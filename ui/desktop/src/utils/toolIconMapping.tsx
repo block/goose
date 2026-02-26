@@ -16,7 +16,7 @@ import {
   Settings,
   Terminal,
   Tool,
-} from '../components/icons/toolcalls';
+} from '@/components/atoms/icons/toolcalls';
 
 export type ToolIconProps = {
   className?: string;

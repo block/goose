@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginView() {
   const { loginWithApiKey, loginWithOidc, oidcProviders, isLoading } = useAuth();

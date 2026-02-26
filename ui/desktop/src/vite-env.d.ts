@@ -59,7 +59,7 @@ declare global {
       sessionId: string;
     }>;
     responseStyleChanged: CustomEvent;
-    'session-created': CustomEvent<{ session?: import('./api').Session }>;
+    'session-created': CustomEvent<{ session?: import('@/api').Session }>;
     'session-deleted': CustomEvent<{ sessionId: string }>;
     'session-renamed': CustomEvent<{ sessionId: string; newName: string }>;
   }

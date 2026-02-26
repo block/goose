@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 function read(path: string): string {
@@ -28,9 +27,9 @@ describe('atomic design import boundaries', () => {
     const violations: Array<{ file: string; lines: string[] }> = [];
 
     // Covers e.g.
-    // - import X from '../pages/Foo'
-    // - import X from '../../pages/Foo'
-    // - import X from 'src/components/pages/Foo' (if we ever introduce aliases)
+    // - import X from '@/components/pages/Foo'
+    // - import X from '@/components/pages/Foo'
+    // - import X from '@/components/pages/Foo' (if we ever introduce aliases)
     const forbidden = /from\s+['"][^'\"]*(?:\/|\.)pages\//;
 
     for (const file of files) {

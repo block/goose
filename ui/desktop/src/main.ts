@@ -26,27 +26,27 @@ import * as crypto from 'node:crypto';
 import windowStateKeeper from 'electron-window-state';
 import * as yaml from 'yaml';
 import { checkServerStatus, startGoosed } from './goosed';
-import { UPDATES_ENABLED } from './updates';
+import { UPDATES_ENABLED } from '@/updates';
 import {
   getUpdateAvailable,
   registerUpdateIpcHandlers,
   setTrayRef,
   setupAutoUpdater,
   updateTrayMenu,
-} from './utils/autoUpdater';
-import { errorMessage, formatAppName } from './utils/conversionUtils';
-import log from './utils/logger';
-import { expandTilde } from './utils/pathUtils';
-import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
-import type { Settings } from './utils/settings';
-import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
-import { ensureWinShims } from './utils/winShims';
+} from '@/utils/autoUpdater';
+import { errorMessage, formatAppName } from '@/utils/conversionUtils';
+import log from '@/utils/logger';
+import { expandTilde } from '@/utils/pathUtils';
+import { addRecentDir, loadRecentDirs } from '@/utils/recentDirs';
+import type { Settings } from '@/utils/settings';
+import { defaultKeyboardShortcuts, getKeyboardShortcuts } from '@/utils/settings';
+import { ensureWinShims } from '@/utils/winShims';
 import './utils/recipeHash';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import type { GooseApp } from './api';
-import type { Client } from './api/client';
-import { createClient, createConfig } from './api/client';
-import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import type { GooseApp } from '@/api';
+import type { Client } from '@/api/client';
+import { createClient, createConfig } from '@/api/client';
+import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from '@/utils/urlSecurity';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DictationProvider } from '../api';
-import { getDictationConfig, transcribeDictation } from '../api';
-import { useConfig } from '../contexts/ConfigContext';
-import { errorMessage } from '../utils/conversionUtils';
+import type { DictationProvider } from '@/api';
+import { getDictationConfig, transcribeDictation } from '@/api';
+import { useConfig } from '@/contexts/ConfigContext';
+import { errorMessage } from '@/utils/conversionUtils';
 
 interface UseAudioRecorderOptions {
   onTranscription: (text: string) => void;
