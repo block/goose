@@ -1207,8 +1207,7 @@ impl SummonClient {
             on_message: None,
             notification_tx: Some(notif_tx),
         })
-        .await
-        .map_err(|e| format!("Delegation failed: {}", e))?;
+        .await;
 
         let mut meta = Meta::new();
         meta.0.insert(
@@ -1216,12 +1215,20 @@ impl SummonClient {
             serde_json::Value::String(subagent_session_id),
         );
 
-        Ok(CallToolResult {
-            content: vec![Content::text(result)],
-            structured_content: None,
-            is_error: Some(false),
-            meta: Some(meta),
-        })
+        match result {
+            Ok(text) => Ok(CallToolResult {
+                content: vec![Content::text(text)],
+                structured_content: None,
+                is_error: Some(false),
+                meta: Some(meta),
+            }),
+            Err(e) => Ok(CallToolResult {
+                content: vec![Content::text(format!("Delegation failed: {}", e))],
+                structured_content: None,
+                is_error: Some(true),
+                meta: Some(meta),
+            }),
+        }
     }
 
     fn validate_delegate_params(&self, params: &DelegateParams) -> Result<(), String> {
