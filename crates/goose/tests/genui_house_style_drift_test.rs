@@ -42,6 +42,10 @@ fn genui_prompt_has_chat_safe_layout_rules() {
         ],
     );
 
+    // Root Card requirements should be explicit in the prompt guidance (not just enforced in
+    // validation), since prompt drift can silently reintroduce chat-unfriendly layouts.
+    assert_contains_all(GENUI_PROMPT_MD, &["root", "card", "centered=false"]);
+
     // Previously-contradictory guidance we don't want to re-introduce.
     assert_contains_none(
         GENUI_PROMPT_MD,
@@ -64,6 +68,11 @@ fn genui_catalog_prompt_has_chat_safe_layout_rules() {
             "Avoid nested Cards inside Cards",
             "avoid 4-column KPI grids",
         ],
+    );
+
+    assert_contains_all(
+        GENUI_CATALOG_PROMPT,
+        &["root", "card", "maxwidth=\"full\"", "centered=false"],
     );
 
     assert_contains_none(
