@@ -281,7 +281,7 @@ export const SwitchModelModal = ({
     // Load providers for manual model selection
     (async () => {
       try {
-        const providersResponse = await getProviders(!!initialProvider);
+        const providersResponse = await getProviders(false);
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         // Create provider options and add "Use other provider" option
         setProviderOptions([
@@ -355,7 +355,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read, initialProvider]);
+  }, [getProviders, usePredefinedModels, read]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
