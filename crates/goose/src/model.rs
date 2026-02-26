@@ -74,6 +74,7 @@ impl ModelConfig {
     }
 
     fn new_base(model_name: String, context_env_var: Option<&str>) -> Result<Self, ConfigError> {
+        let predefined = find_predefined_model(&model_name);
         let context_limit = if let Some(env_var) = context_env_var {
             if let Ok(val) = std::env::var(env_var) {
                 Some(Self::validate_context_limit(&val, env_var)?)
@@ -83,7 +84,10 @@ impl ModelConfig {
         } else if let Ok(val) = std::env::var("GOOSE_CONTEXT_LIMIT") {
             Some(Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT")?)
         } else {
-            None
+            predefined
+                .as_ref()
+                .and_then(|pm| pm.context_limit)
+                .or_else(|| Self::get_model_specific_limit(&model_name))
         };
 
         let max_tokens = Self::parse_max_tokens()?;
@@ -92,8 +96,7 @@ impl ModelConfig {
         let toolshim_model = Self::parse_toolshim_model()?;
 
         // Pick up request_params from predefined models (always applies)
-        let predefined = find_predefined_model(&model_name);
-        let request_params = predefined.and_then(|pm| pm.request_params);
+        let request_params = predefined.as_ref().and_then(|pm| pm.request_params.clone());
 
         Ok(Self {
             model_name,
@@ -217,6 +220,14 @@ impl ModelConfig {
             )),
             Ok(val) => Ok(Some(val)),
             Err(_) => Ok(None),
+        }
+    }
+
+    fn get_model_specific_limit(model_name: &str) -> Option<usize> {
+        if model_name.contains("gpt-5.3-codex") {
+            Some(400_000)
+        } else {
+            None
         }
     }
 
@@ -355,5 +366,18 @@ mod tests {
         ]);
         let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, None);
+    }
+
+    #[test]
+    fn test_model_config_gpt_5_3_codex_context_limit() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+        ]);
+        let config = ModelConfig::new("gpt-5.3-codex").unwrap();
+        assert_eq!(config.context_limit(), 400_000);
     }
 }

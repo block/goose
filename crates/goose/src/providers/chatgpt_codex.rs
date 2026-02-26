@@ -45,8 +45,9 @@ const OAUTH_TIMEOUT_SECS: u64 = 300;
 const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
-pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
+pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.3-codex";
 pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
+    "gpt-5.3-codex",
     "gpt-5.2-codex",
     "gpt-5.1-codex",
     "gpt-5.1-codex-mini",
@@ -1226,5 +1227,40 @@ mod tests {
         let claims = parse_jwt_claims_with_jwks(&token, &jwks).unwrap();
 
         assert_eq!(claims.chatgpt_account_id.as_deref(), Some("account-1"));
+    }
+
+    #[test]
+    fn test_metadata_default_model_and_known_models() {
+        let metadata = ChatGptCodexProvider::metadata();
+        assert_eq!(metadata.default_model, "gpt-5.3-codex");
+        assert_eq!(
+            metadata
+                .known_models
+                .iter()
+                .map(|m| m.name.as_str())
+                .collect::<Vec<_>>(),
+            CHATGPT_CODEX_KNOWN_MODELS
+        );
+        assert!(metadata
+            .known_models
+            .iter()
+            .any(|m| m.name == "gpt-5.3-codex"));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_supported_models_order() {
+        let provider =
+            ChatGptCodexProvider::from_env(ModelConfig::new_or_fail(CHATGPT_CODEX_DEFAULT_MODEL))
+                .await
+                .unwrap();
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(
+            models,
+            CHATGPT_CODEX_KNOWN_MODELS
+                .iter()
+                .map(|m| m.to_string())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(models.first().map(String::as_str), Some("gpt-5.3-codex"));
     }
 }
