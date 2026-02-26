@@ -1,3 +1,4 @@
+pub mod loaders;
 mod model;
 mod name_builder;
 mod registry;
@@ -28,6 +29,10 @@ pub fn maybe_get_canonical_model(provider: &str, model: &str) -> Option<Canonica
     // Parse it to get provider and model parts for registry lookup
     let canonical_id = map_to_canonical_model(provider, model, registry)?;
     if let Some((canon_provider, canon_model)) = canonical_id.split_once('/') {
+        // Check runtime overrides first (from provider-specific loaders)
+        if let Some(override_model) = loaders::get_override(canon_provider, canon_model) {
+            return Some(override_model);
+        }
         registry.get(canon_provider, canon_model).cloned()
     } else {
         None
