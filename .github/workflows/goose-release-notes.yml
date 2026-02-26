@@ -6,14 +6,14 @@
 # Trigger: When a GitHub release is published (after release.yml completes)
 #
 # Required Secrets:
-#   - OPENROUTER_API_KEY: API key for OpenRouter
+#   - ANTHROPIC_API_KEY: API key for Anthropic
 #
 # Optional Secrets (for Discord):
 #   - DISCORD_BOT_TOKEN: Discord bot token for posting release announcements
 #
 # Optional Variables:
-#   - GOOSE_PROVIDER: LLM provider (default: openrouter)
-#   - GOOSE_MODEL: Model name (default: anthropic/claude-sonnet-4)
+#   - GOOSE_PROVIDER: LLM provider (default: anthropic)
+#   - GOOSE_MODEL: Model name (default: claude-opus-4-5)
 #   - DISCORD_RELEASE_CHANNEL_ID: Discord channel ID for release announcements
 
 name: goose Release Notes Generator
@@ -89,9 +89,9 @@ jobs:
       image: ghcr.io/block/goose:latest
       options: --user root
       env:
-        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'openrouter' }}
-        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'anthropic/claude-sonnet-4' }}
-        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        GOOSE_PROVIDER: ${{ vars.GOOSE_PROVIDER || 'anthropic' }}
+        GOOSE_MODEL: ${{ vars.GOOSE_MODEL || 'claude-opus-4-5' }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         HOME: /tmp/goose-home
 
     outputs:
