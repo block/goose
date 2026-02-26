@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getRecipeJsonSchema } from './validation';
 
 /**
@@ -109,6 +109,15 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       const getSchema = await importWithSpec({ components: { schemas: {} } });
       const schema = getSchema();
 
+      expect(schema.title).toBe('Recipe');
+      expect(schema.description).toContain('not found');
+    });
+
+    it('returns fallback when spec has no components key at all', async () => {
+      const getSchema = await importWithSpec({});
+      const schema = getSchema();
+
+      expect(schema.$schema).toBe('http://json-schema.org/draft-07/schema#');
       expect(schema.title).toBe('Recipe');
       expect(schema.description).toContain('not found');
     });
@@ -255,6 +264,20 @@ describe('getRecipeJsonSchema (mocked spec)', () => {
       );
       // description comes from the second allOf entry
       expect(schema.description).toBe('Extended type');
+    });
+
+    it('rest properties override merged allOf values', async () => {
+      // Implementation does { ...merged, ...rest }, so rest keys win over allOf keys
+      const spec = fakeSpec({
+        allOf: [{ type: 'object', description: 'from-allOf' }],
+        description: 'from-rest',
+      });
+      const getSchema = await importWithSpec(spec);
+      const schema = getSchema();
+
+      // rest spread's description wins over allOf's, then getRecipeJsonSchema
+      // applies its own fallback, but the resolved schema should have 'from-rest'
+      expect(schema.description).toBe('from-rest');
     });
 
     it('handles empty allOf array gracefully', async () => {
