@@ -13,8 +13,10 @@ use goose::providers::anthropic::ANTHROPIC_DEFAULT_MODEL;
 use goose::providers::azure::AZURE_DEFAULT_MODEL;
 use goose::providers::base::Provider;
 use goose::providers::bedrock::BEDROCK_DEFAULT_MODEL;
+use goose::providers::claude_acp::CLAUDE_ACP_DEFAULT_MODEL;
 use goose::providers::claude_code::CLAUDE_CODE_DEFAULT_MODEL;
 use goose::providers::codex::CODEX_DEFAULT_MODEL;
+use goose::providers::codex_acp::CODEX_ACP_DEFAULT_MODEL;
 use goose::providers::create_with_named_model;
 use goose::providers::databricks::DATABRICKS_DEFAULT_MODEL;
 use goose::providers::errors::ProviderError;
@@ -398,13 +400,13 @@ impl ProviderTester {
         }
         // claude-code responds unpredictably to oversized context:
         // sometimes "no", sometimes "Prompt is too long".
-        if self.name != "claude-code" {
+        if !matches!(self.name.as_str(), "claude-code" | "claude-acp") {
             self.test_context_length_exceeded_error(&self.session_id_for_test("context_length"))
                 .await?;
         }
         drop(_guard);
-        // codex: one-shot subprocess, no bidirectional control protocol
-        if self.name != "codex" {
+        // codex: one-shot subprocess. codex-acp: no request_permission for MCP tools.
+        if !matches!(self.name.as_str(), "codex" | "codex-acp") {
             self.test_permission_allow().await?;
             self.test_permission_deny().await?;
         }
@@ -874,6 +876,146 @@ async fn test_codex_provider() -> Result<()> {
         return Ok(());
     }
     test_provider("codex", CODEX_DEFAULT_MODEL, None, &[], None, true).await
+}
+
+async fn test_tool_deny(name: &str, model_name: &str, binary: Option<&str>) -> Result<()> {
+    let report_name = format!("{name}/deny");
+
+    if let Some(binary) = binary {
+        if which::which(binary).is_err() {
+            println!("'{binary}' CLI not found, skipping deny test");
+            TEST_REPORT.record_skip(&report_name);
+            return Ok(());
+        }
+    }
+
+    TEST_REPORT.record_fail(&report_name);
+
+    let mcp = McpFixture::new(None).await;
+    let mcp_extension =
+        ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
+
+    // Set GOOSE_MODE=chat so the provider auto-denies tool permission requests.
+    // Callers must use #[serial_test::serial(acp_env)] to avoid env var races.
+    {
+        let _lock = ENV_LOCK.lock().unwrap();
+        load_env();
+        std::env::set_var("GOOSE_MODE", "chat");
+    }
+
+    let provider = match create_with_named_model(name, model_name, vec![mcp_extension]).await {
+        Ok(p) => p,
+        Err(e) => {
+            let _lock = ENV_LOCK.lock().unwrap();
+            std::env::remove_var("GOOSE_MODE");
+            println!("Skipping {report_name} - failed to create provider: {e}");
+            TEST_REPORT.record_skip(&report_name);
+            return Ok(());
+        }
+    };
+
+    {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("GOOSE_MODE");
+    }
+
+    let message = Message::user().with_text("Use the get_code tool and output only its result.");
+    let model_config = provider.get_model_config();
+    let stream = provider
+        .stream(
+            &model_config,
+            "test_tool_deny",
+            "You are a helpful assistant.",
+            &[message],
+            &[],
+        )
+        .await?;
+
+    let _mcp = mcp;
+
+    use futures::StreamExt;
+    tokio::pin!(stream);
+    let mut saw_tool_request = false;
+    let mut saw_action_required = false;
+    let mut tool_error = false;
+    let mut text = String::new();
+
+    while let Some(result) = stream.next().await {
+        let (msg, _) = result?;
+        if let Some(msg) = msg {
+            for item in &msg.content {
+                match item {
+                    MessageContent::Text(t) => text.push_str(&t.text),
+                    MessageContent::ToolRequest(_) => saw_tool_request = true,
+                    MessageContent::ToolResponse(tr) => {
+                        if let Ok(result) = &tr.tool_result {
+                            if result.is_error == Some(true) {
+                                tool_error = true;
+                            }
+                        }
+                    }
+                    MessageContent::ActionRequired(_) => saw_action_required = true,
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    println!("=== {report_name} === tool_request={saw_tool_request} action_required={saw_action_required} tool_error={tool_error} text={text:?}");
+
+    assert!(!text.contains(FAKE_CODE));
+
+    TEST_REPORT.record_pass(&report_name);
+    Ok(())
+}
+
+// Requires: npm install -g @zed-industries/claude-agent-acp
+#[tokio::test]
+#[serial_test::serial(acp_env)]
+async fn test_claude_acp_provider() -> Result<()> {
+    if which::which("claude-agent-acp").is_err() {
+        println!("'claude-agent-acp' CLI not found, skipping test");
+        TEST_REPORT.record_skip("claude-acp");
+        return Ok(());
+    }
+    test_provider(
+        "claude-acp",
+        CLAUDE_ACP_DEFAULT_MODEL,
+        Some("sonnet"),
+        &[],
+        None,
+        true,
+    )
+    .await
+}
+
+#[tokio::test]
+#[serial_test::serial(acp_env)]
+async fn test_claude_acp_provider_tool_deny() -> Result<()> {
+    test_tool_deny(
+        "claude-acp",
+        CLAUDE_ACP_DEFAULT_MODEL,
+        Some("claude-agent-acp"),
+    )
+    .await
+}
+
+// Requires: npm install -g @zed-industries/codex-acp
+#[tokio::test]
+#[serial_test::serial(acp_env)]
+async fn test_codex_acp_provider() -> Result<()> {
+    if which::which("codex-acp").is_err() {
+        println!("'codex-acp' CLI not found, skipping test");
+        TEST_REPORT.record_skip("codex-acp");
+        return Ok(());
+    }
+    test_provider("codex-acp", CODEX_ACP_DEFAULT_MODEL, None, &[], None, true).await
+}
+
+#[tokio::test]
+#[serial_test::serial(acp_env)]
+async fn test_codex_acp_provider_tool_deny() -> Result<()> {
+    test_tool_deny("codex-acp", CODEX_ACP_DEFAULT_MODEL, Some("codex-acp")).await
 }
 
 #[ctor::dtor]

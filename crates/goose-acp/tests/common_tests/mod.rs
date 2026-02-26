@@ -4,14 +4,11 @@
 
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
-use fixtures::{
-    initialize_agent, Connection, OpenAiFixture, PermissionDecision, Session, TestConnectionConfig,
-};
+use fixtures::{Connection, OpenAiFixture, PermissionDecision, Session, TestConnectionConfig};
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
-use goose_acp::server::GooseAcpAgent;
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_MODEL};
 use sacp::schema::{
     McpServer, McpServerHttp, ModelId, ModelInfo, SessionModelState, ToolCallStatus,
@@ -59,33 +56,25 @@ pub async fn run_config_mcp<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
-pub async fn run_initialize_without_provider() {
-    let temp_dir = tempfile::tempdir().unwrap();
-
+pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
     let provider_factory: ProviderConstructor =
         Arc::new(|_, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
 
-    let agent = Arc::new(
-        GooseAcpAgent::new(
-            provider_factory,
-            vec![],
-            temp_dir.path().to_path_buf(),
-            temp_dir.path().to_path_buf(),
-            GooseMode::Auto,
-            false,
-        )
-        .await
-        .unwrap(),
-    );
+    let openai = OpenAiFixture::new(vec![], ExpectedSessionId::default()).await;
+    let config = TestConnectionConfig {
+        provider_factory: Some(provider_factory),
+        ..Default::default()
+    };
 
-    let resp = initialize_agent(agent).await;
-    assert!(!resp.auth_methods.is_empty());
-    assert!(resp
-        .auth_methods
+    let conn = C::new(config, openai).await;
+    assert!(!conn.auth_methods().is_empty());
+    assert!(conn
+        .auth_methods()
         .iter()
         .any(|m| &*m.id.0 == "goose-provider"));
 }
 
+#[allow(dead_code)]
 pub async fn run_load_model<C: Connection>() {
     let expected_session_id = ExpectedSessionId::default();
     let openai = OpenAiFixture::new(

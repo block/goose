@@ -99,6 +99,8 @@ tempfile = { workspace = true }
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { workspace = true, features = ["compat"] }
+sacp = { workspace = true }
+agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model"] }
 unicode-normalization = "0.1"
 
 # For local Whisper transcription
