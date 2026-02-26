@@ -306,20 +306,14 @@ describe('identifyWorkBlocks', () => {
       toolResponseMsg('shell', 'file1.txt'),
     ];
     const streamingResult = identifyWorkBlocks(streamingMessages as unknown as Message[], true);
-    const streamingBlock = streamingResult.get(1);
-    if (!streamingBlock) {
-      throw new Error('Expected a streaming work block at index 1');
-    }
+    const streamingBlock = requireBlock(streamingResult, 1);
     expect(streamingBlock.isStreaming).toBe(true);
     expect(streamingBlock.finalIndex).toBe(-1);
 
     // Second call: completed (final answer arrived)
     const completedMessages = [...streamingMessages, textMsg('assistant', 'Here are the files')];
     const completedResult = identifyWorkBlocks(completedMessages as unknown as Message[], false);
-    const completedBlock = completedResult.get(1);
-    if (!completedBlock) {
-      throw new Error('Expected a completed work block at index 1');
-    }
+    const completedBlock = requireBlock(completedResult, 1);
     expect(completedBlock.isStreaming).toBe(false);
     expect(completedBlock.finalIndex).toBe(3);
     expect(completedResult.has(3)).toBe(false); // Final answer excluded
