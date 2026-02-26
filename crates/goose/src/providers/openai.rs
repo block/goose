@@ -65,6 +65,7 @@ pub struct OpenAiProvider {
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
+    custom_models: Option<Vec<String>>,
 }
 
 impl OpenAiProvider {
@@ -126,6 +127,7 @@ impl OpenAiProvider {
             custom_headers,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            custom_models: None,
         })
     }
 
@@ -140,6 +142,7 @@ impl OpenAiProvider {
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
+            custom_models: None,
         }
     }
 
@@ -195,6 +198,13 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        // Extract custom models from config if available
+        let custom_models = if !config.models.is_empty() {
+            Some(config.models.iter().map(|m| m.name.clone()).collect())
+        } else {
+            None
+        };
+
         Ok(Self {
             api_client,
             base_path,
@@ -204,6 +214,7 @@ impl OpenAiProvider {
             custom_headers: config.headers,
             supports_streaming: config.supports_streaming.unwrap_or(true),
             name: config.name.clone(),
+            custom_models,
         })
     }
 
@@ -267,6 +278,34 @@ impl OpenAiProvider {
             fallback.to_string()
         }
     }
+
+    async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
+        let models_path =
+            Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
+        let response = self
+            .api_client
+            .request(None, &models_path)
+            .response_get()
+            .await?;
+        let json = handle_response_openai_compat(response).await?;
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
+        }
+
+        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::UsageError("Missing data field in JSON response".into())
+        })?;
+        let mut models: Vec<String> = data
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(models)
+    }
 }
 
 impl ProviderDef for OpenAiProvider {
@@ -327,31 +366,24 @@ impl Provider for OpenAiProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let models_path =
-            Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
-        let response = self
-            .api_client
-            .request(None, &models_path)
-            .response_get()
-            .await?;
-        let json = handle_response_openai_compat(response).await?;
-        if let Some(err_obj) = json.get("error") {
-            let msg = err_obj
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown error");
-            return Err(ProviderError::Authentication(msg.to_string()));
+        // If custom models are defined, try API first but fallback to them on error
+        if let Some(custom_models) = &self.custom_models {
+            match self.fetch_models_from_api().await {
+                Ok(models) => return Ok(models),
+                Err(e) => {
+                    // Log the error but don't fail - fallback to custom models
+                    tracing::debug!(
+                        "Failed to fetch models from API for provider '{}' ({}), using predefined list",
+                        self.name,
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
+            }
         }
 
-        let data = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::UsageError("Missing data field in JSON response".into())
-        })?;
-        let mut models: Vec<String> = data
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(models)
+        // No custom models defined, must succeed with API call
+        self.fetch_models_from_api().await
     }
 
     fn supports_embeddings(&self) -> bool {
