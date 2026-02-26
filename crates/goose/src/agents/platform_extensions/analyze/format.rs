@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 use std::path::Path;
 
@@ -171,7 +171,21 @@ pub fn format_focused(
 
     let mut out = String::new();
 
-    let ref_count = incoming.len() + outgoing.len();
+    // Count unique direct callers (second element of incoming chains)
+    let direct_callers: HashSet<_> = incoming
+        .iter()
+        .filter_map(|chain| chain.get(1))
+        .map(|link| (&link.file, &link.name, link.line))
+        .collect();
+
+    // Count unique direct callees (second element of outgoing chains)
+    let direct_callees: HashSet<_> = outgoing
+        .iter()
+        .filter_map(|chain| chain.get(1))
+        .map(|link| (&link.file, &link.name, link.line))
+        .collect();
+
+    let ref_count = direct_callers.len() + direct_callees.len();
     let _ = writeln!(
         out,
         "FOCUS: {} ({} defs, {} refs)\n",

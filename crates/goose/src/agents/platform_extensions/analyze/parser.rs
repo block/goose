@@ -301,7 +301,8 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
                 }
             }
             if !has_for {
-                return String::new();
+                // Inherent impl (no trait) — return "impl" to distinguish from struct definition
+                return "impl".to_string();
             }
             // Find the trait name: it's the type before "for"
             // In tree-sitter-rust, impl_item has: "impl" <trait_type> "for" <type>
@@ -628,7 +629,11 @@ fn find_enclosing_fn(node: tree_sitter::Node, source: &str, info: &LangInfo) -> 
             if parent.kind() == "deinit_declaration" {
                 return Some("deinit".into());
             }
-            return find_child_text(&parent, info.fn_name_kinds, source);
+            // If this is an anonymous function-like node (closure, async block, arrow
+            // function with no name), keep walking up to find the enclosing named function.
+            if let Some(name) = find_child_text(&parent, info.fn_name_kinds, source) {
+                return Some(name);
+            }
         }
         cur = parent;
     }

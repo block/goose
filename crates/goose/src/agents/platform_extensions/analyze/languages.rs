@@ -82,6 +82,7 @@ static LANGUAGES: &[LangInfo] = &[
         language: || tree_sitter_javascript::LANGUAGE.into(),
         fn_kinds: &[
             "function_declaration",
+            "generator_function_declaration",
             "method_definition",
             "variable_declarator",
         ],
@@ -90,11 +91,16 @@ static LANGUAGES: &[LangInfo] = &[
         queries: LangQueries {
             functions: r#"
                 (function_declaration name: (identifier) @name)
+                (generator_function_declaration name: (identifier) @name)
                 (method_definition name: (property_identifier) @name)
                 (lexical_declaration
                   (variable_declarator
                     name: (identifier) @name
                     value: (arrow_function)))
+                (lexical_declaration
+                  (variable_declarator
+                    name: (identifier) @name
+                    value: (call_expression)))
             "#,
             classes: r#"
                 (class_declaration name: (identifier) @name)
@@ -115,6 +121,7 @@ static LANGUAGES: &[LangInfo] = &[
         language: || tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
         fn_kinds: &[
             "function_declaration",
+            "generator_function_declaration",
             "method_definition",
             "variable_declarator",
         ],
@@ -123,11 +130,16 @@ static LANGUAGES: &[LangInfo] = &[
         queries: LangQueries {
             functions: r#"
                 (function_declaration name: (identifier) @name)
+                (generator_function_declaration name: (identifier) @name)
                 (method_definition name: (property_identifier) @name)
                 (lexical_declaration
                   (variable_declarator
                     name: (identifier) @name
                     value: (arrow_function)))
+                (lexical_declaration
+                  (variable_declarator
+                    name: (identifier) @name
+                    value: (call_expression)))
             "#,
             classes: r#"
                 (class_declaration name: (type_identifier) @name)
@@ -149,6 +161,7 @@ static LANGUAGES: &[LangInfo] = &[
         language: || tree_sitter_typescript::LANGUAGE_TSX.into(),
         fn_kinds: &[
             "function_declaration",
+            "generator_function_declaration",
             "method_definition",
             "variable_declarator",
         ],
@@ -157,11 +170,16 @@ static LANGUAGES: &[LangInfo] = &[
         queries: LangQueries {
             functions: r#"
                 (function_declaration name: (identifier) @name)
+                (generator_function_declaration name: (identifier) @name)
                 (method_definition name: (property_identifier) @name)
                 (lexical_declaration
                   (variable_declarator
                     name: (identifier) @name
                     value: (arrow_function)))
+                (lexical_declaration
+                  (variable_declarator
+                    name: (identifier) @name
+                    value: (call_expression)))
             "#,
             classes: r#"
                 (class_declaration name: (type_identifier) @name)
