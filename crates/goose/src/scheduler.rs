@@ -780,9 +780,17 @@ async fn execute_job(
 
     let prompt_text = recipe
         .prompt
-        .as_ref()
-        .or(recipe.instructions.as_ref())
-        .unwrap();
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            recipe
+                .instructions
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+        })
+        .ok_or_else(|| {
+            anyhow!("Recipe must specify at least one of `instructions` or `prompt`.")
+        })?;
 
     let user_message = Message::user().with_text(prompt_text);
     let mut conversation = Conversation::new_unvalidated(vec![user_message.clone()]);
@@ -984,5 +992,42 @@ mod tests {
 
         let jobs = scheduler.list_scheduled_jobs().await;
         assert!(jobs[0].last_run.is_none(), "Paused job should not run");
+    }
+
+    #[tokio::test]
+    async fn test_job_with_no_prompt_does_not_panic() {
+        let temp_dir = tempdir().unwrap();
+        let recipe_path = temp_dir.path().join("no_prompt.yaml");
+        fs::write(
+            &recipe_path,
+            "title: missing\ndescription: no prompt or instructions\n",
+        )
+        .unwrap();
+
+        let storage_path = temp_dir.path().join("schedule.json");
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let scheduler = Scheduler::new(storage_path, session_manager).await.unwrap();
+
+        let job = ScheduledJob {
+            id: "no_prompt_job".to_string(),
+            source: recipe_path.to_string_lossy().to_string(),
+            cron: "* * * * * *".to_string(),
+            last_run: None,
+            currently_running: false,
+            paused: false,
+            current_session_id: None,
+            process_start_time: None,
+        };
+
+        // Schedule the job and let it run — should not panic
+        scheduler.add_scheduled_job(job, true).await.unwrap();
+        sleep(Duration::from_millis(1500)).await;
+
+        // The job should have attempted to run (last_run set) but not crashed the scheduler
+        let jobs = scheduler.list_scheduled_jobs().await;
+        assert!(
+            jobs[0].last_run.is_some(),
+            "Job should have attempted to run without panicking"
+        );
     }
 }

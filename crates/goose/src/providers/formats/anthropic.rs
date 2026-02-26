@@ -8,7 +8,77 @@ use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObjec
 use rmcp::object as json_object;
 use serde_json::{json, Value};
 use std::collections::HashSet;
+use std::fmt;
+use std::str::FromStr;
 use std::sync::Arc;
+
+macro_rules! string_enum {
+    ($name:ident { $($variant:ident => $str:literal),+ $(,)? }) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum $name { $($variant),+ }
+
+        impl FromStr for $name {
+            type Err = String;
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                match s.to_lowercase().as_str() {
+                    $($str => Ok(Self::$variant),)+
+                    other => Err(format!("unknown {}: '{other}'", stringify!($name))),
+                }
+            }
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self { $(Self::$variant => write!(f, $str),)+ }
+            }
+        }
+    }
+}
+
+string_enum!(ThinkingType { Adaptive => "adaptive", Enabled => "enabled", Disabled => "disabled" });
+string_enum!(ThinkingEffort { Low => "low", Medium => "medium", High => "high", Max => "max" });
+
+pub fn supports_adaptive_thinking(model_name: &str) -> bool {
+    let lower = model_name.to_lowercase();
+    lower.contains("claude-opus-4-6") || lower.contains("claude-sonnet-4-6")
+}
+
+pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
+    let model_lower = model_config.model_name.to_lowercase();
+    if !model_lower.contains("claude") {
+        return ThinkingType::Disabled;
+    }
+
+    let is_adaptive_model = supports_adaptive_thinking(&model_config.model_name);
+
+    if let Some(s) =
+        model_config.get_config_param::<String>("thinking_type", "CLAUDE_THINKING_TYPE")
+    {
+        let tt = s.parse::<ThinkingType>().unwrap_or_else(|e| {
+            tracing::warn!("{e}");
+            ThinkingType::Disabled
+        });
+        if tt == ThinkingType::Adaptive && !is_adaptive_model {
+            tracing::warn!(
+                "Adaptive thinking not supported for {}, disabling thinking",
+                model_config.model_name
+            );
+            return ThinkingType::Disabled;
+        }
+        return tt;
+    }
+
+    if is_adaptive_model {
+        ThinkingType::Adaptive
+    } else if std::env::var("CLAUDE_THINKING_ENABLED").is_ok() {
+        tracing::warn!(
+            "CLAUDE_THINKING_ENABLED is deprecated, use CLAUDE_THINKING_TYPE=enabled instead"
+        );
+        ThinkingType::Enabled
+    } else {
+        ThinkingType::Disabled
+    }
+}
 
 // Constants for frequently used strings in Anthropic API format
 const TYPE_FIELD: &str = "type";
@@ -386,6 +456,43 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
     }
 }
 
+pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
+    match model_config.get_config_param::<String>("effort", "CLAUDE_THINKING_EFFORT") {
+        Some(s) => s.parse().unwrap_or_else(|e| {
+            tracing::warn!("{e}, defaulting to 'high'");
+            ThinkingEffort::High
+        }),
+        None => ThinkingEffort::High,
+    }
+}
+
+fn apply_thinking_config(payload: &mut Value, model_config: &ModelConfig, max_tokens: i32) {
+    let obj = payload.as_object_mut().unwrap();
+    match thinking_type(model_config) {
+        ThinkingType::Adaptive => {
+            obj.insert("thinking".to_string(), json!({"type": "adaptive"}));
+            let effort = thinking_effort(model_config).to_string();
+            obj.insert("output_config".to_string(), json!({"effort": effort}));
+        }
+        ThinkingType::Enabled => {
+            let budget_tokens = model_config
+                .get_config_param::<i32>("budget_tokens", "CLAUDE_THINKING_BUDGET")
+                .unwrap_or(16000)
+                .max(1024);
+
+            obj.insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
+            obj.insert(
+                "thinking".to_string(),
+                json!({
+                    "type": "enabled",
+                    "budget_tokens": budget_tokens
+                }),
+            );
+        }
+        ThinkingType::Disabled => {}
+    }
+}
+
 /// Create a complete request payload for Anthropic's API
 pub fn create_request(
     model_config: &ModelConfig,
@@ -429,29 +536,8 @@ pub fn create_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
-    if is_thinking_enabled {
-        // Anthropic requires budget_tokens >= 1024
-        const DEFAULT_THINKING_BUDGET: i32 = 16000;
-        let raw_budget_tokens: i32 = std::env::var("CLAUDE_THINKING_BUDGET")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(DEFAULT_THINKING_BUDGET);
-        let budget_tokens: i32 = std::cmp::max(1024, raw_budget_tokens);
+    apply_thinking_config(&mut payload, model_config, max_tokens);
 
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
-
-        payload.as_object_mut().unwrap().insert(
-            "thinking".to_string(),
-            json!({
-                "type": "enabled",
-                "budget_tokens": budget_tokens
-            }),
-        );
-    }
     Ok(payload)
 }
 
@@ -701,6 +787,7 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
+    use crate::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
 
@@ -968,6 +1055,70 @@ mod tests {
     }
 
     #[test]
+    fn test_create_request_adaptive_thinking_for_46_models() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", Some("adaptive")),
+            ("CLAUDE_THINKING_EFFORT", Some("high")),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+        ]);
+
+        let mut config = cfg("claude-opus-4-6");
+        config.max_tokens = Some(4096);
+        let messages = vec![Message::user().with_text("Hello")];
+        let payload = create_request(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert_eq!(payload["output_config"]["effort"], "high");
+        assert!(payload.get("budget_tokens").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_enabled_thinking_with_budget() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+            ("CLAUDE_THINKING_EFFORT", None::<&str>),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("CLAUDE_THINKING_BUDGET", None::<&str>),
+        ]);
+
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_type".to_string(), json!("enabled"));
+        params.insert("budget_tokens".to_string(), json!(10000));
+
+        let mut config = cfg("claude-3-7-sonnet-20250219");
+        config.max_tokens = Some(4096);
+        config.request_params = Some(params);
+
+        let messages = vec![Message::user().with_text("Hello")];
+        let payload = create_request(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["type"], "enabled");
+        assert_eq!(payload["thinking"]["budget_tokens"], 10000);
+        assert_eq!(payload["max_tokens"], 4096 + 10000);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_disabled_thinking_no_thinking_field() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+        ]);
+
+        let config = cfg("claude-sonnet-4-20250514");
+        let messages = vec![Message::user().with_text("Hello")];
+        let payload = create_request(&config, "system", &messages, &[])?;
+
+        assert!(payload.get("thinking").is_none());
+        assert!(payload.get("output_config").is_none());
+
+        Ok(())
+    }
+
+    #[test]
     fn test_tool_error_handling_maintains_pairing() {
         use crate::conversation::message::Message;
         use rmcp::model::{ErrorCode, ErrorData};
@@ -1042,5 +1193,71 @@ mod tests {
         let assistant_content = spec[1]["content"].as_array().unwrap();
         assert_eq!(assistant_content.len(), 1);
         assert_eq!(assistant_content[0]["type"], "tool_use");
+    }
+
+    fn cfg(name: &str) -> ModelConfig {
+        ModelConfig {
+            model_name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn cfg_with_thinking(name: &str, tt: &str) -> ModelConfig {
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_type".to_string(), json!(tt));
+        ModelConfig {
+            model_name: name.to_string(),
+            request_params: Some(params),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_thinking_type_explicit_params() {
+        assert_eq!(
+            thinking_type(&cfg_with_thinking("claude-opus-4-6", "adaptive")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_thinking("claude-opus-4-6", "disabled")),
+            ThinkingType::Disabled
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_thinking("claude-3-7-sonnet-20250219", "enabled")),
+            ThinkingType::Enabled
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_thinking("claude-3-7-sonnet-20250219", "adaptive")),
+            ThinkingType::Disabled
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_thinking("claude-opus-4-6", "adapttive")),
+            ThinkingType::Disabled
+        );
+    }
+
+    #[test]
+    fn test_thinking_type_non_claude_always_disabled() {
+        assert_eq!(thinking_type(&cfg("gpt-4o")), ThinkingType::Disabled);
+        assert_eq!(
+            thinking_type(&cfg_with_thinking("gpt-4o", "enabled")),
+            ThinkingType::Disabled
+        );
+    }
+
+    #[test]
+    fn test_thinking_type_env_var_override() {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_TYPE", Some("adaptive")),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+        ]);
+        assert_eq!(
+            thinking_type(&cfg("claude-opus-4-6")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg("claude-3-7-sonnet-20250219")),
+            ThinkingType::Disabled
+        );
     }
 }

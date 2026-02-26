@@ -805,8 +805,7 @@ impl ExtensionManager {
             .iter()
             .map(|(name, ext)| {
                 let instructions = ext.get_instructions().unwrap_or_default();
-                let instructions =
-                    instructions.replace(goose_mcp::WORKING_DIR_PLACEHOLDER, &working_dir_str);
+                let instructions = instructions.replace("{{WORKING_DIR}}", &working_dir_str);
                 ExtensionInfo::new(name, &instructions, ext.supports_resources())
             })
             .collect()

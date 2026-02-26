@@ -13,6 +13,7 @@ pub async fn check_token(
     if request.uri().path() == "/status"
         || request.uri().path() == "/mcp-ui-proxy"
         || request.uri().path() == "/mcp-app-proxy"
+        || request.uri().path() == "/mcp-app-guest"
     {
         return Ok(next.run(request).await);
     }

@@ -2,13 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '../../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Input } from '../../ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '../../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Loader2, Copy, Check, Square, Trash2, ExternalLink, User } from 'lucide-react';
 import { getApiUrl } from '../../../config';
 
@@ -138,9 +132,15 @@ export default function GatewaySettingsSection() {
       <TelegramGatewayCard
         status={telegram}
         onStart={(config) =>
-          doPost('/gateway/start', { gateway_type: 'telegram', platform_config: config, max_sessions: 0 }, 'Failed to start')
+          doPost(
+            '/gateway/start',
+            { gateway_type: 'telegram', platform_config: config, max_sessions: 0 },
+            'Failed to start'
+          )
         }
-        onRestart={() => doPost('/gateway/restart', { gateway_type: 'telegram' }, 'Failed to start')}
+        onRestart={() =>
+          doPost('/gateway/restart', { gateway_type: 'telegram' }, 'Failed to start')
+        }
         onStop={() => doPost('/gateway/stop', { gateway_type: 'telegram' }, 'Failed to stop')}
         onRemove={() => doPost('/gateway/remove', { gateway_type: 'telegram' }, 'Failed to remove')}
         onGenerateCode={async () => {
@@ -238,7 +238,11 @@ function TelegramGatewayCard({
 
   const wrap = (fn: () => Promise<void>) => async () => {
     setBusy(true);
-    try { await fn(); } finally { setBusy(false); }
+    try {
+      await fn();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleFirstStart = wrap(async () => {
@@ -310,9 +314,11 @@ function TelegramGatewayCard({
                 >
                   @BotFather
                   <ExternalLink className="h-3 w-3" />
-                </a>
-                {' '}on your phone, send <code className="bg-background-muted px-1 py-0.5 rounded">/newbot</code>, and follow
-                the prompts to name your bot. BotFather will reply with an API token — paste it below.
+                </a>{' '}
+                on your phone, send{' '}
+                <code className="bg-background-muted px-1 py-0.5 rounded">/newbot</code>, and follow
+                the prompts to name your bot. BotFather will reply with an API token — paste it
+                below.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -399,8 +405,8 @@ function PairingCodeModal({
           </div>
 
           <p className="text-center text-sm text-text-muted">
-            Send this code to your{' '}
-            <span className="capitalize font-medium">{gatewayType}</span> bot to pair.
+            Send this code to your <span className="capitalize font-medium">{gatewayType}</span> bot
+            to pair.
           </p>
 
           <div className="text-center text-xs text-text-muted">

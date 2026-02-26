@@ -168,6 +168,7 @@ export interface GoosedResult {
   errorLog: string[];
   cleanup: () => Promise<void>;
   client: Client;
+  certFingerprint: string | null;
 }
 
 const goosedClientForUrlAndSecret = (url: string, secret: string): Client => {
@@ -209,12 +210,13 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
         logger.info('Not killing external process that is managed externally');
       },
       client: goosedClientForUrlAndSecret(url, serverSecret),
+      certFingerprint: null,
     };
   }
 
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     const port = process.env.GOOSE_PORT || '3000';
-    const url = `http://127.0.0.1:${port}`;
+    const url = `https://127.0.0.1:${port}`;
     logger.info(`Using external goosed backend from env at ${url}`);
 
     return {
@@ -226,6 +228,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
         logger.info('Not killing external process that is managed externally');
       },
       client: goosedClientForUrlAndSecret(url, serverSecret),
+      certFingerprint: null,
     };
   }
 
@@ -241,7 +244,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     `Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}${useSandbox ? ' [SANDBOXED]' : ''}`
   );
 
-  const baseUrl = `http://127.0.0.1:${port}`;
+  const baseUrl = `https://127.0.0.1:${port}`;
 
   const spawnEnv: Record<string, string | undefined> = {
     ...process.env,
@@ -292,8 +295,34 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   const goosedProcess = spawn(spawnCommand, spawnArgs, spawnOptions);
 
-  goosedProcess.stdout?.on('data', (data: Buffer) => {
-    logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${data.toString()}`);
+  let certFingerprint: string | null = null;
+  const fingerprintReady = new Promise<string | null>((resolve) => {
+    const FINGERPRINT_PREFIX = 'GOOSED_CERT_FINGERPRINT=';
+    let resolved = false;
+
+    goosedProcess.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${text}`);
+
+      if (!resolved && text.includes(FINGERPRINT_PREFIX)) {
+        for (const line of text.split('\n')) {
+          if (line.startsWith(FINGERPRINT_PREFIX)) {
+            certFingerprint = line.slice(FINGERPRINT_PREFIX.length).trim();
+            logger.info(`Pinned cert fingerprint: ${certFingerprint}`);
+            resolved = true;
+            resolve(certFingerprint);
+            break;
+          }
+        }
+      }
+    });
+
+    goosedProcess.on('exit', () => {
+      if (!resolved) {
+        resolved = true;
+        resolve(null);
+      }
+    });
   });
 
   goosedProcess.stderr?.on('data', (data: Buffer) => {
@@ -354,6 +383,8 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   logger.info(`Goosed server successfully started on port ${port}`);
 
+  await fingerprintReady;
+
   return {
     baseUrl,
     workingDir,
@@ -361,5 +392,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     errorLog,
     cleanup,
     client: goosedClientForUrlAndSecret(baseUrl, serverSecret),
+    certFingerprint,
   };
 };
