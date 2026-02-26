@@ -47,6 +47,7 @@ import { ScrollArea } from '@/components/atoms/scroll-area';
 import { Skeleton } from '@/components/atoms/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/atoms/tooltip';
 import { ConfirmationModal } from '@/components/molecules/ui/confirmation-modal';
+import { OverlayActionCard } from '@/components/molecules/interactive/OverlayActionCard';
 import { Card } from '@/components/molecules/ui/card';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
@@ -637,9 +638,10 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       );
 
       return (
-        <Card
-          onClick={handleCardClick}
-          className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
+        <OverlayActionCard
+          ariaLabel={`Open session ${displayName}`}
+          onActivate={handleCardClick}
+          className="h-full py-3 px-4 hover:shadow-default transition-all duration-150 flex flex-col justify-between"
           ref={(el) => setSessionRefs(session.id, el)}
         >
           <div>
@@ -673,7 +675,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     <TooltipTrigger asChild>
 						<button
 							type="button"
-							className="flex items-center"
+							className="pointer-events-auto flex items-center"
 							onClick={(e) => e.stopPropagation()}
 							aria-label="Show extensions"
 						>
@@ -696,44 +698,49 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               )}
             </div>
           </div>
-          <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button type="button"
+          <OverlayActionCard.Actions className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
               onClick={handleOpenInNewWindowClick}
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               title="Open in new window"
             >
               <ExternalLink className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
-            <button type="button"
+            <button
+              type="button"
               onClick={handleEditClick}
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               title="Edit session name"
             >
               <Edit2 className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
-            <button type="button"
+            <button
+              type="button"
               onClick={handleDuplicateClick}
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               title="Duplicate session"
             >
               <Copy className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
-            <button type="button"
+            <button
+              type="button"
               onClick={handleDeleteClick}
-              className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer transition-colors"
+              className="p-2 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               title="Delete session"
             >
               <Trash2 className="w-3 h-3 text-red-500 hover:text-red-600" />
             </button>
-            <button type="button"
+            <button
+              type="button"
               onClick={handleExportClick}
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               title="Export session"
             >
               <Download className="w-3 h-3 text-text-muted hover:text-text-default" />
             </button>
-          </div>
-        </Card>
+          </OverlayActionCard.Actions>
+        </OverlayActionCard>
       );
     });
 

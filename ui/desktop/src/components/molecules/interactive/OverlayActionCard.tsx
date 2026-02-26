@@ -1,4 +1,4 @@
-import type React from 'react';
+import * as React from 'react';
 import { cn } from '@/utils';
 
 type OverlayActionCardProps = {
@@ -23,36 +23,34 @@ function OverlayActionCardActions({ className, children }: { className?: string;
  * - Non-interactive content should live under pointer-events-none
  * - Nested controls must be wrapped with <OverlayActionCard.Actions>
  */
-export function OverlayActionCard({
-  ariaLabel,
-  onActivate,
-  className,
-  radiusClassName = 'rounded-xl',
-  overlayClassName,
-  children,
-}: OverlayActionCardProps) {
-  return (
-    <div
-      className={cn(
-        'group relative bg-background-default border border-border-default hover:border-border-accent hover:shadow-lg transition-all',
-        radiusClassName,
-        className
-      )}
-    >
-      <button
-        type="button"
+export const OverlayActionCard = Object.assign(
+  React.forwardRef<HTMLDivElement, OverlayActionCardProps>(function OverlayActionCard(
+    { ariaLabel, onActivate, className, radiusClassName = 'rounded-xl', overlayClassName, children },
+    ref
+  ) {
+    return (
+      <div
+        ref={ref}
         className={cn(
-          'absolute inset-0 focus:outline-none focus:ring-2 focus:ring-border-accent',
+          'group relative bg-background-default border border-border-default hover:border-border-accent hover:shadow-lg transition-all',
           radiusClassName,
-          overlayClassName
+          className
         )}
-        aria-label={ariaLabel}
-        onClick={onActivate}
-      />
+      >
+        <button
+          type="button"
+          className={cn(
+            'absolute inset-0 focus:outline-none focus:ring-2 focus:ring-border-accent',
+            radiusClassName,
+            overlayClassName
+          )}
+          aria-label={ariaLabel}
+          onClick={onActivate}
+        />
 
-      <div className="relative z-10 pointer-events-none">{children}</div>
-    </div>
-  );
-}
-
-OverlayActionCard.Actions = OverlayActionCardActions;
+        <div className="relative z-10 pointer-events-none">{children}</div>
+      </div>
+    );
+  }),
+  { Actions: OverlayActionCardActions }
+);
