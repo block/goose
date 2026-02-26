@@ -53,33 +53,10 @@ impl ProviderError {
         }
     }
 
-    /// Returns true if this error indicates the models endpoint is not implemented
-    /// and we should fall back to configured custom models.
-    ///
-    /// Only certain errors should trigger fallback - specifically 404 (endpoint not found)
-    /// or connection failures that suggest the endpoint doesn't exist.
-    ///
-    /// Critical errors that should NOT fallback:
-    /// - Authentication failures (401/403) - indicates misconfigured credentials
-    /// - Rate limits (429) - indicates service is functioning but rate-limited
-    /// - Server errors (5xx) - indicates service is having issues
-    /// - Context length exceeded - indicates API is working
+    /// Returns true if this error indicates the models endpoint is not implemented (404).
     pub fn is_endpoint_not_implemented(&self) -> bool {
         match self {
-            // 404 or connection failures suggest endpoint doesn't exist - safe to fallback
-            ProviderError::RequestFailed(msg) => {
-                msg.contains("404")
-                    || msg.contains("not found")
-                    || msg.contains("connection failed")
-                    || msg.contains("failed to connect")
-            }
-            // Auth, rate limit, server, context errors - do NOT fallback
-            ProviderError::Authentication(_) => false,
-            ProviderError::RateLimitExceeded { .. } => false,
-            ProviderError::ServerError(_) => false,
-            ProviderError::ContextLengthExceeded(_) => false,
-            ProviderError::CreditsExhausted { .. } => false,
-            // Other errors may indicate the endpoint exists - safer to not fallback
+            ProviderError::RequestFailed(msg) => msg.contains("404") || msg.contains("not found"),
             _ => false,
         }
     }
