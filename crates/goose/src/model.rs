@@ -279,10 +279,10 @@ impl ModelConfig {
     }
 
     pub fn is_openai_reasoning_model(&self) -> bool {
-        const PROVIDER_PREFIXES: &[&str] = &["goose-", "databricks-"];
+        const DATABRICKS_MODEL_NAME_PREFIXES: &[&str] = &["goose-", "databricks-"];
         const REASONING_PREFIXES: &[&str] = &["o1", "o3", "o4", "gpt-5"];
 
-        let base = PROVIDER_PREFIXES
+        let base = DATABRICKS_MODEL_NAME_PREFIXES
             .iter()
             .find_map(|p| self.model_name.strip_prefix(p))
             .unwrap_or(&self.model_name);
