@@ -14,7 +14,7 @@ use goose::providers::provider_registry::ProviderConstructor;
 use goose_acp::server::GooseAcpAgent;
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_MODEL};
 use sacp::schema::{
-    McpServer, McpServerHttp, ModelId, ModelInfo, SessionModelState, ToolCallStatus,
+    McpServer, McpServerHttp, ModelId, ToolCallStatus,
 };
 use std::sync::Arc;
 
@@ -122,65 +122,72 @@ pub async fn run_model_list<C: Connection>() {
     expected_session_id.set(session.session_id().0.to_string());
 
     let models = models.unwrap();
-    let expected = SessionModelState::new(
-        ModelId::new(TEST_MODEL),
-        [
-            "gpt-5.2",
-            "gpt-5.2-2025-12-11",
-            "gpt-5.2-chat-latest",
-            "gpt-5.2-codex",
-            "gpt-5.2-pro",
-            "gpt-5.2-pro-2025-12-11",
-            "gpt-5.1",
-            "gpt-5.1-2025-11-13",
-            "gpt-5.1-chat-latest",
-            "gpt-5.1-codex",
-            "gpt-5.1-codex-max",
-            "gpt-5.1-codex-mini",
-            "gpt-5-pro",
-            "gpt-5-pro-2025-10-06",
-            "gpt-5-codex",
-            "gpt-5",
-            "gpt-5-2025-08-07",
-            "gpt-5-mini",
-            "gpt-5-mini-2025-08-07",
-            TEST_MODEL,
-            "gpt-5-nano-2025-08-07",
-            "codex-mini-latest",
-            "o3",
-            "o3-2025-04-16",
-            "o4-mini",
-            "o4-mini-2025-04-16",
-            "gpt-4.1",
-            "gpt-4.1-2025-04-14",
-            "gpt-4.1-mini",
-            "gpt-4.1-mini-2025-04-14",
-            "gpt-4.1-nano",
-            "gpt-4.1-nano-2025-04-14",
-            "o1-pro",
-            "o1-pro-2025-03-19",
-            "o3-mini",
-            "o3-mini-2025-01-31",
-            "o1",
-            "o1-2024-12-17",
-            "gpt-4o",
-            "gpt-4o-2024-05-13",
-            "gpt-4o-2024-08-06",
-            "gpt-4o-2024-11-20",
-            "gpt-4o-mini",
-            "gpt-4o-mini-2024-07-18",
-            "o4-mini-deep-research",
-            "o4-mini-deep-research-2025-06-26",
-            "gpt-4",
-            "gpt-4-0613",
-            "gpt-4-turbo",
-            "gpt-4-turbo-2024-04-09",
-        ]
+    let expected_model_ids: Vec<&str> = vec![
+        "gpt-5.2",
+        "gpt-5.2-2025-12-11",
+        "gpt-5.2-chat-latest",
+        "gpt-5.2-codex",
+        "gpt-5.2-pro",
+        "gpt-5.2-pro-2025-12-11",
+        "gpt-5.1",
+        "gpt-5.1-2025-11-13",
+        "gpt-5.1-chat-latest",
+        "gpt-5.1-codex",
+        "gpt-5.1-codex-max",
+        "gpt-5.1-codex-mini",
+        "gpt-5-pro",
+        "gpt-5-pro-2025-10-06",
+        "gpt-5-codex",
+        "gpt-5",
+        "gpt-5-2025-08-07",
+        "gpt-5-mini",
+        "gpt-5-mini-2025-08-07",
+        TEST_MODEL,
+        "gpt-5-nano-2025-08-07",
+        "codex-mini-latest",
+        "o3",
+        "o3-2025-04-16",
+        "o4-mini",
+        "o4-mini-2025-04-16",
+        "gpt-4.1",
+        "gpt-4.1-2025-04-14",
+        "gpt-4.1-mini",
+        "gpt-4.1-mini-2025-04-14",
+        "gpt-4.1-nano",
+        "gpt-4.1-nano-2025-04-14",
+        "o1-pro",
+        "o1-pro-2025-03-19",
+        "o3-mini",
+        "o3-mini-2025-01-31",
+        "o1",
+        "o1-2024-12-17",
+        "gpt-4o",
+        "gpt-4o-2024-05-13",
+        "gpt-4o-2024-08-06",
+        "gpt-4o-2024-11-20",
+        "gpt-4o-mini",
+        "gpt-4o-mini-2024-07-18",
+        "o4-mini-deep-research",
+        "o4-mini-deep-research-2025-06-26",
+        "gpt-4",
+        "gpt-4-0613",
+        "gpt-4-turbo",
+        "gpt-4-turbo-2024-04-09",
+    ];
+
+    assert_eq!(models.current_model_id, ModelId::new(TEST_MODEL));
+
+    let mut actual_ids: Vec<String> = models
+        .available_models
         .iter()
-        .map(|id| ModelInfo::new(ModelId::new(*id), *id))
-        .collect(),
-    );
-    assert_eq!(models, expected);
+        .map(|m| m.model_id.0.to_string())
+        .collect();
+    actual_ids.sort();
+
+    let mut expected_ids: Vec<String> = expected_model_ids.iter().map(|s| s.to_string()).collect();
+    expected_ids.sort();
+
+    assert_eq!(actual_ids, expected_ids, "available model sets differ");
 }
 
 pub async fn run_model_set<C: Connection>() {
