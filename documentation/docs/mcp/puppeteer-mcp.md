@@ -15,7 +15,7 @@ Server archived
 
 This tutorial covers how to add the [Puppeteer MCP Server](https://www.pulsemcp.com/servers/merajmehrabi-puppeteer) as a goose extension, enabling goose to interact with websites - navigating pages, filling forms, clicking buttons, taking screenshots, and executing JavaScript in a real browser environment.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-puppeteer&id=puppeteer&name=Puppeteer&description=Headless%20browser%20automation)

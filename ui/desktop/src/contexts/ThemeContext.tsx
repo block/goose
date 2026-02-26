@@ -29,6 +29,7 @@ function applyThemeToDocument(theme: ResolvedTheme): void {
   const toRemove = theme === 'dark' ? 'light' : 'dark';
   document.documentElement.classList.add(theme);
   document.documentElement.classList.remove(toRemove);
+  document.documentElement.style.colorScheme = theme;
 }
 
 // Built once — light-dark() values are theme-independent

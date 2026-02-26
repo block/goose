@@ -1,19 +1,13 @@
 {
-    "name": "Kimi",
-    "metadata": {
-        "homepage": "https://kimi.ai",
-        "docs": "https://platform.moonshot.cn/docs/intro",
-        "description": "Kimi Code AI models optimized for coding tasks"
-    },
-    "engine": {
-        "type": "openai",
-        "base_url": "https://api.moonshot.cn/v1",
-        "api_key_env_var": "MOONSHOT_API_KEY"
-    },
-    "models": [
-        {"name": "kimi-for-coding", "context_limit": 262144},
-        {"name": "kimi-code", "context_limit": 262144}
-    ],
-    "streaming_default": true,
-    "pricing_info_url": "https://platform.moonshot.cn/pricing"
+  "name": "kimi",
+  "engine": "openai",
+  "display_name": "Kimi",
+  "description": "Kimi Code AI models optimized for coding tasks",
+  "api_key_env": "MOONSHOT_API_KEY",
+  "base_url": "https://api.moonshot.cn/v1/chat/completions",
+  "models": [
+    {"name": "kimi-for-coding", "context_limit": 262144},
+    {"name": "kimi-code", "context_limit": 262144}
+  ],
+  "supports_streaming": true
 }

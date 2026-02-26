@@ -105,6 +105,10 @@ fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
     loc
 }
 
+fn is_developer_file_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "write" | "edit")
+}
+
 fn extract_tool_locations(
     tool_request: &goose::conversation::message::ToolRequest,
     tool_response: &goose::conversation::message::ToolResponse,
@@ -112,10 +116,11 @@ fn extract_tool_locations(
     let mut locations = Vec::new();
 
     if let Ok(tool_call) = &tool_request.tool_call {
-        if tool_call.name != "developer__text_editor" {
+        if !is_developer_file_tool(tool_call.name.as_ref()) {
             return locations;
         }
 
+        let tool_name = tool_call.name.as_ref();
         let path_str = tool_call
             .arguments
             .as_ref()
@@ -123,6 +128,11 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
+            if matches!(tool_name, "write" | "edit") {
+                locations.push(create_tool_location(path_str, Some(1)));
+                return locations;
+            }
+
             let command = tool_call
                 .arguments
                 .as_ref()
@@ -279,20 +289,21 @@ async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
     }
 }
 
-async fn build_model_state(
-    provider: &dyn Provider,
-    current_model: &str,
-) -> Result<SessionModelState, sacp::Error> {
-    let models = provider.fetch_recommended_models().await.map_err(|e| {
-        sacp::Error::internal_error().data(format!("Failed to fetch models: {}", e))
-    })?;
-    Ok(SessionModelState::new(
+async fn build_model_state(provider: &dyn Provider, current_model: &str) -> SessionModelState {
+    let models = match provider.fetch_recommended_models().await {
+        Ok(models) => models,
+        Err(e) => {
+            warn!(error = %e, "failed to fetch models, model selection will be unavailable");
+            vec![]
+        }
+    };
+    SessionModelState::new(
         ModelId::new(current_model),
         models
             .iter()
             .map(|name| ModelInfo::new(ModelId::new(&**name), &**name))
             .collect(),
-    ))
+    )
 }
 
 impl GooseAcpAgent {
@@ -802,7 +813,7 @@ impl GooseAcpAgent {
         );
 
         let model_state =
-            build_model_state(&*provider, &provider.get_model_config().model_name).await?;
+            build_model_state(&*provider, &provider.get_model_config().model_name).await;
 
         Ok(NewSessionResponse::new(SessionId::new(goose_session.id)).models(model_state))
     }
@@ -927,7 +938,7 @@ impl GooseAcpAgent {
         );
 
         let model_state =
-            build_model_state(&*provider, &provider.get_model_config().model_name).await?;
+            build_model_state(&*provider, &provider.get_model_config().model_name).await;
 
         Ok(LoadSessionResponse::new().models(model_state))
     }
@@ -1506,10 +1517,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_format_tool_name_with_extension() {
-        assert_eq!(
-            format_tool_name("developer__text_editor"),
-            "Developer: Text Editor"
-        );
+        assert_eq!(format_tool_name("developer__edit"), "Developer: Edit");
         assert_eq!(
             format_tool_name("platform__manage_extensions"),
             "Platform: Manage Extensions"
@@ -1595,37 +1603,37 @@ print(\"hello, world\")
 
     #[test_case(
         "model-a", Ok(vec!["model-a".into(), "model-b".into()])
-        => Ok(SessionModelState::new(
+        => SessionModelState::new(
             ModelId::new("model-a"),
             vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
                  ModelInfo::new(ModelId::new("model-b"), "model-b")],
-        ))
+        )
         ; "returns current and available models"
     )]
     #[test_case(
         "model-a", Ok(vec![])
-        => Ok(SessionModelState::new(ModelId::new("model-a"), vec![]))
+        => SessionModelState::new(ModelId::new("model-a"), vec![])
         ; "empty model list"
     )]
     #[test_case(
         "model-a", Err(ProviderError::ExecutionError("fail".into()))
-        => matches Err(_)
-        ; "fetch error propagates"
+        => SessionModelState::new(ModelId::new("model-a"), vec![])
+        ; "fetch error falls back to current model only"
     )]
     #[test_case(
         "switched-model", Ok(vec!["model-a".into(), "switched-model".into()])
-        => Ok(SessionModelState::new(
+        => SessionModelState::new(
             ModelId::new("switched-model"),
             vec![ModelInfo::new(ModelId::new("model-a"), "model-a"),
                  ModelInfo::new(ModelId::new("switched-model"), "switched-model")],
-        ))
+        )
         ; "current model reflects switched model"
     )]
     #[tokio::test]
     async fn test_build_model_state(
         current_model: &str,
         models: Result<Vec<String>, ProviderError>,
-    ) -> Result<SessionModelState, sacp::Error> {
+    ) -> SessionModelState {
         let provider = MockModelProvider { models };
         build_model_state(&provider, current_model).await
     }

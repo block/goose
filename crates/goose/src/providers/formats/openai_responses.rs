@@ -277,59 +277,37 @@ pub enum ContentPart {
     },
 }
 
-fn add_conversation_history(input_items: &mut Vec<Value>, messages: &[Message]) {
+fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
     for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        let has_only_tool_content = message.content.iter().all(|c| {
-            matches!(
-                c,
-                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
-            )
-        });
-
-        if has_only_tool_content {
-            continue;
-        }
-
-        if message.role != Role::User && message.role != Role::Assistant {
-            continue;
-        }
-
         let role = match message.role {
             Role::User => "user",
             Role::Assistant => "assistant",
         };
 
-        let mut content_items = Vec::new();
+        let mut text_items = Vec::new();
+
         for content in &message.content {
-            if let MessageContent::Text(text) = content {
-                if !text.text.is_empty() {
+            match content {
+                MessageContent::Text(text) if !text.text.is_empty() => {
                     let content_type = if message.role == Role::Assistant {
                         "output_text"
                     } else {
                         "input_text"
                     };
-                    content_items.push(json!({
+                    text_items.push(json!({
                         "type": content_type,
                         "text": text.text
                     }));
                 }
-            }
-        }
+                MessageContent::ToolRequest(request) if message.role == Role::Assistant => {
+                    if !text_items.is_empty() {
+                        input_items.push(json!({
+                            "role": role,
+                            "content": text_items
+                        }));
+                        text_items = Vec::new();
+                    }
 
-        if !content_items.is_empty() {
-            input_items.push(json!({
-                "role": role,
-                "content": content_items
-            }));
-        }
-    }
-}
-
-fn add_function_calls(input_items: &mut Vec<Value>, messages: &[Message]) {
-    for message in messages.iter().filter(|m| m.is_agent_visible()) {
-        if message.role == Role::Assistant {
-            for content in &message.content {
-                if let MessageContent::ToolRequest(request) = content {
                     if let Ok(tool_call) = &request.tool_call {
                         let arguments_str = tool_call
                             .arguments
@@ -352,56 +330,63 @@ fn add_function_calls(input_items: &mut Vec<Value>, messages: &[Message]) {
                         }));
                     }
                 }
-            }
-        }
-    }
-}
+                MessageContent::ToolResponse(response) => {
+                    if !text_items.is_empty() {
+                        input_items.push(json!({
+                            "role": role,
+                            "content": text_items
+                        }));
+                        text_items = Vec::new();
+                    }
 
-fn add_function_call_outputs(input_items: &mut Vec<Value>, messages: &[Message]) {
-    for message in messages {
-        for content in &message.content {
-            if let MessageContent::ToolResponse(response) = content {
-                match &response.tool_result {
-                    Ok(contents) => {
-                        let text_content: Vec<String> = contents
-                            .content
-                            .iter()
-                            .filter_map(|c| {
-                                if let RawContent::Text(t) = c.deref() {
-                                    Some(t.text.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect();
+                    match &response.tool_result {
+                        Ok(contents) => {
+                            let text_content: Vec<String> = contents
+                                .content
+                                .iter()
+                                .filter_map(|c| {
+                                    if let RawContent::Text(t) = c.deref() {
+                                        Some(t.text.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
 
-                        if !text_content.is_empty() {
+                            if !text_content.is_empty() {
+                                tracing::debug!(
+                                    "Sending function_call_output with call_id: {}",
+                                    response.id
+                                );
+                                input_items.push(json!({
+                                    "type": "function_call_output",
+                                    "call_id": response.id,
+                                    "output": text_content.join("\n")
+                                }));
+                            }
+                        }
+                        Err(error_data) => {
                             tracing::debug!(
-                                "Sending function_call_output with call_id: {}",
+                                "Sending function_call_output error with call_id: {}",
                                 response.id
                             );
                             input_items.push(json!({
                                 "type": "function_call_output",
                                 "call_id": response.id,
-                                "output": text_content.join("\n")
+                                "output": format!("Error: {}", error_data.message)
                             }));
                         }
                     }
-                    Err(error_data) => {
-                        // Handle error responses - must send them back to the API
-                        // to avoid "No tool output found" errors
-                        tracing::debug!(
-                            "Sending function_call_output error with call_id: {}",
-                            response.id
-                        );
-                        input_items.push(json!({
-                            "type": "function_call_output",
-                            "call_id": response.id,
-                            "output": format!("Error: {}", error_data.message)
-                        }));
-                    }
                 }
+                _ => {}
             }
+        }
+
+        if !text_items.is_empty() {
+            input_items.push(json!({
+                "role": role,
+                "content": text_items
+            }));
         }
     }
 }
@@ -424,9 +409,7 @@ pub fn create_responses_request(
         }));
     }
 
-    add_conversation_history(&mut input_items, messages);
-    add_function_calls(&mut input_items, messages);
-    add_function_call_outputs(&mut input_items, messages);
+    add_message_items(&mut input_items, messages);
 
     let mut payload = json!({
         "model": model_config.model_name,
@@ -460,12 +443,10 @@ pub fn create_responses_request(
             .insert("temperature".to_string(), json!(temp));
     }
 
-    if let Some(tokens) = model_config.max_tokens {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("max_output_tokens".to_string(), json!(tokens));
-    }
+    payload.as_object_mut().unwrap().insert(
+        "max_output_tokens".to_string(),
+        json!(model_config.max_output_tokens()),
+    );
 
     Ok(payload)
 }
@@ -763,7 +744,10 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::MessageContent;
+    use crate::model::ModelConfig;
     use futures::StreamExt;
+    use rmcp::model::CallToolRequestParams;
+    use rmcp::object;
 
     #[tokio::test]
     async fn test_responses_stream_ignores_keepalive_event() -> anyhow::Result<()> {
@@ -830,5 +814,61 @@ mod tests {
             .contains("Responses API error"));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_history_preserves_chronological_order() {
+        let model_config = ModelConfig {
+            model_name: "gpt-5.2-codex".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            fast_model_config: None,
+            request_params: None,
+        };
+
+        let messages = vec![
+            Message::assistant()
+                .with_text("I'll create that file.")
+                .with_tool_request(
+                    "call_1",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "shell".into(),
+                        arguments: Some(object!({"command": "echo hello"})),
+                    }),
+                ),
+            Message::assistant()
+                .with_text("Now let me verify.")
+                .with_tool_request(
+                    "call_2",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "shell".into(),
+                        arguments: Some(object!({"command": "cat file.txt"})),
+                    }),
+                ),
+        ];
+
+        let result = create_responses_request(&model_config, "", &messages, &[]).unwrap();
+        let input = result["input"].as_array().unwrap();
+
+        let types: Vec<&str> = input
+            .iter()
+            .map(|item| {
+                item.get("type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_else(|| item["role"].as_str().unwrap())
+            })
+            .collect();
+
+        assert_eq!(
+            types,
+            vec!["assistant", "function_call", "assistant", "function_call"]
+        );
     }
 }

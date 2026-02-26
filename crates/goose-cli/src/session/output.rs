@@ -485,8 +485,8 @@ fn render_thinking_streaming(
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.to_string().as_str() {
-            "developer__text_editor" => render_text_editor_request(call, debug),
-            "developer__shell" => render_shell_request(call, debug),
+            name if is_shell_tool_name(name) => render_shell_request(call, debug),
+            name if is_file_tool_name(name) => render_text_editor_request(call, debug),
             "execute" | "execute_code" => render_execute_code_request(call, debug),
             "delegate" => render_delegate_request(call, debug),
             "subagent" => render_delegate_request(call, debug),
@@ -532,6 +532,14 @@ fn render_tool_response(resp: &ToolResponse, theme: Theme, debug: bool) {
         }
         Err(e) => print_markdown(&e.to_string(), theme),
     }
+}
+
+fn is_shell_tool_name(name: &str) -> bool {
+    matches!(name, "shell")
+}
+
+fn is_file_tool_name(name: &str) -> bool {
+    matches!(name, "write" | "edit")
 }
 
 pub fn render_error(message: &str) {
