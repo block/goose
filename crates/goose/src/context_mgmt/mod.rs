@@ -553,6 +553,7 @@ mod tests {
                     toolshim_model: None,
                     fast_model_config: None,
                     request_params: None,
+                    reasoning: None,
                 },
                 max_tool_responses: None,
             }

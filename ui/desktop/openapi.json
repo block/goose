@@ -5821,6 +5821,10 @@
           "model_name": {
             "type": "string"
           },
+          "reasoning": {
+            "type": "boolean",
+            "nullable": true
+          },
           "request_params": {
             "type": "object",
             "description": "Provider-specific request parameters (e.g., anthropic_beta headers)",

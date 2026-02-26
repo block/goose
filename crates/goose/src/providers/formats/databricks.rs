@@ -545,14 +545,10 @@ pub fn create_request(
     }
 
     let model_name = model_config.model_name.to_string();
-    let is_o1 = model_name.starts_with("o1") || model_name.starts_with("goose-o1");
-    let is_o3 = model_name.starts_with("o3") || model_name.starts_with("goose-o3");
-    let is_gpt_5 = model_name.starts_with("gpt-5") || model_name.starts_with("goose-gpt-5");
-    let is_openai_reasoning_model = is_o1 || is_o3 || is_gpt_5;
+    let is_openai_reasoning_model = model_config.is_openai_reasoning_model();
     let is_claude_sonnet =
         model_name.contains("claude-3-7-sonnet") || model_name.contains("claude-4-sonnet"); // can be goose- or databricks-
 
-    // Only extract reasoning effort for O1/O3 models
     let (model_name, reasoning_effort) = if is_openai_reasoning_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
@@ -568,7 +564,6 @@ pub fn create_request(
             ),
         }
     } else {
-        // For non-O family models, use the model name as is and no reasoning effort
         (model_config.model_name.to_string(), None)
     };
 
@@ -650,16 +645,10 @@ pub fn create_request(
             }
         }
 
-        // OpenAI reasoning models use max_completion_tokens instead of max_tokens
-        let key = if is_openai_reasoning_model {
-            "max_completion_tokens"
-        } else {
-            "max_tokens"
-        };
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert(key.to_string(), json!(model_config.max_output_tokens()));
+        payload.as_object_mut().unwrap().insert(
+            "max_completion_tokens".to_string(),
+            json!(model_config.max_output_tokens()),
+        );
     }
 
     // Apply cache control for Claude models to enable prompt caching
@@ -1056,6 +1045,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         let obj = request.as_object().unwrap();
@@ -1067,7 +1057,7 @@ mod tests {
                     "content": "system"
                 }
             ],
-            "max_tokens": 1024
+            "max_completion_tokens": 1024
         });
 
         for (key, value) in expected.as_object().unwrap() {
@@ -1088,6 +1078,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
         assert_eq!(request["reasoning_effort"], "high");
@@ -1440,6 +1431,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
 
         let messages = vec![
@@ -1492,6 +1484,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
 
         let messages = vec![Message::user().with_text("Hello")];

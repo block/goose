@@ -428,6 +428,7 @@ mod tests {
                 toolshim_model: None,
                 fast_model_config: None,
                 request_params: None,
+                reasoning: None,
             },
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),
