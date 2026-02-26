@@ -97,10 +97,6 @@ static LANGUAGES: &[LangInfo] = &[
                   (variable_declarator
                     name: (identifier) @name
                     value: (arrow_function)))
-                (lexical_declaration
-                  (variable_declarator
-                    name: (identifier) @name
-                    value: (call_expression)))
             "#,
             classes: r#"
                 (class_declaration name: (identifier) @name)
@@ -136,10 +132,6 @@ static LANGUAGES: &[LangInfo] = &[
                   (variable_declarator
                     name: (identifier) @name
                     value: (arrow_function)))
-                (lexical_declaration
-                  (variable_declarator
-                    name: (identifier) @name
-                    value: (call_expression)))
             "#,
             classes: r#"
                 (class_declaration name: (type_identifier) @name)
@@ -176,10 +168,6 @@ static LANGUAGES: &[LangInfo] = &[
                   (variable_declarator
                     name: (identifier) @name
                     value: (arrow_function)))
-                (lexical_declaration
-                  (variable_declarator
-                    name: (identifier) @name
-                    value: (call_expression)))
             "#,
             classes: r#"
                 (class_declaration name: (type_identifier) @name)
