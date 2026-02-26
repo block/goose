@@ -10,6 +10,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::tunnel::TunnelManager;
+use crate::wallet::WalletManager;
 use goose::agents::ExtensionLoadResult;
 use goose::gateway::manager::GatewayManager;
 use goose::providers::local_inference::InferenceRuntime;
@@ -26,6 +27,7 @@ pub struct AppState {
     pub gateway_manager: Arc<GatewayManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
     pub inference_runtime: Arc<InferenceRuntime>,
+    pub wallet_manager: Arc<WalletManager>,
 }
 
 impl AppState {
@@ -44,6 +46,7 @@ impl AppState {
             gateway_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
             inference_runtime: InferenceRuntime::get_or_init(),
+            wallet_manager: Arc::new(WalletManager::new()),
         }))
     }
 

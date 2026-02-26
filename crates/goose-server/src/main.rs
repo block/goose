@@ -6,6 +6,7 @@ mod openapi;
 mod routes;
 mod state;
 mod tunnel;
+mod wallet;
 
 use std::path::PathBuf;
 

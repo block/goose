@@ -6,6 +6,7 @@ pub mod routes;
 pub mod state;
 pub mod tls;
 pub mod tunnel;
+pub mod wallet;
 
 // Re-export commonly used items
 pub use openapi::*;

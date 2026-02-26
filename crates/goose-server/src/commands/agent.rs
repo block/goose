@@ -76,6 +76,8 @@ pub async fn run() -> Result<()> {
         gateway_manager.check_auto_start().await;
     });
 
+    app_state.wallet_manager.auto_start_if_configured();
+
     axum_server::bind_rustls(addr, tls_setup.config)
         .handle(handle)
         .serve(app.into_make_service())
