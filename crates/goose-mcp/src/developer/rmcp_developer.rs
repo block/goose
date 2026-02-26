@@ -49,7 +49,7 @@ use std::{
     future::Future,
     io::Cursor,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 use xcap::{Monitor, Window};
 
@@ -65,9 +65,7 @@ use crate::developer::{paths::get_shell_path_dirs, shell::ShellConfig};
 use super::analyze::{types::AnalyzeParams, CodeAnalyzer};
 use super::editor_models::{create_editor_model, EditorModel};
 use super::shell::{configure_shell_command, expand_path, is_absolute_path, kill_process_group};
-use super::text_editor::{
-    text_editor_insert, text_editor_replace, text_editor_undo, text_editor_view, text_editor_write,
-};
+use super::text_editor::{text_editor_replace, text_editor_view, text_editor_write};
 
 /// Parameters for the screen_capture tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -81,36 +79,44 @@ pub struct ScreenCaptureParams {
     pub window_title: Option<String>,
 }
 
-/// Parameters for the text_editor tool
+/// Parameters for the read_file tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct TextEditorParams {
+pub struct ReadFileParams {
     /// Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.
     pub path: String,
-
-    /// The operation to perform. Allowed options are: `view`, `write`, `str_replace`, `insert`, `undo_edit`.
-    pub command: String,
-
-    /// Unified diff to apply. Supports editing multiple files simultaneously. Cannot create or delete files
-    /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context"
-    /// Preferred edit method.
-    pub diff: Option<String>,
 
     /// Optional array of two integers specifying the start and end line numbers to view.
     /// Line numbers are 1-indexed, and -1 for the end line means read to the end of the file.
     /// This parameter only applies when viewing files, not directories.
     pub view_range: Option<Vec<i64>>,
+}
 
-    /// The content to write to the file. Required for `write` command.
-    pub file_text: Option<String>,
+/// Parameters for the edit_file tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct EditFileParams {
+    /// Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.
+    pub path: String,
 
-    /// The old string to replace.
+    /// The old string to replace. Must match exactly once in the file.
     pub old_str: Option<String>,
 
-    /// The new string to replace with. Required for `insert` command.
+    /// The new string to replace old_str with.
     pub new_str: Option<String>,
 
-    /// The line number after which to insert text (0 for beginning). Required for `insert` command.
-    pub insert_line: Option<i64>,
+    /// Unified diff to apply. Supports editing multiple files simultaneously.
+    /// Example: "--- a/file\n+++ b/file\n@@ -1,3 +1,3 @@\n context\n-old\n+new\n context"
+    /// Preferred for multi-file edits.
+    pub diff: Option<String>,
+}
+
+/// Parameters for the write_file tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct WriteFileParams {
+    /// Absolute path to file, e.g. `/repo/file.py`.
+    pub path: String,
+
+    /// The content to write to the file. This is a full overwrite.
+    pub file_text: String,
 }
 
 /// Parameters for the shell tool
@@ -227,7 +233,6 @@ fn load_prompt_files() -> HashMap<String, Prompt> {
 #[derive(Clone)]
 pub struct DeveloperServer {
     tool_router: ToolRouter<Self>,
-    file_history: Arc<Mutex<HashMap<PathBuf, Vec<String>>>>,
     ignore_patterns: Gitignore,
     editor_model: Option<EditorModel>,
     prompts: HashMap<String, Prompt>,
@@ -302,64 +307,24 @@ impl ServerHandler for DeveloperServer {
             }
         };
 
-        // Check if editor model exists and augment with custom llm editor tool description
-        let editor_description = if let Some(ref editor) = self.editor_model {
+        let editor_description = {
+            let editor_extra = if let Some(ref editor) = self.editor_model {
+                format!("\n{}", editor.get_str_replace_description())
+            } else {
+                String::new()
+            };
             formatdoc! {r#"
 
-                Additional Text Editor Tool Instructions:
+                Additional File Tool Instructions:
 
-                Perform text editing operations on files.
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace text in one or more files.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
+                Use `read_file` to view file contents or list directories. Use `view_range` for large files.
 
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
+                Use `edit_file` to make surgical edits. Provide `old_str` and `new_str` for single replacements -
+                `old_str` must match exactly one unique section of the file including whitespace.
+                For multi-file edits, use the `diff` parameter with a unified diff format.
 
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
-                and `new_str` (the text to insert).
-
-                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
-                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`
-
-                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-
-                {}
-
-            "#, editor.get_str_replace_description()}
-        } else {
-            formatdoc! {r#"
-
-                Additional Text Editor Tool Instructions:
-
-                Perform text editing operations on files.
-
-                The `command` parameter specifies the operation to perform. Allowed options are:
-                - `view`: View the content of a file.
-                - `write`: Create or overwrite a file with the given content
-                - `str_replace`: Replace text in one or more files.
-                - `insert`: Insert text at a specific line location in the file.
-                - `undo_edit`: Undo the last edit made to a file.
-
-                To use the write command, you must specify `file_text` which will become the new content of the file. Be careful with
-                existing files! This is a full overwrite, so you must include everything - not just sections you are modifying.
-
-                To use the str_replace command to edit multiple files, use the `diff` parameter with a unified diff.
-                To use the str_replace command to edit one file, you must specify both `old_str` and `new_str` - the `old_str` needs to exactly match one
-                unique section of the original file, including any whitespace. Make sure to include enough context that the match is not
-                ambiguous. The entire original string will be replaced with `new_str`
-
-                When possible, batch file edits together by using a multi-file unified `diff` within a single str_replace tool call.
-
-                To use the insert command, you must specify both `insert_line` (the line number after which to insert, 0 for beginning, -1 for end)
-                and `new_str` (the text to insert).
-
-
+                Use `write_file` to create new files or fully overwrite existing ones. Include the complete file content.
+                {editor_extra}
             "#}
         };
 
@@ -604,7 +569,6 @@ impl DeveloperServer {
 
         Self {
             tool_router: Self::tool_router(),
-            file_history: Arc::new(Mutex::new(HashMap::new())),
             ignore_patterns,
             editor_model,
             prompts: load_prompt_files(),
@@ -745,26 +709,18 @@ impl DeveloperServer {
         ]))
     }
 
-    /// Perform text editing operations on files.
-    ///
-    /// The `command` parameter specifies the operation to perform. Allowed options are:
-    /// - `view`: View the content of a file.
-    /// - `write`: Create or overwrite a file with the given content
-    /// - `str_replace`: Replace old_str with new_str in the file.
-    /// - `insert`: Insert text at a specific line location in the file.
-    /// - `undo_edit`: Undo the last edit made to a file.
+    /// Read the contents of a file or list a directory.
     #[tool(
-        name = "text_editor",
-        description = "Perform text editing operations on files. Commands: view (show file content), write (create/overwrite file), str_replace (edit file), insert (insert at line), undo_edit (undo last change)."
+        name = "read_file",
+        description = "Read the contents of a file or list a directory. Supports optional line range for viewing specific sections."
     )]
-    pub async fn text_editor(
+    pub async fn read_file(
         &self,
-        params: Parameters<TextEditorParams>,
+        params: Parameters<ReadFileParams>,
     ) -> Result<CallToolResult, ErrorData> {
         let params = params.0;
         let path = self.resolve_path(&params.path)?;
 
-        // Check if file is ignored before proceeding with any text editor operation
         if self.is_ignored(&path) {
             return Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
@@ -776,101 +732,90 @@ impl DeveloperServer {
             ));
         }
 
-        match params.command.as_str() {
-            "view" => {
-                let view_range = params.view_range.as_ref().and_then(|vr| {
-                    if vr.len() == 2 {
-                        Some((vr[0] as usize, vr[1]))
-                    } else {
-                        None
-                    }
-                });
-                let content = text_editor_view(&path, view_range).await?;
-                Ok(CallToolResult::success(content))
+        let view_range = params.view_range.as_ref().and_then(|vr| {
+            if vr.len() == 2 {
+                Some((vr[0] as usize, vr[1]))
+            } else {
+                None
             }
-            "write" => {
-                let file_text = params.file_text.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'file_text' parameter for write command".to_string(),
-                        None,
-                    )
-                })?;
-                let content = text_editor_write(&path, &file_text).await?;
-                Ok(CallToolResult::success(content))
-            }
-            "str_replace" => {
-                // Check if diff parameter is provided
-                if let Some(ref diff) = params.diff {
-                    // When diff is provided, old_str and new_str are not required
-                    let content = text_editor_replace(
-                        &path,
-                        "", // old_str not used with diff
-                        "", // new_str not used with diff
-                        Some(diff),
-                        &self.editor_model,
-                        &self.file_history,
-                    )
-                    .await?;
-                    Ok(CallToolResult::success(content))
-                } else {
-                    // Traditional str_replace with old_str and new_str
-                    let old_str = params.old_str.ok_or_else(|| {
-                        ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Missing 'old_str' parameter for str_replace command".to_string(),
-                            None,
-                        )
-                    })?;
-                    let new_str = params.new_str.ok_or_else(|| {
-                        ErrorData::new(
-                            ErrorCode::INVALID_PARAMS,
-                            "Missing 'new_str' parameter for str_replace command".to_string(),
-                            None,
-                        )
-                    })?;
-                    let content = text_editor_replace(
-                        &path,
-                        &old_str,
-                        &new_str,
-                        None,
-                        &self.editor_model,
-                        &self.file_history,
-                    )
-                    .await?;
-                    Ok(CallToolResult::success(content))
-                }
-            }
-            "insert" => {
-                let insert_line = params.insert_line.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'insert_line' parameter for insert command".to_string(),
-                        None,
-                    )
-                })? as usize;
-                let new_str = params.new_str.ok_or_else(|| {
-                    ErrorData::new(
-                        ErrorCode::INVALID_PARAMS,
-                        "Missing 'new_str' parameter for insert command".to_string(),
-                        None,
-                    )
-                })?;
-                let content =
-                    text_editor_insert(&path, insert_line as i64, &new_str, &self.file_history)
-                        .await?;
-                Ok(CallToolResult::success(content))
-            }
-            "undo_edit" => {
-                let content = text_editor_undo(&path, &self.file_history).await?;
-                Ok(CallToolResult::success(content))
-            }
-            _ => Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                format!("Unknown command '{}'", params.command),
+        });
+        let content = text_editor_view(&path, view_range).await?;
+        Ok(CallToolResult::success(content))
+    }
+
+    /// Edit a file by replacing exact text or applying a unified diff.
+    #[tool(
+        name = "edit_file",
+        description = "Edit a file by replacing exact text (old_str/new_str) or applying a unified diff. For old_str/new_str, the old text must match exactly once in the file."
+    )]
+    pub async fn edit_file(
+        &self,
+        params: Parameters<EditFileParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let path = self.resolve_path(&params.path)?;
+
+        if self.is_ignored(&path) {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "Access to '{}' is restricted by .gooseignore",
+                    path.display()
+                ),
                 None,
-            )),
+            ));
         }
+
+        if let Some(ref diff) = params.diff {
+            let content =
+                text_editor_replace(&path, "", "", Some(diff), &self.editor_model).await?;
+            Ok(CallToolResult::success(content))
+        } else {
+            let old_str = params.old_str.ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    "Either 'diff' or both 'old_str' and 'new_str' must be provided".to_string(),
+                    None,
+                )
+            })?;
+            let new_str = params.new_str.ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INVALID_PARAMS,
+                    "Missing 'new_str' parameter".to_string(),
+                    None,
+                )
+            })?;
+            let content =
+                text_editor_replace(&path, &old_str, &new_str, None, &self.editor_model).await?;
+            Ok(CallToolResult::success(content))
+        }
+    }
+
+    /// Write content to a file, creating it if needed or overwriting if it exists.
+    #[tool(
+        name = "write_file",
+        description = "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories."
+    )]
+    pub async fn write_file(
+        &self,
+        params: Parameters<WriteFileParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let params = params.0;
+        let path = self.resolve_path(&params.path)?;
+
+        if self.is_ignored(&path) {
+            return Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                format!(
+                    "Access to '{}' is restricted by .gooseignore",
+                    path.display()
+                ),
+                None,
+            ));
+        }
+
+        let content = text_editor_write(&path, &params.file_text).await?;
+        Ok(CallToolResult::success(content))
     }
 
     /// Execute a command in the shell.
@@ -1668,18 +1613,12 @@ mod tests {
             let content = "x".repeat(3 * 1024 * 1024); // 3MB
             fs::write(&large_file_path, content).unwrap();
 
-            let view_params = Parameters(TextEditorParams {
+            let view_params = Parameters(ReadFileParams {
                 path: large_file_path.to_str().unwrap().to_string(),
-                command: "view".to_string(),
                 view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
             });
 
-            let result = server.text_editor(view_params).await;
+            let result = server.read_file(view_params).await;
 
             assert!(result.is_err());
             let err = result.err().unwrap();
@@ -1695,18 +1634,12 @@ mod tests {
             let content = "x".repeat(500_000);
             fs::write(&many_chars_path, content).unwrap();
 
-            let view_params = Parameters(TextEditorParams {
+            let view_params = Parameters(ReadFileParams {
                 path: many_chars_path.to_str().unwrap().to_string(),
-                command: "view".to_string(),
                 view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
             });
 
-            let result = server.text_editor(view_params).await;
+            let result = server.read_file(view_params).await;
 
             assert!(result.is_err());
             let err = result.err().unwrap();
@@ -1726,32 +1659,20 @@ mod tests {
         let server = create_test_server();
 
         // Create a new file
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Hello, world!".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: "Hello, world!".to_string(),
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // View the file
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let view_result = server.text_editor(view_params).await.unwrap();
+        let view_result = server.read_file(view_params).await.unwrap();
 
         assert!(!view_result.content.is_empty());
         let user_content = view_result
@@ -1797,32 +1718,22 @@ mod tests {
         let server = create_test_server();
 
         // Create a new file
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Hello, world!".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: "Hello, world!".to_string(),
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // Replace string
-        let replace_params = Parameters(TextEditorParams {
+        let replace_params = Parameters(EditFileParams {
             path: file_path_str.to_string(),
-            command: "str_replace".to_string(),
-            view_range: None,
-            file_text: None,
             old_str: Some("world".to_string()),
             new_str: Some("Rust".to_string()),
-            insert_line: None,
             diff: None,
         });
 
-        let replace_result = server.text_editor(replace_params).await.unwrap();
+        let replace_result = server.edit_file(replace_params).await.unwrap();
 
         let assistant_content = replace_result
             .content
@@ -1842,76 +1753,6 @@ mod tests {
         // Verify the file contents changed
         let content = fs::read_to_string(&file_path).unwrap();
         assert!(content.contains("Hello, Rust!"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_undo_edit() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Original content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Make an edit
-        let replace_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "str_replace".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: Some("Original".to_string()),
-            new_str: Some("Modified".to_string()),
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(replace_params).await.unwrap();
-
-        // Verify the edit was made
-        let content = fs::read_to_string(&file_path).unwrap();
-        assert!(content.contains("Modified content"));
-
-        // Undo the edit
-        let undo_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "undo_edit".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        let undo_result = server.text_editor(undo_params).await.unwrap();
-
-        // Verify undo worked
-        let content = fs::read_to_string(&file_path).unwrap();
-        assert!(content.contains("Original content"));
-
-        let undo_content = undo_result
-            .content
-            .iter()
-            .find(|c| c.as_text().is_some())
-            .unwrap()
-            .as_text()
-            .unwrap();
-        assert!(undo_content.text.contains("Undid the last edit"));
     }
 
     #[tokio::test]
@@ -1967,18 +1808,12 @@ mod tests {
 
         // Try to write to an ignored file
         let secret_path = temp_dir.path().join("secret.txt");
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: secret_path.to_str().unwrap().to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("test content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: "test content".to_string(),
         });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write_file(write_params).await;
         assert!(
             result.is_err(),
             "Should not be able to write to ignored file"
@@ -1987,18 +1822,12 @@ mod tests {
 
         // Try to write to a non-ignored file
         let allowed_path = temp_dir.path().join("allowed.txt");
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: allowed_path.to_str().unwrap().to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("test content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: "test content".to_string(),
         });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write_file(write_params).await;
         assert!(
             result.is_ok(),
             "Should be able to write to non-ignored file"
@@ -2074,21 +1903,14 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         std::env::set_current_dir(&temp_dir).unwrap();
 
-        // Test without editor API configured (should be the case in tests due to cfg!(test))
         let server = create_test_server();
 
-        // Get server info which contains tool descriptions
         let server_info = server.get_info();
         let instructions = server_info.instructions.unwrap_or_default();
 
-        // Should use traditional description with str_replace command
-        assert!(instructions.contains("Replace text in one or more files"));
-        assert!(instructions.contains("str_replace"));
-
-        // Should not contain editor API description or edit_file command
-        assert!(!instructions.contains("Edit the file with the new content"));
-        assert!(!instructions.contains("edit_file"));
-        assert!(!instructions.contains("work out how to place old_str with it intelligently"));
+        assert!(instructions.contains("read_file"));
+        assert!(instructions.contains("edit_file"));
+        assert!(instructions.contains("write_file"));
     }
 
     #[tokio::test]
@@ -2104,32 +1926,20 @@ mod tests {
         // Create a multi-line file
         let content =
             "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6\nLine 7\nLine 8\nLine 9\nLine 10";
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: content.to_string(),
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // Test viewing specific range
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: Some(vec![3, 6]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let view_result = server.text_editor(view_params).await.unwrap();
+        let view_result = server.read_file(view_params).await.unwrap();
 
         let text = view_result
             .content
@@ -2165,32 +1975,20 @@ mod tests {
 
         // Create a multi-line file
         let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: content.to_string(),
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // Test viewing from line 3 to end using -1
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: Some(vec![3, -1]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let view_result = server.text_editor(view_params).await.unwrap();
+        let view_result = server.read_file(view_params).await.unwrap();
 
         let text = view_result
             .content
@@ -2225,473 +2023,24 @@ mod tests {
 
         // Create a small file
         let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: content.to_string(),
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // Test invalid range - start line beyond file
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: Some(vec![10, 15]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read_file(view_params).await;
         assert!(result.is_err());
         let error = result.unwrap_err();
         assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
         assert!(error.message.contains("beyond the end of the file"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_at_beginning() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 2\nLine 3\nLine 4";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert at the beginning (line 0)
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 1".to_string()),
-            insert_line: Some(0),
-            diff: None,
-        });
-
-        let insert_result = server.text_editor(insert_params).await.unwrap();
-
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-
-        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 1"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2\nLine 3\nLine 4"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_in_middle() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 4\nLine 5";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert after line 2
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 3".to_string()),
-            insert_line: Some(2),
-            diff: None,
-        });
-
-        let insert_result = server.text_editor(insert_params).await.unwrap();
-
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-
-        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 3"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        let lines: Vec<&str> = file_content.lines().collect();
-        assert_eq!(lines[0], "Line 1");
-        assert_eq!(lines[1], "Line 2");
-        assert_eq!(lines[2], "Line 3");
-        assert_eq!(lines[3], "Line 4");
-        assert_eq!(lines[4], "Line 5");
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_at_end() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert at the end (after line 3)
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 4".to_string()),
-            insert_line: Some(3),
-            diff: None,
-        });
-
-        let insert_result = server.text_editor(insert_params).await.unwrap();
-
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-
-        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 4"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2\nLine 3\nLine 4"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_at_end_negative() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert at the end using -1
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 4".to_string()),
-            insert_line: Some(-1),
-            diff: None,
-        });
-
-        let insert_result = server.text_editor(insert_params).await.unwrap();
-
-        let text = insert_result
-            .content
-            .iter()
-            .find(|c| {
-                c.audience()
-                    .is_some_and(|roles| roles.contains(&Role::Assistant))
-            })
-            .unwrap()
-            .as_text()
-            .unwrap();
-
-        assert!(text.text.contains("Successfully inserted") && text.text.contains("at line 4"));
-
-        // Verify the file content by reading it directly
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2\nLine 3\nLine 4"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_invalid_line() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2\nLine 3";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Try to insert beyond the end of the file
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Line 11".to_string()),
-            insert_line: Some(10),
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-        assert!(err.message.contains("beyond the end of the file"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_missing_parameters() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file first
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Initial content".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Test insert without new_str parameter
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None, // Missing required parameter
-            insert_line: Some(1),
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-        assert!(error.message.contains("Missing 'new_str' parameter"));
-
-        // Test insert without insert_line parameter
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("New text".to_string()),
-            insert_line: None, // Missing required parameter
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert_eq!(error.code, ErrorCode::INVALID_PARAMS);
-        assert!(error.message.contains("Missing 'insert_line' parameter"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_with_undo() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Create a file with some content
-        let content = "Line 1\nLine 2";
-        let write_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content.to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        server.text_editor(write_params).await.unwrap();
-
-        // Insert a line
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("Inserted Line".to_string()),
-            insert_line: Some(1),
-            diff: None,
-        });
-
-        server.text_editor(insert_params).await.unwrap();
-
-        // Undo the insert
-        let undo_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "undo_edit".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
-        });
-
-        let undo_result = server.text_editor(undo_params).await.unwrap();
-
-        let text = undo_result
-            .content
-            .iter()
-            .find(|c| c.as_text().is_some())
-            .unwrap()
-            .as_text()
-            .unwrap();
-        assert!(text.text.contains("Undid the last edit"));
-
-        // Verify the file is back to original content
-        let file_content = fs::read_to_string(&file_path).unwrap();
-        assert!(file_content.contains("Line 1\nLine 2"));
-        assert!(!file_content.contains("Inserted Line"));
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_text_editor_insert_nonexistent_file() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let file_path = temp_dir.path().join("nonexistent.txt");
-        let file_path_str = file_path.to_str().unwrap();
-        std::env::set_current_dir(&temp_dir).unwrap();
-
-        let server = create_test_server();
-
-        // Try to insert into a nonexistent file
-        let insert_params = Parameters(TextEditorParams {
-            path: file_path_str.to_string(),
-            command: "insert".to_string(),
-            view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: Some("New line".to_string()),
-            insert_line: Some(0),
-            diff: None,
-        });
-
-        let result = server.text_editor(insert_params).await;
-
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
-        assert!(err.message.contains("does not exist"));
     }
 
     #[tokio::test]
@@ -2710,32 +2059,20 @@ mod tests {
             content.push_str(&format!("Line {}\n", i));
         }
 
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: content,
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // Test viewing without view_range - should trigger the error
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read_file(view_params).await;
 
         assert!(result.is_err());
         let err = result.err().unwrap();
@@ -2749,18 +2086,12 @@ mod tests {
             .contains("please pass in view_range with [1, 2001]"));
 
         // Test viewing with view_range - should work
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: Some(vec![1, 100]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read_file(view_params).await;
         assert!(result.is_ok());
 
         let view_result = result.unwrap();
@@ -2781,18 +2112,12 @@ mod tests {
         assert!(!text.text.contains("101: Line 101"));
 
         // Test viewing with explicit full range - should work
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: Some(vec![1, 2001]),
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read_file(view_params).await;
         assert!(result.is_ok());
     }
 
@@ -2812,32 +2137,20 @@ mod tests {
             content.push_str(&format!("Line {}\n", i));
         }
 
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: content,
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // Test viewing without view_range - should work since it's exactly 2000 lines
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read_file(view_params).await;
 
         assert!(result.is_ok());
         let view_result = result.unwrap();
@@ -2873,32 +2186,20 @@ mod tests {
             content.push_str(&format!("Line {}\n", i));
         }
 
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: file_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some(content),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: content,
         });
 
-        server.text_editor(write_params).await.unwrap();
+        server.write_file(write_params).await.unwrap();
 
         // Test viewing without view_range - should work fine
-        let view_params = Parameters(TextEditorParams {
+        let view_params = Parameters(ReadFileParams {
             path: file_path_str.to_string(),
-            command: "view".to_string(),
             view_range: None,
-            file_text: None,
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
         });
 
-        let result = server.text_editor(view_params).await;
+        let result = server.read_file(view_params).await;
 
         assert!(result.is_ok());
         let view_result = result.unwrap();
@@ -2940,15 +2241,9 @@ mod tests {
 
         // Test viewing a directory
         let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "view".to_string(),
+            .read_file(Parameters(ReadFileParams {
                 path: temp_path.to_str().unwrap().to_string(),
                 view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
             }))
             .await;
 
@@ -3003,15 +2298,9 @@ mod tests {
         let server = create_test_server();
 
         let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "view".to_string(),
+            .read_file(Parameters(ReadFileParams {
                 path: temp_path.to_str().unwrap().to_string(),
                 view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
             }))
             .await;
 
@@ -3050,15 +2339,9 @@ mod tests {
         }
 
         let result = server
-            .text_editor(Parameters(TextEditorParams {
-                command: "view".to_string(),
+            .read_file(Parameters(ReadFileParams {
                 path: temp_path.to_str().unwrap().to_string(),
                 view_range: None,
-                file_text: None,
-                old_str: None,
-                new_str: None,
-                insert_line: None,
-                diff: None,
             }))
             .await;
 
@@ -3390,18 +2673,12 @@ mod tests {
         let absolute_path = temp_dir.path().join("absolute_test.txt");
         let absolute_path_str = absolute_path.to_str().unwrap();
 
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: absolute_path_str.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Absolute path test".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: "Absolute path test".to_string(),
         });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write_file(write_params).await;
         assert!(result.is_ok());
 
         let content = fs::read_to_string(&absolute_path).unwrap();
@@ -3417,18 +2694,12 @@ mod tests {
         let server = create_test_server();
         let relative_path = "relative_test.txt";
 
-        let write_params = Parameters(TextEditorParams {
+        let write_params = Parameters(WriteFileParams {
             path: relative_path.to_string(),
-            command: "write".to_string(),
-            view_range: None,
-            file_text: Some("Relative path test".to_string()),
-            old_str: None,
-            new_str: None,
-            insert_line: None,
-            diff: None,
+            file_text: "Relative path test".to_string(),
         });
 
-        let result = server.text_editor(write_params).await;
+        let result = server.write_file(write_params).await;
         assert!(result.is_ok());
 
         let absolute_path = temp_dir.path().join(relative_path);

@@ -485,7 +485,10 @@ fn render_thinking_streaming(
 fn render_tool_request(req: &ToolRequest, theme: Theme, debug: bool) {
     match &req.tool_call {
         Ok(call) => match call.name.to_string().as_str() {
-            "developer__text_editor" => render_text_editor_request(call, debug),
+            "developer__text_editor"
+            | "developer__read_file"
+            | "developer__edit_file"
+            | "developer__write_file" => render_text_editor_request(call, debug),
             "developer__shell" => render_shell_request(call, debug),
             "execute" | "execute_code" => render_execute_code_request(call, debug),
             "delegate" => render_delegate_request(call, debug),

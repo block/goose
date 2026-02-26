@@ -4492,6 +4492,7 @@ dependencies = [
  "serial_test",
  "shell-words",
  "shellexpand",
+ "similar",
  "tempfile",
  "tokio",
  "tokio-stream",

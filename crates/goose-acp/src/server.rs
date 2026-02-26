@@ -109,7 +109,15 @@ fn extract_tool_locations(
     let mut locations = Vec::new();
 
     if let Ok(tool_call) = &tool_request.tool_call {
-        if tool_call.name != "developer__text_editor" {
+        let tool_name = tool_call.name.to_string();
+        let is_file_tool = matches!(
+            tool_name.as_str(),
+            "developer__text_editor"
+                | "developer__read_file"
+                | "developer__edit_file"
+                | "developer__write_file"
+        );
+        if !is_file_tool {
             return locations;
         }
 
@@ -120,25 +128,31 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
-            let command = tool_call
-                .arguments
-                .as_ref()
-                .and_then(|args| args.get("command"))
-                .and_then(|c| c.as_str());
+            // Determine the operation from either the new tool name or legacy command param
+            let operation = match tool_name.as_str() {
+                "developer__read_file" => Some("view"),
+                "developer__edit_file" => Some("str_replace"),
+                "developer__write_file" => Some("write"),
+                _ => tool_call
+                    .arguments
+                    .as_ref()
+                    .and_then(|args| args.get("command"))
+                    .and_then(|c| c.as_str()),
+            };
 
             if let Ok(result) = &tool_response.tool_result {
                 for content in &result.content {
                     if let RawContent::Text(text_content) = &content.raw {
                         let text = &text_content.text;
 
-                        match command {
+                        match operation {
                             Some("view") => {
                                 let line = extract_view_line_range(text)
                                     .map(|range| range.0 as u32)
                                     .or(Some(1));
                                 locations.push(create_tool_location(path_str, line));
                             }
-                            Some("str_replace") | Some("insert") => {
+                            Some("str_replace") => {
                                 let line = extract_first_line_number(text)
                                     .map(|l| l as u32)
                                     .or(Some(1));

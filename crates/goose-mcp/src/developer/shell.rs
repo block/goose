@@ -92,16 +92,6 @@ pub fn is_absolute_path(path_str: &str) -> bool {
     }
 }
 
-pub fn normalize_line_endings(text: &str) -> String {
-    if cfg!(windows) {
-        // Ensure CRLF line endings on Windows
-        text.replace("\r\n", "\n").replace("\n", "\r\n")
-    } else {
-        // Ensure LF line endings on Unix
-        text.replace("\r\n", "\n")
-    }
-}
-
 /// Configure a shell command with process group support for proper child process tracking.
 ///
 /// On Unix systems, creates a new process group so child processes can be killed together.

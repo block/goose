@@ -67,6 +67,7 @@ libc = "0.2"
 mpatch = "=0.2.0"
 tokio-util = { workspace = true }
 shell-words = "1.1.1"
+similar = "2.7.0"
 
 [dev-dependencies]
 serial_test = { workspace = true }

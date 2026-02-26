@@ -3,15 +3,245 @@ use indoc::formatdoc;
 use mpatch::{apply_patch, parse_diffs, PatchError};
 use rmcp::model::{Content, ErrorCode, ErrorData, Role};
 use std::{
-    collections::HashMap,
     fs::File,
     io::Read,
     path::{Path, PathBuf},
 };
 
+use similar::ChangeTag;
+
 use super::editor_models::EditorModel;
 use super::lang;
-use super::shell::normalize_line_endings;
+
+// --- Line ending detection and preservation ---
+
+/// Detect the dominant line ending style in a file's content.
+fn detect_line_ending(content: &str) -> &'static str {
+    let crlf_idx = content.find("\r\n");
+    let lf_idx = content.find('\n');
+    match (crlf_idx, lf_idx) {
+        (Some(c), Some(l)) if c < l => "\r\n",
+        _ => "\n",
+    }
+}
+
+/// Normalize all line endings to LF for consistent internal processing.
+fn normalize_to_lf(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// Restore line endings to the original style detected from the file.
+fn restore_line_endings(text: &str, ending: &str) -> String {
+    if ending == "\r\n" {
+        text.replace('\n', "\r\n")
+    } else {
+        text.to_string()
+    }
+}
+
+// --- BOM handling ---
+
+/// Strip UTF-8 BOM if present. Returns the BOM prefix (empty string if none) and the text without it.
+fn strip_bom(content: &str) -> (&str, &str) {
+    if let Some(stripped) = content.strip_prefix('\u{FEFF}') {
+        ("\u{FEFF}", stripped)
+    } else {
+        ("", content)
+    }
+}
+
+// --- Fuzzy text matching ---
+
+/// Normalize text for fuzzy matching:
+/// - Strip trailing whitespace from each line
+/// - Normalize smart quotes to ASCII
+/// - Normalize Unicode dashes/hyphens to ASCII hyphen
+/// - Normalize special Unicode spaces to regular space
+fn normalize_for_fuzzy_match(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    for (i, line) in text.split('\n').enumerate() {
+        if i > 0 {
+            result.push('\n');
+        }
+        result.push_str(line.trim_end());
+    }
+    // Smart single quotes → '
+    let result = result.replace(['\u{2018}', '\u{2019}', '\u{201A}', '\u{201B}'], "'");
+    // Smart double quotes → "
+    let result = result.replace(['\u{201C}', '\u{201D}', '\u{201E}', '\u{201F}'], "\"");
+    // Various dashes → -
+    let result = result.replace(
+        [
+            '\u{2010}', '\u{2011}', '\u{2012}', '\u{2013}', '\u{2014}', '\u{2015}', '\u{2212}',
+        ],
+        "-",
+    );
+    // Special spaces → regular space
+    result.replace(
+        [
+            '\u{00A0}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}',
+            '\u{2008}', '\u{2009}', '\u{200A}', '\u{202F}', '\u{205F}', '\u{3000}',
+        ],
+        " ",
+    )
+}
+
+struct FuzzyMatchResult {
+    found: bool,
+    /// The text that was actually matched (to use with `replacen`).
+    matched_text: String,
+    /// The content string to perform the replacement on.
+    /// When exact match: the original content. When fuzzy: the normalized content.
+    content_for_replacement: String,
+}
+
+/// Find `old_text` in `content`, trying exact match first, then fuzzy.
+fn fuzzy_find_text(content: &str, old_text: &str) -> FuzzyMatchResult {
+    // Try exact match first
+    if content.contains(old_text) {
+        return FuzzyMatchResult {
+            found: true,
+            matched_text: old_text.to_string(),
+            content_for_replacement: content.to_string(),
+        };
+    }
+
+    // Try fuzzy match
+    let fuzzy_content = normalize_for_fuzzy_match(content);
+    let fuzzy_old = normalize_for_fuzzy_match(old_text);
+    if fuzzy_content.contains(&fuzzy_old) {
+        return FuzzyMatchResult {
+            found: true,
+            matched_text: fuzzy_old,
+            content_for_replacement: fuzzy_content,
+        };
+    }
+
+    FuzzyMatchResult {
+        found: false,
+        matched_text: String::new(),
+        content_for_replacement: content.to_string(),
+    }
+}
+
+// --- Unified diff generation for user-facing output ---
+
+struct DiffOutput {
+    diff: String,
+}
+
+/// Generate a compact unified diff with line numbers and context.
+/// Shows added/removed lines with `+`/`-` prefixes and surrounding context.
+fn generate_diff_string(old_content: &str, new_content: &str, context_lines: usize) -> DiffOutput {
+    let diff = similar::TextDiff::from_lines(old_content, new_content);
+    let changes: Vec<_> = diff.iter_all_changes().collect();
+
+    let max_line = old_content.lines().count().max(new_content.lines().count());
+    let width = max_line.to_string().len().max(1);
+
+    let mut output = Vec::new();
+    let mut old_line: usize = 1;
+    let mut new_line: usize = 1;
+    // Group changes into regions: each region is a run of changes plus context
+    // We need to decide for each line whether to show it.
+    // Strategy: collect line info, then select which to display.
+    struct LineInfo {
+        tag: ChangeTag,
+        text: String,
+        old_num: usize,
+        new_num: usize,
+    }
+
+    let mut all_lines = Vec::new();
+    for change in &changes {
+        let text = change.value().trim_end_matches('\n').to_string();
+        all_lines.push(LineInfo {
+            tag: change.tag(),
+            text,
+            old_num: old_line,
+            new_num: new_line,
+        });
+        match change.tag() {
+            ChangeTag::Equal => {
+                old_line += 1;
+                new_line += 1;
+            }
+            ChangeTag::Delete => {
+                old_line += 1;
+            }
+            ChangeTag::Insert => {
+                new_line += 1;
+            }
+        }
+    }
+
+    // Find indices of changed lines
+    let change_indices: Vec<usize> = all_lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| l.tag != ChangeTag::Equal)
+        .map(|(i, _)| i)
+        .collect();
+
+    if change_indices.is_empty() {
+        return DiffOutput {
+            diff: String::new(),
+        };
+    }
+
+    // Build set of lines to display (changes + context)
+    let mut visible = vec![false; all_lines.len()];
+    for &ci in &change_indices {
+        let start = ci.saturating_sub(context_lines);
+        let end = (ci + context_lines + 1).min(all_lines.len());
+        for v in &mut visible[start..end] {
+            *v = true;
+        }
+    }
+
+    let mut last_visible = false;
+    for (i, line) in all_lines.iter().enumerate() {
+        if !visible[i] {
+            if last_visible {
+                output.push(format!(" {:>width$} ...", "", width = width));
+            }
+            last_visible = false;
+            continue;
+        }
+        last_visible = true;
+
+        match line.tag {
+            ChangeTag::Equal => {
+                output.push(format!(
+                    " {:>width$} {}",
+                    line.old_num,
+                    line.text,
+                    width = width
+                ));
+            }
+            ChangeTag::Delete => {
+                output.push(format!(
+                    "-{:>width$} {}",
+                    line.old_num,
+                    line.text,
+                    width = width
+                ));
+            }
+            ChangeTag::Insert => {
+                output.push(format!(
+                    "+{:>width$} {}",
+                    line.new_num,
+                    line.text,
+                    width = width
+                ));
+            }
+        }
+    }
+
+    DiffOutput {
+        diff: output.join("\n"),
+    }
+}
 
 // Constants
 pub const LINE_READ_LIMIT: usize = 2000;
@@ -169,14 +399,7 @@ fn generate_summary(results: &DiffResults, is_single_file: bool, base_path: &Pat
         )
     };
 
-    let user_message = if is_single_file {
-        format!("{}\n\nUse 'undo_edit' to revert if needed.\n\n", summary)
-    } else {
-        format!(
-            "{}\n\nUse 'undo_edit' on individual files to revert if needed.\n\n",
-            summary
-        )
-    };
+    let user_message = format!("{}\n\n", summary);
 
     vec![
         Content::text(summary.clone()).with_audience(vec![Role::Assistant]),
@@ -207,7 +430,6 @@ fn adjust_base_dir_for_overlap(base_dir: &Path, file_path: &Path) -> PathBuf {
 fn apply_single_patch(
     patch: &mpatch::Patch,
     base_dir: &Path,
-    file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
     results: &mut DiffResults,
     failed_hunks: &mut Vec<String>,
 ) -> Result<(), ErrorData> {
@@ -218,11 +440,7 @@ fn apply_single_patch(
     // Validate path safety
     validate_path_safety(&adjusted_base_dir, &file_path)?;
 
-    // Save history before modifying
     let file_existed = file_path.exists();
-    if file_existed {
-        save_file_history(&file_path, file_history)?;
-    }
 
     // Apply patch with fuzzy matching (70% similarity threshold)
     let success = apply_patch(patch, &adjusted_base_dir, false, 0.7).map_err(|e| match e {
@@ -359,7 +577,7 @@ fn report_partial_failures(failed_hunks: &[String]) {
             • The file has changed significantly from when the diff was created\n\
             • Line numbers in the diff are incorrect\n\
             • The context lines don't match exactly\n\n\
-            Review the changes and use 'undo_edit' if needed.",
+            Review the changes carefully.",
             failed_hunks.join("\n")
         );
 
@@ -368,11 +586,7 @@ fn report_partial_failures(failed_hunks: &[String]) {
 }
 
 /// Applies any diff (single or multi-file) using mpatch for fuzzy matching
-pub async fn apply_diff(
-    base_path: &Path,
-    diff_content: &str,
-    file_history: &std::sync::Arc<std::sync::Mutex<HashMap<PathBuf, Vec<String>>>>,
-) -> Result<Vec<Content>, ErrorData> {
+pub async fn apply_diff(base_path: &Path, diff_content: &str) -> Result<Vec<Content>, ErrorData> {
     validate_diff_size(diff_content)?;
     let patches = parse_diff_content(diff_content)?;
 
@@ -398,13 +612,7 @@ pub async fn apply_diff(
     let mut failed_hunks = Vec::new();
 
     for patch in &patches {
-        apply_single_patch(
-            patch,
-            &base_dir,
-            file_history,
-            &mut results,
-            &mut failed_hunks,
-        )?;
+        apply_single_patch(patch, &base_dir, &mut results, &mut failed_hunks)?;
     }
 
     ensure_trailing_newlines(&patches, &base_dir)?;
@@ -688,23 +896,30 @@ pub async fn text_editor_view(
 }
 
 pub async fn text_editor_write(path: &PathBuf, file_text: &str) -> Result<Vec<Content>, ErrorData> {
-    // Normalize line endings based on platform
-    let mut normalized_text = normalize_line_endings(file_text); // Make mutable
+    // Detect existing file's line ending style, or use platform default
+    let original_ending = if path.exists() {
+        std::fs::read_to_string(path)
+            .map(|c| detect_line_ending(&c).to_string())
+            .unwrap_or_else(|_| "\n".to_string())
+    } else if cfg!(windows) {
+        "\r\n".to_string()
+    } else {
+        "\n".to_string()
+    };
 
-    // Ensure the text ends with a newline
+    let mut normalized_text = normalize_to_lf(file_text);
     if !normalized_text.ends_with('\n') {
         normalized_text.push('\n');
     }
+    let final_text = restore_line_endings(&normalized_text, &original_ending);
 
-    // Write to the file
-    std::fs::write(path, &normalized_text) // Write the potentially modified text
-        .map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to write file: {}", e),
-                None,
-            )
-        })?;
+    std::fs::write(path, &final_text).map_err(|e| {
+        ErrorData::new(
+            ErrorCode::INTERNAL_ERROR,
+            format!("Failed to write file: {}", e),
+            None,
+        )
+    })?;
 
     // Try to detect the language from the file extension
     let language = lang::get_language_identifier(path);
@@ -723,7 +938,7 @@ pub async fn text_editor_write(path: &PathBuf, file_text: &str) -> Result<Vec<Co
             "#,
             path=path.display(),
             language=language,
-            content=&normalized_text // Use the final normalized_text for user feedback
+            content=&normalized_text
         })
         .with_audience(vec![Role::User])
         .with_priority(0.2),
@@ -737,9 +952,6 @@ pub async fn text_editor_replace(
     new_str: &str,
     diff: Option<&str>,
     editor_model: &Option<EditorModel>,
-    file_history: &std::sync::Arc<
-        std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
-    >,
 ) -> Result<Vec<Content>, ErrorData> {
     // Check if diff is provided
     if let Some(diff_content) = diff {
@@ -752,22 +964,21 @@ pub async fn text_editor_replace(
             ));
         }
 
-        return apply_diff(path, diff_content, file_history).await;
+        return apply_diff(path, diff_content).await;
     }
-    // Check if file exists and is active
     if !path.exists() {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
             format!(
-                "File '{}' does not exist, you can write a new file with the `write` command",
+                "File '{}' does not exist, you can write a new file with the `write_file` command",
                 path.display()
             ),
             None,
         ));
     }
 
-    // Read content
-    let content = std::fs::read_to_string(path).map_err(|e| {
+    // Read raw content and preserve original encoding details
+    let raw_content = std::fs::read_to_string(path).map_err(|e| {
         ErrorData::new(
             ErrorCode::INTERNAL_ERROR,
             format!("Failed to read file: {}", e),
@@ -775,21 +986,24 @@ pub async fn text_editor_replace(
         )
     })?;
 
+    let (bom, content_without_bom) = strip_bom(&raw_content);
+    let original_ending = detect_line_ending(content_without_bom);
+    let content = normalize_to_lf(content_without_bom);
+    let normalized_old = normalize_to_lf(old_str);
+    let normalized_new = normalize_to_lf(new_str);
+
     // Check if Editor API is configured and use it as the primary path
     if let Some(ref editor) = editor_model {
-        // Editor API path - save history then call API directly
-        save_file_history(path, file_history)?;
-
         match editor.edit_code(&content, old_str, new_str).await {
             Ok(updated_content) => {
-                // Write the updated content directly
-                let mut normalized_content = normalize_line_endings(&updated_content);
-
-                if !normalized_content.ends_with('\n') {
-                    normalized_content.push('\n');
+                let mut result = normalize_to_lf(&updated_content);
+                if !result.ends_with('\n') {
+                    result.push('\n');
                 }
+                let final_content =
+                    format!("{}{}", bom, restore_line_endings(&result, original_ending));
 
-                std::fs::write(path, &normalized_content).map_err(|e| {
+                std::fs::write(path, &final_content).map_err(|e| {
                     ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
                         format!("Failed to write file: {}", e),
@@ -797,7 +1011,6 @@ pub async fn text_editor_replace(
                     )
                 })?;
 
-                // Simple success message for Editor API
                 return Ok(vec![
                     Content::text(format!("Successfully replaced text in {}.", path.display()))
                         .with_audience(vec![Role::Assistant]),
@@ -811,169 +1024,57 @@ pub async fn text_editor_replace(
                     "Editor API call failed: {}, falling back to string replacement",
                     e
                 );
-                // Fall through to traditional path below
             }
         }
     }
 
-    // Traditional string replacement path (original logic)
-    // Ensure 'old_str' appears exactly once
-    if content.matches(old_str).count() > 1 {
+    // Fuzzy find: tries exact match first, then normalizes whitespace/unicode
+    let match_result = fuzzy_find_text(&content, &normalized_old);
+
+    if !match_result.found {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
-            "'old_str' must appear exactly once in the file, but it appears multiple times"
-                .to_string(),
+            "'old_str' was not found in the file. Make sure it matches existing file content, including whitespace.".to_string(),
             None,
         ));
     }
-    if content.matches(old_str).count() == 0 {
-        return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, "'old_str' must appear exactly once in the file, but it does not appear in the file. Make sure the string exactly matches existing file content, including whitespace!".to_string(), None));
-    }
 
-    // Save history for undo (original behavior - after validation)
-    save_file_history(path, file_history)?;
-
-    let new_content = content.replace(old_str, new_str);
-    let mut normalized_content = normalize_line_endings(&new_content);
-
-    if !normalized_content.ends_with('\n') {
-        normalized_content.push('\n');
-    }
-
-    std::fs::write(path, &normalized_content).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to write file: {}", e),
-            None,
-        )
-    })?;
-
-    let new_line_count = new_str.lines().count();
-
-    // Count newlines before the replacement to find the line number
-    let replacement_line = content
-        .split(old_str)
-        .next()
-        .expect("should split on already matched content")
-        .matches('\n')
-        .count()
-        + 1; // 1-indexed
-
-    let summary = format!("Successfully replaced text in {}.", path.display());
-
-    // Try to detect the language from the file extension
-    let language = lang::get_language_identifier(path);
-
-    // Show a snippet of the changed content with context for the user only
-    const SNIPPET_LINES: usize = 4;
-    let start_line = replacement_line.saturating_sub(SNIPPET_LINES + 1);
-    let end_line = replacement_line + SNIPPET_LINES + new_line_count;
-    let lines: Vec<&str> = new_content.lines().collect();
-    let snippet = lines
-        .iter()
-        .skip(start_line)
-        .take(end_line - start_line + 1)
-        .cloned()
-        .collect::<Vec<&str>>()
-        .join("\n");
-
-    let user_output = formatdoc! {r#"
-        Successfully replaced text in {path} at line {line}.
-        ```{language}
-        {snippet}
-        ```
-        "#,
-        path=path.display(),
-        line=replacement_line,
-        language=language,
-        snippet=snippet
-    };
-
-    Ok(vec![
-        Content::text(summary).with_audience(vec![Role::Assistant]),
-        Content::text(user_output)
-            .with_audience(vec![Role::User])
-            .with_priority(0.2),
-    ])
-}
-
-pub async fn text_editor_insert(
-    path: &PathBuf,
-    insert_line_spec: i64,
-    new_str: &str,
-    file_history: &std::sync::Arc<
-        std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
-    >,
-) -> Result<Vec<Content>, ErrorData> {
-    // Check if file exists
-    if !path.exists() {
+    // Check uniqueness using fuzzy-normalized content for consistency
+    let fuzzy_content = normalize_for_fuzzy_match(&content);
+    let fuzzy_old = normalize_for_fuzzy_match(&normalized_old);
+    let occurrences = fuzzy_content.matches(&fuzzy_old).count();
+    if occurrences > 1 {
         return Err(ErrorData::new(
             ErrorCode::INVALID_PARAMS,
             format!(
-                "File '{}' does not exist, you can write a new file with the `write` command",
-                path.display()
+                "'old_str' matches {} locations in the file. Provide more context to make it unique.",
+                occurrences
             ),
             None,
         ));
     }
 
-    // Read content
-    let content = std::fs::read_to_string(path).map_err(|e| {
-        ErrorData::new(
-            ErrorCode::INTERNAL_ERROR,
-            format!("Failed to read file: {}", e),
+    // Perform replacement (exactly once)
+    let base = &match_result.content_for_replacement;
+    let new_content = base.replacen(&match_result.matched_text, &normalized_new, 1);
+
+    if *base == new_content {
+        return Err(ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "No changes made — the replacement produced identical content.".to_string(),
             None,
-        )
-    })?;
-
-    // Save history for undo
-    save_file_history(path, file_history)?;
-
-    let lines: Vec<&str> = content.lines().collect();
-    let total_lines = lines.len();
-
-    // Allow insert_line to be negative
-    let insert_line = if insert_line_spec < 0 {
-        // -1 == end of file, -2 == before the last line, etc.
-        (total_lines as i64 + 1 + insert_line_spec) as usize
-    } else {
-        insert_line_spec as usize
-    };
-
-    // Validate insert_line parameter
-    if insert_line > total_lines {
-        return Err(ErrorData::new(ErrorCode::INVALID_PARAMS, format!(
-            "Insert line {} is beyond the end of the file (total lines: {}). Use 0 to insert at the beginning or {} to insert at the end.",
-            insert_line, total_lines, total_lines
-        ), None));
+        ));
     }
 
-    // Create new content with inserted text
-    let mut new_lines = Vec::new();
-
-    // Add lines before the insertion point
-    for (i, line) in lines.iter().enumerate() {
-        if i == insert_line {
-            // Insert the new text at this position
-            new_lines.push(new_str.to_string());
-        }
-        new_lines.push(line.to_string());
+    let mut final_lf = new_content;
+    if !final_lf.ends_with('\n') {
+        final_lf.push('\n');
     }
-
-    // If inserting at the end (after all existing lines)
-    if insert_line == total_lines {
-        new_lines.push(new_str.to_string());
-    }
-
-    let new_content = new_lines.join("\n");
-    let normalized_content = normalize_line_endings(&new_content);
-
-    // Ensure the file ends with a newline
-    let final_content = if !normalized_content.ends_with('\n') {
-        format!("{}\n", normalized_content)
-    } else {
-        normalized_content
-    };
+    let final_content = format!(
+        "{}{}",
+        bom,
+        restore_line_endings(&final_lf, original_ending)
+    );
 
     std::fs::write(path, &final_content).map_err(|e| {
         ErrorData::new(
@@ -983,39 +1084,17 @@ pub async fn text_editor_insert(
         )
     })?;
 
-    let insertion_line = insert_line + 1; // Convert to 1-indexed for display
-    let inserted_line_count = new_str.lines().count();
-
-    let summary = format!(
-        "Successfully inserted {} lines at line {} in {}",
-        inserted_line_count,
-        insertion_line,
-        path.display()
-    );
-
-    // Try to detect the language from the file extension
-    let language = lang::get_language_identifier(path);
-
-    // Show a snippet of the inserted content with context for the user only
-    const SNIPPET_LINES: usize = 4;
-    let start_line = insertion_line.saturating_sub(SNIPPET_LINES);
-    let end_line = std::cmp::min(insertion_line + SNIPPET_LINES, new_lines.len());
-    let snippet_lines: Vec<String> = new_lines[start_line.saturating_sub(1)..end_line]
-        .iter()
-        .enumerate()
-        .map(|(i, line)| format!("{}: {}", start_line + i, line))
-        .collect();
-    let snippet = snippet_lines.join("\n");
+    let diff_output = generate_diff_string(base, &final_lf, 4);
+    let summary = format!("Successfully replaced text in {}.", path.display());
 
     let user_output = formatdoc! {r#"
         {summary}
-        ```{language}
-        {snippet}
+        ```diff
+        {diff}
         ```
         "#,
         summary=summary,
-        language=language,
-        snippet=snippet
+        diff=diff_output.diff,
     };
 
     Ok(vec![
@@ -1026,58 +1105,224 @@ pub async fn text_editor_insert(
     ])
 }
 
-pub async fn text_editor_undo(
-    path: &PathBuf,
-    file_history: &std::sync::Arc<
-        std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
-    >,
-) -> Result<Vec<Content>, ErrorData> {
-    let mut history = file_history.lock().unwrap();
-    if let Some(contents) = history.get_mut(path) {
-        if let Some(previous_content) = contents.pop() {
-            // Write previous content back to file
-            std::fs::write(path, previous_content).map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    format!("Failed to write file: {}", e),
-                    None,
-                )
-            })?;
-            Ok(vec![Content::text("Undid the last edit")])
-        } else {
-            Err(ErrorData::new(
-                ErrorCode::INVALID_PARAMS,
-                "No edit history available to undo".to_string(),
-                None,
-            ))
-        }
-    } else {
-        Err(ErrorData::new(
-            ErrorCode::INVALID_PARAMS,
-            "No edit history available to undo".to_string(),
-            None,
-        ))
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-pub fn save_file_history(
-    path: &PathBuf,
-    file_history: &std::sync::Arc<
-        std::sync::Mutex<std::collections::HashMap<PathBuf, Vec<String>>>,
-    >,
-) -> Result<(), ErrorData> {
-    let mut history = file_history.lock().unwrap();
-    let content = if path.exists() {
-        std::fs::read_to_string(path).map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                format!("Failed to read file: {}", e),
-                None,
-            )
-        })?
-    } else {
-        String::new()
-    };
-    history.entry(path.clone()).or_default().push(content);
-    Ok(())
+    #[test]
+    fn test_detect_line_ending_lf() {
+        assert_eq!(detect_line_ending("hello\nworld\n"), "\n");
+    }
+
+    #[test]
+    fn test_detect_line_ending_crlf() {
+        assert_eq!(detect_line_ending("hello\r\nworld\r\n"), "\r\n");
+    }
+
+    #[test]
+    fn test_detect_line_ending_empty() {
+        assert_eq!(detect_line_ending("no newlines"), "\n");
+    }
+
+    #[test]
+    fn test_normalize_to_lf() {
+        assert_eq!(normalize_to_lf("a\r\nb\r\n"), "a\nb\n");
+        assert_eq!(normalize_to_lf("a\rb\r"), "a\nb\n");
+        assert_eq!(normalize_to_lf("a\nb\n"), "a\nb\n");
+    }
+
+    #[test]
+    fn test_restore_line_endings() {
+        assert_eq!(restore_line_endings("a\nb\n", "\r\n"), "a\r\nb\r\n");
+        assert_eq!(restore_line_endings("a\nb\n", "\n"), "a\nb\n");
+    }
+
+    #[test]
+    fn test_strip_bom() {
+        assert_eq!(strip_bom("\u{FEFF}hello"), ("\u{FEFF}", "hello"));
+        assert_eq!(strip_bom("hello"), ("", "hello"));
+    }
+
+    #[test]
+    fn test_normalize_for_fuzzy_match_trailing_whitespace() {
+        assert_eq!(
+            normalize_for_fuzzy_match("hello   \nworld  \n"),
+            "hello\nworld\n"
+        );
+    }
+
+    #[test]
+    fn test_normalize_for_fuzzy_match_smart_quotes() {
+        assert_eq!(
+            normalize_for_fuzzy_match("\u{201C}hello\u{201D}"),
+            "\"hello\""
+        );
+        assert_eq!(
+            normalize_for_fuzzy_match("\u{2018}it\u{2019}s\u{2019}"),
+            "'it's'"
+        );
+    }
+
+    #[test]
+    fn test_normalize_for_fuzzy_match_dashes() {
+        // em-dash and en-dash normalize to hyphen
+        assert_eq!(normalize_for_fuzzy_match("a\u{2014}b"), "a-b");
+        assert_eq!(normalize_for_fuzzy_match("a\u{2013}b"), "a-b");
+    }
+
+    #[test]
+    fn test_normalize_for_fuzzy_match_special_spaces() {
+        assert_eq!(normalize_for_fuzzy_match("a\u{00A0}b"), "a b");
+    }
+
+    #[test]
+    fn test_fuzzy_find_exact_match() {
+        let result = fuzzy_find_text("hello world", "world");
+        assert!(result.found);
+        assert_eq!(result.matched_text, "world");
+        assert_eq!(result.content_for_replacement, "hello world");
+    }
+
+    #[test]
+    fn test_fuzzy_find_trailing_whitespace() {
+        // LLM sends without trailing spaces, file has them
+        let result = fuzzy_find_text("hello   \nworld  \n", "hello\nworld\n");
+        assert!(result.found);
+    }
+
+    #[test]
+    fn test_fuzzy_find_smart_quotes() {
+        let result = fuzzy_find_text("say \u{201C}hello\u{201D}", "say \"hello\"");
+        assert!(result.found);
+    }
+
+    #[test]
+    fn test_fuzzy_find_not_found() {
+        let result = fuzzy_find_text("hello world", "xyz");
+        assert!(!result.found);
+    }
+
+    #[tokio::test]
+    async fn test_replace_preserves_crlf() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.txt");
+        std::fs::write(&path, "hello\r\nworld\r\n").unwrap();
+
+        let result = text_editor_replace(&path, "world", "rust", None, &None)
+            .await
+            .unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("\r\n"), "CRLF should be preserved");
+        assert!(content.contains("rust"));
+        assert!(!result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_replace_strips_bom() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.txt");
+        std::fs::write(&path, "\u{FEFF}hello world\n").unwrap();
+
+        text_editor_replace(&path, "world", "rust", None, &None)
+            .await
+            .unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.starts_with('\u{FEFF}'), "BOM should be preserved");
+        assert!(content.contains("rust"));
+    }
+
+    #[tokio::test]
+    async fn test_replace_fuzzy_smart_quotes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.txt");
+        // File has smart quotes
+        std::fs::write(&path, "say \u{201C}hello\u{201D}\n").unwrap();
+
+        // LLM sends ASCII quotes
+        let result = text_editor_replace(&path, "say \"hello\"", "say \"hi\"", None, &None).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_replace_fuzzy_trailing_whitespace() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.txt");
+        std::fs::write(&path, "hello   \nworld  \n").unwrap();
+
+        // LLM sends without trailing whitespace
+        let result = text_editor_replace(&path, "hello\nworld", "hi\nearth", None, &None).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_generate_diff_string_simple() {
+        let old = "line1\nline2\nline3\n";
+        let new = "line1\nmodified\nline3\n";
+        let result = generate_diff_string(old, new, 4);
+        assert!(result.diff.contains("-"), "should have removed lines");
+        assert!(result.diff.contains("+"), "should have added lines");
+        assert!(result.diff.contains("line2"), "should show old line");
+        assert!(result.diff.contains("modified"), "should show new line");
+        assert!(result.diff.contains("line1"), "should show context");
+        assert!(result.diff.contains("line3"), "should show context");
+    }
+
+    #[test]
+    fn test_generate_diff_string_context_limit() {
+        // 10 unchanged lines, then a change, then 10 more unchanged
+        let lines: Vec<String> = (1..=21).map(|i| format!("line{}", i)).collect();
+        let old = lines.join("\n") + "\n";
+        let mut new_lines = lines.clone();
+        new_lines[10] = "CHANGED".to_string();
+        let new = new_lines.join("\n") + "\n";
+
+        let result = generate_diff_string(&old, &new, 2);
+        // Should have ellipsis for skipped context
+        assert!(result.diff.contains("..."), "should elide distant context");
+        // Should NOT show line2 (too far from change at line 11)
+        assert!(
+            !result.diff.contains("line2"),
+            "should not show distant lines"
+        );
+        // Should show nearby context
+        assert!(result.diff.contains("line10"), "should show nearby context");
+        assert!(result.diff.contains("line12"), "should show nearby context");
+    }
+
+    #[test]
+    fn test_generate_diff_string_no_changes() {
+        let content = "same\n";
+        let result = generate_diff_string(content, content, 4);
+        assert!(result.diff.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_replace_shows_diff_in_user_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.txt");
+        std::fs::write(&path, "hello\nworld\nfoo\n").unwrap();
+
+        let result = text_editor_replace(&path, "world", "rust", None, &None)
+            .await
+            .unwrap();
+
+        let user_content = result
+            .iter()
+            .find(|c| {
+                c.audience()
+                    .is_some_and(|roles| roles.contains(&Role::User))
+            })
+            .unwrap()
+            .as_text()
+            .unwrap();
+
+        assert!(
+            user_content.text.contains("```diff"),
+            "should use diff format"
+        );
+        assert!(user_content.text.contains("-"), "should show removed");
+        assert!(user_content.text.contains("+"), "should show added");
+    }
 }

@@ -157,7 +157,10 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
                         ));
                     }
                 }
-                "developer__text_editor" => {
+                "developer__text_editor"
+                | "developer__read_file"
+                | "developer__edit_file"
+                | "developer__write_file" => {
                     if let Some(Value::String(path)) =
                         call.arguments.as_ref().and_then(|args| args.get("path"))
                     {
