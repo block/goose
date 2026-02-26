@@ -74,7 +74,10 @@ export function GroupedExtensionLoadingToast({
         <div className="flex flex-col">
           {/* Main summary section - clickable */}
           <CollapsibleTrigger asChild>
-            <div className="flex items-start gap-3 pr-8 cursor-pointer hover:opacity-90 transition-opacity">
+            <button
+              type="button"
+              className="flex w-full items-start gap-3 pr-8 text-left hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-border-accent rounded"
+            >
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 {getSummaryIcon()}
                 <div className="flex-1 min-w-0">
@@ -86,7 +89,7 @@ export function GroupedExtensionLoadingToast({
                   )}
                 </div>
               </div>
-            </div>
+            </button>
           </CollapsibleTrigger>
 
           {/* Expanded details section */}
