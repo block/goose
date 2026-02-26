@@ -3,7 +3,9 @@
 # Automatically generates release notes using goose AI agent when a new release is published.
 # Updates the GitHub release with AI-generated categorized notes and posts to Discord.
 #
-# Trigger: When a GitHub release is published (after release.yml completes)
+# Trigger: When the Release workflow completes successfully
+#   Note: Uses workflow_run instead of release:published because GitHub doesn't trigger
+#   workflows for events created by GITHUB_TOKEN (to prevent infinite loops).
 #
 # Required Secrets:
 #   - RELEASE_BOT_ANTHROPIC_KEY: API key for Anthropic
@@ -19,8 +21,12 @@
 name: goose Release Notes Generator
 
 on:
-  release:
-    types: [published]
+  # Trigger when Release workflow completes (works around GITHUB_TOKEN limitation)
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
 
   # Allow manual trigger for testing
   workflow_dispatch:
@@ -75,15 +81,20 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-notes-${{ github.event.release.tag_name || inputs.tag }}
+  group: release-notes-${{ github.event.workflow_run.head_branch || inputs.tag }}
   cancel-in-progress: true
 
 jobs:
   generate-release-notes:
     name: Generate Release Notes
     runs-on: ubuntu-latest
-    # Skip stable tag releases - they're just pointers to versioned releases
-    if: ${{ (github.event.release.tag_name || inputs.tag) != 'stable' }}
+    # For workflow_run: only run if Release succeeded and tag is not 'stable'
+    # For workflow_dispatch: only run if tag is not 'stable'
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.tag != 'stable') ||
+      (github.event_name == 'workflow_run' && 
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch != 'stable')
 
     container:
       image: ghcr.io/block/goose:latest
@@ -97,8 +108,19 @@ jobs:
     outputs:
       release_notes: ${{ steps.read-notes.outputs.notes }}
       notes_length: ${{ steps.read-notes.outputs.length }}
+      release_tag: ${{ steps.get-tag.outputs.tag }}
 
     steps:
+      - name: Get release tag
+        id: get-tag
+        run: |
+          # For workflow_run, the tag is in head_branch; for workflow_dispatch, use input
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -112,7 +134,7 @@ jobs:
 
       - name: Run goose to generate release notes
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_TAG: ${{ steps.get-tag.outputs.tag }}
         run: |
           mkdir -p $HOME/.local/share/goose/sessions
           mkdir -p $HOME/.config/goose
@@ -159,7 +181,7 @@ jobs:
       - name: Update release body
         uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b  # v1.20.0
         with:
-          tag: ${{ github.event.release.tag_name || inputs.tag }}
+          tag: ${{ needs.generate-release-notes.outputs.release_tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
           body: ${{ needs.generate-release-notes.outputs.release_notes }}
           allowUpdates: true
@@ -176,8 +198,8 @@ jobs:
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_RELEASE_BOT_TOKEN }}
           DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_RELEASE_BOT_CHANNEL_ID }}
-          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
-          RELEASE_URL: ${{ github.event.release.html_url || format('https://github.com/block/goose/releases/tag/{0}', inputs.tag) }}
+          RELEASE_TAG: ${{ needs.generate-release-notes.outputs.release_tag }}
+          RELEASE_URL: https://github.com/block/goose/releases/tag/${{ needs.generate-release-notes.outputs.release_tag }}
           RELEASE_NOTES: ${{ needs.generate-release-notes.outputs.release_notes }}
           NOTES_LENGTH: ${{ needs.generate-release-notes.outputs.notes_length }}
         shell: bash
