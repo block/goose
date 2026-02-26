@@ -197,33 +197,33 @@ function EmptyDashboard() {
 		  <span className="text-2xl">💬</span>
 		  <div>
 			<h3 className="text-sm font-semibold text-text-default">Start using Goose</h3>
-            <p className="text-xs text-text-muted mt-0.5">
-              Have conversations — we&apos;ll automatically track routing decisions and build your
-              usage dashboard.
-            </p>
-          </div>
-        </div>
+			<p className="text-xs text-text-muted mt-0.5">
+			  Have conversations — we&apos;ll automatically track routing decisions and build your
+			  usage dashboard.
+			</p>
+		  </div>
+		</div>
+
+		<div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors text-left">
+		  <span className="text-2xl">🧪</span>
+		  <div>
+			<h3 className="text-sm font-semibold text-text-default">Create an eval dataset</h3>
+			<p className="text-xs text-text-muted mt-0.5">
+			  Define test prompts with expected agent routing to start measuring accuracy.
+			</p>
+		  </div>
+		</div>
 
 		<div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors text-left">
 		  <span className="text-2xl">📦</span>
 		  <div>
 			<h3 className="text-sm font-semibold text-text-default">Import a YAML dataset</h3>
-            <p className="text-xs text-text-muted mt-0.5">
-              Define test prompts with expected agent routing to start measuring accuracy.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-start gap-3 p-4 rounded-lg border border-border-default bg-background-default hover:bg-background-defaultHover transition-colors cursor-pointer text-left">
-          <span className="text-2xl">📦</span>
-          <div>
-            <h3 className="text-sm font-semibold text-text-default">Import a YAML dataset</h3>
-            <p className="text-xs text-text-muted mt-0.5">
-              Already have test cases? Upload a YAML file and run your first evaluation in seconds.
-            </p>
-          </div>
-        </div>
-      </div>
+			<p className="text-xs text-text-muted mt-0.5">
+			  Already have test cases? Upload a YAML file and run your first evaluation in seconds.
+			</p>
+		  </div>
+		</div>
+	  </div>
     </div>
   );
 }
