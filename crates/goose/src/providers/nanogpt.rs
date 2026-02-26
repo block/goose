@@ -205,7 +205,7 @@ mod tests {
     fn test_metadata() {
         let metadata = NanoGptProvider::metadata();
         assert_eq!(metadata.name, "nano-gpt");
-        assert_eq!(metadata.default_model, "openai/gpt-4.1-nano");
+        assert_eq!(metadata.default_model, "mistralai/mistral-large-3-675b-instruct");
         assert_eq!(metadata.config_keys[0].name, NANOGPT_API_KEY);
         assert!(metadata.config_keys[0].required);
         assert!(metadata.config_keys[0].secret);
