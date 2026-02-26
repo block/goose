@@ -352,7 +352,7 @@ export default function WorkflowsOverview() {
     : categories;
 
   const allFilteredItems = filteredCategories.flatMap((cat) =>
-    cat.items.map((item) => ({ ...item, categoryLabel: cat.label }))
+    cat.items.map((item) => ({ ...item, categoryLabel: cat.label, route: cat.route }))
   );
 
   const subtitle = [
@@ -402,9 +402,11 @@ export default function WorkflowsOverview() {
         <div className="space-y-2">
           {allFilteredItems.length > 0 ? (
             allFilteredItems.map((item) => (
-              <div
+              <button
+                type="button"
                 key={`${item.categoryLabel}-${item.id}`}
-                className="flex items-center gap-3 p-3 bg-background-default border border-border-default rounded-lg hover:border-border-accent transition-colors cursor-pointer"
+                className="flex w-full items-center gap-3 p-3 bg-background-default border border-border-default rounded-lg hover:border-border-accent transition-colors text-left"
+                onClick={() => navigate(item.route)}
               >
                 <div
                   className={`w-2 h-2 rounded-full flex-shrink-0 ${
@@ -426,7 +428,7 @@ export default function WorkflowsOverview() {
                 <span className="text-xs text-text-muted px-2 py-0.5 rounded bg-background-muted flex-shrink-0">
                   {item.categoryLabel}
                 </span>
-              </div>
+              </button>
             ))
           ) : (
             <div className="text-center py-12 text-text-muted">
