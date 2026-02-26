@@ -1,3 +1,4 @@
+pub mod analyze;
 pub mod apps;
 pub mod chatrecall;
 pub mod code_execution;
@@ -23,6 +24,19 @@ pub use ext_manager::SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME;
 pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>> = Lazy::new(
     || {
         let mut map = HashMap::new();
+
+        map.insert(
+            analyze::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: analyze::EXTENSION_NAME,
+                display_name: "Analyze",
+                description:
+                    "Analyze code structure with tree-sitter: directory overviews, file details, symbol call graphs",
+                default_enabled: true,
+                unprefixed_tools: true,
+                client_factory: |ctx| Box::new(analyze::AnalyzeClient::new(ctx).unwrap()),
+            },
+        );
 
         map.insert(
             todo::EXTENSION_NAME,

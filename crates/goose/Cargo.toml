@@ -122,6 +122,17 @@ posthog-rs = "0.3.7"
 shellexpand = { workspace = true }
 indexmap = "2.12.0"
 ignore = { workspace = true }
+rayon = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-go = { workspace = true }
+tree-sitter-java = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+tree-sitter-kotlin-ng = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-ruby = { workspace = true }
+tree-sitter-rust = { workspace = true }
+tree-sitter-swift = { workspace = true }
+tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = "^0.2.3"
 unbinder = "0.1.7"
@@ -159,6 +170,10 @@ path = "examples/agent.rs"
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
 
+
+[[bin]]
+name = "analyze_cli"
+path = "src/bin/analyze_cli.rs"
 
 [[bin]]
 name = "build_canonical_models"
