@@ -30,21 +30,21 @@ All component implementations live under **exactly one** of:
 
 ```
 ui/desktop/src/components/
-  Atoms/
-  Molecules/
-  Organisms/
-  Templates/
-  Pages/
+  atoms/
+  molecules/
+  organisms/
+  templates/
+  pages/
 ```
 
-Subfolders inside each layer are allowed (e.g. `Atoms/forms`, `Organisms/agents`).
+Subfolders inside each layer are allowed (e.g. `atoms/forms`, `organisms/agents`).
 
 ### Transitional compatibility policy
 To avoid huge churn, we can keep the old paths as **thin re-export barrels only** during a transition window.
 
 Example:
 
-- New canonical file: `src/components/Molecules/Card/Card.tsx`
+- New canonical file: `src/components/molecules/Card/Card.tsx`
 - Old file remains temporarily: `src/components/ui/molecules/card.tsx` exporting from the new path.
 
 ## Proposed mapping rules (first pass)
@@ -71,9 +71,9 @@ Example:
 ## Migration plan (phased)
 
 1) **Agree on rules + mapping** (this doc + team feedback)
-2) **Move shared UI primitives first** (`components/ui/atoms/*` → `components/Atoms/*`)
-3) **Move reusable composites** (`components/ui/molecules/*` and `components/ui/design-system/*` → `components/Molecules/*`)
-4) **Move layout scaffolds** (`components/Layout/*` → `components/Templates/*`)
-5) **Move routed pages** (`components/pages/*` → `components/Pages/*`)
-6) **Move feature sections** (agents/analytics/chat/messages/settings/etc. → `components/Organisms/<feature>/*`)
+2) **Move shared UI primitives first** (`components/ui/atoms/*` → `components/atoms/*`)
+3) **Move reusable composites** (`components/ui/molecules/*` and `components/ui/design-system/*` → `components/molecules/*`)
+4) **Move layout scaffolds** (`components/Layout/*` → `components/templates/*`)
+5) **Move routed pages** (`components/pages/*` → `components/pages/*`)
+6) **Move feature sections** (agents/analytics/chat/messages/settings/etc. → `components/organisms/<feature>/*`)
 7) Remove legacy re-export barrels when imports are fully migrated.
