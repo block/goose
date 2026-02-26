@@ -28,6 +28,7 @@ DESIGN PRINCIPLES:
 - Use Chart for any numeric distribution or trend data
 - Use StatCard (not Badge) for key metrics and numbers
 - Use Grid columns=2 to place charts side-by-side
+- For KPI strips, prefer CardGrid(columns=2) and use sizes tokens to let one card span full width ("l"/"wl")
 - Wrap root in Card with maxWidth "full" and centered=false (avoid narrow/centered layouts in chat)
 - Use h3 for section titles, h4 for sub-sections
 - Maximum 2 charts, 1-2 tables per dashboard

@@ -231,19 +231,50 @@ impl GenUiClient {
         if let Some(props) = obj.get("props").and_then(|v| v.as_object()) {
             match type_val {
                 "Grid" => {
-                    if let Some(n) = props.get("columns").and_then(|v| v.as_u64()) {
-                        if n > 2 {
-                            errors.push("Grid.columns must be <= 2".to_string());
+                    let cols = props.get("columns").and_then(|v| v.as_u64()).unwrap_or(0);
+                    if cols > 2 {
+                        errors.push("Grid.columns must be <= 2 for chat-safe layouts".to_string());
+                    }
+                }
+                "CardGrid" => {
+                    if let Some(cols) = props.get("columns").and_then(|v| v.as_u64()) {
+                        if cols > 2 {
+                            errors.push(
+                                "CardGrid.columns must be <= 2 for chat-safe layouts".to_string(),
+                            );
+                        }
+                    }
+
+                    if let Some(sizes) = props.get("sizes") {
+                        let Some(map) = sizes.as_object() else {
+                            errors.push("CardGrid.sizes must be an object".to_string());
+                            return;
+                        };
+
+                        for (key, value) in map {
+                            let Some(token) = value.as_str() else {
+                                errors.push(format!(
+                                    "CardGrid.sizes['{key}'] must be a string size token"
+                                ));
+                                continue;
+                            };
+
+                            let allowed = matches!(token, "xs" | "s" | "m" | "l" | "wl");
+                            if !allowed {
+                                errors.push(format!(
+                                    "CardGrid.sizes['{key}'] must be one of: xs, s, m, l, wl"
+                                ));
+                            }
                         }
                     }
                 }
-                "Table" | "DataTable" => {
-                    if let Some(rows) = props.get("rows") {
-                        if let Some(arr) = rows.as_array() {
+                "Table" | "DataTable" => match props.get("rows") {
+                    Some(rows_val) => {
+                        if let Some(arr) = rows_val.as_array() {
                             if arr.is_empty() {
                                 errors.push(format!("{type_val}.rows must not be empty"));
                             }
-                        } else if let Some(v) = state_pointer(state, rows) {
+                        } else if let Some(v) = state_pointer(state, rows_val) {
                             match v.as_array() {
                                 Some(arr) if arr.is_empty() => errors.push(format!(
                                     "{type_val}.rows state binding must not resolve to an empty array"
@@ -253,13 +284,14 @@ impl GenUiClient {
                                     "{type_val}.rows state binding must resolve to an array"
                                 )),
                             }
-                        } else if rows.as_object().and_then(|o| o.get("$state")).is_some() {
+                        } else if rows_val.as_object().and_then(|o| o.get("$state")).is_some() {
                             errors.push(format!(
                                 "{type_val}.rows uses a $state binding but no matching state value was found"
                             ));
                         }
                     }
-                }
+                    None => errors.push(format!("{type_val}.rows is required")),
+                },
                 "Chart" => {
                     if let Some(data) = props.get("data") {
                         if let Some(arr) = data.as_array() {
