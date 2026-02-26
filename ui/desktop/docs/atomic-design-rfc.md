@@ -39,6 +39,14 @@ ui/desktop/src/components/
 
 Subfolders inside each layer are allowed (e.g. `atoms/forms`, `organisms/agents`).
 
+## Decisions (confirmed)
+
+- Layer directories are **lowercase** on disk: `atoms/`, `molecules/`, `organisms/`, `templates/`, `pages/`.
+- `components/ui/design-system/*` moves to **`components/molecules/*` by default**.
+  - If a component is truly primitive (visual/typographic primitive, no composition), it belongs in `components/atoms/*`.
+- `components/pages/*` is reserved for **route-level screens only**.
+  - Reusable “view sections” should be extracted into `components/organisms/*` and imported by pages.
+
 ### Transitional compatibility policy
 To avoid huge churn, we can keep the old paths as **thin re-export barrels only** during a transition window.
 
@@ -57,10 +65,8 @@ Example:
 - If it is routed or named like a screen/view → **Pages**
 
 ### Open questions for UX/UI/frontend review
-1) Should `design-system/*` be entirely **Molecules**, or can some be **Atoms** (e.g. `StatusDot`)?
-2) Is `PageShell` a **Template** or a **Molecule** (if it’s more of a reusable wrapper)?
-3) Are feature "views" like `AgentsView` considered **Pages** (routed) or **Organisms** (embeddable)?
-4) Do we want enforcement rules (Biome/ESLint) for cross-layer import boundaries?
+1) Is `PageShell` a **Template** or a **Molecule** (if it’s more of a reusable wrapper)?
+2) Do we want enforcement rules (Biome/ESLint) for cross-layer import boundaries?
 
 ## Current inventory
 
