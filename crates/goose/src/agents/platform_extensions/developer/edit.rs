@@ -93,62 +93,26 @@ impl EditTools {
             }
         };
 
-        let matches: Vec<_> = content.match_indices(&params.before).collect();
+        let new_content = match string_replace(&content, &params.before, &params.after) {
+            Ok(replaced) => replaced,
+            Err(result) => return result,
+        };
 
-        match matches.len() {
-            0 => {
-                let suggestion = find_similar_context(&content, &params.before);
-                let mut msg = "No match found for the specified text.".to_string();
-                if let Some(hint) = suggestion {
-                    msg.push_str(&format!("\n\nDid you mean:\n```\n{}\n```", hint));
-                }
-                let preview = build_file_preview(&content, NO_MATCH_PREVIEW_LINES);
-                msg.push_str(&format!("\n\nFile preview:\n```\n{}\n```", preview));
-                CallToolResult::error(vec![Content::text(msg).with_priority(0.0)])
+        match fs::write(&path, &new_content) {
+            Ok(()) => {
+                let old_lines = params.before.lines().count();
+                let new_lines = params.after.lines().count();
+                CallToolResult::success(vec![Content::text(format!(
+                    "Edited {} ({} lines -> {} lines)",
+                    params.path, old_lines, new_lines
+                ))
+                .with_priority(0.0)])
             }
-            1 => {
-                let new_content = content.replacen(&params.before, &params.after, 1);
-
-                match fs::write(&path, &new_content) {
-                    Ok(()) => {
-                        let old_lines = params.before.lines().count();
-                        let new_lines = params.after.lines().count();
-                        CallToolResult::success(vec![Content::text(format!(
-                            "Edited {} ({} lines -> {} lines)",
-                            params.path, old_lines, new_lines
-                        ))
-                        .with_priority(0.0)])
-                    }
-                    Err(error) => CallToolResult::error(vec![Content::text(format!(
-                        "Failed to write {}: {}",
-                        params.path, error
-                    ))
-                    .with_priority(0.0)]),
-                }
-            }
-            n => {
-                let mut msg = format!(
-                    "Found {} matches. Please provide more context to identify a unique match:\n",
-                    n
-                );
-
-                for (i, (pos, _)) in matches.iter().enumerate().take(2) {
-                    let line_num = count_lines_before(&content, *pos);
-                    let context = get_line_context(&content, line_num, 1);
-                    msg.push_str(&format!(
-                        "\nMatch {} (line {}):\n```\n{}\n```",
-                        i + 1,
-                        line_num,
-                        context
-                    ));
-                }
-
-                if n > 2 {
-                    msg.push_str(&format!("\n\n...and {} more", n - 2));
-                }
-
-                CallToolResult::error(vec![Content::text(msg).with_priority(0.0)])
-            }
+            Err(error) => CallToolResult::error(vec![Content::text(format!(
+                "Failed to write {}: {}",
+                params.path, error
+            ))
+            .with_priority(0.0)]),
         }
     }
 }
@@ -156,6 +120,51 @@ impl EditTools {
 impl Default for EditTools {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+pub fn string_replace(content: &str, before: &str, after: &str) -> Result<String, CallToolResult> {
+    let matches: Vec<_> = content.match_indices(before).collect();
+
+    match matches.len() {
+        0 => {
+            let suggestion = find_similar_context(content, before);
+            let mut msg = "No match found for the specified text.".to_string();
+            if let Some(hint) = suggestion {
+                msg.push_str(&format!("\n\nDid you mean:\n```\n{}\n```", hint));
+            }
+            let preview = build_file_preview(content, NO_MATCH_PREVIEW_LINES);
+            msg.push_str(&format!("\n\nFile preview:\n```\n{}\n```", preview));
+            Err(CallToolResult::error(vec![
+                Content::text(msg).with_priority(0.0)
+            ]))
+        }
+        1 => Ok(content.replacen(before, after, 1)),
+        n => {
+            let mut msg = format!(
+                "Found {} matches. Please provide more context to identify a unique match:\n",
+                n
+            );
+
+            for (i, (pos, _)) in matches.iter().enumerate().take(2) {
+                let line_num = count_lines_before(content, *pos);
+                let context = get_line_context(content, line_num, 1);
+                msg.push_str(&format!(
+                    "\nMatch {} (line {}):\n```\n{}\n```",
+                    i + 1,
+                    line_num,
+                    context
+                ));
+            }
+
+            if n > 2 {
+                msg.push_str(&format!("\n\n...and {} more", n - 2));
+            }
+
+            Err(CallToolResult::error(vec![
+                Content::text(msg).with_priority(0.0)
+            ]))
+        }
     }
 }
 

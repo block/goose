@@ -7,8 +7,9 @@ use agent_client_protocol_schema::{
     WaitForTerminalExitRequest, WriteTextFileRequest,
 };
 use async_trait::async_trait;
-use goose::agents::mcp_client::McpClientTrait;
-use goose_mcp::developer::text_editor::{text_editor_insert_inmem, text_editor_replace_inmem};
+use goose::agents::{
+    mcp_client::McpClientTrait, platform_extensions::developer::edit::string_replace,
+};
 use rmcp::{
     model::{CallToolResult, Content, InitializeResult, JsonObject, ListToolsResult, Tool},
     ErrorData, ServiceError,
@@ -56,16 +57,6 @@ struct StrReplaceParams {
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-struct InsertParams {
-    /// The path to the file to be modified.
-    path: String,
-    /// The string to be inserted.
-    new_str: String,
-    /// The position to insert the string at.
-    position: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct ShellParams {
     /// Command to be executed.
     command: String,
@@ -88,11 +79,10 @@ static FILESYSTEM_WRITE_TOOL_DEFS: LazyLock<Vec<Tool>> = LazyLock::new(|| {
     vec![
         Tool::new("write", "Write files", schema!(WriteParams)),
         Tool::new(
-            "str_replace",
+            "edit",
             "Replace strings in files",
             schema!(StrReplaceParams),
         ),
-        Tool::new("insert", "Insert strings into files", schema!(InsertParams)),
     ]
 });
 
@@ -226,7 +216,7 @@ impl AcpTools {
         Ok(CallToolResult::success(vec![Content::text("done")]))
     }
 
-    async fn str_replace(
+    async fn edit(
         &self,
         ctx: &goose::agents::ToolCallContext,
         params: StrReplaceParams,
@@ -239,51 +229,14 @@ impl AcpTools {
                 .locations(vec![ToolCallLocation::new(&path)]),
         );
         let content = read_file(&path, &self.cx, self.session_id.clone()).await?;
-        let (new_content, _) = text_editor_replace_inmem(
-            &path,
+        let new_content = match string_replace(
             content.as_str(),
             params.old_str.as_str(),
             params.new_str.as_str(),
-        )
-        .map_err(|_| {
-            ServiceError::McpError(ErrorData::internal_error("failed to replace", None))
-        })?;
-        self.update_tool_call(
-            ctx,
-            ToolCallUpdateFields::new().content(vec![ToolCallContent::Diff(
-                Diff::new(&path, &new_content).old_text(&content),
-            )]),
-        );
-        write_file(
-            &path,
-            &self.cx,
-            self.session_id.clone(),
-            new_content.as_str(),
-        )
-        .await?;
-        Ok(CallToolResult::success(vec![Content::text("done")]))
-    }
-
-    async fn insert(
-        &self,
-        ctx: &goose::agents::ToolCallContext,
-        params: InsertParams,
-    ) -> Result<CallToolResult, ServiceError> {
-        let path = self.working_dir.join(params.path);
-        self.update_tool_call(
-            ctx,
-            ToolCallUpdateFields::new()
-                .kind(ToolKind::Edit)
-                .locations(vec![ToolCallLocation::new(&path)]),
-        );
-        let content = read_file(&path, &self.cx, self.session_id.clone()).await?;
-        let (new_content, _) = text_editor_insert_inmem(
-            &path,
-            content.as_str(),
-            params.position,
-            params.new_str.as_str(),
-        )
-        .map_err(|_| ServiceError::McpError(ErrorData::internal_error("failed to insert", None)))?;
+        ) {
+            Ok(replaced) => replaced,
+            Err(result) => return Ok(result),
+        };
         self.update_tool_call(
             ctx,
             ToolCallUpdateFields::new().content(vec![ToolCallContent::Diff(
@@ -427,8 +380,7 @@ impl McpClientTrait for AcpTools {
         match name {
             "read" => handle_tool_call(|p| self.read(ctx, p), args).await,
             "write" => handle_tool_call(|p| self.write(ctx, p), args).await,
-            "str_replace" => handle_tool_call(|p| self.str_replace(ctx, p), args).await,
-            "insert" => handle_tool_call(|p| self.insert(ctx, p), args).await,
+            "edit" => handle_tool_call(|p| self.edit(ctx, p), args).await,
             "shell" => handle_tool_call(|p| self.shell(ctx, p), args).await,
             _ => Err(invalid_request("tool not found")),
         }
