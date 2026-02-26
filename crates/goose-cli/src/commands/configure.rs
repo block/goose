@@ -1,7 +1,7 @@
 use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 use cliclack::spinner;
 use console::style;
-use goose::agents::extension::ToolInfo;
+use goose::agents::extension::{ToolInfo, PLATFORM_EXTENSIONS};
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -983,24 +983,35 @@ fn configure_builtin_extension() -> anyhow::Result<()> {
         select = select.item(id, name, desc);
     }
     let extension = select.interact()?.to_string();
-    let timeout = prompt_extension_timeout()?;
-
     let (display_name, description) = extensions
         .iter()
         .find(|(id, _, _)| id == &extension)
         .map(|(_, name, desc)| (name.to_string(), desc.to_string()))
         .unwrap_or_else(|| (extension.clone(), extension.clone()));
 
-    set_extension(ExtensionEntry {
-        enabled: true,
-        config: ExtensionConfig::Builtin {
+    let config = if PLATFORM_EXTENSIONS.contains_key(extension.as_str()) {
+        ExtensionConfig::Platform {
+            name: extension.clone(),
+            description,
+            display_name: Some(display_name),
+            bundled: Some(true),
+            available_tools: Vec::new(),
+        }
+    } else {
+        let timeout = prompt_extension_timeout()?;
+        ExtensionConfig::Builtin {
             name: extension.clone(),
             display_name: Some(display_name),
             timeout: Some(timeout),
             bundled: Some(true),
             description,
             available_tools: Vec::new(),
-        },
+        }
+    };
+
+    set_extension(ExtensionEntry {
+        enabled: true,
+        config,
     });
 
     cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
@@ -1741,12 +1752,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
                     if !has_developer {
                         set_extension(ExtensionEntry {
                             enabled: true,
-                            config: ExtensionConfig::Builtin {
+                            config: ExtensionConfig::Platform {
                                 name: "developer".to_string(),
-                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                                bundled: Some(true),
                                 description: "Developer extension".to_string(),
+                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                                bundled: Some(true),
                                 available_tools: Vec::new(),
                             },
                         });
@@ -1811,12 +1821,11 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
                     if !has_developer {
                         set_extension(ExtensionEntry {
                             enabled: true,
-                            config: ExtensionConfig::Builtin {
+                            config: ExtensionConfig::Platform {
                                 name: "developer".to_string(),
-                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                                bundled: Some(true),
                                 description: "Developer extension".to_string(),
+                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                                bundled: Some(true),
                                 available_tools: Vec::new(),
                             },
                         });

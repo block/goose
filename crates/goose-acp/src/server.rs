@@ -102,6 +102,10 @@ fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
     loc
 }
 
+fn is_developer_file_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "write" | "edit")
+}
+
 fn extract_tool_locations(
     tool_request: &goose::conversation::message::ToolRequest,
     tool_response: &goose::conversation::message::ToolResponse,
@@ -109,10 +113,11 @@ fn extract_tool_locations(
     let mut locations = Vec::new();
 
     if let Ok(tool_call) = &tool_request.tool_call {
-        if tool_call.name != "developer__text_editor" {
+        if !is_developer_file_tool(tool_call.name.as_ref()) {
             return locations;
         }
 
+        let tool_name = tool_call.name.as_ref();
         let path_str = tool_call
             .arguments
             .as_ref()
@@ -120,6 +125,11 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
+            if matches!(tool_name, "write" | "edit") {
+                locations.push(create_tool_location(path_str, Some(1)));
+                return locations;
+            }
+
             let command = tool_call
                 .arguments
                 .as_ref()
@@ -1432,10 +1442,7 @@ print(\"hello, world\")
 
     #[test]
     fn test_format_tool_name_with_extension() {
-        assert_eq!(
-            format_tool_name("developer__text_editor"),
-            "Developer: Text Editor"
-        );
+        assert_eq!(format_tool_name("developer__edit"), "Developer: Edit");
         assert_eq!(
             format_tool_name("platform__manage_extensions"),
             "Platform: Manage Extensions"

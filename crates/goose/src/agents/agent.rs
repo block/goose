@@ -60,6 +60,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, instrument, warn};
 
 const DEFAULT_MAX_TURNS: u32 = 1000;
+const MAX_CONSECUTIVE_TOOL_PARSE_FAILURES: u32 = 3;
 const COMPACTION_THINKING_TEXT: &str = "goose is compacting the conversation...";
 
 /// Context needed for the reply function
@@ -1120,6 +1121,7 @@ impl Agent {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
             let mut compaction_attempts = 0;
+            let mut consecutive_tool_parse_failures: u32 = 0;
             let mut last_assistant_text = String::new();
 
             loop {
@@ -1436,8 +1438,10 @@ impl Agent {
                                     .cloned()
                                     .collect();
 
+                                let mut had_successful_tool_call = false;
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
+                                        had_successful_tool_call = true;
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
 
@@ -1460,20 +1464,44 @@ impl Agent {
                                                                 .lock().await.clone();
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
-                                    } else {
-                                        let error_msg = format!(
-                                            "[system: Tool call could not be parsed: {}. The response may have been truncated. Try breaking the task into smaller steps.]",
-                                            request.tool_call.as_ref().unwrap_err(),
-                                        );
-                                        let error_response = Message::user()
+                                    } else if let Err(ref parse_err) = request.tool_call {
+                                        warn!("Tool call failed to parse: {}", parse_err);
+                                        let error_feedback = Message::user()
                                             .with_generated_id()
-                                            .with_text(&error_msg);
-                                        yield AgentEvent::Message(error_response.clone());
-                                        messages_to_add.push(error_response);
+                                            .with_text(format!(
+                                                "Your previous tool call could not be executed because its \
+                                                parameters failed to parse: {}. This is likely because your \
+                                                response was truncated due to output token limits. \
+                                                Break this task into smaller steps with less output per tool call.",
+                                                parse_err
+                                            ));
+                                        yield AgentEvent::Message(error_feedback.clone());
+                                        messages_to_add.push(error_feedback);
                                     }
                                 }
 
-                                no_tools_called = false;
+                                if had_successful_tool_call {
+                                    consecutive_tool_parse_failures = 0;
+                                    no_tools_called = false;
+                                } else {
+                                    consecutive_tool_parse_failures += 1;
+                                    if consecutive_tool_parse_failures >= MAX_CONSECUTIVE_TOOL_PARSE_FAILURES {
+                                        warn!(
+                                            "Breaking agent loop after {} consecutive tool call parse failures",
+                                            consecutive_tool_parse_failures
+                                        );
+                                        yield AgentEvent::Message(
+                                            Message::assistant().with_text(
+                                                "I've been unable to complete tool calls due to repeated output truncation. \
+                                                The task may require output that exceeds the model's token limit. \
+                                                Please try breaking the task into smaller pieces, or use a model with a higher output token limit."
+                                            )
+                                        );
+                                        no_tools_called = true;
+                                    } else {
+                                        no_tools_called = false;
+                                    }
+                                }
                             }
                         }
                         Err(ref provider_err @ ProviderError::ContextLengthExceeded(_)) => {
@@ -1569,7 +1597,9 @@ impl Agent {
                 let mut exit_chat = false;
                 if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
-                        if final_output_tool.final_output.is_none() {
+                        if consecutive_tool_parse_failures >= MAX_CONSECUTIVE_TOOL_PARSE_FAILURES {
+                            exit_chat = true;
+                        } else if final_output_tool.final_output.is_none() {
                             warn!("Final output tool has not been called yet. Continuing agent loop.");
                             let message = Message::user().with_text(FINAL_OUTPUT_CONTINUATION_MESSAGE);
                             messages_to_add.push(message.clone());

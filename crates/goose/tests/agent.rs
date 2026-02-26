@@ -497,6 +497,163 @@ mod tests {
     }
 
     #[cfg(test)]
+    mod tool_parse_failure_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::SessionConfig;
+        use goose::conversation::message::Message;
+        use goose::model::ModelConfig;
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+            ProviderUsage, Usage,
+        };
+        use goose::providers::errors::ProviderError;
+        use goose::session::session_manager::SessionType;
+        use rmcp::model::{ErrorCode, ErrorData, Tool};
+        use std::borrow::Cow;
+        use std::path::PathBuf;
+
+        /// Mock provider that always returns a tool call with malformed JSON,
+        /// simulating output truncation that causes parse failures.
+        struct MockTruncatedToolProvider {}
+
+        impl MockTruncatedToolProvider {
+            fn new() -> Self {
+                Self {}
+            }
+        }
+
+        impl ProviderDef for MockTruncatedToolProvider {
+            type Provider = Self;
+
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock-truncated".to_string(),
+                    display_name: "Mock Truncated Provider".to_string(),
+                    description: "Mock provider that returns truncated tool calls".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                }
+            }
+
+            fn from_env(
+                _model: ModelConfig,
+                _extensions: Vec<goose::config::ExtensionConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { Ok(Self::new()) })
+            }
+        }
+
+        #[async_trait]
+        impl Provider for MockTruncatedToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let error = ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: Cow::from(
+                        "Could not interpret tool use parameters for id call_trunc: \
+                         EOF while parsing an object at line 1 column 8192",
+                    ),
+                    data: None,
+                };
+                let message = Message::assistant().with_tool_request("call_trunc", Err(error));
+
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(100), Some(8192), Some(8292)),
+                );
+
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new("mock-model").unwrap()
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-truncated"
+            }
+        }
+
+        #[tokio::test]
+        async fn test_agent_breaks_on_consecutive_tool_parse_failures() -> Result<()> {
+            let agent = Agent::new();
+            let provider = Arc::new(MockTruncatedToolProvider::new());
+            let user_message = Message::user().with_text("Write a large HTML dashboard");
+
+            let session = agent
+                .config
+                .session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "parse-failure-test".to_string(),
+                    SessionType::Hidden,
+                )
+                .await?;
+
+            agent.update_provider(provider, &session.id).await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(10),
+                retry_config: None,
+            };
+
+            let reply_stream = agent.reply(user_message, session_config, None).await?;
+            tokio::pin!(reply_stream);
+
+            let mut responses = Vec::new();
+            while let Some(response_result) = reply_stream.next().await {
+                match response_result {
+                    Ok(AgentEvent::Message(response)) => {
+                        responses.push(response);
+                    }
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            assert!(!responses.is_empty(), "Expected at least one response",);
+
+            let found_truncation_msg = responses.iter().any(|msg| {
+                msg.as_concat_text()
+                    .contains("unable to complete tool calls due to repeated output truncation")
+            });
+            assert!(
+                found_truncation_msg,
+                "Expected a message about repeated output truncation, got: {:?}",
+                responses
+                    .iter()
+                    .map(|m| m.as_concat_text())
+                    .collect::<Vec<_>>()
+            );
+
+            let found_parse_error = responses
+                .iter()
+                .any(|msg| msg.as_concat_text().contains("failed to parse"));
+            assert!(
+                found_parse_error,
+                "Expected text feedback messages for failed parses, got: {:?}",
+                responses
+                    .iter()
+                    .map(|m| m.as_concat_text())
+                    .collect::<Vec<_>>()
+            );
+
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
     mod extension_manager_tests {
         use super::*;
         use goose::agents::extension::ExtensionConfig;
