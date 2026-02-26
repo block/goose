@@ -63,20 +63,15 @@ impl CallGraph {
         // of "process" whose line is the largest value ≤ 50 (nearest enclosing).
         let mut def_lines: HashMap<(&PathBuf, &str), Vec<usize>> = HashMap::new();
         for key in nodes.keys() {
-            def_lines
-                .entry((&key.0, &key.1))
-                .or_default()
-                .push(key.2);
+            def_lines.entry((&key.0, &key.1)).or_default().push(key.2);
         }
         for lines in def_lines.values_mut() {
             lines.sort_unstable();
         }
 
         // Build path → language index to prevent cross-language false positives
-        let lang_index: HashMap<&PathBuf, &str> = analyses
-            .iter()
-            .map(|a| (&a.path, a.language))
-            .collect();
+        let lang_index: HashMap<&PathBuf, &str> =
+            analyses.iter().map(|a| (&a.path, a.language)).collect();
 
         // Register edges from calls
         for a in analyses {

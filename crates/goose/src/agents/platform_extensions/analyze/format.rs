@@ -203,7 +203,11 @@ pub fn format_focused(
 type Chain = Vec<super::graph::ChainLink>;
 
 fn format_chain_link(link: &super::graph::ChainLink) -> String {
-    let fname = link.file.file_name().map(|f| f.to_string_lossy()).unwrap_or_default();
+    let fname = link
+        .file
+        .file_name()
+        .map(|f| f.to_string_lossy())
+        .unwrap_or_default();
     format!("{}:{}:{}", fname, link.name, link.line)
 }
 
@@ -256,10 +260,14 @@ fn is_test_chain(chain: &[super::graph::ChainLink]) -> bool {
             return true;
         }
         let f = link.file.to_string_lossy();
-        f.ends_with("_test.rs") || f.ends_with("_test.py")
-            || f.ends_with(".test.ts") || f.ends_with(".test.js")
-            || f.ends_with(".test.tsx") || f.ends_with(".test.jsx")
-            || f.contains("/tests/") || f.contains("/test/")
+        f.ends_with("_test.rs")
+            || f.ends_with("_test.py")
+            || f.ends_with(".test.ts")
+            || f.ends_with(".test.js")
+            || f.ends_with(".test.tsx")
+            || f.ends_with(".test.jsx")
+            || f.contains("/tests/")
+            || f.contains("/test/")
     })
 }
 
@@ -343,10 +351,7 @@ fn build_subtree(entries: &[(Vec<String>, &FileAnalysis)], depth: usize) -> Vec<
             i += 1;
         } else {
             let mut j = i + 1;
-            while j < entries.len()
-                && entries[j].0.len() > depth
-                && entries[j].0[depth] == *name
-            {
+            while j < entries.len() && entries[j].0.len() > depth && entries[j].0[depth] == *name {
                 j += 1;
             }
             let children = build_subtree(&entries[i..j], depth + 1);

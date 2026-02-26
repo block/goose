@@ -80,7 +80,11 @@ static LANGUAGES: &[LangInfo] = &[
         name: "javascript",
         extensions: &["js", "jsx", "mjs", "cjs"],
         language: || tree_sitter_javascript::LANGUAGE.into(),
-        fn_kinds: &["function_declaration", "method_definition", "variable_declarator"],
+        fn_kinds: &[
+            "function_declaration",
+            "method_definition",
+            "variable_declarator",
+        ],
         fn_name_kinds: &["identifier", "property_identifier"],
         class_kinds: &["class_declaration"],
         queries: LangQueries {
@@ -109,7 +113,11 @@ static LANGUAGES: &[LangInfo] = &[
         name: "typescript",
         extensions: &["ts"],
         language: || tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-        fn_kinds: &["function_declaration", "method_definition", "variable_declarator"],
+        fn_kinds: &[
+            "function_declaration",
+            "method_definition",
+            "variable_declarator",
+        ],
         fn_name_kinds: &["identifier", "property_identifier"],
         class_kinds: &["class_declaration", "interface_declaration"],
         queries: LangQueries {
@@ -139,7 +147,11 @@ static LANGUAGES: &[LangInfo] = &[
         name: "tsx",
         extensions: &["tsx"],
         language: || tree_sitter_typescript::LANGUAGE_TSX.into(),
-        fn_kinds: &["function_declaration", "method_definition", "variable_declarator"],
+        fn_kinds: &[
+            "function_declaration",
+            "method_definition",
+            "variable_declarator",
+        ],
         fn_name_kinds: &["identifier", "property_identifier"],
         class_kinds: &["class_declaration", "interface_declaration"],
         queries: LangQueries {
@@ -195,7 +207,11 @@ static LANGUAGES: &[LangInfo] = &[
         language: || tree_sitter_java::LANGUAGE.into(),
         fn_kinds: &["method_declaration", "constructor_declaration"],
         fn_name_kinds: &["identifier"],
-        class_kinds: &["class_declaration", "interface_declaration", "enum_declaration"],
+        class_kinds: &[
+            "class_declaration",
+            "interface_declaration",
+            "enum_declaration",
+        ],
         queries: LangQueries {
             functions: r#"
                 (method_declaration name: (identifier) @name)

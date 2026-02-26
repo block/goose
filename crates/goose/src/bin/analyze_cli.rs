@@ -75,7 +75,10 @@ fn main() {
                 format::format_semantic(&analysis, root)
             }
             None => {
-                eprintln!("Error: unsupported language or binary file: {}", path.display());
+                eprintln!(
+                    "Error: unsupported language or binary file: {}",
+                    path.display()
+                );
                 std::process::exit(1);
             }
         }

@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use tree_sitter::{Language, Parser as TsParser, Query, QueryCursor, StreamingIterator};
 
-use super::languages::{LangInfo, lang_for_ext};
+use super::languages::{lang_for_ext, LangInfo};
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -93,7 +93,12 @@ fn extract_functions(
                 let line = cap.node.start_position().row + 1;
                 let parent = find_enclosing_class(cap.node, source, info);
                 let detail = extract_fn_signature(cap.node, source);
-                symbols.push(Symbol { name, line, parent, detail });
+                symbols.push(Symbol {
+                    name,
+                    line,
+                    parent,
+                    detail,
+                });
             }
         }
     }
@@ -130,7 +135,12 @@ fn extract_classes(
 
                 // Extract field summary from the class/struct body
                 let detail = extract_class_detail(cap.node, source, info);
-                symbols.push(Symbol { name, line, parent: None, detail });
+                symbols.push(Symbol {
+                    name,
+                    line,
+                    parent: None,
+                    detail,
+                });
             }
         }
     }
@@ -302,9 +312,10 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
                 if let Some(child) = class_node.child(i) {
                     if node_text(source, &child) == "for" {
                         found_for = true;
-                    } else if !found_for && (child.kind() == "type_identifier"
-                        || child.kind() == "scoped_type_identifier"
-                        || child.kind() == "generic_type")
+                    } else if !found_for
+                        && (child.kind() == "type_identifier"
+                            || child.kind() == "scoped_type_identifier"
+                            || child.kind() == "generic_type")
                     {
                         trait_name = node_text(source, &child).to_string();
                     }
@@ -321,11 +332,7 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
 }
 
 /// Walk up from a function node to find the nearest enclosing class-like container.
-fn find_enclosing_class(
-    node: tree_sitter::Node,
-    source: &str,
-    info: &LangInfo,
-) -> Option<String> {
+fn find_enclosing_class(node: tree_sitter::Node, source: &str, info: &LangInfo) -> Option<String> {
     let mut cur = node;
     while let Some(parent) = cur.parent() {
         if info.class_kinds.contains(&parent.kind()) {
@@ -347,7 +354,12 @@ fn find_enclosing_class(
                 return None;
             }
             // Generic: find the name child (identifier, type_identifier, constant, etc.)
-            let name_kinds = &["identifier", "type_identifier", "constant", "simple_identifier"];
+            let name_kinds = &[
+                "identifier",
+                "type_identifier",
+                "constant",
+                "simple_identifier",
+            ];
             for kind in name_kinds {
                 if let Some(n) = find_child_by_kind(&parent, kind) {
                     return Some(node_text(source, &n).to_string());
@@ -369,11 +381,15 @@ fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<St
 
     // Find parameter list child
     let param_kinds = &[
-        "parameters", "formal_parameters", "parameter_list",
-        "function_value_parameters", "method_parameters",
+        "parameters",
+        "formal_parameters",
+        "parameter_list",
+        "function_value_parameters",
+        "method_parameters",
         "lambda_parameters",
     ];
-    let params_node = param_kinds.iter()
+    let params_node = param_kinds
+        .iter()
         .find_map(|kind| find_child_by_kind(&fn_node, kind));
 
     if let Some(pn) = params_node {
@@ -390,9 +406,7 @@ fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<St
     }
 
     // Find return type annotation
-    let ret_kinds = &[
-        "type", "return_type", "type_annotation",
-    ];
+    let ret_kinds = &["type", "return_type", "type_annotation"];
     // For Rust: look for a child that is "->" followed by a type
     // For Python: look for "return_type" or "type" child
     // Generic approach: scan children for return type indicators
@@ -401,7 +415,10 @@ fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<St
             if ret_kinds.contains(&child.kind()) {
                 let ret_text = node_text(source, &child).trim().to_string();
                 if !ret_text.is_empty() {
-                    let ret_text = ret_text.trim_start_matches("->").trim_start_matches(':').trim();
+                    let ret_text = ret_text
+                        .trim_start_matches("->")
+                        .trim_start_matches(':')
+                        .trim();
                     if !ret_text.is_empty() {
                         parts.push_str("->");
                         parts.push_str(&truncate(ret_text, 30));
@@ -441,13 +458,17 @@ fn extract_class_detail(
     // Determine field node kinds based on language
     let (body_kinds, field_kinds): (&[&str], &[&str]) = match info.name {
         "rust" => (&["field_declaration_list"], &["field_declaration"]),
-        "go" => (&["field_declaration_list", "struct_type"], &["field_declaration"]),
+        "go" => (
+            &["field_declaration_list", "struct_type"],
+            &["field_declaration"],
+        ),
         "java" | "kotlin" => (&["class_body"], &["field_declaration"]),
         _ => return None, // Skip Python (hard), JS/TS/Ruby/Swift for now
     };
 
     // Find the body node
-    let body = body_kinds.iter()
+    let body = body_kinds
+        .iter()
         .find_map(|kind| find_descendant_by_kind(&class_node, kind))?;
 
     // Collect field names
@@ -584,8 +605,8 @@ fn extract_calls(
             }
             let callee = node_text(source, &cap.node).to_string();
             let line = cap.node.start_position().row + 1;
-            let caller = find_enclosing_fn(cap.node, source, info)
-                .unwrap_or_else(|| "<module>".to_string());
+            let caller =
+                find_enclosing_fn(cap.node, source, info).unwrap_or_else(|| "<module>".to_string());
             calls.push(Call {
                 caller,
                 callee,
@@ -596,11 +617,7 @@ fn extract_calls(
     calls
 }
 
-fn find_enclosing_fn(
-    node: tree_sitter::Node,
-    source: &str,
-    info: &LangInfo,
-) -> Option<String> {
+fn find_enclosing_fn(node: tree_sitter::Node, source: &str, info: &LangInfo) -> Option<String> {
     let mut cur = node;
     while let Some(parent) = cur.parent() {
         if info.fn_kinds.contains(&parent.kind()) {
@@ -618,11 +635,7 @@ fn find_enclosing_fn(
     None
 }
 
-fn find_child_text(
-    node: &tree_sitter::Node,
-    kinds: &[&str],
-    source: &str,
-) -> Option<String> {
+fn find_child_text(node: &tree_sitter::Node, kinds: &[&str], source: &str) -> Option<String> {
     (0..node.child_count() as u32)
         .filter_map(|i| node.child(i))
         .find(|c| kinds.contains(&c.kind()))
@@ -636,7 +649,10 @@ fn truncate(s: &str, max: usize) -> String {
     }
     let limit = max.saturating_sub(3);
     // Walk back to a valid char boundary
-    let end = (0..=limit).rev().find(|&i| s.is_char_boundary(i)).unwrap_or(0);
+    let end = (0..=limit)
+        .rev()
+        .find(|&i| s.is_char_boundary(i))
+        .unwrap_or(0);
     let prefix = s.get(..end).unwrap_or("");
     format!("{}...", prefix)
 }

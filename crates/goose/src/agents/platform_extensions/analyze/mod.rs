@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use ignore::WalkBuilder;
 use indoc::indoc;
 use parser::{FileAnalysis, Parser};
+use rayon::prelude::*;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
     ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
@@ -17,7 +18,6 @@ use rmcp::model::{
 use schemars::{schema_for, JsonSchema};
 use serde::Deserialize;
 use serde_json::Value;
-use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use tokio_util::sync::CancellationToken;
 
@@ -41,8 +41,12 @@ pub struct AnalyzeParams {
     pub force: bool,
 }
 
-fn default_max_depth() -> u32 { 3 }
-fn default_follow_depth() -> u32 { 2 }
+fn default_max_depth() -> u32 {
+    3
+}
+fn default_follow_depth() -> u32 {
+    2
+}
 
 pub struct AnalyzeClient {
     info: InitializeResult,
@@ -118,12 +122,20 @@ impl AnalyzeClient {
     fn analyze(&self, params: AnalyzeParams, path: PathBuf) -> CallToolResult {
         if !path.exists() {
             return CallToolResult::error(vec![Content::text(format!(
-                "Error: path not found: {}", path.display()
-            )).with_priority(0.0)]);
+                "Error: path not found: {}",
+                path.display()
+            ))
+            .with_priority(0.0)]);
         }
 
         if let Some(ref focus) = params.focus {
-            self.focused_mode(&path, focus, params.follow_depth, params.max_depth, params.force)
+            self.focused_mode(
+                &path,
+                focus,
+                params.follow_depth,
+                params.max_depth,
+                params.force,
+            )
         } else if path.is_file() {
             self.semantic_mode(&path, params.force)
         } else {
@@ -172,7 +184,8 @@ impl AnalyzeClient {
             None => CallToolResult::error(vec![Content::text(format!(
                 "Error: could not analyze {} (unsupported language or binary file)",
                 path.display()
-            )).with_priority(0.0)]),
+            ))
+            .with_priority(0.0)]),
         }
     }
 
@@ -203,7 +216,9 @@ impl AnalyzeClient {
     fn finish(output: String, force: bool) -> CallToolResult {
         match format::check_size(&output, force) {
             Ok(text) => CallToolResult::success(vec![Content::text(text).with_priority(0.0)]),
-            Err(warning) => CallToolResult::success(vec![Content::text(warning).with_priority(0.0)]),
+            Err(warning) => {
+                CallToolResult::success(vec![Content::text(warning).with_priority(0.0)])
+            }
         }
     }
 }
@@ -253,11 +268,13 @@ impl McpClientTrait for AnalyzeClient {
                 }
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
-                )).with_priority(0.0)])),
+                ))
+                .with_priority(0.0)])),
             },
             _ => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Error: Unknown tool: {name}"
-            )).with_priority(0.0)])),
+            ))
+            .with_priority(0.0)])),
         }
     }
 
@@ -292,12 +309,26 @@ mod tests {
     #[tokio::test]
     async fn structure_mode() {
         let tmp = tempdir().unwrap();
-        fs::write(tmp.path().join("lib.rs"), "use std::io;\nfn read() {}\nfn write() {}\nstruct Buffer;\n").unwrap();
-        fs::write(tmp.path().join("app.py"), "import os\nclass App:\n    pass\ndef main():\n    pass\ndef run():\n    pass\n").unwrap();
+        fs::write(
+            tmp.path().join("lib.rs"),
+            "use std::io;\nfn read() {}\nfn write() {}\nstruct Buffer;\n",
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("app.py"),
+            "import os\nclass App:\n    pass\ndef main():\n    pass\ndef run():\n    pass\n",
+        )
+        .unwrap();
 
         let client = AnalyzeClient::new(ctx()).unwrap();
         let result = client.analyze(
-            AnalyzeParams { path: tmp.path().to_str().unwrap().into(), focus: None, max_depth: 3, follow_depth: 2, force: false },
+            AnalyzeParams {
+                path: tmp.path().to_str().unwrap().into(),
+                focus: None,
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
             tmp.path().to_path_buf(),
         );
         let out = text(&result);
@@ -314,7 +345,9 @@ mod tests {
     async fn semantic_mode() {
         let tmp = tempdir().unwrap();
         let file = tmp.path().join("demo.rs");
-        fs::write(&file, r#"
+        fs::write(
+            &file,
+            r#"
 use std::collections::HashMap;
 use std::io;
 
@@ -329,11 +362,19 @@ fn process() {
     helper();
 }
 fn helper() { validate(0); }
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let client = AnalyzeClient::new(ctx()).unwrap();
         let result = client.analyze(
-            AnalyzeParams { path: file.to_str().unwrap().into(), focus: None, max_depth: 3, follow_depth: 2, force: false },
+            AnalyzeParams {
+                path: file.to_str().unwrap().into(),
+                focus: None,
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
             file.clone(),
         );
         let out = text(&result);
@@ -361,7 +402,13 @@ fn helper() { validate(0); }
 
         let client = AnalyzeClient::new(ctx()).unwrap();
         let result = client.analyze(
-            AnalyzeParams { path: tmp.path().to_str().unwrap().into(), focus: Some("process".into()), max_depth: 3, follow_depth: 2, force: false },
+            AnalyzeParams {
+                path: tmp.path().to_str().unwrap().into(),
+                focus: Some("process".into()),
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
             tmp.path().to_path_buf(),
         );
         let out = text(&result);
@@ -378,7 +425,13 @@ fn helper() { validate(0); }
 
         // Nonexistent path
         let result = client.analyze(
-            AnalyzeParams { path: "/no/such/path".into(), focus: None, max_depth: 3, follow_depth: 2, force: false },
+            AnalyzeParams {
+                path: "/no/such/path".into(),
+                focus: None,
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
             PathBuf::from("/no/such/path"),
         );
         assert_eq!(result.is_error, Some(true));
@@ -387,7 +440,13 @@ fn helper() { validate(0); }
         // Empty directory → 0 files
         let tmp = tempdir().unwrap();
         let result = client.analyze(
-            AnalyzeParams { path: tmp.path().to_str().unwrap().into(), focus: None, max_depth: 3, follow_depth: 2, force: false },
+            AnalyzeParams {
+                path: tmp.path().to_str().unwrap().into(),
+                focus: None,
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
             tmp.path().to_path_buf(),
         );
         assert!(text(&result).contains("0 files"));
