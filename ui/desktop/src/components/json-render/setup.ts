@@ -12,7 +12,7 @@ import { shadcnComponents } from '@json-render/shadcn';
 import { shadcnComponentDefinitions as catalogDefs } from '@json-render/shadcn/catalog';
 import React from 'react';
 
-import { gooseComponents } from '../ui/design-system/goose-components';
+import { gooseComponents } from '../molecules/design-system/goose-components';
 
 // ─── shadcn component keys ───────────────────────────────────
 export const SHADCN_COMPONENT_KEYS = [

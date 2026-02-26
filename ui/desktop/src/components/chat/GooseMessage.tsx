@@ -33,7 +33,7 @@ import ToolCallConfirmation from '../messages/ToolCallConfirmation';
 import ToolCallWithResponse from '../messages/ToolCallWithResponse';
 import { JsonRenderBlock } from '../json-render';
 import ImagePreview from '../shared/ImagePreview';
-import { GooseGenerativeUI } from '../ui/design-system/goose-renderer';
+import { GooseGenerativeUI } from '../molecules/design-system/goose-renderer';
 
 function ThinkingSection({
   cotText,
