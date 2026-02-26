@@ -83,6 +83,11 @@ impl CanonicalModelRegistry {
         self.models.get(&(provider.to_string(), model.to_string()))
     }
 
+    /// Remove all models for a given provider.
+    pub fn remove_provider(&mut self, provider: &str) {
+        self.models.retain(|(p, _), _| p != provider);
+    }
+
     pub fn get_all_models_for_provider(&self, provider: &str) -> Vec<CanonicalModel> {
         self.models
             .iter()

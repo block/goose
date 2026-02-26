@@ -1,3 +1,4 @@
+pub mod loaders;
 mod model;
 mod name_builder;
 mod registry;

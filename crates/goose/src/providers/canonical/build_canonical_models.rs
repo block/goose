@@ -1,6 +1,9 @@
-/// Build canonical models from models.dev API
+/// Build canonical models from multiple sources
 ///
-/// This script fetches models from models.dev and converts them to canonical format.
+/// This script fetches models from models.dev as a baseline, then calls
+/// provider-specific loaders (e.g. NanoGPT) to get fresher/more complete data.
+/// Loader data replaces the models.dev data for that provider.
+///
 /// By default, it also checks which models from top providers are properly mapped.
 ///
 /// Usage:
@@ -10,7 +13,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use goose::providers::canonical::{
-    canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality, Pricing,
+    canonical_name, loaders, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality,
+    Pricing,
 };
 use goose::providers::{canonical::ModelMapping, create_with_named_model};
 use serde::{Deserialize, Serialize};
@@ -531,6 +535,56 @@ async fn build_canonical_models() -> Result<()> {
         }
     }
 
+    // Phase 2: Fetch from provider-specific loaders and replace models.dev data
+    let custom_loaders = loaders::all_loaders();
+    let mut loader_counts: HashMap<String, usize> = HashMap::new();
+    if !custom_loaders.is_empty() {
+        println!("\n{SEPARATOR}");
+        println!("Fetching from provider-specific APIs...");
+        println!("{SEPARATOR}");
+
+        for loader in custom_loaders {
+            let provider = loader.provider_name().to_string();
+            println!("\nLoading from {} API...", provider);
+
+            match loader.load_models().await {
+                Ok(models) if models.is_empty() => {
+                    println!(
+                        "  ⚠ {} API returned 0 models. Keeping models.dev data.",
+                        provider
+                    );
+                }
+                Ok(models) => {
+                    let old_count = registry.get_all_models_for_provider(&provider).len();
+                    registry.remove_provider(&provider);
+
+                    let new_count = models.len();
+                    for model in models {
+                        let model_name = model
+                            .id
+                            .strip_prefix(&format!("{}/", provider))
+                            .unwrap_or(&model.id)
+                            .to_string();
+                        registry.register(&provider, &model_name, model);
+                    }
+
+                    total_models = total_models - old_count + new_count;
+                    loader_counts.insert(provider.clone(), new_count);
+                    println!(
+                        "  ✓ Replaced {} models.dev models with {} from {} API",
+                        old_count, new_count, provider
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "  ⚠ Failed to load from {} API: {}. Keeping models.dev data.",
+                        provider, e
+                    );
+                }
+            }
+        }
+    }
+
     let output_path = data_file_path("canonical_models.json");
     registry.to_file(&output_path)?;
     println!(
@@ -540,7 +594,14 @@ async fn build_canonical_models() -> Result<()> {
     );
 
     println!("\n\nCollecting provider metadata from models.dev...");
-    let provider_metadata_list = collect_provider_metadata(providers_obj);
+    let mut provider_metadata_list = collect_provider_metadata(providers_obj);
+
+    // Patch model counts for providers whose data came from a custom loader
+    for metadata in &mut provider_metadata_list {
+        if let Some(&count) = loader_counts.get(&metadata.id) {
+            metadata.model_count = count;
+        }
+    }
 
     let provider_metadata_path = data_file_path("provider_metadata.json");
     let provider_metadata_json = serde_json::to_string_pretty(&provider_metadata_list)?;
