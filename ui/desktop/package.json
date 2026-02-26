@@ -27,6 +27,7 @@
     "test-e2e:debug": "npm run generate-api && playwright test --debug",
     "test-e2e:report": "playwright show-report",
     "test-e2e:single": "npm run generate-api && playwright test -g",
+    "test-e2e:contrast": "npm run generate-api && RUN_A11Y_CONTRAST=true playwright test tests/e2e/a11y-contrast.spec.ts",
     "lint": "biome lint --write src/",
     "lint:check": "npm run typecheck && biome lint src/",
     "format": "biome format --write src/",
@@ -102,6 +103,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
     "@biomejs/biome": "2.4.2",
     "@electron-forge/cli": "^7.10.2",
     "@electron-forge/maker-deb": "^7.10.2",
@@ -139,6 +141,7 @@
     "@vitest/coverage-v8": "^4.0.17",
     "@vitest/ui": "^4.0.17",
     "autoprefixer": "^10.4.23",
+    "axe-core": "^4.11.1",
     "electron": "^40.1.0",
     "electron-devtools-installer": "^4.0.0",
     "eslint": "^9.39.2",
