@@ -1381,9 +1381,27 @@ impl Agent {
                                                                     all_install_successful = false;
                                                                 }
                                                                 if let Some(response_msg) = request_to_response_map.get(&request_id) {
-                                                                    let metadata = request_metadata.get(&request_id).and_then(|m| m.as_ref());
+                                                                    let mut merged_metadata = request_metadata
+                                                                        .get(&request_id)
+                                                                        .and_then(|m| m.clone())
+                                                                        .unwrap_or_default();
+
+                                                                    if let Ok(ref call_result) = output {
+                                                                        if let Some(ref meta) = call_result.meta {
+                                                                            for (k, v) in meta.0.iter() {
+                                                                                merged_metadata.insert(k.clone(), v.clone());
+                                                                            }
+                                                                        }
+                                                                    }
+
+                                                                    let metadata_ref = if merged_metadata.is_empty() {
+                                                                        None
+                                                                    } else {
+                                                                        Some(&merged_metadata)
+                                                                    };
+
                                                                     let mut response = response_msg.lock().await;
-                                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata);
+                                                                    *response = response.clone().with_tool_response_with_metadata(request_id, output, metadata_ref);
                                                                 }
                                                             }
                                                             ToolStreamItem::Message(msg) => {
