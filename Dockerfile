@@ -1,3 +1,4 @@
+
 # syntax=docker/dockerfile:1.4
 # goose CLI and Server Docker Image
 # Multi-stage build for minimal final image size
