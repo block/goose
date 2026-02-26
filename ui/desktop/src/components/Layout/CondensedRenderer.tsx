@@ -107,6 +107,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                     <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
                       <DropdownMenuTrigger asChild>
                         <button
+                          data-testid={`nav-${item.id}`}
                           className={cn(
                             'flex items-center justify-center',
                             'rounded-lg transition-colors duration-200 no-drag',
@@ -135,6 +136,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                       {isChatItem && !isCondensedIconOnly ? (
                         <div className="relative">
                           <motion.button
+                            data-testid={`nav-${item.id}`}
                             onClick={onToggleChatExpanded}
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
@@ -184,6 +186,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                         </div>
                       ) : (
                         <motion.button
+                          data-testid={`nav-${item.id}`}
                           onClick={() => onNavClick(item.path)}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
@@ -283,6 +286,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                   <DropdownMenu open={chatPopoverOpen} onOpenChange={setChatPopoverOpen}>
                     <DropdownMenuTrigger asChild>
                       <motion.button
+                        data-testid={`nav-${item.id}`}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         className={cn(
@@ -313,6 +317,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                   </DropdownMenu>
                 ) : (
                   <motion.button
+                    data-testid={`nav-${item.id}`}
                     onClick={() => onNavClick(item.path)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}

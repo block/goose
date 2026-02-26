@@ -24,6 +24,7 @@ export default function ExtensionConfigFields({
           <label className="text-sm font-medium mb-2 block text-text-primary">Command</label>
           <div className="relative">
             <Input
+              data-testid="extension-command-input"
               value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
               placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"
@@ -42,6 +43,7 @@ export default function ExtensionConfigFields({
         <label className="text-sm font-medium mb-2 block text-text-primary">Endpoint</label>
         <div className="relative">
           <Input
+            data-testid="extension-endpoint-input"
             value={endpoint}
             onChange={(e) => onChange('endpoint', e.target.value)}
             placeholder="Enter endpoint URL..."
