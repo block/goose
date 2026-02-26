@@ -64,9 +64,29 @@ interface ToolCallWithResponseProps {
   isApprovalClicked?: boolean;
 }
 
-function getSubagentSessionId(toolResponse?: ToolResponseMessageContent): string | null {
+function getSubagentSessionId(
+  toolResponse?: ToolResponseMessageContent,
+  notifications?: NotificationEvent[]
+): string | null {
   const sessionId = toolResponse?.metadata?.subagent_session_id;
-  return typeof sessionId === 'string' ? sessionId : null;
+  if (typeof sessionId === 'string') return sessionId;
+
+  // Fallback: extract from subagent notifications (e.g. when delegate was cancelled mid-stream)
+  if (notifications) {
+    for (const n of notifications) {
+      const message = n.message as { method?: string; params?: Record<string, unknown> };
+      if (message.method !== 'notifications/message') continue;
+      const data = message.params?.data;
+      if (data && typeof data === 'object' && 'type' in data && 'subagent_id' in data) {
+        const record = data as Record<string, unknown>;
+        if (record.type === 'subagent_tool_request' && typeof record.subagent_id === 'string') {
+          return record.subagent_id;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
@@ -808,7 +828,8 @@ function ToolCallView({
       )}
 
       {(() => {
-        const subagentSessionId = getSubagentSessionId(toolResponse);
+        if (loadingStatus === 'loading') return null;
+        const subagentSessionId = getSubagentSessionId(toolResponse, notifications);
         if (!subagentSessionId) return null;
         return (
           <div className="border-t border-border-primary">
