@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-25T17:40:35.429427555+00:00",
+  "timestamp": "2026-02-26T16:57:00.608484006+00:00",
   "unmapped_models": [
     {
       "provider": "google",
@@ -43,11 +43,7 @@
     },
     {
       "provider": "google",
-      "model": "gemini-3.1-pro-preview"
-    },
-    {
-      "provider": "google",
-      "model": "gemini-3.1-pro-preview-customtools"
+      "model": "gemini-3.1-flash-image-preview"
     },
     {
       "provider": "google",
@@ -399,10 +395,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "anthropic/claude-sonnet-4.6"
-    },
-    {
-      "provider": "openrouter",
       "model": "arcee-ai/trinity-mini"
     },
     {
@@ -459,7 +451,7 @@
     },
     {
       "provider": "openrouter",
-      "model": "google/gemini-3.1-pro-preview"
+      "model": "google/gemini-3.1-pro-preview-customtools"
     },
     {
       "provider": "openrouter",
@@ -788,6 +780,22 @@
     {
       "provider": "openrouter",
       "model": "qwen/qwen3-vl-8b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-122b-a10b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-27b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-35b-a3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-flash-02-23"
     },
     {
       "provider": "openrouter",
@@ -1191,6 +1199,14 @@
         "canonical_model": "google/gemini-3-pro-preview"
       },
       {
+        "provider_model": "gemini-3.1-pro-preview",
+        "canonical_model": "google/gemini-3.1-pro-preview"
+      },
+      {
+        "provider_model": "gemini-3.1-pro-preview-customtools",
+        "canonical_model": "google/gemini-3.1-pro-preview-customtools"
+      },
+      {
         "provider_model": "gemini-embedding-001",
         "canonical_model": "google/gemini-embedding-001"
       },
@@ -1471,6 +1487,10 @@
         "canonical_model": "openrouter/anthropic/claude-sonnet-4.5"
       },
       {
+        "provider_model": "anthropic/claude-sonnet-4.6",
+        "canonical_model": "openrouter/anthropic/claude-sonnet-4.6"
+      },
+      {
         "provider_model": "arcee-ai/trinity-large-preview:free",
         "canonical_model": "openrouter/arcee-ai/trinity-large-preview:free"
       },
@@ -1529,6 +1549,10 @@
       {
         "provider_model": "google/gemini-3-pro-preview",
         "canonical_model": "openrouter/google/gemini-3-pro-preview"
+      },
+      {
+        "provider_model": "google/gemini-3.1-pro-preview",
+        "canonical_model": "openrouter/google/gemini-3.1-pro-preview"
       },
       {
         "provider_model": "google/gemma-3-27b-it",
@@ -2364,6 +2388,18 @@
     },
     {
       "provider": "google",
+      "model": "gemini-3.1-pro-preview",
+      "canonical": "google/gemini-3.1-pro-preview",
+      "recommended": true
+    },
+    {
+      "provider": "google",
+      "model": "gemini-3.1-pro-preview-customtools",
+      "canonical": "google/gemini-3.1-pro-preview-customtools",
+      "recommended": true
+    },
+    {
+      "provider": "google",
       "model": "gemini-embedding-001",
       "canonical": "google/gemini-embedding-001",
       "recommended": true
@@ -2778,6 +2814,12 @@
     },
     {
       "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-4.6",
+      "canonical": "openrouter/anthropic/claude-sonnet-4.6",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "arcee-ai/trinity-large-preview:free",
       "canonical": "openrouter/arcee-ai/trinity-large-preview:free",
       "recommended": true
@@ -2864,6 +2906,12 @@
       "provider": "openrouter",
       "model": "google/gemini-3-pro-preview",
       "canonical": "openrouter/google/gemini-3-pro-preview",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemini-3.1-pro-preview",
+      "canonical": "openrouter/google/gemini-3.1-pro-preview",
       "recommended": true
     },
     {
@@ -3929,9 +3977,9 @@
     "azure_openai": 0,
     "databricks": 0,
     "gcp_vertex_ai": 0,
-    "google": 43,
+    "google": 44,
     "openai": 116,
-    "openrouter": 228,
+    "openrouter": 233,
     "tetrate": 146,
     "venice": 0,
     "xai": 13
@@ -3960,6 +4008,8 @@
     "google/gemini-2.5-pro-preview-tts",
     "google/gemini-3-flash-preview",
     "google/gemini-3-pro-preview",
+    "google/gemini-3.1-pro-preview",
+    "google/gemini-3.1-pro-preview-customtools",
     "google/gemini-embedding-001",
     "google/gemini-flash",
     "google/gemini-flash-lite",
@@ -4005,6 +4055,7 @@
     "openrouter/anthropic/claude-opus-4.6",
     "openrouter/anthropic/claude-sonnet-4",
     "openrouter/anthropic/claude-sonnet-4.5",
+    "openrouter/anthropic/claude-sonnet-4.6",
     "openrouter/arcee-ai/trinity-large-preview:free",
     "openrouter/arcee-ai/trinity-mini:free",
     "openrouter/deepseek/deepseek-chat-v3",
@@ -4020,6 +4071,7 @@
     "openrouter/google/gemini-2.5-pro-preview-05-06",
     "openrouter/google/gemini-3-flash-preview",
     "openrouter/google/gemini-3-pro-preview",
+    "openrouter/google/gemini-3.1-pro-preview",
     "openrouter/google/gemma-3-27b-it",
     "openrouter/google/gemma-3-27b-it:free",
     "openrouter/meta-llama/llama-3.3-70b-instruct:free",
