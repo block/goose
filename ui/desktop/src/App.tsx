@@ -29,7 +29,7 @@ import ToolsPage from './components/pages/ToolsPage';
 import WorkflowsPage from './components/pages/WorkflowsPage';
 import WelcomePage from './components/pages/WelcomePage';
 import { ErrorUI } from './components/shared/ErrorBoundary';
-import { TooltipProvider } from './components/atoms/Tooltip';
+import { TooltipProvider } from './components/ui/atoms/tooltip';
 import { AuthProvider } from './hooks/useAuth';
 import { setupAuthInterceptor } from './lib/authInterceptor';
 import { openSharedSessionFromDeepLink } from './sessionLinks';

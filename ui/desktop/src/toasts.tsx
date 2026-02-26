@@ -9,7 +9,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from './components/atoms/Tooltip';
+} from './components/ui/atoms/tooltip';
 import { useNavigation } from './hooks/useNavigation';
 import { startNewSession } from './sessions';
 import { getInitialWorkingDir } from './utils/workingDir';

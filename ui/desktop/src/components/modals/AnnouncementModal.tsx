@@ -4,7 +4,7 @@ import packageJson from '../../../package.json';
 import { ANNOUNCEMENTS_ENABLED } from '../../updates';
 import MarkdownContent from '../messages/MarkdownContent';
 import { Button } from '../ui/atoms/button';
-import { BaseModal } from '../ui/molecules/BaseModal';
+import { BaseModal } from '../ui/molecules/base-modal';
 
 interface AnnouncementMeta {
   id: string;

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { PageHeader } from '../molecules/design-system/PageHeader';
-import { TabBar } from '../molecules/design-system/TabBar';
+import { PageHeader } from '../molecules/design-system/page-header';
+import { TabBar } from '../molecules/design-system/tab-bar';
 import DatasetsTab from './DatasetsTab';
 import EvalOverviewTab from './EvalOverviewTab';
 import EvalRunner from './EvalRunner';

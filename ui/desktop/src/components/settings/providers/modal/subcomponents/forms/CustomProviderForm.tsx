@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { UpdateCustomProviderRequest } from '../../../../../../api';
 import { Button } from '../../../../../ui/atoms/button';
 import { Input } from '../../../../../ui/atoms/input';
-import { Select } from '../../../../../ui/molecules/Select';
+import { Select } from '../../../../../ui/molecules/select';
 import { SecureStorageNotice } from '../SecureStorageNotice';
 
 interface CustomProviderFormProps {

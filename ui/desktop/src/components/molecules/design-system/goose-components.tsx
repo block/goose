@@ -15,7 +15,7 @@ import type { ComponentRenderProps } from '@json-render/react';
 import type React from 'react';
 import { cn } from '../../../utils';
 import { Alert } from '../../atoms/alert';
-import { Badge } from '../../atoms/Badge';
+import { Badge } from '../../atoms/badge';
 import { Button } from '../../atoms/button';
 import { CodeBlock } from '../../atoms/code-block';
 import { Input } from '../../atoms/input';
@@ -24,20 +24,20 @@ import { Progress } from '../../atoms/progress';
 import { Separator } from '../../atoms/separator';
 import { Table } from '../../atoms/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Chart } from './Chart';
-import { CardGrid } from './CardGrid';
-import { DataCard } from './DataCard';
-import { DataTable } from './DataTable';
-import { ElementErrorBoundary } from './ElementErrorBoundary';
-import { EmptyState } from './EmptyState';
-import { ErrorState } from './ErrorState';
-import { ListItem } from './ListItem';
-import { LoadingState } from './LoadingState';
-import { PageHeader } from './PageHeader';
-import { SearchInput } from './SearchInput';
-import { StatCard } from './StatCard';
-import { TabBar } from './TabBar';
-import { TreeItem } from './TreeItem';
+import { Chart } from './chart';
+import { CardGrid } from './card-grid';
+import { DataCard } from './data-card';
+import { DataTable } from './data-table';
+import { ElementErrorBoundary } from './element-error-boundary';
+import { EmptyState } from './empty-state';
+import { ErrorState } from './error-state';
+import { ListItem } from './list-item';
+import { LoadingState } from './loading-state';
+import { PageHeader } from './page-header';
+import { SearchInput } from './search-input';
+import { StatCard } from './stat-card';
+import { TabBar } from './tab-bar';
+import { TreeItem } from './tree-item';
 
 type AnyComponentRenderProps = ComponentRenderProps<Record<string, unknown>>;
 
@@ -352,11 +352,12 @@ function TabBarComponent({ element, emit }: AnyComponentRenderProps) {
     <TabBar
       groups={groups}
       activeTab={p.activeTab || ''}
-      onTabChange={(tabId) => emit?.(`tabChange:${tabId}`)}
+      onTabChange={(tabId: string) => emit?.(`tabChange:${tabId}`)}
       variant={p.variant}
     />
   );
 }
+
 
 // ─── DS Atom Wrappers (Table, Alert, Select, Progress, CodeBlock) ───
 

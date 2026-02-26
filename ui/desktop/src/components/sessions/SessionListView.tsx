@@ -45,8 +45,8 @@ import { formatExtensionName } from '../settings/extensions/subcomponents/Extens
 import { Button } from '../ui/atoms/button';
 import { ScrollArea } from '../ui/atoms/scroll-area';
 import { Skeleton } from '../ui/atoms/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
-import { ConfirmationModal } from '../ui/molecules/ConfirmationModal';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/tooltip';
+import { ConfirmationModal } from '../ui/molecules/confirmation-modal';
 import { Card } from '../ui/molecules/card';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {

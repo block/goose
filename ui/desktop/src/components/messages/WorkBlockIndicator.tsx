@@ -4,8 +4,8 @@ import type { Message } from '../../api';
 import { useReasoningDetail, type WorkBlockDetail } from '../../contexts/ReasoningDetailContext';
 import FlyingBird from '../branding/FlyingBird';
 import GooseLogo from '../branding/GooseLogo';
-import { Badge } from '../ui/atoms/Badge';
-import { StatusDot } from '../ui/atoms/StatusDot';
+import { Badge } from '../ui/atoms/badge';
+import { StatusDot } from '../ui/atoms/status-dot';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

@@ -39,7 +39,7 @@ import { RecipeHeader } from '../shared/RecipeHeader';
 import type { ScrollAreaHandle } from '../ui/atoms/scroll-area';
 // ChatInput is now rendered in AppLayout via UnifiedInputContext
 import { ScrollArea } from '../ui/atoms/scroll-area';
-import { RecipeWarningModal } from '../ui/molecules/RecipeWarningModal';
+import { RecipeWarningModal } from '../ui/molecules/recipe-warning-modal';
 import { useSidebar } from '../ui/molecules/sidebar';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import WelcomeState from './WelcomeState';

@@ -22,7 +22,7 @@ import { formatToLocalDateWithTimezone } from '../../utils/date';
 import SessionHistoryView from '../sessions/SessionHistoryView';
 import { Button } from '../ui/atoms/button';
 import { ScrollArea } from '../ui/atoms/scroll-area';
-import BackButton from '../ui/molecules/BackButton';
+import BackButton from '../ui/molecules/back-button';
 import { Card } from '../ui/molecules/card';
 import type { NewSchedulePayload } from './ScheduleModal';
 import { ScheduleModal } from './ScheduleModal';

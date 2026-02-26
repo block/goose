@@ -5,7 +5,7 @@ import { TELEMETRY_UI_ENABLED } from '../../updates';
 import { trackTelemetryPreference } from '../../utils/analytics';
 import { Goose } from '../icons/Goose';
 import { Button } from '../ui/atoms/button';
-import { BaseModal } from '../ui/molecules/BaseModal';
+import { BaseModal } from '../ui/molecules/base-modal';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 

@@ -5,7 +5,7 @@ import type { FixedExtensionEntry } from '../../../contexts/ConfigContext';
 import { useConfig } from '../../../contexts/ConfigContext';
 import { Button } from '../../ui/atoms/button';
 import { ScrollArea } from '../../ui/atoms/scroll-area';
-import BackButton from '../../ui/molecules/BackButton';
+import BackButton from '../../ui/molecules/back-button';
 import PermissionModal from './PermissionModal';
 
 function RuleItem({ title, description }: { title: string; description: string }) {

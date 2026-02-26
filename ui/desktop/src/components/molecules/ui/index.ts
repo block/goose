@@ -1,9 +1,14 @@
 // Molecules — composed UI components
 
-export { ActivityStep, ThinkingEntry, type ActivityStepProps, type ThinkingEntryProps } from './ActivityStep';
-export { default as BackButton } from './BackButton';
-export { BaseModal } from './BaseModal';
-export { ConfirmationModal } from './ConfirmationModal';
+export {
+  ActivityStep,
+  ThinkingEntry,
+  type ActivityStepProps,
+  type ThinkingEntryProps,
+} from './activity-step';
+export { default as BackButton } from './back-button';
+export { BaseModal } from './base-modal';
+export { ConfirmationModal } from './confirmation-modal';
 export {
   Card,
   CardContent,
@@ -17,7 +22,7 @@ export {
   CollapsibleContent,
   CollapsibleTrigger,
 } from './collapsible';
-export { DiagnosticsModal } from './Diagnostics';
+export { DiagnosticsModal } from './diagnostics';
 export {
   Dialog,
   DialogClose,
@@ -47,10 +52,11 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './dropdown-menu';
-export type { JsonSchema } from './JsonSchemaForm';
-export { default as JsonSchemaForm } from './JsonSchemaForm';
-export { RecipeWarningModal } from './RecipeWarningModal';
-export { Select } from './Select';
+export type { JsonSchema } from './json-schema-form';
+export { default as JsonSchemaForm } from './json-schema-form';
+export { RecipeWarningModal } from './recipe-warning-modal';
+export { Select } from './select';
+
 export {
   Sheet,
   SheetClose,

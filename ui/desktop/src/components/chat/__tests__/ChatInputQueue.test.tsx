@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ChatState } from '../../../types/chatState';
 import ChatInput from '../ChatInput';
 
-vi.mock('../../ui/atoms/Tooltip', () => ({
+vi.mock('../../ui/atoms/tooltip', () => ({
   Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   TooltipContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -95,7 +95,7 @@ vi.mock('../../bottom_menu/DirSwitcher', () => ({ DirSwitcher: () => null }));
 vi.mock('../../recipes/CreateEditRecipeModal', () => ({ default: () => null }));
 vi.mock('../../recipes/CreateRecipeFromSessionModal', () => ({ default: () => null }));
 vi.mock('../../settings/models/bottom_bar/ModelsBottomBar', () => ({ default: () => null }));
-vi.mock('../../ui/molecules/Diagnostics', () => ({ DiagnosticsModal: () => null }));
+vi.mock('../../ui/molecules/diagnostics', () => ({ DiagnosticsModal: () => null }));
 vi.mock('./MentionPopover', () => ({ default: () => null }));
 
 describe('ChatInput — interruption queue behavior', () => {

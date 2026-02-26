@@ -2,7 +2,7 @@ import { AlertTriangle, Edit, Info, PlusIcon, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { upsertConfig } from '../../../../api';
 import { Button } from '../../../ui/atoms/button';
-import { ConfirmationModal } from '../../../ui/molecules/ConfirmationModal';
+import { ConfirmationModal } from '../../../ui/molecules/confirmation-modal';
 import {
   Dialog,
   DialogContent,

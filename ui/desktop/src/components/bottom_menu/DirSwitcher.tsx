@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { updateWorkingDir } from '../../api';
 import { AppEvents } from '../../constants/events';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/Tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/atoms/tooltip';
 
 interface DirSwitcherProps {
   className: string;

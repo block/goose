@@ -1,10 +1,12 @@
 // Atoms — self-contained UI primitives
 
-export { Badge } from './Badge';
+export { Alert } from './alert';
+export { Badge } from './badge';
 export { Button, buttonVariants } from './button';
-export type { LoadingStatus } from './Dot';
-export { default as Dot } from './Dot';
-export { default as Expand } from './Expand';
+export { CodeBlock } from './code-block';
+export type { LoadingStatus } from './dot';
+export { default as Dot } from './dot';
+export { default as Expand } from './expand';
 export {
   AttachmentIcon,
   Bird,
@@ -19,22 +21,15 @@ export {
   VercelIcon,
 } from './icons';
 export { Input } from './input';
-export { StatusDot } from './StatusDot';
-export { default as Stop } from './Stop';
+export { NativeSelect } from './native-select';
+export { Progress } from './progress';
 export type { ScrollAreaHandle } from './scroll-area';
 export { ScrollArea, ScrollBar } from './scroll-area';
 export { Separator } from './separator';
 export { Skeleton } from './skeleton';
+export { StatusDot } from './status-dot';
+export { default as Stop } from './stop';
 export { Switch } from './switch';
-export {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from './Tooltip';
-export {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from './tabs';
+export { Table } from './table';
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs';
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';

@@ -16,7 +16,7 @@
  */
 
 import type { Spec } from '@json-render/react';
-import { isGooseUISpec } from '../components/molecules/design-system/goose-renderer';
+import { isGooseUISpec } from '../components/ui/design-system/goose-renderer';
 import { looksLikeJsonRenderSpec } from './jsonRenderDetection';
 
 interface ExtractedSpec {

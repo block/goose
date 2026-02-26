@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { ActivityStep, ThinkingEntry } from '../ActivityStep';
+import { ActivityStep, ThinkingEntry } from '../activity-step';
 
 describe('ActivityStep', () => {
   it('renders description and tool icon', () => {

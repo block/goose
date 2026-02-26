@@ -14,7 +14,7 @@ import { getToolCallIcon } from '../../utils/toolIconMapping';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
 import { TooltipWrapper } from '../settings/providers/subcomponents/buttons/TooltipWrapper';
 import { Button } from '../ui/atoms/button';
-import type { LoadingStatus } from '../atoms/Dot';
+import type { LoadingStatus } from '../ui/atoms/dot';
 import MarkdownContent from './MarkdownContent';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';

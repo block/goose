@@ -4,7 +4,7 @@ import type { ProviderDetails } from '../../../api';
 import { useConfig } from '../../../contexts/ConfigContext';
 import { createNavigationHandler } from '../../../utils/navigationUtils';
 import { ScrollArea } from '../../ui/atoms/scroll-area';
-import BackButton from '../../ui/molecules/BackButton';
+import BackButton from '../../ui/molecules/back-button';
 import ProviderGrid from './ProviderGrid';
 
 interface ProviderSettingsProps {

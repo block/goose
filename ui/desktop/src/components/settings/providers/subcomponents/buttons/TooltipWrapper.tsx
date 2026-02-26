@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../ui/atoms/Tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../ui/atoms/tooltip';
 
 interface TooltipWrapperProps {
   children: React.ReactNode;

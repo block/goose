@@ -11,7 +11,7 @@ import { Button } from '../../atoms/button';
 import { Input } from '../../atoms/input';
 import { Separator } from '../../atoms/separator';
 import { Skeleton } from '../../atoms/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../atoms/Tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../atoms/tooltip';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './sheet';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';

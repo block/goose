@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useConfig } from '../../../contexts/ConfigContext';
 import { fetchModelsForProviders } from '../../settings/models/modelInterface';
 import { Input } from '../../ui/atoms/input';
-import { Select } from '../../ui/molecules/Select';
+import { Select } from '../../ui/molecules/select';
 
 interface RecipeModelSelectorProps {
   selectedProvider?: string;

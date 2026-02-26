@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { PageHeader } from '../molecules/design-system/PageHeader';
-import { TabBar } from '../molecules/design-system/TabBar';
+import { PageHeader } from '../molecules/design-system/page-header';
+import { TabBar } from '../molecules/design-system/tab-bar';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import LiveMonitoringTab from './LiveMonitoringTab';
 import ResponseQualityTab from './ResponseQualityTab';

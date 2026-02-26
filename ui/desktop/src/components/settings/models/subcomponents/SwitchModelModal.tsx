@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../ui/molecules/dialog';
-import { Select } from '../../../ui/molecules/Select';
+import { Select } from '../../../ui/molecules/select';
 import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
 import type Model from '../modelInterface';
 import { fetchModelsForProviders, getProviderMetadata } from '../modelInterface';

@@ -3,10 +3,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import type { Message } from '../../api';
 import { useReasoningDetail } from '../../contexts/ReasoningDetailContext';
 import { cn } from '../../utils';
-import { Badge } from '../ui/atoms/Badge';
-import { StatusDot } from '../ui/atoms/StatusDot';
+import { Badge } from '../ui/atoms/badge';
+import { StatusDot } from '../ui/atoms/status-dot';
 import { ScrollArea } from '../ui/atoms/scroll-area';
-import { ActivityStep, ThinkingEntry } from '../ui/molecules/ActivityStep';
+import { ActivityStep, ThinkingEntry } from '../ui/molecules/activity-step';
 import MarkdownContent from './MarkdownContent';
 
 // ── Helpers ─────────────────────────────────────────────────────────

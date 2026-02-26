@@ -1,5 +1,5 @@
 import { Input } from '../../../ui/atoms/input';
-import { Select } from '../../../ui/molecules/Select';
+import { Select } from '../../../ui/molecules/select';
 
 interface ExtensionInfoFieldsProps {
   name: string;

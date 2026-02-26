@@ -4,7 +4,7 @@ import { useModelAndProvider } from '../../../../contexts/ModelAndProviderContex
 import { Button } from '../../../ui/atoms/button';
 import { Input } from '../../../ui/atoms/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../../ui/molecules/dialog';
-import { Select } from '../../../ui/molecules/Select';
+import { Select } from '../../../ui/molecules/select';
 import { fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 

@@ -24,8 +24,8 @@ import { SearchView } from '../conversation/SearchView';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/atoms/button';
 import { ScrollArea } from '../ui/atoms/scroll-area';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/Tooltip';
-import BackButton from '../ui/molecules/BackButton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/atoms/tooltip';
+import BackButton from '../ui/molecules/back-button';
 import {
   Dialog,
   DialogContent,

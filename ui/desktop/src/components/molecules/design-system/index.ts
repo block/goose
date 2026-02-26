@@ -7,17 +7,18 @@
  * Compatible with @vercel-labs/json-render for generative UI.
  */
 
-export { DataCard } from './DataCard';
-export { DataTable } from './DataTable';
-export { CardGrid } from './CardGrid';
-export { ElementErrorBoundary } from './ElementErrorBoundary';
-export { EmptyState } from './EmptyState';
-export { ErrorState } from './ErrorState';
-export { ListItem } from './ListItem';
-export { LoadingState } from './LoadingState';
-export { PageHeader } from './PageHeader';
-export { SearchInput } from './SearchInput';
-export { StatCard } from './StatCard';
-export type { Tab, TabBarProps, TabGroup } from './TabBar';
-export { TabBar } from './TabBar';
-export { TreeItem } from './TreeItem';
+export { DataCard } from './data-card';
+export { DataTable } from './data-table';
+export { CardGrid } from './card-grid';
+export { ElementErrorBoundary } from './element-error-boundary';
+export { EmptyState } from './empty-state';
+export { ErrorState } from './error-state';
+export { ListItem } from './list-item';
+export { LoadingState } from './loading-state';
+export { PageHeader } from './page-header';
+export { SearchInput } from './search-input';
+export { StatCard } from './stat-card';
+export type { Tab, TabBarProps, TabGroup } from './tab-bar';
+export { TabBar } from './tab-bar';
+export { TreeItem } from './tree-item';
+
