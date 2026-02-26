@@ -404,31 +404,49 @@ export default function RunHistoryTab({ initialRunId }: { initialRunId?: string 
               {runs.map((run) => {
                 const isSelected = selectedForCompare.includes(run.id);
                 const selIndex = selectedForCompare.indexOf(run.id);
+                const handleRowAction = () =>
+                  compareMode ? toggleRunSelection(run.id) : handleViewDetail(run.id);
                 return (
                   <tr
                     key={run.id}
-                    className={`border-t border-border-muted hover:bg-background-muted cursor-pointer ${
+                    className={`border-t border-border-muted hover:bg-background-muted ${
                       isSelected ? 'bg-purple-900/20 border-purple-500/30' : ''
                     }`}
-                    onClick={() =>
-                      compareMode ? toggleRunSelection(run.id) : handleViewDetail(run.id)
-                    }
                   >
                     {compareMode && (
                       <td className="px-2 py-3 text-center">
-                        <div
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs font-bold ${
+                        <button
+                          type="button"
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-border-accent ${
                             isSelected
                               ? 'border-purple-400 bg-purple-600 text-text-default'
                               : 'border-border-muted bg-background-default'
                           }`}
+                          aria-label={
+                            isSelected
+                              ? `Deselect run ${run.id} from comparison`
+                              : `Select run ${run.id} for comparison`
+                          }
+                          aria-pressed={isSelected}
+                          onClick={handleRowAction}
                         >
                           {isSelected ? (selIndex === 0 ? 'A' : 'B') : ''}
-                        </div>
+                        </button>
                       </td>
                     )}
                     <td className="px-4 py-3 text-text-default font-mono text-xs">
-                      {run.id.slice(0, 8)}
+                      <button
+                        type="button"
+                        className="text-left hover:underline focus:outline-none focus:ring-2 focus:ring-border-accent rounded"
+                        onClick={handleRowAction}
+                        aria-label={
+                          compareMode
+                            ? `Select run ${run.id} for comparison`
+                            : `Open details for run ${run.id}`
+                        }
+                      >
+                        {run.id.slice(0, 8)}
+                      </button>
                     </td>
                     <td className="px-4 py-3 text-text-default">{run.datasetName}</td>
                     <td className="px-4 py-3 text-center">
@@ -447,7 +465,16 @@ export default function RunHistoryTab({ initialRunId }: { initialRunId?: string 
                       {formatDate(run.startedAt)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {!compareMode && <span className="text-text-accent text-xs">Details →</span>}
+                      {!compareMode && (
+                        <button
+                          type="button"
+                          className="text-text-accent text-xs hover:underline focus:outline-none focus:ring-2 focus:ring-border-accent rounded"
+                          onClick={handleRowAction}
+                          aria-label={`Open details for run ${run.id}`}
+                        >
+                          Details →
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
