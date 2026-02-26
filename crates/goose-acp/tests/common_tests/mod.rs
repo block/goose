@@ -13,9 +13,7 @@ use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose_acp::server::GooseAcpAgent;
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_MODEL};
-use sacp::schema::{
-    McpServer, McpServerHttp, ModelId, ToolCallStatus,
-};
+use sacp::schema::{McpServer, McpServerHttp, ModelId, ToolCallStatus};
 use std::sync::Arc;
 
 pub async fn run_config_mcp<C: Connection>() {
