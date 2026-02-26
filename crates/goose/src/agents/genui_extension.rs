@@ -40,6 +40,7 @@ const KNOWN_COMPONENTS: &[&str] = &[
     "Avatar",
     "Badge",
     "Alert",
+    "StatCard",
     "Table",
     "DataTable",
     "Carousel",
@@ -57,6 +58,7 @@ const KNOWN_COMPONENTS: &[&str] = &[
     "Link",
     "Pagination",
     "Chart",
+    "CardGrid",
 ];
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -122,12 +124,64 @@ impl GenUiClient {
 
     fn validate_spec(value: &JsonValue) -> Vec<String> {
         let mut errors = Vec::new();
+
         let state = value
             .as_object()
             .and_then(|o| o.get("state"))
             .filter(|v| !v.is_null());
+
+        Self::validate_root_card(value, &mut errors);
         Self::validate_recursive(value, state, &mut errors);
+
         errors
+    }
+
+    fn validate_root_card(value: &JsonValue, errors: &mut Vec<String>) {
+        let Some(obj) = value.as_object() else {
+            return;
+        };
+
+        let root_val = if let Some(root) = obj.get("root") {
+            if root.is_object() {
+                Some(root)
+            } else {
+                let root_id = root.as_str();
+                let elements = obj.get("elements").and_then(|v| v.as_object());
+                root_id.and_then(|id| elements.and_then(|m| m.get(id)))
+            }
+        } else {
+            None
+        };
+
+        let Some(root_val) = root_val else {
+            return;
+        };
+        let Some(root_obj) = root_val.as_object() else {
+            return;
+        };
+
+        let root_type = root_obj.get("type").and_then(|v| v.as_str());
+        if root_type != Some("Card") {
+            errors.push("Root element must be a Card".to_string());
+            return;
+        }
+
+        let Some(props) = root_obj.get("props").and_then(|v| v.as_object()) else {
+            errors.push(
+                "Root Card must set props.maxWidth=\"full\" and props.centered=false".to_string(),
+            );
+            return;
+        };
+
+        match props.get("maxWidth").and_then(|v| v.as_str()) {
+            Some("full") => {}
+            _ => errors.push("Root Card must set props.maxWidth=\"full\"".to_string()),
+        }
+
+        match props.get("centered").and_then(|v| v.as_bool()) {
+            Some(false) => {}
+            _ => errors.push("Root Card must set props.centered=false".to_string()),
+        }
     }
 
     fn validate_recursive(value: &JsonValue, state: Option<&JsonValue>, errors: &mut Vec<String>) {
@@ -418,5 +472,94 @@ impl McpClientTrait for GenUiClient {
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+}
+
+#[cfg(test)]
+mod drift_tests {
+    use super::GenUiClient;
+
+    use serde_json::Value as JsonValue;
+
+    static GENUI_CATALOG_PROMPT: &str = include_str!("genui_catalog_prompt.txt");
+    static JSON_RENDER_VISUAL_SKILL: &str =
+        include_str!("builtin_skills/skills/json_render_visual.md");
+
+    fn extract_json_render_fences(text: &str) -> Vec<String> {
+        let mut blocks = Vec::new();
+        let mut current: Vec<&str> = Vec::new();
+        let mut in_block = false;
+
+        for line in text.lines() {
+            if !in_block {
+                if line.trim_start().starts_with("```json-render") {
+                    in_block = true;
+                    current.clear();
+                }
+                continue;
+            }
+
+            if line.trim() == "```" {
+                blocks.push(current.join("\n"));
+                in_block = false;
+                current.clear();
+                continue;
+            }
+
+            current.push(line);
+        }
+
+        blocks
+    }
+
+    fn apply_jsonl_patch_lines(lines: &str) -> JsonValue {
+        use json_patch::PatchOperation;
+
+        let mut doc = JsonValue::Object(serde_json::Map::new());
+
+        for line in lines.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            let op: PatchOperation = serde_json::from_str(line)
+                .unwrap_or_else(|e| panic!("Invalid JSONL line: {line}\n{e}"));
+            json_patch::patch(&mut doc, std::slice::from_ref(&op))
+                .unwrap_or_else(|e| panic!("Failed to apply patch line: {line}\n{e}"));
+        }
+
+        doc
+    }
+
+    fn parse_spec(block: &str) -> JsonValue {
+        // Heuristic: if every non-empty line parses as a patch op, treat as JSONL.
+        let all_lines_patch_ops = block
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .all(|line| serde_json::from_str::<json_patch::PatchOperation>(line).is_ok());
+
+        if all_lines_patch_ops {
+            apply_jsonl_patch_lines(block)
+        } else {
+            serde_json::from_str(block).expect("Nested json-render example must be valid JSON")
+        }
+    }
+
+    fn assert_examples_validate(text: &str) {
+        for block in extract_json_render_fences(text) {
+            let spec = parse_spec(&block);
+            let errors = GenUiClient::validate_spec(&spec);
+            assert!(
+                errors.is_empty(),
+                "json-render example must satisfy validate_spec. Errors: {errors:?}\nSpec: {spec}"
+            );
+        }
+    }
+
+    #[test]
+    fn genui_catalog_prompt_examples_validate() {
+        assert_examples_validate(GENUI_CATALOG_PROMPT);
+    }
+
+    #[test]
+    fn json_render_visual_skill_examples_validate() {
+        assert_examples_validate(JSON_RENDER_VISUAL_SKILL);
     }
 }

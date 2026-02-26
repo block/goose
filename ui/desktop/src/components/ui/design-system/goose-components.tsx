@@ -25,6 +25,7 @@ import { Separator } from '../atoms/separator';
 import { Table } from '../atoms/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../molecules/card';
 import { Chart } from './Chart';
+import { CardGrid } from './CardGrid';
 import { DataCard } from './DataCard';
 import { DataTable } from './DataTable';
 import { ElementErrorBoundary } from './ElementErrorBoundary';
@@ -251,6 +252,24 @@ function PageHeaderComponent({ element }: AnyComponentRenderProps) {
 function DataCardComponent({ element, children }: AnyComponentRenderProps) {
   const p = (element.props || {}) as { variant?: 'default' | 'interactive' | 'stat' };
   return <DataCard variant={p.variant || 'default'}>{children}</DataCard>;
+}
+
+function CardGridComponent({ element, children }: AnyComponentRenderProps) {
+  const p = (element.props || {}) as {
+    columns?: 1 | 2;
+    gap?: 'sm' | 'md' | 'lg';
+    sizes?: Record<string, 'xs' | 's' | 'm' | 'l' | 'wl'>;
+  };
+  return (
+    <CardGrid
+      element={element as { children?: string[] }}
+      columns={p.columns}
+      gap={p.gap}
+      sizes={p.sizes}
+    >
+      {children}
+    </CardGrid>
+  );
 }
 
 function StatCardComponent({ element }: AnyComponentRenderProps) {
@@ -507,6 +526,7 @@ const rawComponents: Record<string, React.ComponentType<AnyComponentRenderProps>
   CodeBlock: CodeBlockComponent,
   // DS Design-System (Chart)
   Chart: ChartComponent,
+  CardGrid: CardGridComponent,
 };
 
 export const gooseComponents = Object.fromEntries(

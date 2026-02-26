@@ -66,6 +66,7 @@ export const GOOSE_CUSTOM_COMPONENT_KEYS = [
   'TabBar',
   'CodeBlock',
   'Chart',
+  'CardGrid',
 ] as const;
 
 const SHADCN_KEYS = SHADCN_COMPONENT_KEYS;

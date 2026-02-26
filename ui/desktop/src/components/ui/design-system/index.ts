@@ -9,6 +9,7 @@
 
 export { DataCard } from './DataCard';
 export { DataTable } from './DataTable';
+export { CardGrid } from './CardGrid';
 export { ElementErrorBoundary } from './ElementErrorBoundary';
 export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';

@@ -34,12 +34,21 @@ Output nested JSON (fenced or unfenced) **in your response text**:
 {
   "root": {
     "type": "Card",
-    "props": { "title": "Summary", "description": "Key metrics" },
+    "props": {
+      "title": "Summary",
+      "description": "Key metrics",
+      "maxWidth": "full",
+      "centered": false
+    },
     "children": [
-      { "type": "Stack", "props": { "gap": "md" }, "children": [
-        { "type": "Text", "props": { "text": "Revenue: $42,000" } },
-        { "type": "Progress", "props": { "value": 75 } }
-      ]}
+      {
+        "type": "Stack",
+        "props": { "gap": "md" },
+        "children": [
+          { "type": "Text", "props": { "text": "Revenue: $42,000" } },
+          { "type": "Progress", "props": { "value": 75 } }
+        ]
+      }
     ]
   }
 }
@@ -52,11 +61,12 @@ Output JSONL patches (fenced or unfenced):
 ````
 ```json-render
 {"op":"add","path":"/root","value":"dashboard"}
-{"op":"add","path":"/elements/dashboard","value":{"type":"Card","props":{"title":"Dashboard"},"children":["metrics","chart"]}}
-{"op":"add","path":"/elements/metrics","value":{"type":"Stack","props":{"gap":"md"},"children":["metric-1","metric-2"]}}
-{"op":"add","path":"/elements/metric-1","value":{"type":"Badge","props":{"label":"Revenue","variant":"default"}}}
-{"op":"add","path":"/elements/metric-2","value":{"type":"Progress","props":{"value":75}}}
-{"op":"add","path":"/elements/chart","value":{"type":"Table","props":{"headers":["Month","Revenue"],"rows":[["Jan","$10K"],["Feb","$15K"]]}}}
+{"op":"add","path":"/elements","value":{}}
+{"op":"add","path":"/elements/dashboard","value":{"type":"Card","props":{"title":"Dashboard","maxWidth":"full","centered":false},"children":["metrics","table"]}}
+{"op":"add","path":"/elements/metrics","value":{"type":"Grid","props":{"columns":2,"gap":"md"},"children":["metric-1","metric-2"]}}
+{"op":"add","path":"/elements/metric-1","value":{"type":"StatCard","props":{"label":"Revenue","value":"$42,000"}}}
+{"op":"add","path":"/elements/metric-2","value":{"type":"StatCard","props":{"label":"Conversion","value":"3.1%"}}}
+{"op":"add","path":"/elements/table","value":{"type":"Table","props":{"columns":["Month","Revenue"],"rows":[["Jan","$10K"],["Feb","$15K"]],"caption":"Monthly revenue (sample)"}}}
 ```
 ````
 

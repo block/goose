@@ -20,6 +20,7 @@ COMPONENT HIGHLIGHTS:
 - Progress: percentage bars with color coding
 - Card: containers for grouping content
 - Grid: multi-column layouts for dashboards
+- CardGrid: chat-safe card grid with sizing tokens (xs/s/m/l/wl)
 - Tabs: organize multiple views
 
 DESIGN PRINCIPLES:

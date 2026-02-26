@@ -13,10 +13,12 @@ Example output (each line is a separate JSON object):
 
 ```json-render
 {"op":"add","path":"/root","value":"main"}
-{"op":"add","path":"/elements/main","value":{"type":"Card","props":{"title":"Overview","description":"Your account summary"},"children":["child-1","list"]}}
-{"op":"add","path":"/elements/child-1","value":{"type":"Stack","props":{"direction":"vertical","gap":"md"},"children":[]}}
-{"op":"add","path":"/elements/list","value":{"type":"Card","props":{"title":"Overview","description":"Your account summary"},"repeat":{"statePath":"/items","key":"id"},"children":["item"]}}
-{"op":"add","path":"/elements/item","value":{"type":"Stack","props":{"direction":"vertical","gap":"md"},"children":[]}}
+{"op":"add","path":"/elements","value":{}}
+{"op":"add","path":"/elements/main","value":{"type":"Card","props":{"title":"Overview","description":"Your account summary","maxWidth":"full","centered":false},"children":["content"]}}
+{"op":"add","path":"/elements/content","value":{"type":"Stack","props":{"direction":"vertical","gap":"md"},"children":["list"]}}
+{"op":"add","path":"/elements/list","value":{"type":"Stack","props":{"direction":"vertical","gap":"sm"},"repeat":{"statePath":"/items","key":"id"},"children":["item"]}}
+{"op":"add","path":"/elements/item","value":{"type":"Text","props":{"text":{"$item":"title"}}}}
+{"op":"add","path":"/state","value":{}}
 {"op":"add","path":"/state/items","value":[]}
 {"op":"add","path":"/state/items/0","value":{"id":"1","title":"First Item"}}
 {"op":"add","path":"/state/items/1","value":{"id":"2","title":"Second Item"}}
@@ -53,7 +55,7 @@ For lists where users can add/remove items (todos, carts, etc.), use pushState a
 
 IMPORTANT: State paths use RFC 6901 JSON Pointer syntax (e.g. "/todos/0/title"). Do NOT use JavaScript-style dot notation (e.g. "/todos.length" is WRONG). To generate unique IDs for new items, use "$id" instead of trying to read array length.
 
-AVAILABLE COMPONENTS (34):
+AVAILABLE COMPONENTS (35):
 
 - Card: { title?: string, description?: string, maxWidth?: "sm" | "md" | "lg" | "full", centered?: boolean } - Container card for content sections. Use for forms/content boxes, NOT for page headers. [accepts children]
 - Stack: { direction?: "horizontal" | "vertical", gap?: "none" | "sm" | "md" | "lg", align?: "start" | "center" | "end" | "stretch", justify?: "start" | "center" | "end" | "between" | "around" } - Flex container for layouts [accepts children]
@@ -100,6 +102,7 @@ CHAT LAYOUT CONSTRAINTS (IMPORTANT):
 - Link: { label: string, href: string } - Anchor link. Bind on.press for click handler. [events: press]
 - Pagination: { totalPages: number, page?: number } - Page navigation. Use { $bindState } on page for current page number. [events: change]
 - Chart: { type: "bar" | "line" | "area" | "pie", data: Array<Record<string, string | number>>, xKey: string, yKeys: string[], height?: number, title?: string, colors?: string[] } - Data visualization chart. Use for numeric data comparisons, trends, distributions. Prefer bar for comparisons, line for trends, pie for proportions. Include realistic sample data.
+- CardGrid: { columns?: 1 | 2, gap?: "sm" | "md" | "lg", sizes?: Record<string, "xs" | "s" | "m" | "l" | "wl"> } - Chat-safe card grid with sizing tokens. Use for KPI strips and layouts where one child needs full width ("l"/"wl"). [accepts children]
 
 AVAILABLE ACTIONS:
 
@@ -259,7 +262,7 @@ Spacing & Overlap Prevention:
 
 Composition Patterns:
 - Chat dashboard (default): Card(maxWidth "full", centered=false) → Stack(vertical, gap "md") →
-  [Heading h3, (optional) KPI Grid(columns 2, 4–6 StatCards), Separator,
+  [Heading h3, (optional) KPI CardGrid(columns 2, sizes per card), Separator,
    Primary Chart (full width, height <= 180), (optional) Table/DataTable (max 7 rows) OR Tabs("Chart"/"Table")]
 - Detail view: Card(maxWidth "full", centered=false) → Stack(vertical, gap "sm") → [Heading h4, key-value pairs]
 - List view: Card(maxWidth "full", centered=false) → Stack(vertical, gap "sm") → [Heading h4, Table/DataTable or repeat cards]

@@ -21,5 +21,6 @@
 ### Streaming guidance (JSONL)
 
 - Start with `/root`.
-- Then stream `/elements` and `/state` patches interleaved so the UI fills in progressively.
+- If you are using a flat spec (`root` id + `elements` map), create the map first: `{ "op": "add", "path": "/elements", "value": {} }`.
+- Then stream `/elements/<id>` and `/state` patches interleaved so the UI fills in progressively.
 - If you reference `$state`, `$bindState`, `$bindItem`, `$item`, `$index`, or `repeat`, you **MUST** include the corresponding `/state` patches.
