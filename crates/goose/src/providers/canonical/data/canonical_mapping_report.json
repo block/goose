@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-25T17:15:46.883556125+00:00",
+  "timestamp": "2026-02-26T15:49:33.062046695+00:00",
   "unmapped_models": [
     {
       "provider": "google",
@@ -40,6 +40,10 @@
     {
       "provider": "google",
       "model": "gemini-3-pro-image-preview"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-3.1-flash-image-preview"
     },
     {
       "provider": "google",
@@ -563,6 +567,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "liquid/lfm-2-24b-a2b"
+    },
+    {
+      "provider": "openrouter",
       "model": "liquid/lfm-2.2-6b"
     },
     {
@@ -652,10 +660,6 @@
     {
       "provider": "openrouter",
       "model": "mistralai/mistral-7b-instruct-v0.1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct-v0.2"
     },
     {
       "provider": "openrouter",
@@ -936,6 +940,22 @@
     {
       "provider": "openrouter",
       "model": "qwen/qwen3-vl-8b-thinking"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-122b-a10b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-27b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-35b-a3b"
+    },
+    {
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-flash-02-23"
     },
     {
       "provider": "openrouter",
@@ -1973,6 +1993,10 @@
       {
         "provider_model": "google/gemini-3.1-pro-preview",
         "canonical_model": "openrouter/google/gemini-3.1-pro-preview"
+      },
+      {
+        "provider_model": "google/gemini-3.1-pro-preview-customtools",
+        "canonical_model": "google/gemini-3.1-pro-preview-customtools"
       },
       {
         "provider_model": "google/gemma-2-9b-it",
@@ -3608,6 +3632,12 @@
     },
     {
       "provider": "openrouter",
+      "model": "google/gemini-3.1-pro-preview-customtools",
+      "canonical": "google/gemini-3.1-pro-preview-customtools",
+      "recommended": true
+    },
+    {
+      "provider": "openrouter",
       "model": "google/gemma-2-9b-it",
       "canonical": "openrouter/google/gemma-2-9b-it",
       "recommended": false
@@ -4987,9 +5017,9 @@
     "azure_openai": 0,
     "databricks": 0,
     "gcp_vertex_ai": 0,
-    "google": 43,
+    "google": 44,
     "openai": 116,
-    "openrouter": 337,
+    "openrouter": 342,
     "tetrate": 201,
     "venice": 0,
     "xai": 13
