@@ -366,18 +366,23 @@ impl Provider for OpenAiProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        // If custom models are defined, try API first but fallback to them on error
+        // If custom models are defined, try API first but fallback to them only if endpoint doesn't exist
         if let Some(custom_models) = &self.custom_models {
             match self.fetch_models_from_api().await {
                 Ok(models) => return Ok(models),
                 Err(e) => {
-                    // Log the error but don't fail - fallback to custom models
-                    tracing::debug!(
-                        "Failed to fetch models from API for provider '{}' ({}), using predefined list",
-                        self.name,
-                        e
-                    );
-                    return Ok(custom_models.clone());
+                    // Only fall back for endpoint-not-implemented errors (404, connection failures)
+                    // Auth errors, rate limits, and server errors should propagate
+                    if e.is_endpoint_not_implemented() {
+                        tracing::debug!(
+                            "Models endpoint not implemented for provider '{}' ({}), using predefined list",
+                            self.name,
+                            e
+                        );
+                        return Ok(custom_models.clone());
+                    }
+                    // Otherwise, propagate the error to preserve diagnostics
+                    return Err(e);
                 }
             }
         }
