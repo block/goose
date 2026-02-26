@@ -318,3 +318,4 @@ There are numerous ways to be an open source contributor and contribute to goose
 - **Showcase Your Work:** Working on a project or written a blog post recently? Share it with the community in our [#share-your-work](https://discord.com/channels/1287729918100246654/1287729920797179958) channel.
 - **Give Shoutouts:** Is there a project you love or a community/staff who's been especially helpful? Feel free to give them a shoutout in our [#general](https://discord.com/channels/1287729918100246654/1287729920797179957) channel.
 - **Spread the Word:** Help us reach more people by sharing goose's project, website, YouTube, and/or Twitter/X.
+
