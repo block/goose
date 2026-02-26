@@ -101,12 +101,15 @@ jobs:
     steps:
       - name: Get release tag
         id: get-tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          WORKFLOW_RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          # For workflow_run, the tag is in head_branch; for workflow_dispatch, use input
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "tag=$INPUT_TAG" >> $GITHUB_OUTPUT
           else
-            echo "tag=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+            echo "tag=$WORKFLOW_RUN_BRANCH" >> $GITHUB_OUTPUT
           fi
 
       - name: Checkout repository
