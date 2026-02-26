@@ -16,6 +16,17 @@ import AnnouncementModal from './components/modals/AnnouncementModal';
 import { ExtensionInstallModal } from './components/modals/ExtensionInstallModal';
 import TelemetryOptOutModal from './components/modals/TelemetryOptOutModal';
 import LoginView from './components/pages/LoginView';
+import AgentsPage from './components/pages/AgentsPage';
+import AppsPage from './components/pages/AppsPage';
+import CatalogsPage from './components/pages/CatalogsPage';
+import EvaluatePage from './components/pages/EvaluatePage';
+import MonitoringPage from './components/pages/MonitoringPage';
+import PipelinesPage from './components/pages/PipelinesPage';
+import RecipesPage from './components/pages/RecipesPage';
+import SchedulesPage from './components/pages/SchedulesPage';
+import SessionsPage from './components/pages/SessionsPage';
+import ToolsPage from './components/pages/ToolsPage';
+import WorkflowsPage from './components/pages/WorkflowsPage';
 import WelcomePage from './components/pages/WelcomePage';
 import { ErrorUI } from './components/shared/ErrorBoundary';
 import { TooltipProvider } from './components/atoms/Tooltip';
@@ -39,8 +50,6 @@ interface PairRouteState {
 
 import { AppLayout } from './components/templates/layout/AppLayout';
 import LauncherView from './components/pages/LauncherView';
-import SchedulesView from './components/schedule/SchedulesView';
-import SessionsView from './components/sessions/SessionsView';
 import SharedSessionView from './components/sessions/SharedSessionView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import type { SettingsViewOptions } from './components/settings/SettingsView';
@@ -48,19 +57,10 @@ import SettingsView from './components/settings/SettingsView';
 import { ChatProvider, DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 
 import 'react-toastify/dist/ReactToastify.css';
-import AgentsView from './components/organisms/agents/AgentsView';
-import EvaluateView from './components/analytics/EvaluateView';
-import MonitoringView from './components/analytics/MonitoringView';
-import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
-import CatalogsOverview from './components/catalogs/CatalogsOverview';
 import type { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import ExtensionsView from './components/extensions/ExtensionsView';
-import RecipesView from './components/recipes/RecipesView';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
-import ToolsHealthView from './components/tools/ToolsHealthView';
-import { PipelineManager } from './components/workflows';
-import WorkflowsOverview from './components/workflows/WorkflowsOverview';
 import { AppEvents } from './constants/events';
 import { useConfig } from './contexts/ConfigContext';
 import { ModelAndProviderProvider } from './contexts/ModelAndProviderContext';
@@ -190,40 +190,39 @@ const SettingsRoute = () => {
 };
 
 const SessionsRoute = () => {
-  return <SessionsView />;
+  return <SessionsPage />;
 };
 
 const SchedulesRoute = () => {
-  const navigate = useNavigate();
-  return <SchedulesView onClose={() => navigate('/')} />;
+  return <SchedulesPage />;
 };
 
 const RecipesRoute = () => {
-  return <RecipesView />;
+  return <RecipesPage />;
 };
 
 const AgentsRoute = () => {
-  return <AgentsView />;
+  return <AgentsPage />;
 };
 
 const AnalyticsRoute = () => {
-  return <MonitoringView />;
+  return <MonitoringPage />;
 };
 
 const MonitoringRoute = () => {
-  return <MonitoringView />;
+  return <MonitoringPage />;
 };
 
 const EvaluateRoute = () => {
-  return <EvaluateView />;
+  return <EvaluatePage />;
 };
 
 const ToolsRoute = () => {
-  return <ToolsHealthView />;
+  return <ToolsPage />;
 };
 
 const CatalogsRoute = () => {
-  return <CatalogsOverview />;
+  return <CatalogsPage />;
 };
 
 const PermissionRoute = () => {
@@ -707,13 +706,13 @@ export function AppInner() {
                   </ChatProvider>
                 }
               />
-              <Route path="apps" element={<AppsView />} />
+              <Route path="apps" element={<AppsPage />} />
               <Route path="sessions" element={<SessionsRoute />} />
               <Route path="schedules" element={<SchedulesRoute />} />
-              <Route path="workflows" element={<WorkflowsOverview />} />
+              <Route path="workflows" element={<WorkflowsPage />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="agents" element={<AgentsRoute />} />
-              <Route path="pipelines" element={<PipelineManager />} />
+              <Route path="pipelines" element={<PipelinesPage />} />
               <Route path="analytics" element={<AnalyticsRoute />} />
               <Route path="monitoring" element={<MonitoringRoute />} />
               <Route path="evaluate" element={<EvaluateRoute />} />
