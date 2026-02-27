@@ -3125,8 +3125,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
-]
+ "windows-sys 0.61.2",]
 
 [[package]]
 name = "dispatch2"
@@ -3417,8 +3416,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
-]
+ "windows-sys 0.61.2",]
 
 [[package]]
 name = "error-code"
@@ -5474,8 +5472,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.52.0",
-]
+ "windows-sys 0.61.2",]
 
 [[package]]
 name = "jiff-static"
@@ -6229,8 +6226,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
-]
+ "windows-sys 0.61.2",]
 
 [[package]]
 name = "num"
@@ -8229,8 +8225,7 @@ dependencies = [
 [[package]]
 name = "rmcp"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc4c9c94680f75470ee8083a0667988b5d7b5beb70b9f998a8e51de7c682ce60"
+source = "git+https://github.com/peschee/rust-sdk.git?branch=fix-dcr-scopes#e8da53ef49ac54aa7ecf996397dfb7338c758a97"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -8290,8 +8285,7 @@ dependencies = [
 [[package]]
 name = "rmcp-macros"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90c23c8f26cae4da838fbc3eadfaecf2d549d97c04b558e7bd90526a9c28b42a"
+source = "git+https://github.com/peschee/rust-sdk.git?branch=fix-dcr-scopes#e8da53ef49ac54aa7ecf996397dfb7338c758a97"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -8426,8 +8420,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.52.0",
-]
+ "windows-sys 0.61.2",]
 
 [[package]]
 name = "rustls"
@@ -8506,8 +8499,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
-]
+ "windows-sys 0.61.2",]
 
 [[package]]
 name = "rustls-platform-verifier-android"
@@ -10292,8 +10284,7 @@ dependencies = [
  "getrandom 0.4.1",
  "once_cell",
  "rustix 1.1.3",
- "windows-sys 0.52.0",
-]
+ "windows-sys 0.61.2",]
 
 [[package]]
 name = "temporal_capi"
@@ -11848,7 +11839,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
