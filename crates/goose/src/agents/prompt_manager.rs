@@ -407,8 +407,8 @@ mod tests {
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
-            .iter()
-            .map(|(_, def)| {
+            .values()
+            .map(|def| {
                 let client = (def.client_factory)(context.clone());
                 let info = client.get_info();
                 let instructions = info
