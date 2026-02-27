@@ -404,6 +404,7 @@ mod tests {
         let context = PlatformExtensionContext {
             extension_manager: None,
             session_manager,
+            session: None,
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS

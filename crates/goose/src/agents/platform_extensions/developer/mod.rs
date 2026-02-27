@@ -234,6 +234,7 @@ mod tests {
         PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(SessionManager::new(data_dir)),
+            session: None,
         }
     }
 

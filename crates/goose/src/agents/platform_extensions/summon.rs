@@ -278,6 +278,28 @@ impl Drop for SummonClient {
 
 impl SummonClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
+        let mut instructions =
+            "Load knowledge and delegate tasks to subagents using the summon extension."
+                .to_string();
+
+        let skills: Vec<Source> = builtin_skills::get_all()
+            .into_iter()
+            .filter_map(|content| parse_skill_content(content, PathBuf::new()))
+            .map(|source| Source {
+                kind: SourceKind::BuiltinSkill,
+                ..source
+            })
+            .collect();
+
+        if !skills.is_empty() {
+            instructions.push_str("\n\nBuiltin skills available:");
+            for skill in &skills {
+                instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
+            }
+        }
+
+        let instructions = Some(instructions);
+
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
@@ -300,10 +322,7 @@ impl SummonClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(
-                "Load knowledge and delegate tasks to subagents using the summon extension."
-                    .to_string(),
-            ),
+            instructions,
         };
 
         Ok(Self {
@@ -1817,6 +1836,7 @@ mod tests {
         PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            session: None,
         }
     }
 
