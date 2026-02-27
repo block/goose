@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.24.0"
+version = "1.26.0"
 authors = ["Block <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/block/goose"
@@ -68,3 +68,7 @@ opentelemetry-otlp = "0.31"
 opentelemetry-appender-tracing = "0.31"
 opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
 tracing-opentelemetry = "0.32"
+
+
+[patch.crates-io]
+v8 = { path = "vendor/v8" }

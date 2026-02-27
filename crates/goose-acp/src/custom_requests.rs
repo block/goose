@@ -82,12 +82,6 @@ pub struct GetSessionResponse {
     pub session: serde_json::Value,
 }
 
-/// List all sessions.
-#[derive(Debug, Serialize, JsonSchema)]
-pub struct ListSessionsResponse {
-    pub sessions: Vec<serde_json::Value>,
-}
-
 /// Delete a session.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct DeleteSessionRequest {

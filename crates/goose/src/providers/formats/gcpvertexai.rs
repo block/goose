@@ -65,6 +65,8 @@ pub enum ModelError {
 pub const DEFAULT_MODEL: &str = "gemini-2.5-flash";
 
 pub const KNOWN_MODELS: &[&str] = &[
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
     "claude-opus-4-5@20251101",
     "claude-sonnet-4-5@20250929",
     "claude-opus-4-1@20250805",

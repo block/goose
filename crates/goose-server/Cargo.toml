@@ -11,11 +11,12 @@ description.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["code-mode"]
+code-mode = ["goose/code-mode"]
 cuda = ["goose/cuda"]
 
 [dependencies]
-goose = { path = "../goose" }
+goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 axum = { workspace = true, features = ["ws", "macros"] }
@@ -47,10 +48,13 @@ rand = "0.9.2"
 hex = "0.4.3"
 socket2 = "0.6.1"
 fs2 = { workspace = true }
-rustls = { version = "0.23", features = ["ring"] }
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
 uuid = { workspace = true }
 once_cell = { workspace = true }
 dirs = { workspace = true }
+rcgen = "0.13"
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+aws-lc-rs = "1.16.0"
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }

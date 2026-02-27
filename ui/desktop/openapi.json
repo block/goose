@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.24.0"
+    "version": "1.26.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -1839,7 +1839,7 @@
             "description": "Provider not configured"
           },
           "413": {
-            "description": "Audio file too large (max 25MB)"
+            "description": "Audio file too large (max 50MB)"
           },
           "429": {
             "description": "Rate limit exceeded"
@@ -3898,11 +3898,12 @@
           "session_id"
         ],
         "properties": {
-          "conversation_so_far": {
+          "override_conversation": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Message"
             },
+            "description": "Override the server's conversation history. Only use this when you need absolute control\nover the conversation state (e.g., administrative tools). For normal operations, the server\nis the source of truth - use truncate/fork endpoints to modify conversation history instead.",
             "nullable": true
           },
           "recipe_name": {
