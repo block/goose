@@ -141,7 +141,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
         <>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex items-center justify-center h-full text-text-default/70 hover:text-text-default transition-colors cursor-default translate-y-[1px]">
+              <div className="flex items-center justify-center h-full text-text-default/80 hover:text-text-default transition-colors cursor-default translate-y-[1px]">
                 <CoinIcon className="mr-1" size={16} />
                 <span className="text-xs font-mono">0.0000</span>
               </div>
@@ -167,7 +167,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       <>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/80 hover:text-text-default">
               <CoinIcon className="mr-1" size={16} />
               <span className="text-xs font-mono">0.0000</span>
             </div>
@@ -220,7 +220,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/70 hover:text-text-default">
+          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/80 hover:text-text-default">
             <CoinIcon className="mr-1" size={16} />
             <span className="text-xs font-mono">{formatCost(totalCost)}</span>
           </div>

@@ -80,8 +80,9 @@ export const BottomMenuAgentSelection = () => {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <button type="button"
-          className="flex items-center [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs cursor-pointer"
+        <button
+          type="button"
+          className="flex items-center [&_svg]:size-4 text-text-default/80 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs cursor-pointer"
           title={`${activeCount} agents · ${totalModes} modes`}
         >
           <Bot className="mr-1 h-4 w-4" />
@@ -94,7 +95,7 @@ export const BottomMenuAgentSelection = () => {
         </div>
         {orchestrator && (
           <div className="flex items-center justify-between px-1 py-1.5 mb-1 rounded bg-surface-subtle">
-            <div className="text-xs text-text-default/70">{orchestrator.routing_mode}</div>
+            <div className="text-xs text-text-default/80">{orchestrator.routing_mode}</div>
           </div>
         )}
         {agents.map((agent) => (

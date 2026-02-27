@@ -141,7 +141,7 @@ export default function ModelsBottomBar({
     <div className="relative flex items-center" ref={dropdownRef}>
       <BottomMenuAlertPopover alerts={alerts} />
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/70 hover:text-text-default transition-colors">
+        <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-default/80 hover:text-text-default transition-colors">
           <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
             <Bot className="mr-1 h-4 w-4 flex-shrink-0" />
             <span className="truncate text-xs">

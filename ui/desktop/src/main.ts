@@ -95,14 +95,24 @@ async function configureProxy() {
 
 if (started) app.quit();
 
-if (process.env.ENABLE_PLAYWRIGHT) {
+if (process.env.ENABLE_PLAYWRIGHT === 'true') {
   const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
   app.commandLine.appendSwitch('remote-debugging-port', debugPort);
 }
 
 // In development mode, force registration as the default protocol client
 // In production, register normally
-if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+const MAIN_WINDOW_DEV_SERVER_URL =
+  process.env.MAIN_WINDOW_VITE_DEV_SERVER_URL ??
+  (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined'
+    ? MAIN_WINDOW_VITE_DEV_SERVER_URL
+    : undefined);
+
+const MAIN_WINDOW_NAME =
+  process.env.MAIN_WINDOW_VITE_NAME ??
+  (typeof MAIN_WINDOW_VITE_NAME !== 'undefined' ? MAIN_WINDOW_VITE_NAME : 'main_window');
+
+if (MAIN_WINDOW_DEV_SERVER_URL) {
   // Development mode - force registration
   app.setAsDefaultProtocolClient('goose');
 
@@ -388,9 +398,9 @@ declare var MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare var MAIN_WINDOW_VITE_NAME: string;
 
 function getAppUrl(): URL {
-  return MAIN_WINDOW_VITE_DEV_SERVER_URL
-    ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL)
-    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  return MAIN_WINDOW_DEV_SERVER_URL
+    ? new URL(MAIN_WINDOW_DEV_SERVER_URL)
+    : pathToFileURL(path.join(__dirname, `../renderer/${MAIN_WINDOW_NAME}/index.html`));
 }
 
 // Parse command line arguments

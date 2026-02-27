@@ -1,9 +1,29 @@
-import { test as base, Page, Browser, chromium } from '@playwright/test';
-import { spawn, ChildProcess } from 'child_process';
+import { test as base, Page, _electron as electron } from '@playwright/test';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import { join } from 'path';
-import { promisify } from 'util';
 
-const execAsync = promisify(require('child_process').exec);
+function ensureGoosedBinary(repoRoot: string) {
+  const executableName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
+  const goosedPath = join(repoRoot, 'target', 'debug', executableName);
+
+  if (fs.existsSync(goosedPath)) return;
+
+  console.log(`[e2e] goosed not found at ${goosedPath}; building...`);
+
+  const result = spawnSync('cargo', ['build', '-p', 'goose-server', '--bin', 'goosed'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`Failed to build goosed (exit code ${result.status ?? 'unknown'})`);
+  }
+
+  if (!fs.existsSync(goosedPath)) {
+    throw new Error(`Built goosed but binary still not found at ${goosedPath}`);
+  }
+}
 
 type GooseTestFixtures = {
   goosePage: Page;
@@ -45,80 +65,86 @@ export const test = base.extend<GooseTestFixtures>({
       );
     }
 
-    let appProcess: ChildProcess | null = null;
-    let browser: Browser | null = null;
+    const electronPath = require('electron') as string;
+    let app: import('@playwright/test').ElectronApplication | null = null;
 
     try {
-      // Assign a unique debug port for this test to enable parallel execution
-      // Base port 9222, offset by worker index * 100 + parallel slot
-      const debugPort = 9222 + (testInfo.parallelIndex * 10);
-      console.log(`Using debug port ${debugPort} for parallel test execution`);
+      const projectRoot = join(__dirname, '../..');
+      const repoRoot = join(projectRoot, '..', '..');
 
-      // Start the electron-forge process with Playwright remote debugging enabled.
-      // Use the dedicated script so we don't redundantly run generate-api inside each test.
-      // Use detached mode on Unix to create a process group we can kill together.
-      appProcess = spawn('npm', ['run', 'start-gui:playwright'], {
-        cwd: join(__dirname, '../..'),
-        stdio: 'pipe',
-        detached: process.platform !== 'win32',
+      // The Electron main process starts goosed. In many dev environments it's
+      // not present unless you've built the Rust workspace.
+      ensureGoosedBinary(repoRoot);
+
+      const vite = await import('vite');
+
+      // Build renderer/main/preload once per test run.
+      // Using a file-based renderer avoids Vite dev-server dep-scan flakiness and
+      // CJS/ESM interop issues (named exports) when optimizeDeps is constrained.
+      await vite.build({
+        root: projectRoot,
+        configFile: 'vite.renderer.config.mts',
+        // For file:// loading (used in this E2E setup), Vite must emit relative asset
+        // URLs; otherwise the renderer will request file:///assets/... and fail.
+        base: './',
+        build: {
+          outDir: join(projectRoot, '.vite/renderer/main_window'),
+          emptyOutDir: true,
+        },
+      });
+      await vite.build({ root: projectRoot, configFile: 'vite.main.config.mts' });
+      await vite.build({ root: projectRoot, configFile: 'vite.preload.config.mts' });
+
+      const builtMainPath = join(projectRoot, '.vite/build/main.js');
+      if (!fs.existsSync(builtMainPath)) {
+        const viteDir = join(projectRoot, '.vite');
+        const viteListing = fs.existsSync(viteDir) ? fs.readdirSync(viteDir) : [];
+        throw new Error(
+          `Expected Electron main bundle at ${builtMainPath}, but it does not exist. `.concat(
+            `Contents of ${viteDir}: ${JSON.stringify(viteListing)}`
+          )
+        );
+      }
+
+      app = await electron.launch({
+        executablePath: electronPath,
+        // Launch the Electron *app* (directory with package.json). This matches Playwright's
+        // expected model and avoids flaky behavior when passing a raw JS entry.
+        args: [projectRoot],
         env: {
           ...process.env,
-          ELECTRON_IS_DEV: '1',
           NODE_ENV: 'development',
+          ELECTRON_IS_DEV: '1',
           GOOSE_ALLOWLIST_BYPASS: 'true',
           ENABLE_PLAYWRIGHT: 'true',
-          PLAYWRIGHT_DEBUG_PORT: debugPort.toString(), // Unique port per test for parallel execution
-          RUST_LOG: 'info', // Enable info-level logging for goosed backend
-        }
+          MAIN_WINDOW_VITE_NAME: 'main_window',
+        },
       });
 
-      // Log process output for debugging
-      if (process.env.DEBUG_TESTS) {
-        appProcess.stdout?.on('data', (data) => {
-          console.log('App stdout:', data.toString());
-        });
+      const page = await app.firstWindow();
 
-        appProcess.stderr?.on('data', (data) => {
-          console.log('App stderr:', data.toString());
-        });
-      }
+      const mainLog: string[] = [];
+      const child = app.process();
+      child?.stdout?.on('data', (buf) => mainLog.push(`[main:stdout] ${buf.toString()}`));
+      child?.stderr?.on('data', (buf) => mainLog.push(`[main:stderr] ${buf.toString()}`));
 
-      // Wait for the app to start and remote debugging to be available
-      // Retry connection until it succeeds (app is ready) or timeout
-      console.log(`Waiting for Electron app to start on port ${debugPort}...`);
-      const maxRetries = 300; // 300 retries * 100ms = 30 seconds max
-      const retryDelay = 100; // 100ms between retries
+      const rendererLog: string[] = [];
+      page.on('console', (msg) => {
+        rendererLog.push(`[console:${msg.type()}] ${msg.text()}`);
+      });
+      page.on('pageerror', (err) => {
+        rendererLog.push(`[pageerror] ${err.message}\n${err.stack ?? ''}`);
+      });
+      page.on('requestfailed', (req) => {
+        rendererLog.push(
+          `[requestfailed] ${req.method()} ${req.url()} :: ${req.failure()?.errorText ?? 'unknown error'}`
+        );
+      });
 
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          browser = await chromium.connectOverCDP(`http://127.0.0.1:${debugPort}`);
-          console.log(`Connected to Electron app on attempt ${attempt} (~${(attempt * retryDelay) / 1000}s)`);
-          break;
-        } catch (error) {
-          if (attempt === maxRetries) {
-            throw new Error(`Failed to connect to Electron app after ${maxRetries} attempts (${(maxRetries * retryDelay) / 1000}s). Last error: ${error.message}`);
-          }
-          // Wait before next retry
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-      }
-
-      if (!browser) {
-        throw new Error('Browser connection failed unexpectedly');
-      }
-
-      // Get the electron app context and first page
-      const contexts = browser.contexts();
-      if (contexts.length === 0) {
-        throw new Error('No browser contexts found');
-      }
-
-      const pages = contexts[0].pages();
-      if (pages.length === 0) {
-        throw new Error('No windows/pages found');
-      }
-
-      const page = pages[0];
+      // The first window can be created before the main process finishes bootstrapping
+      // (e.g. while waiting on the backend to become ready). Wait until it actually
+      // navigates away from about:blank.
+      await page.waitForURL(/^(file|http):/i, { timeout: 60_000 });
 
       // Wait for page to be ready
       await page.waitForLoadState('domcontentloaded');
@@ -130,11 +156,44 @@ export const test = base.extend<GooseTestFixtures>({
         console.log('NetworkIdle timeout (likely due to MCP activity), continuing...');
       }
 
-      // Wait for React app to be ready
-      await page.waitForFunction(() => {
-        const root = document.getElementById('root');
-        return root && root.children.length > 0;
-      }, { timeout: 30000 });
+      // Wait for React app to be ready.
+      try {
+        await page.waitForFunction(
+          () => {
+            const root = document.getElementById('root');
+            return root && root.children.length > 0;
+          },
+          undefined,
+          { timeout: 60_000 }
+        );
+      } catch (error) {
+        const url = page.url();
+        const html = await page.content().catch(() => '(failed to read page content)');
+        const title = await page.title().catch(() => '(failed to read page title)');
+
+        await testInfo.attach('renderer-debug.txt', {
+          body: [
+            `url: ${url}`,
+            `title: ${title}`,
+            '',
+            '--- console/page errors ---',
+            rendererLog.join('\n') || '(no console output captured)',
+            '',
+            '--- html (truncated) ---',
+            html.slice(0, 20_000),
+          ].join('\n'),
+          contentType: 'text/plain',
+        });
+
+        if (mainLog.length > 0) {
+          await testInfo.attach('main-debug.txt', {
+            body: mainLog.join(''),
+            contentType: 'text/plain',
+          });
+        }
+
+        throw error;
+      }
 
       console.log('App ready, starting test...');
 
@@ -144,40 +203,8 @@ export const test = base.extend<GooseTestFixtures>({
     } finally {
       console.log('Cleaning up Electron app for this test...');
 
-      // Close the CDP connection
-      if (browser) {
-        await browser.close().catch(console.error);
-      }
-
-      // Kill the npm process tree
-      if (appProcess && appProcess.pid) {
-        try {
-          if (process.platform === 'win32') {
-            // On Windows, kill the entire process tree
-            await execAsync(`taskkill /F /T /PID ${appProcess.pid}`);
-          } else {
-            // On Unix, kill the entire process group
-            try {
-              // First try SIGTERM for graceful shutdown
-              process.kill(-appProcess.pid, 'SIGTERM');
-              await new Promise(resolve => setTimeout(resolve, 2000));
-            } catch (e) {
-              // Process might already be dead
-            }
-            // Then SIGKILL if still running
-            try {
-              process.kill(-appProcess.pid, 'SIGKILL');
-            } catch (e) {
-              // Process already exited
-            }
-          }
-          console.log('Cleaned up app process');
-        } catch (error) {
-          if (error.code !== 'ESRCH' && !error.message?.includes('No such process')) {
-            console.error('Error killing app process:', error);
-          }
-        }
-      }
+      await app?.close().catch(console.error);
+      console.log('Cleaned up app');
     }
   },
 });

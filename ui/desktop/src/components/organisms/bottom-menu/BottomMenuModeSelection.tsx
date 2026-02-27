@@ -58,7 +58,7 @@ export const BottomMenuModeSelection = () => {
     <div title={`Current mode: ${getValueByKey(gooseMode)} - ${getModeDescription(gooseMode)}`}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <span className="flex items-center cursor-pointer [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs">
+          <span className="flex items-center cursor-pointer [&_svg]:size-4 text-text-default/80 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs">
             <Tornado className="mr-1 h-4 w-4" />
             {getValueByKey(gooseMode).toLowerCase()}
           </span>

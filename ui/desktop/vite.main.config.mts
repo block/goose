@@ -15,6 +15,8 @@ export default defineConfig({
   build: {
     ssr: true,
     outDir: '.vite/build',
+    // main + preload share the same outDir; don't wipe files produced by the other build.
+    emptyOutDir: false,
     rollupOptions: {
       input: 'src/main.ts',
       output: {

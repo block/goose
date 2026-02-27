@@ -1501,7 +1501,7 @@ export default function ChatInput({
               disabled={isFilePickerOpen}
               variant="ghost"
               size="sm"
-              className={`flex items-center justify-center text-text-default/70 hover:text-text-default text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              className={`flex items-center justify-center text-text-default/80 hover:text-text-default text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <Attach className="w-4 h-4" />
             </Button>
@@ -1553,9 +1553,9 @@ export default function ChatInput({
                           setShowCreateRecipeModal(true);
                         }
                       }}
-                      variant="ghost"
-                      size="sm"
-                      className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center justify-center text-text-default/80 hover:text-text-default text-xs cursor-pointer"
                     >
                       <ChefHat size={16} />
                     </Button>
@@ -1578,7 +1578,7 @@ export default function ChatInput({
                   }}
                   variant="ghost"
                   size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                  className="flex items-center justify-center text-text-default/80 hover:text-text-default text-xs cursor-pointer transition-colors"
                 >
                   <Bug className="w-4 h-4" />
                 </Button>

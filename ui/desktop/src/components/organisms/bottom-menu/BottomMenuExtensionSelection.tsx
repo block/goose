@@ -227,8 +227,9 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
       }}
     >
       <DropdownMenuTrigger asChild>
-        <button type="button"
-          className={`flex items-center [&_svg]:size-4 text-text-default/70 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs cursor-pointer ${allExtensions.length === 0 || (!isHubView && !isSessionExtensionsLoaded) ? 'invisible' : ''}`}
+        <button
+          type="button"
+          className={`flex items-center [&_svg]:size-4 text-text-default/80 hover:text-text-default hover:scale-100 hover:bg-transparent text-xs cursor-pointer ${allExtensions.length === 0 || (!isHubView && !isSessionExtensionsLoaded) ? 'invisible' : ''}`}
           title="manage extensions"
         >
           <Puzzle className="mr-1 h-4 w-4" />
@@ -262,7 +263,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           }`}
         >
           {sortedExtensions.length === 0 ? (
-            <div className="px-2 py-4 text-center text-sm text-text-default/70">
+            <div className="px-2 py-4 text-center text-sm text-text-default/80">
               {searchQuery ? 'no extensions found' : 'no extensions available'}
             </div>
           ) : (
