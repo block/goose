@@ -147,7 +147,12 @@ jobs:
           # Create the tar archive
           cd "target/${TARGET}/release"
           tar -cjf "goose-${TARGET}.tar.bz2" -C goose-package .
+
+          # Generate SHA-256 checksum
+          sha256sum "goose-${TARGET}.tar.bz2" > "goose-${TARGET}.tar.bz2.sha256"
+
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.tar.bz2" >> $GITHUB_ENV
+          echo "CHECKSUM=target/${TARGET}/release/goose-${TARGET}.tar.bz2.sha256" >> $GITHUB_ENV
 
       - name: Package CLI (Windows)
         if: matrix.os == 'windows'
@@ -161,10 +166,17 @@ jobs:
 
           cd "target/${TARGET}/release"
           7z a -tzip "goose-${TARGET}.zip" goose-package/
+
+          # Generate SHA-256 checksum
+          sha256sum "goose-${TARGET}.zip" > "goose-${TARGET}.zip.sha256"
+
           echo "ARTIFACT=target/${TARGET}/release/goose-${TARGET}.zip" >> $GITHUB_ENV
+          echo "CHECKSUM=target/${TARGET}/release/goose-${TARGET}.zip.sha256" >> $GITHUB_ENV
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}
-          path: ${{ env.ARTIFACT }}
+          path: |
+            ${{ env.ARTIFACT }}
+            ${{ env.CHECKSUM }}

@@ -106,6 +106,7 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             goose-*.zip
+            goose-*.sha256
             Goose*.zip
             *.deb
             *.rpm
@@ -125,6 +126,7 @@ jobs:
           artifacts: |
             goose-*.tar.bz2
             goose-*.zip
+            goose-*.sha256
             Goose*.zip
             *.deb
             *.rpm

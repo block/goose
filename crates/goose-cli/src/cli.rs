@@ -1506,10 +1506,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Update {
             canary,
             reconfigure,
-        }) => {
-            crate::commands::update::update(canary, reconfigure)?;
-            Ok(())
-        }
+        }) => crate::commands::update::update(canary, reconfigure).await,
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Web {
             port,

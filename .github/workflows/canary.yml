@@ -116,6 +116,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
             goose-*.tar.bz2
+            goose-*.sha256
             Goose*.zip
             *.deb
             *.rpm
