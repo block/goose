@@ -1,5 +1,6 @@
 use crate::{conversation::message::Message, model::ModelConfig, providers::create};
 use anyhow::Result;
+use futures::StreamExt;
 use rmcp::model::ToolAnnotations;
 use rmcp::{model::Tool, object};
 
@@ -27,8 +28,8 @@ pub async fn test_provider_configuration(
     };
 
     let provider_model_config = provider.get_model_config();
-    let _result = provider
-        .complete(
+    let mut stream = provider
+        .stream(
             &provider_model_config,
             "test-session-id",
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
@@ -36,6 +37,12 @@ pub async fn test_provider_configuration(
             &tools.into_iter().collect::<Vec<_>>(),
         )
         .await?;
+
+    let first_chunk = stream
+        .next()
+        .await
+        .ok_or_else(|| anyhow::anyhow!("Provider test stream returned no events"))?;
+    first_chunk?;
 
     Ok(())
 }
