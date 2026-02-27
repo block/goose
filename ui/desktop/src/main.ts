@@ -135,7 +135,6 @@ function updateSettings(modifier: (settings: Settings) => void): void {
     fsSync.renameSync(SETTINGS_FILE, backupSettingsFile);
     try {
       fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
-      fsSync.unlinkSync(backupSettingsFile);
     } catch (replaceError) {
       if (fsSync.existsSync(backupSettingsFile)) {
         if (fsSync.existsSync(SETTINGS_FILE)) {
@@ -144,6 +143,18 @@ function updateSettings(modifier: (settings: Settings) => void): void {
         fsSync.renameSync(backupSettingsFile, SETTINGS_FILE);
       }
       throw replaceError;
+    }
+
+    // Best-effort cleanup after replacement is committed.
+    if (fsSync.existsSync(backupSettingsFile)) {
+      try {
+        fsSync.unlinkSync(backupSettingsFile);
+      } catch (cleanupError) {
+        console.warn(
+          `[Main] Failed to delete backup settings file at ${backupSettingsFile}.`,
+          cleanupError,
+        );
+      }
     }
   } finally {
     if (fsSync.existsSync(tempSettingsFile)) {
