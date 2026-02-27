@@ -61,7 +61,11 @@ function shouldSetupUpdater(): boolean {
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
 function getSettings(): Settings {
-  if (fsSync.existsSync(SETTINGS_FILE)) {
+  if (!fsSync.existsSync(SETTINGS_FILE)) {
+    return defaultSettings;
+  }
+
+  try {
     const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
     const stored = JSON.parse(data) as Partial<Settings>;
     // Deep merge to ensure nested objects get their defaults too
@@ -81,14 +85,42 @@ function getSettings(): Settings {
         ...(stored.sessionSharing ?? {}),
       },
     };
+  } catch (error) {
+    console.warn(
+      `[Main] Failed to parse settings file at ${SETTINGS_FILE}. Falling back to defaults.`,
+      error,
+    );
+    return defaultSettings;
   }
-  return defaultSettings;
 }
 
 function updateSettings(modifier: (settings: Settings) => void): void {
   const settings = getSettings();
   modifier(settings);
-  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+  const tempSettingsFile = `${SETTINGS_FILE}.tmp`;
+  const payload = JSON.stringify(settings, null, 2);
+
+  fsSync.writeFileSync(tempSettingsFile, payload);
+
+  try {
+    fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    const canReplaceExistingFile =
+      code === 'EEXIST' || code === 'EPERM' || code === 'ENOTEMPTY';
+    const existingSettingsFile = fsSync.existsSync(SETTINGS_FILE);
+    if (!canReplaceExistingFile || !existingSettingsFile) {
+      throw error;
+    }
+
+    // On some platforms, replace-via-rename can fail when destination exists.
+    fsSync.unlinkSync(SETTINGS_FILE);
+    fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
+  } finally {
+    if (fsSync.existsSync(tempSettingsFile)) {
+      fsSync.unlinkSync(tempSettingsFile);
+    }
+  }
 }
 
 async function configureProxy() {
