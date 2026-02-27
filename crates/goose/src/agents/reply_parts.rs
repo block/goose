@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use tracing::debug;
 
 use super::super::agents::Agent;
+#[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
@@ -146,10 +147,13 @@ impl Agent {
             tools.push(frontend_tool.tool.clone());
         }
 
+        #[cfg(feature = "code-mode")]
         let code_execution_active = self
             .extension_manager
             .is_extension_enabled(code_execution::EXTENSION_NAME)
             .await;
+        #[cfg(not(feature = "code-mode"))]
+        let code_execution_active = false;
         if code_execution_active {
             tools.retain(|tool| {
                 if let Some(owner) = crate::agents::extension_manager::get_tool_owner(tool) {

@@ -24,10 +24,11 @@ use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
     EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
-    LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer, ModelId, ModelInfo,
-    NewSessionRequest, NewSessionResponse, PermissionOption, PermissionOptionKind,
-    PromptCapabilities, PromptRequest, PromptResponse, RequestPermissionOutcome,
-    RequestPermissionRequest, ResourceLink, SessionId, SessionModelState, SessionNotification,
+    ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
+    ModelId, ModelInfo, NewSessionRequest, NewSessionResponse, PermissionOption,
+    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
+    SessionId, SessionInfo, SessionListCapabilities, SessionModelState, SessionNotification,
     SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
     TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
     ToolCallUpdate, ToolCallUpdateFields, ToolKind,
@@ -664,6 +665,7 @@ impl GooseAcpAgent {
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
+            .session_capabilities(SessionCapabilities::new().list(SessionListCapabilities::new()))
             .prompt_capabilities(
                 PromptCapabilities::new()
                     .image(true)
@@ -1097,14 +1099,15 @@ impl GooseAcpAgent {
             .list_sessions()
             .await
             .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
-        let sessions_json = sessions
+        let session_infos: Vec<SessionInfo> = sessions
             .into_iter()
-            .map(|s| serde_json::to_value(&s))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
-        Ok(ListSessionsResponse {
-            sessions: sessions_json,
-        })
+            .map(|s| {
+                SessionInfo::new(SessionId::new(s.id), s.working_dir)
+                    .title(s.name)
+                    .updated_at(s.updated_at.to_rfc3339())
+            })
+            .collect();
+        Ok(ListSessionsResponse::new(session_infos))
     }
 
     #[custom_method("session/get")]
@@ -1280,6 +1283,14 @@ impl JrMessageHandler for GooseAcpHandler {
                                 let resp = agent
                                     .on_set_model(&params.session_id.0, &params.model_id.0)
                                     .await?;
+                                let json = serde_json::to_value(resp).map_err(|e| {
+                                    sacp::Error::internal_error().data(e.to_string())
+                                })?;
+                                request_cx.respond(json)?;
+                                Ok(())
+                            }
+                            MessageCx::Request(req, request_cx) if req.method == "session/list" => {
+                                let resp = agent.on_list_sessions().await?;
                                 let json = serde_json::to_value(resp).map_err(|e| {
                                     sacp::Error::internal_error().data(e.to_string())
                                 })?;

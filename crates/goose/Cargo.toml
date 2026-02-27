@@ -8,7 +8,8 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = []
+default = ["code-mode"]
+code-mode = ["dep:pctx_code_mode"]
 cuda = ["candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 
 [lints]
@@ -134,7 +135,7 @@ tree-sitter-rust = { workspace = true }
 tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
-pctx_code_mode = "^0.2.3"
+pctx_code_mode = { version = "^0.2.3", optional = true }
 unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
 llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler"] }
