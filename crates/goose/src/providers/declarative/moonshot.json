@@ -1,23 +1,17 @@
 {
-    "name": "Moonshot",
-    "metadata": {
-        "homepage": "https://kimi.moonshot.cn/",
-        "docs": "https://platform.moonshot.cn/docs/intro",
-        "description": "Moonshot AI (Kimi) models"
-    },
-    "engine": {
-        "type": "openai",
-        "base_url": "https://api.moonshot.cn/v1",
-        "api_key_env_var": "MOONSHOT_API_KEY"
-    },
-    "models": [
-        {"name": "kimi-latest", "context_limit": 131072},
-        {"name": "kimi-thinking-preview", "context_limit": 131072},
-        {"name": "kimi-k2-0711", "context_limit": 131072},
-        {"name": "kimi-k2", "context_limit": 262144},
-        {"name": "moonshot-v1-8k", "context_limit": 8192},
-        {"name": "moonshot-v1-32k", "context_limit": 32768}
-    ],
-    "streaming_default": true,
-    "pricing_info_url": "https://platform.moonshot.cn/pricing"
+  "name": "moonshot",
+  "engine": "openai",
+  "display_name": "Moonshot",
+  "description": "Moonshot AI (Kimi) models",
+  "api_key_env": "MOONSHOT_API_KEY",
+  "base_url": "https://api.moonshot.cn/v1/chat/completions",
+  "models": [
+    {"name": "kimi-latest", "context_limit": 131072},
+    {"name": "kimi-thinking-preview", "context_limit": 131072},
+    {"name": "kimi-k2-0711", "context_limit": 131072},
+    {"name": "kimi-k2", "context_limit": 262144},
+    {"name": "moonshot-v1-8k", "context_limit": 8192},
+    {"name": "moonshot-v1-32k", "context_limit": 32768}
+  ],
+  "supports_streaming": true
 }

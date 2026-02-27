@@ -74,7 +74,7 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
 
   return (
     <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-background-default shadow-xl rounded-lg z-50 flex flex-col">
+      <Card className="w-full max-w-md bg-background-primary shadow-xl rounded-lg z-50 flex flex-col">
         <div className="px-6 pt-6 pb-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Create Schedule from Recipe
@@ -120,7 +120,7 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
             type="button"
             variant="outline"
             onClick={handleClose}
-            className="flex-1 rounded-xl hover:bg-background-muted text-text-muted"
+            className="flex-1 rounded-xl hover:bg-background-secondary text-text-secondary"
           >
             Cancel
           </Button>

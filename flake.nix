@@ -37,18 +37,13 @@
           ++ pkgs.lib.optionals pkgs.stdenv.isDarwin darwinInputs;
       in
       {
-        defaultPackage = pkgs.rustPlatform.buildRustPackage {
+        packages.default = pkgs.rustPlatform.buildRustPackage {
           pname = cargoToml.package.name;
           version = workspaceToml.workspace.package.version;
           src = self;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
-            outputHashes = {
-              # Patch required for Windows cross-compilation
-              # See: https://github.com/nmathewson/crunchy/tree/cross-compilation-fix
-              "crunchy-0.2.3" = "sha256-CBW3/JuMoNa6MWia6BQo07LQrH5JQbb20vuCqhyFL0Y=";
-            };
           };
 
           nativeBuildInputs = with pkgs; [

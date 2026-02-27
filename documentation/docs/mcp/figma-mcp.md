@@ -16,7 +16,7 @@ This tutorial covers how to add the [Figma Dev Mode MCP Server](https://help.fig
 The MCP Server requires a Dev or Full seat on Professional, Organization, or Enterprise Figma plans.
 :::
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
     [Launch the installer](goose://extension?type=streamable_http&url=http%3A%2F%2F127.0.0.1%3A3845%2Fmcp&id=figma&name=Figma&description=Convert%20Figma%20designs%20into%20code%20and%20extract%20design%20context)

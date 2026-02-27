@@ -6,6 +6,10 @@ import SuspenseLoader from './suspense-loader';
 import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
+import { applyThemeTokens } from './theme/theme-tokens';
+
+// Apply theme tokens to :root before first paint.
+applyThemeTokens();
 
 const App = lazy(() => import('./App'));
 

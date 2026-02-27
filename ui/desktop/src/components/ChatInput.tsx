@@ -1165,9 +1165,9 @@ export default function ChatInput({
         disableAnimation ? '' : 'page-transition'
       } ${
         isFocused
-          ? 'border-border-strong hover:border-border-strong'
-          : 'border-border-default hover:border-border-default'
-      } bg-background-default z-10 rounded-t-2xl`}
+          ? 'border-border-secondary hover:border-border-secondary'
+          : 'border-border-primary hover:border-border-primary'
+      } bg-background-primary z-10 rounded-t-2xl`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
@@ -1191,7 +1191,7 @@ export default function ChatInput({
           onTriggerQueueProcessing={handleResumeQueue}
           editingMessageIdRef={editingMessageIdRef}
           isPaused={queuePausedRef.current}
-          className="border-b border-border-default"
+          className="border-b border-border-primary"
         />
       )}
       {/* Input row with inline action buttons wrapped in form */}
@@ -1219,7 +1219,7 @@ export default function ChatInput({
               overflowY: 'auto',
               paddingRight: dictationProvider ? '180px' : '120px',
             }}
-            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-text-default placeholder:text-text-muted"
+            className="w-full outline-none border-none focus:ring-0 bg-transparent px-3 pt-3 pb-1.5 text-sm resize-none text-text-primary placeholder:text-text-secondary"
           />
 
           {/* Inline action buttons - absolutely positioned on the right */}
@@ -1346,15 +1346,15 @@ export default function ChatInput({
 
             {/* Recording/transcribing status indicator - positioned above the button row */}
             {(isRecording || isTranscribing) && (
-              <div className="absolute right-0 -top-8 bg-background-default px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-border-default">
+              <div className="absolute right-0 -top-8 bg-background-primary px-2 py-1 rounded text-xs whitespace-nowrap shadow-md border border-border-primary">
                 <span className="flex items-center gap-2">
                   {isRecording && (
-                    <span className="flex items-center gap-1 text-text-muted">
+                    <span className="flex items-center gap-1 text-text-secondary">
                       <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                       Listening
                     </span>
                   )}
-                  {isRecording && isTranscribing && <span className="text-text-muted">•</span>}
+                  {isRecording && isTranscribing && <span className="text-text-secondary">•</span>}
                   {isTranscribing && (
                     <span className="flex items-center gap-1 text-blue-500">
                       <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
@@ -1370,7 +1370,7 @@ export default function ChatInput({
 
       {/* Combined files and images preview */}
       {(pastedImages.length > 0 || allDroppedFiles.length > 0) && (
-        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-border-default">
+        <div className="flex flex-wrap gap-2 p-4 mt-2 border-t border-border-primary">
           {/* Render pasted images first */}
           {pastedImages.map((img) => (
             <div key={img.id} className="relative group w-20 h-20">
@@ -1378,7 +1378,7 @@ export default function ChatInput({
                 <img
                   src={img.dataUrl}
                   alt={`Pasted image ${img.id}`}
-                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-border-default'}`}
+                  className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-border-primary'}`}
                 />
               )}
               {img.isLoading && (
@@ -1419,7 +1419,7 @@ export default function ChatInput({
                     <img
                       src={file.dataUrl}
                       alt={file.name}
-                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-border-default'}`}
+                      className={`w-full h-full object-cover rounded border ${file.error ? 'border-red-500' : 'border-border-primary'}`}
                     />
                   )}
                   {file.isLoading && (
@@ -1437,15 +1437,15 @@ export default function ChatInput({
                 </div>
               ) : (
                 // File box preview
-                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-border-default rounded-lg min-w-[120px] max-w-[200px]">
-                  <div className="flex-shrink-0 w-8 h-8 bg-background-default border border-border-default rounded flex items-center justify-center text-xs font-mono text-text-muted">
+                <div className="flex items-center gap-2 px-3 py-2 bg-bgSubtle border border-border-primary rounded-lg min-w-[120px] max-w-[200px]">
+                  <div className="flex-shrink-0 w-8 h-8 bg-background-primary border border-border-primary rounded flex items-center justify-center text-xs font-mono text-text-secondary">
                     {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-text-default truncate" title={file.name}>
+                    <p className="text-sm text-text-primary truncate" title={file.name}>
                       {file.name}
                     </p>
-                    <p className="text-xs text-text-muted">{file.type || 'Unknown type'}</p>
+                    <p className="text-xs text-text-secondary">{file.type || 'Unknown type'}</p>
                   </div>
                 </div>
               )}
@@ -1482,7 +1482,7 @@ export default function ChatInput({
           onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
           onRestartEnd={() => setChatState?.(ChatState.Idle)}
         />
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -1491,14 +1491,14 @@ export default function ChatInput({
               disabled={isFilePickerOpen}
               variant="ghost"
               size="sm"
-              className={`flex items-center justify-center text-text-default/70 hover:text-text-default text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              className={`flex items-center justify-center text-text-primary/70 hover:text-text-primary text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <Attach className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Attach file</TooltipContent>
         </Tooltip>
-        <div className="w-px h-4 bg-border-default mx-2" />
+        <div className="w-px h-4 bg-border-primary mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}
         <div className="flex flex-row items-center">
           {/* Cost Tracker */}
@@ -1523,13 +1523,13 @@ export default function ChatInput({
               />
             </div>
           </Tooltip>
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuModeSelection />
-          <div className="w-px h-4 bg-border-default mx-2" />
+          <div className="w-px h-4 bg-border-primary mx-2" />
           <BottomMenuExtensionSelection sessionId={sessionId} />
           {sessionId && messages.length > 0 && (
             <>
-              <div className="w-px h-4 bg-border-default mx-2" />
+              <div className="w-px h-4 bg-border-primary mx-2" />
               <div className="flex items-center h-full">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1545,7 +1545,7 @@ export default function ChatInput({
                       }}
                       variant="ghost"
                       size="sm"
-                      className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer"
+                      className="flex items-center justify-center text-text-primary/70 hover:text-text-primary text-xs cursor-pointer"
                     >
                       <ChefHat size={16} />
                     </Button>
@@ -1568,7 +1568,7 @@ export default function ChatInput({
                   }}
                   variant="ghost"
                   size="sm"
-                  className="flex items-center justify-center text-text-default/70 hover:text-text-default text-xs cursor-pointer transition-colors"
+                  className="flex items-center justify-center text-text-primary/70 hover:text-text-primary text-xs cursor-pointer transition-colors"
                 >
                   <Bug className="w-4 h-4" />
                 </Button>

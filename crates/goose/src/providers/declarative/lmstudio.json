@@ -1,0 +1,11 @@
+{
+  "name": "lmstudio",
+  "engine": "openai",
+  "display_name": "LM Studio",
+  "description": "Run local models with LM Studio",
+  "api_key_env": "",
+  "base_url": "http://localhost:1234/v1/chat/completions",
+  "models": [],
+  "supports_streaming": true,
+  "requires_auth": false
+}

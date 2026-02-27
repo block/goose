@@ -60,7 +60,12 @@ export type CallToolResponse = {
 };
 
 export type ChatRequest = {
-    conversation_so_far?: Array<Message> | null;
+    /**
+     * Override the server's conversation history. Only use this when you need absolute control
+     * over the conversation state (e.g., administrative tools). For normal operations, the server
+     * is the source of truth - use truncate/fork endpoints to modify conversation history instead.
+     */
+    override_conversation?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
@@ -169,6 +174,7 @@ export type CspMetadata = {
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
     base_url: string;
+    catalog_provider_id?: string | null;
     description?: string | null;
     display_name: string;
     engine: ProviderEngine;
@@ -671,6 +677,13 @@ export type MessageMetadata = {
     userVisible: boolean;
 };
 
+export type ModelCapabilities = {
+    attachment: boolean;
+    reasoning: boolean;
+    temperature: boolean;
+    tool_call: boolean;
+};
+
 export type ModelConfig = {
     context_limit?: number | null;
     max_tokens?: number | null;
@@ -767,6 +780,14 @@ export type ModelSettings = {
     use_mlock?: boolean;
 };
 
+export type ModelTemplate = {
+    capabilities: ModelCapabilities;
+    context_limit: number;
+    deprecated: boolean;
+    id: string;
+    name: string;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
@@ -819,6 +840,16 @@ export type PromptsListResponse = {
     prompts: Array<Template>;
 };
 
+export type ProviderCatalogEntry = {
+    api_url: string;
+    doc_url: string;
+    env_var: string;
+    format: string;
+    id: string;
+    model_count: number;
+    name: string;
+};
+
 export type ProviderDetails = {
     is_configured: boolean;
     metadata: ProviderMetadata;
@@ -832,10 +863,6 @@ export type ProviderEngine = 'openai' | 'ollama' | 'anthropic';
  * Metadata about a provider's configuration requirements and capabilities
  */
 export type ProviderMetadata = {
-    /**
-     * Whether this provider allows entering model names not in the fetched list
-     */
-    allows_unlisted_models?: boolean;
     /**
      * Required configuration keys
      */
@@ -864,6 +891,17 @@ export type ProviderMetadata = {
      * The unique identifier for this provider
      */
     name: string;
+};
+
+export type ProviderTemplate = {
+    api_url: string;
+    doc_url: string;
+    env_var: string;
+    format: string;
+    id: string;
+    models: Array<ModelTemplate>;
+    name: string;
+    supports_streaming: boolean;
 };
 
 export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
@@ -1178,7 +1216,7 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
-export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal';
+export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
 
 export type SessionsQuery = {
     limit: number;
@@ -1439,6 +1477,7 @@ export type UiMetadata = {
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
+    catalog_provider_id?: string | null;
     display_name: string;
     engine: string;
     headers?: {
@@ -2474,6 +2513,62 @@ export type SavePromptResponses = {
 
 export type SavePromptResponse = SavePromptResponses[keyof SavePromptResponses];
 
+export type GetProviderCatalogData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Filter by provider format (openai, anthropic, ollama)
+         */
+        format?: string | null;
+    };
+    url: '/config/provider-catalog';
+};
+
+export type GetProviderCatalogErrors = {
+    /**
+     * Invalid format parameter
+     */
+    400: unknown;
+};
+
+export type GetProviderCatalogResponses = {
+    /**
+     * Provider catalog retrieved successfully
+     */
+    200: Array<ProviderCatalogEntry>;
+};
+
+export type GetProviderCatalogResponse = GetProviderCatalogResponses[keyof GetProviderCatalogResponses];
+
+export type GetProviderCatalogTemplateData = {
+    body?: never;
+    path: {
+        /**
+         * Provider ID from models.dev
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/config/provider-catalog/{id}';
+};
+
+export type GetProviderCatalogTemplateErrors = {
+    /**
+     * Provider not found in catalog
+     */
+    404: unknown;
+};
+
+export type GetProviderCatalogTemplateResponses = {
+    /**
+     * Provider template retrieved successfully
+     */
+    200: ProviderTemplate;
+};
+
+export type GetProviderCatalogTemplateResponse = GetProviderCatalogTemplateResponses[keyof GetProviderCatalogTemplateResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
@@ -2874,7 +2969,7 @@ export type TranscribeDictationErrors = {
      */
     412: unknown;
     /**
-     * Audio file too large (max 25MB)
+     * Audio file too large (max 50MB)
      */
     413: unknown;
     /**

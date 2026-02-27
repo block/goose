@@ -13,6 +13,15 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use url::Url;
 
+/// Shared state for proxying tunnel requests to the local goosed server.
+#[derive(Clone)]
+struct ProxyContext {
+    port: u16,
+    tunnel_secret: String,
+    server_secret: String,
+    http_client: reqwest::Client,
+}
+
 /// Constant-time comparison using hash to prevent timing attacks
 fn secure_compare(a: &str, b: &str) -> bool {
     use std::collections::hash_map::DefaultHasher;
@@ -253,38 +262,42 @@ async fn handle_chunked_response(
 
 async fn handle_request(
     message: TunnelMessage,
-    port: u16,
+    ctx: ProxyContext,
     ws_tx: WebSocketSender,
-    tunnel_secret: String,
-    server_secret: String,
+    scheme: &str,
 ) -> Result<()> {
     let request_id = message.request_id.clone();
+    let client = &ctx.http_client;
 
-    let client = reqwest::Client::new();
-    let url = format!("http://127.0.0.1:{}{}", port, message.path);
+    let url = format!("{}://127.0.0.1:{}{}", scheme, ctx.port, message.path);
 
-    let request_builder =
-        match validate_and_build_request(&client, &url, &message, &tunnel_secret, &server_secret) {
-            Ok(builder) => builder,
-            Err(e) => {
-                error!("✗ Authentication error [{}]: {}", request_id, e);
-                let error_response = TunnelResponse {
-                    request_id,
-                    status: 401,
-                    headers: None,
-                    body: None,
-                    error: Some(e.to_string()),
-                    chunk_index: None,
-                    total_chunks: None,
-                    is_chunked: false,
-                    is_streaming: false,
-                    is_first_chunk: false,
-                    is_last_chunk: false,
-                };
-                send_response(ws_tx, error_response).await?;
-                return Ok(());
-            }
-        };
+    let request_builder = match validate_and_build_request(
+        client,
+        &url,
+        &message,
+        &ctx.tunnel_secret,
+        &ctx.server_secret,
+    ) {
+        Ok(builder) => builder,
+        Err(e) => {
+            error!("✗ Authentication error [{}]: {}", request_id, e);
+            let error_response = TunnelResponse {
+                request_id,
+                status: 401,
+                headers: None,
+                body: None,
+                error: Some(e.to_string()),
+                chunk_index: None,
+                total_chunks: None,
+                is_chunked: false,
+                is_streaming: false,
+                is_first_chunk: false,
+                is_last_chunk: false,
+            };
+            send_response(ws_tx, error_response).await?;
+            return Ok(());
+        }
+    };
 
     let response = match request_builder.send().await {
         Ok(resp) => resp,
@@ -399,11 +412,10 @@ async fn handle_websocket_messages(
         >,
     >,
     ws_tx: WebSocketSender,
-    port: u16,
-    tunnel_secret: String,
-    server_secret: String,
+    ctx: ProxyContext,
     last_activity: Arc<RwLock<Instant>>,
     active_tasks: Arc<RwLock<Vec<JoinHandle<()>>>>,
+    scheme: String,
 ) {
     while let Some(msg) = read.next().await {
         match msg {
@@ -413,17 +425,12 @@ async fn handle_websocket_messages(
                 match serde_json::from_str::<TunnelMessage>(&text) {
                     Ok(tunnel_msg) => {
                         let ws_tx_clone = ws_tx.clone();
-                        let tunnel_secret_clone = tunnel_secret.clone();
-                        let server_secret_clone = server_secret.clone();
+                        let ctx_clone = ctx.clone();
+                        let scheme_clone = scheme.clone();
                         let task = tokio::spawn(async move {
-                            if let Err(e) = handle_request(
-                                tunnel_msg,
-                                port,
-                                ws_tx_clone,
-                                tunnel_secret_clone,
-                                server_secret_clone,
-                            )
-                            .await
+                            if let Err(e) =
+                                handle_request(tunnel_msg, ctx_clone, ws_tx_clone, &scheme_clone)
+                                    .await
                             {
                                 error!("Error handling request: {}", e);
                             }
@@ -475,9 +482,10 @@ async fn run_single_connection(
     agent_id: String,
     tunnel_secret: String,
     server_secret: String,
+    scheme: String,
     restart_tx: mpsc::Sender<()>,
 ) {
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let worker_url = get_worker_url();
     let ws_url = worker_url
@@ -514,9 +522,24 @@ async fn run_single_connection(
     };
 
     info!("✓ Connected as agent: {}", agent_id);
-    info!("✓ Proxying to: http://127.0.0.1:{}", port);
+    info!("✓ Proxying to: {}://127.0.0.1:{}", scheme, port);
     let public_url = format!("{}/tunnel/{}", worker_url, agent_id);
     info!("✓ Public URL: {}", public_url);
+
+    let mut client_builder = reqwest::Client::builder();
+    if scheme == "https" {
+        client_builder = client_builder.danger_accept_invalid_certs(true);
+    }
+    let http_client = client_builder
+        .build()
+        .expect("failed to build reqwest client");
+
+    let ctx = ProxyContext {
+        port,
+        tunnel_secret,
+        server_secret,
+        http_client,
+    };
 
     let (write, read) = ws_stream.split();
     let ws_tx: WebSocketSender = Arc::new(RwLock::new(Some(write)));
@@ -545,11 +568,10 @@ async fn run_single_connection(
         _ = handle_websocket_messages(
             read,
             ws_tx.clone(),
-            port,
-            tunnel_secret.clone(),
-            server_secret.clone(),
+            ctx,
             last_activity,
-            active_tasks.clone()
+            active_tasks.clone(),
+            scheme,
         ) => {
             info!("✗ Connection ended");
         }
@@ -565,6 +587,7 @@ pub async fn start(
     tunnel_secret: String,
     server_secret: String,
     agent_id: String,
+    scheme: &str,
     handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     restart_tx: mpsc::Sender<()>,
 ) -> Result<TunnelInfo> {
@@ -573,6 +596,7 @@ pub async fn start(
     let agent_id_clone = agent_id.clone();
     let tunnel_secret_clone = tunnel_secret.clone();
     let server_secret_clone = server_secret;
+    let scheme = scheme.to_string();
 
     let task = tokio::spawn(async move {
         run_single_connection(
@@ -580,6 +604,7 @@ pub async fn start(
             agent_id_clone,
             tunnel_secret_clone,
             server_secret_clone,
+            scheme,
             restart_tx,
         )
         .await;

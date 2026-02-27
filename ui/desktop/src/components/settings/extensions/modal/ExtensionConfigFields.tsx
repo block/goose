@@ -21,13 +21,13 @@ export default function ExtensionConfigFields({
     return (
       <div className="space-y-4">
         <div>
-          <label className="text-sm font-medium mb-2 block text-text-default">Command</label>
+          <label className="text-sm font-medium mb-2 block text-text-primary">Command</label>
           <div className="relative">
             <Input
               value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
               placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"
-              className={`w-full ${!submitAttempted || isValid ? 'border-border-default' : 'border-red-500'} text-text-default`}
+              className={`w-full ${!submitAttempted || isValid ? 'border-border-primary' : 'border-red-500'} text-text-primary`}
             />
             {submitAttempted && !isValid && (
               <div className="absolute text-xs text-red-500 mt-1">Command is required</div>
@@ -39,13 +39,13 @@ export default function ExtensionConfigFields({
   } else {
     return (
       <div>
-        <label className="text-sm font-medium mb-2 block text-text-default">Endpoint</label>
+        <label className="text-sm font-medium mb-2 block text-text-primary">Endpoint</label>
         <div className="relative">
           <Input
             value={endpoint}
             onChange={(e) => onChange('endpoint', e.target.value)}
             placeholder="Enter endpoint URL..."
-            className={`w-full ${!submitAttempted || isValid ? 'border-border-default' : 'border-red-500'} text-text-default`}
+            className={`w-full ${!submitAttempted || isValid ? 'border-border-primary' : 'border-red-500'} text-text-primary`}
           />
           {submitAttempted && !isValid && (
             <div className="absolute text-xs text-red-500 mt-1">Endpoint URL is required</div>

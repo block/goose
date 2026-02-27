@@ -590,7 +590,6 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             user_message: newMessage,
-            ...(hasExistingMessages && { conversation_so_far: currentState.messages }),
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,
@@ -771,7 +770,6 @@ export function useChatStream({
                 body: {
                   session_id: targetSessionId,
                   user_message: updatedUserMessage,
-                  conversation_so_far: truncatedMessages,
                 },
                 throwOnError: true,
                 signal: abortControllerRef.current.signal,

@@ -7,6 +7,7 @@ pub mod conversation;
 pub mod dictation;
 pub mod download_manager;
 pub mod execution;
+pub mod gateway;
 pub mod goose_apps;
 pub mod hints;
 pub mod hooks;
