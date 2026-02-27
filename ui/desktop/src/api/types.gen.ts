@@ -853,6 +853,10 @@ export type ParsedInvoice = {
  */
 export type PayInvoiceRequest = {
     /**
+     * Amount in satoshis (required for amountless invoices, Lightning addresses, etc.).
+     */
+    amount_sats?: number | null;
+    /**
      * BOLT11 invoice string to pay.
      */
     bolt11: string;

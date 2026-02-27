@@ -41,7 +41,7 @@ impl L402PaymentHandler for WalletL402Handler {
             anyhow::bail!("Payment denied by user");
         }
 
-        let (_, preimage_hex) = self.wallet.pay_invoice(bolt11).await?;
+        let (_, preimage_hex) = self.wallet.pay_invoice(bolt11, None).await?;
         Ok(preimage_hex)
     }
 }
@@ -101,7 +101,7 @@ impl AppState {
                     anyhow::bail!("Payment denied by user");
                 }
 
-                let (_, preimage) = w.pay_invoice(&bolt11).await?;
+                let (_, preimage) = w.pay_invoice(&bolt11, None).await?;
                 Ok(preimage)
             })
         }));

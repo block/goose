@@ -40,8 +40,12 @@ impl WalletManager {
         anyhow::bail!("Lightning wallet is not enabled — rebuild with --features lightning")
     }
 
-    pub async fn pay_invoice(&self, _bolt11: &str) -> anyhow::Result<(u64, String)> {
+    pub async fn pay_invoice(&self, _bolt11: &str, _amount_sats: Option<u64>) -> anyhow::Result<(u64, String)> {
         anyhow::bail!("Lightning wallet is not enabled — rebuild with --features lightning")
+    }
+
+    pub async fn get_history(&self) -> anyhow::Result<Vec<super::PaymentRecord>> {
+        Ok(Vec::new())
     }
 
     pub fn subscribe_payments(&self) -> broadcast::Receiver<PaymentReceivedEvent> {

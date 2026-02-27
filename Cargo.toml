@@ -68,7 +68,7 @@ opentelemetry-otlp = "0.31"
 opentelemetry-appender-tracing = "0.31"
 opentelemetry-stdout = { version = "0.31", features = ["trace", "metrics", "logs"] }
 tracing-opentelemetry = "0.32"
-orange-sdk = { git = "https://github.com/lightningdevkit/orange-sdk", rev = "8e10b63147c1deb3f27343f23466202fa19ed213", default-features = false, features = ["spark"] }
+orange-sdk = { git = "https://github.com/lightningdevkit/orange-sdk", rev = "262ecae918f76386318cd576f3839a9402fb6b1b", default-features = false, features = ["spark"] }
 qrcode = "0.14"
 
 

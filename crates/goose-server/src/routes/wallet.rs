@@ -162,7 +162,7 @@ async fn wallet_pay(
     State(state): State<Arc<AppState>>,
     Json(req): Json<PayInvoiceRequest>,
 ) -> axum::response::Response {
-    match state.wallet_manager.pay_invoice(&req.bolt11).await {
+    match state.wallet_manager.pay_invoice(&req.bolt11, req.amount_sats).await {
         Ok((amount_sats, preimage)) => Json(PayInvoiceResponse {
             success: true,
             amount_sats,
@@ -190,6 +190,32 @@ async fn wallet_events(State(state): State<Arc<AppState>>) -> impl IntoResponse 
     let rx = state.wallet_manager.subscribe_payments();
     WalletEventStream {
         inner: BroadcastStream::new(rx),
+    }
+}
+
+// -- History handler --
+
+#[utoipa::path(
+    get,
+    path = "/wallet/history",
+    responses(
+        (status = 200, description = "Payment history", body = Vec<PaymentRecord>),
+        (status = 500, description = "Failed to fetch history"),
+    )
+)]
+async fn wallet_history(State(state): State<Arc<AppState>>) -> axum::response::Response {
+    match state.wallet_manager.get_history().await {
+        Ok(history) => {
+            tracing::debug!(count = history.len(), "Returning payment history");
+            Json(history).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to get payment history: {e:#}");
+            error_response(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("{e:#}"),
+            )
+        }
     }
 }
 
@@ -237,6 +263,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/wallet/parse-invoice", post(wallet_parse_invoice))
         .route("/wallet/pay", post(wallet_pay))
         .route("/wallet/events", get(wallet_events))
+        .route("/wallet/history", get(wallet_history))
         .route("/wallet/approve-payment", post(wallet_approve_payment))
         .route("/wallet/pending-approvals", get(wallet_pending_approvals))
         .with_state(state)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Zap, RefreshCw, Loader2, Copy, Check } from 'lucide-react';
+import { Zap, RefreshCw, Loader2, Copy, Check, Send, ArrowDownLeft, ArrowUpRight, Clock } from 'lucide-react';
 import { getApiUrl } from '../../../config';
 
 interface WalletBalance {
@@ -13,6 +13,20 @@ interface Invoice {
   bolt11: string;
   qr_svg: string;
   amount_sats: number | null;
+}
+
+interface ParsedInvoice {
+  amount_sats: number | null;
+  description: string | null;
+}
+
+interface PaymentRecord {
+  direction: 'incoming' | 'outgoing';
+  status: 'pending' | 'completed';
+  amount_sats: number;
+  payment_hash: string;
+  timestamp: number;
+  description: string | null;
 }
 
 type WalletState =
@@ -29,6 +43,18 @@ function walletStateLabel(state: WalletState): string {
   if (state === 'ready') return 'Ready';
   if (typeof state === 'object' && 'error' in state) return `Error: ${state.error.message}`;
   return 'Unknown';
+}
+
+function formatTimestamp(unix: number): string {
+  const date = new Date(unix * 1000);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return date.toLocaleDateString();
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -53,6 +79,20 @@ export default function WalletSettings() {
   const [paymentReceived, setPaymentReceived] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Withdraw state
+  const [withdrawBolt11, setWithdrawBolt11] = useState('');
+  const [parsedInvoice, setParsedInvoice] = useState<ParsedInvoice | null>(null);
+  const [parsingInvoice, setParsingInvoice] = useState(false);
+  const [payingInvoice, setPayingInvoice] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [withdrawSuccess, setWithdrawSuccess] = useState<{ amount_sats: number } | null>(null);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+
+  // History state
+  const [history, setHistory] = useState<PaymentRecord[]>([]);
+  const [refreshingHistory, setRefreshingHistory] = useState(false);
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
+
   const fetchStatus = useCallback(async () => {
     try {
       const headers = await getAuthHeaders();
@@ -67,6 +107,7 @@ export default function WalletSettings() {
   }, []);
 
   const fetchBalance = useCallback(async () => {
+    setRefreshingBalance(true);
     try {
       const headers = await getAuthHeaders();
       const resp = await fetch(getApiUrl('/wallet/balance'), { headers });
@@ -75,6 +116,26 @@ export default function WalletSettings() {
       }
     } catch {
       // Wallet not ready.
+    } finally {
+      setRefreshingBalance(false);
+    }
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    setRefreshingHistory(true);
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(getApiUrl('/wallet/history'), { headers });
+      if (resp.ok) {
+        const data = await resp.json();
+        setHistory(data);
+      } else {
+        console.error('Failed to fetch history:', resp.status, await resp.text());
+      }
+    } catch (e) {
+      console.error('History fetch error:', e);
+    } finally {
+      setRefreshingHistory(false);
     }
   }, []);
 
@@ -90,8 +151,9 @@ export default function WalletSettings() {
   useEffect(() => {
     if (walletState === 'ready') {
       fetchBalance();
+      fetchHistory();
     }
-  }, [walletState, fetchBalance]);
+  }, [walletState, fetchBalance, fetchHistory]);
 
   // SSE listener for payment events when an invoice is displayed.
   useEffect(() => {
@@ -108,6 +170,7 @@ export default function WalletSettings() {
           setInvoice(null);
           fetchBalance();
           fetchStatus();
+          fetchHistory();
         }
       } catch {
         // Ignore parse errors.
@@ -118,7 +181,7 @@ export default function WalletSettings() {
       evtSource.close();
       eventSourceRef.current = null;
     };
-  }, [invoice, fetchBalance, fetchStatus]);
+  }, [invoice, fetchBalance, fetchStatus, fetchHistory]);
 
   const handleCreateInvoice = async () => {
     setCreatingInvoice(true);
@@ -175,6 +238,102 @@ export default function WalletSettings() {
     }
   };
 
+  const handleParseInvoice = async () => {
+    const bolt11 = withdrawBolt11.trim();
+    if (!bolt11) return;
+
+    setParsingInvoice(true);
+    setWithdrawError(null);
+    setParsedInvoice(null);
+    setWithdrawSuccess(null);
+
+    try {
+      const headers = await getAuthHeaders();
+      const resp = await fetch(getApiUrl('/wallet/parse-invoice'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ bolt11 }),
+      });
+
+      if (!resp.ok) {
+        try {
+          const data = await resp.json();
+          setWithdrawError(data.error || 'Failed to parse invoice');
+        } catch {
+          setWithdrawError(`Failed to parse invoice (${resp.status})`);
+        }
+        return;
+      }
+
+      setParsedInvoice(await resp.json());
+    } catch (e) {
+      setWithdrawError(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setParsingInvoice(false);
+    }
+  };
+
+  const handlePayInvoice = async () => {
+    const bolt11 = withdrawBolt11.trim();
+    if (!bolt11) return;
+
+    // If invoice is amountless, require user to enter an amount.
+    const needsAmount = parsedInvoice && parsedInvoice.amount_sats == null;
+    let amountSats: number | undefined;
+    if (needsAmount) {
+      amountSats = parseInt(withdrawAmount, 10);
+      if (isNaN(amountSats) || amountSats <= 0) {
+        setWithdrawError('Please enter a valid amount in satoshis');
+        return;
+      }
+    }
+
+    setPayingInvoice(true);
+    setWithdrawError(null);
+
+    try {
+      const headers = await getAuthHeaders();
+      const body: Record<string, unknown> = { bolt11 };
+      if (amountSats != null) {
+        body.amount_sats = amountSats;
+      }
+      const resp = await fetch(getApiUrl('/wallet/pay'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!resp.ok) {
+        try {
+          const data = await resp.json();
+          setWithdrawError(data.error || 'Payment failed');
+        } catch {
+          setWithdrawError(`Payment failed (${resp.status})`);
+        }
+        return;
+      }
+
+      const data = await resp.json();
+      setWithdrawSuccess({ amount_sats: data.amount_sats });
+      setParsedInvoice(null);
+      setWithdrawBolt11('');
+      setWithdrawAmount('');
+      fetchBalance();
+      fetchHistory();
+    } catch (e) {
+      setWithdrawError(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPayingInvoice(false);
+    }
+  };
+
+  const handleCancelWithdraw = () => {
+    setParsedInvoice(null);
+    setWithdrawError(null);
+    setWithdrawSuccess(null);
+    setWithdrawAmount('');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
@@ -194,7 +353,7 @@ export default function WalletSettings() {
           Lightning Wallet
         </h3>
         <p className="text-sm text-gray-500 mt-1">
-          Receive Bitcoin via Lightning using the Orange SDK.
+          Send and receive Bitcoin via Lightning using the Orange SDK.
         </p>
       </div>
 
@@ -229,9 +388,10 @@ export default function WalletSettings() {
             </div>
             <button
               onClick={fetchBalance}
-              className="mt-2 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              disabled={refreshingBalance}
+              className="mt-2 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
             >
-              <RefreshCw className="h-3 w-3" />
+              <RefreshCw className={`h-3 w-3 ${refreshingBalance ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
@@ -310,6 +470,165 @@ export default function WalletSettings() {
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Waiting for payment...
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Withdraw */}
+      {!isDisabled && (
+        <div className="rounded-lg border p-4 space-y-4">
+          <h4 className="text-sm font-medium">Withdraw</h4>
+
+          {withdrawSuccess && (
+            <div className="flex items-center gap-2 rounded-md bg-green-500/10 border border-green-600/30 p-3">
+              <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <span className="text-sm font-medium text-green-800 dark:text-green-200">
+                Sent {withdrawSuccess.amount_sats.toLocaleString()} sats!
+              </span>
+            </div>
+          )}
+
+          {!parsedInvoice && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={withdrawBolt11}
+                  onChange={(e) => setWithdrawBolt11(e.target.value)}
+                  placeholder="Paste BOLT11 invoice..."
+                  className="flex-1 rounded-md border bg-white dark:bg-gray-800 text-sm px-3 py-1.5"
+                />
+                <button
+                  onClick={handleParseInvoice}
+                  disabled={parsingInvoice || !withdrawBolt11.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium px-3 py-1.5 transition-colors disabled:opacity-50"
+                >
+                  {parsingInvoice ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  Review
+                </button>
+              </div>
+            </div>
+          )}
+
+          {parsedInvoice && (
+            <div className="space-y-3">
+              <div className="rounded-md bg-gray-50 dark:bg-gray-800/50 border p-3 space-y-2">
+                {parsedInvoice.amount_sats != null ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Amount</span>
+                    <span className="font-medium">
+                      {parsedInvoice.amount_sats.toLocaleString()} sats
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <span className="text-sm text-gray-500">Amount (required)</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        value={withdrawAmount}
+                        onChange={(e) => setWithdrawAmount(e.target.value)}
+                        placeholder="Amount in sats"
+                        className="w-32 rounded-md border bg-white dark:bg-gray-800 text-sm px-3 py-1.5"
+                      />
+                      <span className="text-xs text-gray-500">sats</span>
+                    </div>
+                  </div>
+                )}
+                {parsedInvoice.description && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Description</span>
+                    <span className="text-right max-w-[200px] truncate">{parsedInvoice.description}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePayInvoice}
+                  disabled={payingInvoice || (parsedInvoice.amount_sats == null && !withdrawAmount.trim())}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium px-3 py-1.5 transition-colors disabled:opacity-50"
+                >
+                  {payingInvoice ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Send className="h-3.5 w-3.5" />
+                  )}
+                  {payingInvoice ? 'Sending...' : 'Confirm & Send'}
+                </button>
+                <button
+                  onClick={handleCancelWithdraw}
+                  disabled={payingInvoice}
+                  className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {withdrawError && (
+            <div className="text-sm text-red-600 dark:text-red-400">{withdrawError}</div>
+          )}
+        </div>
+      )}
+
+      {/* Payment History */}
+      {!isDisabled && walletState === 'ready' && (
+        <div className="rounded-lg border p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-medium">Payment History</h4>
+            <button
+              onClick={fetchHistory}
+              disabled={refreshingHistory}
+              className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3 w-3 ${refreshingHistory ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {history.length === 0 ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+              <Clock className="h-4 w-4" />
+              No transactions yet
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {history.map((record, i) => (
+                <div key={`${record.payment_hash}-${i}`} className={`flex items-center justify-between py-1.5 border-b last:border-b-0 ${record.status === 'pending' ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    {record.direction === 'incoming' ? (
+                      <ArrowDownLeft className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <ArrowUpRight className="h-3.5 w-3.5 text-red-500" />
+                    )}
+                    <div>
+                      <span className="text-sm">
+                        {record.direction === 'incoming' ? 'Received' : 'Sent'}
+                      </span>
+                      {record.status === 'pending' && (
+                        <span className="text-xs text-yellow-500 ml-1.5">(pending)</span>
+                      )}
+                      {record.description && (
+                        <span className="text-xs text-gray-400 ml-1.5">{record.description}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-sm font-medium ${record.direction === 'incoming' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {record.direction === 'incoming' ? '+' : '-'}{record.amount_sats.toLocaleString()} sats
+                    </span>
+                    <div className="text-xs text-gray-400">{formatTimestamp(record.timestamp)}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

@@ -11,7 +11,8 @@ use orange_sdk::{
     Tunables, Wallet, WalletConfig,
 };
 
-use super::{Invoice, PaymentReceivedEvent, WalletBalance, WalletState};
+use super::{Invoice, PaymentDirection, PaymentReceivedEvent, PaymentRecord, PaymentStatus, WalletBalance, WalletState};
+use orange_sdk::TxStatus;
 
 /// Map of in-flight outgoing payments awaiting their preimage.
 type PendingPayments = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
@@ -228,13 +229,13 @@ impl WalletManager {
                         ..
                     } => {
                         let hash_hex = hex::encode(payment_hash.0);
+                        let sats = amount_msat / 1000;
                         let evt = PaymentReceivedEvent {
                             amount_msats: *amount_msat,
-                            amount_sats: amount_msat / 1000,
+                            amount_sats: sats,
                             payment_hash: hash_hex,
                         };
-                        tracing::info!(amount_sats = evt.amount_sats, "Lightning payment received");
-                        // Ignore send errors (no subscribers).
+                        tracing::info!(amount_sats = sats, "Lightning payment received");
                         let _ = tx.send(evt);
                     }
                     Event::OnchainPaymentReceived {
@@ -362,8 +363,13 @@ impl WalletManager {
         })
     }
 
-    /// Pay a BOLT11 invoice. Returns `(amount_sats, preimage_hex)`.
-    pub async fn pay_invoice(&self, bolt11: &str) -> anyhow::Result<(u64, String)> {
+    /// Pay a BOLT11 invoice. If `user_amount_sats` is provided it is used for
+    /// amountless invoices, Lightning addresses, etc.  Returns `(amount_sats, preimage_hex)`.
+    pub async fn pay_invoice(
+        &self,
+        bolt11: &str,
+        user_amount_sats: Option<u64>,
+    ) -> anyhow::Result<(u64, String)> {
         self.ensure_initialized().await?;
 
         // Create a oneshot channel to receive the preimage from the event loop.
@@ -381,7 +387,15 @@ impl WalletManager {
                 .await
                 .map_err(|e| anyhow::anyhow!("Invalid payment instructions: {e:?}"))?;
 
-            let payment_info = orange_sdk::PaymentInfo::build(instructions, None)
+            let sdk_amount = match user_amount_sats {
+                Some(sats) => Some(
+                    Amount::from_sats(sats)
+                        .map_err(|_| anyhow::anyhow!("Invalid amount: {sats} sats"))?,
+                ),
+                None => None,
+            };
+
+            let payment_info = orange_sdk::PaymentInfo::build(instructions, sdk_amount)
                 .map_err(|e| anyhow::anyhow!("Failed to build payment: {e:?}"))?;
 
             amount_sats = payment_info.amount().sats_rounding_up();
@@ -404,6 +418,64 @@ impl WalletManager {
 
         tracing::info!(amount_sats, "Lightning payment confirmed");
         Ok((amount_sats, preimage_hex))
+    }
+
+    /// Return the payment history from the wallet's persisted store (newest first).
+    pub async fn get_history(&self) -> anyhow::Result<Vec<PaymentRecord>> {
+        self.ensure_initialized().await?;
+        let wallet = self.wallet.read().await;
+        let wallet = wallet
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Wallet not initialized"))?;
+
+        let txs = match wallet.list_transactions().await {
+            Ok(txs) => txs,
+            Err(e) => {
+                tracing::warn!("list_transactions failed, returning empty history: {e:?}");
+                return Ok(Vec::new());
+            }
+        };
+
+        tracing::debug!(
+            total = txs.len(),
+            completed = txs.iter().filter(|tx| tx.status == TxStatus::Completed).count(),
+            pending = txs.iter().filter(|tx| tx.status == TxStatus::Pending).count(),
+            failed = txs.iter().filter(|tx| tx.status == TxStatus::Failed).count(),
+            "list_transactions breakdown"
+        );
+
+        let mut records: Vec<PaymentRecord> = txs
+            .into_iter()
+            .filter(|tx| tx.status != TxStatus::Failed)
+            .map(|tx| {
+                let direction = if tx.outbound {
+                    PaymentDirection::Outgoing
+                } else {
+                    PaymentDirection::Incoming
+                };
+                let status = if tx.status == TxStatus::Completed {
+                    PaymentStatus::Completed
+                } else {
+                    PaymentStatus::Pending
+                };
+                let amount_sats = tx.amount.map(|a| a.sats_rounding_up()).unwrap_or(0);
+                let payment_hash = tx.id.to_string();
+                let timestamp = tx.time_since_epoch.as_secs();
+
+                PaymentRecord {
+                    direction,
+                    status,
+                    amount_sats,
+                    payment_hash,
+                    timestamp,
+                    description: None,
+                }
+            })
+            .collect();
+
+        // Sort newest first.
+        records.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        Ok(records)
     }
 
     /// Subscribe to payment received events for SSE streaming.

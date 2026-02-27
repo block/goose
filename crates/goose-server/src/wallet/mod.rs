@@ -67,6 +67,8 @@ pub struct PaymentReceivedEvent {
 pub struct PayInvoiceRequest {
     /// BOLT11 invoice string to pay.
     pub bolt11: String,
+    /// Amount in satoshis (required for amountless invoices, Lightning addresses, etc.).
+    pub amount_sats: Option<u64>,
 }
 
 /// Response after initiating a payment.
@@ -132,6 +134,41 @@ pub struct PaymentApprovalResponse {
     pub id: String,
     /// Whether the user approved the payment.
     pub approved: bool,
+}
+
+/// Direction of a wallet payment.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentDirection {
+    /// Incoming payment (received).
+    Incoming,
+    /// Outgoing payment (sent).
+    Outgoing,
+}
+
+/// Status of a payment record.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentStatus {
+    Pending,
+    Completed,
+}
+
+/// A single payment record for display in the history.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PaymentRecord {
+    /// Direction of the payment.
+    pub direction: PaymentDirection,
+    /// Status of the payment.
+    pub status: PaymentStatus,
+    /// Amount in satoshis.
+    pub amount_sats: u64,
+    /// Payment hash or txid.
+    pub payment_hash: String,
+    /// Unix timestamp when this payment was recorded.
+    pub timestamp: u64,
+    /// Human-readable description, if available.
+    pub description: Option<String>,
 }
 
 /// Response for wallet status endpoint.

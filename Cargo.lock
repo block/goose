@@ -1582,6 +1582,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitreq"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08221cf31c5f00fb6fc8fa697cea54176b06801a518bd9d3482aa27099827a3a"
+dependencies = [
+ "rustls 0.21.12",
+ "rustls-webpki 0.101.7",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-rustls 0.24.1",
+ "webpki-roots 0.25.4",
+]
+
+[[package]]
 name = "bitvec"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1685,7 +1700,7 @@ dependencies = [
 [[package]]
 name = "breez-sdk-common"
 version = "0.1.0"
-source = "git+https://github.com/breez/spark-sdk.git?rev=ef76a0bc517bea38fafaff8f657e82b5b52569b9#ef76a0bc517bea38fafaff8f657e82b5b52569b9"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
 dependencies = [
  "aes",
  "anyhow",
@@ -1694,12 +1709,12 @@ dependencies = [
  "bech32",
  "bitcoin",
  "cbc",
- "dns-parser",
+ "dnssec-prover",
  "futures",
  "hex",
- "hickory-resolver",
  "lightning 0.1.8",
  "macros",
+ "platform-utils",
  "prost 0.13.5",
  "regex",
  "reqwest 0.12.28",
@@ -1715,13 +1730,14 @@ dependencies = [
  "tonic-build",
  "tonic-web-wasm-client",
  "tracing",
+ "url",
  "web-time",
 ]
 
 [[package]]
 name = "breez-sdk-spark"
 version = "0.1.0"
-source = "git+https://github.com/breez/spark-sdk.git?rev=ef76a0bc517bea38fafaff8f657e82b5b52569b9#ef76a0bc517bea38fafaff8f657e82b5b52569b9"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1739,8 +1755,7 @@ dependencies = [
  "k256",
  "lnurl-models",
  "macros",
- "nostr",
- "reqwest 0.12.28",
+ "platform-utils",
  "rusqlite",
  "rusqlite_migration",
  "serde",
@@ -2123,17 +2138,6 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chacha20"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3613f74bd2eac03dad61bd53dbe620703d4371614fe0bc3b9f04dd36fe4e818"
-dependencies = [
- "cfg-if",
- "cipher",
- "cpufeatures 0.2.17",
-]
-
-[[package]]
-name = "chacha20"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f8d983286843e49675a4b7a2d174efe136dc93a18d69130dd18198a6c167601"
@@ -2148,19 +2152,6 @@ name = "chacha20-poly1305"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b4b0fc281743d80256607bd65e8beedc42cb0787ea119c85b81b4c0eab85e5f"
-
-[[package]]
-name = "chacha20poly1305"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10cd79432192d1c0f4e1a0fef9527696cc039165d729fb41b3f4f4f354c2dc35"
-dependencies = [
- "aead",
- "chacha20 0.9.1",
- "cipher",
- "poly1305",
- "zeroize",
-]
 
 [[package]]
 name = "chrono"
@@ -2190,7 +2181,6 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
 dependencies = [
  "crypto-common",
  "inout",
- "zeroize",
 ]
 
 [[package]]
@@ -2766,7 +2756,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
 dependencies = [
  "generic-array",
- "rand_core 0.6.4",
  "typenum",
 ]
 
@@ -3630,16 +3619,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dns-parser"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4d33be9473d06f75f58220f71f7a9317aca647dc061dbd3c361b0bef505fbea"
-dependencies = [
- "byteorder",
- "quick-error 1.2.3",
-]
-
-[[package]]
 name = "dnssec-prover"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4214,15 +4193,15 @@ checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 [[package]]
 name = "flashnet"
 version = "0.1.0"
-source = "git+https://github.com/breez/spark-sdk.git?rev=ef76a0bc517bea38fafaff8f657e82b5b52569b9#ef76a0bc517bea38fafaff8f657e82b5b52569b9"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
 dependencies = [
  "bitcoin",
  "getrandom 0.2.17",
  "hex",
  "jwt",
  "macros",
+ "platform-utils",
  "rand 0.8.5",
- "reqwest 0.12.28",
  "serde",
  "serde_json",
  "serde_qs",
@@ -5300,7 +5279,7 @@ dependencies = [
 [[package]]
 name = "graduated-rebalancer"
 version = "0.1.0"
-source = "git+https://github.com/lightningdevkit/orange-sdk?rev=8e10b63147c1deb3f27343f23466202fa19ed213#8e10b63147c1deb3f27343f23466202fa19ed213"
+source = "git+https://github.com/lightningdevkit/orange-sdk?rev=262ecae918f76386318cd576f3839a9402fb6b1b#262ecae918f76386318cd576f3839a9402fb6b1b"
 dependencies = [
  "bitcoin-payment-instructions",
  "lightning 0.2.2",
@@ -5602,55 +5581,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hickory-proto"
-version = "0.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8a6fe56c0038198998a6f217ca4e7ef3a5e51f46163bd6dd60b5c71ca6c6502"
-dependencies = [
- "async-trait",
- "bitflags 2.11.0",
- "cfg-if",
- "data-encoding",
- "enum-as-inner",
- "futures-channel",
- "futures-io",
- "futures-util",
- "idna",
- "ipnet",
- "once_cell",
- "rand 0.9.2",
- "ring",
- "rustls-pki-types",
- "thiserror 2.0.18",
- "time",
- "tinyvec",
- "tokio",
- "tracing",
- "url",
-]
-
-[[package]]
-name = "hickory-resolver"
-version = "0.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc62a9a99b0bfb44d2ab95a7208ac952d31060efc16241c87eaf36406fecf87a"
-dependencies = [
- "cfg-if",
- "futures-util",
- "hickory-proto",
- "ipconfig",
- "moka",
- "once_cell",
- "parking_lot",
- "rand 0.9.2",
- "resolv-conf",
- "smallvec",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "hipstr"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5920,7 +5850,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.56.0",
 ]
 
 [[package]]
@@ -6270,30 +6200,6 @@ dependencies = [
  "once_cell",
  "similar",
  "tempfile",
-]
-
-[[package]]
-name = "instant"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
-dependencies = [
- "cfg-if",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
-name = "ipconfig"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b58db92f96b720de98181bbbe63c831e87005ab460c1bf306eb2622b4707997f"
-dependencies = [
- "socket2 0.5.10",
- "widestring",
- "windows-sys 0.48.0",
- "winreg 0.50.0",
 ]
 
 [[package]]
@@ -7060,9 +6966,8 @@ dependencies = [
 [[package]]
 name = "lnurl-models"
 version = "0.1.0"
-source = "git+https://github.com/breez/spark-sdk.git?rev=ef76a0bc517bea38fafaff8f657e82b5b52569b9#ef76a0bc517bea38fafaff8f657e82b5b52569b9"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
 dependencies = [
- "nostr",
  "serde",
 ]
 
@@ -7145,7 +7050,7 @@ checksum = "670fdfda89751bc4a84ac13eaa63e205cf0fd22b4c9a5fbfa085b63c1f1d3a30"
 [[package]]
 name = "macros"
 version = "0.1.0"
-source = "git+https://github.com/breez/spark-sdk.git?rev=ef76a0bc517bea38fafaff8f657e82b5b52569b9#ef76a0bc517bea38fafaff8f657e82b5b52569b9"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7330,23 +7235,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "moka"
-version = "0.12.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ac832c50ced444ef6be0767a008b02c106a909ba79d1d830501e94b96f6b7e"
-dependencies = [
- "crossbeam-channel",
- "crossbeam-epoch",
- "crossbeam-utils",
- "equivalent",
- "parking_lot",
- "portable-atomic",
- "smallvec",
- "tagptr",
- "uuid",
-]
-
-[[package]]
 name = "monch"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7524,30 +7412,6 @@ dependencies = [
  "bytecount",
  "memchr",
  "nom 8.0.0",
-]
-
-[[package]]
-name = "nostr"
-version = "0.43.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62a97d745f1bd8d5e05a978632bbb87b0614567d5142906fe7c86fb2440faac6"
-dependencies = [
- "aes",
- "base64 0.22.1",
- "bech32",
- "bip39",
- "bitcoin_hashes",
- "cbc",
- "chacha20 0.9.1",
- "chacha20poly1305",
- "getrandom 0.2.17",
- "instant",
- "scrypt",
- "secp256k1",
- "serde",
- "serde_json",
- "unicode-normalization",
- "url",
 ]
 
 [[package]]
@@ -8233,7 +8097,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "orange-sdk"
 version = "0.1.0"
-source = "git+https://github.com/lightningdevkit/orange-sdk?rev=8e10b63147c1deb3f27343f23466202fa19ed213#8e10b63147c1deb3f27343f23466202fa19ed213"
+source = "git+https://github.com/lightningdevkit/orange-sdk?rev=262ecae918f76386318cd576f3839a9402fb6b1b#262ecae918f76386318cd576f3839a9402fb6b1b"
 dependencies = [
  "async-trait",
  "bitcoin-payment-instructions",
@@ -8314,17 +8178,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "password-hash"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
-dependencies = [
- "base64ct",
- "rand_core 0.6.4",
- "subtle",
-]
-
-[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8365,18 +8218,8 @@ checksum = "83a0692ec44e4cf1ef28ca317f14f8f07da2d95ec3fa01f86e4467b725e60917"
 dependencies = [
  "digest 0.10.7",
  "hmac",
- "password-hash 0.4.2",
+ "password-hash",
  "sha2",
-]
-
-[[package]]
-name = "pbkdf2"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
-dependencies = [
- "digest 0.10.7",
- "hmac",
 ]
 
 [[package]]
@@ -8710,6 +8553,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
+name = "platform-utils"
+version = "0.1.0"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "bitreq",
+ "macros",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "plist"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8746,17 +8605,6 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide",
-]
-
-[[package]]
-name = "poly1305"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8159bd90725d2df49889a078b54f4f79e87f1f8a8444194cdca81d38f5393abf"
-dependencies = [
- "cpufeatures 0.2.17",
- "opaque-debug",
- "universal-hash",
 ]
 
 [[package]]
@@ -9020,7 +8868,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "log",
  "multimap 0.10.1",
  "once_cell",
@@ -9053,7 +8901,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -9066,7 +8914,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -9198,12 +9046,6 @@ checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
 dependencies = [
  "image 0.25.9",
 ]
-
-[[package]]
-name = "quick-error"
-version = "1.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1d01941d82fa2ab50be1e79e6714289dd7cde78eba4c074bc5a4374f650dfe0"
 
 [[package]]
 name = "quick-error"
@@ -9353,7 +9195,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8"
 dependencies = [
- "chacha20 0.10.0",
+ "chacha20",
  "getrandom 0.4.1",
  "rand_core 0.10.0",
 ]
@@ -9741,12 +9583,6 @@ dependencies = [
  "potential_utf",
  "serde_core",
 ]
-
-[[package]]
-name = "resolv-conf"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e061d1b48cb8d38042de4ae0a7a6401009d6143dc80d2e2d6f31f0bdd6470c7"
 
 [[package]]
 name = "rfc6979"
@@ -10281,15 +10117,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "salsa20"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97a22f5af31f73a954c10289c93e8a50cc23d971e80ee446f1f6f7137a088213"
-dependencies = [
- "cipher",
-]
-
-[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10390,18 +10217,6 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
-
-[[package]]
-name = "scrypt"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0516a385866c09368f0b5bcd1caff3366aace790fcd46e2bb032697bb172fd1f"
-dependencies = [
- "password-hash 0.5.0",
- "pbkdf2 0.12.2",
- "salsa20",
- "sha2",
-]
 
 [[package]]
 name = "sct"
@@ -10917,7 +10732,7 @@ dependencies = [
 [[package]]
 name = "spark"
 version = "0.1.0"
-source = "git+https://github.com/breez/spark-sdk.git?rev=ef76a0bc517bea38fafaff8f657e82b5b52569b9#ef76a0bc517bea38fafaff8f657e82b5b52569b9"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -10938,10 +10753,10 @@ dependencies = [
  "k256",
  "lightning-invoice 0.33.2",
  "macros",
+ "platform-utils",
  "prost 0.13.5",
  "prost-types 0.13.5",
  "rand 0.8.5",
- "reqwest 0.12.28",
  "rustls 0.23.37",
  "serde",
  "serde_json",
@@ -10962,7 +10777,7 @@ dependencies = [
 [[package]]
 name = "spark-wallet"
 version = "0.1.0"
-source = "git+https://github.com/breez/spark-sdk.git?rev=ef76a0bc517bea38fafaff8f657e82b5b52569b9#ef76a0bc517bea38fafaff8f657e82b5b52569b9"
+source = "git+https://github.com/breez/spark-sdk.git?rev=1000f276d2f16592b5f6eb8fce29228f34ff88bf#1000f276d2f16592b5f6eb8fce29228f34ff88bf"
 dependencies = [
  "bitcoin",
  "frost-secp256k1-tr-unofficial",
@@ -12093,12 +11908,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tagptr"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
-
-[[package]]
 name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12356,7 +12165,7 @@ dependencies = [
  "fax",
  "flate2",
  "half",
- "quick-error 2.0.1",
+ "quick-error",
  "weezl",
  "zune-jpeg 0.4.21",
 ]
@@ -14829,7 +14638,7 @@ dependencies = [
  "crossbeam-utils",
  "flate2",
  "hmac",
- "pbkdf2 0.11.0",
+ "pbkdf2",
  "sha1",
  "time",
  "zstd 0.11.2+zstd.1.5.2",
