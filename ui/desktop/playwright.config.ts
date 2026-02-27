@@ -9,8 +9,10 @@ const config: PlaywrightTestConfig = {
   fullyParallel: false,
   workers: 1,
   reporter: [
-    ['html'],
-    ['list']
+    // Never start a server automatically (prevents CI/dev runs from hanging).
+    // Use `npm run test-e2e:report` to open the report manually.
+    ['html', { open: 'never' }],
+    ['list'],
   ],
   use: {
     actionTimeout: 30000,
