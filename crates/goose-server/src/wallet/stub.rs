@@ -40,7 +40,7 @@ impl WalletManager {
         anyhow::bail!("Lightning wallet is not enabled — rebuild with --features lightning")
     }
 
-    pub async fn pay_invoice(&self, _bolt11: &str) -> anyhow::Result<u64> {
+    pub async fn pay_invoice(&self, _bolt11: &str) -> anyhow::Result<(u64, String)> {
         anyhow::bail!("Lightning wallet is not enabled — rebuild with --features lightning")
     }
 

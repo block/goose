@@ -13,12 +13,20 @@ use rmcp::model::{
     ProtocolVersion, ServerCapabilities, Tool, ToolAnnotations, ToolsCapability,
 };
 use schemars::{schema_for, JsonSchema};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use shell::{ShellParams, ShellTool};
 use std::path::Path;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tree::{TreeParams, TreeTool};
+
+/// Parameters for the pay_l402_invoice tool
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct PayL402InvoiceParams {
+    /// BOLT11 Lightning invoice string to pay (starts with "lnbc")
+    pub bolt11: String,
+}
 
 pub static EXTENSION_NAME: &str = "developer";
 
@@ -65,6 +73,11 @@ impl DeveloperClient {
                 and file sizes. When you need to search, prefer rg which correctly respects gitignored
                 content. Then use cat or sed to gather the context you need, always reading before editing.
                 Use write and edit to efficiently make changes. Test and verify as appropriate.
+
+                If you receive an HTTP 402 \"Payment Required\" response:
+                1. Re-fetch with `curl -si <URL>` to see response headers
+                2. If the WWW-Authenticate header contains an L402 challenge (macaroon and invoice fields), call pay_l402_invoice with the invoice
+                3. Retry with: curl -H 'Authorization: L402 <MACAROON>:<PREIMAGE>' <URL>
             "}.to_string()),
         };
 
@@ -143,6 +156,18 @@ impl DeveloperClient {
                 idempotent_hint: Some(true),
                 open_world_hint: Some(false),
             }),
+            Tool::new(
+                "pay_l402_invoice".to_string(),
+                "Pay a BOLT11 Lightning invoice for L402 protocol. Returns the payment preimage hex string. Use when you encounter HTTP 402 with a WWW-Authenticate L402 header.".to_string(),
+                Self::schema::<PayL402InvoiceParams>(),
+            )
+            .annotate(ToolAnnotations {
+                title: Some("Pay L402".to_string()),
+                read_only_hint: Some(false),
+                destructive_hint: Some(false),
+                idempotent_hint: Some(false),
+                open_world_hint: Some(true),
+            }),
         ]
     }
 }
@@ -200,6 +225,27 @@ impl McpClientTrait for DeveloperClient {
                 ))
                 .with_priority(0.0)])),
             },
+            "pay_l402_invoice" => match Self::parse_args::<PayL402InvoiceParams>(arguments) {
+                Ok(params) => {
+                    let Some(handler) = crate::l402::get_l402_handler() else {
+                        return Ok(CallToolResult::error(vec![Content::text(
+                            "Lightning wallet is not available",
+                        )
+                        .with_priority(0.0)]));
+                    };
+                    match handler.pay_invoice(&params.bolt11).await {
+                        Ok(preimage) => Ok(CallToolResult::success(vec![Content::text(preimage)])),
+                        Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                            "Invoice payment failed: {e:#}"
+                        ))
+                        .with_priority(0.0)])),
+                    }
+                }
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {error}"
+                ))
+                .with_priority(0.0)])),
+            },
             _ => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Error: Unknown tool: {name}"
             ))
@@ -227,7 +273,10 @@ mod tests {
             .map(|t| t.name.to_string())
             .collect();
 
-        assert_eq!(names, vec!["write", "edit", "shell", "tree"]);
+        assert_eq!(
+            names,
+            vec!["write", "edit", "shell", "tree", "pay_l402_invoice"]
+        );
     }
 
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {

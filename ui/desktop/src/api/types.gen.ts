@@ -867,6 +867,10 @@ export type PayInvoiceResponse = {
      */
     amount_sats: number;
     /**
+     * Payment preimage as a hex string (proof of payment).
+     */
+    preimage: string;
+    /**
      * Whether the payment was successfully initiated.
      */
     success: boolean;

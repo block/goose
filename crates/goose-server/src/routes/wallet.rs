@@ -14,7 +14,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use crate::state::AppState;
 use crate::wallet::{
     CreateInvoiceRequest, ParseInvoiceRequest, PayInvoiceRequest, PayInvoiceResponse,
-    PaymentReceivedEvent, WalletStatusResponse,
+    PaymentApprovalResponse, PaymentReceivedEvent, WalletStatusResponse,
 };
 
 // -- Error response helper --
@@ -163,9 +163,10 @@ async fn wallet_pay(
     Json(req): Json<PayInvoiceRequest>,
 ) -> axum::response::Response {
     match state.wallet_manager.pay_invoice(&req.bolt11).await {
-        Ok(amount_sats) => Json(PayInvoiceResponse {
+        Ok((amount_sats, preimage)) => Json(PayInvoiceResponse {
             success: true,
             amount_sats,
+            preimage,
         })
         .into_response(),
         Err(e) => {
@@ -192,6 +193,42 @@ async fn wallet_events(State(state): State<Arc<AppState>>) -> impl IntoResponse 
     }
 }
 
+// -- Approval handlers --
+
+#[utoipa::path(
+    post,
+    path = "/wallet/approve-payment",
+    request_body = PaymentApprovalResponse,
+    responses(
+        (status = 200, description = "Approval response accepted"),
+        (status = 400, description = "Invalid or expired approval request"),
+    )
+)]
+async fn wallet_approve_payment(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PaymentApprovalResponse>,
+) -> axum::response::Response {
+    match state.payment_approval.respond(&req.id, req.approved).await {
+        Ok(()) => Json(serde_json::json!({ "ok": true })).into_response(),
+        Err(e) => {
+            tracing::warn!("Approval response failed: {e:#}");
+            error_response(axum::http::StatusCode::BAD_REQUEST, format!("{e:#}"))
+        }
+    }
+}
+
+#[utoipa::path(
+    get,
+    path = "/wallet/pending-approvals",
+    responses(
+        (status = 200, description = "List of pending payment approval requests", body = Vec<PaymentApprovalRequest>),
+    )
+)]
+async fn wallet_pending_approvals(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let pending = state.payment_approval.get_pending().await;
+    Json(pending)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/wallet/status", get(wallet_status))
@@ -200,5 +237,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/wallet/parse-invoice", post(wallet_parse_invoice))
         .route("/wallet/pay", post(wallet_pay))
         .route("/wallet/events", get(wallet_events))
+        .route("/wallet/approve-payment", post(wallet_approve_payment))
+        .route("/wallet/pending-approvals", get(wallet_pending_approvals))
         .with_state(state)
 }

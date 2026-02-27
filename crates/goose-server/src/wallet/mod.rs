@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+mod approval;
+pub use approval::PaymentApprovalManager;
+
 /// Current state of the wallet subsystem.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -73,6 +76,8 @@ pub struct PayInvoiceResponse {
     pub success: bool,
     /// Amount paid in sats.
     pub amount_sats: u64,
+    /// Payment preimage as a hex string (proof of payment).
+    pub preimage: String,
 }
 
 /// Request body for parsing a Lightning invoice.
@@ -89,6 +94,44 @@ pub struct ParsedInvoice {
     pub amount_sats: Option<u64>,
     /// Human-readable description from the invoice, if any.
     pub description: Option<String>,
+}
+
+/// Where an automatic payment originates from.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentSource {
+    /// HTTP 402 L402 challenge auto-pay.
+    L402Auto,
+    /// MCP tool `pay_l402_invoice`.
+    AgentTool,
+}
+
+/// A payment that needs user approval before proceeding.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PaymentApprovalRequest {
+    /// Unique ID for this approval request.
+    pub id: String,
+    /// BOLT11 invoice string.
+    pub bolt11: String,
+    /// Amount in satoshis (if known).
+    pub amount_sats: Option<u64>,
+    /// Human-readable description, if any.
+    pub description: Option<String>,
+    /// Where this payment request originated.
+    pub source: PaymentSource,
+    /// When this request was created (unix timestamp).
+    pub created_at: u64,
+    /// When this request expires (unix timestamp).
+    pub expires_at: u64,
+}
+
+/// User response to a payment approval request.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PaymentApprovalResponse {
+    /// The approval request ID being responded to.
+    pub id: String,
+    /// Whether the user approved the payment.
+    pub approved: bool,
 }
 
 /// Response for wallet status endpoint.
