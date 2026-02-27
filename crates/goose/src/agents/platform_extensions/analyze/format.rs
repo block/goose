@@ -102,7 +102,8 @@ pub fn format_semantic(analysis: &FileAnalysis, root: &Path) -> String {
     if !analysis.functions.is_empty() {
         let mut call_counts: HashMap<&str, usize> = HashMap::new();
         for call in &analysis.calls {
-            *call_counts.entry(&call.callee).or_default() += 1;
+            let bare = call.callee.rsplit("::").next().unwrap_or(&call.callee);
+            *call_counts.entry(bare).or_default() += 1;
         }
 
         let items: Vec<String> = analysis

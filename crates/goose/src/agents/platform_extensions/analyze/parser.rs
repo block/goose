@@ -235,12 +235,17 @@ fn extract_inheritance(lang_name: &str, class_node: &tree_sitter::Node, source: 
         }
 
         // JavaScript: class Foo extends Bar { ... }
-        // class_declaration → class_heritage → identifier (expression directly, no extends_clause wrapper)
+        // class_declaration → class_heritage → identifier | member_expression | call_expression
         "javascript" => {
             if let Some(heritage) = find_child_by_kind(class_node, "class_heritage") {
-                // JS heritage contains the expression directly (identifier, member_expression, etc.)
-                if let Some(id) = find_descendant_by_kind(&heritage, "identifier") {
-                    return node_text(source, &id).to_string();
+                // Get the full extends expression (could be identifier, member_expression, etc.)
+                for i in 0..heritage.child_count() as u32 {
+                    if let Some(child) = heritage.child(i) {
+                        let text = node_text(source, &child).trim();
+                        if !text.is_empty() && text != "extends" {
+                            return text.to_string();
+                        }
+                    }
                 }
             }
             String::new()
