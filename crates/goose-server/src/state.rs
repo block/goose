@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use goose::builtin_extension::register_builtin_extensions;
 use goose::execution::manager::AgentManager;
+use goose::l402::L402PaymentHandler;
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
@@ -10,9 +11,23 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::tunnel::TunnelManager;
+use crate::wallet::WalletManager;
 use goose::agents::ExtensionLoadResult;
 use goose::gateway::manager::GatewayManager;
 use goose::providers::local_inference::InferenceRuntime;
+
+/// L402 payment handler that delegates to the WalletManager.
+struct WalletL402Handler {
+    wallet: Arc<WalletManager>,
+}
+
+#[async_trait::async_trait]
+impl L402PaymentHandler for WalletL402Handler {
+    async fn pay_invoice(&self, bolt11: &str) -> anyhow::Result<String> {
+        let (_, preimage_hex) = self.wallet.pay_invoice(bolt11).await?;
+        Ok(preimage_hex)
+    }
+}
 
 type ExtensionLoadingTasks =
     Arc<Mutex<HashMap<String, Arc<Mutex<Option<JoinHandle<Vec<ExtensionLoadResult>>>>>>>>;
@@ -26,6 +41,7 @@ pub struct AppState {
     pub gateway_manager: Arc<GatewayManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
     pub inference_runtime: Arc<InferenceRuntime>,
+    pub wallet_manager: Arc<WalletManager>,
 }
 
 impl AppState {
@@ -35,6 +51,23 @@ impl AppState {
         let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
         let gateway_manager = Arc::new(GatewayManager::new(agent_manager.clone())?);
+        let wallet_manager = Arc::new(WalletManager::new());
+
+        // Register the L402 payment handler so ApiClient can auto-pay L402 challenges.
+        let l402_handler = Arc::new(WalletL402Handler {
+            wallet: Arc::clone(&wallet_manager),
+        });
+        let _ = goose::l402::set_l402_handler(l402_handler);
+
+        // Register the L402 pay callback for MCP tools (developer server's pay_l402_invoice tool).
+        let wallet_for_mcp = Arc::clone(&wallet_manager);
+        goose_mcp::l402::set_l402_pay_fn(std::sync::Arc::new(move |bolt11: String| {
+            let w = Arc::clone(&wallet_for_mcp);
+            Box::pin(async move {
+                let (_, preimage) = w.pay_invoice(&bolt11).await?;
+                Ok(preimage)
+            })
+        }));
 
         Ok(Arc::new(Self {
             agent_manager,
@@ -44,6 +77,7 @@ impl AppState {
             gateway_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
             inference_runtime: InferenceRuntime::get_or_init(),
+            wallet_manager,
         }))
     }
 

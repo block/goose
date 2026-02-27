@@ -20,10 +20,10 @@ check-everything:
     @echo ""
     @echo "✅ All style checks passed!"
 
-# Default release command
-release-binary:
+# Default release command. Pass features to enable extra cargo features, e.g.: just release-binary lightning
+release-binary *features:
     @echo "Building release version..."
-    cargo build --release
+    cargo build --release {{ if features != "" { "--features " + features } else { "" } }}
     @just copy-binary
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
@@ -121,9 +121,9 @@ copy-binary-windows:
         exit 1; \
     }"
 
-# Run UI with latest
-run-ui:
-    @just release-binary
+# Run UI with latest. Pass features to enable extra cargo features, e.g.: just run-ui lightning
+run-ui *features:
+    @just release-binary {{ features }}
     @echo "Running UI..."
     cd ui/desktop && npm install && npm run start-gui
 

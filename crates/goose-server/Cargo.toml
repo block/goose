@@ -14,6 +14,7 @@ workspace = true
 default = ["code-mode"]
 code-mode = ["goose/code-mode"]
 cuda = ["goose/cuda"]
+lightning = ["dep:orange-sdk", "dep:qrcode"]
 
 [dependencies]
 goose = { path = "../goose", default-features = false }
@@ -29,8 +30,9 @@ futures = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json", "time"] }
 tracing-appender = { workspace = true }
-tokio-stream = { workspace = true }
+tokio-stream = { workspace = true, features = ["sync"] }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 bytes = { workspace = true }
 http = { workspace = true }
 base64 = { workspace = true }
@@ -55,6 +57,8 @@ dirs = { workspace = true }
 rcgen = "0.13"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 aws-lc-rs = "1.16.0"
+orange-sdk = { workspace = true, optional = true }
+qrcode = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }

@@ -3695,6 +3695,161 @@
           }
         }
       }
+    },
+    "/wallet/balance": {
+      "get": {
+        "tags": [
+          "super::routes::wallet"
+        ],
+        "operationId": "wallet_balance",
+        "responses": {
+          "200": {
+            "description": "Wallet balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletBalance"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Wallet error"
+          }
+        }
+      }
+    },
+    "/wallet/events": {
+      "get": {
+        "tags": [
+          "super::routes::wallet"
+        ],
+        "operationId": "wallet_events",
+        "responses": {
+          "200": {
+            "description": "SSE stream of payment events"
+          }
+        }
+      }
+    },
+    "/wallet/invoice": {
+      "post": {
+        "tags": [
+          "super::routes::wallet"
+        ],
+        "operationId": "wallet_create_invoice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Created invoice",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Invoice creation failed"
+          }
+        }
+      }
+    },
+    "/wallet/parse-invoice": {
+      "post": {
+        "tags": [
+          "super::routes::wallet"
+        ],
+        "operationId": "wallet_parse_invoice",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Parsed invoice details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParsedInvoice"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to parse invoice"
+          }
+        }
+      }
+    },
+    "/wallet/pay": {
+      "post": {
+        "tags": [
+          "super::routes::wallet"
+        ],
+        "operationId": "wallet_pay",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Payment initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayInvoiceResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Payment failed"
+          }
+        }
+      }
+    },
+    "/wallet/status": {
+      "get": {
+        "tags": [
+          "super::routes::wallet"
+        ],
+        "operationId": "wallet_status",
+        "responses": {
+          "200": {
+            "description": "Wallet status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletStatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4069,6 +4224,19 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "CreateInvoiceRequest": {
+        "type": "object",
+        "description": "Request body for creating an invoice.",
+        "properties": {
+          "amount_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount in satoshis. If omitted, creates an amountless invoice.",
+            "nullable": true,
+            "minimum": 0
+          }
         }
       },
       "CreateRecipeRequest": {
@@ -5177,6 +5345,31 @@
           }
         }
       },
+      "Invoice": {
+        "type": "object",
+        "description": "A Lightning invoice ready for display.",
+        "required": [
+          "bolt11",
+          "qr_svg"
+        ],
+        "properties": {
+          "amount_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Requested amount in sats (if specified).",
+            "nullable": true,
+            "minimum": 0
+          },
+          "bolt11": {
+            "type": "string",
+            "description": "BOLT11 encoded invoice string."
+          },
+          "qr_svg": {
+            "type": "string",
+            "description": "QR code as an SVG string."
+          }
+        }
+      },
       "JsonObject": {
         "type": "object",
         "additionalProperties": true
@@ -6131,6 +6324,19 @@
           }
         }
       },
+      "ParseInvoiceRequest": {
+        "type": "object",
+        "description": "Request body for parsing a Lightning invoice.",
+        "required": [
+          "bolt11"
+        ],
+        "properties": {
+          "bolt11": {
+            "type": "string",
+            "description": "BOLT11 invoice string to parse."
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -6150,6 +6356,89 @@
         "properties": {
           "recipe": {
             "$ref": "#/components/schemas/Recipe"
+          }
+        }
+      },
+      "ParsedInvoice": {
+        "type": "object",
+        "description": "Parsed invoice details returned before payment confirmation.",
+        "properties": {
+          "amount_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount in sats (if the invoice specifies one).",
+            "nullable": true,
+            "minimum": 0
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description from the invoice, if any.",
+            "nullable": true
+          }
+        }
+      },
+      "PayInvoiceRequest": {
+        "type": "object",
+        "description": "Request body for paying a Lightning invoice.",
+        "required": [
+          "bolt11"
+        ],
+        "properties": {
+          "bolt11": {
+            "type": "string",
+            "description": "BOLT11 invoice string to pay."
+          }
+        }
+      },
+      "PayInvoiceResponse": {
+        "type": "object",
+        "description": "Response after initiating a payment.",
+        "required": [
+          "success",
+          "amount_sats",
+          "preimage"
+        ],
+        "properties": {
+          "amount_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount paid in sats.",
+            "minimum": 0
+          },
+          "preimage": {
+            "type": "string",
+            "description": "Payment preimage as a hex string (proof of payment)."
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the payment was successfully initiated."
+          }
+        }
+      },
+      "PaymentReceivedEvent": {
+        "type": "object",
+        "description": "Notification that a payment was received.",
+        "required": [
+          "amount_msats",
+          "amount_sats",
+          "payment_hash"
+        ],
+        "properties": {
+          "amount_msats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount received in millisatoshis.",
+            "minimum": 0
+          },
+          "amount_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount received in satoshis (amount_msats / 1000).",
+            "minimum": 0
+          },
+          "payment_hash": {
+            "type": "string",
+            "description": "Hex-encoded payment hash."
           }
         }
       },
@@ -8323,6 +8612,107 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "WalletBalance": {
+        "type": "object",
+        "description": "Wallet balance broken down by layer.",
+        "required": [
+          "trusted_sats",
+          "lightning_sats",
+          "pending_sats",
+          "total_sats"
+        ],
+        "properties": {
+          "lightning_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Balance available on Lightning channels, in sats.",
+            "minimum": 0
+          },
+          "pending_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pending on-chain balance, in sats.",
+            "minimum": 0
+          },
+          "total_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total available balance (trusted + lightning), in sats.",
+            "minimum": 0
+          },
+          "trusted_sats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Balance held in the trusted (Spark) wallet, in sats.",
+            "minimum": 0
+          }
+        }
+      },
+      "WalletState": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Lightning feature is not compiled in.",
+            "enum": [
+              "disabled"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Feature is enabled but wallet has not been initialized yet (no seed configured).",
+            "enum": [
+              "uninitialized"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Wallet is currently starting up.",
+            "enum": [
+              "initializing"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Wallet is ready to create invoices and receive payments.",
+            "enum": [
+              "ready"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "error"
+            ],
+            "properties": {
+              "error": {
+                "type": "object",
+                "description": "Wallet encountered an error during initialization.",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "description": "Current state of the wallet subsystem."
+      },
+      "WalletStatusResponse": {
+        "type": "object",
+        "description": "Response for wallet status endpoint.",
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/WalletState"
           }
         }
       },

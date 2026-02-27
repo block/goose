@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import ImagePreview from './ImagePreview';
 import { formatMessageTimestamp } from '../utils/timeUtils';
 import MarkdownContent from './MarkdownContent';
+import { extractBolt11Invoices, LightningInvoice } from './LightningInvoice';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
   getTextAndImageContent,
@@ -158,6 +159,9 @@ export default function GooseMessage({
             {displayText.trim() && (
               <div ref={contentRef} className="w-full">
                 <MarkdownContent content={displayText} />
+                {extractBolt11Invoices(displayText).map((bolt11) => (
+                  <LightningInvoice key={bolt11} bolt11={bolt11} />
+                ))}
               </div>
             )}
 

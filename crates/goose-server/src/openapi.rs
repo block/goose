@@ -435,6 +435,12 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::local_inference::delete_local_model,
         super::routes::local_inference::get_model_settings,
         super::routes::local_inference::update_model_settings,
+        super::routes::wallet::wallet_status,
+        super::routes::wallet::wallet_balance,
+        super::routes::wallet::wallet_create_invoice,
+        super::routes::wallet::wallet_parse_invoice,
+        super::routes::wallet::wallet_pay,
+        super::routes::wallet::wallet_events,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -618,6 +624,16 @@ derive_utoipa!(Icon as IconSchema);
         goose::providers::local_inference::local_model_registry::SamplingConfig,
         DownloadProgress,
         DownloadStatus,
+        super::wallet::WalletState,
+        super::wallet::WalletBalance,
+        super::wallet::WalletStatusResponse,
+        super::wallet::Invoice,
+        super::wallet::CreateInvoiceRequest,
+        super::wallet::PaymentReceivedEvent,
+        super::wallet::ParseInvoiceRequest,
+        super::wallet::ParsedInvoice,
+        super::wallet::PayInvoiceRequest,
+        super::wallet::PayInvoiceResponse,
     ))
 )]
 pub struct ApiDoc;

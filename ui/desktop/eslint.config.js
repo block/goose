@@ -104,6 +104,7 @@ module.exports = [
         MediaStream: 'readonly',
         Blob: 'readonly',
         FormData: 'readonly',
+        EventSource: 'readonly',
       },
     },
     plugins: {

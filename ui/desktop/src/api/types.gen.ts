@@ -132,6 +132,16 @@ export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | R
 
 export type Conversation = Array<Message>;
 
+/**
+ * Request body for creating an invoice.
+ */
+export type CreateInvoiceRequest = {
+    /**
+     * Amount in satoshis. If omitted, creates an amountless invoice.
+     */
+    amount_sats?: number | null;
+};
+
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
     session_id: string;
@@ -525,6 +535,24 @@ export type InspectJobResponse = {
     sessionId?: string | null;
 };
 
+/**
+ * A Lightning invoice ready for display.
+ */
+export type Invoice = {
+    /**
+     * Requested amount in sats (if specified).
+     */
+    amount_sats?: number | null;
+    /**
+     * BOLT11 encoded invoice string.
+     */
+    bolt11: string;
+    /**
+     * QR code as an SVG string.
+     */
+    qr_svg: string;
+};
+
 export type JsonObject = {
     [key: string]: unknown;
 };
@@ -788,12 +816,82 @@ export type ModelTemplate = {
     name: string;
 };
 
+/**
+ * Request body for parsing a Lightning invoice.
+ */
+export type ParseInvoiceRequest = {
+    /**
+     * BOLT11 invoice string to parse.
+     */
+    bolt11: string;
+};
+
 export type ParseRecipeRequest = {
     content: string;
 };
 
 export type ParseRecipeResponse = {
     recipe: Recipe;
+};
+
+/**
+ * Parsed invoice details returned before payment confirmation.
+ */
+export type ParsedInvoice = {
+    /**
+     * Amount in sats (if the invoice specifies one).
+     */
+    amount_sats?: number | null;
+    /**
+     * Human-readable description from the invoice, if any.
+     */
+    description?: string | null;
+};
+
+/**
+ * Request body for paying a Lightning invoice.
+ */
+export type PayInvoiceRequest = {
+    /**
+     * BOLT11 invoice string to pay.
+     */
+    bolt11: string;
+};
+
+/**
+ * Response after initiating a payment.
+ */
+export type PayInvoiceResponse = {
+    /**
+     * Amount paid in sats.
+     */
+    amount_sats: number;
+    /**
+     * Payment preimage as a hex string (proof of payment).
+     */
+    preimage: string;
+    /**
+     * Whether the payment was successfully initiated.
+     */
+    success: boolean;
+};
+
+/**
+ * Notification that a payment was received.
+ */
+export type PaymentReceivedEvent = {
+    /**
+     * Amount received in millisatoshis.
+     */
+    amount_msats: number;
+    /**
+     * Amount received in satoshis (amount_msats / 1000).
+     */
+    amount_sats: number;
+    /**
+     * Hex-encoded payment hash.
+     */
+    payment_hash: string;
 };
 
 export type Permission = 'always_allow' | 'allow_once' | 'cancel' | 'deny_once' | 'always_deny';
@@ -1539,6 +1637,47 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * Wallet balance broken down by layer.
+ */
+export type WalletBalance = {
+    /**
+     * Balance available on Lightning channels, in sats.
+     */
+    lightning_sats: number;
+    /**
+     * Pending on-chain balance, in sats.
+     */
+    pending_sats: number;
+    /**
+     * Total available balance (trusted + lightning), in sats.
+     */
+    total_sats: number;
+    /**
+     * Balance held in the trusted (Spark) wallet, in sats.
+     */
+    trusted_sats: number;
+};
+
+/**
+ * Current state of the wallet subsystem.
+ */
+export type WalletState = 'disabled' | 'uninitialized' | 'initializing' | 'ready' | {
+    /**
+     * Wallet encountered an error during initialization.
+     */
+    error: {
+        message: string;
+    };
+};
+
+/**
+ * Response for wallet status endpoint.
+ */
+export type WalletStatusResponse = {
+    state: WalletState;
 };
 
 export type WhisperModelResponse = {
@@ -4389,3 +4528,125 @@ export type StopTunnelResponses = {
      */
     200: unknown;
 };
+
+export type WalletBalanceData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/wallet/balance';
+};
+
+export type WalletBalanceErrors = {
+    /**
+     * Wallet error
+     */
+    500: unknown;
+};
+
+export type WalletBalanceResponses = {
+    /**
+     * Wallet balance
+     */
+    200: WalletBalance;
+};
+
+export type WalletBalanceResponse = WalletBalanceResponses[keyof WalletBalanceResponses];
+
+export type WalletEventsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/wallet/events';
+};
+
+export type WalletEventsResponses = {
+    /**
+     * SSE stream of payment events
+     */
+    200: unknown;
+};
+
+export type WalletCreateInvoiceData = {
+    body: CreateInvoiceRequest;
+    path?: never;
+    query?: never;
+    url: '/wallet/invoice';
+};
+
+export type WalletCreateInvoiceErrors = {
+    /**
+     * Invoice creation failed
+     */
+    500: unknown;
+};
+
+export type WalletCreateInvoiceResponses = {
+    /**
+     * Created invoice
+     */
+    200: Invoice;
+};
+
+export type WalletCreateInvoiceResponse = WalletCreateInvoiceResponses[keyof WalletCreateInvoiceResponses];
+
+export type WalletParseInvoiceData = {
+    body: ParseInvoiceRequest;
+    path?: never;
+    query?: never;
+    url: '/wallet/parse-invoice';
+};
+
+export type WalletParseInvoiceErrors = {
+    /**
+     * Failed to parse invoice
+     */
+    500: unknown;
+};
+
+export type WalletParseInvoiceResponses = {
+    /**
+     * Parsed invoice details
+     */
+    200: ParsedInvoice;
+};
+
+export type WalletParseInvoiceResponse = WalletParseInvoiceResponses[keyof WalletParseInvoiceResponses];
+
+export type WalletPayData = {
+    body: PayInvoiceRequest;
+    path?: never;
+    query?: never;
+    url: '/wallet/pay';
+};
+
+export type WalletPayErrors = {
+    /**
+     * Payment failed
+     */
+    500: unknown;
+};
+
+export type WalletPayResponses = {
+    /**
+     * Payment initiated
+     */
+    200: PayInvoiceResponse;
+};
+
+export type WalletPayResponse = WalletPayResponses[keyof WalletPayResponses];
+
+export type WalletStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/wallet/status';
+};
+
+export type WalletStatusResponses = {
+    /**
+     * Wallet status
+     */
+    200: WalletStatusResponse;
+};
+
+export type WalletStatusResponse2 = WalletStatusResponses[keyof WalletStatusResponses];

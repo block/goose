@@ -373,9 +373,21 @@ impl<'a> ApiRequestBuilder<'a> {
         ApiResponse::from_response(response).await
     }
 
-    pub async fn response_post(self, payload: &Value) -> Result<Response> {
+    pub async fn response_post(mut self, payload: &Value) -> Result<Response> {
         let request = self.send_request(|url, client| client.post(url)).await?;
-        Ok(request.json(payload).send().await?)
+        let response = request.json(payload).send().await?;
+
+        // L402: if the server returned 402 with an L402 challenge, pay and retry.
+        if let Some(l402_auth) = Self::try_l402_payment(&response).await {
+            self.headers.insert(
+                reqwest::header::AUTHORIZATION,
+                HeaderValue::from_str(&l402_auth)?,
+            );
+            let retry = self.send_request(|url, client| client.post(url)).await?;
+            return Ok(retry.json(payload).send().await?);
+        }
+
+        Ok(response)
     }
 
     pub async fn multipart_post(self, form: reqwest::multipart::Form) -> Result<Response> {
@@ -388,9 +400,49 @@ impl<'a> ApiRequestBuilder<'a> {
         ApiResponse::from_response(response).await
     }
 
-    pub async fn response_get(self) -> Result<Response> {
+    pub async fn response_get(mut self) -> Result<Response> {
         let request = self.send_request(|url, client| client.get(url)).await?;
-        Ok(request.send().await?)
+        let response = request.send().await?;
+
+        // L402: if the server returned 402 with an L402 challenge, pay and retry.
+        if let Some(l402_auth) = Self::try_l402_payment(&response).await {
+            self.headers.insert(
+                reqwest::header::AUTHORIZATION,
+                HeaderValue::from_str(&l402_auth)?,
+            );
+            let retry = self.send_request(|url, client| client.get(url)).await?;
+            return Ok(retry.send().await?);
+        }
+
+        Ok(response)
+    }
+
+    /// Check if a response is a 402 with an L402 challenge, and if so, pay the invoice.
+    /// Returns the `Authorization` header value to use for the retry, or `None`.
+    async fn try_l402_payment(response: &Response) -> Option<String> {
+        if response.status() != StatusCode::PAYMENT_REQUIRED {
+            return None;
+        }
+
+        let header_value = response
+            .headers()
+            .get("www-authenticate")
+            .and_then(|v| v.to_str().ok())?;
+
+        let challenge = crate::l402::parse_l402_challenge(header_value)?;
+        let handler = crate::l402::get_l402_handler()?;
+
+        tracing::info!("L402 challenge received, paying invoice");
+        match handler.pay_invoice(&challenge.invoice).await {
+            Ok(preimage) => {
+                tracing::info!("L402 payment successful, retrying request");
+                Some(format!("L402 {}:{}", challenge.macaroon, preimage))
+            }
+            Err(e) => {
+                tracing::warn!("L402 payment failed: {e:#}");
+                None
+            }
+        }
     }
 
     async fn send_request<F>(&self, request_builder: F) -> Result<reqwest::RequestBuilder>

@@ -19,6 +19,7 @@ pub mod status;
 pub mod telemetry;
 pub mod tunnel;
 pub mod utils;
+pub mod wallet;
 
 use std::sync::Arc;
 
@@ -44,5 +45,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(gateway::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
+        .merge(wallet::routes(state.clone()))
         .merge(sampling::routes(state))
 }

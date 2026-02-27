@@ -14,6 +14,7 @@ pub async fn check_token(
         || request.uri().path() == "/mcp-ui-proxy"
         || request.uri().path() == "/mcp-app-proxy"
         || request.uri().path() == "/mcp-app-guest"
+        || request.uri().path() == "/wallet/events"
     {
         return Ok(next.run(request).await);
     }
