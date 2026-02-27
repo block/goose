@@ -30,7 +30,7 @@ pub struct AnalyzeParams {
     /// Symbol name to focus on (triggers call graph mode)
     #[serde(default)]
     pub focus: Option<String>,
-    /// Directory recursion depth limit (default 3, 0=unlimited)
+    /// Directory recursion depth limit (default 3, 0=unlimited). Also limits focus scan depth.
     #[serde(default = "default_max_depth")]
     pub max_depth: u32,
     /// Call graph traversal depth (default 2, 0=definitions only)
