@@ -232,14 +232,23 @@ fn resolve_callee(
     let bare_name = callee.rsplit("::").next().unwrap_or(callee);
 
     if let Some(keys) = name_index.get(bare_name) {
-        // Prefer same-file matches
+        // Prefer same-file matches; when ambiguous pick nearest by line proximity
         let same_file: Vec<NodeKey> = keys
             .iter()
             .filter(|(path, _, _)| *path == analysis.path)
             .cloned()
             .collect();
         if !same_file.is_empty() {
-            return same_file;
+            if same_file.len() == 1 {
+                return same_file;
+            }
+            // Multiple same-file matches: pick nearest definition by line proximity
+            let nearest = same_file
+                .into_iter()
+                .min_by_key(|(_, _, line)| (call.line as i64 - *line as i64).unsigned_abs())
+                .into_iter()
+                .collect();
+            return nearest;
         }
         // Cross-file matches filtered to same language only
         keys.iter()

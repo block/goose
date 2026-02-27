@@ -102,7 +102,48 @@ fn extract_functions(
             }
         }
     }
+
+    // Swift init/deinit declarations don't have a name child, so the query
+    // can't capture them. Walk the tree to find them and add as symbols.
+    if info.name == "swift" {
+        collect_init_deinit(root, source, info, &mut symbols);
+    }
+
     symbols
+}
+
+/// Recursively collect Swift init_declaration and deinit_declaration nodes.
+fn collect_init_deinit(
+    node: tree_sitter::Node,
+    source: &str,
+    info: &LangInfo,
+    symbols: &mut Vec<Symbol>,
+) {
+    for i in 0..node.child_count() as u32 {
+        if let Some(child) = node.child(i) {
+            match child.kind() {
+                "init_declaration" => {
+                    symbols.push(Symbol {
+                        name: "init".to_string(),
+                        line: child.start_position().row + 1,
+                        parent: find_enclosing_class(child, source, info),
+                        detail: extract_fn_signature_from_node(child, source),
+                    });
+                }
+                "deinit_declaration" => {
+                    symbols.push(Symbol {
+                        name: "deinit".to_string(),
+                        line: child.start_position().row + 1,
+                        parent: find_enclosing_class(child, source, info),
+                        detail: extract_fn_signature_from_node(child, source),
+                    });
+                }
+                _ => {}
+            }
+            // Recurse into class/protocol bodies to find nested init/deinit
+            collect_init_deinit(child, source, info, symbols);
+        }
+    }
 }
 
 fn extract_classes(
@@ -364,7 +405,12 @@ fn find_enclosing_class(node: tree_sitter::Node, source: &str, info: &LangInfo) 
 /// Extract a compact function signature: "(params) -> ReturnType"
 fn extract_fn_signature(name_node: tree_sitter::Node, source: &str) -> Option<String> {
     let fn_node = name_node.parent()?;
+    extract_fn_signature_from_node(fn_node, source)
+}
 
+/// Extract a compact function signature directly from the function node.
+/// Used for nodes like Swift init/deinit that don't have a name child.
+fn extract_fn_signature_from_node(fn_node: tree_sitter::Node, source: &str) -> Option<String> {
     let mut parts = String::new();
 
     let param_kinds = &[
@@ -566,6 +612,20 @@ fn normalize_import(s: &str) -> String {
         .trim_matches(|c| c == '\'' || c == '"');
     // Handle Python "from X import Y" → keep just "X"
     let s = s.split(" import ").next().unwrap_or(s);
+    // JS/TS: "React from 'react'" or "{ useState } from 'react'" → "react"
+    // After stripping "import " prefix, we have "React from 'react'"
+    // Extract the module path after " from " and strip quotes
+    if let Some(idx) = s.find(" from ") {
+        let module = s
+            .get(idx + 6..)
+            .unwrap_or("")
+            .trim()
+            .trim_matches(|c: char| c == '\'' || c == '"');
+        if !module.is_empty() {
+            return module.to_string();
+        }
+    }
+    // Rust: strip brace groups like "std::collections::{HashMap, HashSet}"
     match s.find("::{") {
         Some(i) => s.get(..i).unwrap_or(s).to_string(),
         None => s.to_string(),

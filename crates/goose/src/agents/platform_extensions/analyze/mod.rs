@@ -217,9 +217,7 @@ impl AnalyzeClient {
     fn finish(output: String, force: bool) -> CallToolResult {
         match format::check_size(&output, force) {
             Ok(text) => CallToolResult::success(vec![Content::text(text).with_priority(0.0)]),
-            Err(warning) => {
-                CallToolResult::success(vec![Content::text(warning).with_priority(0.0)])
-            }
+            Err(warning) => CallToolResult::error(vec![Content::text(warning).with_priority(0.0)]),
         }
     }
 }
