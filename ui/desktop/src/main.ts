@@ -105,7 +105,7 @@ function updateSettings(modifier: (settings: Settings) => void): void {
   try {
     fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
   } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
+    const code = (error as { code?: string }).code;
     const canReplaceExistingFile =
       code === 'EEXIST' || code === 'EPERM' || code === 'ENOTEMPTY';
     const existingSettingsFile = fsSync.existsSync(SETTINGS_FILE);
