@@ -189,7 +189,7 @@ static LANGUAGES: &[LangInfo] = &[
         language: || tree_sitter_go::LANGUAGE.into(),
         fn_kinds: &["function_declaration", "method_declaration"],
         fn_name_kinds: &["identifier", "field_identifier"],
-        class_kinds: &["type_declaration"],
+        class_kinds: &["type_declaration", "method_declaration"],
         queries: LangQueries {
             functions: r#"
                 (function_declaration name: (identifier) @name)

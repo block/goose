@@ -374,8 +374,33 @@ fn find_enclosing_class(node: tree_sitter::Node, source: &str, info: &LangInfo) 
     while let Some(parent) = cur.parent() {
         if info.class_kinds.contains(&parent.kind()) {
             if parent.kind() == "impl_item" {
+                // For trait impls (impl Trait for Type), get the type after "for"
+                let mut found_for = false;
+                for i in 0..parent.child_count() as u32 {
+                    if let Some(child) = parent.child(i) {
+                        if node_text(source, &child) == "for" {
+                            found_for = true;
+                        } else if found_for
+                            && (child.kind() == "type_identifier"
+                                || child.kind() == "generic_type"
+                                || child.kind() == "scoped_type_identifier")
+                        {
+                            return Some(node_text(source, &child).to_string());
+                        }
+                    }
+                }
+                // Inherent impl — first type_identifier is the type itself
                 return find_child_by_kind(&parent, "type_identifier")
                     .map(|n| node_text(source, &n).to_string());
+            }
+            // Go method_declaration: func (r *ReceiverType) Method() — extract receiver type
+            if parent.kind() == "method_declaration" {
+                if let Some(params) = find_child_by_kind(&parent, "parameter_list") {
+                    if let Some(ti) = find_descendant_by_kind(&params, "type_identifier") {
+                        return Some(node_text(source, &ti).to_string());
+                    }
+                }
+                return None;
             }
             // For Go type_declaration, look inside type_spec
             if parent.kind() == "type_declaration" {

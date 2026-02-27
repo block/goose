@@ -51,6 +51,16 @@ impl CallGraph {
             }
         }
 
+        // Register <module> pseudo-nodes so top-level calls have a caller key
+        for a in analyses {
+            let module_key = (a.path.clone(), "<module>".to_string(), 0usize);
+            nodes.entry(module_key).or_insert_with(|| Node {
+                file: a.path.clone(),
+                name: "<module>".to_string(),
+                line: 0,
+            });
+        }
+
         // Build a name → keys index for resolving cross-file calls
         let mut name_index: HashMap<&str, Vec<NodeKey>> = HashMap::new();
         for key in nodes.keys() {
@@ -74,17 +84,20 @@ impl CallGraph {
 
         for a in analyses {
             for call in &a.calls {
-                let caller_key = resolve_caller_key(a, call, &def_lines);
+                // Fall back to <module> pseudo-node for top-level calls
+                let caller_key = resolve_caller_key(a, call, &def_lines)
+                    .unwrap_or_else(|| (a.path.clone(), "<module>".to_string(), 0));
                 // Resolve callee: same-file first, then cross-file (same language only)
                 let callee_keys = resolve_callee(a, call, &name_index, &lang_index);
-                if let Some(ck) = caller_key {
-                    for callee_key in callee_keys {
-                        incoming
-                            .entry(callee_key.clone())
-                            .or_default()
-                            .insert(ck.clone());
-                        outgoing.entry(ck.clone()).or_default().insert(callee_key);
-                    }
+                for callee_key in callee_keys {
+                    incoming
+                        .entry(callee_key.clone())
+                        .or_default()
+                        .insert(caller_key.clone());
+                    outgoing
+                        .entry(caller_key.clone())
+                        .or_default()
+                        .insert(callee_key);
                 }
             }
         }
