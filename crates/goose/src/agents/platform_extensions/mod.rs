@@ -1,5 +1,6 @@
 pub mod apps;
 pub mod chatrecall;
+#[cfg(feature = "code-mode")]
 pub mod code_execution;
 pub mod developer;
 pub mod ext_manager;
@@ -88,6 +89,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
             },
         );
 
+        #[cfg(feature = "code-mode")]
         map.insert(
             code_execution::EXTENSION_NAME,
             PlatformExtensionDef {

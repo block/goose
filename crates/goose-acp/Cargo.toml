@@ -15,11 +15,15 @@ path = "src/bin/server.rs"
 name = "generate-acp-schema"
 path = "src/bin/generate_acp_schema.rs"
 
+[features]
+default = ["code-mode"]
+code-mode = ["goose/code-mode"]
+
 [lints]
 workspace = true
 
 [dependencies]
-goose = { path = "../goose" }
+goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"

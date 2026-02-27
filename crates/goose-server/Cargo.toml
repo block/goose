@@ -11,11 +11,12 @@ description.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["code-mode"]
+code-mode = ["goose/code-mode"]
 cuda = ["goose/cuda"]
 
 [dependencies]
-goose = { path = "../goose" }
+goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 axum = { workspace = true, features = ["ws", "macros"] }
