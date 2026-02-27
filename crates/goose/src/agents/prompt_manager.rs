@@ -384,4 +384,43 @@ mod tests {
 
         assert_snapshot!(system_prompt)
     }
+
+    #[tokio::test]
+    async fn test_all_platform_extensions() {
+        use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
+        use crate::session::SessionManager;
+        use std::sync::Arc;
+
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let session_manager = Arc::new(SessionManager::new(tmp_dir.path().to_path_buf()));
+        let context = PlatformExtensionContext {
+            extension_manager: None,
+            session_manager,
+        };
+
+        let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
+            .iter()
+            .map(|(_, def)| {
+                let client = (def.client_factory)(context.clone());
+                let info = client.get_info();
+                let instructions = info
+                    .and_then(|i| i.instructions.clone())
+                    .unwrap_or_default();
+                let has_resources = info
+                    .and_then(|i| i.capabilities.resources.as_ref())
+                    .is_some();
+                ExtensionInfo::new(def.name, &instructions, has_resources)
+            })
+            .collect();
+
+        extensions.sort_by(|a, b| a.name.cmp(&b.name));
+
+        let manager = PromptManager::with_timestamp(DateTime::<Utc>::from_timestamp(0, 0).unwrap());
+        let system_prompt = manager
+            .builder()
+            .with_extensions(extensions.into_iter())
+            .build();
+
+        assert_snapshot!(system_prompt);
+    }
 }
