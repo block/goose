@@ -88,6 +88,9 @@ Use write and edit to efficiently make changes. Test and verify as appropriate.
 
 ### Instructions
 Load knowledge and delegate tasks to subagents using the summon extension.
+
+Skills available:
+• goose-doc-guide - Reference goose documentation to create, configure, or explain goose-specific features like recipes, extensions, sessions, and providers. You MUST fetch relevant goose docs before answering. You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
 ## todo
 
 ### Instructions

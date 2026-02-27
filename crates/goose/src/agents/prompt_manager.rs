@@ -401,10 +401,18 @@ mod tests {
 
         let tmp_dir = tempfile::tempdir().unwrap();
         let session_manager = Arc::new(SessionManager::new(tmp_dir.path().to_path_buf()));
+        let session = session_manager
+            .create_session(
+                tmp_dir.path().to_path_buf(),
+                "test session".to_owned(),
+                crate::session::SessionType::Hidden,
+            )
+            .await
+            .unwrap();
         let context = PlatformExtensionContext {
             extension_manager: None,
             session_manager,
-            session: None,
+            session: Some(Arc::new(session)),
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
