@@ -29,36 +29,45 @@ npm run test-e2e:contrast
 
 ## Existing journeys
 
+### Ungated journeys (should run in any environment)
+
 - `journey-onboarding-welcome.spec.ts`
-  - First-run onboarding (Welcome page). Should run even without a configured provider.
+  - First-run onboarding (Welcome page). Validates the “choose a model provider” UI is present.
+
+- `journey-settings-providers.spec.ts`
+  - Opens `#/configure-providers`.
+  - This route is intentionally **not** guarded by `ProviderGuard`.
+
+### Provider-gated journeys (require a configured provider + `RUN_E2E_PROVIDER_JOURNEYS=true`)
 
 - `journey-create-session.spec.ts`
-  - Chat happy path (create session + send message).
-  - Skips automatically if the app redirects to `/welcome` (no provider configured).
+  - Chat happy path (open `#/pair` and send a message).
 
 - `journey-settings-models.spec.ts`
   - Settings → Models → open/close “Switch models”.
-  - Skips if no provider configured.
-
-- `journey-settings-providers.spec.ts`
-  - Settings → Providers (via `#/configure-providers`).
-  - Light assertions (provider inventory is environment-specific).
 
 - `journey-evaluate.spec.ts`
   - Navigate to Evaluate.
-  - Skips if no provider configured.
+
+- `journey-evaluate-datasets.spec.ts`
+  - Evaluate → Datasets: create a dataset via UI.
+
+- `journey-evaluate-runs.spec.ts`
+  - Evaluate → Run History: opens run details if present.
+  - Optionally creates a run if `RUN_E2E_EVAL_RUNS=true`.
 
 - `journey-monitoring.spec.ts`
   - Navigate to Monitoring.
-  - Skips if no provider configured.
+
+- `journey-monitoring-details.spec.ts`
+  - Monitoring: switches to Live + Tool Analytics tabs.
+  - Accepts either “loaded” or “error” UI (environment dependent).
 
 - `journey-workflows.spec.ts`
   - Navigate Recipes → Pipelines → Scheduler.
-  - Skips if no provider configured.
 
 - `journey-extensions.spec.ts`
   - Navigate to Extensions.
-  - Skips if no provider configured.
 
 ## Conventions
 
