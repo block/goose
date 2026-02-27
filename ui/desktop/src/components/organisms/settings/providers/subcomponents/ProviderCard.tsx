@@ -39,6 +39,7 @@ export const ProviderCard = function ProviderCard({
       testId={`provider-card-${provider.name.toLowerCase()}`}
       grayedOut={!provider.is_configured && isOnboarding} // onboarding page will have grayed out cards if not configured
       onClick={handleCardClick}
+      ariaLabel={`Open ${metadata.display_name || provider?.name || 'provider'} settings`}
       header={
         <CardHeader
           name={metadata.display_name || provider?.name || 'Unknown Provider'}
@@ -46,15 +47,14 @@ export const ProviderCard = function ProviderCard({
           isConfigured={provider?.is_configured || false}
         />
       }
-      body={
-        <CardBody>
-          <DefaultCardButtons
-            provider={provider}
-            onConfigure={onConfigure}
-            onLaunch={onLaunch}
-            isOnboardingPage={isOnboarding}
-          />
-        </CardBody>
+      body={<CardBody />}
+      actions={
+        <DefaultCardButtons
+          provider={provider}
+          onConfigure={onConfigure}
+          onLaunch={onLaunch}
+          isOnboardingPage={isOnboarding}
+        />
       }
     />
   );

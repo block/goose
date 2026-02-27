@@ -34,6 +34,7 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
     <CardContainer
       testId="add-custom-provider-card"
       onClick={onClick}
+      ariaLabel="Add a custom provider"
       header={null}
       body={
         <div className="flex flex-col items-center justify-center min-h-[200px]">
