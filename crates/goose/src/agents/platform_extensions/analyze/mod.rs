@@ -301,6 +301,7 @@ mod tests {
         PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(SessionManager::new(std::env::temp_dir())),
+            session: None,
         }
     }
 
