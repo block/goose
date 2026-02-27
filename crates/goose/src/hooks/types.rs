@@ -298,4 +298,5 @@ pub enum HookDecision {
 pub struct HooksOutcome {
     pub blocked: bool,
     pub context: Option<String>,
+    pub reason: Option<String>,
 }

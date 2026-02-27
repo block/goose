@@ -125,7 +125,7 @@ impl Agent {
                                         request.id.clone(),
                                         Err(rmcp::model::ErrorData::new(
                                             rmcp::model::ErrorCode::INTERNAL_ERROR,
-                                            "Tool execution blocked by hook".to_string(),
+                                            outcome.reason.as_deref().unwrap_or("Tool execution blocked by hook").to_string(),
                                             None,
                                         )),
                                         request.metadata.as_ref(),

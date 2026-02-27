@@ -59,7 +59,7 @@ fn resolve_login_shell_path() -> Option<String> {
 
 /// Returns the user's full login shell PATH, resolved once and cached.
 #[cfg(not(windows))]
-fn user_login_path() -> Option<&'static str> {
+pub(crate) fn user_login_path() -> Option<&'static str> {
     static CACHED: OnceLock<Option<String>> = OnceLock::new();
     CACHED.get_or_init(resolve_login_shell_path).as_deref()
 }
@@ -204,7 +204,7 @@ async fn run_command(
     })
 }
 
-fn build_shell_command(command_line: &str) -> tokio::process::Command {
+pub(crate) fn build_shell_command(command_line: &str) -> tokio::process::Command {
     #[cfg(windows)]
     let mut command = {
         let mut command = tokio::process::Command::new("cmd");

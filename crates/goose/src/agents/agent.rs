@@ -414,7 +414,11 @@ impl Agent {
                     // Create an error response instead of dispatching
                     let error_result = Err(ErrorData::new(
                         ErrorCode::INTERNAL_ERROR,
-                        "Tool execution blocked by hook".to_string(),
+                        outcome
+                            .reason
+                            .as_deref()
+                            .unwrap_or("Tool execution blocked by hook")
+                            .to_string(),
                         None,
                     ));
                     tool_futures.push((
@@ -1288,8 +1292,13 @@ impl Agent {
                 .await
                 .unwrap_or_default();
             if outcome.blocked {
+                let block_msg = outcome
+                    .reason
+                    .as_deref()
+                    .unwrap_or("Prompt blocked by hook.")
+                    .to_string();
                 return Ok(Box::pin(async_stream::try_stream! {
-                    yield AgentEvent::Message(Message::assistant().with_text("Prompt blocked by hook."));
+                    yield AgentEvent::Message(Message::assistant().with_text(block_msg));
                 }));
             }
             if let Some(ctx) = outcome.context {
