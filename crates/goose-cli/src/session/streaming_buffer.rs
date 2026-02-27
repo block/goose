@@ -21,7 +21,80 @@
 //! ```
 
 use regex::Regex;
+use std::io::Write;
 use std::sync::LazyLock;
+
+const MAX_CODE_BLOCK_LINES: usize = 50;
+const TRUNCATED_SHOW_LINES: usize = 20;
+
+fn truncate_code_blocks(content: &str) -> String {
+    let (open_pos, fence) = match (content.find("```"), content.find("~~~")) {
+        (Some(a), Some(b)) if a <= b => (a, "```"),
+        (Some(a), None) => (a, "```"),
+        (None, Some(b)) => (b, "~~~"),
+        (Some(_), Some(b)) => (b, "~~~"),
+        (None, None) => return content.to_string(),
+    };
+
+    let Some(after_open) = content.get(open_pos + 3..) else {
+        return content.to_string();
+    };
+    let Some(newline_pos) = after_open.find('\n') else {
+        return content.to_string();
+    };
+    let code_start = open_pos + 3 + newline_pos + 1;
+
+    let Some(code_region) = content.get(code_start..) else {
+        return content.to_string();
+    };
+    let close_pattern = format!("\n{}", fence);
+    let Some(close_offset) = code_region.find(&close_pattern) else {
+        return content.to_string();
+    };
+
+    let Some(code_content) = code_region.get(..close_offset) else {
+        return content.to_string();
+    };
+    let lines: Vec<&str> = code_content.lines().collect();
+
+    if lines.len() <= MAX_CODE_BLOCK_LINES {
+        return content.to_string();
+    }
+
+    let truncated: String = lines
+        .iter()
+        .take(TRUNCATED_SHOW_LINES)
+        .copied()
+        .collect::<Vec<_>>()
+        .join("\n");
+    let remaining = lines.len() - TRUNCATED_SHOW_LINES;
+
+    let file_msg = save_to_temp_file(code_content)
+        .map(|p| format!(" → {}", p))
+        .unwrap_or_default();
+
+    let close_pos = code_start + close_offset + 1; // +1 to include the \n
+    let prefix = content.get(..code_start).unwrap_or("");
+    let suffix = content.get(close_pos..).unwrap_or("");
+    format!(
+        "{}{}\n... ({} more lines{})\n{}",
+        prefix, truncated, remaining, file_msg, suffix
+    )
+}
+
+fn save_to_temp_file(content: &str) -> Option<String> {
+    let mut file = tempfile::Builder::new()
+        .prefix("goose-")
+        .suffix(".txt")
+        .tempfile()
+        .ok()?;
+
+    file.write_all(content.as_bytes()).ok()?;
+
+    // Keep the file (don't delete on drop) and get the path
+    let (_, path) = file.keep().ok()?;
+    Some(path.display().to_string())
+}
 
 /// Regex that tokenizes markdown inline elements.
 /// Order matters: longer/more-specific patterns first.
@@ -52,7 +125,8 @@ static INLINE_TOKEN_RE: LazyLock<Regex> = LazyLock::new(|| {
 /// A streaming markdown buffer that tracks open constructs.
 ///
 /// Accumulates chunks and returns content that is safe to render,
-/// holding back any incomplete markdown constructs.
+/// holding back any incomplete markdown constructs. Large code blocks
+/// are automatically truncated with full content saved to a temp file.
 #[derive(Default)]
 pub struct MarkdownBuffer {
     buffer: String,
@@ -106,7 +180,8 @@ impl MarkdownBuffer {
     /// Add a chunk of markdown text to the buffer.
     ///
     /// Returns any content that is safe to render, or None if the buffer
-    /// contains only incomplete constructs.
+    /// contains only incomplete constructs. Large code blocks are automatically
+    /// truncated with full content saved to a temp file.
     pub fn push(&mut self, chunk: &str) -> Option<String> {
         self.buffer.push_str(chunk);
         let safe_end = self.find_safe_end();
@@ -118,7 +193,7 @@ impl MarkdownBuffer {
             // - The regex tokenizer operates on &str which guarantees UTF-8
             let to_render = self.buffer[..safe_end].to_string();
             self.buffer = self.buffer[safe_end..].to_string();
-            Some(to_render)
+            Some(truncate_code_blocks(&to_render))
         } else {
             None
         }
@@ -592,5 +667,24 @@ mod tests {
     )]
     fn test_incomplete_constructs(chunks: &[&str], expected: &[&str]) {
         assert_eq!(stream(chunks), expected);
+    }
+
+    #[test]
+    fn test_multiple_code_blocks_mixed() {
+        // One small, one large
+        let small_block = "```python\nprint('hello')\n```\n";
+        let large_lines: Vec<String> = (1..=60).map(|i| format!("line {}", i)).collect();
+        let large_block = format!("```rust\n{}\n```\n", large_lines.join("\n"));
+        let input = format!(
+            "Some text\n\n{}\n\nMore text\n\n{}",
+            small_block, large_block
+        );
+
+        let result = truncate_code_blocks(&input);
+
+        // Small block should be unchanged
+        assert!(result.contains("print('hello')"));
+        // Large block should be truncated
+        assert!(result.contains("... (40 more lines"));
     }
 }
