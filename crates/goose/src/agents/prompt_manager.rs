@@ -254,6 +254,8 @@ impl PromptManager {
 mod tests {
     use insta::assert_snapshot;
 
+    use crate::agents::extension::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
+
     use super::*;
 
     #[test]
@@ -387,7 +389,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_all_platform_extensions() {
-        use crate::agents::platform_extensions::{PlatformExtensionContext, PLATFORM_EXTENSIONS};
         use crate::session::SessionManager;
         use std::sync::Arc;
 
