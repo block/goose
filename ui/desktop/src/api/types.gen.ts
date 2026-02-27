@@ -173,6 +173,7 @@ export type CspMetadata = {
 
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
+    base_path?: string | null;
     base_url: string;
     catalog_provider_id?: string | null;
     description?: string | null;
@@ -1477,6 +1478,7 @@ export type UiMetadata = {
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
+    base_path?: string | null;
     catalog_provider_id?: string | null;
     display_name: string;
     engine: string;

@@ -4177,6 +4177,10 @@
           "api_key_env": {
             "type": "string"
           },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
           "base_url": {
             "type": "string"
           },
@@ -8158,6 +8162,10 @@
           },
           "api_url": {
             "type": "string"
+          },
+          "base_path": {
+            "type": "string",
+            "nullable": true
           },
           "catalog_provider_id": {
             "type": "string",
