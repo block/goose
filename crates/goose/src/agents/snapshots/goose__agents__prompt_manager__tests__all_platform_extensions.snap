@@ -83,13 +83,10 @@ Workflow:
     3. Chain results: use output from one tool as input to the next
     4. Only return and console.log data you need, tools could have very large responses.
 
-## skills
+## summon
 
 ### Instructions
-You have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:
-
-- goose-doc-guide: Reference goose documentation to create, configure, or explain goose-specific features like recipes, extensions, sessions, and providers. You MUST fetch relevant goose docs before answering. You MUST NOT rely on training data or assumptions for any goose-specific fields, values, names, syntax, or commands.
-
+Load knowledge and delegate tasks to subagents using the summon extension.
 ## todo
 
 ### Instructions
