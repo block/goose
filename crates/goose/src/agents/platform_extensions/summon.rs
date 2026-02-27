@@ -1054,18 +1054,50 @@ impl SummonClient {
                 );
 
                 if !source.supporting_files.is_empty() {
-                    output.push_str(&format!(
-                        "\n## Supporting Files\n\nSkill directory: {}\n\nThe following supporting files are available:\n",
-                        source.path.display()
-                    ));
+                    let mut other_files: Vec<std::path::PathBuf> = Vec::new();
+
                     for file in &source.supporting_files {
+                        let is_md = file
+                            .extension()
+                            .is_some_and(|ext| ext == "md" || ext == "mdx");
+
                         if let Ok(relative) = file.strip_prefix(&source.path) {
-                            output.push_str(&format!("- {}\n", relative.display()));
+                            if is_md {
+                                match std::fs::read_to_string(file) {
+                                    Ok(file_content) => {
+                                        output.push_str(&format!(
+                                            "\n## {}\n\n{}\n",
+                                            relative.display(),
+                                            file_content.trim()
+                                        ));
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "Failed to read supporting file {}: {}",
+                                            file.display(),
+                                            e
+                                        );
+                                        other_files.push(relative.to_path_buf());
+                                    }
+                                }
+                            } else {
+                                other_files.push(relative.to_path_buf());
+                            }
                         }
                     }
-                    output.push_str(
-                        "\nUse the file tools to read these files or run scripts as directed.\n",
-                    );
+
+                    if !other_files.is_empty() {
+                        output.push_str(&format!(
+                            "\n## Other Files\n\nSkill directory: {}\n\n",
+                            source.path.display()
+                        ));
+                        for relative in &other_files {
+                            output.push_str(&format!("- {}\n", relative.display()));
+                        }
+                        output.push_str(
+                            "\nUse the file tools to read these files or run scripts as directed.\n",
+                        );
+                    }
                 }
 
                 output.push_str("\n---\nThis knowledge is now available in your context.");
@@ -1915,6 +1947,48 @@ You review code."#;
             .collect();
         assert!(file_names.contains(&"myscript.sh".to_string()));
         assert!(file_names.contains(&"report.txt".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_load_source_inlines_markdown_supporting_files() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("references")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nSee references.",
+        )
+        .unwrap();
+        fs::write(
+            skill_dir.join("references/ops.md"),
+            "# Ops Guide\n\nDo the thing.",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("run.sh"), "#!/bin/bash\necho ok").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let result = client
+            .handle_load_source("test", "my-skill", temp_dir.path())
+            .await
+            .unwrap();
+
+        let text = &result[0].as_text().expect("expected text content").text;
+
+        assert!(
+            text.contains("Ops Guide"),
+            "md file content should be inlined"
+        );
+        assert!(text.contains("Do the thing."));
+        assert!(text.contains("run.sh"), "non-md file should be listed");
+        assert!(
+            !text.contains("#!/bin/bash"),
+            "script content should not be inlined"
+        );
+        assert!(
+            text.contains("Use the file tools"),
+            "non-md files should have file tools message"
+        );
     }
 
     #[tokio::test]
