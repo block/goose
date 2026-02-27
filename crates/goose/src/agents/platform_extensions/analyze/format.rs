@@ -170,27 +170,31 @@ pub fn format_focused(
     files_analyzed: usize,
 ) -> String {
     let defs = graph.definitions(symbol);
-    let incoming = graph.incoming(symbol, follow_depth);
-    let outgoing = graph.outgoing(symbol, follow_depth);
 
-    if defs.is_empty() && incoming.is_empty() && outgoing.is_empty() {
+    // Always count direct neighbors at depth=1, independent of follow_depth,
+    // so the ref count is accurate even when follow_depth=0.
+    let depth1_in = graph.incoming(symbol, 1);
+    let depth1_out = graph.outgoing(symbol, 1);
+
+    if defs.is_empty() && depth1_in.is_empty() && depth1_out.is_empty() {
         return format!(
             "Symbol '{}' not found in {} analyzed files.\n",
             symbol, files_analyzed
         );
     }
 
+    let incoming = graph.incoming(symbol, follow_depth);
+    let outgoing = graph.outgoing(symbol, follow_depth);
+
     let mut out = String::new();
 
-    // Count unique direct callers (second element of incoming chains)
-    let direct_callers: HashSet<_> = incoming
+    let direct_callers: HashSet<_> = depth1_in
         .iter()
         .filter_map(|chain| chain.get(1))
         .map(|link| (&link.file, &link.name, link.line))
         .collect();
 
-    // Count unique direct callees (second element of outgoing chains)
-    let direct_callees: HashSet<_> = outgoing
+    let direct_callees: HashSet<_> = depth1_out
         .iter()
         .filter_map(|chain| chain.get(1))
         .map(|link| (&link.file, &link.name, link.line))
