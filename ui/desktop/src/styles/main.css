@@ -60,9 +60,14 @@
   --font-mono: monospace;
 
   /* theming accents */
-  --background-accent: var(--color-accent);
-  --border-accent: var(--color-accent);
-  --text-accent: var(--color-accent);
+  /*
+   * Note: do NOT reference `--color-accent` here.
+   * `--color-accent` is also used as a shadcn compatibility token later in this file,
+   * so referencing it would allow that mapping to accidentally change our app accent.
+   */
+  --background-accent: var(--color-neutral-900);
+  --border-accent: var(--color-neutral-900);
+  --text-accent: var(--color-neutral-900);
   --text-on-accent: var(--color-white);
 
   /* Semantic */

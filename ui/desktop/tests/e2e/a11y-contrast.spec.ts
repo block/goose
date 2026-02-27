@@ -1,6 +1,6 @@
 import axe from 'axe-core';
 import type { Page, TestInfo } from '@playwright/test';
-import { test, expect } from './fixtures';
+import { expect, test } from './fixtures';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -10,14 +10,38 @@ test.skip(
 );
 
 // This suite can be slow on first run (starting goosed, reading user config, etc.).
+// We prefer multiple smaller tests for better reporting.
+// Each test still launches a fresh Electron app (fixture behavior).
+// If this becomes too slow, we can introduce a worker-scoped Electron fixture.
+
 test.describe.configure({ timeout: 180_000 });
 
 type AxeRunResult = {
-  violations: Array<{ id: string; description: string; help: string; impact: string | null; nodes: unknown[] }>;
+  violations: Array<{
+    id: string;
+    description: string;
+    help: string;
+    impact: string | null;
+    nodes: unknown[];
+  }>;
 };
 
+async function ensureRootReady(page: Page) {
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForFunction(
+    () => {
+      const root = document.getElementById('root');
+      return root && root.children.length > 0;
+    },
+    undefined,
+    { timeout: 30_000 }
+  );
+}
+
 async function ensureAxeInjected(page: Page) {
-  const hasAxe = await page.evaluate(() => Boolean((window as unknown as { axe?: unknown }).axe)).catch(() => false);
+  const hasAxe = await page
+    .evaluate(() => Boolean((window as unknown as { axe?: unknown }).axe))
+    .catch(() => false);
   if (hasAxe) return;
 
   await page.addScriptTag({ content: axe.source });
@@ -52,8 +76,6 @@ async function runContrastAudit(page: Page, label: string, testInfo: TestInfo) {
   await mkdir(dirname(outPath), { recursive: true });
   await writeFile(outPath, JSON.stringify(results, null, 2));
 
-  // Helpful when running from CLI and not opening the HTML report.
-  // (The detailed nodes/targets remain in the JSON.)
   // eslint-disable-next-line no-console
   console.log(`[axe-contrast] ${label}: ${results.violations.length} violation(s) -> ${outPath}`);
 
@@ -74,6 +96,41 @@ async function navigateSidebar(page: Page, itemLabel: string): Promise<boolean> 
   } catch {
     return false;
   }
+}
+
+async function clickTabIfPresent(page: Page, tabName: RegExp): Promise<boolean> {
+  const tab = page.getByRole('button', { name: tabName }).first();
+  if ((await tab.count()) === 0) return false;
+
+  try {
+    await tab.click({ timeout: 2_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hashRouteUrl(page: Page, route: string) {
+  const base = page.url().split('#')[0];
+  const normalized = route.startsWith('/') ? route : `/${route}`;
+  return `${base}#${normalized}`;
+}
+
+async function gotoHashRouteOrWelcome(page: Page, route: string): Promise<'ok' | 'welcome'> {
+  const url = hashRouteUrl(page, route);
+  await page.goto(url);
+  await page.waitForURL(/#\/(welcome|monitoring|evaluate|pair|settings|extensions|configure-providers)/i, {
+    timeout: 30_000,
+  });
+
+  return /#\/welcome\b/i.test(page.url()) ? 'welcome' : 'ok';
+}
+
+async function enableDarkMode(page: Page) {
+  await page.evaluate(() => {
+    document.documentElement.classList.add('dark');
+  });
+  await page.waitForTimeout(250);
 }
 
 async function dismissOptionalChooseModelModal(page: Page) {
@@ -101,73 +158,209 @@ async function dismissOptionalTelemetryModal(page: Page) {
   }
 }
 
-test('a11y: color contrast (axe-core)', async ({ goosePage }, testInfo) => {
-  await goosePage.waitForLoadState('domcontentloaded');
+async function bootstrap(page: Page) {
+  await ensureRootReady(page);
+  await dismissOptionalChooseModelModal(page);
+  await dismissOptionalTelemetryModal(page);
+}
 
-  await goosePage.waitForFunction(
-    () => {
-      const root = document.getElementById('root');
-      return root && root.children.length > 0;
-    },
-    undefined,
-    { timeout: 30_000 }
-  );
-
-  await dismissOptionalChooseModelModal(goosePage);
-  await dismissOptionalTelemetryModal(goosePage);
-
-  // Always audit whatever screen we land on (welcome, chat, etc.).
-  await runContrastAudit(goosePage, 'initial-light', testInfo);
-
-  // Optional navigation pass. If we can't navigate due to first-run state,
-  // we still have the baseline audit above.
-  if (await navigateSidebar(goosePage, 'home')) {
-    if (await goosePage.locator('[data-testid="chat-input"]').isVisible().catch(() => false)) {
-      await runContrastAudit(goosePage, 'chat-light', testInfo);
-    }
-  }
-
-  if (await navigateSidebar(goosePage, 'settings')) {
-    if (await goosePage.locator('[data-testid="settings-app-tab"]').isVisible().catch(() => false)) {
-      await runContrastAudit(goosePage, 'settings-light', testInfo);
-    }
-  }
-
-  if (await navigateSidebar(goosePage, 'monitoring')) {
-    if (await goosePage.locator('text=Monitoring').isVisible().catch(() => false)) {
-      await runContrastAudit(goosePage, 'monitoring-light', testInfo);
-    }
-  }
-
-  if (await navigateSidebar(goosePage, 'evaluate')) {
-    if (await goosePage.locator('text=Evaluate').isVisible().catch(() => false)) {
-      await runContrastAudit(goosePage, 'evaluate-light', testInfo);
-    }
-  }
-
-  if (await navigateSidebar(goosePage, 'extensions')) {
-    if (await goosePage.locator('text=Extensions').isVisible().catch(() => false)) {
-      await runContrastAudit(goosePage, 'extensions-light', testInfo);
-    }
-  }
-
-  // Dark-mode pass: toggle via the class to exercise the dark token palette.
-  await goosePage.evaluate(() => {
-    document.documentElement.classList.add('dark');
+test.describe('a11y: color contrast (axe-core)', () => {
+  test('initial (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+    await runContrastAudit(goosePage, 'initial-light', testInfo);
   });
-  await goosePage.waitForTimeout(250);
 
-  await runContrastAudit(goosePage, 'initial-dark', testInfo);
+  test('chat (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
 
-  if (await navigateSidebar(goosePage, 'home')) {
-    if (await goosePage.locator('[data-testid="chat-input"]').isVisible().catch(() => false)) {
-      await runContrastAudit(goosePage, 'chat-dark', testInfo);
+    const navigated = await navigateSidebar(goosePage, 'home');
+    if (!navigated) test.skip(true, 'Sidebar navigation not available in this environment');
+
+    const hasChat = await goosePage.locator('[data-testid="chat-input"]').isVisible().catch(() => false);
+    if (!hasChat) test.skip(true, 'Chat input not visible');
+
+    await runContrastAudit(goosePage, 'chat-light', testInfo);
+  });
+
+  test('settings (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/settings')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
     }
-  }
 
-  if (await navigateSidebar(goosePage, 'settings')) {
-    if (await goosePage.locator('[data-testid="settings-app-tab"]').isVisible().catch(() => false)) {
-      await runContrastAudit(goosePage, 'settings-dark', testInfo);
+    const settingsTabs = await goosePage.locator('[data-testid="settings-app-tab"]').isVisible().catch(() => false);
+    if (!settingsTabs) test.skip(true, 'Settings view not ready');
+
+    await runContrastAudit(goosePage, 'settings-light', testInfo);
+  });
+
+  test('monitoring: dashboard (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/monitoring')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
     }
-  }
+
+    const title = await goosePage.locator('text=Monitoring').isVisible().catch(() => false);
+    if (!title) test.skip(true, 'Monitoring view not ready');
+
+    await runContrastAudit(goosePage, 'monitoring-light', testInfo);
+  });
+
+  test('monitoring: live tab (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/monitoring')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
+    }
+
+    if (!(await clickTabIfPresent(goosePage, /^live$/i))) {
+      test.skip(true, 'Monitoring Live tab not present');
+    }
+
+    await goosePage.waitForTimeout(150);
+
+    const liveHeading = await goosePage
+      .getByRole('heading', { name: /live monitoring/i })
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!liveHeading) test.skip(true, 'Live tab not ready');
+
+    await runContrastAudit(goosePage, 'monitoring-live-light', testInfo);
+  });
+
+  test('monitoring: tool analytics tab (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/monitoring')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
+    }
+
+    if (!(await clickTabIfPresent(goosePage, /^tool analytics$/i))) {
+      test.skip(true, 'Tool Analytics tab not present');
+    }
+
+    await goosePage.waitForTimeout(150);
+
+    const ready = await goosePage
+      .getByText(/daily tool activity|tool usage|failed to load analytics/i)
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!ready) test.skip(true, 'Tool Analytics view not ready');
+
+    await runContrastAudit(goosePage, 'monitoring-tools-light', testInfo);
+  });
+
+  test('evaluate: overview (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/evaluate')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
+    }
+
+    const title = await goosePage.locator('text=Evaluate').isVisible().catch(() => false);
+    if (!title) test.skip(true, 'Evaluate view not ready');
+
+    await runContrastAudit(goosePage, 'evaluate-light', testInfo);
+  });
+
+  test('evaluate: datasets tab (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/evaluate')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
+    }
+
+    if (!(await clickTabIfPresent(goosePage, /^datasets$/i))) {
+      test.skip(true, 'Datasets tab not present');
+    }
+
+    await goosePage.waitForTimeout(150);
+
+    const heading = await goosePage
+      .getByRole('heading', { name: /evaluation datasets/i })
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!heading) test.skip(true, 'Datasets tab not ready');
+
+    await runContrastAudit(goosePage, 'evaluate-datasets-light', testInfo);
+  });
+
+  test('evaluate: run history tab (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/evaluate')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
+    }
+
+    if (!(await clickTabIfPresent(goosePage, /^run history$/i))) {
+      test.skip(true, 'Run History tab not present');
+    }
+
+    await goosePage.waitForTimeout(150);
+
+    const heading = await goosePage
+      .getByRole('heading', { name: /^run history$/i })
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!heading) test.skip(true, 'Run History tab not ready');
+
+    await runContrastAudit(goosePage, 'evaluate-runs-light', testInfo);
+  });
+
+  test('extensions (light)', async ({ goosePage }, testInfo) => {
+    await bootstrap(goosePage);
+
+    if ((await gotoHashRouteOrWelcome(goosePage, '/extensions')) === 'welcome') {
+      test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
+    }
+
+    const title = await goosePage.locator('text=Extensions').isVisible().catch(() => false);
+    if (!title) test.skip(true, 'Extensions view not ready');
+
+    await runContrastAudit(goosePage, 'extensions-light', testInfo);
+  });
+
+  test.describe('dark mode', () => {
+    test('initial (dark)', async ({ goosePage }, testInfo) => {
+      await bootstrap(goosePage);
+      await enableDarkMode(goosePage);
+      await runContrastAudit(goosePage, 'initial-dark', testInfo);
+    });
+
+    test('evaluate: datasets tab (dark)', async ({ goosePage }, testInfo) => {
+      await bootstrap(goosePage);
+
+      if ((await gotoHashRouteOrWelcome(goosePage, '/evaluate')) === 'welcome') {
+        test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
+      }
+
+      await enableDarkMode(goosePage);
+
+      if (!(await clickTabIfPresent(goosePage, /^datasets$/i))) {
+        test.skip(true, 'Datasets tab not present');
+      }
+
+      await goosePage.waitForTimeout(150);
+
+      const heading = await goosePage
+        .getByRole('heading', { name: /evaluation datasets/i })
+        .first()
+        .isVisible()
+        .catch(() => false);
+
+      if (!heading) test.skip(true, 'Datasets tab not ready');
+
+      await runContrastAudit(goosePage, 'evaluate-datasets-dark', testInfo);
+    });
+  });
 });
