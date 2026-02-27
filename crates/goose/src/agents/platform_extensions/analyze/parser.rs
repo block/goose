@@ -476,6 +476,15 @@ fn collect_field_names(
     for i in 0..node.child_count() as u32 {
         if let Some(child) = node.child(i) {
             if field_kinds.contains(&child.kind()) {
+                // Java/Kotlin: field name is inside variable_declarator, not a direct child.
+                // e.g. (field_declaration type: (type_identifier) declarator: (variable_declarator name: (identifier)))
+                if let Some(vd) = find_child_by_kind(&child, "variable_declarator") {
+                    if let Some(n) = find_child_by_kind(&vd, "identifier") {
+                        out.push(node_text(source, &n).to_string());
+                        continue;
+                    }
+                }
+                // Default: direct child lookup (Rust, Go, etc.)
                 let name_kinds = &["field_identifier", "identifier", "type_identifier"];
                 for nk in name_kinds {
                     if let Some(n) = find_child_by_kind(&child, nk) {

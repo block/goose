@@ -2,10 +2,9 @@
 //! Usage: cargo run -p goose --bin analyze_cli -- <path> [--focus <symbol>] [--depth <n>] [--follow <n>] [--force]
 
 use clap::Parser;
-use goose::agents::platform_extensions::analyze::{format, graph, parser};
-use ignore::WalkBuilder;
+use goose::agents::platform_extensions::analyze::{format, graph, AnalyzeClient};
 use rayon::prelude::*;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "analyze_cli", about = "Ad-hoc code analysis via tree-sitter")]
@@ -26,24 +25,6 @@ struct Cli {
     force: bool,
 }
 
-fn analyze_file(path: &Path) -> Option<parser::FileAnalysis> {
-    let source = std::fs::read_to_string(path).ok()?;
-    parser::Parser::new().analyze_file(path, &source)
-}
-
-fn collect_files(dir: &Path, max_depth: u32) -> Vec<PathBuf> {
-    let mut builder = WalkBuilder::new(dir);
-    if max_depth > 0 {
-        builder.max_depth(Some(max_depth as usize));
-    }
-    builder
-        .build()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
-        .map(|e| e.into_path())
-        .collect()
-}
-
 fn main() {
     let cli = Cli::parse();
     let path = if cli.path.is_absolute() {
@@ -62,14 +43,17 @@ fn main() {
         let files = if path.is_file() {
             vec![path.clone()]
         } else {
-            collect_files(&path, cli.depth)
+            AnalyzeClient::collect_files(&path, cli.depth)
         };
-        let analyses: Vec<_> = files.par_iter().filter_map(|f| analyze_file(f)).collect();
+        let analyses: Vec<_> = files
+            .par_iter()
+            .filter_map(|f| AnalyzeClient::analyze_file(f))
+            .collect();
         let g = graph::CallGraph::build(&analyses);
         format::format_focused(symbol, &g, cli.follow, analyses.len())
     } else if path.is_file() {
         // Semantic mode: single file details
-        match analyze_file(&path) {
+        match AnalyzeClient::analyze_file(&path) {
             Some(analysis) => {
                 let root = path.parent().unwrap_or(&path);
                 format::format_semantic(&analysis, root)
@@ -84,9 +68,12 @@ fn main() {
         }
     } else {
         // Structure mode: directory overview
-        let files = collect_files(&path, cli.depth);
+        let files = AnalyzeClient::collect_files(&path, cli.depth);
         let total_files = files.len();
-        let analyses: Vec<_> = files.par_iter().filter_map(|f| analyze_file(f)).collect();
+        let analyses: Vec<_> = files
+            .par_iter()
+            .filter_map(|f| AnalyzeClient::analyze_file(f))
+            .collect();
         format::format_structure(&analyses, &path, cli.depth, total_files)
     };
 

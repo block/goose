@@ -284,14 +284,33 @@ fn is_test_chain(chain: &[super::graph::ChainLink]) -> bool {
             return true;
         }
         let f = link.file.to_string_lossy();
+        // Rust / Python
         f.ends_with("_test.rs")
             || f.ends_with("_test.py")
+            // JavaScript / TypeScript
             || f.ends_with(".test.ts")
             || f.ends_with(".test.js")
             || f.ends_with(".test.tsx")
             || f.ends_with(".test.jsx")
+            // Go
+            || f.ends_with("_test.go")
+            // Java
+            || f.ends_with("Test.java")
+            || f.ends_with("Tests.java")
+            // Kotlin
+            || f.ends_with("Test.kt")
+            // Ruby (RSpec + Minitest)
+            || f.ends_with("_spec.rb")
+            || f.ends_with("_test.rb")
+            // Swift
+            || f.ends_with("Test.swift")
+            || f.ends_with("Tests.swift")
+            // Directory conventions
             || f.contains("/tests/")
             || f.contains("/test/")
+            || f.contains("/src/test/")  // Java/Kotlin (Maven/Gradle)
+            || f.contains("/spec/")      // Ruby (RSpec)
+            || f.contains("/Tests/") // Swift Package Manager
     })
 }
 

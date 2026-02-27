@@ -143,13 +143,13 @@ impl AnalyzeClient {
         }
     }
 
-    fn analyze_file(path: &Path) -> Option<FileAnalysis> {
+    pub fn analyze_file(path: &Path) -> Option<FileAnalysis> {
         let source = std::fs::read_to_string(path).ok()?;
         let parser = Parser::new();
         parser.analyze_file(path, &source)
     }
 
-    fn collect_files(dir: &Path, max_depth: u32) -> Vec<PathBuf> {
+    pub fn collect_files(dir: &Path, max_depth: u32) -> Vec<PathBuf> {
         let mut builder = WalkBuilder::new(dir);
         if max_depth > 0 {
             builder.max_depth(Some(max_depth as usize));
