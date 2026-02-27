@@ -711,6 +711,15 @@ fn find_enclosing_fn(node: tree_sitter::Node, source: &str, info: &LangInfo) -> 
             if parent.kind() == "deinit_declaration" {
                 return Some("deinit".into());
             }
+            // variable_declarator: only treat as function scope if value is arrow/function
+            if parent.kind() == "variable_declarator" {
+                let is_fn_value = find_child_by_kind(&parent, "arrow_function").is_some()
+                    || find_child_by_kind(&parent, "function").is_some();
+                if !is_fn_value {
+                    cur = parent;
+                    continue; // skip — not a function declarator
+                }
+            }
             // If this is an anonymous function-like node (closure, async block, arrow
             // function with no name), keep walking up to find the enclosing named function.
             if let Some(name) = find_child_text(&parent, info.fn_name_kinds, source) {

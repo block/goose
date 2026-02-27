@@ -76,16 +76,17 @@ impl AnalyzeClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(indoc! {"
+            instructions: Some(
+                indoc! {"
                 Analyze code structure using tree-sitter AST parsing. Three auto-selected modes:
                 - Directory path → structure overview (file tree with function/class counts)
                 - File path → semantic details (functions, classes, imports, call counts)
                 - Any path + focus parameter → symbol call graph (incoming/outgoing chains)
 
-                Use `tree` for quick directory orientation. Use `analyze` when you need to understand
-                code structure, find symbols, or trace call graphs. For large codebases, delegate
-                analysis to a subagent and retain only the summary.
-            "}.to_string()),
+                For large codebases, delegate analysis to a subagent and retain only the summary.
+            "}
+                .to_string(),
+            ),
         };
 
         Ok(Self { info })
