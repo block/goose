@@ -4464,6 +4464,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-client"
+version = "1.26.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "dotenvy",
+ "futures",
+ "goose",
+ "reqwest 0.13.2",
+ "rmcp 0.16.0",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "wiremock",
+]
+
+[[package]]
 name = "goose-mcp"
 version = "1.26.0"
 dependencies = [

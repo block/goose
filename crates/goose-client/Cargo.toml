@@ -1,0 +1,37 @@
+[package]
+name = "goose-client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTTP client for the goose agent server"
+
+[lints]
+workspace = true
+
+[dependencies]
+goose = { path = "../goose", default-features = false }
+reqwest = { workspace = true, features = ["rustls", "json", "stream", "query"] }
+rmcp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+bytes = { workspace = true }
+
+[dev-dependencies]
+wiremock = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+dotenvy = { workspace = true }
+futures = { workspace = true }
+
+[[example]]
+name = "smoke_test"
+
+[[example]]
+name = "chat_stream"

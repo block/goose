@@ -116,7 +116,7 @@ pub struct SessionUpdateBuilder<'a> {
     model_config: Option<Option<ModelConfig>>,
 }
 
-#[derive(Serialize, ToSchema, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInsights {
     pub total_sessions: usize,
