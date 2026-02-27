@@ -495,11 +495,8 @@ impl Drop for SummonClient {
 
 impl SummonClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
-        let mut instructions =
-            "Load knowledge and delegate tasks to subagents using the summon extension."
-                .to_string();
-
-        if let Some(session) = &context.session {
+        let instructions = if let Some(session) = &context.session {
+            let mut instructions = "".to_string();
             let sources = discover_filesystem_sources(&session.working_dir);
 
             let skills: Vec<&Source> = sources
@@ -513,9 +510,10 @@ impl SummonClient {
                     instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
                 }
             }
-        }
-
-        let instructions = Some(instructions);
+            Some(instructions)
+        } else {
+            None
+        };
 
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
