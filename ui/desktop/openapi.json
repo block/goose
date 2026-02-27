@@ -6395,7 +6395,8 @@
         "description": "Response after initiating a payment.",
         "required": [
           "success",
-          "amount_sats"
+          "amount_sats",
+          "preimage"
         ],
         "properties": {
           "amount_sats": {
@@ -6403,6 +6404,10 @@
             "format": "int64",
             "description": "Amount paid in sats.",
             "minimum": 0
+          },
+          "preimage": {
+            "type": "string",
+            "description": "Payment preimage as a hex string (proof of payment)."
           },
           "success": {
             "type": "boolean",

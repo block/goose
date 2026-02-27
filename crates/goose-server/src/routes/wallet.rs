@@ -163,9 +163,10 @@ async fn wallet_pay(
     Json(req): Json<PayInvoiceRequest>,
 ) -> axum::response::Response {
     match state.wallet_manager.pay_invoice(&req.bolt11).await {
-        Ok(amount_sats) => Json(PayInvoiceResponse {
+        Ok((amount_sats, preimage)) => Json(PayInvoiceResponse {
             success: true,
             amount_sats,
+            preimage,
         })
         .into_response(),
         Err(e) => {

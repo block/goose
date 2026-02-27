@@ -5231,6 +5231,7 @@ name = "goose-server"
 version = "1.25.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "aws-lc-rs",
  "axum 0.8.8",
  "axum-server",

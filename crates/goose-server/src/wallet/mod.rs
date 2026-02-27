@@ -73,6 +73,8 @@ pub struct PayInvoiceResponse {
     pub success: bool,
     /// Amount paid in sats.
     pub amount_sats: u64,
+    /// Payment preimage as a hex string (proof of payment).
+    pub preimage: String,
 }
 
 /// Request body for parsing a Lightning invoice.

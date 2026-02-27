@@ -1,5 +1,6 @@
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, oneshot, Mutex, RwLock};
 
 use goose::config::paths::Paths;
 use goose::config::Config;
@@ -12,6 +13,9 @@ use orange_sdk::{
 
 use super::{Invoice, PaymentReceivedEvent, WalletBalance, WalletState};
 
+/// Map of in-flight outgoing payments awaiting their preimage.
+type PendingPayments = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
+
 /// Manages the Orange SDK wallet lifecycle.
 ///
 /// The wallet is lazily initialized on first use. Configuration (seed, network,
@@ -21,6 +25,8 @@ pub struct WalletManager {
     wallet: Arc<RwLock<Option<Wallet>>>,
     state: Arc<RwLock<WalletState>>,
     tx: broadcast::Sender<PaymentReceivedEvent>,
+    /// Pending outgoing payments keyed by PaymentId string, awaiting preimage.
+    pending_payments: PendingPayments,
 }
 
 impl WalletManager {
@@ -31,6 +37,7 @@ impl WalletManager {
             wallet: Arc::new(RwLock::new(None)),
             state: Arc::new(RwLock::new(WalletState::Uninitialized)),
             tx,
+            pending_payments: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -203,6 +210,7 @@ impl WalletManager {
     /// broadcasts payment-received events over the channel.
     fn spawn_event_loop(&self, wallet: Wallet) {
         let tx = self.tx.clone();
+        let pending = self.pending_payments.clone();
 
         tokio::spawn(async move {
             loop {
@@ -233,6 +241,26 @@ impl WalletManager {
                         };
                         tracing::info!(amount_sats = evt.amount_sats, "On-chain payment received");
                         let _ = tx.send(evt);
+                    }
+                    Event::PaymentSuccessful {
+                        payment_id,
+                        payment_preimage,
+                        ..
+                    } => {
+                        let key = payment_id.to_string();
+                        let preimage_hex = hex::encode(payment_preimage.0);
+                        tracing::info!(%key, "Outgoing payment successful");
+                        let mut map = pending.lock().await;
+                        if let Some(sender) = map.remove(&key) {
+                            let _ = sender.send(preimage_hex);
+                        }
+                    }
+                    Event::PaymentFailed { payment_id, .. } => {
+                        let key = payment_id.to_string();
+                        tracing::warn!(%key, "Outgoing payment failed");
+                        // Dropping the sender causes the receiver to get an error.
+                        let mut map = pending.lock().await;
+                        map.remove(&key);
                     }
                     other => {
                         tracing::debug!(?other, "Orange wallet event");
@@ -328,31 +356,48 @@ impl WalletManager {
         })
     }
 
-    /// Pay a BOLT11 invoice. Returns the amount paid in sats.
-    pub async fn pay_invoice(&self, bolt11: &str) -> anyhow::Result<u64> {
+    /// Pay a BOLT11 invoice. Returns `(amount_sats, preimage_hex)`.
+    pub async fn pay_invoice(&self, bolt11: &str) -> anyhow::Result<(u64, String)> {
         self.ensure_initialized().await?;
-        let wallet = self.wallet.read().await;
-        let wallet = wallet
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Wallet not initialized"))?;
 
-        let instructions = wallet
-            .parse_payment_instructions(bolt11)
+        // Create a oneshot channel to receive the preimage from the event loop.
+        let (preimage_tx, preimage_rx) = oneshot::channel::<String>();
+
+        let amount_sats;
+        {
+            let wallet = self.wallet.read().await;
+            let wallet = wallet
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Wallet not initialized"))?;
+
+            let instructions = wallet
+                .parse_payment_instructions(bolt11)
+                .await
+                .map_err(|e| anyhow::anyhow!("Invalid payment instructions: {e:?}"))?;
+
+            let payment_info = orange_sdk::PaymentInfo::build(instructions, None)
+                .map_err(|e| anyhow::anyhow!("Failed to build payment: {e:?}"))?;
+
+            amount_sats = payment_info.amount().sats_rounding_up();
+
+            let payment_id = wallet
+                .pay(&payment_info)
+                .await
+                .map_err(|e| anyhow::anyhow!("Payment failed: {e:?}"))?;
+
+            // Register the oneshot so the event loop can resolve it.
+            let key = payment_id.to_string();
+            tracing::info!(%key, amount_sats, "Lightning payment initiated, waiting for confirmation");
+            self.pending_payments.lock().await.insert(key, preimage_tx);
+        }
+
+        // Wait for the event loop to deliver the preimage.
+        let preimage_hex = preimage_rx
             .await
-            .map_err(|e| anyhow::anyhow!("Invalid payment instructions: {e:?}"))?;
+            .map_err(|_| anyhow::anyhow!("Payment failed — no preimage received"))?;
 
-        let payment_info = orange_sdk::PaymentInfo::build(instructions, None)
-            .map_err(|e| anyhow::anyhow!("Failed to build payment: {e:?}"))?;
-
-        let amount_sats = payment_info.amount().sats_rounding_up();
-
-        wallet
-            .pay(&payment_info)
-            .await
-            .map_err(|e| anyhow::anyhow!("Payment failed: {e:?}"))?;
-
-        tracing::info!(amount_sats, "Lightning payment sent");
-        Ok(amount_sats)
+        tracing::info!(amount_sats, "Lightning payment confirmed");
+        Ok((amount_sats, preimage_hex))
     }
 
     /// Subscribe to payment received events for SSE streaming.
