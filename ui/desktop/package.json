@@ -31,9 +31,11 @@
     "test-e2e:contrast": "npm run generate-api && RUN_A11Y_CONTRAST=true node scripts/run-playwright.mjs test tests/e2e/a11y-contrast.spec.ts",
     "test-e2e:journeys": "npm run generate-api && node scripts/run-playwright.mjs test tests/e2e/journey-*.spec.ts",
     "test-e2e:journeys:provider": "npm run generate-api && RUN_E2E_PROVIDER_JOURNEYS=true node scripts/run-playwright.mjs test tests/e2e/journey-*.spec.ts",
+    "test-e2e:journeys:debug": "npm run generate-api && E2E_DEBUG=true node scripts/run-playwright.mjs test tests/e2e/journey-*.spec.ts",
+    "test-e2e:journeys:provider:debug": "npm run generate-api && RUN_E2E_PROVIDER_JOURNEYS=true E2E_DEBUG=true node scripts/run-playwright.mjs test tests/e2e/journey-*.spec.ts",
+    "test-e2e:contrast:debug": "npm run generate-api && RUN_A11Y_CONTRAST=true E2E_DEBUG=true node scripts/run-playwright.mjs test tests/e2e/a11y-contrast.spec.ts",
     "lint": "biome lint --write src/",
     "lint:check": "npm run typecheck && biome lint src/",
-
     "format": "biome format --write src/",
     "format:check": "biome format src/",
     "check": "biome check --write src/",

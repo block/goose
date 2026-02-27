@@ -21,10 +21,43 @@ From `ui/desktop/`:
 npm run test-e2e:journeys
 ```
 
+### Provider config via `.env` file (recommended)
+
+1) Copy the example and fill in secrets locally:
+
+```bash
+cd ui/desktop
+cp docs/e2e-env-azure.example .env.e2e.azure
+```
+
+2) Run provider-gated journeys:
+
+```bash
+DOTENV_CONFIG_PATH=.env.e2e.azure npm run test-e2e:journeys:provider
+```
+
+### Debug mode (professional workflow)
+
+When you hit a "Honk!" screen or a minified React error, run the same suite in debug-build mode:
+
+- renderer build: **no minify + sourcemaps**
+- keeps `file://`-based E2E stability (no Vite dev server)
+
+```bash
+cd ui/desktop
+DOTENV_CONFIG_PATH=.env.e2e.azure npm run test-e2e:journeys:provider:debug
+```
+
 Contrast audit (axe-core, optional):
 
 ```bash
 npm run test-e2e:contrast
+```
+
+Contrast audit (debug build):
+
+```bash
+npm run test-e2e:contrast:debug
 ```
 
 ## Existing journeys

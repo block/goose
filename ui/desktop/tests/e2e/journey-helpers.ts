@@ -42,6 +42,18 @@ export async function bootstrapFirstRunUI(page: Page) {
   await dismissOptionalAnnouncementModal(page);
 }
 
+export async function assertNotOnErrorBoundary(page: Page, context: string) {
+  const honk = page.getByRole('heading', { name: /^honk!$/i });
+  if (await honk.isVisible().catch(() => false)) {
+    throw new Error(`[${context}] App crashed (ErrorBoundary "Honk!" visible)`);
+  }
+
+  const minified = page.getByText(/minified react error/i).first();
+  if (await minified.isVisible().catch(() => false)) {
+    throw new Error(`[${context}] App crashed (React error screen visible)`);
+  }
+}
+
 export async function clickIfPresent(page: Page, selector: string) {
   const el = page.locator(selector);
   if ((await el.count()) === 0) return false;

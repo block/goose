@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { bootstrapFirstRunUI, hashRouteUrl } from './journey-helpers';
+import { assertNotOnErrorBoundary, bootstrapFirstRunUI, hashRouteUrl } from './journey-helpers';
 
 test.skip(
   process.env.RUN_E2E_PROVIDER_JOURNEYS !== 'true',
@@ -14,6 +14,7 @@ test.skip(
 
 test('journey: create session (chat)', async ({ goosePage }) => {
   await bootstrapFirstRunUI(goosePage);
+  await assertNotOnErrorBoundary(goosePage, 'create-session: after bootstrap');
 
   await goosePage.goto(hashRouteUrl(goosePage, '/pair'));
   await goosePage.waitForURL(/#\/(pair|welcome)/i);
@@ -22,6 +23,8 @@ test('journey: create session (chat)', async ({ goosePage }) => {
     test.skip(true, 'requires a configured provider (otherwise app is on /welcome)');
   }
 
+  await assertNotOnErrorBoundary(goosePage, 'create-session: on pair');
+
   const input = goosePage.getByTestId('chat-input');
   await expect(input).toBeVisible();
 
@@ -29,5 +32,16 @@ test('journey: create session (chat)', async ({ goosePage }) => {
   await input.fill('hello from e2e');
   await goosePage.keyboard.press('Enter');
 
-  await expect(goosePage.getByText('hello from e2e')).toBeVisible();
+  const messageVisible = goosePage.getByText('hello from e2e').first();
+  const honk = goosePage.getByRole('heading', { name: /^honk!$/i });
+
+  // Wait for either the message to appear OR an ErrorBoundary crash.
+  await Promise.race([
+    messageVisible.waitFor({ state: 'visible', timeout: 30_000 }),
+    honk.waitFor({ state: 'visible', timeout: 30_000 }).then(() => {
+      throw new Error('App crashed after sending message (ErrorBoundary "Honk!" visible)');
+    }),
+  ]);
+
+  await assertNotOnErrorBoundary(goosePage, 'create-session: after send');
 });

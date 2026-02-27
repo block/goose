@@ -1,7 +1,22 @@
 import { test as base, Page, _electron as electron } from '@playwright/test';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { join } from 'path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'path';
+import dotenv from 'dotenv';
+
+// Allow a developer/CI to provide a dotenv file (e.g. Azure/OpenAI creds) without
+// exporting a large number of env vars manually.
+//
+// This runs in the Playwright test process, so `test.skip(process.env...)` gates
+// in spec files can rely on it.
+const dotenvPath = process.env.DOTENV_CONFIG_PATH;
+if (dotenvPath) {
+  const resolvedPath = dotenvPath.startsWith('/') ? dotenvPath : join(process.cwd(), dotenvPath);
+  if (fs.existsSync(resolvedPath)) {
+    dotenv.config({ path: resolvedPath, override: false });
+  }
+}
 
 function ensureGoosedBinary(repoRoot: string) {
   const executableName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
@@ -30,26 +45,48 @@ type GooseTestFixtures = {
 };
 
 let buildOnce: Promise<void> | null = null;
+let buildOnceMode: 'debug' | 'prod' | null = null;
 
 async function ensureViteBuild(projectRoot: string) {
+  const isDebug = process.env.E2E_DEBUG === 'true';
+  const mode: 'debug' | 'prod' = isDebug ? 'debug' : 'prod';
+
+  if (buildOnce && buildOnceMode && buildOnceMode !== mode) {
+    buildOnce = null;
+    buildOnceMode = null;
+  }
+
+  buildOnceMode = mode;
+
   buildOnce ??= (async () => {
     const vite = await import('vite');
+
+    const buildMode = isDebug ? 'development' : 'production';
 
     // Build renderer/main/preload once per worker. Running Vite builds per-test is
     // expensive and can cause Node to OOM when a journey suite launches many apps.
     await vite.build({
       root: projectRoot,
       configFile: 'vite.renderer.config.mts',
+      mode: buildMode,
+      // Debug mode should keep React errors readable. In some bundling paths, React will
+      // still emit minified error codes unless NODE_ENV is explicitly set at build time.
+      define: isDebug ? { 'process.env.NODE_ENV': JSON.stringify('development') } : undefined,
       // For file:// loading (used in this E2E setup), Vite must emit relative asset
       // URLs; otherwise the renderer will request file:///assets/... and fail.
       base: './',
       build: {
         outDir: join(projectRoot, '.vite/renderer/main_window'),
         emptyOutDir: true,
+        // Debug runs need actionable stack traces (React dev errors + sourcemaps).
+        // CI runs should stay as close to production as possible.
+        minify: isDebug ? false : true,
+        sourcemap: isDebug ? true : false,
       },
     });
-    await vite.build({ root: projectRoot, configFile: 'vite.main.config.mts' });
-    await vite.build({ root: projectRoot, configFile: 'vite.preload.config.mts' });
+
+    await vite.build({ root: projectRoot, configFile: 'vite.main.config.mts', mode: buildMode });
+    await vite.build({ root: projectRoot, configFile: 'vite.preload.config.mts', mode: buildMode });
   })();
 
   await buildOnce;
@@ -94,6 +131,59 @@ export const test = base.extend<GooseTestFixtures>({
     const electronPath = require('electron') as string;
     let app: import('@playwright/test').ElectronApplication | null = null;
 
+    let mainLog: string[] = [];
+    let rendererLog: string[] = [];
+    let page: Page | null = null;
+    let rendererDebugAttached = false;
+    let mainDebugAttached = false;
+
+    const attachRendererDebug = async (reason: string) => {
+      if (rendererDebugAttached || !page) return;
+      rendererDebugAttached = true;
+
+      const url = page.url();
+      const title = await page.title().catch(() => '(failed to read page title)');
+      const html = await page.content().catch(() => '(failed to read page content)');
+
+      const body = [
+        `reason: ${reason}`,
+        `url: ${url}`,
+        `title: ${title}`,
+        '',
+        '--- console/page errors ---',
+        rendererLog.join('\n') || '(no console output captured)',
+        '',
+        '--- html (truncated) ---',
+        html.slice(0, 20_000),
+      ].join('\n');
+
+      // Ensure the debug output exists on disk (Playwright attachments are not always
+      // preserved as plain files depending on reporter/output settings).
+      const outPath = testInfo.outputPath('renderer-debug.txt');
+      await mkdir(dirname(outPath), { recursive: true });
+      await writeFile(outPath, body, 'utf8');
+
+      await testInfo.attach('renderer-debug.txt', {
+        body,
+        contentType: 'text/plain',
+      });
+    };
+
+    const attachMainDebug = async () => {
+      if (mainDebugAttached || mainLog.length === 0) return;
+      mainDebugAttached = true;
+
+      const body = mainLog.join('');
+      const outPath = testInfo.outputPath('main-debug.txt');
+      await mkdir(dirname(outPath), { recursive: true });
+      await writeFile(outPath, body, 'utf8');
+
+      await testInfo.attach('main-debug.txt', {
+        body,
+        contentType: 'text/plain',
+      });
+    };
+
     try {
       const projectRoot = join(__dirname, '../..');
       const repoRoot = join(projectRoot, '..', '..');
@@ -124,6 +214,27 @@ export const test = base.extend<GooseTestFixtures>({
         args: [projectRoot],
         env: {
           ...process.env,
+          // If callers provide only defaults, map to GOOSE_PROVIDER; if callers provide only
+          // GOOSE_PROVIDER, map to defaults so ProviderGuard sees a configured provider.
+          GOOSE_PROVIDER: process.env.GOOSE_PROVIDER ?? process.env.GOOSE_DEFAULT_PROVIDER,
+          GOOSE_DEFAULT_PROVIDER: process.env.GOOSE_DEFAULT_PROVIDER ?? process.env.GOOSE_PROVIDER,
+
+          // Azure OpenAI typically needs the deployment name to be used as the model identifier.
+          // If the caller didn't provide GOOSE_MODEL/GOOSE_DEFAULT_MODEL, infer them.
+          GOOSE_MODEL:
+            process.env.GOOSE_MODEL ??
+            (process.env.GOOSE_PROVIDER === 'azure_openai' ||
+            process.env.GOOSE_DEFAULT_PROVIDER === 'azure_openai'
+              ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME
+              : undefined),
+          GOOSE_DEFAULT_MODEL:
+            process.env.GOOSE_DEFAULT_MODEL ??
+            process.env.GOOSE_MODEL ??
+            (process.env.GOOSE_PROVIDER === 'azure_openai' ||
+            process.env.GOOSE_DEFAULT_PROVIDER === 'azure_openai'
+              ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME
+              : undefined),
+
           NODE_ENV: 'development',
           ELECTRON_IS_DEV: '1',
           GOOSE_ALLOWLIST_BYPASS: 'true',
@@ -132,14 +243,12 @@ export const test = base.extend<GooseTestFixtures>({
         },
       });
 
-      const page = await app.firstWindow();
+      page = await app.firstWindow();
 
-      const mainLog: string[] = [];
       const child = app.process();
       child?.stdout?.on('data', (buf) => mainLog.push(`[main:stdout] ${buf.toString()}`));
       child?.stderr?.on('data', (buf) => mainLog.push(`[main:stderr] ${buf.toString()}`));
 
-      const rendererLog: string[] = [];
       page.on('console', (msg) => {
         rendererLog.push(`[console:${msg.type()}] ${msg.text()}`);
       });
@@ -178,32 +287,19 @@ export const test = base.extend<GooseTestFixtures>({
           { timeout: 60_000 }
         );
       } catch (error) {
-        const url = page.url();
-        const html = await page.content().catch(() => '(failed to read page content)');
-        const title = await page.title().catch(() => '(failed to read page title)');
-
-        await testInfo.attach('renderer-debug.txt', {
-          body: [
-            `url: ${url}`,
-            `title: ${title}`,
-            '',
-            '--- console/page errors ---',
-            rendererLog.join('\n') || '(no console output captured)',
-            '',
-            '--- html (truncated) ---',
-            html.slice(0, 20_000),
-          ].join('\n'),
-          contentType: 'text/plain',
-        });
-
-        if (mainLog.length > 0) {
-          await testInfo.attach('main-debug.txt', {
-            body: mainLog.join(''),
-            contentType: 'text/plain',
-          });
-        }
+        await attachRendererDebug('react root never rendered');
+        await attachMainDebug();
 
         throw error;
+      }
+
+      // Fail-fast if we landed on the app ErrorBoundary ("Honk!"). This is a runtime crash
+      // and subsequent selector assertions will be misleading.
+      const honk = page.getByRole('heading', { name: /^honk!$/i });
+      if (await honk.isVisible().catch(() => false)) {
+        await attachRendererDebug('error boundary visible (honk)');
+        await attachMainDebug();
+        throw new Error('App crashed (ErrorBoundary "Honk!" visible). See renderer-debug.txt');
       }
 
       console.log('App ready, starting test...');
@@ -213,6 +309,11 @@ export const test = base.extend<GooseTestFixtures>({
 
     } finally {
       console.log('Cleaning up Electron app for this test...');
+
+      if (testInfo.status !== testInfo.expectedStatus) {
+        await attachRendererDebug('test failed');
+        await attachMainDebug();
+      }
 
       await app?.close().catch(console.error);
       console.log('Cleaned up app');

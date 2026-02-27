@@ -1,0 +1,32 @@
+# Example E2E configuration for Azure OpenAI
+#
+# Usage:
+#   cp ui/desktop/docs/e2e-env-azure.example ui/desktop/.env.e2e.azure
+#   # fill values
+#   cd ui/desktop
+#   DOTENV_CONFIG_PATH=.env.e2e.azure npm run test-e2e:journeys:provider
+#
+# Notes:
+# - This file is an example and is safe to commit (no secrets).
+# - The real file (`.env.e2e.azure`) should NOT be committed.
+
+# Enable provider-gated journeys
+RUN_E2E_PROVIDER_JOURNEYS=true
+
+# Goose provider selection
+GOOSE_PROVIDER=azure_openai
+GOOSE_DEFAULT_PROVIDER=azure_openai
+
+# If you omit GOOSE_MODEL/GOOSE_DEFAULT_MODEL, the E2E fixture will infer them from
+# AZURE_OPENAI_DEPLOYMENT_NAME.
+# GOOSE_MODEL=
+# GOOSE_DEFAULT_MODEL=
+
+# Azure OpenAI
+AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com
+AZURE_OPENAI_DEPLOYMENT_NAME=<deployment>
+AZURE_OPENAI_API_VERSION=2024-02-15-preview
+AZURE_OPENAI_API_KEY=<secret>
+
+# Optional: make crashes debuggable locally (no minify + sourcemaps)
+# E2E_DEBUG=true
