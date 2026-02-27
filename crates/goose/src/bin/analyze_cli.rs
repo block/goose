@@ -49,8 +49,13 @@ fn main() {
             .par_iter()
             .filter_map(|f| AnalyzeClient::analyze_file(f))
             .collect();
+        let root = if path.is_file() {
+            path.parent().unwrap_or(&path)
+        } else {
+            &path
+        };
         let g = graph::CallGraph::build(&analyses);
-        format::format_focused(symbol, &g, cli.follow, analyses.len())
+        format::format_focused(symbol, &g, cli.follow, analyses.len(), root)
     } else if path.is_file() {
         // Semantic mode: single file details
         match AnalyzeClient::analyze_file(&path) {

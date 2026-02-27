@@ -210,8 +210,13 @@ impl AnalyzeClient {
             .filter_map(|f| Self::analyze_file(f))
             .collect();
 
+        let root = if path.is_file() {
+            path.parent().unwrap_or(path)
+        } else {
+            path
+        };
         let g = graph::CallGraph::build(&analyses);
-        let output = format::format_focused(symbol, &g, follow_depth, analyses.len());
+        let output = format::format_focused(symbol, &g, follow_depth, analyses.len(), root);
         Self::finish(output, force)
     }
 

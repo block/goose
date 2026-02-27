@@ -168,6 +168,7 @@ pub fn format_focused(
     graph: &CallGraph,
     follow_depth: u32,
     files_analyzed: usize,
+    root: &Path,
 ) -> String {
     let defs = graph.definitions(symbol);
 
@@ -210,19 +211,20 @@ pub fn format_focused(
     );
 
     for d in &defs {
-        let _ = writeln!(out, "DEF {}:{}", d.file.display(), d.line);
+        let display = d.file.strip_prefix(root).unwrap_or(&d.file);
+        let _ = writeln!(out, "DEF {}:{}:{}", display.display(), d.name, d.line);
     }
     if !defs.is_empty() {
         out.push('\n');
     }
 
     let (in_prod, in_test) = partition_test_chains(&incoming);
-    format_chain_group(&mut out, "IN", &in_prod);
-    format_chain_group(&mut out, "IN (tests)", &in_test);
+    format_chain_group(&mut out, "IN", &in_prod, root);
+    format_chain_group(&mut out, "IN (tests)", &in_test, root);
 
     let (out_prod, out_test) = partition_test_chains(&outgoing);
-    format_chain_group(&mut out, "OUT", &out_prod);
-    format_chain_group(&mut out, "OUT (tests)", &out_test);
+    format_chain_group(&mut out, "OUT", &out_prod, root);
+    format_chain_group(&mut out, "OUT (tests)", &out_test, root);
 
     let _ = writeln!(out, "{} files analyzed", files_analyzed);
 
@@ -231,23 +233,24 @@ pub fn format_focused(
 
 type Chain = Vec<super::graph::ChainLink>;
 
-fn format_chain_link(link: &super::graph::ChainLink) -> String {
-    let fname = link
-        .file
-        .file_name()
-        .map(|f| f.to_string_lossy())
-        .unwrap_or_default();
-    format!("{}:{}:{}", fname, link.name, link.line)
+fn format_chain_link(link: &super::graph::ChainLink, root: &Path) -> String {
+    let display = link.file.strip_prefix(root).unwrap_or(&link.file);
+    format!("{}:{}:{}", display.display(), link.name, link.line)
 }
 
-fn format_chain_group(out: &mut String, label: &str, chains: &[Chain]) {
+fn format_chain_group(out: &mut String, label: &str, chains: &[Chain], root: &Path) {
     if chains.is_empty() {
         return;
     }
 
     let mut formatted: Vec<Vec<String>> = chains
         .iter()
-        .map(|chain| chain.iter().map(format_chain_link).collect())
+        .map(|chain| {
+            chain
+                .iter()
+                .map(|link| format_chain_link(link, root))
+                .collect()
+        })
         .collect();
     formatted.sort();
 
