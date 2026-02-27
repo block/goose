@@ -165,17 +165,22 @@ fn extract_classes(
                 let name_text = node_text(source, &cap.node).to_string();
                 let line = cap.node.start_position().row + 1;
 
-                let mut name = name_text;
-                if let Some(parent_node) = cap.node.parent() {
-                    let inheritance = extract_inheritance(info.name, &parent_node, source);
-                    if !inheritance.is_empty() {
-                        name = format!("{}({})", name, inheritance);
-                    }
-                }
+                let inheritance = cap
+                    .node
+                    .parent()
+                    .map(|p| extract_inheritance(info.name, &p, source))
+                    .filter(|s| !s.is_empty());
 
-                let detail = extract_class_detail(cap.node, source, info);
+                let fields = extract_class_detail(cap.node, source, info);
+                let detail = match (&inheritance, &fields) {
+                    (Some(inh), Some(f)) => Some(format!("({}) {}", inh, f)),
+                    (Some(inh), None) => Some(format!("({})", inh)),
+                    (None, Some(f)) => Some(f.clone()),
+                    (None, None) => None,
+                };
+
                 symbols.push(Symbol {
-                    name,
+                    name: name_text,
                     line,
                     parent: None,
                     detail,
