@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-26T15:49:33.062046695+00:00",
+  "timestamp": "2026-02-27T21:19:29.234488431+00:00",
   "unmapped_models": [
     {
       "provider": "google",
@@ -403,10 +403,6 @@
     },
     {
       "provider": "openrouter",
-      "model": "allenai/olmo-3.1-32b-think"
-    },
-    {
-      "provider": "openrouter",
       "model": "alpindale/goliath-120b"
     },
     {
@@ -487,6 +483,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "bytedance-seed/seed-2.0-mini"
+    },
+    {
+      "provider": "openrouter",
       "model": "bytedance/ui-tars-1.5-7b"
     },
     {
@@ -532,6 +532,10 @@
     {
       "provider": "openrouter",
       "model": "google/gemini-3-pro-image-preview"
+    },
+    {
+      "provider": "openrouter",
+      "model": "google/gemini-3.1-flash-image-preview"
     },
     {
       "provider": "openrouter",
@@ -5019,7 +5023,7 @@
     "gcp_vertex_ai": 0,
     "google": 44,
     "openai": 116,
-    "openrouter": 342,
+    "openrouter": 343,
     "tetrate": 201,
     "venice": 0,
     "xai": 13

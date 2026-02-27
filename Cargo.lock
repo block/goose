@@ -4236,7 +4236,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4335,7 +4335,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "agent-client-protocol-schema",
  "anyhow",
@@ -4372,7 +4372,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4381,7 +4381,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "anstream",
  "anyhow",
@@ -4434,7 +4434,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4484,7 +4484,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "anyhow",
  "axum 0.8.8",
@@ -4531,7 +4531,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "clap",
  "serde_json",
@@ -4539,7 +4539,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.26.1"
+version = "1.26.2"
 dependencies = [
  "axum 0.7.9",
  "rmcp 0.16.0",
