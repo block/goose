@@ -12,6 +12,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
+use webbrowser;
 
 use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
 use super::errors::ProviderError;
@@ -273,9 +274,20 @@ impl GithubCopilotProvider {
     async fn login(&self) -> Result<String> {
         let device_code_info = self.get_device_code().await?;
 
+        let code = device_code_info.user_code.as_str();
+
+        if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            if clipboard.set_text(code).is_ok() {
+                tracing::info!("GitHub Copilot code copied to clipboard: {}", code);
+            }
+        } else {
+            tracing::info!("GitHub Copilot code: {}", code);
+        }
+
+        webbrowser::open(&device_code_info.verification_uri).ok();
         println!(
             "Please visit {} and enter code {}",
-            device_code_info.verification_uri, device_code_info.user_code
+            device_code_info.verification_uri, code
         );
 
         self.poll_for_access_token(&device_code_info.device_code)

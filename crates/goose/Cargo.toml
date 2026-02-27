@@ -129,6 +129,7 @@ unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.133", features = ["sampler"] }
 encoding_rs = "0.8.35"
+arboard = "3.6.1"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
