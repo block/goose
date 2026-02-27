@@ -29,6 +29,32 @@ type GooseTestFixtures = {
   goosePage: Page;
 };
 
+let buildOnce: Promise<void> | null = null;
+
+async function ensureViteBuild(projectRoot: string) {
+  buildOnce ??= (async () => {
+    const vite = await import('vite');
+
+    // Build renderer/main/preload once per worker. Running Vite builds per-test is
+    // expensive and can cause Node to OOM when a journey suite launches many apps.
+    await vite.build({
+      root: projectRoot,
+      configFile: 'vite.renderer.config.mts',
+      // For file:// loading (used in this E2E setup), Vite must emit relative asset
+      // URLs; otherwise the renderer will request file:///assets/... and fail.
+      base: './',
+      build: {
+        outDir: join(projectRoot, '.vite/renderer/main_window'),
+        emptyOutDir: true,
+      },
+    });
+    await vite.build({ root: projectRoot, configFile: 'vite.main.config.mts' });
+    await vite.build({ root: projectRoot, configFile: 'vite.preload.config.mts' });
+  })();
+
+  await buildOnce;
+}
+
 /**
  * Test-scoped fixture that launches a fresh Electron app for EACH test.
  *
@@ -76,24 +102,9 @@ export const test = base.extend<GooseTestFixtures>({
       // not present unless you've built the Rust workspace.
       ensureGoosedBinary(repoRoot);
 
-      const vite = await import('vite');
-
-      // Build renderer/main/preload once per test run.
-      // Using a file-based renderer avoids Vite dev-server dep-scan flakiness and
-      // CJS/ESM interop issues (named exports) when optimizeDeps is constrained.
-      await vite.build({
-        root: projectRoot,
-        configFile: 'vite.renderer.config.mts',
-        // For file:// loading (used in this E2E setup), Vite must emit relative asset
-        // URLs; otherwise the renderer will request file:///assets/... and fail.
-        base: './',
-        build: {
-          outDir: join(projectRoot, '.vite/renderer/main_window'),
-          emptyOutDir: true,
-        },
-      });
-      await vite.build({ root: projectRoot, configFile: 'vite.main.config.mts' });
-      await vite.build({ root: projectRoot, configFile: 'vite.preload.config.mts' });
+      // Build renderer/main/preload once per worker. Using a file-based renderer avoids
+      // Vite dev-server dep-scan flakiness and CJS/ESM interop issues.
+      await ensureViteBuild(projectRoot);
 
       const builtMainPath = join(projectRoot, '.vite/build/main.js');
       if (!fs.existsSync(builtMainPath)) {
