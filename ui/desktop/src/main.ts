@@ -30,7 +30,11 @@ import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import { formatAppName, errorMessage } from './utils/conversionUtils';
 import type { Settings } from './utils/settings';
-import { defaultKeyboardShortcuts, getKeyboardShortcuts } from './utils/settings';
+import { getKeyboardShortcuts } from './utils/settings';
+import {
+  getSettings as getSettingsFromFile,
+  updateSettings as updateSettingsFromFile,
+} from './utils/settingsManager';
 import * as crypto from 'crypto';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
@@ -56,26 +60,12 @@ function shouldSetupUpdater(): boolean {
 // Settings management
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
-const defaultSettings: Settings = {
-  showMenuBarIcon: true,
-  showDockIcon: true,
-  enableWakelock: false,
-  spellcheckEnabled: true,
-  keyboardShortcuts: defaultKeyboardShortcuts,
-};
-
 function getSettings(): Settings {
-  if (fsSync.existsSync(SETTINGS_FILE)) {
-    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    return JSON.parse(data);
-  }
-  return defaultSettings;
+  return getSettingsFromFile(SETTINGS_FILE);
 }
 
 function updateSettings(modifier: (settings: Settings) => void): void {
-  const settings = getSettings();
-  modifier(settings);
-  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+  updateSettingsFromFile(SETTINGS_FILE, modifier);
 }
 
 async function configureProxy() {
