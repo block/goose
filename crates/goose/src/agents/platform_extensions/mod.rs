@@ -12,6 +12,7 @@ pub mod tom;
 use std::collections::HashMap;
 
 use crate::agents::mcp_client::McpClientTrait;
+use crate::session::Session;
 use once_cell::sync::Lazy;
 
 pub use ext_manager::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
@@ -153,6 +154,7 @@ pub struct PlatformExtensionContext {
     pub extension_manager:
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
+    pub session: Option<std::sync::Arc<Session>>,
 }
 
 impl PlatformExtensionContext {
