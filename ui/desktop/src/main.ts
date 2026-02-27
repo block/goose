@@ -65,9 +65,21 @@ function getSettings(): Settings {
     return defaultSettings;
   }
 
+  let data: string;
   try {
-    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    const stored = JSON.parse(data) as Partial<Settings>;
+    data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+  } catch (error) {
+    console.error(`[Main] Failed to read settings file at ${SETTINGS_FILE}.`, error);
+    throw error;
+  }
+
+  try {
+    const parsed = JSON.parse(data) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('Settings file must be a JSON object');
+    }
+
+    const stored = parsed as Partial<Settings>;
     // Deep merge to ensure nested objects get their defaults too
     return {
       ...defaultSettings,
@@ -98,6 +110,7 @@ function updateSettings(modifier: (settings: Settings) => void): void {
   const settings = getSettings();
   modifier(settings);
   const tempSettingsFile = `${SETTINGS_FILE}.tmp`;
+  const backupSettingsFile = `${SETTINGS_FILE}.bak`;
   const payload = JSON.stringify(settings, null, 2);
 
   fsSync.writeFileSync(tempSettingsFile, payload);
@@ -114,8 +127,24 @@ function updateSettings(modifier: (settings: Settings) => void): void {
     }
 
     // On some platforms, replace-via-rename can fail when destination exists.
-    fsSync.unlinkSync(SETTINGS_FILE);
-    fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
+    // Move the old file aside first so we can restore it if replacement fails.
+    if (fsSync.existsSync(backupSettingsFile)) {
+      fsSync.unlinkSync(backupSettingsFile);
+    }
+
+    fsSync.renameSync(SETTINGS_FILE, backupSettingsFile);
+    try {
+      fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
+      fsSync.unlinkSync(backupSettingsFile);
+    } catch (replaceError) {
+      if (fsSync.existsSync(backupSettingsFile)) {
+        if (fsSync.existsSync(SETTINGS_FILE)) {
+          fsSync.unlinkSync(SETTINGS_FILE);
+        }
+        fsSync.renameSync(backupSettingsFile, SETTINGS_FILE);
+      }
+      throw replaceError;
+    }
   } finally {
     if (fsSync.existsSync(tempSettingsFile)) {
       fsSync.unlinkSync(tempSettingsFile);
