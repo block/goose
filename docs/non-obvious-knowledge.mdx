@@ -1,6 +1,6 @@
 # Non-Obvious Knowledge
 
-Things that are hard to discover from reading the code alone. Updated as of commit `667d75cf`.
+Things that are hard to discover from reading the code alone. Updated as of commit `6a2b2cd8`.
 
 ---
 
@@ -45,6 +45,39 @@ A Deny at priority 100 beats an Allow at priority 50. New rules added via the co
 ---
 
 ## Desktop UI Architecture
+
+### Playwright Electron E2E: prefer file-built renderer + axe-core injection
+
+The most reliable way we found to run Playwright against the Electron desktop app is:
+
+1. **Build the renderer to disk** and load it via `file://` (instead of running a Vite dev server during tests).
+2. Set Vite renderer build `base: './'` so `index.html` references `./assets/*` (otherwise CSS/JS 404 under `file://`).
+3. Avoid `@axe-core/playwright`’s `AxeBuilder` with Electron — it can fail with
+   `Protocol error (Target.createTarget): Not supported`.
+   Instead, inject `axe.source` into the page and run `axe.run()` via `page.evaluate`.
+
+Implementation lives in:
+- `ui/desktop/tests/e2e/fixtures.ts` (build + launch + readiness + debug attachments)
+- `ui/desktop/tests/e2e/a11y-contrast.spec.ts` (axe-core `color-contrast` audit)
+
+**Debugging tip:** on E2E failures, the fixture attaches `renderer-debug.txt` (URL/title/console/page errors + HTML snippet)
+and `main-debug.txt` (Electron main stdout/stderr).
+
+### Contrast failures often come from opacity variants
+
+In light theme, `text-text-default/70` can drop below WCAG AA for 12px text.
+The axe-core contrast audit caught this as `#797b81` on white (`#ffffff`), ratio ~4.23:1.
+Fixes were typically to bump to `/80` or to full `text-text-default`.
+
+### ripgrep gotcha: patterns starting with `--`
+
+`rg` treats tokens that start with `--` as options, so searches like `rg --text-default` fail.
+Use one of:
+
+```bash
+rg -- '--text-default' src
+rg "\\-\\-text-default" src
+```
 
 ### Global ChatInput Lives in AppLayout
 
