@@ -145,7 +145,8 @@ export function useRegisterSession(
 
     setter((prev) => {
       if (!prev || prev.sessionId !== sessionId) return prev;
-      return {
+
+      const next = {
         ...prev,
         chatState: state.chatState ?? ChatState.Idle,
         toolCount: state.toolCount ?? 0,
@@ -168,6 +169,31 @@ export function useRegisterSession(
         inputRef: state.inputRef,
         setView: state.setView ?? prev.setView,
       };
+
+      // Avoid infinite render loops by only updating context when something actually changed.
+      const changed =
+        next.chatState !== prev.chatState ||
+        next.toolCount !== prev.toolCount ||
+        next.setChatState !== prev.setChatState ||
+        next.onStop !== prev.onStop ||
+        next.commandHistory !== prev.commandHistory ||
+        next.droppedFiles !== prev.droppedFiles ||
+        next.onFilesProcessed !== prev.onFilesProcessed ||
+        next.totalTokens !== prev.totalTokens ||
+        next.accumulatedInputTokens !== prev.accumulatedInputTokens ||
+        next.accumulatedOutputTokens !== prev.accumulatedOutputTokens ||
+        next.messages !== prev.messages ||
+        next.sessionCosts !== prev.sessionCosts ||
+        next.recipe !== prev.recipe ||
+        next.recipeId !== prev.recipeId ||
+        next.recipeAccepted !== prev.recipeAccepted ||
+        next.initialPrompt !== prev.initialPrompt ||
+        next.append !== prev.append ||
+        next.onWorkingDirChange !== prev.onWorkingDirChange ||
+        next.inputRef !== prev.inputRef ||
+        next.setView !== prev.setView;
+
+      return changed ? next : prev;
     });
   }, [
     state.sessionId,
