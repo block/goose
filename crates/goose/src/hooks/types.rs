@@ -21,6 +21,10 @@ pub enum HookEventKind {
     TeammateIdle,
     TaskCompleted,
     ConfigChange,
+    /// Goose extension: fires when context fills to a configured percentage.
+    /// Matcher is a threshold percentage (e.g., "70" fires at 70% context fill).
+    /// Fires once per threshold crossing — not every turn while above.
+    ContextFill,
 }
 
 impl HookEventKind {
@@ -87,6 +91,16 @@ pub struct HookInvocation {
 
     #[serde(default)]
     pub manual_compact: bool,
+
+    // ContextFill fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_tokens: Option<usize>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_limit: Option<usize>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill_percentage: Option<u32>,
 }
 
 impl HookInvocation {
@@ -258,6 +272,22 @@ impl HookInvocation {
         Self {
             cwd: Some(cwd),
             ..Self::base(HookEventKind::ConfigChange, session_id)
+        }
+    }
+
+    pub fn context_fill(
+        session_id: String,
+        current_tokens: usize,
+        context_limit: usize,
+        fill_percentage: u32,
+        cwd: String,
+    ) -> Self {
+        Self {
+            current_tokens: Some(current_tokens),
+            context_limit: Some(context_limit),
+            fill_percentage: Some(fill_percentage),
+            cwd: Some(cwd),
+            ..Self::base(HookEventKind::ContextFill, session_id)
         }
     }
 }

@@ -13,6 +13,9 @@ use tokio_util::sync::CancellationToken;
 
 pub struct Hooks {
     settings: HookSettingsFile,
+    /// Tracks which ContextFill thresholds have already fired this session.
+    /// Prevents re-firing every turn while above the threshold.
+    fired_context_thresholds: std::sync::Mutex<std::collections::HashSet<u32>>,
 }
 
 impl Hooks {
@@ -21,7 +24,100 @@ impl Hooks {
             tracing::debug!("No hooks config loaded: {}", e);
             HookSettingsFile::default()
         });
-        Self { settings }
+        Self {
+            settings,
+            fired_context_thresholds: std::sync::Mutex::new(std::collections::HashSet::new()),
+        }
+    }
+
+    /// Check context fill and fire ContextFill hooks for any thresholds that have been crossed.
+    /// Returns context to inject, if any.
+    ///
+    /// Call this once per turn in the agent loop with the current token count.
+    pub async fn check_context_fill(
+        &self,
+        session_id: &str,
+        current_tokens: usize,
+        context_limit: usize,
+        extension_manager: &crate::agents::extension_manager::ExtensionManager,
+        working_dir: &Path,
+        cancel_token: CancellationToken,
+    ) -> Option<String> {
+        if context_limit == 0 {
+            return None;
+        }
+
+        let fill_pct = ((current_tokens as f64 / context_limit as f64) * 100.0) as u32;
+
+        // Get configured ContextFill thresholds from settings
+        let event_configs = self
+            .settings
+            .get_hooks_for_event(HookEventKind::ContextFill);
+        if event_configs.is_empty() {
+            return None;
+        }
+
+        // Find thresholds that are newly crossed
+        let mut new_thresholds = Vec::new();
+        {
+            let mut fired = self
+                .fired_context_thresholds
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            for config in event_configs {
+                if let Some(pattern) = &config.matcher {
+                    if let Ok(threshold) = pattern.parse::<u32>() {
+                        if fill_pct >= threshold && !fired.contains(&threshold) {
+                            fired.insert(threshold);
+                            new_thresholds.push(threshold);
+                        }
+                    }
+                }
+            }
+        }
+
+        if new_thresholds.is_empty() {
+            return None;
+        }
+
+        // Fire hooks for each newly crossed threshold.
+        // fill_percentage is set to the threshold value (not the actual fill) so that
+        // matches_config can use exact equality to route to the correct config entry.
+        // The actual fill level is derivable from current_tokens / context_limit.
+        let mut all_context = Vec::new();
+        for threshold in new_thresholds {
+            tracing::info!(
+                "Context fill {}% crossed threshold {}%, firing hooks",
+                fill_pct,
+                threshold
+            );
+            let invocation = HookInvocation::context_fill(
+                session_id.to_string(),
+                current_tokens,
+                context_limit,
+                threshold,
+                working_dir.to_string_lossy().to_string(),
+            );
+            if let Ok(outcome) = self
+                .run(
+                    invocation,
+                    extension_manager,
+                    working_dir,
+                    cancel_token.clone(),
+                )
+                .await
+            {
+                if let Some(ctx) = outcome.context {
+                    all_context.push(ctx);
+                }
+            }
+        }
+
+        if all_context.is_empty() {
+            None
+        } else {
+            Some(all_context.join("\n"))
+        }
     }
 
     pub async fn run(
@@ -320,19 +416,36 @@ impl Hooks {
             Notification => invocation
                 .notification_type
                 .as_ref()
-                .is_some_and(|t| t.contains(pattern)),
+                .is_some_and(|t| Self::regex_matches(pattern, t)),
             PreCompact | PostCompact => {
                 (invocation.manual_compact && pattern == "manual")
                     || (!invocation.manual_compact && pattern == "auto")
+            }
+            ContextFill => {
+                // Matcher is a threshold percentage (e.g., "70").
+                // Exact equality: check_context_fill sets fill_percentage to the
+                // specific threshold being fired (not the current fill level),
+                // preventing double-execution when multiple thresholds cross at once.
+                if let (Ok(threshold), Some(fill)) =
+                    (pattern.parse::<u32>(), invocation.fill_percentage)
+                {
+                    fill == threshold
+                } else {
+                    false
+                }
             }
             _ => true,
         }
     }
 
     /// Match a tool invocation against a Claude Code-style matcher pattern.
-    /// Supports:
-    ///   "Bash" or "Bash(...)" — maps to developer__shell, optionally matching command content
-    ///   "tool_name" — direct tool name match (goose-native)
+    ///
+    /// Supports regex patterns (Claude Code compat):
+    ///   "Bash" — maps to developer__shell or shell
+    ///   "Bash(regex)" — developer__shell/shell with command content regex
+    ///   "Edit|Write" — regex alternation matching tool names
+    ///   "mcp__memory__.*" — regex wildcard matching MCP tool names
+    ///   "developer__shell" — exact match (also valid regex)
     fn matches_tool(pattern: &str, invocation: &HookInvocation) -> bool {
         let tool_name = match &invocation.tool_name {
             Some(name) => name,
@@ -341,17 +454,16 @@ impl Hooks {
 
         // Claude Code "Bash" / "Bash(pattern)" syntax
         if pattern == "Bash" {
-            return tool_name == "developer__shell";
+            return tool_name == "developer__shell" || tool_name == "shell";
         }
 
         if let Some(inner) = pattern
             .strip_prefix("Bash(")
             .and_then(|s| s.strip_suffix(')'))
         {
-            if tool_name != "developer__shell" {
+            if tool_name != "developer__shell" && tool_name != "shell" {
                 return false;
             }
-            // Match the inner pattern against the command argument
             let command_str = invocation
                 .tool_input
                 .as_ref()
@@ -359,16 +471,23 @@ impl Hooks {
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
-            return Self::glob_match(inner, command_str);
+            return Self::regex_matches(inner, command_str);
         }
 
-        // Direct tool name match (goose-native: "developer__shell", "slack__post_message", etc.)
-        tool_name == pattern
+        // Regex match against tool name (Claude Code compat: "Edit|Write", "mcp__.*", etc.)
+        Self::regex_matches(pattern, tool_name)
     }
 
-    fn glob_match(pattern: &str, text: &str) -> bool {
-        glob::Pattern::new(pattern)
-            .map(|p| p.matches(text))
+    /// Test if `text` matches `pattern` as a full-string regex.
+    /// Anchors the pattern to match the entire string (not a substring).
+    fn regex_matches(pattern: &str, text: &str) -> bool {
+        let anchored = if pattern.starts_with('^') || pattern.ends_with('$') {
+            pattern.to_string()
+        } else {
+            format!("^(?:{})$", pattern)
+        };
+        regex::Regex::new(&anchored)
+            .map(|re| re.is_match(text))
             .unwrap_or(false)
     }
 }
@@ -478,5 +597,44 @@ mod tests {
         let output = make_output("", "", None);
         let result = Hooks::parse_command_output(output, HookEventKind::PreToolUse).unwrap();
         assert!(result.is_none());
+    }
+
+    // -- regex_matches: Claude Code-compatible tool matching --
+
+    #[test]
+    fn regex_alternation_matches_either_tool() {
+        assert!(Hooks::regex_matches("Edit|Write", "Edit"));
+        assert!(Hooks::regex_matches("Edit|Write", "Write"));
+        assert!(!Hooks::regex_matches("Edit|Write", "Read"));
+    }
+
+    #[test]
+    fn regex_wildcard_matches_mcp_tools() {
+        assert!(Hooks::regex_matches(
+            "mcp__memory__.*",
+            "mcp__memory__create_entities"
+        ));
+        assert!(Hooks::regex_matches(
+            "mcp__memory__.*",
+            "mcp__memory__search"
+        ));
+        assert!(!Hooks::regex_matches(
+            "mcp__memory__.*",
+            "mcp__filesystem__read"
+        ));
+    }
+
+    #[test]
+    fn regex_exact_string_still_works() {
+        assert!(Hooks::regex_matches("developer__shell", "developer__shell"));
+        assert!(!Hooks::regex_matches(
+            "developer__shell",
+            "developer__shell_extra"
+        ));
+    }
+
+    #[test]
+    fn regex_invalid_pattern_returns_false() {
+        assert!(!Hooks::regex_matches("[invalid", "anything"));
     }
 }

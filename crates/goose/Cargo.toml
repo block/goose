@@ -16,7 +16,7 @@ workspace = true
 
 [dependencies]
 lru = { workspace = true }
-glob = "0.3"
+
 
 rmcp = { workspace = true, features = [
     "client",

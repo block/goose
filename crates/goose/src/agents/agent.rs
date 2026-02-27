@@ -1401,6 +1401,21 @@ impl Agent {
 
                             if let Some(ref usage) = usage {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+
+                                // Check ContextFill hooks after each LLM response
+                                if let Some(total) = usage.usage.total_tokens {
+                                    let ctx_limit = self.provider().await?.get_model_config().context_limit();
+                                    if let Some(ctx) = hooks.check_context_fill(
+                                        &session_config.id,
+                                        total as usize,
+                                        ctx_limit,
+                                        &self.extension_manager,
+                                        &working_dir,
+                                        cancel_token.clone().unwrap_or_default(),
+                                    ).await {
+                                        Self::inject_hook_context(&session_config.id, ctx, &session_manager, &mut conversation).await.ok();
+                                    }
+                                }
                             }
 
                             if let Some(response) = response {
@@ -1938,6 +1953,20 @@ impl Agent {
                 session_id.clone(),
                 None,  // reason
                 working_dir.to_string_lossy().to_string(),
+            );
+            let _ = hooks
+                .run(
+                    invocation,
+                    &self.extension_manager,
+                    &working_dir,
+                    cancel_token.clone().unwrap_or_default(),
+                )
+                .await;
+
+            // Fire SessionEnd hook after stop
+            let invocation = crate::hooks::HookInvocation::session_end(
+                session_id.clone(),
+                None,
             );
             let _ = hooks
                 .run(
