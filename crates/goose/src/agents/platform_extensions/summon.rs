@@ -499,10 +499,12 @@ impl SummonClient {
             let mut instructions = "".to_string();
             let sources = discover_filesystem_sources(&session.working_dir);
 
-            let skills: Vec<&Source> = sources
+            let mut skills: Vec<&Source> = sources
                 .iter()
                 .filter(|s| s.kind == SourceKind::Skill || s.kind == SourceKind::BuiltinSkill)
                 .collect();
+
+            skills.sort_by(|a, b| (&a.name, &a.path).cmp(&(&b.name, &b.path)));
 
             if !skills.is_empty() {
                 instructions.push_str("\n\nYou have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:");
