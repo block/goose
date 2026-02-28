@@ -16,11 +16,19 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
   const isLauncher = window.location.hash === '#/launcher';
 
   if (!isLauncher) {
+    // Set a synchronous fallback baseUrl so any early SDK calls don't default to the renderer origin.
+    // This comes from Electron main via preload (`additionalArguments`).
+    const fallbackApiHost = String(window.appConfig.get('GOOSE_API_HOST') || '');
+    if (fallbackApiHost) {
+      client.setConfig({ baseUrl: fallbackApiHost });
+    }
+
     const gooseApiHost = await window.electron.getGoosedHostPort();
     if (gooseApiHost === null) {
       window.alert('failed to start goose backend process');
       return;
     }
+
     client.setConfig({
       baseUrl: gooseApiHost,
       headers: {
