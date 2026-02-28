@@ -235,14 +235,14 @@ const PermissionRoute = () => {
                 state: parentViewOptions,
               });
             } else {
-              navigate('/sessions', { state: parentViewOptions });
+              navigate('/sessions/history', { state: parentViewOptions });
             }
             break;
           case 'settings':
             navigate('/settings', { state: parentViewOptions });
             break;
           case 'sessions':
-            navigate('/sessions');
+            navigate('/sessions/history');
             break;
           case 'schedules':
             navigate('/schedules');
@@ -453,7 +453,7 @@ export function AppInner() {
 
     const stillActive = activeSessions.some((s) => s.sessionId === maybeId);
     if (!stillActive) {
-      navigate('/sessions', { replace: true });
+      navigate('/sessions/history', { replace: true });
     }
   }, [activeSessions, location.pathname, navigate]);
 
@@ -613,7 +613,7 @@ export function AppInner() {
 
       if (initialMessage && !isProcessingRef.current) {
         isProcessingRef.current = true;
-        navigate('/sessions', {
+        navigate('/sessions/history', {
           state: {
             initialMessage: { msg: initialMessage, images: [] },
           },
@@ -693,7 +693,7 @@ export function AppInner() {
                 }
               />
               <Route path="apps" element={<AppsPage />} />
-              <Route path="sessions" element={<SessionsRoute />} />
+              <Route path="sessions/history" element={<SessionsRoute />} />
               <Route path="sessions/:sessionId" element={<SessionRouteWrapper />} />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="workflows" element={<WorkflowsPage />} />

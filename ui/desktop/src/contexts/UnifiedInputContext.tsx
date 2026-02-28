@@ -308,7 +308,7 @@ export function UnifiedInputProvider({ children, onCreateSession }: UnifiedInput
       {
         command: '/project',
         description: 'Switch project directory',
-        action: () => navigate('/sessions'),
+        action: () => navigate('/sessions/history'),
       },
       {
         command: '/help',

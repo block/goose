@@ -54,7 +54,7 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         if (options?.resumeSessionId) {
           navigate(`/sessions/${encodeURIComponent(options.resumeSessionId)}`, { state: options });
         } else {
-          navigate('/sessions', { state: options });
+          navigate('/sessions/history', { state: options });
         }
         break;
       }
@@ -62,7 +62,7 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
         navigate('/settings', { state: options });
         break;
       case 'sessions':
-        navigate('/sessions', { state: options });
+        navigate('/sessions/history', { state: options });
         break;
       case 'schedules':
         navigate('/schedules', { state: options });

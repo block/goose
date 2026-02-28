@@ -87,7 +87,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
             state: viewOptions,
           });
         } else {
-          navigate('/sessions', { state: viewOptions });
+          navigate('/sessions/history', { state: viewOptions });
         }
         break;
       case 'settings':
@@ -97,7 +97,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         navigate('/extensions', { state: viewOptions });
         break;
       case 'sessions':
-        navigate('/sessions');
+        navigate('/sessions/history');
         break;
       case 'schedules':
         navigate('/schedules');

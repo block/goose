@@ -902,7 +902,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   );
 
   const handleViewAllClick = React.useCallback(() => {
-    navigate('/sessions');
+    navigate('/sessions/history');
   }, [navigate]);
 
   const handleOpenProjectFromDir = React.useCallback(
