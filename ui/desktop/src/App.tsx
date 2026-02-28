@@ -79,10 +79,9 @@ function PageViewTracker() {
 }
 
 // Route Components
-// "/" redirects to "/sessions".
-// With no sessions, ChatSessionsContainer shows WelcomeState.
+// "/" redirects to "/sessions/history" (View All).
 const HomeRedirectWrapper = () => {
-  return <Navigate to="/sessions" replace />;
+  return <Navigate to="/sessions/history" replace />;
 };
 
 const SessionRouteWrapper = ({
