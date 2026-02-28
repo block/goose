@@ -116,6 +116,30 @@ export function useRegisterSession(
     stateRef.current.handleSubmit?.(input);
   }, []);
 
+  const stableSetChatState = useCallback((nextState: ChatState) => {
+    stateRef.current.setChatState?.(nextState);
+  }, []);
+
+  const stableOnStop = useCallback(() => {
+    stateRef.current.onStop?.();
+  }, []);
+
+  const stableOnFilesProcessed = useCallback(() => {
+    stateRef.current.onFilesProcessed?.();
+  }, []);
+
+  const stableAppend = useCallback((message: Message) => {
+    stateRef.current.append?.(message);
+  }, []);
+
+  const stableOnWorkingDirChange = useCallback((newDir: string) => {
+    stateRef.current.onWorkingDirChange?.(newDir);
+  }, []);
+
+  const stableSetView = useCallback((view: View, options?: ViewOptions) => {
+    stateRef.current.setView?.(view, options);
+  }, []);
+
   // 1) Register/unregister ONLY when sessionId changes or on unmount.
   //    The cleanup setter(null) runs only here — never on field updates.
   useEffect(() => {
@@ -127,14 +151,19 @@ export function useRegisterSession(
       sessionId,
       chatState: stateRef.current.chatState ?? ChatState.Idle,
       handleSubmit: stableSubmit,
-      setView: stateRef.current.setView ?? (() => {}),
+      setView: stableSetView,
       toolCount: stateRef.current.toolCount ?? 0,
+      setChatState: stableSetChatState,
+      onStop: stableOnStop,
+      onFilesProcessed: stableOnFilesProcessed,
+      append: stableAppend,
+      onWorkingDirChange: stableOnWorkingDirChange,
     });
 
     return () => {
       setter(null);
     };
-  }, [state.sessionId, stableSubmit]);
+  }, [state.sessionId, stableSubmit, stableSetView, stableSetChatState, stableOnStop, stableOnFilesProcessed, stableAppend, stableOnWorkingDirChange]);
 
   // 2) Update session fields without unregistering.
   //    Uses functional update to avoid overwriting a different session.
@@ -150,11 +179,8 @@ export function useRegisterSession(
         ...prev,
         chatState: state.chatState ?? ChatState.Idle,
         toolCount: state.toolCount ?? 0,
-        setChatState: state.setChatState,
-        onStop: state.onStop,
         commandHistory: state.commandHistory,
         droppedFiles: state.droppedFiles,
-        onFilesProcessed: state.onFilesProcessed,
         totalTokens: state.totalTokens,
         accumulatedInputTokens: state.accumulatedInputTokens,
         accumulatedOutputTokens: state.accumulatedOutputTokens,
@@ -164,21 +190,15 @@ export function useRegisterSession(
         recipeId: state.recipeId,
         recipeAccepted: state.recipeAccepted,
         initialPrompt: state.initialPrompt,
-        append: state.append,
-        onWorkingDirChange: state.onWorkingDirChange,
         inputRef: state.inputRef,
-        setView: state.setView ?? prev.setView,
       };
 
       // Avoid infinite render loops by only updating context when something actually changed.
       const changed =
         next.chatState !== prev.chatState ||
         next.toolCount !== prev.toolCount ||
-        next.setChatState !== prev.setChatState ||
-        next.onStop !== prev.onStop ||
         next.commandHistory !== prev.commandHistory ||
         next.droppedFiles !== prev.droppedFiles ||
-        next.onFilesProcessed !== prev.onFilesProcessed ||
         next.totalTokens !== prev.totalTokens ||
         next.accumulatedInputTokens !== prev.accumulatedInputTokens ||
         next.accumulatedOutputTokens !== prev.accumulatedOutputTokens ||
@@ -188,10 +208,8 @@ export function useRegisterSession(
         next.recipeId !== prev.recipeId ||
         next.recipeAccepted !== prev.recipeAccepted ||
         next.initialPrompt !== prev.initialPrompt ||
-        next.append !== prev.append ||
-        next.onWorkingDirChange !== prev.onWorkingDirChange ||
         next.inputRef !== prev.inputRef ||
-        next.setView !== prev.setView;
+        false;
 
       return changed ? next : prev;
     });
@@ -204,19 +222,13 @@ export function useRegisterSession(
     state.accumulatedInputTokens,
     state.accumulatedOutputTokens,
     state.droppedFiles,
-    state.onFilesProcessed,
     state.commandHistory,
-    state.onStop,
     state.recipe,
     state.recipeId,
     state.recipeAccepted,
     state.initialPrompt,
     state.sessionCosts,
-    state.setChatState,
-    state.setView,
-    state.append,
     state.inputRef,
-    state.onWorkingDirChange,
   ]);
 }
 

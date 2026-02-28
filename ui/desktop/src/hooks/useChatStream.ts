@@ -72,6 +72,8 @@ export function useChatStream({
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const lastUpdateFromSessionIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     return () => {
       if (namePollingRef.current) {
@@ -423,18 +425,24 @@ export function useChatStream({
   );
 
   useEffect(() => {
-    // This should happen on the server when the session is loaded or changed
-    // use session.id to support changing of sessions rather than depending on the
-    // stable sessionId.
-    if (state.session) {
-      updateFromSession({
-        body: {
-          session_id: state.session.id,
-        },
-        throwOnError: true,
-      });
+    const id = state.session?.id;
+    if (!id) return;
+
+    // Avoid spamming update_from_session on every session state update (tokens, name refresh,
+    // etc.). This endpoint is intended to run once per session load/switch.
+    if (lastUpdateFromSessionIdRef.current === id) {
+      return;
     }
-  }, [state.session]);
+
+    lastUpdateFromSessionIdRef.current = id;
+
+    void updateFromSession({
+      body: { session_id: id },
+      throwOnError: true,
+    }).catch((err) => {
+      console.warn('[useChatStream] update_from_session failed:', err);
+    });
+  }, [state.session?.id]);
 
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
