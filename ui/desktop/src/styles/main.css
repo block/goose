@@ -627,19 +627,14 @@ body {
   word-break: break-word;
 }
 
-.titlebar-drag-region {
-  -webkit-app-region: drag;
-  height: 32px;
-  width: 100%;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 50;
-}
-
-.no-drag {
-  -webkit-app-region: no-drag;
-}
+/* Drag regions (Electron frameless windows)
+ *
+ * We intentionally do NOT use a global top-of-window drag overlay in the renderer.
+ * It can overlap real UI controls (sidebar header, chat header) and steal clicks.
+ *
+ * If/when we reintroduce a draggable area, prefer a dedicated TopBar component
+ * with explicit `-webkit-app-region: drag` and clear `no-drag` islands.
+ */
 
 .bg-inline-code {
   border-radius: 6px;
