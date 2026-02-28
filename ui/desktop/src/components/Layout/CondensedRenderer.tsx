@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { cn } from '../../utils';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ChatSessionsDropdown, SessionsList } from './navigation';
+import { shouldShowNewChatTitle } from '../../sessions';
 import type { NavigationRendererProps } from './navigation/types';
 
 export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
@@ -162,25 +163,26 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                               )}
                             </div>
                           </motion.button>
-                          {!isChatExpanded && (
-                            <motion.button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onNewChat();
-                              }}
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.95 }}
-                              className={cn(
-                                'absolute -right-9 top-1/2 -translate-y-1/2 p-1.5 rounded-md z-10',
-                                'opacity-0 group-hover:opacity-100 transition-opacity',
-                                'bg-background-tertiary hover:bg-background-inverse hover:text-text-inverse',
-                                'flex items-center justify-center'
-                              )}
-                              title="New Chat"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </motion.button>
-                          )}
+                          {!isChatExpanded &&
+                            !recentSessions.some((s) => shouldShowNewChatTitle(s)) && (
+                              <motion.button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onNewChat();
+                                }}
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.95 }}
+                                className={cn(
+                                  'absolute -right-9 top-1/2 -translate-y-1/2 p-1.5 rounded-md z-10',
+                                  'opacity-0 group-hover:opacity-100 transition-opacity',
+                                  'bg-background-tertiary hover:bg-background-inverse hover:text-text-inverse',
+                                  'flex items-center justify-center'
+                                )}
+                                title="New Chat"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </motion.button>
+                            )}
                         </div>
                       ) : (
                         <motion.button
