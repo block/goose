@@ -16,7 +16,8 @@ use goose::providers::local_inference::{
         get_registry, is_featured_model, model_id_from_repo, LocalModelEntry,
         ModelDownloadStatus as RegistryDownloadStatus, ModelSettings, FEATURED_MODELS,
     },
-    recommend_local_model,
+    recommend_local_model, recommender,
+    recommender::{estimate_params_billion, estimate_speed_tps, has_gpu_accelerator, SpeedTier},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -46,6 +47,8 @@ pub struct LocalModelResponse {
     pub status: ModelDownloadStatus,
     pub recommended: bool,
     pub settings: ModelSettings,
+    /// Estimated inference speed tier (fast/medium/slow)
+    pub speed_tier: SpeedTier,
 }
 
 async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
@@ -68,23 +71,30 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
             }
         }
 
-        let hf_file = match resolve_model_spec(spec).await {
-            Ok((_repo, file)) => file,
+        let (hf_file, quality_rank) = match resolve_model_spec(spec).await {
+            Ok((_repo, file)) => {
+                let rank = hf_models::quant_quality_rank(&file.quantization);
+                (file, rank)
+            }
             Err(_) => {
                 let filename = format!(
                     "{}-{}.gguf",
                     repo_id.split('/').next_back().unwrap_or("model"),
                     quantization
                 );
-                HfGgufFile {
-                    filename: filename.clone(),
-                    size_bytes: 0,
-                    quantization: quantization.to_string(),
-                    download_url: format!(
-                        "https://huggingface.co/{}/resolve/main/{}",
-                        repo_id, filename
-                    ),
-                }
+                let rank = hf_models::quant_quality_rank(&quantization);
+                (
+                    HfGgufFile {
+                        filename: filename.clone(),
+                        size_bytes: 0,
+                        quantization: quantization.to_string(),
+                        download_url: format!(
+                            "https://huggingface.co/{}/resolve/main/{}",
+                            repo_id, filename
+                        ),
+                    },
+                    rank,
+                )
             }
         };
 
@@ -99,6 +109,7 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
             source_url: hf_file.download_url,
             settings: ModelSettings::default(),
             size_bytes: hf_file.size_bytes,
+            quality_rank,
         });
     }
 
@@ -125,6 +136,7 @@ pub async fn list_local_models(
     ensure_featured_models_in_registry().await?;
 
     let recommended_id = recommend_local_model(&state.inference_runtime);
+    let has_gpu = has_gpu_accelerator();
 
     let registry = get_registry()
         .lock()
@@ -152,6 +164,9 @@ pub async fn list_local_models(
         };
 
         let size_bytes = entry.file_size();
+        let params_b = estimate_params_billion(size_bytes, &entry.quantization);
+        let tps = estimate_speed_tps(params_b, &entry.quantization, has_gpu);
+        let speed_tier = SpeedTier::from_tps(tps);
 
         models.push(LocalModelResponse {
             id: entry.id.clone(),
@@ -162,6 +177,7 @@ pub async fn list_local_models(
             status,
             recommended: recommended_id == entry.id,
             settings: entry.settings.clone(),
+            speed_tier,
         });
     }
 
@@ -229,7 +245,7 @@ pub async fn get_repo_files(
         .map_err(|e| ErrorResponse::internal(format!("Failed to fetch repo files: {}", e)))?;
 
     let available_memory = available_inference_memory_bytes(&state.inference_runtime);
-    let recommended_index = hf_models::recommend_variant(&variants, available_memory);
+    let recommended_index = recommender::recommend_variant(&variants, available_memory);
 
     Ok(Json(RepoVariantsResponse {
         variants,
@@ -266,6 +282,8 @@ pub async fn download_hf_model(
     let local_path = Paths::in_data_dir("models").join(&hf_file.filename);
     let download_url = hf_file.download_url.clone();
 
+    let quality_rank = hf_models::quant_quality_rank(&quantization);
+
     let entry = LocalModelEntry {
         id: model_id.clone(),
         repo_id,
@@ -275,6 +293,7 @@ pub async fn download_hf_model(
         source_url: download_url.clone(),
         settings: ModelSettings::default(),
         size_bytes: hf_file.size_bytes,
+        quality_rank,
     };
 
     {

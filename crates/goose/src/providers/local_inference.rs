@@ -3,6 +3,7 @@ mod inference_emulated_tools;
 mod inference_engine;
 mod inference_native_tools;
 pub mod local_model_registry;
+pub mod recommender;
 mod tool_parsing;
 
 use inference_emulated_tools::{
@@ -29,7 +30,7 @@ use futures::future::BoxFuture;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
-use llama_cpp_2::{list_llama_ggml_backend_devices, LlamaBackendDeviceType, LogOptions};
+use llama_cpp_2::LogOptions;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -134,64 +135,16 @@ pub fn resolve_model_path(
     None
 }
 
+/// Get available memory for inference in bytes.
+/// Re-exported from recommender module for backward compatibility.
 pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
-    let _ = &runtime.backend;
-    let devices = list_llama_ggml_backend_devices();
-
-    let accel_memory = devices
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.device_type,
-                LlamaBackendDeviceType::Gpu
-                    | LlamaBackendDeviceType::IntegratedGpu
-                    | LlamaBackendDeviceType::Accelerator
-            )
-        })
-        .map(|d| d.memory_free as u64)
-        .max()
-        .unwrap_or(0);
-
-    if accel_memory > 0 {
-        accel_memory
-    } else {
-        devices
-            .iter()
-            .filter(|d| d.device_type == LlamaBackendDeviceType::Cpu)
-            .map(|d| d.memory_free as u64)
-            .max()
-            .unwrap_or(0)
-    }
+    recommender::available_inference_memory_bytes(runtime)
 }
 
+/// Recommend the best local model for the current hardware.
+/// Re-exported from recommender module for backward compatibility.
 pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
-    use local_model_registry::{get_registry, is_featured_model, FEATURED_MODELS};
-
-    let available_memory = available_inference_memory_bytes(runtime);
-
-    if let Ok(registry) = get_registry().lock() {
-        let mut models: Vec<_> = registry
-            .list_models()
-            .iter()
-            .filter(|m| is_featured_model(&m.id) && m.size_bytes > 0)
-            .collect();
-        models.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
-
-        // Return largest that fits in available memory
-        for model in &models {
-            if available_memory >= model.size_bytes {
-                return model.id.clone();
-            }
-        }
-
-        // If nothing fits, return smallest
-        if let Some(smallest) = models.last() {
-            return smallest.id.clone();
-        }
-    }
-
-    // Fallback to first featured model
-    FEATURED_MODELS[0].to_string()
+    recommender::recommend_local_model(runtime)
 }
 
 fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
