@@ -660,16 +660,26 @@ export function useChatStream({
       dispatch({ type: 'START_STREAMING' });
       abortControllerRef.current = new AbortController();
 
+      const toolResponseMessage: Message = {
+        role: 'user',
+        created: Date.now() / 1000,
+        metadata: { agentVisible: true, userVisible: false },
+        content: [
+          {
+            type: 'toolResponse',
+            id: toolCallId,
+            toolResult: isError
+              ? { error: result }
+              : { content: [{ type: 'text', text: result }] },
+          },
+        ],
+      };
+
       try {
         const { stream } = await reply({
           body: {
             session_id: sessionId,
-            user_message: createUserMessage(''),
-            tool_result: {
-              tool_call_id: toolCallId,
-              result,
-              is_error: isError,
-            },
+            user_message: toolResponseMessage,
           },
           throwOnError: true,
           signal: abortControllerRef.current.signal,

@@ -13,7 +13,6 @@ use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
 use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, TokenState};
-use rmcp::model::{CallToolResult, Content};
 use goose::conversation::Conversation;
 use goose::session::SessionManager;
 use rmcp::model::ServerNotification;
@@ -78,17 +77,6 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 }
 
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
-pub struct ToolResultPayload {
-    /// The tool_call_id that this result corresponds to
-    pub tool_call_id: String,
-    /// The result content from the client-side tool execution
-    pub result: String,
-    /// Whether the tool execution was an error
-    #[serde(default)]
-    pub is_error: bool,
-}
-
-#[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
     user_message: Message,
     /// Override the server's conversation history. Only use this when you need absolute control
@@ -99,11 +87,6 @@ pub struct ChatRequest {
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
-    /// When present, this reply contains a tool result from client-side execution
-    /// (e.g., browser commands). The server will prepend the tool response to the
-    /// conversation before continuing the agent loop.
-    #[serde(default)]
-    tool_result: Option<ToolResultPayload>,
 }
 
 pub struct SseResponse {
@@ -259,21 +242,7 @@ pub async fn reply(
     let stream = ReceiverStream::new(rx);
     let cancel_token = CancellationToken::new();
 
-    let user_message = if let Some(tr) = request.tool_result {
-        let content = vec![Content::text(&tr.result)];
-        let call_result = if tr.is_error {
-            Err(rmcp::model::ErrorData::new(
-                rmcp::model::ErrorCode::INTERNAL_ERROR,
-                tr.result,
-                None,
-            ))
-        } else {
-            Ok(CallToolResult::success(content))
-        };
-        Message::user().with_tool_response(tr.tool_call_id, call_result)
-    } else {
-        request.user_message
-    };
+    let user_message = request.user_message;
     let override_conversation = request.override_conversation;
 
     let task_cancel = cancel_token.clone();
@@ -527,7 +496,6 @@ mod tests {
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,
-                        tool_result: None,
                     })
                     .unwrap(),
                 ))

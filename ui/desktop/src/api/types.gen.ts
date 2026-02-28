@@ -69,7 +69,6 @@ export type ChatRequest = {
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
-    tool_result?: ToolResultPayload | null;
     user_message: Message;
 };
 
@@ -1429,21 +1428,6 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
-};
-
-export type ToolResultPayload = {
-    /**
-     * Whether the tool execution was an error
-     */
-    is_error?: boolean;
-    /**
-     * The result content from the client-side tool execution
-     */
-    result: string;
-    /**
-     * The tool_call_id that this result corresponds to
-     */
-    tool_call_id: string;
 };
 
 export type TranscribeRequest = {
