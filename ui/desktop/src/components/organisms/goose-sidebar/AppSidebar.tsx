@@ -307,28 +307,27 @@ const SessionItem: React.FC<{
         controls (rename, delete). Use an overlay button to avoid nesting interactive
         elements (e.g. InlineEditText renders a button/input).
       */}
-      <button
-        type="button"
-        onClick={() => onSessionClick(session)}
-        className={`absolute inset-y-0 left-3 right-0 rounded-md transition-colors ${
-          activeSessionId === session.id
-            ? 'bg-background-medium'
-            : 'hover:bg-background-medium/50'
-        }`}
-        aria-label={`Open session ${displayName}`}
-      />
-
       <div
-        className={`relative z-10 w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm flex items-center gap-1 min-w-0 pointer-events-none ${
+        className={`relative z-10 w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm flex items-center gap-1 min-w-0 rounded-md transition-colors cursor-pointer ${
           activeSessionId === session.id
-            ? 'text-text-default'
-            : 'text-text-muted group-hover/session:text-text-default'
+            ? 'bg-background-medium text-text-default'
+            : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
         }`}
         title={displayName}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open session ${displayName}`}
+        onClick={() => onSessionClick(session)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSessionClick(session);
+          }
+        }}
       >
         {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
 
-        <div className="flex-1 min-w-0 pointer-events-auto">
+        <div className="flex-1 min-w-0">
           {canRename ? (
             <InlineEditText
               value={displayName}
@@ -342,9 +341,7 @@ const SessionItem: React.FC<{
           )}
         </div>
 
-        <div className="pointer-events-none">
-          <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
-        </div>
+        <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
       </div>
 
       {onDeleteSession && !isStreaming && (
