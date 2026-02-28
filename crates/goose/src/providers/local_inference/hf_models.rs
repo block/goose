@@ -117,7 +117,6 @@ fn quant_info(quant: &str) -> QuantInfo {
         })
 }
 
-/// Get the quality rank for a quantization level (1-28, higher is better).
 pub fn quant_quality_rank(quant: &str) -> u8 {
     quant_info(quant).quality_rank
 }
@@ -382,15 +381,6 @@ pub async fn resolve_model_spec(spec: &str) -> Result<(String, HfGgufFile)> {
     Ok((repo_id, file))
 }
 
-/// Recommend which quantization variant to use based on available memory.
-/// Delegates to the recommender module for proper memory estimation with KV cache.
-pub fn recommend_variant(
-    variants: &[HfQuantVariant],
-    available_memory_bytes: u64,
-) -> Option<usize> {
-    super::recommender::recommend_variant(variants, available_memory_bytes)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,6 +431,4 @@ mod tests {
         assert!(parse_model_spec("no-colon").is_err());
         assert!(parse_model_spec("noslash:Q4_K_M").is_err());
     }
-
-    // Note: recommend_variant is tested in recommender.rs where the implementation lives
 }

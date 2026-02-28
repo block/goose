@@ -5191,7 +5191,8 @@
           "size_bytes",
           "status",
           "recommended",
-          "settings"
+          "settings",
+          "speed_tier"
         ],
         "properties": {
           "filename": {
@@ -5216,6 +5217,9 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "speed_tier": {
+            "$ref": "#/components/schemas/SpeedTier"
           },
           "status": {
             "$ref": "#/components/schemas/ModelDownloadStatus"
@@ -7344,6 +7348,15 @@
             }
           }
         }
+      },
+      "SpeedTier": {
+        "type": "string",
+        "description": "Speed tier for user-friendly display.",
+        "enum": [
+          "fast",
+          "medium",
+          "slow"
+        ]
       },
       "StartAgentRequest": {
         "type": "object",

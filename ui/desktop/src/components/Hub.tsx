@@ -73,7 +73,7 @@ export default function Hub({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 bg-background-muted">
+    <div className="flex flex-col h-full min-h-0 bg-background-secondary">
       <div className="flex-1 flex flex-col min-h-[45vh] overflow-hidden mb-0.5 relative">
         <SessionInsights />
         {isCreatingSession && (

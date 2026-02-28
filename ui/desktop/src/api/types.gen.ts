@@ -556,6 +556,7 @@ export type LocalModelResponse = {
     repo_id: string;
     settings: ModelSettings;
     size_bytes: number;
+    speed_tier: SpeedTier;
     status: ModelDownloadStatus;
 };
 
@@ -1211,6 +1212,11 @@ export type SlashCommand = {
 export type SlashCommandsResponse = {
     commands: Array<SlashCommand>;
 };
+
+/**
+ * Speed tier for user-friendly display.
+ */
+export type SpeedTier = 'fast' | 'medium' | 'slow';
 
 export type StartAgentRequest = {
     extension_overrides?: Array<ExtensionConfig> | null;

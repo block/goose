@@ -1498,7 +1498,6 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 }
             );
 
-            // Register
             let quality_rank = goose::providers::local_inference::hf_models::quant_quality_rank(
                 &file.quantization,
             );

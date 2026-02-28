@@ -30,6 +30,7 @@ use futures::future::BoxFuture;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{LlamaChatMessage, LlamaChatTemplate, LlamaModel};
+use llama_cpp_2::LogOptions;
 use rmcp::model::{Role, Tool};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -80,6 +81,7 @@ impl InferenceRuntime {
             }
             Err(e) => panic!("Failed to init llama backend: {}", e),
         };
+        llama_cpp_2::send_logs_to_tracing(LogOptions::default());
         let runtime = Arc::new(Self {
             models: StdMutex::new(HashMap::new()),
             backend,

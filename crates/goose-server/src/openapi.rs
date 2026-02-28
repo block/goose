@@ -610,6 +610,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::local_inference::RepoVariantsResponse,
         goose::providers::local_inference::local_model_registry::ModelSettings,
         goose::providers::local_inference::local_model_registry::SamplingConfig,
+        goose::providers::local_inference::recommender::SpeedTier,
         DownloadProgress,
         DownloadStatus,
     ))
