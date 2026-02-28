@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { startNewSession } from '@/sessions';
 import type { ChatType } from '@/types/chat';
@@ -6,16 +6,6 @@ import type { UserInput } from '@/types/message';
 import { getInitialWorkingDir } from '@/utils/workingDir';
 import BaseChat from './BaseChat';
 import WelcomeState from './WelcomeState';
-
-const getSessionIdFromPath = (pathname: string): string | undefined => {
-  const match = pathname.match(/^\/sessions\/([^/]+)$/);
-  if (!match) return undefined;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return match[1];
-  }
-};
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
@@ -36,8 +26,9 @@ export default function ChatSessionsContainer({
   activeSessions,
 }: ChatSessionsContainerProps) {
   const location = useLocation();
+  const { sessionId: sessionIdParam } = useParams();
   const setView = useNavigation();
-  const currentSessionId = getSessionIdFromPath(location.pathname);
+  const currentSessionId = sessionIdParam ? decodeURIComponent(sessionIdParam) : undefined;
 
   // No active sessions — show WelcomeState (ChatInput is in AppLayout)
   if (!currentSessionId && activeSessions.length === 0) {
@@ -58,6 +49,12 @@ export default function ChatSessionsContainer({
   // If we have a currentSessionId that's not in activeSessions, add it (handles page refresh)
   if (currentSessionId && !activeSessions.some((s) => s.sessionId === currentSessionId)) {
     sessionsToRender = [...activeSessions, { sessionId: currentSessionId }];
+  }
+
+  // When we're on the sessions history route, there is no active session.
+  // This prevents accidentally treating "history" as a session id.
+  if (location.pathname === '/sessions/history') {
+    sessionsToRender = activeSessions;
   }
 
   return (
