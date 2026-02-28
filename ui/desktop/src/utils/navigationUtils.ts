@@ -38,6 +38,10 @@ export type ViewOptions = {
   shareToken?: string;
   resumeSessionId?: string;
   pendingScheduleDeepLink?: string;
+
+  // Used to force navigation updates when the route + search params are unchanged.
+  // This is intentionally not consumed by route components.
+  __navNonce?: string;
 };
 
 export const createNavigationHandler = (navigate: NavigateFunction) => {

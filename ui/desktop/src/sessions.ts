@@ -17,21 +17,23 @@ export function shouldShowNewChatTitle(session: Session): boolean {
 }
 
 export function resumeSession(session: Session, setView: setViewType) {
-  const eventDetail = {
-    sessionId: session.id,
-    initialMessage: undefined,
-  };
-
   window.dispatchEvent(
     new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
-      detail: eventDetail,
+      detail: {
+        sessionId: session.id,
+        initialMessage: undefined,
+      },
     })
   );
 
+  // If the user clicks the currently-active session again, React Router may treat the navigation
+  // as a no-op (same path + same search params). Including a unique state value forces the
+  // navigation to re-run and ensures the session is reliably reloaded.
   setView('pair', {
     disableAnimation: true,
     resumeSessionId: session.id,
-  });
+    __navNonce: crypto.randomUUID(),
+  } as unknown as Parameters<setViewType>[1]);
 }
 
 export async function createSession(
