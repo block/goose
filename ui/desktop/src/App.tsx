@@ -129,12 +129,10 @@ const SessionRouteWrapper = ({
             })
           );
 
-          // Navigate to the new session URL. We avoid query params entirely.
-          window.history.replaceState(
-            window.history.state,
-            '',
-            `#/sessions/${encodeURIComponent(newSession.id)}`
-          );
+          // Navigate to the new session URL.
+          // IMPORTANT: use the router's navigate() rather than window.history.replaceState.
+          // replaceState does not notify React Router, which can leave the UI in a blank state.
+          navigate(`/sessions/${encodeURIComponent(newSession.id)}`, { replace: true });
         } catch (error) {
           console.error('Failed to create session:', error);
           trackErrorWithContext(error, {
