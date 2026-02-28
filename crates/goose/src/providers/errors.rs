@@ -52,6 +52,16 @@ impl ProviderError {
             ProviderError::CreditsExhausted { .. } => "credits_exhausted",
         }
     }
+
+    /// Returns true if this error indicates the models endpoint returned 404.
+    ///
+    /// Matches "(404)" pattern to avoid false positives from port numbers (e.g., localhost:4040).
+    pub fn is_endpoint_not_implemented(&self) -> bool {
+        match self {
+            ProviderError::RequestFailed(msg) => msg.contains("(404)"),
+            _ => false,
+        }
+    }
 }
 
 impl From<anyhow::Error> for ProviderError {

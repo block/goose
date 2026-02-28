@@ -54,6 +54,7 @@ pub struct AnthropicProvider {
     model: ModelConfig,
     supports_streaming: bool,
     name: String,
+    custom_models: Option<Vec<String>>,
 }
 
 impl AnthropicProvider {
@@ -79,6 +80,7 @@ impl AnthropicProvider {
             model,
             supports_streaming: true,
             name: ANTHROPIC_PROVIDER_NAME.to_string(),
+            custom_models: None,
         })
     }
 
@@ -118,11 +120,19 @@ impl AnthropicProvider {
             ));
         }
 
+        // Extract custom models from config if available
+        let custom_models = if !config.models.is_empty() {
+            Some(config.models.iter().map(|m| m.name.clone()).collect())
+        } else {
+            None
+        };
+
         Ok(Self {
             api_client,
             model,
             supports_streaming,
             name: config.name.clone(),
+            custom_models,
         })
     }
 
@@ -137,6 +147,31 @@ impl AnthropicProvider {
         }
 
         headers
+    }
+
+    async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self.api_client.request(None, "v1/models").api_get().await?;
+
+        if response.status != StatusCode::OK {
+            return Err(map_http_error_to_provider_error(
+                response.status,
+                response.payload,
+            ));
+        }
+
+        let json = response.payload.unwrap_or_default();
+        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
+            ProviderError::RequestFailed(
+                "Missing 'data' array in Anthropic models response".to_string(),
+            )
+        })?;
+
+        let mut models: Vec<String> = arr
+            .iter()
+            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
+            .collect();
+        models.sort();
+        Ok(models)
     }
 }
 
@@ -188,28 +223,29 @@ impl Provider for AnthropicProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self.api_client.request(None, "v1/models").api_get().await?;
-
-        if response.status != StatusCode::OK {
-            return Err(map_http_error_to_provider_error(
-                response.status,
-                response.payload,
-            ));
+        // If custom models are defined, try API first but fallback to them only if endpoint doesn't exist
+        if let Some(custom_models) = &self.custom_models {
+            match self.fetch_models_from_api().await {
+                Ok(models) => return Ok(models),
+                Err(e) => {
+                    // Only fall back for endpoint-not-implemented errors (404, connection failures)
+                    // Auth errors, rate limits, and server errors should propagate
+                    if e.is_endpoint_not_implemented() {
+                        tracing::debug!(
+                            "Models endpoint not implemented for provider '{}' ({}), using predefined list",
+                            self.name,
+                            e
+                        );
+                        return Ok(custom_models.clone());
+                    }
+                    // Otherwise, propagate the error to preserve diagnostics
+                    return Err(e);
+                }
+            }
         }
 
-        let json = response.payload.unwrap_or_default();
-        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::RequestFailed(
-                "Missing 'data' array in Anthropic models response".to_string(),
-            )
-        })?;
-
-        let mut models: Vec<String> = arr
-            .iter()
-            .filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string))
-            .collect();
-        models.sort();
-        Ok(models)
+        // No custom models defined, must succeed with API call
+        self.fetch_models_from_api().await
     }
 
     async fn stream(
