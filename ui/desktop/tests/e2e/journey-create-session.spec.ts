@@ -32,6 +32,17 @@ test('journey: create session (chat)', async ({ goosePage }) => {
   await newChat.click();
   await goosePage.waitForURL(/#\/pair\?resumeSessionId=/i, { timeout: 30_000 });
 
+  const match = goosePage.url().match(/resumeSessionId=([^&]+)/i);
+  const currentSessionId = match ? decodeURIComponent(match[1]) : null;
+  if (!currentSessionId) {
+    throw new Error(`Expected resumeSessionId in URL after clicking New Chat, got: ${goosePage.url()}`);
+  }
+
+  // ChatSessionsContainer keeps multiple sessions mounted and flips visibility via `hidden` / `block`.
+  // Scope assertions to the active session root to avoid strict-mode violations.
+  const activeSessionRoot = goosePage.locator(`div[data-session-id="${currentSessionId}"]`);
+  await expect(activeSessionRoot).toHaveClass(/\bblock\b/);
+
   const input = goosePage.getByTestId('chat-input');
   await expect(input).toBeVisible();
 
@@ -39,9 +50,8 @@ test('journey: create session (chat)', async ({ goosePage }) => {
   await input.fill('hello from e2e');
   await goosePage.keyboard.press('Enter');
 
-  // Only the active session's messages are visible; other mounted sessions are hidden.
-  const messageVisible = goosePage
-    .locator('main [data-testid="message-container"].user:visible', { hasText: 'hello from e2e' })
+  const messageVisible = activeSessionRoot
+    .locator('[data-testid="message-container"].user', { hasText: 'hello from e2e' })
     .first();
   const honk = goosePage.getByRole('heading', { name: /^honk!$/i });
 
