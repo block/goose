@@ -1,3 +1,5 @@
+const isVideoRecording = () => process.env.PW_ELECTRON_VIDEO === '1';
+
 // Helper function to show test name overlay
 async function showTestName(mainWindow: any, testName: string, providerName?: string) {
   await mainWindow.evaluate(({ name, provider }: { name: string, provider?: string }) => {
@@ -28,7 +30,7 @@ async function showTestName(mainWindow: any, testName: string, providerName?: st
       user-select: none;
       -webkit-user-select: none;
     `;
-    
+
     const testText = `Running: ${name}`;
     const providerText = provider ? `\nProvider: ${provider}` : '';
     overlay.textContent = testText + providerText;
@@ -39,10 +41,19 @@ async function showTestName(mainWindow: any, testName: string, providerName?: st
     // Force a repaint to ensure the overlay is visible
     overlay.getBoundingClientRect();
   }, { name: testName, provider: providerName });
+
+  // Hold overlay visible so it's readable in the video
+  if (isVideoRecording()) {
+    await mainWindow.waitForTimeout(1500);
+  }
 }
 
 // Helper function to clear test name overlay
 async function clearTestName(mainWindow: any) {
+  // Pause before clearing so the final state is captured in the video
+  if (isVideoRecording()) {
+    await mainWindow.waitForTimeout(1000);
+  }
   await mainWindow.evaluate(() => {
     const overlay = document.getElementById('test-overlay');
     if (overlay) overlay.remove();

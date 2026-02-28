@@ -2,6 +2,8 @@ import { test as base, Page, Browser, chromium } from '@playwright/test';
 import { spawn, ChildProcess } from 'child_process';
 import { join } from 'path';
 import { promisify } from 'util';
+import * as fs from 'fs';
+import * as os from 'os';
 
 const execAsync = promisify(require('child_process').exec);
 
@@ -12,11 +14,9 @@ type GooseTestFixtures = {
 /**
  * Test-scoped fixture that launches a fresh Electron app for EACH test.
  *
- * Isolation: ⚠️ Partial - each test gets a fresh app instance, but uses ambient user config
+ * Isolation: ✅ Full - each test gets a fresh app instance with an isolated config directory
+ *   via GOOSE_PATH_ROOT, so tests never touch ~/.config/goose/
  * Speed: ⚠️ Slow - ~3s startup overhead per test
- *
- * This ensures each test starts with a fresh app instance, but the app uses the
- * user's existing Goose configuration (providers, models, etc.).
  *
  * Usage:
  *   import { test, expect } from './fixtures';
@@ -33,6 +33,15 @@ export const test = base.extend<GooseTestFixtures>({
 
     let appProcess: ChildProcess | null = null;
     let browser: Browser | null = null;
+
+    // Create an isolated config directory so tests never touch ~/.config/goose/
+    const tempDir = fs.mkdtempSync(join(os.tmpdir(), 'goose-test-'));
+    const configDir = join(tempDir, 'config');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.mkdirSync(join(tempDir, 'data'), { recursive: true });
+    fs.mkdirSync(join(tempDir, 'state'), { recursive: true });
+    fs.writeFileSync(join(configDir, 'config.yaml'), 'GOOSE_PROVIDER: databricks\nGOOSE_MODEL: databricks-claude-haiku-4-5\nGOOSE_TELEMETRY_ENABLED: false\nDATABRICKS_HOST: https://block-lakehouse-production.cloud.databricks.com/\n');
+    console.log(`Using isolated config directory: ${tempDir}`);
 
     try {
       // Assign a unique debug port for this test to enable parallel execution
@@ -54,6 +63,7 @@ export const test = base.extend<GooseTestFixtures>({
           ENABLE_PLAYWRIGHT: 'true',
           PLAYWRIGHT_DEBUG_PORT: debugPort.toString(), // Unique port per test for parallel execution
           RUST_LOG: 'info', // Enable info-level logging for goosed backend
+          GOOSE_PATH_ROOT: tempDir,
         }
       });
 
@@ -162,6 +172,14 @@ export const test = base.extend<GooseTestFixtures>({
             console.error('Error killing app process:', error);
           }
         }
+      }
+
+      // Clean up the isolated config directory
+      try {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+        console.log('Cleaned up isolated config directory');
+      } catch (error) {
+        console.error('Error cleaning up temp directory:', error);
       }
     }
   },
