@@ -806,7 +806,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     } else {
       isCreatingSessionRef.current = true;
       try {
-        await startNewSession('', setView, getInitialWorkingDir(), {
+        // "New Chat" should always start in the user's home directory (General).
+        // getInitialWorkingDir() reflects the currently-selected project/window directory.
+        await startNewSession('', setView, os.homedir(), {
           allExtensions: configContext.extensionsList,
         });
       } finally {

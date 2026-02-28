@@ -1,4 +1,4 @@
-import { updateAgentProvider, updateFromSession, type Recipe } from '@/api';
+import { updateAgentProvider, type Recipe } from '@/api';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,
@@ -39,14 +39,8 @@ export const initializeSystem = async (
       throwOnError: true,
     });
 
-    if (!sessionId) {
-    }
-    await updateFromSession({
-      body: {
-        session_id: sessionId,
-      },
-      throwOnError: true,
-    });
+    // NOTE: update_from_session was causing render/update loops in the UI and is no longer
+    // required during initialization.
 
     if (!options?.getExtensions || !options?.addExtension) {
       console.warn('Extension helpers not provided in alpha mode');

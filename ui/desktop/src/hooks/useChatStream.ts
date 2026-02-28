@@ -5,7 +5,6 @@ import {
   listApps,
   reply,
   resumeAgent,
-  updateFromSession,
   updateSessionUserRecipeValues,
 } from '@/api';
 import { AppEvents } from '@/constants/events';
@@ -72,7 +71,6 @@ export function useChatStream({
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const lastUpdateFromSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -423,26 +421,6 @@ export function useChatStream({
     },
     [sessionId]
   );
-
-  useEffect(() => {
-    const id = state.session?.id;
-    if (!id) return;
-
-    // Avoid spamming update_from_session on every session state update (tokens, name refresh,
-    // etc.). This endpoint is intended to run once per session load/switch.
-    if (lastUpdateFromSessionIdRef.current === id) {
-      return;
-    }
-
-    lastUpdateFromSessionIdRef.current = id;
-
-    void updateFromSession({
-      body: { session_id: id },
-      throwOnError: true,
-    }).catch((err) => {
-      console.warn('[useChatStream] update_from_session failed:', err);
-    });
-  }, [state.session?.id]);
 
   const stopStreaming = useCallback(() => {
     abortControllerRef.current?.abort();
