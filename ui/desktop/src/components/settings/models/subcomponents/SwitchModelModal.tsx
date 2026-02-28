@@ -231,7 +231,11 @@ export const SwitchModelModal = ({
         if (claudeThinkingType === 'adaptive') {
           upsert('CLAUDE_THINKING_EFFORT', claudeThinkingEffort, false).catch(console.warn);
         } else if (claudeThinkingType === 'enabled') {
-          upsert('CLAUDE_THINKING_BUDGET', parseInt(claudeThinkingBudget, 10) || 16000, false).catch(console.warn);
+          upsert(
+            'CLAUDE_THINKING_BUDGET',
+            parseInt(claudeThinkingBudget, 10) || 16000,
+            false
+          ).catch(console.warn);
         }
       }
 

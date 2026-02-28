@@ -8,10 +8,37 @@ use futures::{Stream, StreamExt};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+use std::path::PathBuf;
+
 use crate::config::permission::PermissionLevel;
 use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
 use rmcp::model::{Content, ServerNotification};
+
+/// Context passed through the tool call dispatch chain.
+pub struct ToolCallContext {
+    pub session_id: String,
+    pub working_dir: Option<PathBuf>,
+    pub tool_call_request_id: Option<String>,
+}
+
+impl ToolCallContext {
+    pub fn new(
+        session_id: String,
+        working_dir: Option<PathBuf>,
+        tool_call_request_id: Option<String>,
+    ) -> Self {
+        Self {
+            session_id,
+            working_dir,
+            tool_call_request_id,
+        }
+    }
+
+    pub fn working_dir_str(&self) -> Option<&str> {
+        self.working_dir.as_ref().and_then(|p| p.to_str())
+    }
+}
 
 // ToolCallResult combines the result of a tool call with an optional notification stream that
 // can be used to receive notifications from the tool.

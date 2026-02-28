@@ -95,10 +95,9 @@ impl McpClientTrait for MockClient {
 
     async fn call_tool(
         &self,
-        _session_id: &str,
+        _ctx: &goose::agents::ToolCallContext,
         name: &str,
         arguments: Option<serde_json::Map<String, Value>>,
-        _working_dir: Option<&str>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         if let Some(handler) = self.handlers.get(name) {
