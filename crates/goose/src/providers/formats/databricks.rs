@@ -39,9 +39,7 @@ fn format_text_content(text: &str, image_format: &ImageFormat) -> (Vec<Value>, b
 fn format_tool_response(
     response: &crate::conversation::message::ToolResponse,
     image_format: &ImageFormat,
-) -> Vec<DatabricksMessage> {
-    let mut result = Vec::new();
-
+) -> (DatabricksMessage, Vec<DatabricksMessage>) {
     match &response.tool_result {
         Ok(call_result) => {
             let abridged: Vec<_> = call_result.content.iter().map(|c| c.raw.clone()).collect();
@@ -79,25 +77,24 @@ fn format_tool_response(
                 .collect::<Vec<String>>()
                 .join(" "));
 
-            result.push(DatabricksMessage {
+            let tool_message = DatabricksMessage {
                 content: tool_response_content,
                 role: "tool".to_string(),
                 tool_call_id: Some(response.id.clone()),
                 tool_calls: None,
-            });
-            result.extend(image_messages);
+            };
+            (tool_message, image_messages)
         }
         Err(e) => {
-            result.push(DatabricksMessage {
+            let tool_message = DatabricksMessage {
                 role: "tool".to_string(),
                 content: format!("The tool call returned the following error:\n{}", e).into(),
                 tool_call_id: Some(response.id.clone()),
                 tool_calls: None,
-            });
+            };
+            (tool_message, vec![])
         }
     }
-
-    result
 }
 
 /// Convert internal Message format to Databricks' API message specification
@@ -120,6 +117,7 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         let mut content_array = Vec::new();
         let mut has_tool_calls = false;
         let mut has_multiple_content = false;
+        let mut pending_image_messages: Vec<DatabricksMessage> = Vec::new();
 
         for content in &message.content {
             match content {
@@ -186,7 +184,10 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
                     }
                 }
                 MessageContent::ToolResponse(response) => {
-                    result.extend(format_tool_response(response, image_format));
+                    let (tool_message, image_messages) =
+                        format_tool_response(response, image_format);
+                    result.push(tool_message);
+                    pending_image_messages.extend(image_messages);
                 }
                 MessageContent::Image(image) => {
                     content_array.push(convert_image(image, image_format));
@@ -226,6 +227,8 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
         if !content_array.is_empty() || has_tool_calls {
             result.push(converted);
         }
+
+        result.extend(pending_image_messages);
     }
 
     result
@@ -1562,6 +1565,216 @@ mod tests {
             "sig_nested"
         );
         assert_eq!(tool_call["custom_field"], "custom_value");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_single_tool_response_with_image() -> anyhow::Result<()> {
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "tool1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "screenshot".into(),
+                    arguments: Some(object!({})),
+                }),
+            ),
+            Message::user().with_tool_response(
+                "tool1",
+                Ok(CallToolResult {
+                    content: vec![
+                        Content::text("Here is the screenshot"),
+                        Content::image("base64data".to_string(), "image/png".to_string()),
+                    ],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
+        ];
+
+        let as_value =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+        let spec = as_value.as_array().unwrap();
+
+        // assistant (tool_calls) + tool + user (image) = 3
+        assert_eq!(spec.len(), 3);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+        assert_eq!(spec[1]["role"], "tool");
+        assert_eq!(spec[1]["tool_call_id"], "tool1");
+        assert!(spec[1]["content"]
+            .as_str()
+            .unwrap()
+            .contains("image that is uploaded in the next message"));
+        assert_eq!(spec[2]["role"], "user");
+        assert!(spec[2]["content"].is_array());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_multiple_tool_responses_with_images_ordering() -> anyhow::Result<()> {
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "screenshot".into(),
+                        arguments: Some(object!({"page": "1"})),
+                    }),
+                )
+                .with_tool_request(
+                    "tool2",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "screenshot".into(),
+                        arguments: Some(object!({"page": "2"})),
+                    }),
+                )
+                .with_tool_request(
+                    "tool3",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "screenshot".into(),
+                        arguments: Some(object!({"page": "3"})),
+                    }),
+                ),
+            Message::user()
+                .with_tool_response(
+                    "tool1",
+                    Ok(CallToolResult {
+                        content: vec![
+                            Content::text("Screenshot of page 1"),
+                            Content::image("img1data".to_string(), "image/png".to_string()),
+                        ],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                )
+                .with_tool_response(
+                    "tool2",
+                    Ok(CallToolResult {
+                        content: vec![
+                            Content::text("Screenshot of page 2"),
+                            Content::image("img2data".to_string(), "image/png".to_string()),
+                        ],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                )
+                .with_tool_response(
+                    "tool3",
+                    Ok(CallToolResult {
+                        content: vec![
+                            Content::text("Screenshot of page 3"),
+                            Content::image("img3data".to_string(), "image/png".to_string()),
+                        ],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                ),
+        ];
+
+        let as_value =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+        let spec = as_value.as_array().unwrap();
+
+        // assistant (tool_calls) + 3 tool messages + 3 user image messages = 7
+        assert_eq!(spec.len(), 7);
+
+        assert_eq!(spec[0]["role"], "assistant");
+        assert!(spec[0]["tool_calls"].is_array());
+        assert_eq!(spec[0]["tool_calls"].as_array().unwrap().len(), 3);
+
+        // All 3 tool messages must come consecutively
+        assert_eq!(spec[1]["role"], "tool");
+        assert_eq!(spec[1]["tool_call_id"], "tool1");
+        assert_eq!(spec[2]["role"], "tool");
+        assert_eq!(spec[2]["tool_call_id"], "tool2");
+        assert_eq!(spec[3]["role"], "tool");
+        assert_eq!(spec[3]["tool_call_id"], "tool3");
+
+        // All 3 image user messages must come after all tool messages
+        assert_eq!(spec[4]["role"], "user");
+        assert!(spec[4]["content"].is_array());
+        assert_eq!(spec[5]["role"], "user");
+        assert!(spec[5]["content"].is_array());
+        assert_eq!(spec[6]["role"], "user");
+        assert!(spec[6]["content"].is_array());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_mixed_tool_responses_with_and_without_images() -> anyhow::Result<()> {
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "screenshot".into(),
+                        arguments: Some(object!({})),
+                    }),
+                )
+                .with_tool_request(
+                    "tool2",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "search".into(),
+                        arguments: Some(object!({"q": "hello"})),
+                    }),
+                ),
+            Message::user()
+                .with_tool_response(
+                    "tool1",
+                    Ok(CallToolResult {
+                        content: vec![
+                            Content::text("Screenshot taken"),
+                            Content::image("imgdata".to_string(), "image/png".to_string()),
+                        ],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                )
+                .with_tool_response(
+                    "tool2",
+                    Ok(CallToolResult {
+                        content: vec![Content::text("Search results: ...")],
+                        structured_content: None,
+                        is_error: Some(false),
+                        meta: None,
+                    }),
+                ),
+        ];
+
+        let as_value =
+            serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi)).unwrap();
+        let spec = as_value.as_array().unwrap();
+
+        // assistant (tool_calls) + 2 tool messages + 1 user image message = 4
+        assert_eq!(spec.len(), 4);
+
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[1]["role"], "tool");
+        assert_eq!(spec[1]["tool_call_id"], "tool1");
+        assert_eq!(spec[2]["role"], "tool");
+        assert_eq!(spec[2]["tool_call_id"], "tool2");
+        assert_eq!(spec[3]["role"], "user");
+        assert!(spec[3]["content"].is_array());
 
         Ok(())
     }
