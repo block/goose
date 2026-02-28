@@ -679,6 +679,7 @@ export function AppInner() {
               />
               <Route path="apps" element={<AppsPage />} />
               <Route path="sessions" element={<SessionsRoute />} />
+              <Route path="sessions/:sessionId" element={<SessionRouteWrapper />} />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="workflows" element={<WorkflowsPage />} />
               <Route path="recipes" element={<RecipesRoute />} />
