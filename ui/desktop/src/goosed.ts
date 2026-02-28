@@ -302,7 +302,10 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
     goosedProcess.stdout?.on('data', (data: Buffer) => {
       const text = data.toString();
-      logger.info(`goosed stdout for port ${port} and dir ${workingDir}: ${text}`);
+      // Only log small stdout chunks to avoid memory pressure from large payloads
+      if (data.length < 1024) {
+        logger.info(`goosed stdout: ${text}`);
+      }
 
       if (!resolved && text.includes(FINGERPRINT_PREFIX)) {
         for (const line of text.split('\n')) {
@@ -325,14 +328,35 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     });
   });
 
+  const MAX_ERROR_LOG_LINES = 200;
+  let stderrBytesProcessed = 0;
+  const fatalBytes = [
+    Buffer.from('panicked at'),
+    Buffer.from('RUST_BACKTRACE'),
+    Buffer.from('fatal error'),
+  ];
+
   goosedProcess.stderr?.on('data', (data: Buffer) => {
-    const lines = data.toString().split('\n');
-    for (const line of lines) {
-      if (line.trim()) {
-        errorLog.push(line);
-        if (isFatalError(line)) {
-          logger.error(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
+    stderrBytesProcessed += data.length;
+
+    // Only convert to string if the chunk might contain a fatal error,
+    // or during startup when we need errorLog for status checks.
+    const isStartup = stderrBytesProcessed < 1024 * 1024;
+    const hasFatal = fatalBytes.some((pattern) => data.includes(pattern));
+
+    if (isStartup || hasFatal) {
+      const text = data.toString();
+      const lines = text.split('\n');
+      for (const line of lines) {
+        if (line.trim()) {
+          errorLog.push(line);
+          if (isFatalError(line)) {
+            logger.error(`goosed fatal: ${line}`);
+          }
         }
+      }
+      if (errorLog.length > MAX_ERROR_LOG_LINES * 2) {
+        errorLog.splice(0, errorLog.length - MAX_ERROR_LOG_LINES);
       }
     }
   });

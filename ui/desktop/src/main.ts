@@ -1536,31 +1536,30 @@ ipcMain.handle('check-ollama', async () => {
       const ps = spawn('ps', ['aux']);
       const grep = spawn('grep', ['-iw', '[o]llama']);
 
-      let output = '';
+      const outputChunks: string[] = [];
       let errorOutput = '';
 
       // Pipe ps output to grep
       ps.stdout.pipe(grep.stdin);
 
       grep.stdout.on('data', (data) => {
-        output += data.toString();
+        outputChunks.push(String(data));
       });
 
       grep.stderr.on('data', (data) => {
-        errorOutput += data.toString();
+        errorOutput += String(data);
       });
 
       grep.on('close', (code) => {
+        const output = outputChunks.join('');
+
         if (code !== null && code !== 0 && code !== 1) {
           // grep returns 1 when no matches found
           console.error('Error executing grep command:', errorOutput);
           return resolve(false);
         }
 
-        console.log('Raw stdout from ps|grep command:', output);
         const trimmedOutput = output.trim();
-        console.log('Trimmed stdout:', trimmedOutput);
-
         const isRunning = trimmedOutput.length > 0;
         resolve(isRunning);
       });
@@ -1589,37 +1588,8 @@ ipcMain.handle('check-ollama', async () => {
 ipcMain.handle('read-file', async (_event, filePath) => {
   try {
     const expandedPath = expandTilde(filePath);
-    if (process.platform === 'win32') {
-      const buffer = await fs.readFile(expandedPath);
-      return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
-    }
-    // Non-Windows: keep previous behavior via cat for parity
-    return await new Promise((resolve) => {
-      const cat = spawn('cat', [expandedPath]);
-      let output = '';
-      let errorOutput = '';
-
-      cat.stdout.on('data', (data) => {
-        output += data.toString();
-      });
-
-      cat.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-
-      cat.on('close', (code) => {
-        if (code !== 0) {
-          resolve({ file: '', filePath: expandedPath, error: errorOutput || null, found: false });
-          return;
-        }
-        resolve({ file: output, filePath: expandedPath, error: null, found: true });
-      });
-
-      cat.on('error', (error) => {
-        console.error('Error reading file:', error);
-        resolve({ file: '', filePath: expandedPath, error, found: false });
-      });
-    });
+    const buffer = await fs.readFile(expandedPath);
+    return { file: buffer.toString('utf8'), filePath: expandedPath, error: null, found: true };
   } catch (error) {
     console.error('Error reading file:', error);
     return { file: '', filePath: expandTilde(filePath), error, found: false };
