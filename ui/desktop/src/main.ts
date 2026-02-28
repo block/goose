@@ -747,7 +747,7 @@ const createChat = async (
   const routeMap: Record<string, string> = {
     chat: '/',
     settings: '/settings',
-    sessions: '/sessions',
+    sessions: '/sessions/history',
     schedules: '/schedules',
     recipes: '/recipes',
     permission: '/permission',
