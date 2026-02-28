@@ -8,6 +8,7 @@ mod output;
 pub mod streaming_buffer;
 mod task_execution_display;
 mod thinking;
+use crate::goosed_client::GoosedClient;
 
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
@@ -243,13 +244,23 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
     ) -> Self {
-        let messages = agent
-            .config
-            .session_manager
-            .get_session(&session_id, true)
-            .await
-            .map(|session| session.conversation.unwrap_or_default())
-            .unwrap();
+        let messages = if let Ok(Some(client)) = GoosedClient::from_env_if_configured() {
+            match client.get_session(&session_id).await {
+                Ok(session) => session.conversation.unwrap_or_default(),
+                Err(err) => {
+                    warn!("Failed to load session from goosed: {}", err);
+                    Conversation::default()
+                }
+            }
+        } else {
+            agent
+                .config
+                .session_manager
+                .get_session(&session_id, true)
+                .await
+                .map(|session| session.conversation.unwrap_or_default())
+                .unwrap_or_default()
+        };
 
         CliSession {
             agent,
@@ -407,6 +418,14 @@ impl CliSession {
         &mut self,
         extension: Option<String>,
     ) -> Result<HashMap<String, Vec<String>>> {
+        if let Some(client) = GoosedClient::from_env_if_configured()? {
+            let prompts = client.list_prompts().await?;
+            let names = prompts.into_iter().map(|p| p.name).collect();
+            let mut result = HashMap::new();
+            result.insert("prompt templates".to_string(), names);
+            return Ok(result);
+        }
+
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Early validation if filtering by extension
@@ -428,6 +447,17 @@ impl CliSession {
     }
 
     pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
+        if let Some(client) = GoosedClient::from_env_if_configured()? {
+            let prompts = client.list_prompts().await?;
+            let prompt = prompts.into_iter().find(|p| p.name == name);
+            return Ok(prompt.map(|prompt| output::PromptInfo {
+                name: prompt.name,
+                description: Some(prompt.description),
+                arguments: None,
+                extension: None,
+            }));
+        }
+
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
         // Find which extension has this prompt
@@ -744,30 +774,37 @@ impl CliSession {
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
-        if let Err(e) = self
-            .agent
-            .config
-            .session_manager
-            .replace_conversation(&self.session_id, &Conversation::default())
-            .await
-        {
-            output::render_error(&format!("Failed to clear session: {}", e));
-            return Ok(());
-        }
+        if let Some(client) = GoosedClient::from_env_if_configured()? {
+            if let Err(e) = client.clear_session(&self.session_id).await {
+                output::render_error(&format!("Failed to clear session: {}", e));
+                return Ok(());
+            }
+        } else {
+            if let Err(e) = self
+                .agent
+                .config
+                .session_manager
+                .replace_conversation(&self.session_id, &Conversation::default())
+                .await
+            {
+                output::render_error(&format!("Failed to clear session: {}", e));
+                return Ok(());
+            }
 
-        if let Err(e) = self
-            .agent
-            .config
-            .session_manager
-            .update(&self.session_id)
-            .total_tokens(Some(0))
-            .input_tokens(Some(0))
-            .output_tokens(Some(0))
-            .apply()
-            .await
-        {
-            output::render_error(&format!("Failed to reset token counts: {}", e));
-            return Ok(());
+            if let Err(e) = self
+                .agent
+                .config
+                .session_manager
+                .update(&self.session_id)
+                .total_tokens(Some(0))
+                .input_tokens(Some(0))
+                .output_tokens(Some(0))
+                .apply()
+                .await
+            {
+                output::render_error(&format!("Failed to reset token counts: {}", e));
+                return Ok(());
+            }
         }
 
         self.messages.clear();
@@ -840,7 +877,11 @@ impl CliSession {
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
     ) -> Result<(), anyhow::Error> {
-        let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
+        let plan_prompt = if let Some(client) = GoosedClient::from_env_if_configured()? {
+            client.get_plan_prompt(&self.session_id).await?
+        } else {
+            self.agent.get_plan_prompt(&self.session_id).await?
+        };
         output::show_thinking();
         let model_config = reasoner.get_model_config();
         let (plan_response, _usage) = reasoner
@@ -1109,13 +1150,7 @@ impl CliSession {
         }
 
         if is_json_mode {
-            let metadata = match self
-                .agent
-                .config
-                .session_manager
-                .get_session(&self.session_id, false)
-                .await
-            {
+            let metadata = match self.get_session().await {
                 Ok(session) => JsonMetadata {
                     total_tokens: session.total_tokens,
                     status: "completed".to_string(),
@@ -1131,14 +1166,7 @@ impl CliSession {
             };
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
-            let total_tokens = self
-                .agent
-                .config
-                .session_manager
-                .get_session(&self.session_id, false)
-                .await
-                .ok()
-                .and_then(|s| s.total_tokens);
+            let total_tokens = self.get_session().await.ok().and_then(|s| s.total_tokens);
             emit_stream_event(&StreamEvent::Complete { total_tokens });
         } else {
             println!();
@@ -1224,6 +1252,31 @@ impl CliSession {
     /// Update the completion cache with fresh data
     /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
+        if let Some(client) = GoosedClient::from_env_if_configured()? {
+            let prompts = client.list_prompts().await?;
+            let mut cache = self.completion_cache.write().unwrap();
+            cache.prompts.clear();
+            cache.prompt_info.clear();
+
+            let names: Vec<String> = prompts.iter().map(|p| p.name.clone()).collect();
+            cache.prompts.insert("prompt templates".to_string(), names);
+
+            for prompt in prompts {
+                cache.prompt_info.insert(
+                    prompt.name.clone(),
+                    output::PromptInfo {
+                        name: prompt.name,
+                        description: Some(prompt.description),
+                        arguments: None,
+                        extension: None,
+                    },
+                );
+            }
+
+            cache.last_updated = Instant::now();
+            return Ok(());
+        }
+
         // Get fresh data
         let prompts = self.agent.list_extension_prompts(&self.session_id).await;
 
@@ -1287,6 +1340,9 @@ impl CliSession {
     }
 
     pub async fn get_session(&self) -> Result<goose::session::Session> {
+        if let Some(client) = GoosedClient::from_env_if_configured()? {
+            return client.get_session(&self.session_id).await;
+        }
         self.agent
             .config
             .session_manager
@@ -1302,14 +1358,37 @@ impl CliSession {
 
     /// Display enhanced context usage with session totals
     pub async fn display_context_usage(&self) -> Result<()> {
-        let provider = self.agent.provider().await?;
-        let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit();
-
         let config = Config::global();
         let show_cost = config
             .get_param::<bool>("GOOSE_CLI_SHOW_COST")
             .unwrap_or(false);
+        if let Some(client) = GoosedClient::from_env_if_configured()? {
+            match client.get_provider_info(&self.session_id).await {
+                Ok(info) => {
+                    let total_tokens = info.total_tokens.unwrap_or(0) as usize;
+                    output::display_context_usage(total_tokens, info.context_limit);
+                    if show_cost {
+                        let input_tokens = info.input_tokens.unwrap_or(0) as usize;
+                        let output_tokens = info.output_tokens.unwrap_or(0) as usize;
+                        output::display_cost_usage(
+                            &info.provider_name,
+                            &info.model_name,
+                            input_tokens,
+                            output_tokens,
+                        );
+                    }
+                }
+                Err(err) => {
+                    warn!("Failed to fetch provider info: {}", err);
+                    output::display_context_usage(0, 0);
+                }
+            }
+            return Ok(());
+        }
+
+        let provider = self.agent.provider().await?;
+        let model_config = provider.get_model_config();
+        let context_limit = model_config.context_limit();
 
         let provider_name = config
             .get_goose_provider()
@@ -1345,6 +1424,28 @@ impl CliSession {
         // name is required
         if opts.name.is_empty() {
             output::render_error("Prompt name argument is required");
+            return Ok(());
+        }
+        if let Some(client) = GoosedClient::from_env_if_configured()? {
+            if opts.info {
+                match self.get_prompt_info(&opts.name).await? {
+                    Some(info) => output::render_prompt_info(&info),
+                    None => output::render_error(&format!("Prompt '{}' not found", opts.name)),
+                }
+            } else {
+                if !opts.arguments.is_empty() {
+                    output::render_error("Prompt templates do not accept arguments");
+                    return Ok(());
+                }
+
+                match client.get_prompt_content(&opts.name).await {
+                    Ok(prompt) => {
+                        let message = Message::assistant().with_text(prompt.content);
+                        output::render_message(&message, self.debug);
+                    }
+                    Err(e) => output::render_error(&e.to_string()),
+                }
+            }
             return Ok(());
         }
 

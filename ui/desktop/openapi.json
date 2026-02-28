@@ -4841,6 +4841,12 @@
           "success"
         ],
         "properties": {
+          "durationMs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          },
           "error": {
             "type": "string",
             "nullable": true

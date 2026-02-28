@@ -4,6 +4,7 @@ import { ChatState } from '../types/chatState';
 
 import {
   getSession,
+  getSessionExtensions,
   Message,
   MessageEvent,
   reply,
@@ -25,7 +26,9 @@ import {
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
+import { estimateExtensionLoadTimes } from '../utils/extensionLoadMetrics';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
+import { toastService } from '../toasts';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
@@ -441,6 +444,39 @@ export function useChatStream({
     dispatch({ type: 'RESET_FOR_NEW_SESSION' });
 
     let cancelled = false;
+    let loadFinished = false;
+
+    const showExtensionEstimate = async () => {
+      try {
+        const response = await getSessionExtensions({
+          path: { session_id: sessionId },
+          throwOnError: true,
+        });
+
+        if (cancelled || loadFinished) {
+          return;
+        }
+
+        const extensions = response.data?.extensions ?? [];
+        if (extensions.length === 0) {
+          return;
+        }
+
+        const extensionNames = extensions.map((ext) => ext.name);
+        const { totalMs, perExtensionMs } = estimateExtensionLoadTimes(extensionNames);
+        const statuses = extensionNames.map((name) => ({
+          name,
+          status: 'loading' as const,
+          estimatedMs: perExtensionMs[name],
+        }));
+
+        toastService.extensionLoading(statuses, extensionNames.length, false, totalMs);
+      } catch {
+        // best-effort estimate; ignore failures
+      }
+    };
+
+    void showExtensionEstimate();
 
     (async () => {
       try {
@@ -455,6 +491,7 @@ export function useChatStream({
         if (cancelled) {
           return;
         }
+        loadFinished = true;
 
         const resumeData = response.data;
         const loadedSession = resumeData?.session;
@@ -489,6 +526,7 @@ export function useChatStream({
         onSessionLoaded?.();
       } catch (error) {
         if (cancelled) return;
+        loadFinished = true;
 
         dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
       }

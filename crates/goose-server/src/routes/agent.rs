@@ -55,6 +55,26 @@ pub struct GetToolsQuery {
     extension_name: Option<String>,
     session_id: String,
 }
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct SessionIdQuery {
+    session_id: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderInfoResponse {
+    provider_name: String,
+    model_name: String,
+    context_limit: usize,
+    total_tokens: Option<i32>,
+    input_tokens: Option<i32>,
+    output_tokens: Option<i32>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct PlanPromptResponse {
+    prompt: String,
+}
 
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
@@ -513,6 +533,92 @@ async fn get_tools(
     Ok(Json(tools))
 }
 
+#[utoipa::path(
+    get,
+    path = "/agent/provider_info",
+    params(
+        ("session_id" = String, Query, description = "Required session ID to scope provider info to a specific session")
+    ),
+    responses(
+        (status = 200, description = "Provider info retrieved successfully", body = ProviderInfoResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+async fn get_provider_info(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<SessionIdQuery>,
+) -> Result<Json<ProviderInfoResponse>, ErrorResponse> {
+    let session_id = query.session_id;
+    let agent = state
+        .get_agent_for_route(session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    let provider = agent.provider().await.map_err(|e| ErrorResponse {
+        message: e.to_string(),
+        status: StatusCode::FAILED_DEPENDENCY,
+    })?;
+    let model_config = provider.get_model_config();
+    let model_name = model_config.model_name.clone();
+    let context_limit = model_config.context_limit();
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
+        .await
+        .map_err(|err| ErrorResponse {
+            message: format!("Failed to get session: {}", err),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    Ok(Json(ProviderInfoResponse {
+        provider_name: provider.get_name().to_string(),
+        model_name,
+        context_limit,
+        total_tokens: session.total_tokens,
+        input_tokens: session.input_tokens,
+        output_tokens: session.output_tokens,
+    }))
+}
+
+#[utoipa::path(
+    get,
+    path = "/agent/plan_prompt",
+    params(
+        ("session_id" = String, Query, description = "Required session ID to build a plan prompt")
+    ),
+    responses(
+        (status = 200, description = "Plan prompt retrieved successfully", body = PlanPromptResponse),
+        (status = 401, description = "Unauthorized - invalid secret key"),
+        (status = 424, description = "Agent not initialized"),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+async fn get_plan_prompt(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<SessionIdQuery>,
+) -> Result<Json<PlanPromptResponse>, ErrorResponse> {
+    let session_id = query.session_id;
+    let agent = state
+        .get_agent_for_route(session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    let prompt = agent
+        .get_plan_prompt(&session_id)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: e.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    Ok(Json(PlanPromptResponse { prompt }))
+}
 #[utoipa::path(
     post,
     path = "/agent/update_provider",
@@ -1203,6 +1309,8 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/restart", post(restart_agent))
         .route("/agent/update_working_dir", post(update_working_dir))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/provider_info", get(get_provider_info))
+        .route("/agent/plan_prompt", get(get_plan_prompt))
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
         .route("/agent/list_apps", get(list_apps))
