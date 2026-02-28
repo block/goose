@@ -5,6 +5,7 @@ use axum::response::Html;
 use axum::routing::get;
 use axum::Router;
 use minijinja::render;
+use oauth2::TokenResponse;
 use rmcp::transport::auth::{CredentialStore, OAuthState, StoredCredentials};
 use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
@@ -101,11 +102,23 @@ pub async fn oauth_flow(
         .into_authorization_manager()
         .ok_or_else(|| anyhow::anyhow!("Failed to get authorization manager"))?;
 
+    let granted_scopes: Vec<String> = token_response
+        .as_ref()
+        .and_then(|tr| tr.scopes())
+        .map(|scopes| scopes.iter().map(|s| s.to_string()).collect())
+        .unwrap_or_default();
+
     credential_store
         .save(StoredCredentials {
             client_id,
             token_response,
-            granted_scopes: vec![],
+            granted_scopes,
+            token_received_at: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|duration| duration.as_secs())
+                    .unwrap_or(0),
+            ),
         })
         .await?;
 

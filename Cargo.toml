@@ -83,3 +83,4 @@ tree-sitter-typescript = "0.23"
 
 [patch.crates-io]
 v8 = { path = "vendor/v8" }
+rmcp = { git = "https://github.com/peschee/rust-sdk.git", branch = "fix-dcr-scopes" }
