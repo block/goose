@@ -1055,6 +1055,10 @@ impl SummonClient {
 
                 if !source.supporting_files.is_empty() {
                     let mut other_files: Vec<std::path::PathBuf> = Vec::new();
+                    let canonical_skill_dir = source
+                        .path
+                        .canonicalize()
+                        .unwrap_or_else(|_| source.path.clone());
 
                     for file in &source.supporting_files {
                         let is_md = file
@@ -1062,7 +1066,13 @@ impl SummonClient {
                             .is_some_and(|ext| ext == "md" || ext == "mdx");
 
                         if let Ok(relative) = file.strip_prefix(&source.path) {
-                            if is_md {
+                            let safe_to_inline = is_md
+                                && file
+                                    .canonicalize()
+                                    .map(|p| p.starts_with(&canonical_skill_dir))
+                                    .unwrap_or(false);
+
+                            if safe_to_inline {
                                 match std::fs::read_to_string(file) {
                                     Ok(file_content) => {
                                         output.push_str(&format!(
