@@ -24,6 +24,7 @@ import {
 import gooseIcon from '@/images/icon.svg';
 
 import React, { useEffect, useState } from 'react';
+
 import { useLocation, useNavigate } from 'react-router-dom';
 import { deleteSession, listSessions, updateSessionName, type Session } from '@/api';
 import { AppEvents } from '@/constants/events';
@@ -960,7 +961,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 <button
                   type="button"
                   aria-label="Projects"
-                  className="p-1 rounded-md text-text-muted hover:text-text-default hover:bg-background-medium/50 transition-colors"
+                  className="relative z-30 p-1 rounded-md text-text-muted hover:text-text-default hover:bg-background-medium/50 transition-colors"
                 >
                   <FolderPlus className="w-4 h-4" />
                 </button>
