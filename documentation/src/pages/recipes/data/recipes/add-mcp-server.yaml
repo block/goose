@@ -170,7 +170,7 @@ instructions: |
        - The `goose://` deeplink opens the installer correctly in Desktop
        - The server repo link works and the docs link on the details card opens your tutorial
     📝 Tutorial page loads successfully. Verify:
-       - The `goose://` deeplink opens the installer correctly in Desktop (both TLDR and config steps)
+       - The `goose://` deeplink opens the installer correctly in Desktop (both Quick Install and config steps)
        - The CLI configuration steps install correctly
   
   ## Key Technical Details
@@ -195,16 +195,16 @@ instructions: |
   - Key difference: Desktop uses `command` + `args`, CLI uses full `command` string
   - Desktop `envVars` has `name`/`label`, CLI has `key`/`value` (dots for placeholder with sensitive info like API keys)
   
-  **TLDR deeplink generation:**
+  **Quick Install deeplink generation:**
   - Generate the goose:// URL following the buildGooseUrl() pattern from /src/components/GooseDesktopInstaller.tsx
-  - The TLDR link and the GooseDesktopInstaller component link MUST be identical
+  - The Quick Install link and the GooseDesktopInstaller component link MUST be identical
   - Verify both links match before completing
   
   **When creating initial draft tutorial from template:**
   - Remove `import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';`
   - Include the Node.js/Python prerequisite infobox for npx/uvx extensions (copy from template)
   - Copy the Example Usage section verbatim from the template (including placeholder hints)
-  - Don't add extra sections beyond the template structure: metadata, imports, intro paragraph, TLDR, Configuration, Example Usage
+  - Don't add extra sections beyond the template structure: metadata, imports, intro paragraph, Quick Install, Configuration, Example Usage
   - The "why use this" content belongs in the intro paragraph or Example Usage description, not a separate section
   
   **Validation checks for servers.json:**
