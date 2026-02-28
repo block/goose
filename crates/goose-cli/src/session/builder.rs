@@ -597,6 +597,10 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         (None, None)
     };
 
+    if session_config.no_session {
+        std::env::set_var("GOOSE_NO_SESSION", "true");
+    }
+
     let resolved =
         resolve_provider_and_model(&session_config, config, saved_provider, saved_model_config);
 
