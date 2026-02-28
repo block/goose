@@ -50,11 +50,10 @@ export default function ProviderSettings({
   }, []); // Intentionally not including loadProviders in deps to prevent reloading
 
   // This function will be passed to ProviderGrid for manual refreshes after config changes
-  const refreshProviders = useCallback(() => {
+  const refreshProviders = useCallback(async () => {
     if (initialLoadDone.current) {
-      getProviders(true).then((result) => {
-        if (result) setProviders(result);
-      });
+      const result = await getProviders(true);
+      if (result) setProviders(result);
     }
   }, [getProviders]);
 

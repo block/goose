@@ -179,7 +179,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         return providersData;
       } catch (error) {
         console.error('Failed to fetch providers:', error);
-        return [];
+        return providersListRef.current;
       }
     }
     return providersListRef.current;
