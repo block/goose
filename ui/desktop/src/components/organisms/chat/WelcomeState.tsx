@@ -117,7 +117,7 @@ interface WelcomeStateProps {
 
 export default function WelcomeState({ onSubmit }: WelcomeStateProps) {
   return (
-    <div className="flex flex-col items-center px-8 py-12 max-w-3xl mx-auto">
+    <div className="flex flex-col items-center px-8 py-6 w-full max-w-5xl mx-auto">
       {/* Vertical space + Goose icon */}
       <div className="pt-8" />
       <Goose className="size-12" />
