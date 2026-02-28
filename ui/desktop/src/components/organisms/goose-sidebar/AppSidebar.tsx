@@ -595,10 +595,15 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const activeSessionId = React.useMemo(() => {
     const match = location.pathname.match(/^\/sessions\/([^/]+)$/);
     if (!match) return undefined;
+
+    const raw = match[1];
+    // /sessions/history is a UI-only route, not a real session id.
+    if (raw === 'history') return undefined;
+
     try {
-      return decodeURIComponent(match[1]);
+      return decodeURIComponent(raw);
     } catch {
-      return match[1];
+      return raw;
     }
   }, [location.pathname]);
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
