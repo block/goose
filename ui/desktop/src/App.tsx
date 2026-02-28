@@ -356,6 +356,7 @@ export function AppInner() {
 
   const navigate = useNavigate();
   const setView = useNavigation();
+  const location = useLocation();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -442,6 +443,19 @@ export function AppInner() {
       setFatalError(`React ready notification failed: ${errorMessage(error, 'Unknown error')}`);
     }
   }, []);
+
+  // If the user is currently viewing a deleted session route, navigate back to /sessions
+  // to avoid follow-up 404s and a blank state.
+  useEffect(() => {
+    if (!location.pathname.startsWith('/sessions/')) return;
+    const maybeId = location.pathname.slice('/sessions/'.length);
+    if (!maybeId) return;
+
+    const stillActive = activeSessions.some((s) => s.sessionId === maybeId);
+    if (!stillActive) {
+      navigate('/sessions', { replace: true });
+    }
+  }, [activeSessions, location.pathname, navigate]);
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
