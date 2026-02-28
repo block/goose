@@ -532,6 +532,155 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn categorize_tool_requests_handles_errored_tool_calls() -> anyhow::Result<()> {
+        use rmcp::model::{CallToolRequestParams, ErrorCode, ErrorData};
+        use std::borrow::Cow;
+
+        let agent = crate::agents::Agent::new();
+
+        let session = agent
+            .config
+            .session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "test-errored-tools".to_string(),
+                SessionType::Hidden,
+            )
+            .await?;
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let provider = std::sync::Arc::new(MockProvider { model_config });
+        agent.update_provider(provider, &session.id).await?;
+
+        let response = Message::assistant()
+            .with_text("I will call some tools")
+            .with_tool_request(
+                "valid_1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "developer__shell".into(),
+                    arguments: Some(object!({ "command": "ls" })),
+                }),
+            )
+            .with_tool_request(
+                "err_1",
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_REQUEST,
+                    message: Cow::from(
+                        "The provided function name 'todo/todoWrite' had invalid characters",
+                    ),
+                    data: None,
+                }),
+            );
+
+        let (frontend, remaining, _filtered) = agent.categorize_tool_requests(&response, &[]).await;
+
+        assert_eq!(frontend.len(), 0);
+        assert_eq!(remaining.len(), 2);
+
+        let valid_count = remaining.iter().filter(|r| r.tool_call.is_ok()).count();
+        let errored_count = remaining.iter().filter(|r| r.tool_call.is_err()).count();
+        assert_eq!(valid_count, 1);
+        assert_eq!(errored_count, 1);
+
+        let errored_req = remaining.iter().find(|r| r.tool_call.is_err()).unwrap();
+        assert_eq!(errored_req.id, "err_1");
+        if let Err(ref error) = errored_req.tool_call {
+            assert!(
+                error.message.contains("todo/todoWrite"),
+                "Error should reference the invalid tool name"
+            );
+        }
+
+        let errored_tool_errors: Vec<String> = remaining
+            .iter()
+            .filter_map(|req| {
+                if let Err(ref error) = req.tool_call {
+                    Some(format!("- {}", error.message))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(errored_tool_errors.len(), 1);
+        assert!(
+            errored_tool_errors[0].contains("todo/todoWrite"),
+            "Error feedback should contain the invalid tool name"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_all_errored_produces_feedback() -> anyhow::Result<()> {
+        use rmcp::model::{ErrorCode, ErrorData};
+        use std::borrow::Cow;
+
+        let agent = crate::agents::Agent::new();
+
+        let session = agent
+            .config
+            .session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "test-all-errored".to_string(),
+                SessionType::Hidden,
+            )
+            .await?;
+
+        let model_config = ModelConfig::new("test-model").unwrap();
+        let provider = std::sync::Arc::new(MockProvider { model_config });
+        agent.update_provider(provider, &session.id).await?;
+
+        let response = Message::assistant()
+            .with_tool_request(
+                "err_1",
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_REQUEST,
+                    message: Cow::from("Invalid name 'todo/todoWrite'"),
+                    data: None,
+                }),
+            )
+            .with_tool_request(
+                "err_2",
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: Cow::from("Could not parse arguments for 'developer/shell'"),
+                    data: None,
+                }),
+            );
+
+        let (frontend, remaining, _filtered) = agent.categorize_tool_requests(&response, &[]).await;
+
+        assert_eq!(frontend.len(), 0);
+        assert_eq!(remaining.len(), 2);
+        assert!(remaining.iter().all(|r| r.tool_call.is_err()));
+
+        let errored_tool_errors: Vec<String> = remaining
+            .iter()
+            .filter_map(|req| {
+                if let Err(ref error) = req.tool_call {
+                    Some(format!("- {}", error.message))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        assert_eq!(errored_tool_errors.len(), 2);
+
+        let feedback_text = format!(
+            "The following tool calls could not be processed:\n{}\nPlease check the available tool names and parameters and try again.",
+            errored_tool_errors.join("\n")
+        );
+        assert!(feedback_text.contains("todo/todoWrite"));
+        assert!(feedback_text.contains("developer/shell"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_stream_error_propagation() {
         use futures::StreamExt;
 
