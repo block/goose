@@ -248,7 +248,9 @@ const ZONE_MAP: Record<string, NavigationZone> = {
   '/extensions': 'platform',
   '/catalogs': 'platform',
   '/settings': 'platform',
+  '/sessions/history': 'home',
   '/sessions': 'home',
+  '/sessions/': 'home',
 };
 
 function getZoneFromPath(pathname: string): NavigationZone {

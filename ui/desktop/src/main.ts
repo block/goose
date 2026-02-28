@@ -766,8 +766,8 @@ const createChat = async (
     appPath = `/sessions/${encodeURIComponent(resumeSessionId)}`;
   } else if (appPath === '/' && (recipeDeeplink !== undefined || initialMessage)) {
     // If a window is created with an initial message or recipe deeplink, take the user
-    // to the sessions landing page; the renderer will create a session if needed.
-    appPath = '/sessions';
+    // to the sessions history page (the hub no longer lives at /sessions).
+    appPath = '/sessions/history';
   }
 
   // Goose's react app uses HashRouter, so the path follows a #/
