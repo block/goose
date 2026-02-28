@@ -1378,6 +1378,30 @@ impl Agent {
                                     }
                                 }
 
+                                // Feed back errors for tool calls that failed to parse
+                                // (e.g., invalid function names, unparseable JSON arguments)
+                                // so the model can see what went wrong and correct itself.
+                                let errored_tool_errors: Vec<String> = remaining_requests
+                                    .iter()
+                                    .filter_map(|req| {
+                                        if let Err(ref error) = req.tool_call {
+                                            Some(format!("- {}", error.message))
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect();
+                                if !errored_tool_errors.is_empty() {
+                                    let error_feedback = Message::user()
+                                        .with_generated_id()
+                                        .with_text(format!(
+                                            "The following tool calls could not be processed:\n{}\nPlease check the available tool names and parameters and try again.",
+                                            errored_tool_errors.join("\n")
+                                        ));
+                                    yield AgentEvent::Message(error_feedback.clone());
+                                    messages_to_add.push(error_feedback);
+                                }
+
                                 no_tools_called = false;
                             }
                         }
