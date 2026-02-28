@@ -6,7 +6,7 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
-use edit::{EditTools, FileEditParams, FileWriteParams};
+use edit::{EditTools, FileEditParams, FileReadParams, FileWriteParams};
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
@@ -63,8 +63,10 @@ impl DeveloperClient {
 
                 For editing software, prefer the flow of using tree to understand the codebase structure
                 and file sizes. When you need to search, prefer rg which correctly respects gitignored
-                content. Then use cat or sed to gather the context you need, always reading before editing.
-                Use write and edit to efficiently make changes. Test and verify as appropriate.
+                content. Use read to gather file context (and use offset/limit for large files), always
+                reading before editing. Use write and edit to efficiently make changes. Use shell for
+                command execution and workflows where terminal tools are the right fit. Test and verify
+                as appropriate.
             "}.to_string()),
         };
 
@@ -95,6 +97,19 @@ impl DeveloperClient {
 
     fn get_tools() -> Vec<Tool> {
         vec![
+            Tool::new(
+                "read".to_string(),
+                "Read a UTF-8 text file and return its contents. Files over 1MB require offset/limit for chunked reads."
+                    .to_string(),
+                Self::schema::<FileReadParams>(),
+            )
+            .annotate(ToolAnnotations {
+                title: Some("Read".to_string()),
+                read_only_hint: Some(true),
+                destructive_hint: Some(false),
+                idempotent_hint: Some(true),
+                open_world_hint: Some(false),
+            }),
             Tool::new(
                 "write".to_string(),
                 "Create a new file or overwrite an existing file. Creates parent directories if needed.".to_string(),
@@ -179,6 +194,13 @@ impl McpClientTrait for DeveloperClient {
                 ))
                 .with_priority(0.0)])),
             },
+            "read" => match Self::parse_args::<FileReadParams>(arguments) {
+                Ok(params) => Ok(self.edit_tools.file_read_with_cwd(params, working_dir)),
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {error}"
+                ))
+                .with_priority(0.0)])),
+            },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
@@ -227,7 +249,7 @@ mod tests {
             .map(|t| t.name.to_string())
             .collect();
 
-        assert_eq!(names, vec!["write", "edit", "shell", "tree"]);
+        assert_eq!(names, vec!["read", "write", "edit", "shell", "tree"]);
     }
 
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {
@@ -290,6 +312,21 @@ mod tests {
             fs::read_to_string(cwd.join("notes.txt")).unwrap(),
             "updated line"
         );
+
+        let read = client
+            .call_tool(
+                "session",
+                "read",
+                Some(object!({
+                    "path": "notes.txt"
+                })),
+                Some(cwd.to_str().unwrap()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(read.is_error, Some(false));
+        assert_eq!(first_text(&read), "updated line");
     }
 
     #[cfg(not(windows))]

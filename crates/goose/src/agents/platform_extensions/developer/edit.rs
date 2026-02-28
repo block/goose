@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{BufRead, BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use rmcp::model::{CallToolResult, Content};
@@ -6,11 +7,20 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 const NO_MATCH_PREVIEW_LINES: usize = 20;
+const MAX_READ_FILE_BYTES: u64 = 1024 * 1024;
+const DEFAULT_READ_LIMIT_LINES: usize = 500;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct FileWriteParams {
     pub path: String,
     pub content: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct FileReadParams {
+    pub path: String,
+    pub offset: Option<usize>,
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -68,6 +78,55 @@ impl EditTools {
                 params.path, error
             ))
             .with_priority(0.0)]),
+        }
+    }
+
+    pub fn file_read(&self, params: FileReadParams) -> CallToolResult {
+        self.file_read_with_cwd(params, None)
+    }
+
+    pub fn file_read_with_cwd(
+        &self,
+        params: FileReadParams,
+        working_dir: Option<&Path>,
+    ) -> CallToolResult {
+        let path = resolve_path(&params.path, working_dir);
+
+        if params.offset.is_some() || params.limit.is_some() {
+            let offset = params.offset.unwrap_or(0);
+            let limit = params.limit.unwrap_or(DEFAULT_READ_LIMIT_LINES);
+            if limit == 0 {
+                return CallToolResult::error(vec![Content::text(
+                    "Failed to read: limit must be greater than 0",
+                )
+                .with_priority(0.0)]);
+            }
+
+            return match read_file_chunk_by_lines(&path, offset, limit) {
+                Ok(content) => {
+                    CallToolResult::success(vec![Content::text(content).with_priority(0.0)])
+                }
+                Err(error) => CallToolResult::error(vec![Content::text(format!(
+                    "Failed to read {}: {}",
+                    params.path, error
+                ))
+                .with_priority(0.0)]),
+            };
+        }
+
+        match read_file_with_size_limit(&path, &params.path, MAX_READ_FILE_BYTES) {
+            Ok(content) => CallToolResult::success(vec![Content::text(content).with_priority(0.0)]),
+            Err(error) => {
+                let message = if error.contains("exceeds max file size") {
+                    format!(
+                        "{}. Retry with offset and limit to read the file in chunks.",
+                        error
+                    )
+                } else {
+                    error
+                };
+                CallToolResult::error(vec![Content::text(message).with_priority(0.0)])
+            }
         }
     }
 
@@ -172,6 +231,60 @@ fn resolve_path(path: &str, working_dir: Option<&Path>) -> PathBuf {
     }
 }
 
+fn read_file_with_size_limit(
+    path: &Path,
+    display_path: &str,
+    max_bytes: u64,
+) -> Result<String, String> {
+    match fs::metadata(path) {
+        Ok(metadata) => {
+            let file_size = metadata.len();
+            if file_size > max_bytes {
+                return Err(format!(
+                    "{} exceeds max file size of {} bytes (actual: {} bytes)",
+                    display_path, max_bytes, file_size
+                ));
+            }
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "Failed to stat {} before reading: {}",
+                display_path, error
+            ));
+        }
+    }
+
+    fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", display_path, e))
+}
+
+fn read_file_chunk_by_lines(path: &Path, offset: usize, limit: usize) -> Result<String, String> {
+    let file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut reader = BufReader::new(file);
+    let mut output = String::new();
+    let mut line = String::new();
+    let mut line_index = 0usize;
+
+    loop {
+        line.clear();
+        let bytes_read = reader.read_line(&mut line).map_err(|e| e.to_string())?;
+        if bytes_read == 0 {
+            break;
+        }
+
+        if line_index >= offset && line_index < offset.saturating_add(limit) {
+            output.push_str(&line);
+        }
+        if line_index >= offset.saturating_add(limit) {
+            break;
+        }
+
+        line_index += 1;
+    }
+
+    Ok(output)
+}
+
 fn count_lines_before(content: &str, byte_pos: usize) -> usize {
     content
         .char_indices()
@@ -228,6 +341,7 @@ fn build_file_preview(content: &str, max_lines: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::platform_extensions::MAX_READ_FILE_BYTES;
     use rmcp::model::RawContent;
     use std::fs;
     use tempfile::TempDir;
@@ -273,6 +387,23 @@ mod tests {
 
         assert!(!result.is_error.unwrap_or(false));
         assert_eq!(fs::read_to_string(&path).unwrap(), "new content");
+    }
+
+    #[test]
+    fn test_file_read_success() {
+        let dir = setup();
+        let path = dir.path().join("read.txt");
+        fs::write(&path, "read me").unwrap();
+        let tools = EditTools::new();
+
+        let result = tools.file_read(FileReadParams {
+            path: path.to_string_lossy().to_string(),
+            offset: None,
+            limit: None,
+        });
+
+        assert!(!result.is_error.unwrap_or(false));
+        assert_eq!(extract_text(&result), "read me");
     }
 
     #[test]
@@ -403,5 +534,81 @@ mod tests {
             fs::read_to_string(dir.path().join("relative-edit.txt")).unwrap(),
             "after"
         );
+    }
+
+    #[test]
+    fn test_file_read_resolves_relative_paths_from_working_dir() {
+        let dir = setup();
+        fs::write(dir.path().join("relative-read.txt"), "relative read").unwrap();
+        let tools = EditTools::new();
+
+        let result = tools.file_read_with_cwd(
+            FileReadParams {
+                path: "relative-read.txt".to_string(),
+                offset: None,
+                limit: None,
+            },
+            Some(dir.path()),
+        );
+
+        assert!(!result.is_error.unwrap_or(false));
+        assert_eq!(extract_text(&result), "relative read");
+    }
+
+    #[test]
+    fn test_file_read_rejects_oversized_file() {
+        let dir = setup();
+        let path = dir.path().join("large-read.txt");
+        let file = fs::File::create(&path).unwrap();
+        file.set_len(MAX_READ_FILE_BYTES + 1).unwrap();
+        let tools = EditTools::new();
+
+        let result = tools.file_read(FileReadParams {
+            path: path.to_string_lossy().to_string(),
+            offset: None,
+            limit: None,
+        });
+
+        assert!(result.is_error.unwrap_or(false));
+        let text = extract_text(&result);
+        assert!(text.contains("exceeds max file size"));
+    }
+
+    #[test]
+    fn test_file_read_with_offset_and_limit() {
+        let dir = setup();
+        let path = dir.path().join("chunk-read.txt");
+        fs::write(&path, "l1\nl2\nl3\nl4\nl5").unwrap();
+        let tools = EditTools::new();
+
+        let result = tools.file_read(FileReadParams {
+            path: path.to_string_lossy().to_string(),
+            offset: Some(1),
+            limit: Some(2),
+        });
+
+        assert!(!result.is_error.unwrap_or(false));
+        assert_eq!(extract_text(&result), "l2\nl3\n");
+    }
+
+    #[test]
+    fn test_file_read_with_limit_allows_large_file() {
+        let dir = setup();
+        let path = dir.path().join("large-chunk-read.txt");
+        let mut content = String::new();
+        for _ in 0..220_000 {
+            content.push_str("line\n");
+        }
+        fs::write(&path, content).unwrap();
+        let tools = EditTools::new();
+
+        let result = tools.file_read(FileReadParams {
+            path: path.to_string_lossy().to_string(),
+            offset: Some(0),
+            limit: Some(3),
+        });
+
+        assert!(!result.is_error.unwrap_or(false));
+        assert_eq!(extract_text(&result), "line\nline\nline\n");
     }
 }

@@ -1,5 +1,6 @@
 ---
 source: crates/goose/src/agents/prompt_manager.rs
+assertion_line: 442
 expression: system_prompt
 ---
 You are a general-purpose AI agent called goose, created by Block, the parent company of Square, CashApp, and Tidal.
@@ -91,8 +92,10 @@ cost the user money.
 
 For editing software, prefer the flow of using tree to understand the codebase structure
 and file sizes. When you need to search, prefer rg which correctly respects gitignored
-content. Then use cat or sed to gather the context you need, always reading before editing.
-Use write and edit to efficiently make changes. Test and verify as appropriate.
+content. Use read to gather file context (and use offset/limit for large files), always
+reading before editing. Use write and edit to efficiently make changes. Use shell for
+command execution and workflows where terminal tools are the right fit. Test and verify
+as appropriate.
 
 ## summon
 
