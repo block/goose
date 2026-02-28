@@ -7127,9 +7127,13 @@
       "SaveRecipeResponse": {
         "type": "object",
         "required": [
-          "id"
+          "id",
+          "file_name"
         ],
         "properties": {
+          "file_name": {
+            "type": "string"
+          },
           "id": {
             "type": "string"
           }

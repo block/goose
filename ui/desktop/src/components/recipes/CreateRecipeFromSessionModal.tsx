@@ -40,6 +40,7 @@ export default function CreateRecipeFromSessionModal({
       activities: [] as string[],
       parameters: [] as RecipeParameter[],
       jsonSchema: '',
+      subRecipes: [],
       recipeName: '',
       global: true,
     } as RecipeFormData,
@@ -156,6 +157,20 @@ export default function CreateRecipeFromSessionModal({
 
     setIsCreating(true);
     try {
+      const formattedSubRecipes =
+        formData.subRecipes.length > 0
+          ? formData.subRecipes.map((subRecipe) => ({
+              name: subRecipe.name,
+              path: subRecipe.path,
+              description: subRecipe.description || undefined,
+              values:
+                subRecipe.values && Object.keys(subRecipe.values).length > 0
+                  ? subRecipe.values
+                  : undefined,
+              sequential_when_repeated: subRecipe.sequential_when_repeated,
+            }))
+          : undefined;
+
       const recipe: Recipe = {
         title: formData.title,
         description: formData.description,
@@ -180,9 +195,10 @@ export default function CreateRecipeFromSessionModal({
                 json_schema: JSON.parse(formData.jsonSchema),
               }
             : undefined,
+        sub_recipes: formattedSubRecipes,
       };
 
-      const recipeId = await saveRecipe(recipe, null);
+      const { id: recipeId } = await saveRecipe(recipe, null);
 
       onRecipeCreated?.(recipe);
       onClose();
