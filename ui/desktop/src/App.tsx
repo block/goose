@@ -150,12 +150,14 @@ const SessionRouteWrapper = ({
 
   // Add resumed session to active sessions if not already there
   useEffect(() => {
-    if (resumeSessionId && !activeSessions.some((s) => s.sessionId === resumeSessionId)) {
+    const sessions = activeSessions ?? [];
+
+    if (resumeSessionId && !sessions.some((s) => s.sessionId === resumeSessionId)) {
       window.dispatchEvent(
         new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
           detail: {
             sessionId: resumeSessionId,
-            initialMessage: initialMessage,
+            initialMessage,
           },
         })
       );
