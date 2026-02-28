@@ -5,7 +5,9 @@ use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
-use goose::config::extensions::get_enabled_extensions_with_config;
+use goose::config::extensions::{
+    get_enabled_extensions_with_config, resolve_extensions_for_new_session,
+};
 use goose::config::paths::Paths;
 use goose::config::permission::PermissionManager;
 use goose::config::Config;
@@ -16,8 +18,9 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
 use goose::providers::provider_registry::ProviderConstructor;
+use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::{Session, SessionManager};
+use goose::session::{EnabledExtensionsState, ExtensionState, Session, SessionManager};
 use goose_acp_macros::custom_methods;
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
@@ -461,6 +464,14 @@ impl GooseAcpAgent {
             Err(_) => "error".to_string(),
         };
 
+        let raw_input = match &tool_request.tool_call {
+            Ok(call) => call
+                .arguments
+                .as_ref()
+                .map(|args| serde_json::Value::Object(args.clone())),
+            Err(_) => None,
+        };
+
         cx.send_notification(SessionNotification::new(
             session_id.clone(),
             SessionUpdate::ToolCall(
@@ -468,7 +479,8 @@ impl GooseAcpAgent {
                     ToolCallId::new(tool_request.id.clone()),
                     format_tool_name(&tool_name),
                 )
-                .status(ToolCallStatus::Pending),
+                .status(ToolCallStatus::Pending)
+                .raw_input(raw_input),
             ),
         ))?;
 
@@ -490,13 +502,49 @@ impl GooseAcpAgent {
 
         let content = build_tool_call_content(&tool_response.tool_result);
 
-        let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
-            extract_tool_locations(tool_request, tool_response)
+        let raw_output = match &tool_response.tool_result {
+            Ok(result) => {
+                let text: String = result
+                    .content
+                    .iter()
+                    .filter_map(|c| {
+                        if let RawContent::Text(t) = &c.raw {
+                            Some(t.text.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if text.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::Value::String(text))
+                }
+            }
+            Err(_) => None,
+        };
+
+        let tool_request = session.tool_requests.get(&tool_response.id);
+
+        let locations = if let Some(req) = tool_request {
+            extract_tool_locations(req, tool_response)
         } else {
             Vec::new()
         };
 
+        let title = tool_request.and_then(|req| match &req.tool_call {
+            Ok(call) => Some(format_tool_name(&call.name)),
+            Err(_) => None,
+        });
+
         let mut fields = ToolCallUpdateFields::new().status(status).content(content);
+        if let Some(ro) = raw_output {
+            fields = fields.raw_output(ro);
+        }
+        if let Some(t) = title {
+            fields = fields.title(t);
+        }
         if !locations.is_empty() {
             fields = fields.locations(locations);
         }
@@ -1169,6 +1217,143 @@ impl GooseAcpAgent {
         })
     }
 
+    #[custom_method("session/new_with_recipe")]
+    async fn on_new_session_with_recipe(
+        &self,
+        req: NewSessionWithRecipeRequest,
+    ) -> Result<NewSessionWithRecipeResponse, sacp::Error> {
+        let mut recipe: Recipe = serde_json::from_value(req.recipe)
+            .map_err(|e| sacp::Error::invalid_params().data(format!("invalid recipe: {e}")))?;
+
+        if recipe.check_for_security_warnings() {
+            return Err(sacp::Error::invalid_params()
+                .data("recipe contains potentially harmful unicode tag content"));
+        }
+
+        // ensure_summon_for_subrecipes is private on Recipe, so replicate inline
+        if recipe.sub_recipes.as_ref().is_some_and(|sr| !sr.is_empty()) {
+            let has_summon = recipe
+                .extensions
+                .as_ref()
+                .is_some_and(|exts| exts.iter().any(|e| e.name() == "summon"));
+            if !has_summon {
+                let summon = ExtensionConfig::Platform {
+                    name: "summon".to_string(),
+                    description: String::new(),
+                    display_name: None,
+                    bundled: None,
+                    available_tools: vec![],
+                };
+                recipe.extensions.get_or_insert_with(Vec::new).push(summon);
+            }
+        }
+
+        let goose_session = self
+            .session_manager
+            .create_session(
+                std::path::PathBuf::from(&req.cwd),
+                format!("Recipe: {}", recipe.title),
+                SessionType::User,
+            )
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(format!("session create: {e}")))?;
+
+        let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+
+        let mut ext_data = goose_session.extension_data.clone();
+        EnabledExtensionsState::new(extensions)
+            .to_extension_data(&mut ext_data)
+            .map_err(|e| sacp::Error::internal_error().data(format!("extension state: {e}")))?;
+
+        let mut update = self
+            .session_manager
+            .update(&goose_session.id)
+            .extension_data(ext_data)
+            .recipe(Some(recipe.clone()));
+
+        if let Some(ref settings) = recipe.settings {
+            if let Some(ref provider) = settings.goose_provider {
+                update = update.provider_name(provider);
+                if let Some(ref model) = settings.goose_model {
+                    if let Ok(mc) = goose::model::ModelConfig::new(model) {
+                        update = update.model_config(mc.with_canonical_limits(provider));
+                    }
+                }
+            }
+        }
+
+        update
+            .apply()
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(format!("session update: {e}")))?;
+
+        let goose_session = self
+            .session_manager
+            .get_session(&goose_session.id, false)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(format!("session fetch: {e}")))?;
+
+        let agent = Arc::new(Agent::with_config(AgentConfig::new(
+            Arc::clone(&self.session_manager),
+            Arc::clone(&self.permission_manager),
+            None,
+            self.goose_mode,
+            self.disable_session_naming,
+            GoosePlatform::GooseCli,
+        )));
+
+        let provider = self
+            .init_provider(&agent, &goose_session)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(format!("provider: {e}")))?;
+
+        agent.load_extensions_from_session(&goose_session).await;
+        add_builtins(&agent, self.builtins.clone()).await;
+
+        for mcp_server in req.mcp_servers {
+            let config = mcp_server_to_extension_config(mcp_server)
+                .map_err(|msg| sacp::Error::invalid_params().data(msg))?;
+            let name = config.name().to_string();
+            if let Err(e) = agent.add_extension(config, &goose_session.id).await {
+                return Err(sacp::Error::internal_error()
+                    .data(format!("Failed to add MCP server '{name}': {e}")));
+            }
+        }
+
+        agent
+            .apply_recipe_components(recipe.response.clone(), true)
+            .await;
+
+        if let Some(ref instructions) = recipe.instructions {
+            agent
+                .extend_system_prompt("recipe".to_string(), instructions.clone())
+                .await;
+        }
+
+        let model_state =
+            build_model_state(&*provider, &provider.get_model_config().model_name).await;
+
+        self.sessions.lock().await.insert(
+            goose_session.id.clone(),
+            GooseAcpSession {
+                agent,
+                messages: Conversation::new_unvalidated(Vec::new()),
+                tool_requests: HashMap::new(),
+                cancel_token: None,
+            },
+        );
+
+        info!(session_id = %goose_session.id, recipe = %recipe.title, "recipe session started");
+
+        Ok(NewSessionWithRecipeResponse {
+            session_id: goose_session.id,
+            prompt: recipe.prompt,
+            max_turns: recipe.settings.as_ref().and_then(|s| s.max_turns),
+            model_state: serde_json::to_value(model_state)
+                .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?,
+        })
+    }
+
     #[custom_method("config/extensions")]
     async fn on_get_extensions(&self) -> Result<GetExtensionsResponse, sacp::Error> {
         let extensions = goose::config::extensions::get_all_extensions();
@@ -1193,6 +1378,187 @@ impl GooseAcpAgent {
             .ok_or_else(|| {
                 sacp::Error::invalid_params().data(format!("no active session: {session_id}"))
             })
+    }
+
+    /// Invoke an MCP tool directly, bypassing the LLM.
+    ///
+    /// # Security
+    ///
+    /// Skips tool_inspection_manager (SecurityInspector, PermissionInspector,
+    /// RepetitionInspector). This is safe because:
+    /// 1. The ACP server runs in-process — only the CLI binary can reach it
+    /// 2. The human user explicitly typed the slash command that triggers this
+    /// 3. There is no network listener (stdin/stdout pipe transport only)
+    ///
+    /// If this method is ever exposed via HTTP or to untrusted callers,
+    /// inspection MUST be added. See `handle_tool_use` for the full flow.
+    ///
+    /// Assumes single-client server: session_id is caller-supplied with no
+    /// ownership check. In a multi-client scenario, bind cx to session.
+    async fn on_call_tool(
+        &self,
+        req: crate::custom_requests::CallToolRequest,
+        cx: &JrConnectionCx<AgentToClient>,
+    ) -> Result<crate::custom_requests::CallToolResponse, sacp::Error> {
+        use rmcp::model::CallToolRequestParams;
+
+        let session_id = SessionId::new(&*req.session_id);
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let session = self
+            .session_manager
+            .get_session(&req.session_id, false)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        let tool_call = CallToolRequestParams {
+            name: req.tool_name.clone().into(),
+            arguments: Some(req.arguments.clone()),
+            meta: None,
+            task: None,
+        };
+
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let formatted_name = format_tool_name(&req.tool_name);
+
+        // Send ToolCall notification (Pending)
+        cx.send_notification(SessionNotification::new(
+            session_id.clone(),
+            SessionUpdate::ToolCall(
+                ToolCall::new(ToolCallId::new(request_id.clone()), formatted_name.clone())
+                    .status(ToolCallStatus::Pending)
+                    .raw_input(serde_json::Value::Object(req.arguments.clone())),
+            ),
+        ))
+        .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        // Clone params — reused for transcript injection below
+        let (_req_id, result) = agent
+            .dispatch_tool_call(tool_call.clone(), request_id.clone(), None, &session)
+            .await;
+
+        // notification_stream intentionally dropped — no LLM in the loop for direct calls
+        let tool_result: ToolResult<CallToolResult> = match result {
+            Ok(tool_result) => tool_result.result.await,
+            Err(e) => {
+                let err_result = CallToolResult {
+                    content: vec![rmcp::model::Content::text(e.message.to_string())],
+                    is_error: Some(true),
+                    meta: None,
+                    structured_content: None,
+                };
+                Ok(err_result)
+            }
+        };
+
+        let status = match &tool_result {
+            Ok(cr) if cr.is_error == Some(true) => ToolCallStatus::Failed,
+            Ok(_) => ToolCallStatus::Completed,
+            Err(_) => ToolCallStatus::Failed,
+        };
+        let is_error = !matches!(status, ToolCallStatus::Completed);
+
+        // Reuse the same content/raw_output extraction as the normal tool flow
+        let notification_content = build_tool_call_content(&tool_result);
+        let raw_output = match &tool_result {
+            Ok(result) => {
+                let text: String = result
+                    .content
+                    .iter()
+                    .filter_map(|c| {
+                        if let RawContent::Text(t) = &c.raw {
+                            Some(t.text.as_str())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if text.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::Value::String(text))
+                }
+            }
+            Err(_) => None,
+        };
+
+        let mut fields = ToolCallUpdateFields::new()
+            .title(formatted_name)
+            .status(status)
+            .content(notification_content);
+        if let Some(ro) = &raw_output {
+            fields = fields.raw_output(ro.clone());
+        }
+        cx.send_notification(SessionNotification::new(
+            session_id.clone(),
+            SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+                ToolCallId::new(request_id.clone()),
+                fields,
+            )),
+        ))
+        .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        // Build JSON response from the tool result
+        let content_json: Vec<serde_json::Value> = match &tool_result {
+            Ok(cr) => cr
+                .content
+                .iter()
+                .filter_map(|c| {
+                    serde_json::to_value(c)
+                        .map_err(|e| warn!("failed to serialize tool content: {e}"))
+                        .ok()
+                })
+                .collect(),
+            Err(e) => vec![serde_json::json!({"type": "text", "text": e.message})],
+        };
+
+        // Inject into session transcript so the LLM sees slash command results.
+        // Assistant message: ToolRequest (what was called)
+        // User message: ToolResponse (what came back)
+        let request_msg = Message::assistant()
+            .with_generated_id()
+            .with_tool_request(request_id.clone(), Ok(tool_call.clone()));
+
+        let result_content: Vec<_> = content_json
+            .iter()
+            .filter_map(|v| {
+                serde_json::from_value(v.clone())
+                    .map_err(|e| {
+                        warn!("failed to deserialize tool content for transcript: {e}");
+                        e
+                    })
+                    .ok()
+            })
+            .collect();
+        let call_result = CallToolResult {
+            content: result_content,
+            is_error: Some(is_error),
+            meta: None,
+            structured_content: None,
+        };
+        let response_msg = Message::user()
+            .with_generated_id()
+            .with_tool_response(request_id, Ok(call_result));
+
+        if let Err(e) = self
+            .session_manager
+            .add_message(&req.session_id, &request_msg)
+            .await
+        {
+            warn!("failed to persist tool request to transcript: {e}");
+        }
+        if let Err(e) = self
+            .session_manager
+            .add_message(&req.session_id, &response_msg)
+            .await
+        {
+            warn!("failed to persist tool response to transcript: {e}");
+        }
+
+        Ok(crate::custom_requests::CallToolResponse {
+            content: content_json,
+            is_error: Some(is_error),
+        })
     }
 }
 
@@ -1271,6 +1637,7 @@ impl JrMessageHandler for GooseAcpHandler {
                 // - _<method>: custom requests that will eventually route to goose-server
                 .otherwise({
                     let agent = agent.clone();
+                    let cx_outer = cx.clone();
                     |message: MessageCx| async move {
                         match message {
                             MessageCx::Request(req, request_cx)
@@ -1287,6 +1654,33 @@ impl JrMessageHandler for GooseAcpHandler {
                                     sacp::Error::internal_error().data(e.to_string())
                                 })?;
                                 request_cx.respond(json)?;
+                                Ok(())
+                            }
+                            MessageCx::Request(req, request_cx)
+                                if req.method == "_goose/tool/call" =>
+                            {
+                                let params: crate::custom_requests::CallToolRequest =
+                                    serde_json::from_value(req.params).map_err(|e| {
+                                        sacp::Error::invalid_params().data(e.to_string())
+                                    })?;
+                                let agent = agent.clone();
+                                let cx_clone = cx_outer.clone();
+                                cx_outer.spawn(async move {
+                                    match agent.on_call_tool(params, &cx_clone).await {
+                                        Ok(response) => {
+                                            let json =
+                                                serde_json::to_value(response).map_err(|e| {
+                                                    sacp::Error::internal_error()
+                                                        .data(e.to_string())
+                                                })?;
+                                            request_cx.respond(json)?;
+                                        }
+                                        Err(e) => {
+                                            request_cx.respond_with_error(e)?;
+                                        }
+                                    }
+                                    Ok(())
+                                })?;
                                 Ok(())
                             }
                             MessageCx::Request(req, request_cx) if req.method == "session/list" => {
