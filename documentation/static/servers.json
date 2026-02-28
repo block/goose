@@ -410,6 +410,34 @@
     "environmentVariables": []
   },
   {
+    "id": "linux-mcp-server",
+    "name": "Linux MCP Server",
+    "description": "Tools to allow LLM clients to interact with Linux systems remotely",
+    "command": "uvx linux-mcp-server",
+    "documentation": "https://rhel-lightspeed.github.io/linux-mcp-server/clients/#environment-variables",
+    "link": "https://github.com/rhel-lightspeed/linux-mcp-server",
+    "installation_notes": "Install using uvx package manager. Note: This is a read-only mcp server for discovering and interacting with remote/local systems.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "LINUX_MCP_USER",
+        "description": "Default username for SSH connections",
+        "required": false
+      },
+      {
+        "name": "LINUX_MCP_SSH_KEY_PATH",
+        "description": "Path to SSH private key",
+        "required": false
+      },
+      {
+        "name": "LINUX_MCP_VERIFY_HOST_KEYS",
+        "description": "Verify remote host identity via known_hosts",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "mbot-mcp",
     "name": "MBot",
     "description": "Control a MakeBlock mbot2 rover through MQTT (requires local setup)",
