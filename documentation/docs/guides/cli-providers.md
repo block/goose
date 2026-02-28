@@ -284,16 +284,17 @@ goose session
 
 The following models are recognized and passed to the Claude CLI via the `--model` flag. If `GOOSE_MODEL` is set to a value not in this list, no model flag is passed and Claude Code uses its default:
 
+- `default` (opus)
 - `sonnet`
-- `opus`
+- `haiku`
 
 **Permission Modes (`GOOSE_MODE`):**
 
 | Mode | Claude Code Flag | Behavior |
 |------|------------------|----------|
 | `auto` | `--dangerously-skip-permissions` | Bypasses all permission prompts |
-| `smart-approve` | `--permission-mode acceptEdits` | Auto-accepts edits, prompts for other actions |
-| `approve` | `--permission-prompt-tool stdio` | Routes permission checks through the control protocol |
+| `smart-approve` | `--permission-prompt-tool stdio` | Routes permission checks through the control protocol (prompts as needed) |
+| `approve` | `--permission-prompt-tool stdio` | Routes permission checks through the control protocol (prompts as needed) |
 | `chat` | (none) | Default Claude Code behavior |
 
 ### Cursor Agent Configuration
