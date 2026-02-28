@@ -33,6 +33,7 @@ import { useSidebarSessionStatus } from '@/hooks/useSidebarSessionStatus';
 import { resumeSession, shouldShowNewChatTitle, startNewSession } from '@/sessions';
 import type { View, ViewOptions } from '@/utils/navigationUtils';
 import { getInitialWorkingDir } from '@/utils/workingDir';
+import { homeDir } from '@/utils/homeDir';
 import { InlineEditText } from '../common/InlineEditText';
 import { Gear } from '@/components/atoms/icons';
 import { SessionIndicators } from '../shared/SessionIndicators';
@@ -813,7 +814,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       try {
         // "New Chat" should always start in the user's home directory (General).
         // getInitialWorkingDir() reflects the currently-selected project/window directory.
-        await startNewSession('', setView, os.homedir(), {
+        await startNewSession('', setView, homeDir(), {
           allExtensions: configContext.extensionsList,
         });
       } finally {
