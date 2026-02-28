@@ -610,6 +610,7 @@ async fn test_provider(
         session_manager,
         GoosePlatform::GooseCli.to_string(),
         ExtensionManagerCapabilities { mcpui: false },
+        None,
     ));
     extension_manager
         .add_extension(mcp_extension.clone(), None, None, None)

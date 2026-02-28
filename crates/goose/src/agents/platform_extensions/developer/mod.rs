@@ -30,7 +30,7 @@ pub struct DeveloperClient {
 }
 
 impl DeveloperClient {
-    pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
+    pub fn new(context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
@@ -70,10 +70,22 @@ impl DeveloperClient {
             "}.to_string()),
         };
 
+        let edit_tools = context
+            .developer_file_io
+            .clone()
+            .map(|file_io| {
+                EditTools::with_file_io(
+                    file_io.read_file,
+                    file_io.read_file_chunk,
+                    file_io.write_file,
+                )
+            })
+            .unwrap_or_default();
+
         Ok(Self {
             info,
             shell_tool: Arc::new(ShellTool::new()),
-            edit_tools: Arc::new(EditTools::new()),
+            edit_tools: Arc::new(edit_tools),
             tree_tool: Arc::new(TreeTool::new()),
         })
     }
@@ -195,21 +207,30 @@ impl McpClientTrait for DeveloperClient {
                 .with_priority(0.0)])),
             },
             "read" => match Self::parse_args::<FileReadParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_read_with_cwd(params, working_dir)),
+                Ok(params) => Ok(self
+                    .edit_tools
+                    .file_read_with_cwd(params, working_dir)
+                    .await),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
+                Ok(params) => Ok(self
+                    .edit_tools
+                    .file_write_with_cwd(params, working_dir)
+                    .await),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
+                Ok(params) => Ok(self
+                    .edit_tools
+                    .file_edit_with_cwd(params, working_dir)
+                    .await),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
@@ -257,6 +278,7 @@ mod tests {
             extension_manager: None,
             session_manager: Arc::new(SessionManager::new(data_dir)),
             session: None,
+            developer_file_io: None,
         }
     }
 
@@ -327,6 +349,163 @@ mod tests {
             .unwrap();
         assert_eq!(read.is_error, Some(false));
         assert_eq!(first_text(&read), "updated line");
+    }
+
+    #[tokio::test]
+    async fn developer_client_delegates_read_to_context_io() {
+        use crate::agents::platform_extensions::{DeveloperFileIo, ReadFileFn, WriteFileFn};
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        let temp = tempfile::tempdir().unwrap();
+        let mut context = test_context(temp.path().join("sessions"));
+
+        let read_file: ReadFileFn = Arc::new(|path: PathBuf| {
+            Box::pin(async move {
+                if path.to_string_lossy().ends_with("delegated.txt") {
+                    Ok("delegated content".to_string())
+                } else {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        format!("not found: {}", path.display()),
+                    ))
+                }
+            })
+        });
+
+        let write_file: WriteFileFn =
+            Arc::new(|_path: PathBuf, _content: String| Box::pin(async move { Ok(()) }));
+
+        context.developer_file_io = Some(DeveloperFileIo {
+            read_file,
+            read_file_chunk: None,
+            write_file,
+        });
+
+        let client = DeveloperClient::new(context).unwrap();
+
+        let result = client
+            .call_tool(
+                "session",
+                "read",
+                Some(object!({
+                    "path": "delegated.txt"
+                })),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.is_error, Some(false));
+        assert_eq!(first_text(&result), "delegated content");
+    }
+
+    #[tokio::test]
+    async fn developer_client_delegates_write_to_context_io() {
+        use crate::agents::platform_extensions::{DeveloperFileIo, ReadFileFn, WriteFileFn};
+        use std::path::PathBuf;
+        use std::sync::{Arc, Mutex};
+
+        let temp = tempfile::tempdir().unwrap();
+        let mut context = test_context(temp.path().join("sessions"));
+
+        let captured_writes = Arc::new(Mutex::new(Vec::new()));
+        let writes_clone = captured_writes.clone();
+
+        let read_file: ReadFileFn = Arc::new(|_path: PathBuf| {
+            Box::pin(async move {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    "not found",
+                ))
+            })
+        });
+
+        let write_file: WriteFileFn = Arc::new(move |path: PathBuf, content: String| {
+            let writes = writes_clone.clone();
+            Box::pin(async move {
+                writes.lock().unwrap().push((path, content));
+                Ok(())
+            })
+        });
+
+        context.developer_file_io = Some(DeveloperFileIo {
+            read_file,
+            read_file_chunk: None,
+            write_file,
+        });
+
+        let client = DeveloperClient::new(context).unwrap();
+
+        let result = client
+            .call_tool(
+                "session",
+                "write",
+                Some(object!({
+                    "path": "output.txt",
+                    "content": "delegated write"
+                })),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.is_error, Some(false));
+
+        let writes = captured_writes.lock().unwrap();
+        assert_eq!(writes.len(), 1);
+        assert!(writes[0].0.to_string_lossy().ends_with("output.txt"));
+        assert_eq!(writes[0].1, "delegated write");
+    }
+
+    #[tokio::test]
+    async fn developer_client_delegates_read_slice_fallback() {
+        use crate::agents::platform_extensions::{DeveloperFileIo, ReadFileFn, WriteFileFn};
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        let temp = tempfile::tempdir().unwrap();
+        let mut context = test_context(temp.path().join("sessions"));
+
+        let read_file: ReadFileFn = Arc::new(|_path: PathBuf| {
+            Box::pin(async move {
+                // Return 5 lines
+                Ok("line1\nline2\nline3\nline4\nline5".to_string())
+            })
+        });
+
+        let write_file: WriteFileFn =
+            Arc::new(|_path: PathBuf, _content: String| Box::pin(async move { Ok(()) }));
+
+        // Explicitly set read_file_chunk to None to force fallback
+        context.developer_file_io = Some(DeveloperFileIo {
+            read_file,
+            read_file_chunk: None,
+            write_file,
+        });
+
+        let client = DeveloperClient::new(context).unwrap();
+
+        // Request offset=1, limit=2 (expect "line2\nline3")
+        let result = client
+            .call_tool(
+                "session",
+                "read",
+                Some(object!({
+                    "path": "test.txt",
+                    "offset": 1,
+                    "limit": 2
+                })),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result.is_error, Some(false));
+        assert_eq!(first_text(&result), "line2\nline3");
     }
 
     #[cfg(not(windows))]
