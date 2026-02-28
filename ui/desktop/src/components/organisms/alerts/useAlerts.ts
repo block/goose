@@ -20,7 +20,7 @@ export const useAlerts = (): UseAlerts => {
   }, []);
 
   const clearAlerts = useCallback(() => {
-    setAlerts([]);
+    setAlerts((prev) => (prev.length === 0 ? prev : []));
   }, []);
 
   return {

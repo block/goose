@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { updateWorkingDir } from '@/api';
 import { AppEvents } from '@/constants/events';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/atoms/tooltip';
 
 interface DirSwitcherProps {
   className: string;
@@ -23,7 +22,6 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
   onRestartStart,
   onRestartEnd,
 }) => {
-  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [isDirectoryChooserOpen, setIsDirectoryChooserOpen] = useState(false);
 
   const handleDirectoryChange = async () => {
@@ -75,6 +73,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
       event.stopPropagation();
       return;
     }
+
     const isCmdOrCtrlClick = event.metaKey || event.ctrlKey;
 
     if (isCmdOrCtrlClick) {
@@ -87,28 +86,18 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
   };
 
   return (
-    <TooltipProvider>
-      <Tooltip
-        open={isTooltipOpen && !isDirectoryChooserOpen}
-        onOpenChange={(open) => {
-          if (!isDirectoryChooserOpen) setIsTooltipOpen(open);
-        }}
-      >
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className={`z-[100] ${
-              isDirectoryChooserOpen ? 'opacity-50' : 'hover:cursor-pointer hover:text-text-default'
-            } text-text-default text-xs flex items-center transition-colors pl-1 [&>svg]:size-4 ${className}`}
-            onClick={handleDirectoryClick}
-            disabled={isDirectoryChooserOpen}
-          >
-            <FolderDot className="mr-1" size={16} />
-            <div className="max-w-[200px] truncate [direction:rtl]">{workingDir}</div>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top">{workingDir}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <button
+      type="button"
+      title={workingDir}
+      aria-label="Change working directory"
+      className={`z-[100] ${
+        isDirectoryChooserOpen ? 'opacity-50' : 'hover:cursor-pointer hover:text-text-default'
+      } text-text-default text-xs flex items-center transition-colors pl-1 [&>svg]:size-4 ${className}`}
+      onClick={handleDirectoryClick}
+      disabled={isDirectoryChooserOpen}
+    >
+      <FolderDot className="mr-1" size={16} />
+      <div className="max-w-[200px] truncate [direction:rtl]">{workingDir}</div>
+    </button>
   );
 };

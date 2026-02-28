@@ -3,7 +3,6 @@ import type { PricingData } from '@/api';
 import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import { fetchModelPricing } from '@/utils/pricing';
 import { CoinIcon } from '@/components/atoms/icons';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/atoms/tooltip';
 
 interface CostTrackerProps {
   inputTokens?: number;
@@ -137,19 +136,16 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     // If it's a known free/local provider, show $0.000000 without "not available" message
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
-      return (
-        <>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-center h-full text-text-default/80 hover:text-text-default transition-colors cursor-default translate-y-[1px]">
-                <CoinIcon className="mr-1" size={16} />
-                <span className="text-xs font-mono">0.0000</span>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              {`Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`}
-            </TooltipContent>
-          </Tooltip>
+      const title = `Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`;
+        return (
+          <>
+            <div
+              className="flex items-center justify-center h-full text-text-default/80 hover:text-text-default transition-colors cursor-default translate-y-[1px]"
+              title={title}
+            >
+              <CoinIcon className="mr-1" size={16} />
+              <span className="text-xs font-mono">0.0000</span>
+            </div>
           <div className="w-px h-4 bg-border-default mx-2" />
         </>
       );
@@ -165,15 +161,13 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
 
     return (
       <>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/80 hover:text-text-default">
-              <CoinIcon className="mr-1" size={16} />
-              <span className="text-xs font-mono">0.0000</span>
-            </div>
-          </TooltipTrigger>
-          <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
-        </Tooltip>
+        <div
+          className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/80 hover:text-text-default"
+          title={getUnavailableTooltip()}
+        >
+          <CoinIcon className="mr-1" size={16} />
+          <span className="text-xs font-mono">0.0000</span>
+        </div>
         <div className="w-px h-4 bg-border-default mx-2" />
       </>
     );
@@ -218,15 +212,13 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/80 hover:text-text-default">
-            <CoinIcon className="mr-1" size={16} />
-            <span className="text-xs font-mono">{formatCost(totalCost)}</span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>{getTooltipContent()}</TooltipContent>
-      </Tooltip>
+      <div
+        className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-default/80 hover:text-text-default"
+        title={getTooltipContent()}
+      >
+        <CoinIcon className="mr-1" size={16} />
+        <span className="text-xs font-mono">{formatCost(totalCost)}</span>
+      </div>
       <div className="w-px h-4 bg-border-default mx-2" />
     </>
   );

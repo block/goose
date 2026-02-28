@@ -301,17 +301,34 @@ const SessionItem: React.FC<{
         }`}
       />
       <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
-      <button type="button"
+
+      {/*
+        The session row is "click anywhere" for navigation, but also contains interactive
+        controls (rename, delete). Use an overlay button to avoid nesting interactive
+        elements (e.g. InlineEditText renders a button/input).
+      */}
+      <button
+        type="button"
         onClick={() => onSessionClick(session)}
-        className={`w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm transition-colors flex items-center gap-1 min-w-0 ${
+        className={`absolute inset-y-0 left-3 right-0 rounded-md transition-colors ${
           activeSessionId === session.id
-            ? 'bg-background-medium text-text-default'
-            : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
+            ? 'bg-background-medium'
+            : 'hover:bg-background-medium/50'
+        }`}
+        aria-label={`Open session ${displayName}`}
+      />
+
+      <div
+        className={`relative z-10 w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm flex items-center gap-1 min-w-0 pointer-events-none ${
+          activeSessionId === session.id
+            ? 'text-text-default'
+            : 'text-text-muted group-hover/session:text-text-default'
         }`}
         title={displayName}
       >
         {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
-        <div className="flex-1 min-w-0">
+
+        <div className="flex-1 min-w-0 pointer-events-auto">
           {canRename ? (
             <InlineEditText
               value={displayName}
@@ -324,12 +341,17 @@ const SessionItem: React.FC<{
             <span className="truncate block">{displayName}</span>
           )}
         </div>
-        <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
-      </button>
+
+        <div className="pointer-events-none">
+          <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
+        </div>
+      </div>
+
       {onDeleteSession && !isStreaming && (
-        <button type="button"
+        <button
+          type="button"
           onClick={handleDelete}
-          className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/session:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover/session:opacity-100 p-1 hover:bg-background-danger-muted rounded transition-all"
           title="Delete session"
         >
           <Trash2 className="w-3 h-3 text-text-danger" />

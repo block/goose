@@ -554,6 +554,13 @@ function SidebarMenuButton({
     return button;
   }
 
+  // Only mount Radix Tooltip when we actually need it. Under React 19 we've seen
+  // ref composition loops in some TooltipTrigger render paths; avoiding mounting
+  // tooltips when the sidebar is expanded keeps the common path stable.
+  if (state !== 'collapsed' || isMobile) {
+    return button;
+  }
+
   if (typeof tooltip === 'string') {
     tooltip = {
       children: tooltip,
@@ -563,12 +570,7 @@ function SidebarMenuButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent
-        side="right"
-        align="center"
-        hidden={state !== 'collapsed' || isMobile}
-        {...tooltip}
-      />
+      <TooltipContent side="right" align="center" {...tooltip} />
     </Tooltip>
   );
 }

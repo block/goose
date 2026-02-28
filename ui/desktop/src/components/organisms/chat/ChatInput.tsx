@@ -38,7 +38,6 @@ import ModelsBottomBar from '../settings/models/bottom_bar/ModelsBottomBar';
 import { getPredefinedModelsFromEnv } from '../settings/models/predefinedModelsUtils';
 import { Button } from '@/components/atoms/button';
 import Stop from '@/components/atoms/stop';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/atoms/tooltip';
 import { DiagnosticsModal } from '@/components/molecules/ui/diagnostics';
 import type { DisplayItemWithMatch } from './MentionPopover';
 import MentionPopover from './MentionPopover';
@@ -140,6 +139,16 @@ export default function ChatInput({
   const [lastInterruption, setLastInterruption] = useState<string | null>(null);
 
   const { alerts, addAlert, clearAlerts } = useAlerts();
+
+  const handleSubmitRef = useRef(handleSubmit);
+  useEffect(() => {
+    handleSubmitRef.current = handleSubmit;
+  }, [handleSubmit]);
+
+  const setViewRef = useRef(setView);
+  useEffect(() => {
+    setViewRef.current = setView;
+  }, [setView]);
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
   ) as React.RefObject<HTMLDivElement>;
@@ -444,7 +453,7 @@ export default function ChatInput({
         compactButtonDisabled: !totalTokens,
         onCompact: () => {
           window.dispatchEvent(new CustomEvent(AppEvents.HIDE_ALERT_POPOVER));
-          handleSubmit({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
+          handleSubmitRef.current({ msg: MANUAL_COMPACT_TRIGGER, images: [] });
         },
         compactIcon: <ScrollText size={12} />,
       });
@@ -457,13 +466,11 @@ export default function ChatInput({
         message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
         action: {
           text: 'View extensions',
-          onClick: () => setView('extensions'),
+          onClick: () => setViewRef.current('extensions'),
         },
         autoShow: false, // Don't auto-show tool count warnings
       });
     }
-    // We intentionally omit setView as it shouldn't trigger a re-render of alerts
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     totalTokens,
     toolCount,
@@ -471,8 +478,6 @@ export default function ChatInput({
     isTokenLimitLoaded,
     addAlert,
     clearAlerts,
-    handleSubmit,
-    setView,
   ]);
 
   // Cleanup effect for component unmount - prevent memory leaks
@@ -1112,6 +1117,24 @@ export default function ChatInput({
     return 'Send';
   };
 
+  const getDictationUnavailableTooltip = (): string => {
+    if (!dictationProvider) return '';
+
+    if (dictationProvider === 'openai') {
+      return 'OpenAI API key is not configured. Set it up in Settings > Models.';
+    }
+
+    if (dictationProvider === 'elevenlabs') {
+      return 'ElevenLabs API key is not configured. Set it up in Settings > Chat > Voice Dictation.';
+    }
+
+    if (dictationProvider === 'local') {
+      return 'Local Whisper model not found. Download a model in Settings > Dictation > Local (Offline).';
+    }
+
+    return 'Dictation provider is not properly configured.';
+  };
+
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
@@ -1240,79 +1263,48 @@ export default function ChatInput({
             {/* Microphone button - show only if provider is selected */}
             {dictationProvider &&
               (!isEnabled ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Button
-                        type="button"
-                        size="sm"
-                        shape="round"
-                        variant="outline"
-                        onClick={() => {}}
-                        disabled={true}
-                        className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
-                      >
-                        <Microphone />
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {dictationProvider === 'openai' ? (
-                      <p>
-                        OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                        <b>Models.</b>
-                      </p>
-                    ) : dictationProvider === 'elevenlabs' ? (
-                      <p>
-                        ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                        <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                      </p>
-                    ) : dictationProvider === 'local' ? (
-                      <p>
-                        Local Whisper model not found. Download a model in{' '}
-                        <b>Settings &gt; Dictation &gt; Local (Offline)</b>
-                      </p>
-                    ) : (
-                      <p>Dictation provider is not properly configured.</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
+                <span className="inline-flex" title={getDictationUnavailableTooltip()}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    shape="round"
+                    variant="outline"
+                    onClick={() => {}}
+                    disabled={true}
+                    className="bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600 rounded-full px-6 py-2"
+                    aria-label="Voice dictation (unavailable)"
+                  >
+                    <Microphone />
+                  </Button>
+                </span>
               ) : (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      size="sm"
-                      shape="round"
-                      variant="outline"
-                      onClick={() => {
-                        if (isRecording) {
-                          trackVoiceDictation('stop');
-                          stopRecording();
-                        } else {
-                          trackVoiceDictation('start');
-                          startRecording();
-                        }
-                      }}
-                      disabled={isTranscribing}
-                      className={`rounded-full px-6 py-2 ${
-                        isRecording
-                          ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
-                          : isTranscribing
-                            ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
-                            : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
-                      }`}
-                    >
-                      <Microphone />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>
-                      Voice dictation
-                      {isRecording ? '' : ' • Say "submit" to send'}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
+                <Button
+                  type="button"
+                  size="sm"
+                  shape="round"
+                  variant="outline"
+                  onClick={() => {
+                    if (isRecording) {
+                      trackVoiceDictation('stop');
+                      stopRecording();
+                    } else {
+                      trackVoiceDictation('start');
+                      startRecording();
+                    }
+                  }}
+                  disabled={isTranscribing}
+                  title={isRecording ? 'Stop dictation' : 'Voice dictation • Say "submit" to send'}
+                  aria-label={isRecording ? 'Stop dictation' : 'Start dictation'}
+                  className={`rounded-full px-6 py-2 ${
+                    isRecording
+                      ? 'bg-red-500 text-white hover:bg-red-600 border-red-500'
+                      : isTranscribing
+                        ? 'bg-slate-600 text-white cursor-not-allowed animate-pulse border-slate-600'
+                        : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600'
+                  }`}
+                >
+                  <Microphone />
+                </Button>
               ))}
 
             {/* Send/Stop button */}
@@ -1328,30 +1320,22 @@ export default function ChatInput({
                 <Stop />
               </Button>
             ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      shape="round"
-                      variant="outline"
-                      disabled={isSubmitButtonDisabled}
-                      className={`rounded-full px-10 py-2 flex items-center gap-2 ${
-                        isSubmitButtonDisabled
-                          ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
-                          : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
-                      }`}
-                    >
-                      <Send className="w-4 h-4" />
-                      <span className="text-sm">Send</span>
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getSubmitButtonTooltip()}</p>
-                </TooltipContent>
-              </Tooltip>
+              <Button
+                type="submit"
+                size="sm"
+                shape="round"
+                variant="outline"
+                disabled={isSubmitButtonDisabled}
+                title={getSubmitButtonTooltip()}
+                className={`rounded-full px-10 py-2 flex items-center gap-2 ${
+                  isSubmitButtonDisabled
+                    ? 'bg-slate-600 text-white cursor-not-allowed opacity-50 border-slate-600'
+                    : 'bg-slate-600 text-white hover:bg-slate-700 border-slate-600 hover:cursor-pointer'
+                }`}
+              >
+                <Send className="w-4 h-4" />
+                <span className="text-sm">Send</span>
+              </Button>
             )}
 
             {/* Recording/transcribing status indicator - positioned above the button row */}
@@ -1493,21 +1477,18 @@ export default function ChatInput({
           onRestartEnd={() => setChatState?.(ChatState.Idle)}
         />
         <div className="w-px h-4 bg-border-default mx-2" />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              onClick={handleFileSelect}
-              disabled={isFilePickerOpen}
-              variant="ghost"
-              size="sm"
-              className={`flex items-center justify-center text-text-default/80 hover:text-text-default text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <Attach className="w-4 h-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Attach file</TooltipContent>
-        </Tooltip>
+        <Button
+          type="button"
+          onClick={handleFileSelect}
+          disabled={isFilePickerOpen}
+          variant="ghost"
+          size="sm"
+          title="Attach file"
+          aria-label="Attach file"
+          className={`flex items-center justify-center text-text-default/80 hover:text-text-default text-xs transition-colors ${isFilePickerOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+        >
+          <Attach className="w-4 h-4" />
+        </Button>
         <div className="w-px h-4 bg-border-default mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}
         <div className="flex flex-row items-center">
@@ -1521,16 +1502,12 @@ export default function ChatInput({
               />
             </div>
           )}
-          <Tooltip>
-            <div>
-              <ModelsBottomBar
-                sessionId={sessionId}
-                dropdownRef={dropdownRef}
-                setView={setView}
-                alerts={alerts}
-              />
-            </div>
-          </Tooltip>
+          <ModelsBottomBar
+            sessionId={sessionId}
+            dropdownRef={dropdownRef}
+            setView={setView}
+            alerts={alerts}
+          />
           <div className="w-px h-4 bg-border-default mx-2" />
           <BottomMenuModeSelection />
           <div className="w-px h-4 bg-border-default mx-2" />
@@ -1541,50 +1518,42 @@ export default function ChatInput({
             <>
               <div className="w-px h-4 bg-border-default mx-2" />
               <div className="flex items-center h-full">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={() => {
-                        if (recipe) {
-                          trackEditRecipeOpened();
-                          setShowEditRecipeModal(true);
-                        } else {
-                          trackCreateRecipeOpened();
-                          setShowCreateRecipeModal(true);
-                        }
-                      }}
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center justify-center text-text-default/80 hover:text-text-default text-xs cursor-pointer"
-                    >
-                      <ChefHat size={16} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {recipe ? 'View/Edit Recipe' : 'Create Recipe from Session'}
-                  </TooltipContent>
-                </Tooltip>
+                <Button
+                  onClick={() => {
+                    if (recipe) {
+                      trackEditRecipeOpened();
+                      setShowEditRecipeModal(true);
+                    } else {
+                      trackCreateRecipeOpened();
+                      setShowCreateRecipeModal(true);
+                    }
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  title={recipe ? 'View/Edit Recipe' : 'Create Recipe from Session'}
+                  aria-label={recipe ? 'View or edit recipe' : 'Create recipe from session'}
+                  className="flex items-center justify-center text-text-default/80 hover:text-text-default text-xs cursor-pointer"
+                >
+                  <ChefHat size={16} />
+                </Button>
               </div>
             </>
           )}
           {sessionId && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  onClick={() => {
-                    trackDiagnosticsOpened();
-                    setDiagnosticsOpen(true);
-                  }}
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center justify-center text-text-default/80 hover:text-text-default text-xs cursor-pointer transition-colors"
-                >
-                  <Bug className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Generate diagnostics bundle</TooltipContent>
-            </Tooltip>
+            <Button
+              type="button"
+              onClick={() => {
+                trackDiagnosticsOpened();
+                setDiagnosticsOpen(true);
+              }}
+              variant="ghost"
+              size="sm"
+              title="Generate diagnostics bundle"
+              aria-label="Generate diagnostics bundle"
+              className="flex items-center justify-center text-text-default/80 hover:text-text-default text-xs cursor-pointer transition-colors"
+            >
+              <Bug className="w-4 h-4" />
+            </Button>
           )}
         </div>
         {sessionId && diagnosticsOpen && (

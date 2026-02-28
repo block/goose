@@ -1,5 +1,5 @@
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
-import type * as React from 'react';
+import * as React from 'react';
 
 import { cn } from '@/utils';
 
@@ -20,19 +20,22 @@ function Tooltip({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Root
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
-function TooltipTrigger({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
-}
+const TooltipTrigger = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>
+>(({ ...props }, ref) => {
+  return <TooltipPrimitive.Trigger ref={ref} data-slot="tooltip-trigger" {...props} />;
+});
 
-function TooltipContent({
-  className,
-  sideOffset = 0,
-  children,
-  portal = true,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content> & { portal?: boolean }) {
+TooltipTrigger.displayName = 'TooltipTrigger';
+
+const TooltipContent = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content> & { portal?: boolean }
+>(({ className, sideOffset = 0, children, portal = true, ...props }, ref) => {
   const content = (
     <TooltipPrimitive.Content
+      ref={ref}
       data-slot="tooltip-content"
       sideOffset={sideOffset}
       className={cn(
@@ -51,6 +54,8 @@ function TooltipContent({
   }
 
   return content;
-}
+});
+
+TooltipContent.displayName = 'TooltipContent';
 
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
