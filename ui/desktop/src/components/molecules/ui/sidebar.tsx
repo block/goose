@@ -248,26 +248,34 @@ function SidebarToggleButton() {
   const { toggleSidebar, state } = useSidebar();
   const isCollapsed = state === 'collapsed';
 
+  // The toggle button sits outside the sidebar container as a small floating circle.
+  // Some screens showed the circle's hit area overlapping the header region, which made
+  // header controls intermittently unclickable. Constrain the hit area to the circle only.
   return (
-    <button type="button"
-      data-sidebar="toggle-button"
-      aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      aria-expanded={!isCollapsed}
-      onClick={toggleSidebar}
-      className={cn(
-        'absolute top-1/2 -translate-y-1/2 z-20',
-        'flex items-center justify-center',
-        'size-6 rounded-full',
-        'border border-border-default bg-background shadow-sm',
-        'text-text-muted hover:text-text-default hover:bg-background-muted',
-        'transition-all duration-200',
-        'cursor-pointer',
-        'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none',
-        isCollapsed ? '-right-3' : '-right-3'
-      )}
+    <div
+      data-sidebar="toggle-button-wrapper"
+      className="pointer-events-none absolute inset-y-0 -right-3 z-20 flex items-center"
     >
-      {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
-    </button>
+      <button
+        type="button"
+        data-sidebar="toggle-button"
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!isCollapsed}
+        onClick={toggleSidebar}
+        className={cn(
+          'pointer-events-auto',
+          'flex items-center justify-center',
+          'size-6 rounded-full',
+          'border border-border-default bg-background shadow-sm',
+          'text-text-muted hover:text-text-default hover:bg-background-muted',
+          'transition-all duration-200',
+          'cursor-pointer',
+          'focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none'
+        )}
+      >
+        {isCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
+      </button>
+    </div>
   );
 }
 

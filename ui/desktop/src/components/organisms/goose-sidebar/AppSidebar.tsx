@@ -21,11 +21,11 @@ import {
   Workflow,
   X,
 } from 'lucide-react';
-import gooseIcon from '@/images/icon.svg';
 
 import React, { useEffect, useState } from 'react';
 
 import { useLocation, useNavigate } from 'react-router-dom';
+import gooseIcon from '@/images/icon.svg';
 import { deleteSession, listSessions, updateSessionName, type Session } from '@/api';
 import { AppEvents } from '@/constants/events';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '@/contexts/ChatContext';
