@@ -165,8 +165,11 @@ export function useRegisterSession(
     };
   }, [state.sessionId, stableSubmit, stableSetView, stableSetChatState, stableOnStop, stableOnFilesProcessed, stableAppend, stableOnWorkingDirChange]);
 
-  // 2) Update session fields without unregistering.
-  //    Uses functional update to avoid overwriting a different session.
+  // 2) Update a minimal subset of session fields.
+  //
+  // Many session fields (messages, droppedFiles, commandHistory, sessionCosts, inputRef, etc.)
+  // are frequently recreated, and syncing them into context state can create render loops.
+  // The global input only needs a small set of stable primitives to behave correctly.
   useEffect(() => {
     const setter = setSessionStateRef.current;
     const sessionId = state.sessionId;
@@ -179,37 +182,17 @@ export function useRegisterSession(
         ...prev,
         chatState: state.chatState ?? ChatState.Idle,
         toolCount: state.toolCount ?? 0,
-        commandHistory: state.commandHistory,
-        droppedFiles: state.droppedFiles,
         totalTokens: state.totalTokens,
         accumulatedInputTokens: state.accumulatedInputTokens,
         accumulatedOutputTokens: state.accumulatedOutputTokens,
-        messages: state.messages,
-        sessionCosts: state.sessionCosts,
-        recipe: state.recipe,
-        recipeId: state.recipeId,
-        recipeAccepted: state.recipeAccepted,
-        initialPrompt: state.initialPrompt,
-        inputRef: state.inputRef,
       };
 
-      // Avoid infinite render loops by only updating context when something actually changed.
       const changed =
         next.chatState !== prev.chatState ||
         next.toolCount !== prev.toolCount ||
-        next.commandHistory !== prev.commandHistory ||
-        next.droppedFiles !== prev.droppedFiles ||
         next.totalTokens !== prev.totalTokens ||
         next.accumulatedInputTokens !== prev.accumulatedInputTokens ||
-        next.accumulatedOutputTokens !== prev.accumulatedOutputTokens ||
-        next.messages !== prev.messages ||
-        next.sessionCosts !== prev.sessionCosts ||
-        next.recipe !== prev.recipe ||
-        next.recipeId !== prev.recipeId ||
-        next.recipeAccepted !== prev.recipeAccepted ||
-        next.initialPrompt !== prev.initialPrompt ||
-        next.inputRef !== prev.inputRef ||
-        false;
+        next.accumulatedOutputTokens !== prev.accumulatedOutputTokens;
 
       return changed ? next : prev;
     });
@@ -218,17 +201,8 @@ export function useRegisterSession(
     state.chatState,
     state.toolCount,
     state.totalTokens,
-    state.messages,
     state.accumulatedInputTokens,
     state.accumulatedOutputTokens,
-    state.droppedFiles,
-    state.commandHistory,
-    state.recipe,
-    state.recipeId,
-    state.recipeAccepted,
-    state.initialPrompt,
-    state.sessionCosts,
-    state.inputRef,
   ]);
 }
 
