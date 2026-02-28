@@ -75,6 +75,7 @@ export default function ExtensionItem({
   return (
     <Card
       id={`extension-${kebabCase(extension.name)}`}
+      data-testid={`extension-card-${kebabCase(extension.name)}`}
       className="transition-all duration-200 min-h-[120px] overflow-hidden"
     >
       <CardHeader>
@@ -84,6 +85,7 @@ export default function ExtensionItem({
           <div className="flex items-center justify-end gap-2">
             {editable && (
               <button
+                data-testid={`extension-configure-${kebabCase(extension.name)}`}
                 className="text-text-secondary hover:text-text-primary"
                 aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
                 onClick={() => onConfigure?.(extension)}
@@ -92,6 +94,7 @@ export default function ExtensionItem({
               </button>
             )}
             <Switch
+              data-testid={`extension-toggle-${kebabCase(extension.name)}`}
               checked={(isToggling && visuallyEnabled) || extension.enabled}
               onCheckedChange={() => handleToggle(extension)}
               disabled={isToggling}

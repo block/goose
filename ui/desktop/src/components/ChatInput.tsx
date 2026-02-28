@@ -1198,7 +1198,7 @@ export default function ChatInput({
       <form onSubmit={onFormSubmit} className="relative">
         <div className="relative">
           <textarea
-            data-testid="chat-input"
+            data-testid={sessionId ? `chat-input-${sessionId}` : 'chat-input-new'}
             autoFocus
             id="dynamic-textarea"
             placeholder={isRecording ? '' : getNavigationShortcutText()}
@@ -1534,6 +1534,7 @@ export default function ChatInput({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
+                      data-testid="create-recipe-from-session-btn"
                       onClick={() => {
                         if (recipe) {
                           trackEditRecipeOpened();
@@ -1561,6 +1562,7 @@ export default function ChatInput({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
+                  data-testid="diagnostics-btn"
                   type="button"
                   onClick={() => {
                     trackDiagnosticsOpened();
