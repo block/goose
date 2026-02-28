@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 
 function hasCommand(cmd) {
   const result = spawnSync('bash', ['-lc', `command -v ${cmd}`], { stdio: 'ignore' });
@@ -15,13 +17,57 @@ function isHeadlessLinux() {
   return !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
 }
 
+function resolvePlaywrightInvocation(cwd) {
+  // Prefer the project-local Playwright CLI (works even when PATH doesn't include node_modules/.bin)
+  const localCli = path.join(cwd, 'node_modules', '@playwright', 'test', 'cli.js');
+  if (fs.existsSync(localCli)) {
+    return { cmd: process.execPath, argsPrefix: [localCli] };
+  }
+
+  return { cmd: 'playwright', argsPrefix: [] };
+}
+
+function runPlaywright(cwd, playwrightArgs) {
+  const { cmd, argsPrefix } = resolvePlaywrightInvocation(cwd);
+
+  const result = spawnSync(cmd, [...argsPrefix, ...playwrightArgs], {
+    stdio: 'inherit',
+    env: process.env,
+    cwd,
+  });
+
+  if (result.error?.code === 'ENOENT') {
+    console.error(
+      [
+        `Failed to run Playwright CLI: ${cmd} not found.`,
+        '',
+        'Expected one of:',
+        '  - a local dependency at node_modules/@playwright/test',
+        '  - a global `playwright` binary on PATH',
+        '',
+        'Fix:',
+        '  npm install',
+      ].join('\n')
+    );
+  }
+
+  return result.status ?? 1;
+}
+
+const cwd = process.cwd();
 const args = process.argv.slice(2);
 const playwrightArgs = args.length > 0 ? args : ['test'];
 
 if (isHeadlessLinux()) {
   if (hasCommand('xvfb-run')) {
-    const cmd = ['xvfb-run', '-a', 'playwright', ...playwrightArgs];
-    const result = spawnSync(cmd[0], cmd.slice(1), { stdio: 'inherit', env: process.env });
+    const { cmd, argsPrefix } = resolvePlaywrightInvocation(cwd);
+
+    const result = spawnSync('xvfb-run', ['-a', cmd, ...argsPrefix, ...playwrightArgs], {
+      stdio: 'inherit',
+      env: process.env,
+      cwd,
+    });
+
     process.exit(result.status ?? 1);
   }
 
@@ -38,8 +84,8 @@ if (isHeadlessLinux()) {
       'Then re-run the command.',
     ].join('\n')
   );
+
   process.exit(1);
 }
 
-const result = spawnSync('playwright', playwrightArgs, { stdio: 'inherit', env: process.env });
-process.exit(result.status ?? 1);
+process.exit(runPlaywright(cwd, playwrightArgs));

@@ -5,6 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
 
+
 // Allow a developer/CI to provide a dotenv file (e.g. Azure/OpenAI creds) without
 // exporting a large number of env vars manually.
 //
@@ -46,14 +47,59 @@ type GooseTestFixtures = {
 
 let buildOnce: Promise<void> | null = null;
 let buildOnceMode: 'debug' | 'prod' | null = null;
+let buildOnceStampMs: number | null = null;
+
+function latestMtimeMs(path: string): number {
+  if (!fs.existsSync(path)) return 0;
+
+  const stat = fs.statSync(path);
+  if (stat.isFile()) return stat.mtimeMs;
+
+  if (!stat.isDirectory()) return stat.mtimeMs;
+
+  let max = stat.mtimeMs;
+  for (const entry of fs.readdirSync(path)) {
+    // Avoid accidentally walking build output.
+    if (entry === 'node_modules' || entry === '.vite' || entry === 'dist' || entry === 'out') {
+      continue;
+    }
+    max = Math.max(max, latestMtimeMs(join(path, entry)));
+  }
+
+  return max;
+}
+
+function computeBuildStampMs(projectRoot: string): number {
+  return Math.max(
+    latestMtimeMs(join(projectRoot, 'src')),
+    latestMtimeMs(join(projectRoot, 'package.json')),
+    latestMtimeMs(join(projectRoot, 'package-lock.json')),
+    latestMtimeMs(join(projectRoot, 'tsconfig.json')),
+    latestMtimeMs(join(projectRoot, 'vite.renderer.config.mts')),
+    latestMtimeMs(join(projectRoot, 'vite.main.config.mts')),
+    latestMtimeMs(join(projectRoot, 'vite.preload.config.mts'))
+  );
+}
 
 async function ensureViteBuild(projectRoot: string) {
   const isDebug = process.env.E2E_DEBUG === 'true';
   const mode: 'debug' | 'prod' = isDebug ? 'debug' : 'prod';
 
+  const stampMs = computeBuildStampMs(projectRoot);
+
+  // Playwright keeps one Node process per worker, so we cache builds for speed.
+  // But we also need to rebuild when sources change, otherwise E2E runs can report
+  // stale crashes/stacks even after a fix.
+  if (buildOnceStampMs && stampMs > buildOnceStampMs) {
+    buildOnce = null;
+    buildOnceMode = null;
+    buildOnceStampMs = null;
+  }
+
   if (buildOnce && buildOnceMode && buildOnceMode !== mode) {
     buildOnce = null;
     buildOnceMode = null;
+    buildOnceStampMs = null;
   }
 
   buildOnceMode = mode;
@@ -87,6 +133,8 @@ async function ensureViteBuild(projectRoot: string) {
 
     await vite.build({ root: projectRoot, configFile: 'vite.main.config.mts', mode: buildMode });
     await vite.build({ root: projectRoot, configFile: 'vite.preload.config.mts', mode: buildMode });
+
+    buildOnceStampMs = stampMs;
   })();
 
   await buildOnce;
@@ -250,7 +298,26 @@ export const test = base.extend<GooseTestFixtures>({
       child?.stderr?.on('data', (buf) => mainLog.push(`[main:stderr] ${buf.toString()}`));
 
       page.on('console', (msg) => {
-        rendererLog.push(`[console:${msg.type()}] ${msg.text()}`);
+        void (async () => {
+          const location = msg.location();
+          const locSuffix = location?.url
+            ? ` @ ${location.url}:${location.lineNumber ?? 0}:${location.columnNumber ?? 0}`
+            : '';
+
+          const args = msg.args();
+          const argValues = await Promise.all(
+            args.map(async (arg) => {
+              try {
+                return await arg.jsonValue();
+              } catch {
+                return '[unserializable]';
+              }
+            })
+          );
+
+          const serializedArgs = argValues.length ? ` ${JSON.stringify(argValues)}` : '';
+          rendererLog.push(`[console:${msg.type()}] ${msg.text()}${serializedArgs}${locSuffix}`);
+        })();
       });
       page.on('pageerror', (err) => {
         rendererLog.push(`[pageerror] ${err.message}\n${err.stack ?? ''}`);
@@ -268,6 +335,33 @@ export const test = base.extend<GooseTestFixtures>({
 
       // Wait for page to be ready
       await page.waitForLoadState('domcontentloaded');
+
+      // Capture useful stacks for otherwise stack-less React console errors.
+      // React 19 can emit "Maximum update depth exceeded" without a component stack;
+      // patching console.error lets us log a stack once from the callsite.
+      await page
+        .evaluate(() => {
+          const marker = '__gooseE2EConsoleErrorPatched';
+          if ((window as unknown as Record<string, unknown>)[marker]) return;
+          (window as unknown as Record<string, unknown>)[marker] = true;
+
+          const original = console.error.bind(console);
+          console.error = (...args: unknown[]) => {
+            try {
+              const first = args[0];
+              if (typeof first === 'string' && first.includes('Maximum update depth exceeded')) {
+                original('[goose:e2e] Maximum update depth stack', new Error().stack);
+              }
+            } catch {
+              // ignore
+            }
+
+            original(...args);
+          };
+        })
+        .catch(() => {
+          // ignore
+        });
 
       // Try to wait for networkidle
       try {

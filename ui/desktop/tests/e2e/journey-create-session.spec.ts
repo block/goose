@@ -25,6 +25,13 @@ test('journey: create session (chat)', async ({ goosePage }) => {
 
   await assertNotOnErrorBoundary(goosePage, 'create-session: on pair');
 
+  // Ensure we start from a fresh, active chat session (the app can keep multiple sessions
+  // mounted but hidden). Clicking "New Chat" guarantees the active session + URL are updated.
+  const newChat = goosePage.getByRole('button', { name: /^new chat$/i });
+  await expect(newChat).toBeVisible();
+  await newChat.click();
+  await goosePage.waitForURL(/#\/pair\?resumeSessionId=/i, { timeout: 30_000 });
+
   const input = goosePage.getByTestId('chat-input');
   await expect(input).toBeVisible();
 
@@ -32,7 +39,10 @@ test('journey: create session (chat)', async ({ goosePage }) => {
   await input.fill('hello from e2e');
   await goosePage.keyboard.press('Enter');
 
-  const messageVisible = goosePage.getByText('hello from e2e').first();
+  // Only the active session's messages are visible; other mounted sessions are hidden.
+  const messageVisible = goosePage
+    .locator('main [data-testid="message-container"].user:visible', { hasText: 'hello from e2e' })
+    .first();
   const honk = goosePage.getByRole('heading', { name: /^honk!$/i });
 
   // Wait for either the message to appear OR an ErrorBoundary crash.
