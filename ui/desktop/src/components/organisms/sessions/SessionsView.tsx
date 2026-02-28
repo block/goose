@@ -39,7 +39,7 @@ const SessionsView: React.FC = () => {
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
-      setView('pair', {
+      setView('session', {
         disableAnimation: true,
         resumeSessionId: sessionId,
       });
