@@ -5,9 +5,11 @@ use super::{
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    ContentBlock, InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest,
-    PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionModelState,
-    SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallStatus,
+    ClientCapabilities, ContentBlock, FileSystemCapability, InitializeRequest, LoadSessionRequest,
+    McpServer, NewSessionRequest, PromptRequest, ProtocolVersion, ReadTextFileRequest,
+    ReadTextFileResponse, RequestPermissionRequest, SessionModelState, SessionNotification,
+    SessionUpdate, StopReason, TextContent, ToolCallStatus, WriteTextFileRequest,
+    WriteTextFileResponse,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
 use std::sync::{Arc, Mutex};
@@ -20,6 +22,9 @@ pub struct ClientToAgentConnection {
     pending_mcp_servers: Vec<McpServer>,
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
+    permission_requests: Arc<Mutex<Vec<RequestPermissionRequest>>>,
+    read_requests: Arc<Mutex<Vec<ReadTextFileRequest>>>,
+    write_requests: Arc<Mutex<Vec<WriteTextFileRequest>>>,
     notify: Arc<Notify>,
     permission_manager: Arc<PermissionManager>,
     _openai: super::OpenAiFixture,
@@ -38,6 +43,18 @@ impl ClientToAgentConnection {
     #[allow(dead_code)]
     pub fn cx(&self) -> &JrConnectionCx<ClientToAgent> {
         &self.cx
+    }
+
+    pub fn permission_request_count(&self) -> usize {
+        self.permission_requests.lock().unwrap().len()
+    }
+
+    pub fn read_requests(&self) -> Vec<ReadTextFileRequest> {
+        self.read_requests.lock().unwrap().clone()
+    }
+
+    pub fn write_requests(&self) -> Vec<WriteTextFileRequest> {
+        self.write_requests.lock().unwrap().clone()
     }
 }
 
@@ -66,11 +83,19 @@ impl Connection for ClientToAgentConnection {
         let updates = Arc::new(Mutex::new(Vec::new()));
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
+        let permission_requests = Arc::new(Mutex::new(Vec::new()));
+        let read_requests = Arc::new(Mutex::new(Vec::new()));
+        let write_requests = Arc::new(Mutex::new(Vec::new()));
+        let fs_read_text_file = config.fs_read_text_file;
+        let fs_write_text_file = config.fs_write_text_file;
 
         let cx = {
             let updates_clone = updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
+            let permission_requests_clone = permission_requests.clone();
+            let read_requests_clone = read_requests.clone();
+            let write_requests_clone = write_requests.clone();
 
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
@@ -97,13 +122,60 @@ impl Connection for ClientToAgentConnection {
                     .on_receive_request(
                         {
                             let permission = permission_clone.clone();
+                            let permission_requests = permission_requests_clone.clone();
                             async move |req: RequestPermissionRequest,
                                         request_cx,
                                         _connection_cx| {
+                                permission_requests.lock().unwrap().push(req.clone());
                                 let decision = *permission.lock().unwrap();
                                 let response =
                                     map_permission_response(&permission_mapping, &req, decision);
                                 request_cx.respond(response)
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let read_requests = read_requests_clone.clone();
+                            async move |req: ReadTextFileRequest, request_cx, _connection_cx| {
+                                read_requests.lock().unwrap().push(req.clone());
+                                let content = std::fs::read_to_string(&req.path).map_err(|e| {
+                                    sacp::Error::internal_error().data(format!(
+                                        "Failed to read {}: {}",
+                                        req.path.display(),
+                                        e
+                                    ))
+                                })?;
+                                request_cx.respond(ReadTextFileResponse::new(content))
+                            }
+                        },
+                        sacp::on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        {
+                            let write_requests = write_requests_clone.clone();
+                            async move |req: WriteTextFileRequest, request_cx, _connection_cx| {
+                                write_requests.lock().unwrap().push(req.clone());
+                                if let Some(parent) = req.path.parent() {
+                                    if !parent.as_os_str().is_empty() {
+                                        std::fs::create_dir_all(parent).map_err(|e| {
+                                            sacp::Error::internal_error().data(format!(
+                                                "Failed to create {}: {}",
+                                                parent.display(),
+                                                e
+                                            ))
+                                        })?;
+                                    }
+                                }
+                                std::fs::write(&req.path, &req.content).map_err(|e| {
+                                    sacp::Error::internal_error().data(format!(
+                                        "Failed to write {}: {}",
+                                        req.path.display(),
+                                        e
+                                    ))
+                                })?;
+                                request_cx.respond(WriteTextFileResponse::new())
                             }
                         },
                         sacp::on_receive_request!(),
@@ -113,10 +185,17 @@ impl Connection for ClientToAgentConnection {
                     .run_until({
                         let cx_holder = cx_holder_clone;
                         move |cx: JrConnectionCx<ClientToAgent>| async move {
-                            cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
-                                .block_task()
-                                .await
-                                .unwrap();
+                            cx.send_request(
+                                InitializeRequest::new(ProtocolVersion::LATEST)
+                                    .client_capabilities(
+                                        ClientCapabilities::new().fs(FileSystemCapability::new()
+                                            .read_text_file(fs_read_text_file)
+                                            .write_text_file(fs_write_text_file)),
+                                    ),
+                            )
+                            .block_task()
+                            .await
+                            .unwrap();
 
                             *cx_holder.lock().unwrap() = Some(cx.clone());
                             let _ = ready_tx.send(());
@@ -141,6 +220,9 @@ impl Connection for ClientToAgentConnection {
             pending_mcp_servers: config.mcp_servers,
             updates,
             permission,
+            permission_requests,
+            read_requests,
+            write_requests,
             notify,
             permission_manager,
             _openai: openai,

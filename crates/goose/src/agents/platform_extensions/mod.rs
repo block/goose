@@ -10,12 +10,91 @@ pub mod todo;
 pub mod tom;
 
 use std::collections::HashMap;
+use std::future::Future;
+use std::io;
+use std::path::PathBuf;
+use std::pin::Pin;
+use std::sync::Arc;
 
 use crate::agents::mcp_client::McpClientTrait;
 use crate::session::Session;
 use once_cell::sync::Lazy;
+use tokio::io::AsyncBufReadExt;
 
 pub use ext_manager::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
+
+pub const MAX_READ_FILE_BYTES: usize = 1024 * 1024;
+
+pub type ReadFileFuture = Pin<Box<dyn Future<Output = io::Result<String>> + Send>>;
+pub type ReadFileChunkFuture = Pin<Box<dyn Future<Output = io::Result<String>> + Send>>;
+pub type WriteFileFuture = Pin<Box<dyn Future<Output = io::Result<()>> + Send>>;
+pub type ReadFileFn = Arc<dyn Fn(PathBuf) -> ReadFileFuture + Send + Sync>;
+pub type ReadFileChunkFn = Arc<dyn Fn(PathBuf, usize, usize) -> ReadFileChunkFuture + Send + Sync>;
+pub type WriteFileFn = Arc<dyn Fn(PathBuf, String) -> WriteFileFuture + Send + Sync>;
+
+#[derive(Clone)]
+pub struct DeveloperFileIo {
+    pub read_file: ReadFileFn,
+    pub read_file_chunk: Option<ReadFileChunkFn>,
+    pub write_file: WriteFileFn,
+}
+
+impl DeveloperFileIo {
+    pub fn default_local() -> Self {
+        let read_file: ReadFileFn = Arc::new(|path: PathBuf| {
+            Box::pin(async move {
+                let metadata = tokio::fs::metadata(&path).await?;
+                let file_size = metadata.len();
+                if file_size > MAX_READ_FILE_BYTES as u64 {
+                    return Err(io::Error::other(format!(
+                        "{} exceeds max file size of {} bytes (actual: {} bytes)",
+                        path.display(),
+                        MAX_READ_FILE_BYTES,
+                        file_size
+                    )));
+                }
+                tokio::fs::read_to_string(path).await
+            })
+        });
+        let read_file_chunk: ReadFileChunkFn =
+            Arc::new(|path: PathBuf, offset: usize, limit: usize| {
+                Box::pin(async move {
+                    let file = tokio::fs::File::open(path).await?;
+                    let mut lines = tokio::io::BufReader::new(file).lines();
+                    let mut line_index = 0usize;
+                    let end = offset.saturating_add(limit);
+                    let mut out = Vec::new();
+
+                    while let Some(line) = lines.next_line().await? {
+                        if line_index >= offset && line_index < end {
+                            out.push(line);
+                        }
+                        line_index = line_index.saturating_add(1);
+                        if line_index >= end {
+                            break;
+                        }
+                    }
+
+                    Ok(out.join("\n"))
+                })
+            });
+        let write_file: WriteFileFn = Arc::new(|path: PathBuf, content: String| {
+            Box::pin(async move {
+                if let Some(parent) = path.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        tokio::fs::create_dir_all(parent).await?;
+                    }
+                }
+                tokio::fs::write(path, content).await
+            })
+        });
+        Self {
+            read_file,
+            read_file_chunk: Some(read_file_chunk),
+            write_file,
+        }
+    }
+}
 
 // These are used by integration tests in crates/goose/tests/
 #[allow(unused_imports)]
@@ -155,6 +234,7 @@ pub struct PlatformExtensionContext {
         Option<std::sync::Weak<crate::agents::extension_manager::ExtensionManager>>,
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
     pub session: Option<std::sync::Arc<Session>>,
+    pub developer_file_io: Option<DeveloperFileIo>,
 }
 
 impl PlatformExtensionContext {

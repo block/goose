@@ -2,6 +2,7 @@ use crate::custom_requests::*;
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
+use goose::agents::platform_extensions::DeveloperFileIo;
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
@@ -22,21 +23,22 @@ use goose_acp_macros::custom_methods;
 use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
-    CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
+    CancelNotification, ClientCapabilities, Content, ContentBlock, ContentChunk, EmbeddedResource,
     EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
     ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
     ModelId, ModelInfo, NewSessionRequest, NewSessionResponse, PermissionOption,
-    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
-    SessionId, SessionInfo, SessionListCapabilities, SessionModelState, SessionNotification,
-    SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
-    TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
-    ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse, ReadTextFileRequest,
+    ReadTextFileResponse, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink,
+    SessionCapabilities, SessionId, SessionInfo, SessionListCapabilities, SessionModelState,
+    SessionNotification, SessionUpdate, SetSessionModelRequest, SetSessionModelResponse,
+    StopReason, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
+    ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    WriteTextFileRequest, WriteTextFileResponse,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -60,6 +62,7 @@ pub struct GooseAcpAgent {
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
     builtins: Vec<String>,
+    client_capabilities: RwLock<ClientCapabilities>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -329,18 +332,92 @@ impl GooseAcpAgent {
             goose_mode,
             disable_session_naming,
             builtins,
+            client_capabilities: RwLock::new(ClientCapabilities::default()),
         })
     }
 
-    async fn create_agent_for_session(&self) -> Arc<Agent> {
-        let agent = Agent::with_config(AgentConfig::new(
-            Arc::clone(&self.session_manager),
-            Arc::clone(&self.permission_manager),
-            None,
-            self.goose_mode,
-            self.disable_session_naming,
-            GoosePlatform::GooseCli,
-        ));
+    async fn build_developer_file_io(
+        &self,
+        session_id: &SessionId,
+        cx: &JrConnectionCx<AgentToClient>,
+    ) -> Option<DeveloperFileIo> {
+        let caps = self.client_capabilities.read().await.clone();
+        if !caps.fs.read_text_file && !caps.fs.write_text_file {
+            return None;
+        }
+
+        let local_io = DeveloperFileIo::default_local();
+        let read_file: goose::agents::platform_extensions::ReadFileFn = if caps.fs.read_text_file {
+            let read_cx = cx.clone();
+            let read_session_id = session_id.clone();
+            Arc::new(move |path: std::path::PathBuf| {
+                let read_cx = read_cx.clone();
+                let session_id = read_session_id.clone();
+                Box::pin(async move {
+                    let response: ReadTextFileResponse = read_cx
+                        .send_request(ReadTextFileRequest::new(session_id, path))
+                        .block_task()
+                        .await
+                        .map_err(|e| {
+                            std::io::Error::other(format!("ACP read request failed: {e}"))
+                        })?;
+                    Ok(response.content)
+                }) as goose::agents::platform_extensions::ReadFileFuture
+            })
+        } else {
+            local_io.read_file.clone()
+        };
+
+        let write_file: goose::agents::platform_extensions::WriteFileFn = if caps.fs.write_text_file
+        {
+            let write_cx = cx.clone();
+            let write_session_id = session_id.clone();
+            Arc::new(move |path: std::path::PathBuf, content: String| {
+                let write_cx = write_cx.clone();
+                let session_id = write_session_id.clone();
+                Box::pin(async move {
+                    let _: WriteTextFileResponse = write_cx
+                        .send_request(WriteTextFileRequest::new(session_id, path, content))
+                        .block_task()
+                        .await
+                        .map_err(|e| {
+                            std::io::Error::other(format!("ACP write request failed: {e}"))
+                        })?;
+                    Ok(())
+                }) as goose::agents::platform_extensions::WriteFileFuture
+            })
+        } else {
+            local_io.write_file.clone()
+        };
+
+        Some(DeveloperFileIo {
+            read_file,
+            read_file_chunk: if caps.fs.read_text_file {
+                None
+            } else {
+                local_io.read_file_chunk.clone()
+            },
+            write_file,
+        })
+    }
+
+    async fn create_agent_for_session(
+        &self,
+        session_id: &SessionId,
+        cx: &JrConnectionCx<AgentToClient>,
+    ) -> Arc<Agent> {
+        let developer_file_io = self.build_developer_file_io(session_id, cx).await;
+        let agent = Agent::with_config(
+            AgentConfig::new(
+                Arc::clone(&self.session_manager),
+                Arc::clone(&self.permission_manager),
+                None,
+                self.goose_mode,
+                self.disable_session_naming,
+                GoosePlatform::GooseCli,
+            )
+            .with_developer_file_io(developer_file_io),
+        );
         let agent = Arc::new(agent);
 
         let config_path = self.config_dir.join(CONFIG_YAML_NAME);
@@ -662,6 +739,16 @@ impl GooseAcpAgent {
         args: InitializeRequest,
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
+        {
+            let mut caps = self.client_capabilities.write().await;
+            *caps = args.client_capabilities.clone();
+        }
+        info!(
+            fs_read = args.client_capabilities.fs.read_text_file,
+            fs_write = args.client_capabilities.fs.write_text_file,
+            terminal = args.client_capabilities.terminal,
+            "Client capabilities received"
+        );
 
         let capabilities = AgentCapabilities::new()
             .load_session(true)
@@ -687,6 +774,7 @@ impl GooseAcpAgent {
     async fn on_new_session(
         &self,
         args: NewSessionRequest,
+        cx: &JrConnectionCx<AgentToClient>,
     ) -> Result<NewSessionResponse, sacp::Error> {
         debug!(?args, "new session request");
 
@@ -702,7 +790,8 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to create session: {}", e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let acp_session_id = SessionId::new(goose_session.id.clone());
+        let agent = self.create_agent_for_session(&acp_session_id, cx).await;
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -743,7 +832,7 @@ impl GooseAcpAgent {
         let model_state =
             build_model_state(&*provider, &provider.get_model_config().model_name).await;
 
-        Ok(NewSessionResponse::new(SessionId::new(goose_session.id)).models(model_state))
+        Ok(NewSessionResponse::new(acp_session_id).models(model_state))
     }
 
     async fn init_provider(&self, agent: &Agent, session: &Session) -> Result<Arc<dyn Provider>> {
@@ -780,7 +869,7 @@ impl GooseAcpAgent {
                     .data(format!("Failed to load session {}: {}", session_id, e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let agent = self.create_agent_for_session(&args.session_id, cx).await;
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -1235,7 +1324,7 @@ impl JrMessageHandler for GooseAcpHandler {
                 .await
                 .if_request(
                     |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
-                        req_cx.respond(agent.on_new_session(req).await?)
+                        req_cx.respond(agent.on_new_session(req, &cx).await?)
                     },
                 )
                 .await

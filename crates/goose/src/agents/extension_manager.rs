@@ -35,6 +35,7 @@ use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{GooseMcpClientCapabilities, McpClient, McpClientTrait};
+use crate::agents::platform_extensions::DeveloperFileIo;
 use crate::builtin_extension::get_builtin_extension;
 use crate::config::extensions::name_to_key;
 use crate::config::search_path::SearchPaths;
@@ -482,6 +483,7 @@ impl ExtensionManager {
         session_manager: Arc<crate::session::SessionManager>,
         client_name: String,
         capabilities: ExtensionManagerCapabilities,
+        developer_file_io: Option<DeveloperFileIo>,
     ) -> Self {
         Self {
             extensions: Mutex::new(HashMap::new()),
@@ -489,6 +491,7 @@ impl ExtensionManager {
                 extension_manager: None,
                 session_manager,
                 session: None,
+                developer_file_io,
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -506,6 +509,7 @@ impl ExtensionManager {
             session_manager,
             "goose-cli".to_string(),
             ExtensionManagerCapabilities { mcpui: false },
+            None,
         )
     }
 

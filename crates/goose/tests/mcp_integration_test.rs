@@ -262,6 +262,7 @@ async fn test_replayed_session(
         session_manager,
         GoosePlatform::GooseDesktop.to_string(),
         ExtensionManagerCapabilities { mcpui: true },
+        None,
     ));
 
     #[allow(clippy::redundant_closure_call)]

@@ -413,6 +413,7 @@ mod tests {
             extension_manager: None,
             session_manager,
             session: Some(Arc::new(session)),
+            developer_file_io: None,
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
