@@ -21,6 +21,8 @@ import {
   Workflow,
   X,
 } from 'lucide-react';
+import gooseIcon from '@/images/icon.svg';
+
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { deleteSession, listSessions, updateSessionName, type Session } from '@/api';
