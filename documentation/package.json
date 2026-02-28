@@ -34,7 +34,7 @@
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.2",
     "react-markdown": "^10.1.0",
-    "swiper": "^11.2.6",
+    "swiper": "^12.1.2",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^3.4.1",
     "turndown": "^7.2.1"
