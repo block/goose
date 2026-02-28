@@ -193,6 +193,28 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
     }
 }
 
+pub fn extract_reasoning_effort(model_name: &str) -> (String, Option<String>) {
+    let is_reasoning_model = model_name.starts_with("o1")
+        || model_name.starts_with("o2")
+        || model_name.starts_with("o3")
+        || model_name.starts_with("o4")
+        || model_name.starts_with("gpt-5");
+
+    if !is_reasoning_model {
+        return (model_name.to_string(), None);
+    }
+
+    let parts: Vec<&str> = model_name.split('-').collect();
+    let last_part = parts.last().unwrap();
+    match *last_part {
+        "low" | "medium" | "high" => {
+            let base_name = parts[..parts.len() - 1].join("-");
+            (base_name, Some(last_part.to_string()))
+        }
+        _ => (model_name.to_string(), Some("medium".to_string())),
+    }
+}
+
 pub fn sanitize_function_name(name: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"[^a-zA-Z0-9_-]").unwrap());
