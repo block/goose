@@ -962,8 +962,11 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   type="button"
                   aria-label="Projects"
                   className="relative z-30 p-1 rounded-md text-text-muted hover:text-text-default hover:bg-background-medium/50 transition-colors"
+                  style={{ pointerEvents: 'auto' }}
                 >
-                  <FolderPlus className="w-4 h-4" />
+                  {/* Expand hit area to avoid intermittent overlaps stealing clicks */}
+                  <span className="absolute inset-[-8px]" aria-hidden="true" />
+                  <FolderPlus className="relative w-4 h-4" />
                 </button>
               </Popover.Trigger>
               <Popover.Portal>
