@@ -45,6 +45,7 @@ interface UseChatStreamReturn {
     elicitationId: string,
     userData: Record<string, unknown>
   ) => Promise<void>;
+  submitToolResult: (toolCallId: string, result: string, isError?: boolean) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
@@ -648,6 +649,50 @@ export function useChatStream({
     [sessionId, onFinish]
   );
 
+  const submitToolResult = useCallback(
+    async (toolCallId: string, result: string, isError: boolean = false) => {
+      const currentState = stateRef.current;
+
+      if (!currentState.session || currentState.chatState === ChatState.LoadingConversation) {
+        return;
+      }
+
+      dispatch({ type: 'START_STREAMING' });
+      abortControllerRef.current = new AbortController();
+
+      try {
+        const { stream } = await reply({
+          body: {
+            session_id: sessionId,
+            user_message: createUserMessage(''),
+            tool_result: {
+              tool_call_id: toolCallId,
+              result,
+              is_error: isError,
+            },
+          },
+          throwOnError: true,
+          signal: abortControllerRef.current.signal,
+        });
+
+        await streamFromResponse(
+          stream,
+          currentState.messages,
+          dispatch,
+          onFinish,
+          sessionId
+        );
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // Silently handle abort
+        } else {
+          onFinish('Tool result submit error: ' + errorMessage(error));
+        }
+      }
+    },
+    [sessionId, onFinish]
+  );
+
   const setRecipeUserParams = useCallback(
     async (user_recipe_values: Record<string, string>) => {
       const currentState = stateRef.current;
@@ -828,6 +873,7 @@ export function useChatStream({
     setChatState,
     handleSubmit,
     submitElicitationResponse,
+    submitToolResult,
     stopStreaming,
     setRecipeUserParams,
     tokenState: state.tokenState,

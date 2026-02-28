@@ -1,5 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
+import BrowserPanel from './BrowserPanel';
+import { BrowserProvider } from './BrowserContext';
 import { ChatType } from '../types/chat';
 import { UserInput } from '../types/message';
 
@@ -23,15 +25,12 @@ export default function ChatSessionsContainer({
   const [searchParams] = useSearchParams();
   const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
 
-  // Always render active sessions to keep SSE connections alive, even when not on /pair route
   if (!currentSessionId && activeSessions.length === 0) {
     return null;
   }
 
-  // Build the list of sessions to render
   let sessionsToRender = activeSessions;
 
-  // If we have a currentSessionId that's not in activeSessions, add it (handles page refresh)
   if (currentSessionId && !activeSessions.some((s) => s.sessionId === currentSessionId)) {
     sessionsToRender = [...activeSessions, { sessionId: currentSessionId }];
   }
@@ -44,16 +43,21 @@ export default function ChatSessionsContainer({
         return (
           <div
             key={session.sessionId}
-            className={`absolute inset-0 ${isVisible ? 'block' : 'hidden'}`}
+            className={`absolute inset-0 ${isVisible ? 'flex' : 'hidden'}`}
             data-session-id={session.sessionId}
           >
-            <BaseChat
-              setChat={setChat}
-              sessionId={session.sessionId}
-              initialMessage={session.initialMessage}
-              suppressEmptyState={false}
-              isActiveSession={isVisible}
-            />
+            <BrowserProvider>
+              <div className="flex-1 min-w-0 relative">
+                <BaseChat
+                  setChat={setChat}
+                  sessionId={session.sessionId}
+                  initialMessage={session.initialMessage}
+                  suppressEmptyState={false}
+                  isActiveSession={isVisible}
+                />
+              </div>
+              <BrowserPanel />
+            </BrowserProvider>
           </div>
         );
       })}

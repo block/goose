@@ -40,6 +40,7 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
+import { useForwardedToolHandler } from '../hooks/useForwardedToolHandler';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
@@ -94,6 +95,7 @@ export default function BaseChat({
     setChatState,
     handleSubmit,
     submitElicitationResponse,
+    submitToolResult,
     stopStreaming,
     sessionLoadError,
     setRecipeUserParams,
@@ -115,6 +117,8 @@ export default function BaseChat({
     initialMessage,
     handleSubmit,
   });
+
+  useForwardedToolHandler(messages, chatState, submitToolResult);
 
   useEffect(() => {
     let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';

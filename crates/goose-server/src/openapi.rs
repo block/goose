@@ -467,6 +467,7 @@ derive_utoipa!(Icon as IconSchema);
         goose::prompt_template::Template,
         super::routes::action_required::ConfirmToolActionRequest,
         super::routes::reply::ChatRequest,
+        super::routes::reply::ToolResultPayload,
         super::routes::session::ImportSessionRequest,
         super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionNameRequest,

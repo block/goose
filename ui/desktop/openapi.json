@@ -3917,6 +3917,14 @@
           "session_id": {
             "type": "string"
           },
+          "tool_result": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ToolResultPayload"
+              }
+            ],
+            "nullable": true
+          },
           "user_message": {
             "$ref": "#/components/schemas/Message"
           }
@@ -8047,6 +8055,27 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "ToolResultPayload": {
+        "type": "object",
+        "required": [
+          "tool_call_id",
+          "result"
+        ],
+        "properties": {
+          "is_error": {
+            "type": "boolean",
+            "description": "Whether the tool execution was an error"
+          },
+          "result": {
+            "type": "string",
+            "description": "The result content from the client-side tool execution"
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "The tool_call_id that this result corresponds to"
           }
         }
       },

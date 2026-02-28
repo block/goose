@@ -361,6 +361,7 @@ pub fn message_to_markdown(message: &Message, export_all_content: bool) -> Strin
                             .unwrap_or_else(|_| "{}".to_string())
                     ));
                 }
+
             },
             MessageContent::Text(text) => {
                 md.push_str(&text.text);
