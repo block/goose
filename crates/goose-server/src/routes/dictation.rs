@@ -127,7 +127,7 @@ fn convert_error(e: anyhow::Error) -> ErrorResponse {
         (status = 400, description = "Invalid request (bad base64 or unsupported format)"),
         (status = 401, description = "Invalid API key"),
         (status = 412, description = "Provider not configured"),
-        (status = 413, description = "Audio file too large (max 25MB)"),
+        (status = 413, description = "Audio file too large (max 50MB)"),
         (status = 429, description = "Rate limit exceeded"),
         (status = 500, description = "Internal server error"),
         (status = 502, description = "Provider API error"),

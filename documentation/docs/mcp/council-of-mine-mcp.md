@@ -15,7 +15,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 This tutorial covers how to add the [Council of Mine MCP Server](https://github.com/block/mcp-council-of-mine) as a goose extension featuring 9 LLM council members with distinct personalities who debate topics, vote on each other's opinions, and generate synthesized conclusions through AI-powered deliberation. This is great for helping you make a decision.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fblock%2Fmcp-council-of-mine&arg=mcp_council_of_mine&id=council-of-mine&name=Council%20of%20Mine&description=LLM%20Debate)

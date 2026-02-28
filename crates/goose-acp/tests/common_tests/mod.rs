@@ -163,14 +163,14 @@ pub async fn run_model_list<C: Connection>() {
             "o3-mini-2025-01-31",
             "o1",
             "o1-2024-12-17",
-            "gpt-4o-mini",
-            "gpt-4o-mini-2024-07-18",
-            "o4-mini-deep-research",
-            "o4-mini-deep-research-2025-06-26",
             "gpt-4o",
             "gpt-4o-2024-05-13",
             "gpt-4o-2024-08-06",
             "gpt-4o-2024-11-20",
+            "gpt-4o-mini",
+            "gpt-4o-mini-2024-07-18",
+            "o4-mini-deep-research",
+            "o4-mini-deep-research-2025-06-26",
             "gpt-4",
             "gpt-4-0613",
             "gpt-4-turbo",
@@ -313,7 +313,7 @@ pub async fn run_prompt_basic<C: Connection>() {
 pub async fn run_prompt_codemode<C: Connection>() {
     let expected_session_id = ExpectedSessionId::default();
     let prompt =
-        "Search for getCode and textEditor tools. Use them to save the code to /tmp/result.txt.";
+        "Search for getCode and write tools. Use them to save the code to /tmp/result.txt.";
     let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
     let openai = OpenAiFixture::new(
         vec![
@@ -326,7 +326,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
                 include_str!("../test_data/openai_builtin_execute.txt"),
             ),
             (
-                r#"Successfully wrote to /tmp/result.txt"#.into(),
+                r#"Created /tmp/result.txt"#.into(),
                 include_str!("../test_data/openai_builtin_final.txt"),
             ),
         ],
@@ -352,7 +352,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
     }
 
     let result = fs::read_to_string("/tmp/result.txt").unwrap_or_default();
-    assert_eq!(result, format!("{FAKE_CODE}\n"));
+    assert_eq!(result, FAKE_CODE);
     expected_session_id.assert_matches(&session.session_id().0);
 }
 

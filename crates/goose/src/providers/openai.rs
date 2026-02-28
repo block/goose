@@ -168,11 +168,15 @@ impl OpenAiProvider {
         } else {
             format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
         };
-        let base_path = url.path().trim_start_matches('/').to_string();
-        let base_path = if base_path.is_empty() || base_path == "v1" || base_path == "v1/" {
-            "v1/chat/completions".to_string()
+        let base_path = if let Some(ref explicit_path) = config.base_path {
+            explicit_path.trim_start_matches('/').to_string()
         } else {
-            base_path
+            let url_path = url.path().trim_start_matches('/').to_string();
+            if url_path.is_empty() || url_path == "v1" || url_path == "v1/" {
+                "v1/chat/completions".to_string()
+            } else {
+                url_path
+            }
         };
 
         let timeout_secs = config.timeout_seconds.unwrap_or(600);

@@ -24,7 +24,7 @@ The Neon MCP Server grants powerful database management capabilities and is inte
 
 <Tabs groupId="remote-or-local">
   <TabItem value="remote" label="Neon Remote MCP" default>
-  :::tip TLDR
+  :::tip Quick Install
   <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
     [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp.neon.tech%2Fmcp&id=neon&name=Neon&description=Manage%20Neon%20Postgres%20databases%2C%20projects%2C%20and%20branches)
@@ -68,7 +68,7 @@ The Neon MCP Server grants powerful database management capabilities and is inte
   </TabItem>
 
   <TabItem value="local" label="Neon Local MCP">
-  :::tip TLDR
+  :::tip Quick Install
   <Tabs groupId="interface">
     <TabItem value="ui" label="goose Desktop" default>
       [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40neondatabase%2Fmcp-server-neon&arg=start&arg=%3CYOUR_NEON_API_KEY%3E&id=neon&name=Neon&description=Manage%20your%20Neon%20Postgres%20databases%2C%20projects%2C%20and%20branches)

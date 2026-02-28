@@ -41,6 +41,40 @@ pub(crate) fn is_extension_available(config: &ExtensionConfig) -> bool {
     }
 }
 
+pub(crate) fn normalize_platform_extension(config: ExtensionConfig) -> ExtensionConfig {
+    match config {
+        ExtensionConfig::Builtin {
+            name,
+            description,
+            display_name,
+            timeout,
+            bundled,
+            available_tools,
+        } => {
+            let normalized = name_to_key(&name);
+            if let Some(def) = PLATFORM_EXTENSIONS.get(normalized.as_str()) {
+                ExtensionConfig::Platform {
+                    name: def.name.to_string(),
+                    description: def.description.to_string(),
+                    display_name: Some(def.display_name.to_string()),
+                    bundled: bundled.or(Some(true)),
+                    available_tools,
+                }
+            } else {
+                ExtensionConfig::Builtin {
+                    name,
+                    description,
+                    display_name,
+                    timeout,
+                    bundled,
+                    available_tools,
+                }
+            }
+        }
+        other => other,
+    }
+}
+
 fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, ExtensionEntry> {
     let raw: Mapping = config
         .get_param(EXTENSIONS_CONFIG_KEY)
@@ -56,10 +90,17 @@ fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, Extension
     for (k, v) in raw {
         match (k, serde_yaml::from_value::<ExtensionEntry>(v)) {
             (serde_yaml::Value::String(key), Ok(entry)) => {
-                if !is_extension_available(&entry.config) {
+                let config = normalize_platform_extension(entry.config);
+                if !is_extension_available(&config) {
                     continue;
                 }
-                extensions_map.insert(key, entry);
+                extensions_map.insert(
+                    key,
+                    ExtensionEntry {
+                        enabled: entry.enabled,
+                        config,
+                    },
+                );
             }
             (k, v) => {
                 warn!(

@@ -37,6 +37,7 @@ opdich
 aharvard
 dhanji
 baxen
+codefromthecrypt
 
 # Block, non-goose (eligible for Team Stars)
 wendytang
@@ -73,3 +74,4 @@ Abhijay007
 dependabot[bot]
 SquareGist
 github-actions[bot]
+claude

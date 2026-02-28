@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.24.0"
+    "version": "1.26.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -1259,6 +1259,78 @@
         }
       }
     },
+    "/config/provider-catalog": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_catalog",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Filter by provider format (openai, anthropic, ollama)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider catalog retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderCatalogEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid format parameter"
+          }
+        }
+      }
+    },
+    "/config/provider-catalog/{id}": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_provider_catalog_template",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Provider ID from models.dev",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider template retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Provider not found in catalog"
+          }
+        }
+      }
+    },
     "/config/providers": {
       "get": {
         "tags": [
@@ -1767,7 +1839,7 @@
             "description": "Provider not configured"
           },
           "413": {
-            "description": "Audio file too large (max 25MB)"
+            "description": "Audio file too large (max 50MB)"
           },
           "429": {
             "description": "Rate limit exceeded"
@@ -3826,11 +3898,12 @@
           "session_id"
         ],
         "properties": {
-          "conversation_so_far": {
+          "override_conversation": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Message"
             },
+            "description": "Override the server's conversation history. Only use this when you need absolute control\nover the conversation state (e.g., administrative tools). For normal operations, the server\nis the source of truth - use truncate/fork endpoints to modify conversation history instead.",
             "nullable": true
           },
           "recipe_name": {
@@ -4104,8 +4177,16 @@
           "api_key_env": {
             "type": "string"
           },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
           "base_url": {
             "type": "string"
+          },
+          "catalog_provider_id": {
+            "type": "string",
+            "nullable": true
           },
           "description": {
             "type": "string",
@@ -5706,6 +5787,29 @@
           }
         }
       },
+      "ModelCapabilities": {
+        "type": "object",
+        "required": [
+          "tool_call",
+          "reasoning",
+          "attachment",
+          "temperature"
+        ],
+        "properties": {
+          "attachment": {
+            "type": "boolean"
+          },
+          "reasoning": {
+            "type": "boolean"
+          },
+          "temperature": {
+            "type": "boolean"
+          },
+          "tool_call": {
+            "type": "boolean"
+          }
+        }
+      },
       "ModelConfig": {
         "type": "object",
         "required": [
@@ -6007,6 +6111,34 @@
           }
         }
       },
+      "ModelTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "context_limit",
+          "capabilities",
+          "deprecated"
+        ],
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/ModelCapabilities"
+          },
+          "context_limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ParseRecipeRequest": {
         "type": "object",
         "required": [
@@ -6114,6 +6246,42 @@
           }
         }
       },
+      "ProviderCatalogEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "format",
+          "api_url",
+          "model_count",
+          "doc_url",
+          "env_var"
+        ],
+        "properties": {
+          "api_url": {
+            "type": "string"
+          },
+          "doc_url": {
+            "type": "string"
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "model_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "ProviderDetails": {
         "type": "object",
         "required": [
@@ -6191,6 +6359,48 @@
           "name": {
             "type": "string",
             "description": "The unique identifier for this provider"
+          }
+        }
+      },
+      "ProviderTemplate": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "format",
+          "api_url",
+          "models",
+          "supports_streaming",
+          "env_var",
+          "doc_url"
+        ],
+        "properties": {
+          "api_url": {
+            "type": "string"
+          },
+          "doc_url": {
+            "type": "string"
+          },
+          "env_var": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelTemplate"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "supports_streaming": {
+            "type": "boolean"
           }
         }
       },
@@ -7233,7 +7443,8 @@
           "scheduled",
           "sub_agent",
           "hidden",
-          "terminal"
+          "terminal",
+          "gateway"
         ]
       },
       "SessionsQuery": {
@@ -7964,6 +8175,14 @@
           },
           "api_url": {
             "type": "string"
+          },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
+          "catalog_provider_id": {
+            "type": "string",
+            "nullable": true
           },
           "display_name": {
             "type": "string"

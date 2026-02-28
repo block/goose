@@ -45,6 +45,7 @@ pub struct Source {
     pub description: String,
     pub path: PathBuf,
     pub content: String,
+    pub supporting_files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -174,6 +175,7 @@ fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
         description: metadata.description,
         path,
         content: body,
+        supporting_files: Vec::new(),
     })
 }
 
@@ -195,7 +197,251 @@ fn parse_agent_content(content: &str, path: PathBuf) -> Option<Source> {
         description,
         path,
         content: body,
+        supporting_files: Vec::new(),
     })
+}
+
+/// Scan a directory for skill subdirectories containing SKILL.md files.
+/// Returns discovered skills, skipping any whose names are already in `seen`.
+fn scan_skills_from_dir(dir: &Path, seen: &mut std::collections::HashSet<String>) -> Vec<Source> {
+    let mut sources = Vec::new();
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return sources,
+    };
+
+    for entry in entries.flatten() {
+        let skill_dir = entry.path();
+        if !skill_dir.is_dir() {
+            continue;
+        }
+
+        let skill_file = skill_dir.join("SKILL.md");
+        if !skill_file.exists() {
+            continue;
+        }
+
+        let content = match std::fs::read_to_string(&skill_file) {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("Failed to read skill file {}: {}", skill_file.display(), e);
+                continue;
+            }
+        };
+
+        if let Some(mut source) = parse_skill_content(&content, skill_dir.clone()) {
+            if !seen.contains(&source.name) {
+                source.supporting_files = find_supporting_files(&skill_dir, &skill_file);
+                seen.insert(source.name.clone());
+                sources.push(source);
+            }
+        }
+    }
+    sources
+}
+
+fn scan_recipes_from_dir(
+    dir: &Path,
+    kind: SourceKind,
+    sources: &mut Vec<Source>,
+    seen: &mut std::collections::HashSet<String>,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if !RECIPE_FILE_EXTENSIONS.contains(&ext) {
+            continue;
+        }
+
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+
+        if name.is_empty() || seen.contains(&name) {
+            continue;
+        }
+
+        match Recipe::from_file_path(&path) {
+            Ok(recipe) => {
+                seen.insert(name.clone());
+                sources.push(Source {
+                    name,
+                    kind,
+                    description: recipe.description.clone(),
+                    path: path.clone(),
+                    content: recipe.instructions.clone().unwrap_or_default(),
+                    supporting_files: Vec::new(),
+                });
+            }
+            Err(e) => {
+                warn!("Failed to parse recipe {}: {}", path.display(), e);
+            }
+        }
+    }
+}
+
+fn scan_agents_from_dir(
+    dir: &Path,
+    sources: &mut Vec<Source>,
+    seen: &mut std::collections::HashSet<String>,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if ext != "md" {
+            continue;
+        }
+
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("Failed to read agent file {}: {}", path.display(), e);
+                continue;
+            }
+        };
+
+        if let Some(source) = parse_agent_content(&content, path) {
+            if !seen.contains(&source.name) {
+                seen.insert(source.name.clone());
+                sources.push(source);
+            }
+        }
+    }
+}
+
+fn discover_filesystem_sources(working_dir: &Path) -> Vec<Source> {
+    let mut sources: Vec<Source> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let home = dirs::home_dir();
+    let config = Paths::config_dir();
+
+    let local_recipe_dirs: Vec<PathBuf> = vec![
+        working_dir.to_path_buf(),
+        working_dir.join(".goose/recipes"),
+    ];
+
+    let global_recipe_dirs: Vec<PathBuf> = std::env::var("GOOSE_RECIPE_PATH")
+        .ok()
+        .into_iter()
+        .flat_map(|p| {
+            let sep = if cfg!(windows) { ';' } else { ':' };
+            p.split(sep).map(PathBuf::from).collect::<Vec<_>>()
+        })
+        .chain([config.join("recipes")])
+        .collect();
+
+    let local_skill_dirs: Vec<PathBuf> = vec![
+        working_dir.join(".goose/skills"),
+        working_dir.join(".claude/skills"),
+        working_dir.join(".agents/skills"),
+    ];
+
+    let global_skill_dirs: Vec<PathBuf> = [
+        Some(config.join("skills")),
+        home.as_ref().map(|h| h.join(".claude/skills")),
+        home.as_ref().map(|h| h.join(".config/agents/skills")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    let local_agent_dirs: Vec<PathBuf> = vec![
+        working_dir.join(".goose/agents"),
+        working_dir.join(".claude/agents"),
+    ];
+
+    let global_agent_dirs: Vec<PathBuf> = [
+        Some(config.join("agents")),
+        home.as_ref().map(|h| h.join(".claude/agents")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    for dir in local_recipe_dirs {
+        scan_recipes_from_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
+    }
+
+    for dir in local_skill_dirs {
+        sources.extend(scan_skills_from_dir(&dir, &mut seen));
+    }
+
+    for dir in local_agent_dirs {
+        scan_agents_from_dir(&dir, &mut sources, &mut seen);
+    }
+
+    for dir in global_recipe_dirs {
+        scan_recipes_from_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
+    }
+
+    for dir in global_skill_dirs {
+        sources.extend(scan_skills_from_dir(&dir, &mut seen));
+    }
+
+    for dir in global_agent_dirs {
+        scan_agents_from_dir(&dir, &mut sources, &mut seen);
+    }
+
+    for content in builtin_skills::get_all() {
+        if let Some(source) = parse_skill_content(content, PathBuf::new()) {
+            if !seen.contains(&source.name) {
+                seen.insert(source.name.clone());
+                sources.push(Source {
+                    kind: SourceKind::BuiltinSkill,
+                    ..source
+                });
+            }
+        }
+    }
+
+    sources
+}
+
+/// Collect all files in a skill directory (excluding SKILL.md itself),
+/// recursing one level into subdirectories.
+fn find_supporting_files(directory: &Path, skill_file: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let entries = match std::fs::read_dir(directory) {
+        Ok(e) => e,
+        Err(_) => return files,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() && path != skill_file {
+            files.push(path);
+        } else if path.is_dir() {
+            if let Ok(sub_entries) = std::fs::read_dir(&path) {
+                for sub_entry in sub_entries.flatten() {
+                    let sub_path = sub_entry.path();
+                    if sub_path.is_file() {
+                        files.push(sub_path);
+                    }
+                }
+            }
+        }
+    }
+    files
 }
 
 fn round_duration(d: Duration) -> String {
@@ -249,6 +495,28 @@ impl Drop for SummonClient {
 
 impl SummonClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
+        let instructions = if let Some(session) = &context.session {
+            let mut instructions = "".to_string();
+            let sources = discover_filesystem_sources(&session.working_dir);
+
+            let mut skills: Vec<&Source> = sources
+                .iter()
+                .filter(|s| s.kind == SourceKind::Skill || s.kind == SourceKind::BuiltinSkill)
+                .collect();
+
+            skills.sort_by(|a, b| (&a.name, &a.path).cmp(&(&b.name, &b.path)));
+
+            if !skills.is_empty() {
+                instructions.push_str("\n\nYou have these skills at your disposal, when it is clear they can help you solve a problem or you are asked to use them:");
+                for skill in &skills {
+                    instructions.push_str(&format!("\n• {} - {}", skill.name, skill.description));
+                }
+            }
+            Some(instructions)
+        } else {
+            None
+        };
+
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
@@ -271,10 +539,7 @@ impl SummonClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(
-                "Load knowledge and delegate tasks to subagents using the summon extension."
-                    .to_string(),
-            ),
+            instructions,
         };
 
         Ok(Self {
@@ -491,92 +756,7 @@ impl SummonClient {
     }
 
     fn discover_filesystem_sources(&self, working_dir: &Path) -> Vec<Source> {
-        let mut sources: Vec<Source> = Vec::new();
-        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-        let home = dirs::home_dir();
-        let config = Paths::config_dir();
-
-        let local_recipe_dirs: Vec<PathBuf> = vec![
-            working_dir.to_path_buf(),
-            working_dir.join(".goose/recipes"),
-        ];
-
-        let global_recipe_dirs: Vec<PathBuf> = std::env::var("GOOSE_RECIPE_PATH")
-            .ok()
-            .into_iter()
-            .flat_map(|p| {
-                let sep = if cfg!(windows) { ';' } else { ':' };
-                p.split(sep).map(PathBuf::from).collect::<Vec<_>>()
-            })
-            .chain([config.join("recipes")])
-            .collect();
-
-        let local_skill_dirs: Vec<PathBuf> = vec![
-            working_dir.join(".goose/skills"),
-            working_dir.join(".claude/skills"),
-            working_dir.join(".agents/skills"),
-        ];
-
-        let global_skill_dirs: Vec<PathBuf> = [
-            Some(config.join("skills")),
-            home.as_ref().map(|h| h.join(".claude/skills")),
-            home.as_ref().map(|h| h.join(".config/agents/skills")),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-
-        let local_agent_dirs: Vec<PathBuf> = vec![
-            working_dir.join(".goose/agents"),
-            working_dir.join(".claude/agents"),
-        ];
-
-        let global_agent_dirs: Vec<PathBuf> = [
-            Some(config.join("agents")),
-            home.as_ref().map(|h| h.join(".claude/agents")),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-
-        for dir in local_recipe_dirs {
-            self.scan_recipes_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
-        }
-
-        for dir in local_skill_dirs {
-            self.scan_skills_dir(&dir, &mut sources, &mut seen);
-        }
-
-        for dir in local_agent_dirs {
-            self.scan_agents_dir(&dir, &mut sources, &mut seen);
-        }
-
-        for dir in global_recipe_dirs {
-            self.scan_recipes_dir(&dir, SourceKind::Recipe, &mut sources, &mut seen);
-        }
-
-        for dir in global_skill_dirs {
-            self.scan_skills_dir(&dir, &mut sources, &mut seen);
-        }
-
-        for dir in global_agent_dirs {
-            self.scan_agents_dir(&dir, &mut sources, &mut seen);
-        }
-
-        for content in builtin_skills::get_all() {
-            if let Some(source) = parse_skill_content(content, PathBuf::new()) {
-                if !seen.contains(&source.name) {
-                    seen.insert(source.name.clone());
-                    sources.push(Source {
-                        kind: SourceKind::BuiltinSkill,
-                        ..source
-                    });
-                }
-            }
-        }
-
-        sources
+        discover_filesystem_sources(working_dir)
     }
 
     async fn add_subrecipes(
@@ -614,6 +794,7 @@ impl SummonClient {
                 description,
                 path: PathBuf::from(&sr.path),
                 content: String::new(),
+                supporting_files: Vec::new(),
             });
         }
     }
@@ -640,135 +821,6 @@ impl SummonClient {
         }
 
         format!("Subrecipe from {}", sr.path)
-    }
-
-    fn scan_recipes_dir(
-        &self,
-        dir: &Path,
-        kind: SourceKind,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let entries = match std::fs::read_dir(dir) {
-            Ok(e) => e,
-            Err(_) => return,
-        };
-
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            if !RECIPE_FILE_EXTENSIONS.contains(&ext) {
-                continue;
-            }
-
-            let name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-
-            if name.is_empty() || seen.contains(&name) {
-                continue;
-            }
-
-            match Recipe::from_file_path(&path) {
-                Ok(recipe) => {
-                    seen.insert(name.clone());
-                    sources.push(Source {
-                        name,
-                        kind,
-                        description: recipe.description.clone(),
-                        path: path.clone(),
-                        content: recipe.instructions.clone().unwrap_or_default(),
-                    });
-                }
-                Err(e) => {
-                    warn!("Failed to parse recipe {}: {}", path.display(), e);
-                }
-            }
-        }
-    }
-
-    fn scan_skills_dir(
-        &self,
-        dir: &Path,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let entries = match std::fs::read_dir(dir) {
-            Ok(e) => e,
-            Err(_) => return,
-        };
-
-        for entry in entries.flatten() {
-            let skill_dir = entry.path();
-            if !skill_dir.is_dir() {
-                continue;
-            }
-
-            let skill_file = skill_dir.join("SKILL.md");
-            if !skill_file.exists() {
-                continue;
-            }
-
-            let content = match std::fs::read_to_string(&skill_file) {
-                Ok(c) => c,
-                Err(e) => {
-                    warn!("Failed to read skill file {}: {}", skill_file.display(), e);
-                    continue;
-                }
-            };
-
-            if let Some(source) = parse_skill_content(&content, skill_file) {
-                if !seen.contains(&source.name) {
-                    seen.insert(source.name.clone());
-                    sources.push(source);
-                }
-            }
-        }
-    }
-
-    fn scan_agents_dir(
-        &self,
-        dir: &Path,
-        sources: &mut Vec<Source>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        let entries = match std::fs::read_dir(dir) {
-            Ok(e) => e,
-            Err(_) => return,
-        };
-
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-            if ext != "md" {
-                continue;
-            }
-
-            let content = match std::fs::read_to_string(&path) {
-                Ok(c) => c,
-                Err(e) => {
-                    warn!("Failed to read agent file {}: {}", path.display(), e);
-                    continue;
-                }
-            };
-
-            if let Some(source) = parse_agent_content(&content, path) {
-                if !seen.contains(&source.name) {
-                    seen.insert(source.name.clone());
-                    sources.push(source);
-                }
-            }
-        }
     }
 
     async fn handle_load(
@@ -1016,10 +1068,27 @@ impl SummonClient {
             Some(source) => {
                 let content = source.to_load_text();
 
-                let output = format!(
-                    "# Loaded: {} ({})\n\n{}\n\n---\nThis knowledge is now available in your context.",
+                let mut output = format!(
+                    "# Loaded: {} ({})\n\n{}\n",
                     source.name, source.kind, content
                 );
+
+                if !source.supporting_files.is_empty() {
+                    output.push_str(&format!(
+                        "\n## Supporting Files\n\nSkill directory: {}\n\nThe following supporting files are available:\n",
+                        source.path.display()
+                    ));
+                    for file in &source.supporting_files {
+                        if let Ok(relative) = file.strip_prefix(&source.path) {
+                            output.push_str(&format!("- {}\n", relative.display()));
+                        }
+                    }
+                    output.push_str(
+                        "\nUse the file tools to read these files or run scripts as directed.\n",
+                    );
+                }
+
+                output.push_str("\n---\nThis knowledge is now available in your context.");
 
                 Ok(vec![Content::text(output)])
             }
@@ -1768,6 +1837,7 @@ mod tests {
         PlatformExtensionContext {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
+            session: None,
         }
     }
 
@@ -1835,6 +1905,37 @@ You review code."#;
             .any(|s| s.name == "test" && s.kind == SourceKind::Recipe));
 
         assert!(sources.iter().any(|s| s.kind == SourceKind::BuiltinSkill));
+    }
+
+    #[tokio::test]
+    async fn test_skill_supporting_files_discovered() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill with scripts\n---\nRun check_all.sh",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("myscript.sh"), "#!/bin/bash\necho ok").unwrap();
+        fs::create_dir(skill_dir.join("templates")).unwrap();
+        fs::write(skill_dir.join("templates/report.txt"), "template content").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.discover_filesystem_sources(temp_dir.path());
+
+        let skill = sources.iter().find(|s| s.name == "my-skill").unwrap();
+        assert_eq!(skill.path, skill_dir);
+        assert_eq!(skill.supporting_files.len(), 2);
+
+        let file_names: Vec<String> = skill
+            .supporting_files
+            .iter()
+            .filter_map(|f| f.file_name().map(|n| n.to_string_lossy().to_string()))
+            .collect();
+        assert!(file_names.contains(&"myscript.sh".to_string()));
+        assert!(file_names.contains(&"report.txt".to_string()));
     }
 
     #[tokio::test]

@@ -1,7 +1,7 @@
 use crate::recipes::github_recipe::GOOSE_RECIPE_GITHUB_REPO_CONFIG_KEY;
 use cliclack::spinner;
 use console::style;
-use goose::agents::extension::ToolInfo;
+use goose::agents::extension::{ToolInfo, PLATFORM_EXTENSIONS};
 use goose::agents::extension_manager::get_parameter_names;
 use goose::agents::Agent;
 use goose::agents::{extension::Envs, ExtensionConfig};
@@ -22,6 +22,7 @@ use goose::config::{
 use goose::model::ModelConfig;
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::base::ConfigKey;
+use goose::providers::formats::anthropic::supports_adaptive_thinking;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
@@ -761,6 +762,53 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
         config.set_gemini3_thinking_level(thinking_level)?;
     }
 
+    if model.to_lowercase().starts_with("claude-") {
+        let supports_adaptive = supports_adaptive_thinking(&model);
+
+        let mut thinking_select = cliclack::select("Select extended thinking mode for Claude:");
+        if supports_adaptive {
+            thinking_select = thinking_select.item(
+                "adaptive",
+                "Adaptive - Claude decides when and how much to think (recommended)",
+                "",
+            );
+        }
+        thinking_select = thinking_select
+            .item("enabled", "Enabled - Fixed token budget for thinking", "")
+            .item("disabled", "Disabled - No extended thinking", "");
+        if supports_adaptive {
+            thinking_select = thinking_select.initial_value("adaptive");
+        } else {
+            thinking_select = thinking_select.initial_value("disabled");
+        }
+        let thinking_type: &str = thinking_select.interact()?;
+        config.set_claude_thinking_type(thinking_type)?;
+
+        if thinking_type == "adaptive" {
+            let effort: &str = cliclack::select("Select adaptive thinking effort level:")
+                .item("low", "Low - Minimal thinking, fastest responses", "")
+                .item("medium", "Medium - Moderate thinking", "")
+                .item("high", "High - Deep reasoning (default)", "")
+                .item(
+                    "max",
+                    "Max - No constraints on thinking depth (Opus 4.6 only)",
+                    "",
+                )
+                .initial_value("high")
+                .interact()?;
+            config.set_claude_thinking_effort(effort)?;
+        } else if thinking_type == "enabled" {
+            let budget: String = cliclack::input("Enter thinking budget (tokens):")
+                .default_input("16000")
+                .validate(|input: &String| match input.parse::<i32>() {
+                    Ok(n) if n > 0 => Ok(()),
+                    _ => Err("Please enter a valid positive number"),
+                })
+                .interact()?;
+            config.set_claude_thinking_budget(budget.parse::<i32>()?)?;
+        }
+    }
+
     // Test the configuration
     let spin = spinner();
     spin.start("Checking your configuration...");
@@ -983,24 +1031,35 @@ fn configure_builtin_extension() -> anyhow::Result<()> {
         select = select.item(id, name, desc);
     }
     let extension = select.interact()?.to_string();
-    let timeout = prompt_extension_timeout()?;
-
     let (display_name, description) = extensions
         .iter()
         .find(|(id, _, _)| id == &extension)
         .map(|(_, name, desc)| (name.to_string(), desc.to_string()))
         .unwrap_or_else(|| (extension.clone(), extension.clone()));
 
-    set_extension(ExtensionEntry {
-        enabled: true,
-        config: ExtensionConfig::Builtin {
+    let config = if PLATFORM_EXTENSIONS.contains_key(extension.as_str()) {
+        ExtensionConfig::Platform {
+            name: extension.clone(),
+            description,
+            display_name: Some(display_name),
+            bundled: Some(true),
+            available_tools: Vec::new(),
+        }
+    } else {
+        let timeout = prompt_extension_timeout()?;
+        ExtensionConfig::Builtin {
             name: extension.clone(),
             display_name: Some(display_name),
             timeout: Some(timeout),
             bundled: Some(true),
             description,
             available_tools: Vec::new(),
-        },
+        }
+    };
+
+    set_extension(ExtensionEntry {
+        enabled: true,
+        config,
     });
 
     cliclack::outro(format!("Enabled {} extension", style(extension).green()))?;
@@ -1741,12 +1800,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
                     if !has_developer {
                         set_extension(ExtensionEntry {
                             enabled: true,
-                            config: ExtensionConfig::Builtin {
+                            config: ExtensionConfig::Platform {
                                 name: "developer".to_string(),
-                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                                bundled: Some(true),
                                 description: "Developer extension".to_string(),
+                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                                bundled: Some(true),
                                 available_tools: Vec::new(),
                             },
                         });
@@ -1811,12 +1869,11 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
                     if !has_developer {
                         set_extension(ExtensionEntry {
                             enabled: true,
-                            config: ExtensionConfig::Builtin {
+                            config: ExtensionConfig::Platform {
                                 name: "developer".to_string(),
-                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                                timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-                                bundled: Some(true),
                                 description: "Developer extension".to_string(),
+                                display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
+                                bundled: Some(true),
                                 available_tools: Vec::new(),
                             },
                         });
@@ -1969,6 +2026,8 @@ fn add_provider() -> anyhow::Result<()> {
         supports_streaming: Some(supports_streaming),
         headers,
         requires_auth,
+        catalog_provider_id: None,
+        base_path: None,
     })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;

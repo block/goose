@@ -17,7 +17,7 @@ litellm -> gpt-4o-mini
 sagemaker_tgi -> sagemaker-tgi-endpoint
 github_copilot -> gpt-4.1
 chatgpt_codex -> gpt-5.1-codex
-claude-code -> claude-sonnet-4-20250514
+claude-code -> default
 codex -> gpt-5.2-codex
 gemini-cli -> gemini-2.5-pro
 cursor-agent -> auto
@@ -29,6 +29,7 @@ ALLOWED_FAILURES=(
   "google:gemini-2.5-flash"
   "google:gemini-3-pro-preview"
   "openrouter:nvidia/nemotron-3-nano-30b-a3b"
+  "openrouter:qwen/qwen3-coder:exacto"
   "openai:gpt-3.5-turbo"
 )
 
