@@ -29,7 +29,7 @@ export function resumeSession(session: Session, setView: setViewType) {
   // If the user clicks the currently-active session again, React Router may treat the navigation
   // as a no-op (same path + same search params). Including a unique state value forces the
   // navigation to re-run and ensures the session is reliably reloaded.
-  setView('pair', {
+  setView('session', {
     disableAnimation: true,
     resumeSessionId: session.id,
     __navNonce: crypto.randomUUID(),
@@ -100,7 +100,7 @@ export async function startNewSession(
     })
   );
 
-  setView('pair', {
+  setView('session', {
     disableAnimation: true,
     initialMessage,
     resumeSessionId: session.id,

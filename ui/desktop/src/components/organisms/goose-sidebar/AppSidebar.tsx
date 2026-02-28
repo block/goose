@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { deleteSession, listSessions, updateSessionName, type Session } from '@/api';
 import { AppEvents } from '@/constants/events';
 import { DEFAULT_CHAT_TITLE, useChatContext } from '@/contexts/ChatContext';
@@ -588,10 +588,18 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   const appsExtensionEnabled = !!configContext.extensionsList?.find((ext) => ext.name === 'apps')
     ?.enabled;
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
 
-  const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+  const activeSessionId = React.useMemo(() => {
+    const match = location.pathname.match(/^\/sessions\/([^/]+)$/);
+    if (!match) return undefined;
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }, [location.pathname]);
   const { getSessionStatus, clearUnread } = useSidebarSessionStatus(activeSessionId);
   const { addRecentDir, recentDirs } = useProjectPreferences();
   const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
@@ -768,7 +776,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     const titleBits = ['Goose'];
 
     if (
-      currentPath === '/pair' &&
+      (currentPath === '/sessions' || currentPath.startsWith('/sessions/')) &&
       chatContext?.chat?.name &&
       chatContext.chat.name !== DEFAULT_CHAT_TITLE
     ) {
@@ -951,7 +959,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 <SidebarMenuButton
                   data-testid="sidebar-home-button"
                   onClick={handleNewChat}
-                  isActive={isActivePath('/pair') || isActivePath('/')}
+                  isActive={
+                    isActivePath('/sessions') || currentPath?.startsWith('/sessions/') === true
+                  }
                   tooltip="New chat"
                   className="justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
                 >

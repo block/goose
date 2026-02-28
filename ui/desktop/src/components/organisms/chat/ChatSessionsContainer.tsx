@@ -1,4 +1,4 @@
-import { useSearchParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { startNewSession } from '@/sessions';
 import type { ChatType } from '@/types/chat';
@@ -6,6 +6,16 @@ import type { UserInput } from '@/types/message';
 import { getInitialWorkingDir } from '@/utils/workingDir';
 import BaseChat from './BaseChat';
 import WelcomeState from './WelcomeState';
+
+const getSessionIdFromPath = (pathname: string): string | undefined => {
+  const match = pathname.match(/^\/sessions\/([^/]+)$/);
+  if (!match) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+};
 
 interface ChatSessionsContainerProps {
   setChat: (chat: ChatType) => void;
@@ -25,9 +35,9 @@ export default function ChatSessionsContainer({
   setChat,
   activeSessions,
 }: ChatSessionsContainerProps) {
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const setView = useNavigation();
-  const currentSessionId = searchParams.get('resumeSessionId') ?? undefined;
+  const currentSessionId = getSessionIdFromPath(location.pathname);
 
   // No active sessions — show WelcomeState (ChatInput is in AppLayout)
   if (!currentSessionId && activeSessions.length === 0) {

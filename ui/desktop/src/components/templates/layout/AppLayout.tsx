@@ -66,7 +66,8 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const navigate = useNavigate();
   const location = useLocation();
   const chatContext = useChatContext();
-  const isOnPairRoute = location.pathname === '/pair';
+  const isOnSessionsRoute =
+    location.pathname === '/sessions' || location.pathname.startsWith('/sessions/');
 
   if (!chatContext) {
     throw new Error('AppLayoutContent must be used within ChatProvider');
@@ -80,8 +81,14 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
       case 'chat':
         navigate('/');
         break;
-      case 'pair':
-        navigate('/pair');
+      case 'session':
+        if (viewOptions?.resumeSessionId) {
+          navigate(`/sessions/${encodeURIComponent(viewOptions.resumeSessionId)}`, {
+            state: viewOptions,
+          });
+        } else {
+          navigate('/sessions', { state: viewOptions });
+        }
         break;
       case 'settings':
         navigate('/settings', { state: viewOptions });
@@ -116,7 +123,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   };
 
   const handleSelectSession = async (sessionId: string) => {
-    navigate('/', { state: { sessionId } });
+    navigate(`/sessions/${encodeURIComponent(sessionId)}`);
   };
 
   return (
@@ -129,12 +136,12 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         />
       </Sidebar>
       <SidebarInset>
-        {/* Non-pair routes: standard page content */}
-        <div className={isOnPairRoute ? 'hidden' : 'flex-1 overflow-auto pb-16'}>
+        {/* Non-session routes: standard page content */}
+        <div className={isOnSessionsRoute ? 'hidden' : 'flex-1 overflow-auto pb-16'}>
           <Outlet />
         </div>
-        {/* Pair route: chat sessions */}
-        <div className={isOnPairRoute ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+        {/* Sessions route: chat sessions */}
+        <div className={isOnSessionsRoute ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
         {/* Global ChatInput — always visible on all pages */}

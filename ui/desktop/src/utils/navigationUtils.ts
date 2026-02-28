@@ -5,7 +5,7 @@ import type { UserInput } from '@/types/message';
 export type View =
   | 'welcome'
   | 'chat'
-  | 'pair'
+  | 'session'
   | 'settings'
   | 'extensions'
   | 'moreModels'
@@ -50,17 +50,12 @@ export const createNavigationHandler = (navigate: NavigateFunction) => {
       case 'chat':
         navigate('/', { state: options });
         break;
-      case 'pair': {
-        // Put resumeSessionId in URL search params (not just state) so that:
-        // 1. The sidebar can read it to highlight the active session
-        // 2. Page refresh preserves which session is active
-        // 3. Browser back/forward navigation works correctly
-        const searchParams = new URLSearchParams();
+      case 'session': {
         if (options?.resumeSessionId) {
-          searchParams.set('resumeSessionId', options.resumeSessionId);
+          navigate(`/sessions/${encodeURIComponent(options.resumeSessionId)}`, { state: options });
+        } else {
+          navigate('/sessions', { state: options });
         }
-        const url = searchParams.toString() ? `/pair?${searchParams.toString()}` : '/pair';
-        navigate(url, { state: options });
         break;
       }
       case 'settings':

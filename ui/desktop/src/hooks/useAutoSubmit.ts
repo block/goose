@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+
 import type { Message, Session } from '@/api';
 import { AppEvents } from '@/constants/events';
 import { ChatState } from '@/types/chatState';
 import type { UserInput } from '@/types/message';
+
+const getSessionIdFromPath = (pathname: string): string | undefined => {
+  const match = pathname.match(/^\/sessions\/([^/]+)$/);
+  if (!match) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+};
 
 /**
  * Auto-submit scenarios:
@@ -33,7 +44,7 @@ export function useAutoSubmit({
   initialMessage,
   handleSubmit,
 }: UseAutoSubmitProps): UseAutoSubmitReturn {
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const hasAutoSubmittedRef = useRef(false);
 
   // Reset auto-submit flag when session changes
@@ -51,9 +62,9 @@ export function useAutoSubmit({
 
   // Auto-submit logic
   useEffect(() => {
-    const currentSessionId = searchParams.get('resumeSessionId');
+    const currentSessionId = getSessionIdFromPath(location.pathname);
     const isCurrentSession = currentSessionId === sessionId;
-    const shouldStartAgent = isCurrentSession && searchParams.get('shouldStartAgent') === 'true';
+    const shouldStartAgent = isCurrentSession && location.state?.shouldStartAgent === true;
 
     if (!session || hasAutoSubmittedRef.current) {
       return;
@@ -92,7 +103,8 @@ export function useAutoSubmit({
   }, [
     session,
     initialMessage,
-    searchParams,
+    location.pathname,
+    location.state,
     handleSubmit,
     sessionId,
     messages.length,

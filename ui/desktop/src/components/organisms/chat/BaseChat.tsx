@@ -276,15 +276,10 @@ export default function BaseChat({
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
 
-      const params = new URLSearchParams();
-      params.set('resumeSessionId', newSessionId);
-      if (shouldStartAgent) {
-        params.set('shouldStartAgent', 'true');
-      }
-
-      navigate(`/pair?${params.toString()}`, {
+      navigate(`/sessions/${encodeURIComponent(newSessionId)}`, {
         state: {
           disableAnimation: true,
+          shouldStartAgent,
           initialMessage: editedMessage ? { msg: editedMessage, images: [] } : undefined,
         },
       });

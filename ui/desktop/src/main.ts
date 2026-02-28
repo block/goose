@@ -746,7 +746,6 @@ const createChat = async (
   let appPath = '/';
   const routeMap: Record<string, string> = {
     chat: '/',
-    pair: '/pair',
     settings: '/settings',
     sessions: '/sessions',
     schedules: '/schedules',
@@ -760,20 +759,19 @@ const createChat = async (
   if (viewType) {
     appPath = routeMap[viewType] || '/';
   }
-  if (appPath === '/' && (recipeDeeplink !== undefined || initialMessage)) {
-    appPath = '/pair';
-  }
 
-  const searchParams = new URLSearchParams();
+  // We no longer use query params to select sessions.
+  // If a sessionId is provided, navigate directly to /sessions/:id.
   if (resumeSessionId) {
-    searchParams.set('resumeSessionId', resumeSessionId);
-    if (appPath === '/') {
-      appPath = '/pair';
-    }
+    appPath = `/sessions/${encodeURIComponent(resumeSessionId)}`;
+  } else if (appPath === '/' && (recipeDeeplink !== undefined || initialMessage)) {
+    // If a window is created with an initial message or recipe deeplink, take the user
+    // to the sessions landing page; the renderer will create a session if needed.
+    appPath = '/sessions';
   }
 
-  // Goose's react app uses HashRouter, so the path + search params follow a #/
-  url.hash = `${appPath}?${searchParams.toString()}`;
+  // Goose's react app uses HashRouter, so the path follows a #/
+  url.hash = appPath;
   const formattedUrl = formatUrl(url);
   log.info('Opening URL: ', formattedUrl);
   mainWindow.loadURL(formattedUrl);

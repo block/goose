@@ -7,7 +7,7 @@ import {
   Routes,
   useLocation,
   useNavigate,
-  useSearchParams,
+  useParams,
 } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import { AuthGuard } from '@/components/organisms/guards/AuthGuard';
@@ -43,9 +43,9 @@ setupAuthInterceptor();
 import type { ChatType } from '@/types/chat';
 import type { UserInput } from '@/types/message';
 
-interface PairRouteState {
-  resumeSessionId?: string;
+interface SessionRouteState {
   initialMessage?: UserInput;
+  shouldStartAgent?: boolean;
 }
 
 import { AppLayout } from '@/components/templates/layout/AppLayout';
@@ -79,12 +79,13 @@ function PageViewTracker() {
 }
 
 // Route Components
-// "/" redirects to "/pair" — WelcomeState shows for 0-message sessions
+// "/" redirects to "/sessions".
+// With no sessions, ChatSessionsContainer shows WelcomeState.
 const HomeRedirectWrapper = () => {
-  return <Navigate to="/pair" replace />;
+  return <Navigate to="/sessions" replace />;
 };
 
-const PairRouteWrapper = ({
+const SessionRouteWrapper = ({
   activeSessions,
 }: {
   activeSessions: Array<{
@@ -95,16 +96,19 @@ const PairRouteWrapper = ({
 }) => {
   const { extensionsList } = useConfig();
   const location = useLocation();
+  const { sessionId: sessionIdParam } = useParams();
+
   const routeState =
-    (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
-  const [searchParams, setSearchParams] = useSearchParams();
+    (location.state as SessionRouteState) || (window.history.state as SessionRouteState) || {};
+
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-  const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
+  const resumeSessionId = sessionIdParam ? decodeURIComponent(sessionIdParam) : undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
   const initialMessage = routeState.initialMessage;
 
-  // Create session if we have an initialMessage or recipeDeeplink but no sessionId
+  // Only create a session if we have an initial message (launcher) or a recipe deeplink,
+  // and we are not already on a specific session route.
   useEffect(() => {
     if ((initialMessage || recipeDeeplinkFromConfig) && !resumeSessionId && !isCreatingSession) {
       setIsCreatingSession(true);
@@ -125,14 +129,16 @@ const PairRouteWrapper = ({
             })
           );
 
-          setSearchParams((prev) => {
-            prev.set('resumeSessionId', newSession.id);
-            return prev;
-          });
+          // Navigate to the new session URL. We avoid query params entirely.
+          window.history.replaceState(
+            window.history.state,
+            '',
+            `#/sessions/${encodeURIComponent(newSession.id)}`
+          );
         } catch (error) {
           console.error('Failed to create session:', error);
           trackErrorWithContext(error, {
-            component: 'PairRouteWrapper',
+            component: 'SessionRouteWrapper',
             action: 'create_session',
             recoverable: true,
           });
@@ -141,17 +147,8 @@ const PairRouteWrapper = ({
         }
       })();
     }
-    // Note: isCreatingSession is intentionally NOT in the dependency array
-    // It's only used as a guard to prevent concurrent session creation
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    initialMessage,
-    recipeDeeplinkFromConfig,
-    resumeSessionId,
-    setSearchParams,
-    extensionsList,
-    isCreatingSession,
-  ]);
+  }, [initialMessage, recipeDeeplinkFromConfig, resumeSessionId, extensionsList, isCreatingSession]);
 
   // Add resumed session to active sessions if not already there
   useEffect(() => {
@@ -173,18 +170,11 @@ const PairRouteWrapper = ({
 const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const setView = useNavigation();
 
-  // Get viewOptions from location.state, history.state, or URL search params
+  // Get viewOptions from location.state or history.state
   const viewOptions =
     (location.state as SettingsViewOptions) || (window.history.state as SettingsViewOptions) || {};
-
-  // If section is provided via URL search params, add it to viewOptions
-  const sectionFromUrl = searchParams.get('section');
-  if (sectionFromUrl) {
-    viewOptions.section = sectionFromUrl;
-  }
 
   return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
@@ -234,13 +224,19 @@ const PermissionRoute = () => {
   return (
     <PermissionSettingsView
       onClose={() => {
-        // Navigate back to parent view with options
+          // Navigate back to parent view with options
         switch (parentView) {
           case 'chat':
             navigate('/');
             break;
-          case 'pair':
-            navigate('/pair');
+          case 'session':
+            if (parentViewOptions?.resumeSessionId) {
+              navigate(`/sessions/${encodeURIComponent(parentViewOptions.resumeSessionId)}`, {
+                state: parentViewOptions,
+              });
+            } else {
+              navigate('/sessions', { state: parentViewOptions });
+            }
             break;
           case 'settings':
             navigate('/settings', { state: parentViewOptions });
@@ -346,21 +342,7 @@ const ExtensionsRoute = () => {
   return (
     <ExtensionsView
       onClose={() => navigate(-1)}
-      setView={(view: View, options?: ViewOptions) => {
-        switch (view) {
-          case 'chat':
-            navigate('/');
-            break;
-          case 'pair':
-            navigate('/pair', { state: options });
-            break;
-          case 'settings':
-            navigate('/settings', { state: options });
-            break;
-          default:
-            navigate('/');
-        }
-      }}
+      setView={setView}
       viewOptions={viewOptions}
     />
   );
@@ -617,7 +599,7 @@ export function AppInner() {
 
       if (initialMessage && !isProcessingRef.current) {
         isProcessingRef.current = true;
-        navigate('/pair', {
+        navigate('/sessions', {
           state: {
             initialMessage: { msg: initialMessage, images: [] },
           },
@@ -688,15 +670,6 @@ export function AppInner() {
               }
             >
               <Route index element={<HomeRedirectWrapper />} />
-              <Route
-                path="pair"
-                element={
-                  <PairRouteWrapper
-                    activeSessions={activeSessions}
-                    setActiveSessions={setActiveSessions}
-                  />
-                }
-              />
               <Route path="settings" element={<SettingsRoute />} />
               <Route
                 path="extensions"
