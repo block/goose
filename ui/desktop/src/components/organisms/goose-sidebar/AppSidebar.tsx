@@ -1010,67 +1010,6 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           {/* Sessions — General group acts as Home */}
           <SidebarGroup className="px-2">
             <SidebarGroupContent className="space-y-1">
-              {/* New Chat button */}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  data-testid="sidebar-home-button"
-                  onClick={handleNewChat}
-                  isActive={
-                    isActivePath('/sessions') || currentPath?.startsWith('/sessions/') === true
-                  }
-                  tooltip="New chat"
-                  className="justify-start px-3 rounded-lg h-fit hover:bg-background-medium/50 transition-all duration-200 data-[active=true]:bg-background-medium"
-                >
-                  <Home className="w-4 h-4" />
-                  <span>New Chat</span>
-                </SidebarMenuButton>
-                <Popover.Root open={projectDropdownOpen} onOpenChange={setProjectDropdownOpen}>
-                  <Popover.Trigger asChild>
-                    <SidebarMenuAction
-                      onClick={(e) => e.stopPropagation()}
-                      aria-label="Open project"
-                      className="cursor-pointer text-text-muted hover:text-text-default"
-                    >
-                      <FolderPlus className="w-3.5 h-3.5" />
-                    </SidebarMenuAction>
-                  </Popover.Trigger>
-                  <Popover.Portal>
-                    <Popover.Content
-                      side="right"
-                      align="start"
-                      sideOffset={8}
-                      className="z-[60] w-56 bg-background-default border border-border-default rounded-lg shadow-lg overflow-hidden animate-in fade-in-0 zoom-in-95 data-[side=right]:slide-in-from-left-2"
-                    >
-                      <button type="button"
-                        onClick={handleBrowseForProject}
-                        className="w-full text-left px-3 py-2 text-sm text-text-default hover:bg-background-muted transition-colors flex items-center gap-2 border-b border-border-muted"
-                      >
-                        <FolderPlus className="w-4 h-4 text-text-accent" />
-                        <span>Browse...</span>
-                      </button>
-                      {recentDirs.length > 0 && (
-                        <div className="max-h-48 overflow-y-auto">
-                          <div className="px-3 py-1.5 text-[10px] font-medium text-text-subtle uppercase tracking-wider">
-                            Recent Projects
-                          </div>
-                          {recentDirs.map((dir) => (
-                            <button type="button"
-                              key={dir}
-                              onClick={() => handleOpenProjectFromDir(dir)}
-                              className="w-full text-left px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default transition-colors flex items-center gap-2"
-                              title={dir}
-                            >
-                              <FolderOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate">{dir.split('/').pop() || dir}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </Popover.Content>
-                  </Popover.Portal>
-                </Popover.Root>
-              </SidebarMenuItem>
-
               {/* Session list with project groups (General first) */}
               {recentSessions.length > 0 && (
                 <div className="mt-1 space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto group-data-[collapsible=icon]:hidden">
