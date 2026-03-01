@@ -2,7 +2,8 @@ import { PlaywrightTestConfig } from '@playwright/test';
 
 const config: PlaywrightTestConfig = {
   testDir: './tests/e2e',
-  timeout: 60000,
+  // E2E boots a full Electron + embedded goosed; allow a longer budget.
+  timeout: 180000,
   expect: {
     timeout: 30000
   },

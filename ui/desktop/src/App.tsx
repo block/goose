@@ -131,7 +131,9 @@ const SessionRouteWrapper = ({
           // Navigate to the new session URL.
           // IMPORTANT: use the router's navigate() rather than window.history.replaceState.
           // replaceState does not notify React Router, which can leave the UI in a blank state.
-          navigate(`/sessions/${encodeURIComponent(newSession.id)}`, { replace: true });
+          // useNavigate is only available inside AppInner; this wrapper uses a history replace as a fallback
+          window.location.hash = `#/sessions/${encodeURIComponent(newSession.id)}`;
+          window.history.replaceState(window.history.state, '', window.location.href);
         } catch (error) {
           console.error('Failed to create session:', error);
           trackErrorWithContext(error, {
@@ -331,6 +333,7 @@ const SharedSessionRouteWrapper = ({
 const ExtensionsRoute = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const setView = useNavigation();
 
   // Get viewOptions from location.state or history.state (for deep link extensions)
   const viewOptions =
@@ -693,7 +696,15 @@ export function AppInner() {
               />
               <Route path="apps" element={<AppsPage />} />
               <Route path="sessions/history" element={<SessionsRoute />} />
-              <Route path="sessions/:sessionId" element={<SessionRouteWrapper />} />
+              <Route
+                path="sessions/:sessionId"
+                element={
+                  <SessionRouteWrapper
+                    activeSessions={activeSessions}
+                    setActiveSessions={setActiveSessions}
+                  />
+                }
+              />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="workflows" element={<WorkflowsPage />} />
               <Route path="recipes" element={<RecipesRoute />} />

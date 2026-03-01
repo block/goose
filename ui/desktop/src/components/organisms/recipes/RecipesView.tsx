@@ -219,7 +219,7 @@ export default function RecipesView() {
 
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
 
-      setView('pair', {
+      setView('session', {
         disableAnimation: true,
         resumeSessionId: session.id,
       });

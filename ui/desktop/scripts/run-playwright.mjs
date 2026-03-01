@@ -8,14 +8,7 @@ function hasCommand(cmd) {
   return result.status === 0;
 }
 
-function isHeadlessLinux() {
-  if (process.platform !== 'linux') {
-    return false;
-  }
-
-  // Electron can use X11 (DISPLAY) or Wayland (WAYLAND_DISPLAY).
-  return !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
-}
+const FORCE_XVFB_LINUX = process.platform === 'linux';
 
 function resolvePlaywrightInvocation(cwd) {
   // Prefer the project-local Playwright CLI (works even when PATH doesn't include node_modules/.bin)
@@ -58,7 +51,7 @@ const cwd = process.cwd();
 const args = process.argv.slice(2);
 const playwrightArgs = args.length > 0 ? args : ['test'];
 
-if (isHeadlessLinux()) {
+if (FORCE_XVFB_LINUX) {
   if (hasCommand('xvfb-run')) {
     const { cmd, argsPrefix } = resolvePlaywrightInvocation(cwd);
 
@@ -73,15 +66,9 @@ if (isHeadlessLinux()) {
 
   console.error(
     [
-      'Playwright E2E requires a display server on Linux.',
-      'No DISPLAY/WAYLAND_DISPLAY detected, and xvfb-run is not installed.',
-      '',
-      'Fix options:',
-      '  1) Install Xvfb and re-run (recommended for CI):',
-      '       sudo apt-get update && sudo apt-get install -y xvfb',
-      '  2) Run in a desktop session (set DISPLAY or WAYLAND_DISPLAY).',
-      '',
-      'Then re-run the command.',
+      'Playwright E2E on Linux requires Xvfb (xvfb-run).',
+      'Install it and re-run:',
+      '  sudo dnf install -y xorg-x11-server-Xvfb',
     ].join('\n')
   );
 

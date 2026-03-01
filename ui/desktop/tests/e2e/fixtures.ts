@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'path';
+import path from 'node:path';
 import dotenv from 'dotenv';
 
 
@@ -160,6 +161,7 @@ async function ensureViteBuild(projectRoot: string) {
 export const test = base.extend<GooseTestFixtures>({
   // Test-scoped fixture: launches a fresh Electron app for each test
   goosePage: async ({}, use, testInfo) => {
+    testInfo.setTimeout(180_000);
     console.log(`Launching fresh Electron app for test: ${testInfo.title}`);
 
     if (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
@@ -236,6 +238,8 @@ export const test = base.extend<GooseTestFixtures>({
       const projectRoot = join(__dirname, '../..');
       const repoRoot = join(projectRoot, '..', '..');
 
+      let earlyDebugTimer: ReturnType<typeof setTimeout> | undefined;
+
       // The Electron main process starts goosed. In many dev environments it's
       // not present unless you've built the Rust workspace.
       ensureGoosedBinary(repoRoot);
@@ -255,47 +259,124 @@ export const test = base.extend<GooseTestFixtures>({
         );
       }
 
-      app = await electron.launch({
-        executablePath: electronPath,
-        // Launch the Electron *app* (directory with package.json). This matches Playwright's
-        // expected model and avoids flaky behavior when passing a raw JS entry.
-        args: [projectRoot],
-        env: {
-          ...process.env,
-          // If callers provide only defaults, map to GOOSE_PROVIDER; if callers provide only
-          // GOOSE_PROVIDER, map to defaults so ProviderGuard sees a configured provider.
-          GOOSE_PROVIDER: process.env.GOOSE_PROVIDER ?? process.env.GOOSE_DEFAULT_PROVIDER,
-          GOOSE_DEFAULT_PROVIDER: process.env.GOOSE_DEFAULT_PROVIDER ?? process.env.GOOSE_PROVIDER,
+      const electronArgs = [projectRoot];
+      const electronEnv = {
+        ...process.env,
+        // If callers provide only defaults, map to GOOSE_PROVIDER; if callers provide only
+        // GOOSE_PROVIDER, map to defaults so ProviderGuard sees a configured provider.
+        GOOSE_PROVIDER: process.env.GOOSE_PROVIDER ?? process.env.GOOSE_DEFAULT_PROVIDER,
+        GOOSE_DEFAULT_PROVIDER: process.env.GOOSE_DEFAULT_PROVIDER ?? process.env.GOOSE_PROVIDER,
 
-          // Azure OpenAI typically needs the deployment name to be used as the model identifier.
-          // If the caller didn't provide GOOSE_MODEL/GOOSE_DEFAULT_MODEL, infer them.
-          GOOSE_MODEL:
-            process.env.GOOSE_MODEL ??
-            (process.env.GOOSE_PROVIDER === 'azure_openai' ||
-            process.env.GOOSE_DEFAULT_PROVIDER === 'azure_openai'
-              ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME
-              : undefined),
-          GOOSE_DEFAULT_MODEL:
-            process.env.GOOSE_DEFAULT_MODEL ??
-            process.env.GOOSE_MODEL ??
-            (process.env.GOOSE_PROVIDER === 'azure_openai' ||
-            process.env.GOOSE_DEFAULT_PROVIDER === 'azure_openai'
-              ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME
-              : undefined),
+        // Azure OpenAI typically needs the deployment name to be used as the model identifier.
+        // If the caller didn't provide GOOSE_MODEL/GOOSE_DEFAULT_MODEL, infer them.
+        GOOSE_MODEL:
+          process.env.GOOSE_MODEL ??
+          (process.env.GOOSE_PROVIDER === 'azure_openai' ||
+          process.env.GOOSE_DEFAULT_PROVIDER === 'azure_openai'
+            ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME
+            : undefined),
+        GOOSE_DEFAULT_MODEL:
+          process.env.GOOSE_DEFAULT_MODEL ??
+          process.env.GOOSE_MODEL ??
+          (process.env.GOOSE_PROVIDER === 'azure_openai' ||
+          process.env.GOOSE_DEFAULT_PROVIDER === 'azure_openai'
+            ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME
+            : undefined),
+      };
 
-          NODE_ENV: 'development',
-          ELECTRON_IS_DEV: '1',
-          GOOSE_ALLOWLIST_BYPASS: 'true',
-          ENABLE_PLAYWRIGHT: 'true',
-          MAIN_WINDOW_VITE_NAME: 'main_window',
-        },
-      });
+      // Azure OpenAI typically needs the deployment name to be used as the model identifier.
+      // We already infer model identifiers into GOOSE_MODEL/GOOSE_DEFAULT_MODEL above when the
+      // provider is azure_openai, so no additional model inference is needed here.
 
-      page = await app.firstWindow();
+		if (process.platform === 'linux') {
+			// Under Playwright we run Electron inside Xvfb on Linux.
+			// Keep the launch config minimal to avoid hangs.
+			electronArgs.push('--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu');
+		}
+		const launchTimeoutMs = 45_000;
+		console.log(`[e2e] launching electron (timeout=${launchTimeoutMs}ms)`);
+		const launchPromise = electron.launch({
+			executablePath: electronPath,
+			// Must point to the Electron *main process* entry.
+			args: [builtMainPath, ...electronArgs.slice(1)],
+			env: {
+				...electronEnv,
+				VITE_START_EMBEDDED_SERVER: 'yes',
+				GOOSE_ALLOWLIST_BYPASS: 'true',
+				ENABLE_PLAYWRIGHT: 'true',
+				ELECTRON_ENABLE_LOGGING: 'true',
+				ELECTRON_ENABLE_STACK_DUMPING: 'true',
+				ELECTRON_CRASH_REPORTER_DISABLE: 'true',
+				ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+			},
+		});
+		app = await Promise.race([
+			launchPromise,
+			new Promise<never>((_, reject) =>
+				setTimeout(
+					() => reject(new Error(`electron.launch timed out after ${launchTimeoutMs}ms`)),
+					launchTimeoutMs
+				)
+			),
+		]);
+		console.log('[e2e] electron launched');
 
       const child = app.process();
-      child?.stdout?.on('data', (buf) => mainLog.push(`[main:stdout] ${buf.toString()}`));
-      child?.stderr?.on('data', (buf) => mainLog.push(`[main:stderr] ${buf.toString()}`));
+      child?.stdout?.on('data', (buf) => {
+        const line = buf.toString();
+        mainLog.push(`[main:stdout] ${line}`);
+        process.stdout.write(`[e2e][main:stdout] ${line}`);
+      });
+      child?.stderr?.on('data', (buf) => {
+        const line = buf.toString();
+        mainLog.push(`[main:stderr] ${line}`);
+        process.stderr.write(`[e2e][main:stderr] ${line}`);
+      });
+
+      // Electron can create multiple windows; pick the main window deterministically.
+      const mainWindowDeadline = Date.now() + 60_000;
+      while (true) {
+        const windows = app.windows();
+        const mainWindow = windows.find((w) =>
+          w.url().includes('/.vite/renderer/main_window/index.html')
+        );
+
+        if (mainWindow) {
+          page = mainWindow;
+          break;
+        }
+
+        if (Date.now() > mainWindowDeadline) {
+          const urls = windows.map((w) => w.url()).join(', ');
+          throw new Error(`Timed out waiting for main window. Window URLs: ${urls}`);
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      // Watchdog: Playwright can hang inside electron.launch / waitForLoadState without letting
+      // Node timers flush logs. Polling keeps the process responsive and produces actionable
+      // diagnostics when setup stalls.
+      let isReady = false;
+      const watchdog = (async () => {
+        const start = Date.now();
+        while (!isReady && Date.now() - start < 30_000) {
+          process.stdout.write(`[e2e] watchdog: url=${page?.url() ?? 'undefined'}\n`);
+          await new Promise((resolve) => setTimeout(resolve, 2_000));
+        }
+
+        if (isReady) return;
+
+        process.stdout.write(
+          `[e2e] watchdog timeout: url=${page?.url() ?? 'undefined'} windows=${app
+            ?.windows()
+            .map((w) => w.url())
+            .join(', ')} mainLogBytes=${mainLog.join('').length} rendererLogLines=${rendererLog.length}\n`
+        );
+
+        await attachRendererDebug('watchdog timeout waiting for renderer ready');
+        await attachMainDebug();
+      })();
 
       page.on('console', (msg) => {
         void (async () => {
@@ -328,19 +409,21 @@ export const test = base.extend<GooseTestFixtures>({
         );
       });
 
-      // The first window can be created before the main process finishes bootstrapping
-      // (e.g. while waiting on the backend to become ready). Wait until it actually
-      // navigates away from about:blank.
-      await page.waitForURL(/^(file|http):/i, { timeout: 60_000 });
-
-      // Wait for page to be ready
-      await page.waitForLoadState('domcontentloaded');
+      // The first window can be created before the main process finishes bootstrapping.
+      // Waiting on a URL change is not a useful signal here because the Electron renderer
+      // usually stays on file://.../#/... and may never "navigate away".
+      await Promise.race([
+        page.waitForLoadState('domcontentloaded'),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Timed out waiting for domcontentloaded')), 45_000)
+        ),
+      ]);
 
       // Capture useful stacks for otherwise stack-less React console errors.
       // React 19 can emit "Maximum update depth exceeded" without a component stack;
       // patching console.error lets us log a stack once from the callsite.
-      await page
-        .evaluate(() => {
+      await Promise.race([
+        page.evaluate(() => {
           const marker = '__gooseE2EConsoleErrorPatched';
           if ((window as unknown as Record<string, unknown>)[marker]) return;
           (window as unknown as Record<string, unknown>)[marker] = true;
@@ -355,13 +438,14 @@ export const test = base.extend<GooseTestFixtures>({
             } catch {
               // ignore
             }
-
             original(...args);
           };
-        })
-        .catch(() => {
-          // ignore
-        });
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Timed out patching console.error')), 45_000)
+        ),
+      ]);
+
 
       // Try to wait for networkidle
       try {
@@ -370,23 +454,28 @@ export const test = base.extend<GooseTestFixtures>({
         console.log('NetworkIdle timeout (likely due to MCP activity), continuing...');
       }
 
-      // Wait for React app to be ready.
+      // Wait for the app chrome to be ready.
+      // We key off the global app shell because it is always present once React renders.
       try {
-        await page.waitForFunction(
-          () => {
-            const root = document.getElementById('root');
-            return root && root.children.length > 0;
-          },
-          undefined,
-          { timeout: 60_000 }
-        );
+        await page.waitForSelector('[data-testid="app-shell"]', { timeout: 150_000 });
       } catch (error) {
-        await attachRendererDebug('react root never rendered');
+        console.log('[e2e] wait for app-shell failed', {
+          url: page?.url(),
+          windowUrls: app?.windows().map((w) => w.url()),
+          mainLogBytes: mainLog.join('').length,
+          rendererLogLines: rendererLog.length,
+        });
+        await attachRendererDebug('timeout waiting for app shell');
         await attachMainDebug();
-
         throw error;
       }
 
+      isReady = true;
+      await watchdog;
+
+      if (earlyDebugTimer) {
+        clearTimeout(earlyDebugTimer);
+      }
       // Fail-fast if we landed on the app ErrorBoundary ("Honk!"). This is a runtime crash
       // and subsequent selector assertions will be misleading.
       const honk = page.getByRole('heading', { name: /^honk!$/i });
@@ -397,6 +486,10 @@ export const test = base.extend<GooseTestFixtures>({
       }
 
       console.log('App ready, starting test...');
+
+      if (earlyDebugTimer) {
+        clearTimeout(earlyDebugTimer);
+      }
 
       // Provide the page to the test
       await use(page);

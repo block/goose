@@ -11,7 +11,6 @@ import {
   FolderOpen,
   FolderPlus,
   History,
-  Home,
   Pin,
   PinOff,
   Plus,
@@ -50,7 +49,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
@@ -782,12 +780,13 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     const titleBits = ['Goose'];
 
     if (
+      currentPath &&
       (currentPath === '/sessions' || currentPath.startsWith('/sessions/')) &&
       chatContext?.chat?.name &&
       chatContext.chat.name !== DEFAULT_CHAT_TITLE
     ) {
       titleBits.push(chatContext.chat.name);
-    } else if (currentPath !== '/' && currentItem) {
+    } else if (currentPath && currentPath !== '/' && currentItem) {
       titleBits.push(currentItem.label);
     }
 
@@ -1031,7 +1030,9 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     onCloseProject={handleCloseProject}
                     onNewSessionInProject={handleNewSessionInProject}
                   />
-                  <button type="button"
+                  <button
+                    type="button"
+                    data-testid="sidebar-view-all-button"
                     onClick={handleViewAllClick}
                     className="w-full text-left px-3 py-1.5 rounded-md text-sm text-text-muted hover:bg-background-medium/50 hover:text-text-default transition-colors flex items-center gap-2"
                   >

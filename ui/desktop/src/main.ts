@@ -134,8 +134,14 @@ if (MAIN_WINDOW_DEV_SERVER_URL) {
 
 // Apply single instance lock on Windows and Linux where it's needed for deep links
 // macOS uses the 'open-url' event instead
+//
+// NOTE: In Playwright E2E, we allow multiple instances. The single-instance lock can cause
+// Electron to quit before the renderer boots if a previous test run (or crashed process)
+// still holds the lock.
+const isPlaywright = process.env.ENABLE_PLAYWRIGHT === 'true';
+
 let gotTheLock = true;
-if (process.platform !== 'darwin') {
+if (!isPlaywright && process.platform !== 'darwin') {
   gotTheLock = app.requestSingleInstanceLock();
 
   if (!gotTheLock) {

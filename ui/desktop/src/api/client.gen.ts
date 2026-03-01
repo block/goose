@@ -13,13 +13,4 @@ import type { ClientOptions as ClientOptions2 } from './types.gen';
  */
 export type CreateClientConfig<T extends ClientOptions = ClientOptions2> = (override?: Config<ClientOptions & T>) => Config<Required<ClientOptions> & T>;
 
-export const createClientConfig: CreateClientConfig<ClientOptions2> = (override) => {
-  const baseUrl = String(globalThis?.window?.appConfig?.get?.('GOOSE_API_HOST') ?? '');
-
-  return createConfig<ClientOptions2>({
-    baseUrl: baseUrl || undefined,
-    ...override,
-  });
-};
-
-export const client = createClient(createClientConfig());
+export const client = createClient(createConfig<ClientOptions2>());
