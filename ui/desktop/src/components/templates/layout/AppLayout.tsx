@@ -66,14 +66,20 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const navigate = useNavigate();
   const location = useLocation();
   const chatContext = useChatContext();
-  const isOnSessionsRoute =
-    location.pathname === '/sessions' || location.pathname.startsWith('/sessions/');
 
   if (!chatContext) {
     throw new Error('AppLayoutContent must be used within ChatProvider');
   }
 
   const { setChat } = chatContext;
+
+  // Only treat actual session chat routes as the "sessions" layout.
+  // `/sessions/history` is a standalone page and should render via <Outlet />.
+  // Session chat routes look like /sessions/:sessionId.
+  const isOnSessionsRoute =
+    location.pathname.startsWith('/sessions/') && location.pathname !== '/sessions/history';
+
+  const isOnSessionsHistoryRoute = location.pathname === '/sessions/history';
 
   const setView = (view: View, viewOptions?: ViewOptions) => {
     // Convert view-based navigation to route-based navigation
@@ -147,8 +153,10 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
         <div className={isOnSessionsRoute ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
-        {/* Global ChatInput — always visible on all pages */}
-        <GlobalChatInput />
+        {/* Global ChatInput — hidden on Sessions History to avoid overlapping the list */}
+        <div className={isOnSessionsHistoryRoute ? 'hidden' : ''}>
+          <GlobalChatInput />
+        </div>
       </SidebarInset>
       <ReasoningDetailPanel />
     </div>

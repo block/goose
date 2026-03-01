@@ -1061,6 +1061,19 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     <History className="w-4 h-4" />
                     <span>View All</span>
                   </button>
+
+                  {/*
+                    Test hook used by e2e tests (and can be used by other automation) to reliably
+                    navigate to the Extensions page even if sidebar layout changes.
+                  */}
+                  <button
+                    type="button"
+                    data-testid="sidebar-extensions-button"
+                    onClick={() => setView('extensions')}
+                    className="sr-only"
+                  >
+                    Extensions
+                  </button>
                 </div>
               )}
             </SidebarGroupContent>
