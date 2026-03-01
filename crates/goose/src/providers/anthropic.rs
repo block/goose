@@ -167,6 +167,12 @@ impl ProviderDef for AnthropicProvider {
                 ),
             ],
         )
+        .with_setup_steps(vec![
+            "Go to https://console.anthropic.com and sign up or log in",
+            "Click 'API Keys' in the left sidebar",
+            "Click 'Create Key'",
+            "Copy the key and paste it above",
+        ])
     }
 
     fn from_env(

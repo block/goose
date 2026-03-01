@@ -1,6 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use axum::{routing::post, Json, Router};
+use goose::config::signup_nanogpt::{complete_nanogpt_auth, configure_nanogpt};
 use goose::config::signup_openrouter::OpenRouterAuth;
 use goose::config::signup_tetrate::{configure_tetrate, TetrateAuth};
 use goose::config::{configure_openrouter, Config};
@@ -18,6 +19,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/handle_openrouter", post(start_openrouter_setup))
         .route("/handle_tetrate", post(start_tetrate_setup))
+        .route("/handle_nanogpt", post(start_nanogpt_setup))
         .with_state(state)
 }
 
@@ -50,7 +52,7 @@ async fn start_openrouter_setup() -> Result<Json<SetupResponse>, ErrorResponse> 
         }
         Err(e) => Ok(Json(SetupResponse {
             success: false,
-            message: format!("Setup failed: {}", e),
+            message: e.to_string(),
         })),
     }
 }
@@ -84,7 +86,38 @@ async fn start_tetrate_setup() -> Result<Json<SetupResponse>, ErrorResponse> {
         }
         Err(e) => Ok(Json(SetupResponse {
             success: false,
-            message: format!("Setup failed: {}", e),
+            message: e.to_string(),
+        })),
+    }
+}
+
+#[utoipa::path(
+    post,
+    path = "/handle_nanogpt",
+    responses(
+        (status = 200, body=SetupResponse)
+    ),
+)]
+async fn start_nanogpt_setup() -> Result<Json<SetupResponse>, ErrorResponse> {
+    match complete_nanogpt_auth().await {
+        Ok(api_key) => {
+            let config = Config::global();
+
+            if let Err(e) = configure_nanogpt(config, api_key) {
+                return Ok(Json(SetupResponse {
+                    success: false,
+                    message: format!("Failed to configure NanoGPT: {}", e),
+                }));
+            }
+
+            Ok(Json(SetupResponse {
+                success: true,
+                message: "NanoGPT setup completed successfully".to_string(),
+            }))
+        }
+        Err(e) => Ok(Json(SetupResponse {
+            success: false,
+            message: e.to_string(),
         })),
     }
 }

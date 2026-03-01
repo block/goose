@@ -372,6 +372,7 @@ mod tests {
                     known_models: vec![],
                     model_doc_link: "".to_string(),
                     config_keys: vec![],
+                    setup_steps: vec![],
                 }
             }
 

@@ -127,6 +127,7 @@ impl ProviderRegistry {
             known_models,
             model_doc_link: base_metadata.model_doc_link,
             config_keys,
+            setup_steps: vec![],
         };
 
         self.entries.insert(
