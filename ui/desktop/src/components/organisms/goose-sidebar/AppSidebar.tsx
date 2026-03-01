@@ -40,7 +40,11 @@ import { InlineEditText } from '../common/InlineEditText';
 import { Gear } from '@/components/atoms/icons';
 import { SessionIndicators } from '../shared/SessionIndicators';
 import { UserAvatarMenu } from '../shared/UserAvatarMenu';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/molecules/ui/collapsible';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/molecules/ui/collapsible';
 import {
   SidebarContent,
   SidebarFooter,
@@ -311,40 +315,45 @@ const SessionItem: React.FC<{
         elements (e.g. InlineEditText renders a button/input).
       */}
       <div
-        className={`relative z-10 w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm flex items-center gap-1 min-w-0 rounded-md transition-colors cursor-pointer ${
+        className={`relative z-10 w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm rounded-md transition-colors ${
           activeSessionId === session.id
             ? 'bg-background-medium text-text-default'
             : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
         }`}
         title={displayName}
-        role="button"
-        tabIndex={0}
-        aria-label={`Open session ${displayName}`}
-        onClick={() => onSessionClick(session)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onSessionClick(session);
-          }
-        }}
       >
-        {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
+        <button
+          type="button"
+          className="absolute inset-0 z-0 rounded-md"
+          aria-label={`Open session ${displayName}`}
+          onClick={() => onSessionClick(session)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onSessionClick(session);
+            }
+          }}
+        />
 
-        <div className="flex-1 min-w-0">
-          {canRename ? (
-            <InlineEditText
-              value={displayName}
-              onSave={(newName) => handleRenameSession(session.id, newName)}
-              className="text-sm -mx-2 -my-1"
-              editClassName="text-sm"
-              singleClickEdit={false}
-            />
-          ) : (
-            <span className="truncate block">{displayName}</span>
-          )}
+        <div className="relative z-10 flex items-center gap-1 min-w-0">
+          {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
+
+          <div className="flex-1 min-w-0">
+            {canRename ? (
+              <InlineEditText
+                value={displayName}
+                onSave={(newName) => handleRenameSession(session.id, newName)}
+                className="text-sm -mx-2 -my-1"
+                editClassName="text-sm"
+                singleClickEdit={false}
+              />
+            ) : (
+              <span className="truncate block">{displayName}</span>
+            )}
+          </div>
+
+          <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
         </div>
-
-        <SessionIndicators isStreaming={isStreaming} hasUnread={hasUnread} hasError={hasError} />
       </div>
 
       {onDeleteSession && !isStreaming && (
@@ -471,7 +480,8 @@ const SessionList = React.memo<{
           return (
             <div key={group.project}>
               <div className="flex items-center group/project">
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => toggleCollapsed(group.project)}
                   className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30"
                 >
@@ -488,7 +498,8 @@ const SessionList = React.memo<{
                 {/* Hover action strip — inline icons that appear on hover */}
                 <div className="flex-shrink-0 flex items-center gap-0 opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto transition-opacity duration-150">
                   {onNewSessionInProject && (
-                    <button type="button"
+                    <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onNewSessionInProject(group.sessions[0]?.working_dir || '');
@@ -499,7 +510,8 @@ const SessionList = React.memo<{
                       <Plus className="w-3.5 h-3.5 text-text-muted hover:text-text-default" />
                     </button>
                   )}
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       togglePin(group.project);
@@ -513,7 +525,8 @@ const SessionList = React.memo<{
                       <Pin className="w-3.5 h-3.5 text-text-muted hover:text-text-default" />
                     )}
                   </button>
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       onCloseProject(
@@ -971,11 +984,7 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       <SidebarHeader className="px-3 py-2">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-            <img
-              src={gooseIcon}
-              alt="Goose"
-              className="w-5 h-5 object-contain"
-            />
+            <img src={gooseIcon} alt="Goose" className="w-5 h-5 object-contain" />
             <span className="text-sm font-semibold text-text-default group-data-[collapsible=icon]:hidden">
               Projects
             </span>
@@ -1159,7 +1168,10 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         </CollapsibleTrigger>
                       )}
                       <CollapsibleTrigger asChild>
-                        <button type="button" className="px-1.5 py-1.5 hover:bg-background-medium/50 rounded transition-colors">
+                        <button
+                          type="button"
+                          className="px-1.5 py-1.5 hover:bg-background-medium/50 rounded transition-colors"
+                        >
                           <ChevronRight className="w-3 h-3 text-text-muted transition-transform duration-200 [[data-state=open]>&]:rotate-90" />
                         </button>
                       </CollapsibleTrigger>

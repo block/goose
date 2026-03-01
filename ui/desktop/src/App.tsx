@@ -1,14 +1,6 @@
 import type { IpcRendererEvent } from 'electron';
 import { useEffect, useRef, useState } from 'react';
-import {
-  HashRouter,
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-  useNavigate,
-  useParams,
-} from 'react-router-dom';
+import { HashRouter, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import { AuthGuard } from '@/components/organisms/guards/AuthGuard';
 import ProviderGuard from '@/components/organisms/guards/ProviderGuard';
@@ -33,7 +25,7 @@ import { TooltipProvider } from '@/components/atoms/tooltip';
 import { AuthProvider } from '@/hooks/useAuth';
 import { setupAuthInterceptor } from '@/lib/authInterceptor';
 import { openSharedSessionFromDeepLink } from './sessionLinks';
-import { createSession } from '@/sessions';
+import { createSession, startNewSession } from '@/sessions';
 import type { SharedSessionDetails } from './sharedSessions';
 
 // Initialize auth interceptor before any API calls — attaches
@@ -55,6 +47,7 @@ import ProviderSettings from '@/components/organisms/settings/providers/Provider
 import type { SettingsViewOptions } from '@/components/organisms/settings/SettingsView';
 import SettingsView from '@/components/organisms/settings/SettingsView';
 import { ChatProvider, DEFAULT_CHAT_TITLE } from '@/contexts/ChatContext';
+import WelcomeState from '@/components/organisms/chat/WelcomeState';
 
 import 'react-toastify/dist/ReactToastify.css';
 import StandaloneAppView from '@/components/organisms/apps/StandaloneAppView';
@@ -79,9 +72,43 @@ function PageViewTracker() {
 }
 
 // Route Components
-// "/" redirects to "/sessions/history" (View All).
-const HomeRedirectWrapper = () => {
-  return <Navigate to="/sessions/history" replace />;
+// Root "hub" route. If no active sessions exist, show the chat welcome state.
+// If the user already has an active session in-memory, jump to the most recently used one.
+const HubRoute = ({
+  activeSessions,
+}: {
+  activeSessions: Array<{
+    sessionId: string;
+    initialMessage?: UserInput;
+  }>;
+}) => {
+  const setView = useNavigation();
+  const didNavigateRef = useRef(false);
+
+  // If we have an in-memory "active" session, treat it as the default landing experience.
+  // Note: activeSessions is not persisted across app restarts (by design currently).
+  useEffect(() => {
+    if (didNavigateRef.current) return;
+    if (activeSessions.length === 0) return;
+
+    didNavigateRef.current = true;
+    const mostRecent = activeSessions[activeSessions.length - 1];
+    setView('session', { disableAnimation: true, resumeSessionId: mostRecent.sessionId });
+  }, [activeSessions, setView]);
+
+  if (activeSessions.length > 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <WelcomeState
+        onSubmit={(text: string) => {
+          startNewSession(text, setView, getInitialWorkingDir());
+        }}
+      />
+    </div>
+  );
 };
 
 const SessionRouteWrapper = ({
@@ -147,7 +174,13 @@ const SessionRouteWrapper = ({
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialMessage, recipeDeeplinkFromConfig, resumeSessionId, extensionsList, isCreatingSession]);
+  }, [
+    initialMessage,
+    recipeDeeplinkFromConfig,
+    resumeSessionId,
+    extensionsList,
+    isCreatingSession,
+  ]);
 
   // Add resumed session to active sessions if not already there
   useEffect(() => {
@@ -225,7 +258,7 @@ const PermissionRoute = () => {
   return (
     <PermissionSettingsView
       onClose={() => {
-          // Navigate back to parent view with options
+        // Navigate back to parent view with options
         switch (parentView) {
           case 'chat':
             navigate('/');
@@ -342,11 +375,7 @@ const ExtensionsRoute = () => {
     {};
 
   return (
-    <ExtensionsView
-      onClose={() => navigate(-1)}
-      setView={setView}
-      viewOptions={viewOptions}
-    />
+    <ExtensionsView onClose={() => navigate(-1)} setView={setView} viewOptions={viewOptions} />
   );
 };
 
@@ -435,7 +464,7 @@ export function AppInner() {
     };
   }, []);
 
-  const { addExtension } = useConfig();
+  const { addExtension, extensionsList } = useConfig();
 
   useEffect(() => {
     try {
@@ -615,11 +644,13 @@ export function AppInner() {
 
       if (initialMessage && !isProcessingRef.current) {
         isProcessingRef.current = true;
-        navigate('/sessions/history', {
-          state: {
-            initialMessage: { msg: initialMessage, images: [] },
-          },
-        });
+        try {
+          await startNewSession(initialMessage, setView, getInitialWorkingDir(), {
+            allExtensions: extensionsList,
+          });
+        } catch (error) {
+          console.error('Error starting new session from initial message:', error);
+        }
         setTimeout(() => {
           isProcessingRef.current = false;
         }, 1000);
@@ -631,7 +662,7 @@ export function AppInner() {
     return () => {
       window.electron.off('set-initial-message', handleSetInitialMessage);
     };
-  }, [navigate]);
+  }, [extensionsList, setView]);
 
   // Register platform event handlers for app lifecycle management
   useEffect(() => {
@@ -684,7 +715,7 @@ export function AppInner() {
                 </AuthGuard>
               }
             >
-              <Route index element={<HomeRedirectWrapper />} />
+              <Route index element={<HubRoute activeSessions={activeSessions} />} />
               <Route path="settings" element={<SettingsRoute />} />
               <Route
                 path="extensions"
