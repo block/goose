@@ -16,6 +16,7 @@ use super::formats::anthropic::{
 };
 use super::openai_compatible::handle_status_openai_compat;
 use super::openai_compatible::map_http_error_to_provider_error;
+use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -226,19 +227,22 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(Some(session_id), "v1/messages");
+        let conditional_headers = self.get_conditional_headers();
         let mut log = RequestLog::start(model_config, &payload)?;
 
-        for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
-        }
-
-        let resp = request.response_post(&payload).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
-        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+        let response = self
+            .with_retry(|| async {
+                let mut request = self.api_client.request(Some(session_id), "v1/messages");
+                for (key, value) in &conditional_headers {
+                    request = request.header(key, value)?;
+                }
+                let resp = request.response_post(&payload).await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 
