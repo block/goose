@@ -324,7 +324,7 @@ const SessionItem: React.FC<{
       >
         <button
           type="button"
-          className="absolute inset-0 z-0 rounded-md"
+          className="absolute inset-0 z-10 rounded-md"
           aria-label={`Open session ${displayName}`}
           onClick={() => onSessionClick(session)}
           onKeyDown={(e) => {
@@ -335,18 +335,20 @@ const SessionItem: React.FC<{
           }}
         />
 
-        <div className="relative z-10 flex items-center gap-1 min-w-0">
+        <div className="relative z-20 flex items-center gap-1 min-w-0 pointer-events-none">
           {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
 
           <div className="flex-1 min-w-0">
             {canRename ? (
-              <InlineEditText
-                value={displayName}
-                onSave={(newName) => handleRenameSession(session.id, newName)}
-                className="text-sm -mx-2 -my-1"
-                editClassName="text-sm"
-                singleClickEdit={false}
-              />
+              <div className="pointer-events-auto">
+                <InlineEditText
+                  value={displayName}
+                  onSave={(newName) => handleRenameSession(session.id, newName)}
+                  className="text-sm -mx-2 -my-1"
+                  editClassName="text-sm"
+                  singleClickEdit={false}
+                />
+              </div>
             ) : (
               <span className="truncate block">{displayName}</span>
             )}
