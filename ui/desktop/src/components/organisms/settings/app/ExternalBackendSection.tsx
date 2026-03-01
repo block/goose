@@ -4,7 +4,13 @@ import type { ExternalGoosedConfig } from '@/utils/settings';
 import { WEB_PROTOCOLS } from '@/utils/urlSecurity';
 import { Input } from '@/components/atoms/input';
 import { Switch } from '@/components/atoms/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/molecules/ui/card';
 
 const DEFAULT_CONFIG: ExternalGoosedConfig = {
   enabled: false,

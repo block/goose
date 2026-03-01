@@ -11,7 +11,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getEvalOverview, listEvalDatasets, runEval, type EvalDatasetSummary, type EvalOverview } from '@/api';
+import {
+  getEvalOverview,
+  listEvalDatasets,
+  runEval,
+  type EvalDatasetSummary,
+  type EvalOverview,
+} from '@/api';
 
 const COLORS = {
   green: '#22c55e',
@@ -143,7 +149,8 @@ export default function EvalOverviewTab() {
 
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-text-default">Evaluation Overview</h3>
-        <button type="button"
+        <button
+          type="button"
           onClick={handleRunAll}
           disabled={running || datasets.length === 0}
           className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-on-accent text-sm font-medium transition-colors"

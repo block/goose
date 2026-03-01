@@ -40,7 +40,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
       return (
         <div className={`font-sans text-sm mb-2 ${isExpanded ? '' : 'truncate min-w-0'}`}>
           <div className={`flex flex-row items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
-            <button type="button"
+            <button
+              type="button"
               onClick={() => toggleKey(key)}
               className="flex text-left text-text-muted min-w-[140px]"
             >
@@ -52,14 +53,16 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
                   <MarkdownContent content={value} className="font-sans text-sm text-text-muted" />
                 </div>
               ) : (
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => toggleKey(key)}
                   className={`text-left text-text-muted ${isExpanded ? '' : 'truncate min-w-0'}`}
                 >
                   {value}
                 </button>
               )}
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => toggleKey(key)}
                 className="flex flex-row items-stretch grow text-text-muted pr-2"
               >

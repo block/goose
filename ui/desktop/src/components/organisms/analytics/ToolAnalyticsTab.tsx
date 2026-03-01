@@ -11,7 +11,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getAgentPerformance, getToolAnalytics, type AgentPerformanceMetrics, type ToolAnalytics } from '@/api';
+import {
+  getAgentPerformance,
+  getToolAnalytics,
+  type AgentPerformanceMetrics,
+  type ToolAnalytics,
+} from '@/api';
 
 const COLORS = [
   'var(--chart-1)',

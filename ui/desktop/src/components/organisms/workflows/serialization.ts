@@ -2,7 +2,14 @@
  * Serialization utilities: Pipeline YAML ↔ React Flow nodes/edges.
  */
 import type { Edge, Node } from '@xyflow/react';
-import { defaultConfig, type DagNodeData, type NodeKind, type Pipeline, type PipelineMetadata, type PipelineNode } from './types';
+import {
+  defaultConfig,
+  type DagNodeData,
+  type NodeKind,
+  type Pipeline,
+  type PipelineMetadata,
+  type PipelineNode,
+} from './types';
 
 const VERTICAL_SPACING = 120;
 const HORIZONTAL_SPACING = 280;

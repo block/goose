@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { Message, Session, TokenState } from '@/api';
-import {
-  getSession,
-  listApps,
-  reply,
-  resumeAgent,
-  updateSessionUserRecipeValues,
-} from '@/api';
+import { getSession, listApps, reply, resumeAgent, updateSessionUserRecipeValues } from '@/api';
 import { AppEvents } from '@/constants/events';
 import { ChatState } from '@/types/chatState';
-import { createElicitationResponseMessage, createUserMessage, type NotificationEvent, type UserInput } from '@/types/message';
+import {
+  createElicitationResponseMessage,
+  createUserMessage,
+  type NotificationEvent,
+  type UserInput,
+} from '@/types/message';
 import { errorMessage } from '@/utils/conversionUtils';
 import { showExtensionLoadResults } from '@/utils/extensionErrorUtils';
 import { streamFromResponse } from './chatStream/streamDecoder';
@@ -70,7 +69,6 @@ export function useChatStream({
   // Ref to access latest state in callbacks (avoids stale closures)
   const stateRef = useRef(state);
   stateRef.current = state;
-
 
   useEffect(() => {
     return () => {

@@ -16,7 +16,6 @@ import type { Spec } from '@json-render/react';
 import { CatalogRenderer } from '@/components/organisms/json-render/setup';
 import { ElementErrorBoundary } from './element-error-boundary';
 
-
 export type GooseActionHandler = (
   actionName: string,
   params?: Record<string, unknown>

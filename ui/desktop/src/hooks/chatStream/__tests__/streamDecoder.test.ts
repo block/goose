@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { pushMessage } from '../streamDecoder';
 import type { Message } from '@/api';
 
-function makeTextMessage(
-  text: string,
-  id: string = 'msg-1',
-  role: string = 'assistant'
-): Message {
+function makeTextMessage(text: string, id: string = 'msg-1', role: string = 'assistant'): Message {
   return {
     role,
     id,
@@ -75,8 +71,17 @@ describe('pushMessage', () => {
 
   it('accumulates many small deltas (simulating real streaming)', () => {
     const deltas = [
-      'Now', ' I', ' have', ' a', ' comprehensive', ' understanding',
-      ' of', ' the', ' component', ' structure', '.',
+      'Now',
+      ' I',
+      ' have',
+      ' a',
+      ' comprehensive',
+      ' understanding',
+      ' of',
+      ' the',
+      ' component',
+      ' structure',
+      '.',
     ];
 
     let messages: Message[] = [];

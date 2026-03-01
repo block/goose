@@ -592,56 +592,60 @@ const createChat = async (
     if (process.env.ENABLE_PLAYWRIGHT === 'true') {
       // Skip DevTools setup.
     } else {
-    // Try electron-devtools-installer first, fall back to loading from local Chromium installation
-    const installExtensionFn: ((...args: unknown[]) => Promise<{ name: string }>) | null =
-      typeof installExtension === 'function'
-        ? (installExtension as unknown as (...args: unknown[]) => Promise<{ name: string }>)
-        : typeof (installExtension as unknown as { default?: unknown }).default === 'function'
-          ? ((installExtension as unknown as { default: (...args: unknown[]) => Promise<{ name: string }> }).default)
-          : null;
+      // Try electron-devtools-installer first, fall back to loading from local Chromium installation
+      const installExtensionFn: ((...args: unknown[]) => Promise<{ name: string }>) | null =
+        typeof installExtension === 'function'
+          ? (installExtension as unknown as (...args: unknown[]) => Promise<{ name: string }>)
+          : typeof (installExtension as unknown as { default?: unknown }).default === 'function'
+            ? (
+                installExtension as unknown as {
+                  default: (...args: unknown[]) => Promise<{ name: string }>;
+                }
+              ).default
+            : null;
 
-    if (!installExtensionFn) {
-      log.warn(
-        'DevTools installer is not callable; skipping React DevTools installation. '
-      );
-    } else {
-      installExtensionFn(REACT_DEVELOPER_TOOLS)
-      .then((ext) => log.info(`Added extension: ${ext.name}`))
-      .catch(async (err: Error) => {
-        log.info(
-          'electron-devtools-installer failed, trying local Chromium extension:',
-          err.message
-        );
-        const reactDevToolsId = 'fmkadmapgofadopljbjfkapdkoienihi';
-        const chromiumExtPaths = [
-          path.join(os.homedir(), '.config/google-chrome/Default/Extensions', reactDevToolsId),
-          path.join(os.homedir(), '.config/chromium/Default/Extensions', reactDevToolsId),
-          path.join(
-            os.homedir(),
-            'Library/Application Support/Google/Chrome/Default/Extensions',
-            reactDevToolsId
-          ),
-        ];
-        for (const extDir of chromiumExtPaths) {
-          try {
-            if (fsSync.existsSync(extDir)) {
-              const versions = fsSync.readdirSync(extDir).sort().reverse();
-              if (versions.length > 0) {
-                const extPath = path.join(extDir, versions[0]);
-                const loaded = await session.defaultSession.loadExtension(extPath, {
-                  allowFileAccess: true,
-                });
-                log.info(`Loaded React DevTools from Chromium: ${loaded.name} (${versions[0]})`);
-                return;
+      if (!installExtensionFn) {
+        log.warn('DevTools installer is not callable; skipping React DevTools installation. ');
+      } else {
+        installExtensionFn(REACT_DEVELOPER_TOOLS)
+          .then((ext) => log.info(`Added extension: ${ext.name}`))
+          .catch(async (err: Error) => {
+            log.info(
+              'electron-devtools-installer failed, trying local Chromium extension:',
+              err.message
+            );
+            const reactDevToolsId = 'fmkadmapgofadopljbjfkapdkoienihi';
+            const chromiumExtPaths = [
+              path.join(os.homedir(), '.config/google-chrome/Default/Extensions', reactDevToolsId),
+              path.join(os.homedir(), '.config/chromium/Default/Extensions', reactDevToolsId),
+              path.join(
+                os.homedir(),
+                'Library/Application Support/Google/Chrome/Default/Extensions',
+                reactDevToolsId
+              ),
+            ];
+            for (const extDir of chromiumExtPaths) {
+              try {
+                if (fsSync.existsSync(extDir)) {
+                  const versions = fsSync.readdirSync(extDir).sort().reverse();
+                  if (versions.length > 0) {
+                    const extPath = path.join(extDir, versions[0]);
+                    const loaded = await session.defaultSession.loadExtension(extPath, {
+                      allowFileAccess: true,
+                    });
+                    log.info(
+                      `Loaded React DevTools from Chromium: ${loaded.name} (${versions[0]})`
+                    );
+                    return;
+                  }
+                }
+              } catch (loadErr) {
+                log.info(`Failed to load from ${extDir}:`, loadErr);
               }
             }
-          } catch (loadErr) {
-            log.info(`Failed to load from ${extDir}:`, loadErr);
-          }
-        }
-        log.info('React DevTools not found in any Chromium installation');
-      });
-    }
+            log.info('React DevTools not found in any Chromium installation');
+          });
+      }
     }
   }
 
@@ -850,12 +854,15 @@ const createChat = async (
 
   // Handle mouse back button (button 3)
   // Use type assertion for non-standard Electron event
-  mainWindow.webContents.on('mouse-up' as unknown as never, (_event: unknown, mouseButton: number) => {
-    // MouseButton 3 is the back button.
-    if (mouseButton === 3) {
-      mainWindow.webContents.send('mouse-back-button-clicked');
+  mainWindow.webContents.on(
+    'mouse-up' as unknown as never,
+    (_event: unknown, mouseButton: number) => {
+      // MouseButton 3 is the back button.
+      if (mouseButton === 3) {
+        mainWindow.webContents.send('mouse-back-button-clicked');
+      }
     }
-  });
+  );
 
   windowMap.set(windowId, mainWindow);
 

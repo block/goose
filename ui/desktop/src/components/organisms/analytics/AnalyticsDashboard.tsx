@@ -15,7 +15,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getEvalOverview, getSessionAnalytics, listEvalRuns, type EvalOverview, type EvalRunSummary, type SessionAnalytics } from '@/api';
+import {
+  getEvalOverview,
+  getSessionAnalytics,
+  listEvalRuns,
+  type EvalOverview,
+  type EvalRunSummary,
+  type SessionAnalytics,
+} from '@/api';
 
 // --- Design tokens ---
 const COLORS = {
@@ -158,15 +165,15 @@ function RegressionCard({
 function RecentRunRow({ run, onOpen }: { run: EvalRunSummary; onOpen: (runId: string) => void }) {
   const accColor = accuracyColor(run.overallAccuracy);
   return (
-	<button
-		type="button"
-		className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
-		onClick={() => onOpen(run.id)}
-		aria-label={`Open eval run ${run.id}`}
-	>
-	  <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accColor }} />
-	  <div className="flex-1 min-w-0">
-		<div className="flex items-center gap-2">
+    <button
+      type="button"
+      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+      onClick={() => onOpen(run.id)}
+      aria-label={`Open eval run ${run.id}`}
+    >
+      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: accColor }} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-text-default truncate">{run.datasetName}</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-background-defaultHover text-text-muted shrink-0">
             v{run.gooseVersion}
@@ -184,7 +191,7 @@ function RecentRunRow({ run, onOpen }: { run: EvalRunSummary; onOpen: (runId: st
           {run.overallAccuracy.toFixed(1)}%
         </span>
       </div>
-	</button>
+    </button>
   );
 }
 
@@ -208,50 +215,50 @@ function EmptyDashboard() {
         regressions before they impact users.
       </p>
 
-	  <div className="w-full space-y-3">
-		<button
-			type="button"
-			className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
-			onClick={goToChat}
-		>
-		  <span className="text-2xl">💬</span>
-		  <div>
-			<h3 className="text-sm font-semibold text-text-default">Start using Goose</h3>
-			<p className="text-xs text-text-muted mt-0.5">
-			  Have conversations — we&apos;ll automatically track routing decisions and build your
-			  usage dashboard.
-			</p>
-		  </div>
-		</button>
+      <div className="w-full space-y-3">
+        <button
+          type="button"
+          className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+          onClick={goToChat}
+        >
+          <span className="text-2xl">💬</span>
+          <div>
+            <h3 className="text-sm font-semibold text-text-default">Start using Goose</h3>
+            <p className="text-xs text-text-muted mt-0.5">
+              Have conversations — we&apos;ll automatically track routing decisions and build your
+              usage dashboard.
+            </p>
+          </div>
+        </button>
 
-		<button
-			type="button"
-			className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
-			onClick={goToDatasets}
-		>
-		  <span className="text-2xl">🧪</span>
-		  <div>
-			<h3 className="text-sm font-semibold text-text-default">Create an eval dataset</h3>
-			<p className="text-xs text-text-muted mt-0.5">
-			  Define test prompts with expected agent routing to start measuring accuracy.
-			</p>
-		  </div>
-		</button>
+        <button
+          type="button"
+          className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+          onClick={goToDatasets}
+        >
+          <span className="text-2xl">🧪</span>
+          <div>
+            <h3 className="text-sm font-semibold text-text-default">Create an eval dataset</h3>
+            <p className="text-xs text-text-muted mt-0.5">
+              Define test prompts with expected agent routing to start measuring accuracy.
+            </p>
+          </div>
+        </button>
 
-		<button
-			type="button"
-			className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
-			onClick={goToDatasets}
-		>
-		  <span className="text-2xl">📦</span>
-		  <div>
-			<h3 className="text-sm font-semibold text-text-default">Import a YAML dataset</h3>
-			<p className="text-xs text-text-muted mt-0.5">
-			  Already have test cases? Upload a YAML file and run your first evaluation in seconds.
-			</p>
-		  </div>
-		</button>
-	  </div>
+        <button
+          type="button"
+          className="flex w-full items-start gap-3 rounded-lg border border-border-default bg-background-default p-4 text-left hover:bg-background-defaultHover transition-colors focus:outline-none focus:ring-2 focus:ring-border-accent"
+          onClick={goToDatasets}
+        >
+          <span className="text-2xl">📦</span>
+          <div>
+            <h3 className="text-sm font-semibold text-text-default">Import a YAML dataset</h3>
+            <p className="text-xs text-text-muted mt-0.5">
+              Already have test cases? Upload a YAML file and run your first evaluation in seconds.
+            </p>
+          </div>
+        </button>
+      </div>
     </div>
   );
 }
@@ -261,7 +268,10 @@ function LoadingSkeleton() {
     <div className="p-6 space-y-6 animate-pulse">
       <div className="grid grid-cols-4 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={`dashboard-kpi-skeleton-${i + 1}`} className="h-24 bg-background-defaultHover rounded-lg" />
+          <div
+            key={`dashboard-kpi-skeleton-${i + 1}`}
+            className="h-24 bg-background-defaultHover rounded-lg"
+          />
         ))}
       </div>
       <div className="h-64 bg-background-defaultHover rounded-lg" />
@@ -680,18 +690,18 @@ export default function AnalyticsDashboard() {
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => formatNumber(typeof v === 'number' ? v : 0)}
-	              />
-	              <Tooltip
-	                  contentStyle={{
-	                    backgroundColor: 'var(--background-muted)',
-	                    border: '1px solid var(--border-default)',
-	                    borderRadius: '8px',
-	                    fontSize: '12px',
-	                    color: 'var(--text-default)',
-	                  }}
-	                  labelFormatter={(l) => formatDate(String(l))}
-	                  formatter={(value) => [formatNumber(typeof value === 'number' ? value : 0)]}
-	                />
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'var(--background-muted)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: 'var(--text-default)',
+                }}
+                labelFormatter={(l) => formatDate(String(l))}
+                formatter={(value) => [formatNumber(typeof value === 'number' ? value : 0)]}
+              />
               <Area
                 type="monotone"
                 dataKey="inputTokens"

@@ -85,10 +85,7 @@ export interface UnifiedInputContextValue {
   session: SessionInputState | null;
   submitPrompt: (text: string) => void;
   setSessionState: (
-    state:
-      | SessionInputState
-      | null
-      | ((prev: SessionInputState | null) => SessionInputState | null)
+    state: SessionInputState | null | ((prev: SessionInputState | null) => SessionInputState | null)
   ) => void;
 }
 
@@ -163,7 +160,16 @@ export function useRegisterSession(
     return () => {
       setter(null);
     };
-  }, [state.sessionId, stableSubmit, stableSetView, stableSetChatState, stableOnStop, stableOnFilesProcessed, stableAppend, stableOnWorkingDirChange]);
+  }, [
+    state.sessionId,
+    stableSubmit,
+    stableSetView,
+    stableSetChatState,
+    stableOnStop,
+    stableOnFilesProcessed,
+    stableAppend,
+    stableOnWorkingDirChange,
+  ]);
 
   // 2) Update a minimal subset of session fields.
   //

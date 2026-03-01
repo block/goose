@@ -1,4 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/molecules/ui/card';
 import { DictationSettings } from '../dictation/DictationSettings';
 import { ModeSection } from '../mode/ModeSection';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';

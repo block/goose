@@ -11,9 +11,13 @@ import {
 // ── Test helpers ─────────────────────────────────────────────────────
 
 // Long system prompt to avoid triggering title-generation detection (which checks sys.length < 200)
-const DEFAULT_SYSTEM = 'You are goose, a general-purpose AI agent. You have access to tools for shell commands, file editing, and code analysis. Use these tools to help the user with their tasks. Always follow best practices and explain your reasoning. This system prompt is intentionally long enough to exceed the title-generation detection threshold of 200 characters.';
+const DEFAULT_SYSTEM =
+  'You are goose, a general-purpose AI agent. You have access to tools for shell commands, file editing, and code analysis. Use these tools to help the user with their tasks. Always follow best practices and explain your reasoning. This system prompt is intentionally long enough to exceed the title-generation detection threshold of 200 characters.';
 
-function makeInputLine(messages: Array<{ role: string; content: unknown }>, system = DEFAULT_SYSTEM): string {
+function makeInputLine(
+  messages: Array<{ role: string; content: unknown }>,
+  system = DEFAULT_SYSTEM
+): string {
   return JSON.stringify({
     model: 'claude-opus-4-6',
     input: { system, messages },
@@ -66,9 +70,7 @@ describe('zoneOf', () => {
 describe('parseLogLines', () => {
   it('parses a basic input + response + usage triplet', () => {
     const lines = [
-      makeInputLine([
-        { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
-      ]),
+      makeInputLine([{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }]),
       makeResponseLine([{ type: 'text', text: 'Hi there!' }]),
       makeUsageLine(100, 20),
     ];
@@ -100,11 +102,16 @@ describe('parseLogLines', () => {
   it('categorizes tool request responses', () => {
     const lines = [
       makeInputLine([{ role: 'user', content: [{ type: 'text', text: 'Fix the bug' }] }]),
-      makeResponseLine([{
-        type: 'toolRequest',
-        id: 'tool-1',
-        toolCall: { status: 'success', value: { name: 'developer__shell', arguments: { command: 'ls' } } },
-      }]),
+      makeResponseLine([
+        {
+          type: 'toolRequest',
+          id: 'tool-1',
+          toolCall: {
+            status: 'success',
+            value: { name: 'developer__shell', arguments: { command: 'ls' } },
+          },
+        },
+      ]),
     ];
 
     const result = parseLogLines(lines, 'tools.jsonl');
@@ -153,14 +160,17 @@ describe('parseSession', () => {
 
     // File 0: user asks, assistant calls tool
     files.set('llm_request.0.jsonl', [
-      makeInputLine([
-        { role: 'user', content: [{ type: 'text', text: 'Analyze the code' }] },
+      makeInputLine([{ role: 'user', content: [{ type: 'text', text: 'Analyze the code' }] }]),
+      makeResponseLine([
+        {
+          type: 'toolRequest',
+          id: 'tool-1',
+          toolCall: {
+            status: 'success',
+            value: { name: 'developer__shell', arguments: { command: 'ls' } },
+          },
+        },
       ]),
-      makeResponseLine([{
-        type: 'toolRequest',
-        id: 'tool-1',
-        toolCall: { status: 'success', value: { name: 'developer__shell', arguments: { command: 'ls' } } },
-      }]),
       makeUsageLine(500, 30),
     ]);
 
@@ -168,14 +178,25 @@ describe('parseSession', () => {
     files.set('llm_request.1.jsonl', [
       makeInputLine([
         { role: 'user', content: [{ type: 'text', text: 'Analyze the code' }] },
-        { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-1', name: 'developer__shell' }] },
-        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file1.ts\nfile2.ts' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'developer__shell' }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file1.ts\nfile2.ts' }],
+        },
       ]),
-      makeResponseLine([{
-        type: 'toolRequest',
-        id: 'tool-2',
-        toolCall: { status: 'success', value: { name: 'developer__shell', arguments: { command: 'cat file1.ts' } } },
-      }]),
+      makeResponseLine([
+        {
+          type: 'toolRequest',
+          id: 'tool-2',
+          toolCall: {
+            status: 'success',
+            value: { name: 'developer__shell', arguments: { command: 'cat file1.ts' } },
+          },
+        },
+      ]),
       makeUsageLine(800, 40),
     ]);
 
@@ -183,10 +204,22 @@ describe('parseSession', () => {
     files.set('llm_request.2.jsonl', [
       makeInputLine([
         { role: 'user', content: [{ type: 'text', text: 'Analyze the code' }] },
-        { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-1', name: 'developer__shell' }] },
-        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file1.ts' }] },
-        { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-2', name: 'developer__shell' }] },
-        { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tool-2', content: 'const x = 1;' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'developer__shell' }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file1.ts' }],
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'tool-2', name: 'developer__shell' }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'tool-2', content: 'const x = 1;' }],
+        },
       ]),
       makeResponseLine([{ type: 'text', text: 'The code looks ' }]),
       makeResponseLine([{ type: 'text', text: 'good.' }]),
@@ -223,7 +256,9 @@ describe('parseSession', () => {
 
   it('identifies tool results in work block', () => {
     const session = parseSession(makeSessionFiles());
-    const toolResults = session.conversationItems.filter((i) => i.category === Category.TOOL_RESULT);
+    const toolResults = session.conversationItems.filter(
+      (i) => i.category === Category.TOOL_RESULT
+    );
     expect(toolResults.length).toBeGreaterThan(0);
     expect(toolResults.every((i) => i.zone === Zone.WORK_BLOCK)).toBe(true);
   });
@@ -237,7 +272,9 @@ describe('parseSession', () => {
 
   it('accumulates streaming chunks in timeline', () => {
     const session = parseSession(makeSessionFiles());
-    const streamingChunks = session.responseItems.filter((i) => i.category === Category.STREAMING_CHUNK);
+    const streamingChunks = session.responseItems.filter(
+      (i) => i.category === Category.STREAMING_CHUNK
+    );
     // File 2 has 2 text chunks, files 0-1 have tool responses, file 3 is title gen
     expect(streamingChunks.length).toBeGreaterThanOrEqual(2);
 

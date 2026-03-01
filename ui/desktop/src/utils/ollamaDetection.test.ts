@@ -12,9 +12,7 @@ import {
   pullOllamaModel,
 } from './ollamaDetection';
 
-const fetchMock = vi.fn<
-  (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
->();
+const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>();
 
 globalThis.fetch = fetchMock as unknown as typeof fetch;
 

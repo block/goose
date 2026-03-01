@@ -171,7 +171,10 @@ export function extractActivityEntries(messages: Message[], isStreaming: boolean
 
     const hasToolRequest = content.some(
       (c) =>
-        typeof c === 'object' && c !== null && 'type' in c && (c as { type: string }).type === 'toolRequest'
+        typeof c === 'object' &&
+        c !== null &&
+        'type' in c &&
+        (c as { type: string }).type === 'toolRequest'
     );
 
     for (const c of content) {
@@ -197,10 +200,12 @@ export function extractActivityEntries(messages: Message[], isStreaming: boolean
       }
 
       if (cTyped.type === 'toolRequest') {
-        const toolCall = cTyped.toolCall as {
-          status?: string;
-          value?: { name?: string; arguments?: Record<string, unknown> };
-        } | undefined;
+        const toolCall = cTyped.toolCall as
+          | {
+              status?: string;
+              value?: { name?: string; arguments?: Record<string, unknown> };
+            }
+          | undefined;
         const requestId = cTyped.id;
         const name = toolCall?.value?.name || 'unknown';
         const args = (toolCall?.value?.arguments || {}) as Record<string, unknown>;
@@ -242,9 +247,7 @@ export default function ReasoningDetailPanel() {
 
   const isLiveStreaming = workBlockData?.isStreaming ?? false;
 
-  const title = workBlockData
-    ? workBlockData.title || 'Work Block'
-    : detail?.title || 'Reasoning';
+  const title = workBlockData ? workBlockData.title || 'Work Block' : detail?.title || 'Reasoning';
 
   const showAgentBadge = workBlockData?.agentName && workBlockData.agentName !== 'default';
 

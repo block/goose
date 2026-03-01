@@ -6,7 +6,11 @@ import { formatExtensionErrorMessage } from '@/utils/extensionErrorUtils';
 import { getInitialWorkingDir } from '@/utils/workingDir';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { Button } from '@/components/atoms/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/molecules/ui/collapsible';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/molecules/ui/collapsible';
 
 export interface ExtensionLoadingStatus {
   name: string;
@@ -157,7 +161,8 @@ export function GroupedExtensionLoadingToast({
           {/* Toggle button */}
           {totalCount > 0 && (
             <CollapsibleTrigger asChild>
-              <button type="button"
+              <button
+                type="button"
                 className="flex items-center justify-center gap-1 text-xs opacity-60 hover:opacity-100 transition-opacity mt-2 py-1.5 w-full"
                 aria-label={isOpen ? 'Collapse details' : 'Expand details'}
               >

@@ -358,7 +358,6 @@ function TabBarComponent({ element, emit }: AnyComponentRenderProps) {
   );
 }
 
-
 // ─── DS Atom Wrappers (Table, Alert, Select, Progress, CodeBlock) ───
 
 function TableComponent({ element }: AnyComponentRenderProps) {

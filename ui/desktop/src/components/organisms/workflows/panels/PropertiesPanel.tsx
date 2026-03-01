@@ -416,7 +416,8 @@ export function PropertiesPanel({
           <Settings2 size={14} className="text-text-muted" />
           <h3 className="text-sm font-semibold text-text-default">Properties</h3>
         </div>
-        <button type="button"
+        <button
+          type="button"
           onClick={onClose}
           className="p-1 rounded-md hover:bg-background-muted text-text-muted"
         >
@@ -453,7 +454,8 @@ export function PropertiesPanel({
 
       {/* Delete */}
       <div className="p-3 border-t border-border-muted">
-        <button type="button"
+        <button
+          type="button"
           onClick={() => onDelete(nodeId)}
           className="w-full px-3 py-2 text-sm rounded-md
                      bg-background-danger-muted text-text-danger

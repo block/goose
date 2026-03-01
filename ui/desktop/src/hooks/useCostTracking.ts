@@ -108,12 +108,7 @@ export const useCostTracking = ({
     return () => {
       cancelled = true;
     };
-  }, [
-    currentModel,
-    currentProvider,
-    totalInputTokens,
-    totalOutputTokens,
-  ]);
+  }, [currentModel, currentProvider, totalInputTokens, totalOutputTokens]);
 
   return {
     sessionCosts,

@@ -171,7 +171,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
                   This model is recommended for the best experience with Goose
                 </p>
               </div>
-              <button type="button"
+              <button
+                type="button"
                 onClick={handleDownloadModel}
                 disabled={false}
                 className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
@@ -206,7 +207,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               </div>
             </div>
           ) : (
-            <button type="button"
+            <button
+              type="button"
               onClick={handleConnectOllama}
               disabled={isConnecting}
               className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
@@ -247,7 +249,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         </div>
       )}
 
-      <button type="button"
+      <button
+        type="button"
         onClick={onCancel}
         className="w-full px-6 py-3 bg-transparent text-text-muted rounded-lg hover:bg-background-muted transition-colors"
       >

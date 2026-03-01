@@ -3,7 +3,13 @@ import { useEffect, useState } from 'react';
 import type { FixedExtensionEntry } from '@/contexts/ConfigContext';
 import { Gear } from '@/components/atoms/icons';
 import { Switch } from '@/components/atoms/switch';
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/molecules/ui/card';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/molecules/ui/card';
 import { getFriendlyTitle, getSubtitle } from './ExtensionList';
 
 interface ExtensionItemProps {
@@ -83,7 +89,8 @@ export default function ExtensionItem({
         <CardAction>
           <div className="flex items-center justify-end gap-2">
             {editable && (
-              <button type="button"
+              <button
+                type="button"
                 className="text-text-muted hover:text-text-default"
                 aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
                 onClick={() => onConfigure?.(extension)}

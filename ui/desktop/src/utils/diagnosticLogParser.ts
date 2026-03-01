@@ -213,10 +213,7 @@ function textPreview(content: RawLogContent[], maxLen = 120): string {
 
 // ── User message classification ──────────────────────────────────────
 
-function isRealUserMessage(
-  msgIdx: number,
-  messages: RawLogMessage[]
-): boolean {
+function isRealUserMessage(msgIdx: number, messages: RawLogMessage[]): boolean {
   const msg = messages[msgIdx];
   if (msg.role !== 'user') return false;
 
@@ -367,16 +364,41 @@ function categorizeInputMessage(
 
   if (msg.role === 'user') {
     if (isInfoMsg(content) && !hasDisplayText(content)) {
-      return { category: Category.SYSTEM_INFO, zone: Zone.HIDDEN, source, role: msg.role, summary: 'System timestamp injection' };
+      return {
+        category: Category.SYSTEM_INFO,
+        zone: Zone.HIDDEN,
+        source,
+        role: msg.role,
+        summary: 'System timestamp injection',
+      };
     }
     if (hasOnlyToolResponses(content)) {
-      return { category: Category.TOOL_RESULT, zone: Zone.WORK_BLOCK, source, role: msg.role, summary: `Tool result (${content.length} items)` };
+      return {
+        category: Category.TOOL_RESULT,
+        zone: Zone.WORK_BLOCK,
+        source,
+        role: msg.role,
+        summary: `Tool result (${content.length} items)`,
+      };
     }
     if (isRealUserMessage(msgIdx, allMsgs)) {
       const preview = textPreview(content);
-      return { category: Category.USER_INPUT, zone: Zone.MAIN_PANEL, source, role: msg.role, summary: preview || 'User message', text: preview };
+      return {
+        category: Category.USER_INPUT,
+        zone: Zone.MAIN_PANEL,
+        source,
+        role: msg.role,
+        summary: preview || 'User message',
+        text: preview,
+      };
     }
-    return { category: Category.TOOL_RESULT, zone: Zone.WORK_BLOCK, source, role: msg.role, summary: 'Summarized tool result' };
+    return {
+      category: Category.TOOL_RESULT,
+      zone: Zone.WORK_BLOCK,
+      source,
+      role: msg.role,
+      summary: 'Summarized tool result',
+    };
   }
 
   if (msg.role === 'assistant') {
@@ -385,36 +407,90 @@ function categorizeInputMessage(
     const hasThink = hasThinking(content);
 
     if (hasThink) {
-      return { category: Category.THINKING, zone: Zone.REASONING, source, role: msg.role, summary: 'Chain-of-thought reasoning' };
+      return {
+        category: Category.THINKING,
+        zone: Zone.REASONING,
+        source,
+        role: msg.role,
+        summary: 'Chain-of-thought reasoning',
+      };
     }
 
     if (hasTools && hasText) {
       const toolNames = getToolNames(content);
       const preview = textPreview(content, 80);
       if (inBlock) {
-        return { category: Category.INTERMEDIATE_TEXT, zone: Zone.WORK_BLOCK, source, role: msg.role, summary: `Thinking: ${preview}`, toolName: toolNames[0], text: preview };
+        return {
+          category: Category.INTERMEDIATE_TEXT,
+          zone: Zone.WORK_BLOCK,
+          source,
+          role: msg.role,
+          summary: `Thinking: ${preview}`,
+          toolName: toolNames[0],
+          text: preview,
+        };
       }
-      return { category: Category.ASSISTANT_TEXT, zone: Zone.MAIN_PANEL, source, role: msg.role, summary: preview || 'Assistant response', text: preview };
+      return {
+        category: Category.ASSISTANT_TEXT,
+        zone: Zone.MAIN_PANEL,
+        source,
+        role: msg.role,
+        summary: preview || 'Assistant response',
+        text: preview,
+      };
     }
 
     if (hasTools) {
       const toolNames = getToolNames(content);
       const count = countToolRequests(content);
-      return { category: Category.TOOL_REQUEST, zone: Zone.WORK_BLOCK, source, role: msg.role, summary: `${toolNames.join(', ')} (${count} call${count > 1 ? 's' : ''})`, toolName: toolNames[0] };
+      return {
+        category: Category.TOOL_REQUEST,
+        zone: Zone.WORK_BLOCK,
+        source,
+        role: msg.role,
+        summary: `${toolNames.join(', ')} (${count} call${count > 1 ? 's' : ''})`,
+        toolName: toolNames[0],
+      };
     }
 
     if (hasText) {
       const preview = textPreview(content);
       if (inBlock) {
-        return { category: Category.INTERMEDIATE_TEXT, zone: Zone.WORK_BLOCK, source, role: msg.role, summary: `Intermediate: ${preview}`, text: preview };
+        return {
+          category: Category.INTERMEDIATE_TEXT,
+          zone: Zone.WORK_BLOCK,
+          source,
+          role: msg.role,
+          summary: `Intermediate: ${preview}`,
+          text: preview,
+        };
       }
-      return { category: Category.ASSISTANT_TEXT, zone: Zone.MAIN_PANEL, source, role: msg.role, summary: preview || 'Assistant response', text: preview };
+      return {
+        category: Category.ASSISTANT_TEXT,
+        zone: Zone.MAIN_PANEL,
+        source,
+        role: msg.role,
+        summary: preview || 'Assistant response',
+        text: preview,
+      };
     }
 
-    return { category: Category.SYSTEM_INFO, zone: Zone.HIDDEN, source, role: msg.role, summary: 'Empty assistant message' };
+    return {
+      category: Category.SYSTEM_INFO,
+      zone: Zone.HIDDEN,
+      source,
+      role: msg.role,
+      summary: 'Empty assistant message',
+    };
   }
 
-  return { category: Category.SYSTEM_INFO, zone: Zone.HIDDEN, source, role: msg.role, summary: `Unknown role: ${msg.role}` };
+  return {
+    category: Category.SYSTEM_INFO,
+    zone: Zone.HIDDEN,
+    source,
+    role: msg.role,
+    summary: `Unknown role: ${msg.role}`,
+  };
 }
 
 function categorizeResponse(
@@ -442,19 +518,57 @@ function categorizeResponse(
   for (const c of content) {
     if (c.type === 'text' && typeof c.text === 'string') {
       if (isTitleGen) {
-        items.push({ category: Category.TITLE_GENERATION, zone: Zone.HIDDEN, source, role: 'assistant', summary: `Title: ${c.text.slice(0, 80)}`, text: c.text });
+        items.push({
+          category: Category.TITLE_GENERATION,
+          zone: Zone.HIDDEN,
+          source,
+          role: 'assistant',
+          summary: `Title: ${c.text.slice(0, 80)}`,
+          text: c.text,
+        });
       } else {
-        items.push({ category: Category.STREAMING_CHUNK, zone: Zone.MAIN_PANEL, source, role: 'assistant', summary: `Chunk: ${c.text.slice(0, 60)}`, text: c.text, isStreaming: true });
+        items.push({
+          category: Category.STREAMING_CHUNK,
+          zone: Zone.MAIN_PANEL,
+          source,
+          role: 'assistant',
+          summary: `Chunk: ${c.text.slice(0, 60)}`,
+          text: c.text,
+          isStreaming: true,
+        });
       }
     } else if (c.type === 'toolRequest') {
       const name = c.toolCall?.value?.name ?? 'unknown';
-      items.push({ category: Category.TOOL_REQUEST, zone: Zone.WORK_BLOCK, source, role: 'assistant', summary: `Tool: ${name}`, toolName: name });
+      items.push({
+        category: Category.TOOL_REQUEST,
+        zone: Zone.WORK_BLOCK,
+        source,
+        role: 'assistant',
+        summary: `Tool: ${name}`,
+        toolName: name,
+      });
     } else if (c.type === 'thinking' || c.type === 'redactedThinking') {
-      items.push({ category: Category.THINKING, zone: Zone.REASONING, source, role: 'assistant', summary: 'Reasoning' });
+      items.push({
+        category: Category.THINKING,
+        zone: Zone.REASONING,
+        source,
+        role: 'assistant',
+        summary: 'Reasoning',
+      });
     }
   }
 
-  return items.length > 0 ? items : [{ category: Category.USAGE_STATS, zone: Zone.HIDDEN, source, role: 'system', summary: 'Response metadata' }];
+  return items.length > 0
+    ? items
+    : [
+        {
+          category: Category.USAGE_STATS,
+          zone: Zone.HIDDEN,
+          source,
+          role: 'system',
+          summary: 'Response metadata',
+        },
+      ];
 }
 
 // ── Timeline builder ─────────────────────────────────────────────────
@@ -474,7 +588,9 @@ function buildTimeline(
     if (currentBlock.length === 0) return;
     const toolCalls = currentBlock.filter((i) => i.category === Category.TOOL_REQUEST).length;
     const toolResults = currentBlock.filter((i) => i.category === Category.TOOL_RESULT).length;
-    const intermediate = currentBlock.filter((i) => i.category === Category.INTERMEDIATE_TEXT).length;
+    const intermediate = currentBlock.filter(
+      (i) => i.category === Category.INTERMEDIATE_TEXT
+    ).length;
     const names = uniqueToolNames(currentBlock);
 
     timeline.push({
@@ -639,8 +755,16 @@ export function parseSession(fileContents: Map<string, string[]>): ParsedSession
 
   // Compute counts
   const allItems = [...conversationItems, ...responseItems, ...titleItems];
-  const zoneCounts = { [Zone.MAIN_PANEL]: 0, [Zone.WORK_BLOCK]: 0, [Zone.REASONING]: 0, [Zone.HIDDEN]: 0 };
-  const categoryCounts = Object.fromEntries(Object.values(Category).map((c) => [c, 0])) as Record<Category, number>;
+  const zoneCounts = {
+    [Zone.MAIN_PANEL]: 0,
+    [Zone.WORK_BLOCK]: 0,
+    [Zone.REASONING]: 0,
+    [Zone.HIDDEN]: 0,
+  };
+  const categoryCounts = Object.fromEntries(Object.values(Category).map((c) => [c, 0])) as Record<
+    Category,
+    number
+  >;
   for (const item of allItems) {
     zoneCounts[item.zone]++;
     categoryCounts[item.category]++;
@@ -684,14 +808,20 @@ export function toMessages(session: ParsedSession): Message[] {
         content.push({
           type: 'toolRequest',
           id: `diag-${messages.length}`,
-          toolCall: { status: 'success', value: { name: item.toolName ?? 'unknown', arguments: {} } },
+          toolCall: {
+            status: 'success',
+            value: { name: item.toolName ?? 'unknown', arguments: {} },
+          },
         } as MessageContent);
         break;
       case Category.TOOL_RESULT:
         content.push({ type: 'toolResponse', id: `diag-${messages.length}` } as MessageContent);
         break;
       case Category.THINKING:
-        content.push({ type: 'thinking', thinking: 'Chain-of-thought reasoning' } as MessageContent);
+        content.push({
+          type: 'thinking',
+          thinking: 'Chain-of-thought reasoning',
+        } as MessageContent);
         break;
     }
 

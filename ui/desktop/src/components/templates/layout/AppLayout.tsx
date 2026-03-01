@@ -133,10 +133,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   };
 
   return (
-    <div
-      data-testid="app-shell"
-      className="flex flex-1 w-full min-h-0 relative animate-fade-in"
-    >
+    <div data-testid="app-shell" className="flex flex-1 w-full min-h-0 relative animate-fade-in">
       <Sidebar variant="inset" collapsible="icon">
         <AppSidebar
           onSelectSession={handleSelectSession}

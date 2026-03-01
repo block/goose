@@ -8,11 +8,7 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function makeMsg(
-  role: string,
-  content: Array<Record<string, unknown>>,
-  id?: string
-): Message {
+function makeMsg(role: string, content: Array<Record<string, unknown>>, id?: string): Message {
   return {
     role,
     content: content as Message['content'],
@@ -60,12 +56,8 @@ function makeToolResponse(
 describe('buildToolResponseMap', () => {
   it('builds a map from tool response IDs to result text', () => {
     const messages: Message[] = [
-      makeMsg('assistant', [
-        makeToolRequest('developer__shell', { command: 'ls' }, 'req-1'),
-      ]),
-      makeMsg('user', [
-        makeToolResponse('req-1', 'file1.txt\nfile2.txt'),
-      ]),
+      makeMsg('assistant', [makeToolRequest('developer__shell', { command: 'ls' }, 'req-1')]),
+      makeMsg('user', [makeToolResponse('req-1', 'file1.txt\nfile2.txt')]),
     ];
 
     const map = buildToolResponseMap(messages);
@@ -79,9 +71,7 @@ describe('buildToolResponseMap', () => {
 
   it('detects error responses', () => {
     const messages: Message[] = [
-      makeMsg('user', [
-        makeToolResponse('req-2', 'Permission denied', true),
-      ]),
+      makeMsg('user', [makeToolResponse('req-2', 'Permission denied', true)]),
     ];
 
     const map = buildToolResponseMap(messages);
@@ -108,9 +98,7 @@ describe('buildToolResponseMap', () => {
 
   it('ignores assistant messages (only user messages have tool responses)', () => {
     const messages: Message[] = [
-      makeMsg('assistant', [
-        makeToolResponse('req-x', 'should be ignored'),
-      ]),
+      makeMsg('assistant', [makeToolResponse('req-x', 'should be ignored')]),
     ];
 
     const map = buildToolResponseMap(messages);
@@ -118,9 +106,7 @@ describe('buildToolResponseMap', () => {
   });
 
   it('handles messages with no tool responses', () => {
-    const messages: Message[] = [
-      makeMsg('user', [{ type: 'text', text: 'hello' }]),
-    ];
+    const messages: Message[] = [makeMsg('user', [{ type: 'text', text: 'hello' }])];
 
     const map = buildToolResponseMap(messages);
     expect(map.size).toBe(0);
@@ -137,9 +123,7 @@ describe('buildToolResponseMap', () => {
 describe('extractActivityEntries', () => {
   it('extracts tool entries from assistant messages', () => {
     const messages: Message[] = [
-      makeMsg('assistant', [
-        makeToolRequest('developer__shell', { command: 'ls -la' }, 'req-1'),
-      ]),
+      makeMsg('assistant', [makeToolRequest('developer__shell', { command: 'ls -la' }, 'req-1')]),
     ];
 
     const entries = extractActivityEntries(messages, false);
@@ -153,12 +137,8 @@ describe('extractActivityEntries', () => {
 
   it('pairs tool requests with their responses', () => {
     const messages: Message[] = [
-      makeMsg('assistant', [
-        makeToolRequest('developer__shell', { command: 'pwd' }, 'req-1'),
-      ]),
-      makeMsg('user', [
-        makeToolResponse('req-1', '/home/user/project'),
-      ]),
+      makeMsg('assistant', [makeToolRequest('developer__shell', { command: 'pwd' }, 'req-1')]),
+      makeMsg('user', [makeToolResponse('req-1', '/home/user/project')]),
     ];
 
     const entries = extractActivityEntries(messages, false);
@@ -170,12 +150,8 @@ describe('extractActivityEntries', () => {
 
   it('pairs tool requests with error responses', () => {
     const messages: Message[] = [
-      makeMsg('assistant', [
-        makeToolRequest('developer__shell', { command: 'rm -rf /' }, 'req-1'),
-      ]),
-      makeMsg('user', [
-        makeToolResponse('req-1', 'Operation not permitted', true),
-      ]),
+      makeMsg('assistant', [makeToolRequest('developer__shell', { command: 'rm -rf /' }, 'req-1')]),
+      makeMsg('user', [makeToolResponse('req-1', 'Operation not permitted', true)]),
     ];
 
     const entries = extractActivityEntries(messages, false);
@@ -187,7 +163,10 @@ describe('extractActivityEntries', () => {
   it('extracts thinking entries from text + toolRequest messages', () => {
     const messages: Message[] = [
       makeMsg('assistant', [
-        { type: 'text', text: 'Let me analyze the codebase structure first. I need to check the component hierarchy.' },
+        {
+          type: 'text',
+          text: 'Let me analyze the codebase structure first. I need to check the component hierarchy.',
+        },
         makeToolRequest('developer__shell', { command: 'ls src/' }, 'req-1'),
       ]),
     ];
@@ -202,7 +181,10 @@ describe('extractActivityEntries', () => {
   it('does NOT create thinking entries for pure text messages (no tool requests)', () => {
     const messages: Message[] = [
       makeMsg('assistant', [
-        { type: 'text', text: 'Here is my final analysis of the codebase. The architecture looks solid.' },
+        {
+          type: 'text',
+          text: 'Here is my final analysis of the codebase. The architecture looks solid.',
+        },
       ]),
     ];
 
@@ -214,7 +196,11 @@ describe('extractActivityEntries', () => {
     const messages: Message[] = [
       makeMsg('assistant', [
         makeToolRequest('developer__shell', { command: 'ls' }, 'req-1'),
-        makeToolRequest('developer__text_editor', { path: '/tmp/test.txt', command: 'view' }, 'req-2'),
+        makeToolRequest(
+          'developer__text_editor',
+          { path: '/tmp/test.txt', command: 'view' },
+          'req-2'
+        ),
       ]),
       makeMsg('user', [
         makeToolResponse('req-1', 'file1.txt'),
@@ -274,9 +260,7 @@ describe('extractActivityEntries', () => {
   it('includes tool args in the entry', () => {
     const args = { path: '/home/user/file.ts', command: 'view' };
     const messages: Message[] = [
-      makeMsg('assistant', [
-        makeToolRequest('developer__text_editor', args, 'req-1'),
-      ]),
+      makeMsg('assistant', [makeToolRequest('developer__text_editor', args, 'req-1')]),
     ];
 
     const entries = extractActivityEntries(messages, false);
@@ -288,16 +272,26 @@ describe('extractActivityEntries', () => {
     const messages: Message[] = [
       // Turn 1: assistant calls shell
       makeMsg('assistant', [
-        { type: 'text', text: 'I will start by examining the project structure. This will help me understand the codebase layout.' },
+        {
+          type: 'text',
+          text: 'I will start by examining the project structure. This will help me understand the codebase layout.',
+        },
         makeToolRequest('developer__shell', { command: 'ls -la' }, 'req-1'),
       ]),
       // Turn 1 response
       makeMsg('user', [makeToolResponse('req-1', 'total 42\ndrwxr-xr-x src/')]),
       // Turn 2: assistant calls two tools
       makeMsg('assistant', [
-        { type: 'text', text: 'Now let me look at the component files. I also need to check the package config.' },
+        {
+          type: 'text',
+          text: 'Now let me look at the component files. I also need to check the package config.',
+        },
         makeToolRequest('developer__shell', { command: 'ls src/components/' }, 'req-2'),
-        makeToolRequest('developer__text_editor', { path: 'package.json', command: 'view' }, 'req-3'),
+        makeToolRequest(
+          'developer__text_editor',
+          { path: 'package.json', command: 'view' },
+          'req-3'
+        ),
       ]),
       // Turn 2 responses
       makeMsg('user', [
@@ -306,7 +300,10 @@ describe('extractActivityEntries', () => {
       ]),
       // Turn 3: final text (pure text, no tools)
       makeMsg('assistant', [
-        { type: 'text', text: 'Based on my analysis, the project has a clean component structure.' },
+        {
+          type: 'text',
+          text: 'Based on my analysis, the project has a clean component structure.',
+        },
       ]),
     ];
 

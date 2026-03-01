@@ -411,9 +411,7 @@ export function RecipeFormFields({
 
               return (
                 <div>
-                  <div className="block text-md text-text-default mb-2 font-bold">
-                    Parameters
-                  </div>
+                  <div className="block text-md text-text-default mb-2 font-bold">Parameters</div>
                   <p className="text-text-muted text-sm space-y-2 pb-4">
                     Parameters will be automatically detected from {`{{parameter_name}}`} syntax in
                     instructions/prompt/activities or you can manually add them below.

@@ -53,110 +53,110 @@ function CatalogCard({ category }: { category: CatalogCategory }) {
       onActivate={() => navigate(category.route)}
       className="p-6"
     >
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
-              style={{ backgroundColor: `${category.color}20`, color: category.color }}
-            >
-              {category.icon}
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-text-default">{category.label}</h3>
-              <p className="text-sm text-text-muted">{category.description}</p>
-            </div>
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: `${category.color}20`, color: category.color }}
+          >
+            {category.icon}
           </div>
-          <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div>
+            <h3 className="text-lg font-semibold text-text-default">{category.label}</h3>
+            <p className="text-sm text-text-muted">{category.description}</p>
+          </div>
         </div>
+        <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
 
-        <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-4 mb-4">
+        <div className="flex items-center gap-1.5 text-sm">
+          <CheckCircle2 className="w-4 h-4 text-green-500" />
+          <span className="text-text-default font-medium">{installed}</span>
+          <span className="text-text-muted">installed</span>
+        </div>
+        {errors > 0 && (
           <div className="flex items-center gap-1.5 text-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            <span className="text-text-default font-medium">{installed}</span>
-            <span className="text-text-muted">installed</span>
+            <AlertCircle className="w-4 h-4 text-red-500" />
+            <span className="text-red-400 font-medium">{errors}</span>
+            <span className="text-text-muted">issues</span>
           </div>
-          {errors > 0 && (
-            <div className="flex items-center gap-1.5 text-sm">
-              <AlertCircle className="w-4 h-4 text-red-500" />
-              <span className="text-red-400 font-medium">{errors}</span>
-              <span className="text-text-muted">issues</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 text-sm">
-            <Package className="w-4 h-4 text-text-muted" />
-            <span className="text-text-default font-medium">{category.items.length}</span>
-            <span className="text-text-muted">total</span>
-          </div>
+        )}
+        <div className="flex items-center gap-1.5 text-sm">
+          <Package className="w-4 h-4 text-text-muted" />
+          <span className="text-text-default font-medium">{category.items.length}</span>
+          <span className="text-text-muted">total</span>
         </div>
+      </div>
 
-        <div className="space-y-1.5">
-          {visibleItems.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-background-subtle"
+      <div className="space-y-1.5">
+        {visibleItems.map((item) => (
+          <div
+            key={item.id}
+            className="flex items-center justify-between text-sm px-2 py-1.5 rounded-md bg-background-subtle"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  item.status === 'installed'
+                    ? 'bg-green-500'
+                    : item.status === 'error'
+                      ? 'bg-red-500'
+                      : 'bg-gray-400'
+                }`}
+              />
+              <span className="text-text-default truncate">{item.name}</span>
+            </div>
+            {item.type && (
+              <span className="text-xs text-text-muted px-1.5 py-0.5 rounded bg-background-default flex-shrink-0">
+                {item.type}
+              </span>
+            )}
+          </div>
+        ))}
+        {hasMore && (
+          <OverlayActionCard.Actions>
+            <button
+              type="button"
+              className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors"
+              onClick={() => setExpanded(!expanded)}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <div
-                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    item.status === 'installed'
-                      ? 'bg-green-500'
-                      : item.status === 'error'
-                        ? 'bg-red-500'
-                        : 'bg-gray-400'
-                  }`}
-                />
-                <span className="text-text-default truncate">{item.name}</span>
-              </div>
-              {item.type && (
-                <span className="text-xs text-text-muted px-1.5 py-0.5 rounded bg-background-default flex-shrink-0">
-                  {item.type}
-                </span>
-              )}
-            </div>
-          ))}
-          {hasMore && (
-            <OverlayActionCard.Actions>
-              <button
-                type="button"
-                className="w-full text-xs text-text-muted hover:text-text-default text-center py-1 rounded-md hover:bg-background-subtle transition-colors"
-                onClick={() => setExpanded(!expanded)}
-              >
-                {expanded ? '▲ Show less' : `▼ +${category.items.length - 3} more`}
-              </button>
-            </OverlayActionCard.Actions>
-          )}
-          {category.items.length === 0 && !category.loading && (
-            <div className="text-sm text-text-muted text-center py-3">
-              No items yet — click to browse
-            </div>
-          )}
-          {category.loading && (
-            <div className="space-y-1.5">
-              {[1, 2, 3].map((n) => (
-                <div
-                  key={`catalog-item-skeleton-${n}`}
-                  className="h-8 bg-background-subtle rounded-md animate-pulse"
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {category.actions.length > 0 && (
-          <OverlayActionCard.Actions className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
-            {category.actions.map((action) => (
-              <button
-                type="button"
-                key={action.label}
-                className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors"
-                onClick={action.onClick}
-              >
-                {action.icon}
-                {action.label}
-              </button>
-            ))}
+              {expanded ? '▲ Show less' : `▼ +${category.items.length - 3} more`}
+            </button>
           </OverlayActionCard.Actions>
         )}
+        {category.items.length === 0 && !category.loading && (
+          <div className="text-sm text-text-muted text-center py-3">
+            No items yet — click to browse
+          </div>
+        )}
+        {category.loading && (
+          <div className="space-y-1.5">
+            {[1, 2, 3].map((n) => (
+              <div
+                key={`catalog-item-skeleton-${n}`}
+                className="h-8 bg-background-subtle rounded-md animate-pulse"
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {category.actions.length > 0 && (
+        <OverlayActionCard.Actions className="flex items-center gap-2 mt-4 pt-4 border-t border-border-default">
+          {category.actions.map((action) => (
+            <button
+              type="button"
+              key={action.label}
+              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-default px-2 py-1 rounded-md hover:bg-background-subtle transition-colors"
+              onClick={action.onClick}
+            >
+              {action.icon}
+              {action.label}
+            </button>
+          ))}
+        </OverlayActionCard.Actions>
+      )}
     </OverlayActionCard>
   );
 }
@@ -356,7 +356,8 @@ export default function CatalogsOverview() {
               className="pl-9 pr-4 py-2 bg-background-subtle border border-border-default rounded-lg text-sm text-text-default placeholder-text-muted focus:outline-none focus:border-border-accent w-64"
             />
           </div>
-          <button type="button"
+          <button
+            type="button"
             onClick={loadCatalogs}
             className="p-2 text-text-muted hover:text-text-default rounded-lg hover:bg-background-subtle transition-colors"
             title="Refresh"

@@ -1,7 +1,14 @@
 import { AlertTriangle, ArrowLeft, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
-import { getPrompt, getPrompts, resetPrompt, savePrompt, type PromptContentResponse, type Template } from '@/api';
+import {
+  getPrompt,
+  getPrompts,
+  resetPrompt,
+  savePrompt,
+  type PromptContentResponse,
+  type Template,
+} from '@/api';
 import { Button } from '@/components/atoms/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/molecules/ui/card';
 

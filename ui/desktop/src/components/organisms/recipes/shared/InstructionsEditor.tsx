@@ -85,7 +85,10 @@ Use {{parameter_name}} syntax for any user-provided values.`;
         <div className="flex-1 flex flex-col min-h-0">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label htmlFor="instructions-editor" className="block text-sm font-medium text-text-default">
+              <label
+                htmlFor="instructions-editor"
+                className="block text-sm font-medium text-text-default"
+              >
                 Instructions
               </label>
               <Button

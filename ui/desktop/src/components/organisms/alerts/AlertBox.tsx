@@ -99,9 +99,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   };
 
   return (
-    <div
-      className={cn('flex flex-col gap-2 px-3 py-3', alertStyles[alert.type], className)}
-    >
+    <div className={cn('flex flex-col gap-2 px-3 py-3', alertStyles[alert.type], className)}>
       {alert.progress ? (
         <div className="flex flex-col gap-2">
           <span className="text-[11px]">{alert.message}</span>

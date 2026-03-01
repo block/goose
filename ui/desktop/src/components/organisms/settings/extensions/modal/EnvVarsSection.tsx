@@ -144,9 +144,7 @@ export default function EnvVarsSection({
                 <Edit className="h-3 w-3 text-gray-400 group-hover:text-white group-hover:drop-shadow-sm transition-all" />
               </Button>
             )}
-            {(envVar.value !== '••••••••' || envVar.isEdited) && (
-              <div className="w-8 h-8" />
-            )}
+            {(envVar.value !== '••••••••' || envVar.isEdited) && <div className="w-8 h-8" />}
             <Button
               onClick={() => onRemove(index)}
               variant="ghost"

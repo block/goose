@@ -77,8 +77,7 @@ export default function AgentCatalog() {
           onClick={fetchCatalog}
           className="rounded-md border border-border-default px-3 py-1.5 text-sm text-text-muted hover:bg-background-muted hover:text-text-default"
         >
-          Retry
-          Retry
+          Retry Retry
         </button>
       </div>
     );

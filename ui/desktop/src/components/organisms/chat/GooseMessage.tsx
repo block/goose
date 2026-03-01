@@ -87,7 +87,8 @@ function ThinkingSection({
 
   return (
     <div className="mb-2">
-      <button type="button"
+      <button
+        type="button"
         onClick={handleClick}
         className={cn(
           'flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors select-none group',
@@ -169,8 +170,9 @@ export default function GooseMessage({
   const jsonRenderSpecs = useMemo(
     () =>
       message.content
-        .filter((c): c is Extract<Message['content'][number], { type: 'jsonRenderSpec' }> =>
-          c.type === 'jsonRenderSpec'
+        .filter(
+          (c): c is Extract<Message['content'][number], { type: 'jsonRenderSpec' }> =>
+            c.type === 'jsonRenderSpec'
         )
         .map((c) => c.spec),
     [message.content]

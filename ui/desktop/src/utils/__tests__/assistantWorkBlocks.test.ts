@@ -319,17 +319,17 @@ describe('identifyWorkBlocks', () => {
     expect(completedResult.has(3)).toBe(false); // Final answer excluded
   });
 
-	  it('allBlockIndices includes all messages except final answer', () => {
-	    const messages = [
-	      textMsg('user', 'Do it'),
-	      toolRequestMsg('tool1'),
-	      toolResponseMsg('tool1', 'r1'),
-	      toolRequestMsg('tool2'),
-	      toolResponseMsg('tool2', 'r2'),
-	      textMsg('assistant', 'Done'),
-	    ];
-	    const result = identifyWorkBlocks(messages as unknown as Message[], false);
-	    const block = requireBlock(result, 1);
+  it('allBlockIndices includes all messages except final answer', () => {
+    const messages = [
+      textMsg('user', 'Do it'),
+      toolRequestMsg('tool1'),
+      toolResponseMsg('tool1', 'r1'),
+      toolRequestMsg('tool2'),
+      toolResponseMsg('tool2', 'r2'),
+      textMsg('assistant', 'Done'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
+    const block = requireBlock(result, 1);
 
     // allBlockIndices should contain 1, 2, 3, 4 but NOT 5 (final) or 0 (user)
     expect(block.allBlockIndices.has(1)).toBe(true);
@@ -340,17 +340,17 @@ describe('identifyWorkBlocks', () => {
     expect(block.allBlockIndices.has(0)).toBe(false);
   });
 
-	  it('intermediateIndices contains only assistant messages', () => {
-	    const messages = [
-	      textMsg('user', 'Do it'),
-	      toolRequestMsg('tool1'),
-	      toolResponseMsg('tool1', 'r1'),
-	      toolRequestMsg('tool2'),
-	      toolResponseMsg('tool2', 'r2'),
-	      textMsg('assistant', 'Done'),
-	    ];
-	    const result = identifyWorkBlocks(messages as unknown as Message[], false);
-	    const block = requireBlock(result, 1);
+  it('intermediateIndices contains only assistant messages', () => {
+    const messages = [
+      textMsg('user', 'Do it'),
+      toolRequestMsg('tool1'),
+      toolResponseMsg('tool1', 'r1'),
+      toolRequestMsg('tool2'),
+      toolResponseMsg('tool2', 'r2'),
+      textMsg('assistant', 'Done'),
+    ];
+    const result = identifyWorkBlocks(messages as unknown as Message[], false);
+    const block = requireBlock(result, 1);
 
     // intermediateIndices should be assistant messages only (1, 3)
     // NOT tool response messages (2, 4) which are user role
@@ -552,13 +552,13 @@ describe('identifyWorkBlocks', () => {
       metadata: { userVisible: false, agentVisible: true },
     };
     const messages = [
-      textMsg('user', 'Fix the bug'),       // 0: real user message
-      toolRequestMsg('tool1'),               // 1: assistant tool call
-      toolResponseMsg('tool1', 'result'),    // 2: tool response
-      hiddenUserMsg,                         // 3: hidden compacted summary
-      textMsg('assistant', 'Found it'),      // 4: assistant text
-      toolRequestMsg('tool2'),               // 5: assistant tool call
-      toolResponseMsg('tool2', 'done'),      // 6: tool response
+      textMsg('user', 'Fix the bug'), // 0: real user message
+      toolRequestMsg('tool1'), // 1: assistant tool call
+      toolResponseMsg('tool1', 'result'), // 2: tool response
+      hiddenUserMsg, // 3: hidden compacted summary
+      textMsg('assistant', 'Found it'), // 4: assistant text
+      toolRequestMsg('tool2'), // 5: assistant tool call
+      toolResponseMsg('tool2', 'done'), // 6: tool response
       textMsg('assistant', 'Here is the fix'), // 7: final answer
     ];
     const result = identifyWorkBlocks(messages as unknown as Message[], false);

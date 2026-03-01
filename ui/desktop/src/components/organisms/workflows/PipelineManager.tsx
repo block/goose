@@ -154,7 +154,8 @@ export function PipelineManager() {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border-default bg-background-default">
-          <button type="button"
+          <button
+            type="button"
             onClick={handleBack}
             className="text-xs text-text-muted hover:text-text-default transition-colors"
           >
@@ -191,7 +192,8 @@ export function PipelineManager() {
             Visual DAG workflows for multi-agent orchestration
           </p>
         </div>
-        <button type="button"
+        <button
+          type="button"
           onClick={handleNewPipeline}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                      bg-background-accent text-text-on-accent text-sm font-medium
@@ -226,7 +228,8 @@ export function PipelineManager() {
               Create your first visual workflow by connecting agents, tools, and conditions in a
               DAG.
             </p>
-            <button type="button"
+            <button
+              type="button"
               onClick={handleNewPipeline}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg
                          bg-background-accent text-text-on-accent text-sm font-medium

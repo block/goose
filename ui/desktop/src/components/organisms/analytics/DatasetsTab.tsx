@@ -168,7 +168,8 @@ function DatasetEditor({
       </div>
 
       <div className="flex items-center gap-2">
-        <button type="button"
+        <button
+          type="button"
           onClick={() => (yamlMode ? parseYaml() : generateYaml())}
           className="text-xs text-text-accent hover:text-text-accent underline"
         >
@@ -242,7 +243,8 @@ function DatasetEditor({
                       />
                     </td>
                     <td className="px-1 py-1.5">
-                      <button type="button"
+                      <button
+                        type="button"
                         onClick={() => removeRow(i)}
                         className="text-text-muted hover:text-text-danger text-sm"
                         disabled={rows.length <= 1}
@@ -255,7 +257,8 @@ function DatasetEditor({
               </tbody>
             </table>
           </div>
-          <button type="button"
+          <button
+            type="button"
             onClick={addRow}
             className="text-sm text-text-accent hover:text-text-accent flex items-center gap-1"
           >
@@ -265,13 +268,15 @@ function DatasetEditor({
       )}
 
       <div className="flex gap-3 justify-end pt-2 border-t border-border-default">
-        <button type="button"
+        <button
+          type="button"
           onClick={onCancel}
           className="px-4 py-2 rounded-lg border border-border-default text-text-default text-sm hover:bg-background-muted transition-colors"
         >
           Cancel
         </button>
-        <button type="button"
+        <button
+          type="button"
           onClick={handleSave}
           disabled={saving || !name.trim()}
           className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent disabled:bg-background-muted disabled:cursor-not-allowed text-text-on-accent text-sm font-medium transition-colors"
@@ -355,7 +360,8 @@ export default function DatasetsTab() {
 
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-text-default">Evaluation Datasets</h3>
-        <button type="button"
+        <button
+          type="button"
           onClick={() => setEditing('new')}
           className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent text-text-on-accent text-sm font-medium transition-colors"
         >
@@ -366,7 +372,10 @@ export default function DatasetsTab() {
       {loading ? (
         <div className="space-y-3 animate-pulse">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={`dataset-skeleton-${i + 1}`} className="h-16 rounded-lg bg-background-muted" />
+            <div
+              key={`dataset-skeleton-${i + 1}`}
+              className="h-16 rounded-lg bg-background-muted"
+            />
           ))}
         </div>
       ) : datasets.length === 0 ? (
@@ -375,7 +384,8 @@ export default function DatasetsTab() {
           <p className="text-sm mb-4">
             Create a dataset to define test cases for evaluating routing accuracy
           </p>
-          <button type="button"
+          <button
+            type="button"
             onClick={() => setEditing('new')}
             className="px-4 py-2 rounded-lg bg-background-accent hover:bg-background-accent text-text-on-accent text-sm font-medium transition-colors"
           >
@@ -417,13 +427,15 @@ export default function DatasetsTab() {
                 </p>
               </div>
               <div className="flex gap-2 ml-4">
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => handleEdit(ds.id)}
                   className="px-3 py-1.5 rounded border border-border-default text-text-default text-xs hover:bg-background-muted transition-colors"
                 >
                   Edit
                 </button>
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => handleDelete(ds.id)}
                   className="px-3 py-1.5 rounded border border-border-default bg-background-default text-text-danger text-xs hover:bg-background-danger-muted transition-colors"
                 >

@@ -218,7 +218,10 @@ export function SpawnInstanceModal({
                 <div className="grid grid-cols-2 gap-3">
                   {/* Provider dropdown */}
                   <div>
-                    <label htmlFor={providerId} className="block text-xs font-medium mb-1 text-text-muted">
+                    <label
+                      htmlFor={providerId}
+                      className="block text-xs font-medium mb-1 text-text-muted"
+                    >
                       Provider
                     </label>
                     {configuredProviders.length > 0 ? (
@@ -252,7 +255,10 @@ export function SpawnInstanceModal({
 
                   {/* Model dropdown */}
                   <div>
-                    <label htmlFor={modelId} className="block text-xs font-medium mb-1 text-text-muted">
+                    <label
+                      htmlFor={modelId}
+                      className="block text-xs font-medium mb-1 text-text-muted"
+                    >
                       Model
                     </label>
                     {modelList.length > 0 ? (
@@ -298,7 +304,10 @@ export function SpawnInstanceModal({
                 )}
 
                 <div>
-                  <label htmlFor={maxTurnsId} className="block text-xs font-medium mb-1 text-text-muted">
+                  <label
+                    htmlFor={maxTurnsId}
+                    className="block text-xs font-medium mb-1 text-text-muted"
+                  >
                     Max turns
                   </label>
                   <input

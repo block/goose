@@ -45,7 +45,12 @@ import { formatExtensionName } from '../settings/extensions/subcomponents/Extens
 import { Button } from '@/components/atoms/button';
 import { ScrollArea } from '@/components/atoms/scroll-area';
 import { Skeleton } from '@/components/atoms/skeleton';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/atoms/tooltip';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/atoms/tooltip';
 import { ConfirmationModal } from '@/components/molecules/ui/confirmation-modal';
 import { OverlayActionCard } from '@/components/molecules/interactive/OverlayActionCard';
 import { Card } from '@/components/molecules/ui/card';
@@ -673,15 +678,15 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-						<button
-							type="button"
-							className="pointer-events-auto flex items-center"
-							onClick={(e) => e.stopPropagation()}
-							aria-label="Show extensions"
-						>
+                      <button
+                        type="button"
+                        className="pointer-events-auto flex items-center"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Show extensions"
+                      >
                         <Puzzle className="w-3 h-3 mr-1" />
                         <span className="font-mono">{extensionNames.length}</span>
-						</button>
+                      </button>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs">
                       <div className="text-xs">
@@ -827,7 +832,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               key={pg.project}
               className="border border-border-default rounded-lg overflow-hidden"
             >
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => toggleProjectCollapse(pg.project)}
                 className="w-full flex items-center gap-3 px-4 py-3 bg-background-default hover:bg-background-default/80 transition-colors cursor-pointer"
               >

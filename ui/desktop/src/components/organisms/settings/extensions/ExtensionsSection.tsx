@@ -6,7 +6,12 @@ import { Button } from '@/components/atoms/button';
 import { GPSIcon } from '@/components/atoms/icons';
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
 import ExtensionList from './subcomponents/ExtensionList';
-import { createExtensionConfig, extensionToFormData, getDefaultFormData, type ExtensionFormData } from './utils';
+import {
+  createExtensionConfig,
+  extensionToFormData,
+  getDefaultFormData,
+  type ExtensionFormData,
+} from './utils';
 import ExtensionModal from './modal/ExtensionModal';
 interface ExtensionSectionProps {
   deepLinkConfig?: ExtensionConfig;

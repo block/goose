@@ -23,10 +23,7 @@ export default function ExtensionConfigFields({
     return (
       <div className="space-y-4">
         <div>
-          <label
-            htmlFor={inputId}
-            className="text-sm font-medium mb-2 block text-text-default"
-          >
+          <label htmlFor={inputId} className="text-sm font-medium mb-2 block text-text-default">
             Command
           </label>
           <div className="relative">
@@ -47,10 +44,7 @@ export default function ExtensionConfigFields({
   } else {
     return (
       <div>
-        <label
-          htmlFor={inputId}
-          className="text-sm font-medium mb-2 block text-text-default"
-        >
+        <label htmlFor={inputId} className="text-sm font-medium mb-2 block text-text-default">
           Endpoint
         </label>
         <div className="relative">

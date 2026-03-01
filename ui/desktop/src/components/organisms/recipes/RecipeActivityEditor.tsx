@@ -93,9 +93,7 @@ export default function RecipeActivityEditor({
       {/* Regular Activities */}
       <div className="space-y-4">
         <div>
-          <div className="block text-sm font-medium text-text-default mb-2">
-            Activity Buttons
-          </div>
+          <div className="block text-sm font-medium text-text-default mb-2">Activity Buttons</div>
           <p className="text-xs text-text-muted mb-3">
             Clickable buttons that will appear below the message to help users interact with your
             recipe.

@@ -8,7 +8,13 @@ import {
 } from '@/utils/analytics';
 import TelemetryOptOutModal from '../../modals/TelemetryOptOutModal';
 import { Switch } from '@/components/atoms/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/molecules/ui/card';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -73,7 +79,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
   const toggleDescription = 'Help improve goose by sharing anonymous usage statistics.';
 
   const learnMoreLink = (
-    <button type="button"
+    <button
+      type="button"
       onClick={() => setShowModal(true)}
       className="text-blue-600 dark:text-blue-400 hover:underline"
     >

@@ -5,7 +5,13 @@ import { trackSettingToggled } from '@/utils/analytics';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import { Switch } from '@/components/atoms/switch';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/molecules/ui/card';
 
 export default function SessionSharingSection() {
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');

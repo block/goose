@@ -90,7 +90,8 @@ function PresetCard({
   onSelect: () => void;
 }) {
   return (
-    <button type="button"
+    <button
+      type="button"
       onClick={onSelect}
       className={`relative flex flex-col items-center justify-center gap-1 rounded-lg border p-4 text-center transition-all duration-200 h-[100px]
         ${
@@ -389,7 +390,11 @@ export default function AuthSection() {
             />
           </Field>
 
-          <Field label="Client Secret" hint="Required for confidential clients" id="auth-client-secret">
+          <Field
+            label="Client Secret"
+            hint="Required for confidential clients"
+            id="auth-client-secret"
+          >
             <Input
               id="auth-client-secret"
               type="password"
@@ -405,7 +410,11 @@ export default function AuthSection() {
               Advanced ▸
             </summary>
             <div className="mt-3 space-y-3 pl-3 border-l border-border/30">
-              <Field label="Tenant Claim" hint="JWT claim for tenant ID (e.g., tid)" id="auth-tenant-claim">
+              <Field
+                label="Tenant Claim"
+                hint="JWT claim for tenant ID (e.g., tid)"
+                id="auth-tenant-claim"
+              >
                 <Input
                   id="auth-tenant-claim"
                   placeholder="tid"
@@ -413,7 +422,11 @@ export default function AuthSection() {
                   onChange={(e) => setOidc((prev) => ({ ...prev, tenantClaim: e.target.value }))}
                 />
               </Field>
-              <Field label="Group Claim" hint="JWT claim for group membership" id="auth-group-claim">
+              <Field
+                label="Group Claim"
+                hint="JWT claim for group membership"
+                id="auth-group-claim"
+              >
                 <Input
                   id="auth-group-claim"
                   placeholder="groups"

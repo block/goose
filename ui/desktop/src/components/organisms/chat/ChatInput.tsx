@@ -365,13 +365,16 @@ export default function ChatInput({
     return [];
   }, [read]);
 
-  const findModelLimit = useCallback((modelName: string, modelLimits: ModelLimit[]): number | null => {
-    if (!modelName) return null;
-    const matchingLimit = modelLimits.find((limit) =>
-      modelName.toLowerCase().includes(limit.pattern.toLowerCase())
-    );
-    return matchingLimit ? matchingLimit.context_limit : null;
-  }, []);
+  const findModelLimit = useCallback(
+    (modelName: string, modelLimits: ModelLimit[]): number | null => {
+      if (!modelName) return null;
+      const matchingLimit = modelLimits.find((limit) =>
+        modelName.toLowerCase().includes(limit.pattern.toLowerCase())
+      );
+      return matchingLimit ? matchingLimit.context_limit : null;
+    },
+    []
+  );
 
   // Load providers and get current model's token limit
   const loadProviderDetails = useCallback(async () => {
@@ -471,14 +474,7 @@ export default function ChatInput({
         autoShow: false, // Don't auto-show tool count warnings
       });
     }
-  }, [
-    totalTokens,
-    toolCount,
-    tokenLimit,
-    isTokenLimitLoaded,
-    addAlert,
-    clearAlerts,
-  ]);
+  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {

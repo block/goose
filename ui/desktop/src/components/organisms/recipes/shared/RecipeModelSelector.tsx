@@ -157,7 +157,10 @@ export const RecipeModelSelector = ({
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label htmlFor="recipe-model-select" className="block text-sm font-medium text-text-default">
+          <label
+            htmlFor="recipe-model-select"
+            className="block text-sm font-medium text-text-default"
+          >
             Model (Optional)
           </label>
           {isCustomModel && (

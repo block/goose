@@ -238,7 +238,8 @@ function DagEditorInner({
 
               <div className="w-px h-5 bg-border-muted mx-1" />
 
-              <button type="button"
+              <button
+                type="button"
                 onClick={undo}
                 disabled={historyIdx <= 0}
                 className="p-1.5 rounded-md hover:bg-background-muted disabled:opacity-30 text-text-muted"
@@ -246,7 +247,8 @@ function DagEditorInner({
               >
                 <Undo2 size={14} />
               </button>
-              <button type="button"
+              <button
+                type="button"
                 onClick={redo}
                 disabled={historyIdx >= history.length - 1}
                 className="p-1.5 rounded-md hover:bg-background-muted disabled:opacity-30 text-text-muted"
@@ -257,14 +259,16 @@ function DagEditorInner({
 
               <div className="w-px h-5 bg-border-muted mx-1" />
 
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => handleExport('yaml')}
                 className="p-1.5 rounded-md hover:bg-background-muted text-text-muted"
                 title="Copy as YAML"
               >
                 <FileText size={14} />
               </button>
-              <button type="button"
+              <button
+                type="button"
                 onClick={() => handleExport('json')}
                 className="p-1.5 rounded-md hover:bg-background-muted text-text-muted"
                 title="Copy as JSON"
@@ -274,7 +278,8 @@ function DagEditorInner({
 
               <div className="w-px h-5 bg-border-muted mx-1" />
 
-              <button type="button"
+              <button
+                type="button"
                 onClick={handleSave}
                 className="flex items-center gap-1 px-2 py-1 rounded-md
                            bg-background-accent text-text-on-accent text-xs font-medium

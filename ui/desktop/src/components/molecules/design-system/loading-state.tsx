@@ -8,11 +8,7 @@ interface LoadingStateProps {
   className?: string;
 }
 
-export function LoadingState({
-  variant = 'skeleton',
-  lines = 3,
-  className,
-}: LoadingStateProps) {
+export function LoadingState({ variant = 'skeleton', lines = 3, className }: LoadingStateProps) {
   const lineItems = useMemo(
     () =>
       Array.from({ length: lines }, (_, n) => ({

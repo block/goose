@@ -13,7 +13,13 @@ type OverlayActionCardProps = {
   children: React.ReactNode;
 };
 
-function OverlayActionCardActions({ className, children }: { className?: string; children: React.ReactNode }) {
+function OverlayActionCardActions({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
   return <div className={cn('pointer-events-auto', className)}>{children}</div>;
 }
 
@@ -25,7 +31,14 @@ function OverlayActionCardActions({ className, children }: { className?: string;
  */
 export const OverlayActionCard = Object.assign(
   React.forwardRef<HTMLDivElement, OverlayActionCardProps>(function OverlayActionCard(
-    { ariaLabel, onActivate, className, radiusClassName = 'rounded-xl', overlayClassName, children },
+    {
+      ariaLabel,
+      onActivate,
+      className,
+      radiusClassName = 'rounded-xl',
+      overlayClassName,
+      children,
+    },
     ref
   ) {
     return (

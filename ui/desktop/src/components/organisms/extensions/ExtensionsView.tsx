@@ -10,7 +10,11 @@ import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';
 import { activateExtensionDefault } from '../settings/extensions';
 import ExtensionsSection from '../settings/extensions/ExtensionsSection';
 import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
-import { createExtensionConfig, getDefaultFormData, type ExtensionFormData } from '../settings/extensions/utils';
+import {
+  createExtensionConfig,
+  getDefaultFormData,
+  type ExtensionFormData,
+} from '../settings/extensions/utils';
 import { Button } from '@/components/atoms/button';
 import { GPSIcon } from '@/components/atoms/icons';
 

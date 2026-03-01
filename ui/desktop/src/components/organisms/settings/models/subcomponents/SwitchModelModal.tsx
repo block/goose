@@ -385,62 +385,65 @@ export const SwitchModelModal = ({
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {predefinedModels.map((model) => (
+                {predefinedModels.map((model) =>
                   (() => {
                     const rawId = model.id || model.name;
                     const safeId = String(rawId).replace(/[^a-zA-Z0-9_-]/g, '_');
                     const radioId = `predefined-model-${safeId}`;
 
                     return (
-                  <div key={model.id || model.name} className="group hover:cursor-pointer text-sm">
-                    <input
-                      id={radioId}
-                      type="radio"
-                      name="predefined-model"
-                      value={model.name}
-                      checked={selectedPredefinedModel?.name === model.name}
-                      onChange={() => setSelectedPredefinedModel(model)}
-                      className="peer sr-only"
-                    />
-                    <label
-                      htmlFor={radioId}
-                      className={`flex items-center justify-between text-text-default py-2 px-2 ${
-                        selectedPredefinedModel?.name === model.name
-                          ? 'bg-background-muted'
-                          : 'bg-background-default hover:bg-background-muted'
-                      } rounded-lg transition-all`}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-text-default font-medium">
-                            {model.alias || model.name}
-                          </span>
-                          {model.alias?.includes('recommended') && (
-                            <span className="text-xs bg-background-muted text-text-default px-2 py-1 rounded-full border border-border-default ml-2">
-                              Recommended
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-[2px]">
-                          <span className="text-xs text-text-muted">{model.subtext}</span>
-                          <span className="text-xs text-text-muted">•</span>
-                          <span className="text-xs text-text-muted">{model.provider}</span>
-                        </div>
-                      </div>
+                      <div
+                        key={model.id || model.name}
+                        className="group hover:cursor-pointer text-sm"
+                      >
+                        <input
+                          id={radioId}
+                          type="radio"
+                          name="predefined-model"
+                          value={model.name}
+                          checked={selectedPredefinedModel?.name === model.name}
+                          onChange={() => setSelectedPredefinedModel(model)}
+                          className="peer sr-only"
+                        />
+                        <label
+                          htmlFor={radioId}
+                          className={`flex items-center justify-between text-text-default py-2 px-2 ${
+                            selectedPredefinedModel?.name === model.name
+                              ? 'bg-background-muted'
+                              : 'bg-background-default hover:bg-background-muted'
+                          } rounded-lg transition-all`}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-text-default font-medium">
+                                {model.alias || model.name}
+                              </span>
+                              {model.alias?.includes('recommended') && (
+                                <span className="text-xs bg-background-muted text-text-default px-2 py-1 rounded-full border border-border-default ml-2">
+                                  Recommended
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-[2px]">
+                              <span className="text-xs text-text-muted">{model.subtext}</span>
+                              <span className="text-xs text-text-muted">•</span>
+                              <span className="text-xs text-text-muted">{model.provider}</span>
+                            </div>
+                          </div>
 
-                      <div className="relative flex items-center ml-3">
-                        <div
-                          className="h-4 w-4 rounded-full border border-border-default
+                          <div className="relative flex items-center ml-3">
+                            <div
+                              className="h-4 w-4 rounded-full border border-border-default
                                 peer-checked:border-[6px] peer-checked:border-black dark:peer-checked:border-white
                                 peer-checked:bg-white dark:peer-checked:bg-black
                                 transition-all duration-200 ease-in-out group-hover:border-border-default"
-                        ></div>
+                            ></div>
+                          </div>
+                        </label>
                       </div>
-                    </label>
-                  </div>
                     );
                   })()
-                ))}
+                )}
               </div>
 
               {attemptedSubmit && validationErrors.model && (
@@ -546,7 +549,8 @@ export const SwitchModelModal = ({
                         <label htmlFor="custom-model-name" className="text-sm text-text-muted">
                           Custom model name
                         </label>
-                        <button type="button"
+                        <button
+                          type="button"
                           onClick={() => setIsCustomModel(false)}
                           className="text-sm text-text-muted"
                         >

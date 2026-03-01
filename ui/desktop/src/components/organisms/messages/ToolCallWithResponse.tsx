@@ -232,7 +232,8 @@ export default function ToolCallWithResponse({
             ? { ...content, type: 'resource' as const }
             : null;
           if (resourceContent && isUIResource(resourceContent)) {
-            const embeddedUri = (resourceContent as unknown as { resource: { uri?: string } }).resource.uri;
+            const embeddedUri = (resourceContent as unknown as { resource: { uri?: string } })
+              .resource.uri;
             return (
               <div key={embeddedUri ?? JSON.stringify(resourceContent.resource)} className="mt-3">
                 <MCPUIResourceRenderer content={resourceContent} appendPromptToChat={append} />
@@ -993,9 +994,9 @@ function ToolLogsView({
               <span
                 className="inline-block animate-spin rounded-full border-2 border-t-transparent border-current"
                 style={{ width: 8, height: 8 }}
-					aria-hidden="true"
+                aria-hidden="true"
               />
-				<span className="sr-only">Loading</span>
+              <span className="sr-only">Loading</span>
             </div>
           )}
         </span>
@@ -1013,16 +1014,16 @@ function ToolLogsView({
         ))}
       </div>
     </ToolCallExpandable>
-	);
+  );
 }
 
 const ProgressBar = ({ progress, total, message }: Omit<Progress, 'progressToken'>) => {
-	const isDeterminate = typeof total === 'number' && total > 0;
-	const percent = isDeterminate ? Math.min((progress / total) * 100, 100) : 0;
+  const isDeterminate = typeof total === 'number' && total > 0;
+  const percent = isDeterminate ? Math.min((progress / total) * 100, 100) : 0;
 
-	return (
-		<div className="w-full space-y-2">
-			{message && <div className="font-sans text-sm text-text-muted">{message}</div>}
+  return (
+    <div className="w-full space-y-2">
+      {message && <div className="font-sans text-sm text-text-muted">{message}</div>}
 
       <div className="w-full bg-background-subtle rounded-full h-4 overflow-hidden relative">
         {isDeterminate ? (

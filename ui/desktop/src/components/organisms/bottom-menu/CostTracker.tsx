@@ -137,15 +137,15 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       const title = `Local model (${inputTokens.toLocaleString()} input, ${outputTokens.toLocaleString()} output tokens)`;
-        return (
-          <>
-            <div
-              className="flex items-center justify-center h-full text-text-default/80 hover:text-text-default transition-colors cursor-default translate-y-[1px]"
-              title={title}
-            >
-              <CoinIcon className="mr-1" size={16} />
-              <span className="text-xs font-mono">0.0000</span>
-            </div>
+      return (
+        <>
+          <div
+            className="flex items-center justify-center h-full text-text-default/80 hover:text-text-default transition-colors cursor-default translate-y-[1px]"
+            title={title}
+          >
+            <CoinIcon className="mr-1" size={16} />
+            <span className="text-xs font-mono">0.0000</span>
+          </div>
           <div className="w-px h-4 bg-border-default mx-2" />
         </>
       );

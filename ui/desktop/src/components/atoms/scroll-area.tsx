@@ -199,7 +199,11 @@ const ScrollArea = React.forwardRef<ScrollAreaHandle, ScrollAreaProps>(
     };
 
     return (
-      <div className={cn('relative overflow-hidden', className)} data-scrolled={isScrolled} {...props}>
+      <div
+        className={cn('relative overflow-hidden', className)}
+        data-scrolled={isScrolled}
+        {...props}
+      >
         <div ref={viewportRef} className="h-full w-full overflow-auto rounded-[inherit]">
           <div style={paddingStyle}>
             {children}
