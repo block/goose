@@ -908,16 +908,28 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
 
   const { isMobile, setOpenMobile } = useSidebar();
 
-  const handleViewAllClick = React.useCallback(() => {
-    navigate('/sessions/history');
+  const handleViewAllClick = React.useCallback(
+    (e?: React.MouseEvent) => {
+      e?.preventDefault();
+      e?.stopPropagation();
 
-    // On mobile, the sidebar renders inside a Sheet overlay. If we don't close it,
-    // the main content changes but remains hidden behind the sidebar, which feels
-    // like the click "did nothing".
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  }, [navigate, isMobile, setOpenMobile]);
+      // On mobile, the sidebar renders inside a Sheet overlay. If we don't close it,
+      // the main content changes but remains hidden behind the sidebar, which feels
+      // like the click "did nothing".
+      if (isMobile) {
+        setOpenMobile(false);
+      }
+
+      navigate('/sessions/history');
+
+      // Fallback: under HashRouter, this should always be #/sessions/history.
+      // If something prevents React Router from applying the navigation, force it.
+      if (window.location.hash !== '#/sessions/history') {
+        window.location.hash = '#/sessions/history';
+      }
+    },
+    [navigate, isMobile, setOpenMobile]
+  );
 
   const handleOpenProjectFromDir = React.useCallback(
     async (dir: string) => {
