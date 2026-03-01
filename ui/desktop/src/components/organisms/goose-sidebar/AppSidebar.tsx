@@ -52,6 +52,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from '@/components/molecules/ui/sidebar';
 
 interface SidebarProps {
@@ -905,9 +906,18 @@ const AppSidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     [setView, addRecentDir, configContext.extensionsList]
   );
 
+  const { isMobile, setOpenMobile } = useSidebar();
+
   const handleViewAllClick = React.useCallback(() => {
     navigate('/sessions/history');
-  }, [navigate]);
+
+    // On mobile, the sidebar renders inside a Sheet overlay. If we don't close it,
+    // the main content changes but remains hidden behind the sidebar, which feels
+    // like the click "did nothing".
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [navigate, isMobile, setOpenMobile]);
 
   const handleOpenProjectFromDir = React.useCallback(
     async (dir: string) => {
