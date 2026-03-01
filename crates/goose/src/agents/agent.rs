@@ -1251,7 +1251,6 @@ impl Agent {
                                         yield AgentEvent::Message(msg);
                                     }
                                 }
-                                let mut forward_to_client_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
                                 if goose_mode == GooseMode::Chat {
                                     // Skip all remaining tool calls in chat mode
                                     for request in remaining_requests.iter() {
@@ -1375,14 +1374,7 @@ impl Agent {
                                                                             }
                                                                         }
 
-                                                                        if meta.0.get("forward_to_client").and_then(|v| v.as_bool()).unwrap_or(false) {
-                                                                            forward_to_client_ids.insert(request_id.clone());
-                                                                        }
                                                                     }
-                                                                }
-
-                                                                if forward_to_client_ids.contains(&request_id) {
-                                                                    continue;
                                                                 }
 
                                                                 if enable_extension_request_ids.contains(&request_id)
@@ -1448,14 +1440,9 @@ impl Agent {
 
                                 for (idx, request) in frontend_requests.iter().chain(remaining_requests.iter()).enumerate() {
                                     if request.tool_call.is_ok() {
-                                        let is_forwarded = forward_to_client_ids.contains(&request.id);
-
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
 
-                                        // Attach reasoning content to EVERY split tool request message.
-                                        // Providers like Kimi require reasoning_content on all assistant
-                                        // messages with tool_calls when thinking mode is enabled.
                                         for rc in &reasoning_content {
                                             request_msg = request_msg.with_content(rc.clone());
                                         }
@@ -1468,33 +1455,44 @@ impl Agent {
                                                 request.tool_meta.clone(),
                                             );
 
-                                        if is_forwarded {
-                                            // For forwarded requests, annotate the tool request with
-                                            // forward_to_client so the client knows to execute it locally
-                                            // and call back with the result via /reply.
-                                            let mut forwarded_msg = Message::assistant()
-                                                .with_id(format!("msg_{}", Uuid::new_v4()));
-                                            for rc in &reasoning_content {
-                                                forwarded_msg = forwarded_msg.with_content(rc.clone());
+                                        let final_response = tool_response_messages[idx]
+                                                                .lock().await.clone();
+
+                                        let is_forward_to_client = final_response.content.iter().any(|c| {
+                                            if let MessageContent::ToolResponse(tr) = c {
+                                                if let Ok(ref result) = tr.tool_result {
+                                                    if let Some(ref meta) = result.meta {
+                                                        return meta.0.get("forward_to_client")
+                                                            .and_then(|v| v.as_bool())
+                                                            .unwrap_or(false);
+                                                    }
+                                                }
                                             }
+                                            false
+                                        });
+
+                                        if is_forward_to_client {
                                             let mut meta = request.tool_meta.clone()
                                                 .unwrap_or_else(|| serde_json::json!({}));
                                             meta.as_object_mut().unwrap()
                                                 .insert("forward_to_client".to_string(), serde_json::json!(true));
-                                            forwarded_msg = forwarded_msg
+                                            request_msg = Message::assistant()
+                                                .with_id(format!("msg_{}", Uuid::new_v4()));
+                                            for rc in &reasoning_content {
+                                                request_msg = request_msg.with_content(rc.clone());
+                                            }
+                                            request_msg = request_msg
                                                 .with_tool_request_with_metadata(
                                                     request.id.clone(),
                                                     request.tool_call.clone(),
                                                     request.metadata.as_ref(),
                                                     Some(meta),
                                                 );
-                                            yield AgentEvent::Message(forwarded_msg.clone());
-                                            messages_to_add.push(forwarded_msg);
+                                            yield AgentEvent::Message(request_msg.clone());
+                                            messages_to_add.push(request_msg);
                                             has_forward_to_client = true;
                                         } else {
                                             messages_to_add.push(request_msg);
-                                            let final_response = tool_response_messages[idx]
-                                                                    .lock().await.clone();
                                             yield AgentEvent::Message(final_response.clone());
                                             messages_to_add.push(final_response);
                                         }
