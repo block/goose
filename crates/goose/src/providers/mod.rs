@@ -9,6 +9,7 @@ pub mod canonical;
 pub mod catalog;
 pub mod chatgpt_codex;
 pub mod claude_code;
+pub mod claude_sub;
 pub(crate) mod cli_common;
 pub mod codex;
 pub mod cursor_agent;
