@@ -15,6 +15,8 @@ use serde_json::{json, Map, Value};
 use std::ops::Deref;
 
 pub const THOUGHT_SIGNATURE_KEY: &str = "thoughtSignature";
+const SYNTHETIC_THOUGHT_SIGNATURE: &str = "skip_thought_signature_validator";
+const GEMINI25_DEFAULT_THINKING_BUDGET: i32 = 8192;
 
 pub fn metadata_with_signature(signature: &str) -> ProviderMetadata {
     let mut map = ProviderMetadata::new();
@@ -27,6 +29,36 @@ pub fn get_thought_signature(metadata: &Option<ProviderMetadata>) -> Option<&str
         .as_ref()
         .and_then(|m| m.get(THOUGHT_SIGNATURE_KEY))
         .and_then(|v| v.as_str())
+}
+
+fn is_user_loop_boundary(message: &Message) -> bool {
+    message.role == Role::User
+        && message
+            .content
+            .iter()
+            .any(|content| !matches!(content, MessageContent::ToolResponse(_)))
+}
+
+fn insert_thought_signature(part: &mut Map<String, Value>, signature: &str) {
+    part.insert(THOUGHT_SIGNATURE_KEY.to_string(), json!(signature));
+}
+
+fn maybe_insert_signature_from_metadata(
+    part: &mut Map<String, Value>,
+    metadata: &Option<ProviderMetadata>,
+) {
+    if let Some(signature) = get_thought_signature(metadata) {
+        insert_thought_signature(part, signature);
+    }
+}
+
+fn build_function_response_part(name: &str, text: String) -> Map<String, Value> {
+    let mut part = Map::new();
+    let mut function_response = Map::new();
+    function_response.insert("name".to_string(), json!(name));
+    function_response.insert("response".to_string(), json!({"content": {"text": text}}));
+    part.insert("functionResponse".to_string(), json!(function_response));
+    part
 }
 
 /// Convert internal Message format to Google's API message specification
@@ -44,26 +76,27 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
         })
         .collect();
 
-    let last_assistant_idx = filtered
+    let active_loop_start_idx = filtered
         .iter()
         .enumerate()
-        .filter(|(_, m)| m.role != Role::User)
-        .map(|(i, _)| i)
-        .next_back();
+        .rev()
+        .find(|(_, m)| is_user_loop_boundary(m))
+        .map(|(i, _)| i);
 
     filtered
         .iter()
         .enumerate()
-        .map(|(idx, message)| {
+        .filter_map(|(idx, message)| {
             let role = if message.role == Role::User {
                 "user"
             } else {
                 "model"
             };
-            let include_signature = match last_assistant_idx {
-                Some(last_idx) => idx >= last_idx,
-                None => false,
-            };
+            let include_signature = active_loop_start_idx.is_none_or(|start_idx| idx >= start_idx);
+            // Only the first model tool call in a turn is guaranteed to carry
+            // a signature for loop continuity.
+            let mut needs_synthetic_for_first_model_tool_call =
+                include_signature && message.role != Role::User;
             let mut parts = Vec::new();
             for message_content in message.content.iter() {
                 match message_content {
@@ -92,12 +125,15 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
 
                             if include_signature {
                                 if let Some(signature) = get_thought_signature(&request.metadata) {
-                                    part.insert(
-                                        THOUGHT_SIGNATURE_KEY.to_string(),
-                                        json!(signature),
+                                    insert_thought_signature(&mut part, signature);
+                                } else if needs_synthetic_for_first_model_tool_call {
+                                    insert_thought_signature(
+                                        &mut part,
+                                        SYNTHETIC_THOUGHT_SIGNATURE,
                                     );
                                 }
                             }
+                            needs_synthetic_for_first_model_tool_call = false;
 
                             parts.push(json!(part));
                         }
@@ -138,50 +174,22 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                             if text.is_empty() {
                                 text = "Tool call is done.".to_string();
                             }
-                            let mut part = Map::new();
-                            let mut function_response = Map::new();
-                            function_response.insert("name".to_string(), json!(response.id));
-                            function_response
-                                .insert("response".to_string(), json!({"content": {"text": text}}));
-                            part.insert("functionResponse".to_string(), json!(function_response));
+                            let mut part = build_function_response_part(&response.id, text);
                             if include_signature {
-                                if let Some(signature) = get_thought_signature(&response.metadata) {
-                                    part.insert(
-                                        THOUGHT_SIGNATURE_KEY.to_string(),
-                                        json!(signature),
-                                    );
-                                }
+                                maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
                             parts.push(json!(part));
                         }
                         Err(e) => {
-                            let mut part = Map::new();
-                            let mut function_response = Map::new();
-                            function_response.insert("name".to_string(), json!(response.id));
-                            function_response.insert(
-                                "response".to_string(),
-                                json!({"content": {"text": format!("Error: {}", e)}}),
-                            );
-                            part.insert("functionResponse".to_string(), json!(function_response));
+                            let mut part =
+                                build_function_response_part(&response.id, format!("Error: {}", e));
                             if include_signature {
-                                if let Some(signature) = get_thought_signature(&response.metadata) {
-                                    part.insert(
-                                        THOUGHT_SIGNATURE_KEY.to_string(),
-                                        json!(signature),
-                                    );
-                                }
+                                maybe_insert_signature_from_metadata(&mut part, &response.metadata);
                             }
                             parts.push(json!(part));
                         }
                     },
-                    MessageContent::Thinking(thinking) => {
-                        let mut part = Map::new();
-                        part.insert("text".to_string(), json!(thinking.thinking));
-                        if include_signature {
-                            part.insert("thoughtSignature".to_string(), json!(thinking.signature));
-                        }
-                        parts.push(json!(part));
-                    }
+                    MessageContent::Thinking(_) => {}
                     MessageContent::Image(image) => {
                         parts.push(json!({
                             "inline_data": {
@@ -194,7 +202,11 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     _ => {}
                 }
             }
-            json!({"role": role, "parts": parts})
+            if parts.is_empty() {
+                None
+            } else {
+                Some(json!({"role": role, "parts": parts}))
+            }
         })
         .collect()
 }
@@ -221,32 +233,15 @@ pub fn format_tools(tools: &[Tool]) -> Vec<Value> {
         .collect()
 }
 
-#[derive(Clone, Copy)]
-enum SignedTextHandling {
-    SignedTextAsThinking,
-    SignedTextAsRegularText,
-}
-
-fn process_response_part_non_streaming(
-    part: &Value,
-    last_signature: &mut Option<String>,
-    has_function_calls: bool,
-) -> Option<MessageContent> {
-    // For non-streaming: signed text is thinking only if there are function calls
-    let handling = if has_function_calls {
-        SignedTextHandling::SignedTextAsThinking
-    } else {
-        SignedTextHandling::SignedTextAsRegularText
-    };
-    process_response_part_impl(part, last_signature, handling)
-}
-
 fn process_response_part_impl(
     part: &Value,
     last_signature: &mut Option<String>,
-    signed_text_handling: SignedTextHandling,
 ) -> Option<MessageContent> {
     let signature = part.get(THOUGHT_SIGNATURE_KEY).and_then(|v| v.as_str());
+    let is_thought = part
+        .get("thought")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
 
     if let Some(sig) = signature {
         *last_signature = Some(sig.to_string());
@@ -257,11 +252,13 @@ fn process_response_part_impl(
         if text.is_empty() {
             return None;
         }
-        match (signature, signed_text_handling) {
-            (Some(sig), SignedTextHandling::SignedTextAsThinking) => {
-                Some(MessageContent::thinking(text.to_string(), sig.to_string()))
+        if is_thought {
+            match signature {
+                Some(sig) => Some(MessageContent::thinking(text.to_string(), sig.to_string())),
+                None => Some(MessageContent::reasoning(text.to_string())),
             }
-            _ => Some(MessageContent::text(text.to_string())),
+        } else {
+            Some(MessageContent::text(text.to_string()))
         }
     } else if text_value.is_some() {
         tracing::warn!(
@@ -322,15 +319,11 @@ pub fn response_to_message(response: Value) -> Result<Message> {
         return Ok(Message::new(role, created, Vec::new()));
     };
 
-    let has_function_calls = parts.iter().any(|p| p.get("functionCall").is_some());
-
     let mut content = Vec::new();
     let mut last_signature: Option<String> = None;
 
     for part in parts {
-        if let Some(msg_content) =
-            process_response_part_non_streaming(part, &mut last_signature, has_function_calls)
-        {
+        if let Some(msg_content) = process_response_part_impl(part, &mut last_signature) {
             content.push(msg_content);
         }
     }
@@ -466,9 +459,7 @@ where
 
             if let Some(parts) = parts {
                 for part in parts {
-                    // Always emit text as regular text during streaming — we can't
-                    // know yet whether function calls will follow.
-                    if let Some(content) = process_response_part_impl(part, &mut last_signature, SignedTextHandling::SignedTextAsRegularText) {
+                    if let Some(content) = process_response_part_impl(part, &mut last_signature) {
                         let message = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
@@ -523,7 +514,11 @@ enum ThinkingLevel {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ThinkingConfig {
-    thinking_level: ThinkingLevel,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_level: Option<ThinkingLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking_budget: Option<i32>,
+    include_thoughts: bool,
 }
 
 #[derive(Serialize)]
@@ -538,33 +533,59 @@ struct GoogleRequest<'a> {
 }
 
 fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
-    if !model_config
-        .model_name
-        .to_lowercase()
-        .starts_with("gemini-3")
-    {
+    let model_name = model_config.model_name.to_lowercase();
+    let is_gemini_3 = model_name.starts_with("gemini-3");
+    let is_gemini_25 = model_name.starts_with("gemini-2.5");
+    if !is_gemini_3 && !is_gemini_25 {
         return None;
     }
 
-    let thinking_level_str = model_config
-        .get_config_param::<String>("thinking_level", "GEMINI3_THINKING_LEVEL")
-        .map(|s| s.to_lowercase())
-        .unwrap_or_else(|| "low".to_string());
+    if is_gemini_3 {
+        let thinking_level_str = model_config
+            .get_config_param::<String>("thinking_level", "GEMINI3_THINKING_LEVEL")
+            .map(|s| s.to_lowercase())
+            .unwrap_or_else(|| "low".to_string());
 
-    let thinking_level = match thinking_level_str.as_str() {
-        "high" => ThinkingLevel::High,
-        "low" => ThinkingLevel::Low,
-        invalid => {
-            tracing::warn!(
-                "Invalid thinking level '{}' for model '{}'. Valid levels: low, high. Using 'low'.",
-                invalid,
-                model_config.model_name,
-            );
-            ThinkingLevel::Low
-        }
-    };
+        let thinking_level = match thinking_level_str.as_str() {
+            "high" => ThinkingLevel::High,
+            "low" => ThinkingLevel::Low,
+            invalid => {
+                tracing::warn!(
+                    "Invalid thinking level '{}' for model '{}'. Valid levels: low, high. Using 'low'.",
+                    invalid,
+                    model_config.model_name,
+                );
+                ThinkingLevel::Low
+            }
+        };
 
-    Some(ThinkingConfig { thinking_level })
+        Some(ThinkingConfig {
+            thinking_level: Some(thinking_level),
+            thinking_budget: None,
+            include_thoughts: true,
+        })
+    } else {
+        let thinking_budget = match model_config
+            .get_config_param::<i32>("thinking_budget", "GEMINI25_THINKING_BUDGET")
+        {
+            Some(budget) if budget >= 0 => budget,
+            Some(budget) => {
+                tracing::warn!(
+                    "Invalid thinking budget '{}' for model '{}'. Must be >= 0. Using '{}'.",
+                    budget,
+                    model_config.model_name,
+                    GEMINI25_DEFAULT_THINKING_BUDGET,
+                );
+                GEMINI25_DEFAULT_THINKING_BUDGET
+            }
+            None => GEMINI25_DEFAULT_THINKING_BUDGET,
+        };
+        Some(ThinkingConfig {
+            thinking_level: None,
+            thinking_budget: Some(thinking_budget),
+            include_thoughts: true,
+        })
+    }
 }
 
 pub fn create_request(
@@ -608,6 +629,7 @@ mod tests {
     use rmcp::model::{CallToolRequestParams, CallToolResult};
     use rmcp::{model::Content, object};
     use serde_json::json;
+    use std::collections::HashMap;
 
     fn set_up_text_message(text: &str, role: Role) -> Message {
         Message::new(role, 0, vec![MessageContent::text(text.to_string())])
@@ -983,7 +1005,7 @@ mod tests {
         const SIG: &str = "thought_sig_abc";
 
         let response_with_tools = google_response(vec![
-            json!({"text": "Let me think...", "thoughtSignature": SIG}),
+            json!({"text": "Let me think...", "thought": true, "thoughtSignature": SIG}),
             json!({"functionCall": {"name": "shell", "args": {"cmd": "ls"}}, "thoughtSignature": SIG}),
             json!({"functionCall": {"name": "read", "args": {}}}),
         ]);
@@ -1014,23 +1036,22 @@ mod tests {
             Ok(tool_result("output")),
             req1.metadata.as_ref(),
         );
-        let google_out = format_messages(&[native.clone(), tool_response.clone()]);
-        assert_eq!(google_out[0]["parts"][0]["thoughtSignature"], SIG);
+        let user_prompt = set_up_text_message("List files", Role::User);
+        let google_out =
+            format_messages(&[user_prompt.clone(), native.clone(), tool_response.clone()]);
         assert_eq!(google_out[1]["parts"][0]["thoughtSignature"], SIG);
+        assert_eq!(google_out[2]["parts"][0]["thoughtSignature"], SIG);
 
-        let second_assistant =
-            Message::assistant().with_thinking("More thinking".to_string(), "sig_456".to_string());
-        let google_multi = format_messages(&[native, tool_response, second_assistant]);
-        assert!(google_multi[0]["parts"][0]
-            .get("thoughtSignature")
-            .is_none());
-        assert!(google_multi[1]["parts"][0]
-            .get("thoughtSignature")
-            .is_none());
-        assert_eq!(google_multi[2]["parts"][0]["thoughtSignature"], "sig_456");
+        let second_assistant = response_to_message(google_response(vec![json!({
+            "functionCall": {"name": "echo", "args": {}},
+            "thoughtSignature": "sig_456"
+        })]))
+        .unwrap();
+        let google_multi = format_messages(&[user_prompt, native, tool_response, second_assistant]);
+        assert_eq!(google_multi[1]["parts"][0]["thoughtSignature"], SIG);
+        assert_eq!(google_multi[2]["parts"][0]["thoughtSignature"], SIG);
+        assert_eq!(google_multi[3]["parts"][0]["thoughtSignature"], "sig_456");
 
-        // Text-only response WITH signature but WITHOUT function calls should be regular text
-        // (per original behavior: thinking is only when reasoning before tool calls)
         let final_response_with_sig =
             google_response(vec![json!({"text": "Done!", "thoughtSignature": SIG})]);
         let final_native_with_sig = response_to_message(final_response_with_sig).unwrap();
@@ -1044,6 +1065,49 @@ mod tests {
         assert!(
             final_native_no_sig.content[0].as_text().is_some(),
             "Text without signature is regular text"
+        );
+    }
+
+    #[test]
+    fn test_thought_without_signature_maps_to_reasoning() {
+        let response = google_response(vec![json!({
+            "text": "Working through options...",
+            "thought": true
+        })]);
+        let native = response_to_message(response).unwrap();
+        assert_eq!(native.content.len(), 1);
+        assert!(native.content[0].as_reasoning().is_some());
+    }
+
+    #[test]
+    fn test_format_messages_omits_messages_with_empty_parts() {
+        let user_prompt = set_up_text_message("hello", Role::User);
+        let thinking_only =
+            Message::assistant().with_thinking("internal".to_string(), "sig_123".to_string());
+        let reasoning_only = response_to_message(google_response(vec![json!({
+            "text": "deliberating",
+            "thought": true
+        })]))
+        .unwrap();
+
+        let formatted = format_messages(&[user_prompt, thinking_only, reasoning_only]);
+        assert_eq!(formatted.len(), 1);
+        assert_eq!(formatted[0]["role"], "user");
+        assert_eq!(formatted[0]["parts"][0]["text"], "hello");
+    }
+
+    #[test]
+    fn test_active_loop_injects_synthetic_signature_for_first_model_tool_call() {
+        let user_prompt = set_up_text_message("Find a restaurant", Role::User);
+        let assistant_tool = response_to_message(google_response(vec![json!({
+            "functionCall": {"name": "find_restaurant", "args": {"cuisine": "italian"}}
+        })]))
+        .unwrap();
+
+        let formatted = format_messages(&[user_prompt, assistant_tool]);
+        assert_eq!(
+            formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY],
+            SYNTHETIC_THOUGHT_SIGNATURE
         );
     }
 
@@ -1101,7 +1165,6 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(3));
 
-        // Verify all streaming messages have consistent IDs for UI aggregation
         assert!(
             message_ids.iter().all(|id| id.is_some()),
             "All streaming messages should have an ID"
@@ -1144,29 +1207,30 @@ mod tests {
     async fn test_streaming_with_thought_signature() {
         use futures::StreamExt;
 
-        async fn collect_streaming_text(raw: &str) -> (String, usize) {
+        async fn collect_streaming_text(raw: &str) -> (String, usize, usize) {
             let lines: Vec<Result<String, anyhow::Error>> =
                 raw.lines().map(|l| Ok(l.to_string())).collect();
             let stream = Box::pin(futures::stream::iter(lines));
             let mut msg_stream = std::pin::pin!(response_to_streaming_message(stream));
             let mut text = String::new();
             let mut thinking = 0usize;
+            let mut reasoning = 0usize;
             while let Some(Ok((message, _))) = msg_stream.next().await {
                 if let Some(msg) = message {
                     for c in &msg.content {
                         match c {
                             MessageContent::Text(t) => text.push_str(&t.text),
                             MessageContent::Thinking(_) => thinking += 1,
+                            MessageContent::Reasoning(_) => reasoning += 1,
                             _ => {}
                         }
                     }
                 }
             }
-            (text, thinking)
+            (text, thinking, reasoning)
         }
 
-        // First chunk signed
-        let (text, thinking) = collect_streaming_text(concat!(
+        let (text, thinking, reasoning) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
             r#""parts": [{"text": "Hello", "thoughtSignature": "sig1"}]}}], "#,
             r#""modelVersion": "gemini-3-flash-preview"}"#,
@@ -1176,10 +1240,10 @@ mod tests {
         ))
         .await;
         assert_eq!(thinking, 0);
+        assert_eq!(reasoning, 0);
         assert_eq!(text, "Hello world");
 
-        // Last chunk signed (the reported truncation bug)
-        let (text, thinking) = collect_streaming_text(concat!(
+        let (text, thinking, reasoning) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
             r#""parts": [{"text": "SECURITY.md: Project"}]}}], "#,
             r#""modelVersion": "gemini-3-flash-preview"}"#,
@@ -1190,10 +1254,10 @@ mod tests {
         ))
         .await;
         assert_eq!(thinking, 0);
+        assert_eq!(reasoning, 0);
         assert_eq!(text, "SECURITY.md: Project policies.\n\nRead it?");
 
-        // Intermediate chunk signed
-        let (text, thinking) = collect_streaming_text(concat!(
+        let (text, thinking, reasoning) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
             r#""parts": [{"text": "one "}]}}], "modelVersion": "gemini-3-flash-preview"}"#,
             "\n",
@@ -1205,7 +1269,20 @@ mod tests {
         ))
         .await;
         assert_eq!(thinking, 0);
+        assert_eq!(reasoning, 0);
         assert_eq!(text, "one two three");
+
+        let (text, thinking, reasoning) = collect_streaming_text(concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "internal chain", "thought": true, "thoughtSignature": "sig4"}]}}]}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "visible"}]}}]}"#
+        ))
+        .await;
+        assert_eq!(thinking, 1);
+        assert_eq!(reasoning, 0);
+        assert_eq!(text, "visible");
     }
 
     #[tokio::test]
@@ -1234,7 +1311,6 @@ mod tests {
     async fn test_streaming_with_sse_event_lines() {
         use futures::StreamExt;
 
-        // SSE format can include event: lines which should be skipped
         let sse_stream = r#"event: message
 data: {"candidates": [{"content": {"role": "model", "parts": [{"text": "Hello"}]}}]}
 
@@ -1291,7 +1367,6 @@ data: [DONE]"#;
             }
         }
 
-        // Only "Complete" should be captured, stream should stop at [DONE]
         assert_eq!(text_parts, vec!["Complete"]);
     }
 
@@ -1327,19 +1402,56 @@ data: [DONE]"#;
     fn test_get_thinking_config() {
         use crate::model::ModelConfig;
 
-        // Test 1: Gemini 3 model defaults to low thinking level
         let config = ModelConfig::new("gemini-3-pro").unwrap();
         let result = get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
-        assert!(matches!(thinking_config.thinking_level, ThinkingLevel::Low));
+        assert!(thinking_config.thinking_level.is_some());
+        assert!(thinking_config.thinking_budget.is_none());
+        assert!(thinking_config.include_thoughts);
 
-        // Test 2: Case-insensitive model detection
         let config = ModelConfig::new("Gemini-3-Flash").unwrap();
         let result = get_thinking_config(&config);
         assert!(result.is_some());
 
-        // Test 3: Non-Gemini 3 model returns None
+        let config = ModelConfig::new("gemini-2.5-flash").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+        let thinking_config = result.unwrap();
+        assert!(thinking_config.include_thoughts);
+        assert!(thinking_config.thinking_level.is_none());
+        assert_eq!(
+            thinking_config.thinking_budget,
+            Some(GEMINI25_DEFAULT_THINKING_BUDGET)
+        );
+
+        let mut params = HashMap::new();
+        params.insert("thinking_budget".to_string(), json!(4096));
+        let config = ModelConfig::new("gemini-2.5-flash")
+            .unwrap()
+            .with_request_params(Some(params));
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+        let thinking_config = result.unwrap();
+        assert_eq!(thinking_config.thinking_budget, Some(4096));
+
+        let mut params = HashMap::new();
+        params.insert("thinking_budget".to_string(), json!(-1));
+        let config = ModelConfig::new("gemini-2.5-flash")
+            .unwrap()
+            .with_request_params(Some(params));
+        let result = get_thinking_config(&config);
+        assert!(result.is_some());
+        let thinking_config = result.unwrap();
+        assert_eq!(
+            thinking_config.thinking_budget,
+            Some(GEMINI25_DEFAULT_THINKING_BUDGET)
+        );
+
+        let config = ModelConfig::new("gemini-2.0-flash").unwrap();
+        let result = get_thinking_config(&config);
+        assert!(result.is_none());
+
         let config = ModelConfig::new("gpt-4o").unwrap();
         let result = get_thinking_config(&config);
         assert!(result.is_none());
