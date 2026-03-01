@@ -12,11 +12,17 @@ import dotenv from 'dotenv';
 //
 // This runs in the Playwright test process, so `test.skip(process.env...)` gates
 // in spec files can rely on it.
+const defaultDotenvCandidates = ['.env.e2e', '.env'];
 const dotenvPath = process.env.DOTENV_CONFIG_PATH;
-if (dotenvPath) {
-  const resolvedPath = dotenvPath.startsWith('/') ? dotenvPath : join(process.cwd(), dotenvPath);
-  if (fs.existsSync(resolvedPath)) {
-    dotenv.config({ path: resolvedPath, override: false });
+
+const resolvedCandidates = dotenvPath
+  ? [dotenvPath.startsWith('/') ? dotenvPath : join(process.cwd(), dotenvPath)]
+  : defaultDotenvCandidates.map((candidate) => join(process.cwd(), candidate));
+
+for (const candidate of resolvedCandidates) {
+  if (fs.existsSync(candidate)) {
+    dotenv.config({ path: candidate, override: false });
+    break;
   }
 }
 

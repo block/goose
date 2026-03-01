@@ -21,7 +21,7 @@ import {
   Tray,
 } from 'electron';
 import started from 'electron-squirrel-startup';
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import * as crypto from 'node:crypto';
 import windowStateKeeper from 'electron-window-state';
 import * as yaml from 'yaml';
@@ -34,8 +34,49 @@ import {
   setupAutoUpdater,
   updateTrayMenu,
 } from '@/utils/autoUpdater';
-import { errorMessage, formatAppName } from '@/utils/conversionUtils';
 import log from '@/utils/logger';
+
+function loadDesktopDotenv(): void {
+  const projectRoot = process.cwd();
+  const candidates = [path.join(projectRoot, '.env.e2e'), path.join(projectRoot, '.env')];
+
+  for (const candidate of candidates) {
+    if (fsSync.existsSync(candidate)) {
+      dotenv.config({ path: candidate, override: false });
+      console.info(`[Main] Loaded dotenv from ${candidate}`);
+      return;
+    }
+  }
+}
+
+function assertE2EProviderEnvOrThrow(): void {
+  if (process.env.ENABLE_PLAYWRIGHT !== 'true') return;
+
+  const provider = process.env.GOOSE_PROVIDER ?? process.env.GOOSE_DEFAULT_PROVIDER;
+  const model = process.env.GOOSE_MODEL ?? process.env.GOOSE_DEFAULT_MODEL;
+
+  if (!provider || !model) {
+    throw new Error(
+      [
+        '[e2e] Missing provider/model env vars.',
+        'Provide env via one of:',
+        '  - DOTENV_CONFIG_PATH=/abs/path/to/.env.e2e',
+        '  - ui/desktop/.env.e2e',
+        '  - ui/desktop/.env',
+        '',
+        'Required:',
+        '  - GOOSE_PROVIDER (or GOOSE_DEFAULT_PROVIDER)',
+        '  - GOOSE_MODEL (or GOOSE_DEFAULT_MODEL)',
+      ].join('\n')
+    );
+  }
+
+  if (!process.env.GOOSE_TELEMETRY_ENABLED) {
+    process.env.GOOSE_TELEMETRY_ENABLED = 'false';
+  }
+}
+
+import { errorMessage, formatAppName } from '@/utils/conversionUtils';
 import { expandTilde } from '@/utils/pathUtils';
 import { addRecentDir, loadRecentDirs } from '@/utils/recentDirs';
 import { defaultKeyboardShortcuts, getKeyboardShortcuts, type Settings } from '@/utils/settings';
@@ -1674,6 +1715,9 @@ const registerGlobalShortcuts = () => {
 };
 
 async function appMain() {
+  loadDesktopDotenv();
+  assertE2EProviderEnvOrThrow();
+
   await configureProxy();
 
   // Ensure Windows shims are available before any MCP processes are spawned
