@@ -521,7 +521,6 @@ let appConfig = {
 const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
 const appWindows = new Map<string, BrowserWindow>();
-
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -598,6 +597,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       webSecurity: true,
       nodeIntegration: false,
       contextIsolation: true,
+      webviewTag: true,
       additionalArguments: [
         JSON.stringify({
           ...appConfig,
@@ -2436,6 +2436,7 @@ async function appMain() {
       throw error;
     }
   });
+
 }
 
 app.whenReady().then(async () => {

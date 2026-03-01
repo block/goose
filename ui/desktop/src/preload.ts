@@ -170,6 +170,7 @@ type ElectronAPI = {
   launchApp: (app: GooseApp) => Promise<void>;
   refreshApp: (app: GooseApp) => Promise<void>;
   closeApp: (appName: string) => Promise<void>;
+
   addRecentDir: (dir: string) => Promise<boolean>;
 };
 

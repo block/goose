@@ -1174,6 +1174,7 @@ impl Agent {
                 let mut messages_to_add = Conversation::default();
                 let mut tools_updated = false;
                 let mut did_recovery_compact_this_iteration = false;
+                let mut has_forward_to_client = false;
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) {
@@ -1372,6 +1373,7 @@ impl Agent {
                                                                                 yield AgentEvent::McpNotification((request_id.clone(), server_notification));
                                                                             }
                                                                         }
+
                                                                     }
                                                                 }
 
@@ -1441,9 +1443,6 @@ impl Agent {
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
 
-                                        // Attach reasoning content to EVERY split tool request message.
-                                        // Providers like Kimi require reasoning_content on all assistant
-                                        // messages with tool_calls when thinking mode is enabled.
                                         for rc in &reasoning_content {
                                             request_msg = request_msg.with_content(rc.clone());
                                         }
@@ -1455,11 +1454,48 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
+
                                         let final_response = tool_response_messages[idx]
                                                                 .lock().await.clone();
-                                        yield AgentEvent::Message(final_response.clone());
-                                        messages_to_add.push(final_response);
+
+                                        let is_forward_to_client = final_response.content.iter().any(|c| {
+                                            if let MessageContent::ToolResponse(tr) = c {
+                                                if let Ok(ref result) = tr.tool_result {
+                                                    if let Some(ref meta) = result.meta {
+                                                        return meta.0.get("forward_to_client")
+                                                            .and_then(|v| v.as_bool())
+                                                            .unwrap_or(false);
+                                                    }
+                                                }
+                                            }
+                                            false
+                                        });
+
+                                        if is_forward_to_client {
+                                            let mut meta = request.tool_meta.clone()
+                                                .unwrap_or_else(|| serde_json::json!({}));
+                                            meta.as_object_mut().unwrap()
+                                                .insert("forward_to_client".to_string(), serde_json::json!(true));
+                                            request_msg = Message::assistant()
+                                                .with_id(format!("msg_{}", Uuid::new_v4()));
+                                            for rc in &reasoning_content {
+                                                request_msg = request_msg.with_content(rc.clone());
+                                            }
+                                            request_msg = request_msg
+                                                .with_tool_request_with_metadata(
+                                                    request.id.clone(),
+                                                    request.tool_call.clone(),
+                                                    request.metadata.as_ref(),
+                                                    Some(meta),
+                                                );
+                                            yield AgentEvent::Message(request_msg.clone());
+                                            messages_to_add.push(request_msg);
+                                            has_forward_to_client = true;
+                                        } else {
+                                            messages_to_add.push(request_msg);
+                                            yield AgentEvent::Message(final_response.clone());
+                                            messages_to_add.push(final_response);
+                                        }
                                     } else {
                                         let error_msg = format!(
                                             "[system: Tool call could not be parsed: {}. The response may have been truncated. Try breaking the task into smaller steps.]",
@@ -1566,7 +1602,7 @@ impl Agent {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
-                let mut exit_chat = false;
+                let mut exit_chat = has_forward_to_client;
                 if no_tools_called {
                     if let Some(final_output_tool) = self.final_output_tool.lock().await.as_ref() {
                         if final_output_tool.final_output.is_none() {
