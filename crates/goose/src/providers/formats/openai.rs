@@ -293,7 +293,36 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         messages_spec.extend(output);
     }
 
-    messages_spec
+    reorder_tool_image_messages(messages_spec)
+}
+
+/// Prevent image messages from interrupting consecutive tool message groups.
+fn reorder_tool_image_messages(messages: Vec<Value>) -> Vec<Value> {
+    let mut result = Vec::with_capacity(messages.len());
+    let mut deferred_images: Vec<Value> = Vec::new();
+
+    for msg in messages {
+        let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
+        if role == "tool" {
+            result.push(msg);
+        } else if role == "user"
+            && msg.get("tool_call_id").is_none()
+            && msg.get("tool_calls").is_none()
+            && (result
+                .last()
+                .and_then(|m| m.get("role"))
+                .and_then(|r| r.as_str())
+                == Some("tool")
+                || !deferred_images.is_empty())
+        {
+            deferred_images.push(msg);
+        } else {
+            result.append(&mut deferred_images);
+            result.push(msg);
+        }
+    }
+    result.extend(deferred_images);
+    result
 }
 
 pub fn format_tools(tools: &[Tool]) -> anyhow::Result<Vec<Value>> {
@@ -1961,6 +1990,53 @@ data: [DONE]"#;
         assert!(spec[0]["tool_calls"].is_array());
         assert_eq!(spec[0]["tool_calls"][0]["function"]["name"], "test_tool");
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_image_in_tool_response_does_not_break_tool_grouping() -> anyhow::Result<()> {
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request(
+                    "t1",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool".into(),
+                        arguments: None,
+                    }),
+                )
+                .with_tool_request(
+                    "t2",
+                    Ok(CallToolRequestParams {
+                        meta: None,
+                        task: None,
+                        name: "tool".into(),
+                        arguments: None,
+                    }),
+                ),
+            Message::user().with_tool_response(
+                "t1",
+                Ok(CallToolResult {
+                    content: vec![Content::text("ok")],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
+            Message::user().with_tool_response(
+                "t2",
+                Ok(CallToolResult {
+                    content: vec![Content::text("ok"), Content::image("abc", "image/png")],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ),
+        ];
+        let spec = format_messages(&messages, &ImageFormat::OpenAi);
+        let roles: Vec<&str> = spec.iter().map(|m| m["role"].as_str().unwrap()).collect();
+        assert_eq!(roles, vec!["assistant", "tool", "tool", "user"]);
         Ok(())
     }
 }
