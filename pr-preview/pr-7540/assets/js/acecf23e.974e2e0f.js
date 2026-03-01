@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkgoose=globalThis.webpackChunkgoose||[]).push([[1903],{1912:o=>{o.exports=JSON.parse('{"blogBasePath":"/goose/pr-preview/pr-7540/blog","blogTitle":"Blog","authorsListPath":"/goose/pr-preview/pr-7540/blog/authors"}')}}]);

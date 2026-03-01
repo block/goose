@@ -1,0 +1,33 @@
+# goose Documentation
+# https://block.github.io/goose/
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://block.github.io/goose/sitemap.xml
+
+# LLM context file available at /llms.txt
+
+
+# AI crawlers are welcome
+User-agent: GPTBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Anthropic-AI
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+User-agent: CCBot
+Allow: /
