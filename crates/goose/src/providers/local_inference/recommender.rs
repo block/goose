@@ -301,9 +301,15 @@ impl ModelFit {
         }
         // Normalize quality to 0-1 range (quality_rank is 1-28)
         let quality_normalized = self.quality_rank as f64 / 28.0;
-        // Normalize headroom: 0% = 0, 50%+ = 1
-        let headroom_normalized = (self.headroom_percent / 50.0).min(1.0);
-        // Weight quality more heavily than headroom
+        // Normalize headroom: prefer using more memory (larger models are better)
+        // 20% headroom = 1.0 (ideal), 80%+ headroom = 0.25 (wasting capacity)
+        let headroom_normalized = if self.headroom_percent <= 20.0 {
+            1.0
+        } else {
+            // Linear decay from 1.0 at 20% to 0.25 at 80%
+            1.0 - 0.75 * ((self.headroom_percent - 20.0) / 60.0).min(1.0)
+        };
+        // Weight quality more heavily than memory utilization
         0.7 * quality_normalized + 0.3 * headroom_normalized
     }
 }
@@ -583,15 +589,17 @@ mod tests {
         // With 6GB available: Q4_K_M fits (4.95 < 6), Q8_0 doesn't (9.0 > 6)
         assert_eq!(recommend_variant(&variants, 6_000_000_000), Some(1));
 
-        // With 10GB available: Q8_0 fits with ~10% headroom
-        // Q8_0: headroom = (10-9)/10 = 10%, score = 0.7*0.89 + 0.3*0.2 = 0.68
-        // Q4_K_M: headroom = (10-4.95)/10 = 50%, score = 0.7*0.68 + 0.3*1.0 = 0.78
-        // Q4_K_M wins due to better headroom balance
-        assert_eq!(recommend_variant(&variants, 10_000_000_000), Some(1));
+        // With 10GB available: Q8_0 fits with ~10% headroom (ideal range ≤20%)
+        // Q8_0: headroom = 10%, headroom_norm = 1.0, quality = 25/28 = 0.89
+        //       score = 0.7*0.89 + 0.3*1.0 = 0.92
+        // Q4_K_M: headroom = 50%, headroom_norm = 1.0 - 0.75*0.5 = 0.62, quality = 19/28 = 0.68
+        //         score = 0.7*0.68 + 0.3*0.62 = 0.66
+        // Q8_0 wins - higher quality with good headroom
+        assert_eq!(recommend_variant(&variants, 10_000_000_000), Some(2));
 
-        // With 16GB available: Q8_0 has plenty of headroom
-        // Q8_0: headroom = (16-9)/16 = 44%, score = 0.7*0.89 + 0.3*0.88 = 0.89
-        // Q4_K_M: headroom capped at 1.0, score = 0.7*0.68 + 0.3*1.0 = 0.78
+        // With 16GB available: Q8_0 still wins (higher quality, acceptable headroom)
+        // Q8_0: headroom = 44%, headroom_norm = 1.0 - 0.75*0.4 = 0.7
+        //       score = 0.7*0.89 + 0.3*0.7 = 0.83
         assert_eq!(recommend_variant(&variants, 16_000_000_000), Some(2));
 
         // With 2GB available: nothing fits (Q2_K needs ~2.78GB)
