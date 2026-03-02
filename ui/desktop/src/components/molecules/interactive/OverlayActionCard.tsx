@@ -20,7 +20,9 @@ function OverlayActionCardActions({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={cn('pointer-events-auto', className)}>{children}</div>;
+  // Ensure nested controls (buttons, links) remain clickable even though the main card action
+  // is implemented as a full-card overlay button.
+  return <div className={cn('relative z-20 pointer-events-auto', className)}>{children}</div>;
 }
 
 /**
@@ -53,7 +55,7 @@ export const OverlayActionCard = Object.assign(
         <button
           type="button"
           className={cn(
-            'absolute inset-0 focus:outline-none focus:ring-2 focus:ring-border-accent',
+            'absolute inset-0 z-10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-border-accent',
             radiusClassName,
             overlayClassName
           )}
@@ -61,7 +63,7 @@ export const OverlayActionCard = Object.assign(
           onClick={onActivate}
         />
 
-        <div className="relative z-10 pointer-events-none">{children}</div>
+        <div className="relative z-0 pointer-events-none">{children}</div>
       </div>
     );
   }),

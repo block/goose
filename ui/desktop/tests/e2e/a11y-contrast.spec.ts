@@ -119,9 +119,14 @@ function hashRouteUrl(page: Page, route: string) {
 async function gotoHashRouteOrWelcome(page: Page, route: string): Promise<'ok' | 'welcome'> {
   const url = hashRouteUrl(page, route);
   await page.goto(url);
-  await page.waitForURL(/#\/(welcome|monitoring|evaluate|pair|settings|extensions|configure-providers)/i, {
-    timeout: 30_000,
-  });
+
+  // Keep this list small but include routes used in this suite.
+  await page.waitForURL(
+    /#\/(welcome|monitoring|evaluate|pair|settings|extensions|catalogs|agents|recipes|configure-providers)/i,
+    {
+      timeout: 30_000,
+    }
+  );
 
   return /#\/welcome\b/i.test(page.url()) ? 'welcome' : 'ok';
 }
