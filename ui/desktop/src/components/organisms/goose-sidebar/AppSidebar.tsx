@@ -317,8 +317,11 @@ const SessionItem: React.FC<{
         This row is "click anywhere" to navigate, but contains nested interactive controls
         (rename + delete).
 
-        We use a full-row overlay <button> for reliable hit-testing (and to behave properly
-        in Electron drag-region scenarios), and disable pointer events on the display content.
+        Important: InlineEditText renders a <button> when not editing. That means we cannot
+        wrap the whole row in a <button>. Instead, we use a full-row overlay <button> for
+        reliable hit-testing, and we disable pointer events on the display container so
+        clicks go to the overlay.
+
         Interactive children (rename + delete) opt back in via pointer-events-auto.
       */}
       <div
