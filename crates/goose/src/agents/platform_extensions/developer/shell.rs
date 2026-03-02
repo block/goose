@@ -27,6 +27,10 @@ pub struct ShellParams {
 pub struct ShellOutput {
     pub stdout: String,
     pub stderr: String,
+    /// Process exit code. 0 indicates success, non-zero indicates failure.
+    /// Absent if the process was killed (e.g. timeout).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
 }
 
 /// Resolve the user's full PATH by running a login shell.
@@ -113,21 +117,19 @@ impl ShellTool {
                 return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
             }
         };
+        let mut rendered = match render_output(&execution.interleaved, "output") {
+            Ok(rendered) => rendered,
+            Err(error) => {
+                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
+            }
+        };
 
         let shell_output = ShellOutput {
-            stdout: stdout.clone(),
-            stderr: stderr.clone(),
+            stdout,
+            stderr,
+            exit_code: execution.exit_code,
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
-
-        // Combine for the text content shown to the user
-        let mut rendered = if stderr.is_empty() || stderr == "(no output)" {
-            stdout
-        } else if stdout.is_empty() || stdout == "(no output)" {
-            stderr
-        } else {
-            format!("{stdout}\n{stderr}")
-        };
 
         let is_error = if execution.timed_out {
             if let Some(timeout_secs) = params.timeout_secs {
@@ -168,6 +170,7 @@ impl Default for ShellTool {
 struct ExecutionOutput {
     stdout: String,
     stderr: String,
+    interleaved: String,
     exit_code: Option<i32>,
     timed_out: bool,
 }
@@ -204,8 +207,8 @@ async fn run_command(
         .take()
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
-    let stdout_task = tokio::spawn(collect_stream(child_stdout));
-    let stderr_task = tokio::spawn(collect_stream(child_stderr));
+    let output_task =
+        tokio::spawn(async move { collect_split_output(child_stdout, child_stderr).await });
 
     let mut timed_out = false;
     let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
@@ -228,11 +231,7 @@ async fn run_command(
             .code()
     };
 
-    let stdout = stdout_task
-        .await
-        .map_err(|error| format!("Failed to collect shell output: {}", error))?
-        .map_err(|error| format!("Failed to collect shell output: {}", error))?;
-    let stderr = stderr_task
+    let (stdout, stderr, interleaved) = output_task
         .await
         .map_err(|error| format!("Failed to collect shell output: {}", error))?
         .map_err(|error| format!("Failed to collect shell output: {}", error))?;
@@ -240,6 +239,7 @@ async fn run_command(
     Ok(ExecutionOutput {
         stdout,
         stderr,
+        interleaved,
         exit_code,
         timed_out,
     })
@@ -269,20 +269,37 @@ fn build_shell_command(command_line: &str) -> tokio::process::Command {
     command
 }
 
-async fn collect_stream<R: tokio::io::AsyncRead + Unpin>(
-    reader: R,
-) -> Result<String, std::io::Error> {
-    let buf_reader = BufReader::new(reader);
-    let mut lines = SplitStream::new(buf_reader.split(b'\n'));
+/// Collect stdout and stderr separately while also building an interleaved view
+/// that preserves the arrival order of lines across both streams.
+async fn collect_split_output(
+    stdout: tokio::process::ChildStdout,
+    stderr: tokio::process::ChildStderr,
+) -> Result<(String, String, String), std::io::Error> {
+    let stdout_lines = SplitStream::new(BufReader::new(stdout).split(b'\n')).map(|l| ("stdout", l));
+    let stderr_lines = SplitStream::new(BufReader::new(stderr).split(b'\n')).map(|l| ("stderr", l));
+    let mut merged = stdout_lines.merge(stderr_lines);
 
-    let mut output = String::new();
-    while let Some(line) = lines.next().await {
+    let mut out = String::new();
+    let mut err = String::new();
+    let mut interleaved = String::new();
+
+    while let Some((stream, line)) = merged.next().await {
         let mut line = line?;
         line.push(b'\n');
-        output.push_str(&String::from_utf8_lossy(&line));
+        let text = String::from_utf8_lossy(&line);
+        interleaved.push_str(&text);
+        match stream {
+            "stdout" => out.push_str(&text),
+            _ => err.push_str(&text),
+        }
     }
 
-    Ok(output.trim_end_matches('\n').to_string())
+    fn trim(s: String) -> String {
+        let t = s.trim_end_matches('\n');
+        t.to_string()
+    }
+
+    Ok((trim(out), trim(err), trim(interleaved)))
 }
 
 fn render_output(full_output: &str, label: &str) -> Result<String, String> {
