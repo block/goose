@@ -4,6 +4,7 @@ pub mod tree;
 
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::agents::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use edit::{EditTools, FileEditParams, FileWriteParams};
@@ -15,7 +16,6 @@ use rmcp::model::{
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
 use shell::{ShellParams, ShellTool};
-use std::path::Path;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tree::{TreeParams, TreeTool};
@@ -164,13 +164,12 @@ impl McpClientTrait for DeveloperClient {
 
     async fn call_tool(
         &self,
-        _session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        working_dir: Option<&str>,
-        _cancellation_token: CancellationToken,
+        _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let working_dir = working_dir.map(Path::new);
+        let working_dir = ctx.working_dir.as_deref();
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
@@ -252,15 +251,15 @@ mod tests {
         let cwd = temp.path().join("workspace");
         fs::create_dir_all(&cwd).unwrap();
 
+        let ctx = ToolCallContext::new("session".to_owned(), Some(cwd.clone()), None);
         let write = client
             .call_tool(
-                "session",
+                &ctx,
                 "write",
                 Some(object!({
                     "path": "notes.txt",
                     "content": "first line"
                 })),
-                Some(cwd.to_str().unwrap()),
                 CancellationToken::new(),
             )
             .await
@@ -273,14 +272,13 @@ mod tests {
 
         let edit = client
             .call_tool(
-                "session",
+                &ctx,
                 "edit",
                 Some(object!({
                     "path": "notes.txt",
                     "before": "first",
                     "after": "updated"
                 })),
-                Some(cwd.to_str().unwrap()),
                 CancellationToken::new(),
             )
             .await
@@ -300,14 +298,14 @@ mod tests {
         let cwd = temp.path().join("workspace");
         fs::create_dir_all(&cwd).unwrap();
 
+        let ctx = ToolCallContext::new("session".to_owned(), Some(cwd.clone()), None);
         let result = client
             .call_tool(
-                "session",
+                &ctx,
                 "shell",
                 Some(object!({
                     "command": "pwd"
                 })),
-                Some(cwd.to_str().unwrap()),
                 CancellationToken::new(),
             )
             .await

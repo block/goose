@@ -9,6 +9,7 @@ use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use crate::agents::subagent_handler::{run_subagent_task, OnMessageCallback, SubagentRunParams};
 use crate::agents::subagent_task_config::{TaskConfig, DEFAULT_SUBAGENT_MAX_TURNS};
+use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::AgentConfig;
 use crate::config::paths::Paths;
 use crate::config::Config;
@@ -1731,12 +1732,12 @@ impl McpClientTrait for SummonClient {
 
     async fn call_tool(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _working_dir: Option<&str>,
         cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let session_id = &ctx.session_id;
         let content = match name {
             "load" => self.handle_load(session_id, arguments).await,
             "delegate" => {
@@ -1949,8 +1950,9 @@ You review code."#;
         let names: Vec<_> = result.tools.iter().map(|t| t.name.as_ref()).collect();
         assert!(names.contains(&"load") && names.contains(&"delegate"));
 
+        let ctx = ToolCallContext::new("test".to_string(), None, None);
         let result = client
-            .call_tool("test", "unknown", None, None, CancellationToken::new())
+            .call_tool(&ctx, "unknown", None, CancellationToken::new())
             .await
             .unwrap();
         assert!(result.is_error.unwrap_or(false));

@@ -37,6 +37,7 @@ futures = { workspace = true }
 regex = { workspace = true }
 fs-err = "3"
 url = { workspace = true }
+async-trait = { workspace = true }
 
 # HTTP server dependencies
 axum = { workspace = true, features = ["ws"] }

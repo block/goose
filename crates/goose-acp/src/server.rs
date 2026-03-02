@@ -1,4 +1,6 @@
 use crate::custom_requests::*;
+use crate::tools::AcpTools;
+use agent_client_protocol_schema::ClientCapabilities;
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
@@ -60,6 +62,7 @@ pub struct GooseAcpAgent {
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
     builtins: Vec<String>,
+    client_capabilities: Mutex<ClientCapabilities>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -329,6 +332,7 @@ impl GooseAcpAgent {
             goose_mode,
             disable_session_naming,
             builtins,
+            client_capabilities: Mutex::new(ClientCapabilities::default()),
         })
     }
 
@@ -343,9 +347,18 @@ impl GooseAcpAgent {
         ));
         let agent = Arc::new(agent);
 
+        let exclude_developer = {
+            let capabilities = self.client_capabilities.lock().await;
+            capabilities.terminal
+                || capabilities.fs.read_text_file
+                || capabilities.fs.write_text_file
+        };
         let config_path = self.config_dir.join(CONFIG_YAML_NAME);
         if let Ok(config_file) = Config::new(&config_path, "goose") {
-            let extensions = get_enabled_extensions_with_config(&config_file);
+            let mut extensions = get_enabled_extensions_with_config(&config_file);
+            if exclude_developer {
+                extensions.retain(|ext| ext.name() != "developer");
+            }
             add_extensions(&agent, extensions).await;
         }
         add_builtins(&agent, self.builtins.clone()).await;
@@ -488,16 +501,35 @@ impl GooseAcpAgent {
             Err(_) => ToolCallStatus::Failed,
         };
 
-        let content = build_tool_call_content(&tool_response.tool_result);
-
-        let locations = if let Some(tool_request) = session.tool_requests.get(&tool_response.id) {
+        let tool_request = session.tool_requests.get(&tool_response.id);
+        let locations = if let Some(tool_request) = tool_request {
             extract_tool_locations(tool_request, tool_response)
         } else {
             Vec::new()
         };
 
-        let mut fields = ToolCallUpdateFields::new().status(status).content(content);
-        if !locations.is_empty() {
+        let mut fields = ToolCallUpdateFields::new().status(status);
+
+        let is_acp_tool = if let Some(tool_request) = tool_request {
+            if let Ok(ref tool_call) = tool_request.tool_call {
+                session
+                    .agent
+                    .extension_manager
+                    .resolve_tool(&session_id.0, &tool_call.name)
+                    .await
+                    .is_ok_and(|res| res.extension_name == "tools")
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if !is_acp_tool {
+            let content = build_tool_call_content(&tool_response.tool_result);
+            fields = fields.content(content);
+        }
+        if !is_acp_tool && !locations.is_empty() {
             fields = fields.locations(locations);
         }
         cx.send_notification(SessionNotification::new(
@@ -663,6 +695,11 @@ impl GooseAcpAgent {
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
 
+        {
+            let mut client_capabilities = self.client_capabilities.lock().await;
+            *client_capabilities = args.client_capabilities;
+        }
+
         let capabilities = AgentCapabilities::new()
             .load_session(true)
             .session_capabilities(SessionCapabilities::new().list(SessionListCapabilities::new()))
@@ -687,6 +724,7 @@ impl GooseAcpAgent {
     async fn on_new_session(
         &self,
         args: NewSessionRequest,
+        cx: JrConnectionCx<AgentToClient>,
     ) -> Result<NewSessionResponse, sacp::Error> {
         debug!(?args, "new session request");
 
@@ -722,6 +760,42 @@ impl GooseAcpAgent {
                 return Err(sacp::Error::internal_error()
                     .data(format!("Failed to add MCP server '{}': {}", name, e)));
             }
+        }
+
+        let (fs_read, fs_write, terminal) = {
+            let capabilities = self.client_capabilities.lock().await;
+            (
+                capabilities.fs.read_text_file,
+                capabilities.fs.write_text_file,
+                capabilities.terminal,
+            )
+        };
+        if fs_read || fs_write || terminal {
+            let acp_tools = Arc::new(AcpTools::new(
+                cx,
+                SessionId::new(goose_session.id.clone()),
+                args.cwd.clone(),
+                fs_read,
+                fs_write,
+                terminal,
+            ));
+            agent
+                .extension_manager
+                .add_client(
+                    "tools".to_string(),
+                    ExtensionConfig::Builtin {
+                        name: "tools".to_string(),
+                        description: "".to_string(),
+                        display_name: None,
+                        timeout: None,
+                        bundled: Some(true),
+                        available_tools: vec![],
+                    },
+                    acp_tools,
+                    None,
+                    None,
+                )
+                .await;
         }
 
         let session = GooseAcpSession {
@@ -1235,7 +1309,7 @@ impl JrMessageHandler for GooseAcpHandler {
                 .await
                 .if_request(
                     |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
-                        req_cx.respond(agent.on_new_session(req).await?)
+                        req_cx.respond(agent.on_new_session(req, cx.clone()).await?)
                     },
                 )
                 .await
