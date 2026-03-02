@@ -383,7 +383,7 @@ impl McpClientTrait for CodeExecutionClient {
                         async function run() {
                             // Access functions via Namespace.functionName({ params }) — always camelCase
                             const files = await Developer.shell({ command: "ls -la" });
-                            const readme = await Developer.textEditor({ path: "./README.md", command: "view" });
+                            const readme = await Developer.shell({ command: "cat ./README.md" });
                             return { files, readme };
                         }
                         ```
@@ -393,14 +393,14 @@ impl McpClientTrait for CodeExecutionClient {
                         Example for chained operations:
                         [
                           {"tool": "Developer.shell", "description": "list files", "depends_on": []},
-                          {"tool": "Developer.textEditor", "description": "read README.md", "depends_on": []},
-                          {"tool": "Developer.textEditor", "description": "write output.txt", "depends_on": [0, 1]}
+                          {"tool": "Developer.shell", "description": "read README.md", "depends_on": []},
+                          {"tool": "Developer.write", "description": "write output.txt", "depends_on": [0, 1]}
                         ]
 
                         KEY RULES:
                         - Code MUST define an async function named `run()`
                         - All function calls are async - use `await`
-                        - Function names are always camelCase (e.g., Developer.textEditor, Github.listIssues, Github.createIssue)
+                        - Function names are always camelCase (e.g., Developer.shell, Github.listIssues, Github.createIssue)
                         - Return value from `run()` is the result, all `console.log()` output will be returned as well.
                         - Only functions from `list_functions()` and `console` methods are available — no `fetch()`, `fs`, or other Node/Deno APIs
                         - Variables don't persist between `execute()` calls - return or log anything you need later

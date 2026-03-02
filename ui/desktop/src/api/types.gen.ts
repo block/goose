@@ -60,7 +60,12 @@ export type CallToolResponse = {
 };
 
 export type ChatRequest = {
-    conversation_so_far?: Array<Message> | null;
+    /**
+     * Override the server's conversation history. Only use this when you need absolute control
+     * over the conversation state (e.g., administrative tools). For normal operations, the server
+     * is the source of truth - use truncate/fork endpoints to modify conversation history instead.
+     */
+    override_conversation?: Array<Message> | null;
     recipe_name?: string | null;
     recipe_version?: string | null;
     session_id: string;
@@ -168,6 +173,7 @@ export type CspMetadata = {
 
 export type DeclarativeProviderConfig = {
     api_key_env?: string;
+    base_path?: string | null;
     base_url: string;
     catalog_provider_id?: string | null;
     description?: string | null;
@@ -1473,6 +1479,7 @@ export type UiMetadata = {
 export type UpdateCustomProviderRequest = {
     api_key: string;
     api_url: string;
+    base_path?: string | null;
     catalog_provider_id?: string | null;
     display_name: string;
     engine: string;
@@ -2965,7 +2972,7 @@ export type TranscribeDictationErrors = {
      */
     412: unknown;
     /**
-     * Audio file too large (max 25MB)
+     * Audio file too large (max 50MB)
      */
     413: unknown;
     /**

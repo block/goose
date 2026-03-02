@@ -488,6 +488,7 @@ impl ExtensionManager {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
+                session: None,
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -715,6 +716,11 @@ impl ExtensionManager {
                     })?;
                 let mut context = self.context.clone();
                 context.extension_manager = Some(Arc::downgrade(self));
+                if let Some(id) = session_id {
+                    if let Ok(session) = self.context.session_manager.get_session(id, false).await {
+                        context.session = Some(Arc::new(session));
+                    }
+                }
 
                 (def.client_factory)(context)
             }
@@ -805,8 +811,7 @@ impl ExtensionManager {
             .iter()
             .map(|(name, ext)| {
                 let instructions = ext.get_instructions().unwrap_or_default();
-                let instructions =
-                    instructions.replace(goose_mcp::WORKING_DIR_PLACEHOLDER, &working_dir_str);
+                let instructions = instructions.replace("{{WORKING_DIR}}", &working_dir_str);
                 ExtensionInfo::new(name, &instructions, ext.supports_resources())
             })
             .collect()

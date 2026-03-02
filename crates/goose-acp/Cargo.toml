@@ -15,15 +15,19 @@ path = "src/bin/server.rs"
 name = "generate-acp-schema"
 path = "src/bin/generate_acp_schema.rs"
 
+[features]
+default = ["code-mode"]
+code-mode = ["goose/code-mode"]
+
 [lints]
 workspace = true
 
 [dependencies]
-goose = { path = "../goose" }
+goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
-agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model"] }
+agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model", "unstable_session_list"] }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat", "rt"] }

@@ -59,7 +59,7 @@ function getDocChunk(
   const fullPath = path.join(docsDir, filePath);
 
   const normalizedPath = path.resolve(fullPath);
-  if (!normalizedPath.startsWith(docsDir)) {
+  if (!normalizedPath.startsWith(docsDir + "/")) {
     throw new Error("Invalid file path - directory traversal not allowed");
   }
 
