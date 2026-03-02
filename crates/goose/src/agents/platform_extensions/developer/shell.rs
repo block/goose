@@ -100,23 +100,21 @@ impl ShellTool {
             Err(error) => return Self::error_result(&error, None),
         };
 
-        let mut rendered = match render_output(&execution.interleaved, "output") {
-            Ok(rendered) => rendered,
-            Err(error) => return Self::error_result(&error, None),
-        };
+        // Derive stdout, stderr, and interleaved display from the single tagged-line buffer
+        let (raw_stdout, raw_stderr, interleaved) = split_lines(&execution.lines);
 
-        let truncated_stdout = if execution.stdout.is_empty() {
+        let truncated_stdout = if raw_stdout.is_empty() {
             String::new()
         } else {
-            match truncate_output(&execution.stdout, "stdout") {
+            match truncate_output(&raw_stdout, "stdout") {
                 Ok(t) => t,
                 Err(error) => return Self::error_result(&error, None),
             }
         };
-        let truncated_stderr = if execution.stderr.is_empty() {
+        let truncated_stderr = if raw_stderr.is_empty() {
             String::new()
         } else {
-            match truncate_output(&execution.stderr, "stderr") {
+            match truncate_output(&raw_stderr, "stderr") {
                 Ok(t) => t,
                 Err(error) => return Self::error_result(&error, None),
             }
@@ -128,6 +126,10 @@ impl ShellTool {
             exit_code: execution.exit_code,
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
+        let mut rendered = match render_output(&interleaved, "output") {
+            Ok(rendered) => rendered,
+            Err(error) => return Self::error_result(&error, None),
+        };
 
         let is_error = if execution.timed_out {
             if let Some(timeout_secs) = params.timeout_secs {
@@ -177,9 +179,8 @@ impl Default for ShellTool {
 }
 
 struct ExecutionOutput {
-    stdout: String,
-    stderr: String,
-    interleaved: String,
+    /// Lines in arrival order, tagged by source: (is_stderr, text)
+    lines: Vec<(bool, String)>,
     exit_code: Option<i32>,
     timed_out: bool,
 }
@@ -216,8 +217,7 @@ async fn run_command(
         .take()
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
-    let output_task =
-        tokio::spawn(async move { collect_split_output(child_stdout, child_stderr).await });
+    let output_task = tokio::spawn(collect_tagged_lines(child_stdout, child_stderr));
 
     let mut timed_out = false;
     let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
@@ -240,15 +240,13 @@ async fn run_command(
             .code()
     };
 
-    let (stdout, stderr, interleaved) = output_task
+    let lines = output_task
         .await
         .map_err(|error| format!("Failed to collect shell output: {}", error))?
         .map_err(|error| format!("Failed to collect shell output: {}", error))?;
 
     Ok(ExecutionOutput {
-        stdout,
-        stderr,
-        interleaved,
+        lines,
         exit_code,
         timed_out,
     })
@@ -278,37 +276,41 @@ fn build_shell_command(command_line: &str) -> tokio::process::Command {
     command
 }
 
-/// Collect stdout and stderr separately while also building an interleaved view
-/// that preserves the arrival order of lines across both streams.
-async fn collect_split_output(
+/// Split tagged lines into (stdout, stderr, interleaved) strings.
+fn split_lines(lines: &[(bool, String)]) -> (String, String, String) {
+    let mut stdout = String::new();
+    let mut stderr = String::new();
+    let mut interleaved = String::new();
+    for (i, (is_stderr, text)) in lines.iter().enumerate() {
+        if i > 0 {
+            interleaved.push('\n');
+        }
+        interleaved.push_str(text);
+        let target = if *is_stderr { &mut stderr } else { &mut stdout };
+        if !target.is_empty() {
+            target.push('\n');
+        }
+        target.push_str(text);
+    }
+    (stdout, stderr, interleaved)
+}
+
+/// Collect lines from stdout and stderr in arrival order, tagging each with its source.
+/// Returns a vec of (is_stderr, line_text) preserving interleaved ordering.
+async fn collect_tagged_lines(
     stdout: tokio::process::ChildStdout,
     stderr: tokio::process::ChildStderr,
-) -> Result<(String, String, String), std::io::Error> {
-    let stdout_lines = SplitStream::new(BufReader::new(stdout).split(b'\n')).map(|l| ("stdout", l));
-    let stderr_lines = SplitStream::new(BufReader::new(stderr).split(b'\n')).map(|l| ("stderr", l));
+) -> Result<Vec<(bool, String)>, std::io::Error> {
+    let stdout_lines = SplitStream::new(BufReader::new(stdout).split(b'\n')).map(|l| (false, l));
+    let stderr_lines = SplitStream::new(BufReader::new(stderr).split(b'\n')).map(|l| (true, l));
     let mut merged = stdout_lines.merge(stderr_lines);
 
-    let mut out = String::new();
-    let mut err = String::new();
-    let mut interleaved = String::new();
-
-    while let Some((stream, line)) = merged.next().await {
-        let mut line = line?;
-        line.push(b'\n');
-        let text = String::from_utf8_lossy(&line);
-        interleaved.push_str(&text);
-        match stream {
-            "stdout" => out.push_str(&text),
-            _ => err.push_str(&text),
-        }
+    let mut lines = Vec::new();
+    while let Some((is_stderr, line)) = merged.next().await {
+        let line = line?;
+        lines.push((is_stderr, String::from_utf8_lossy(&line).into_owned()));
     }
-
-    fn trim(s: String) -> String {
-        let t = s.trim_end_matches('\n');
-        t.to_string()
-    }
-
-    Ok((trim(out), trim(err), trim(interleaved)))
+    Ok(lines)
 }
 
 fn render_output(full_output: &str, label: &str) -> Result<String, String> {
