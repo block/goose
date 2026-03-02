@@ -15,7 +15,7 @@ uninlined_format_args = "allow"
 string_slice = "warn"
 
 [workspace.dependencies]
-rmcp = { version = "0.16", features = ["schemars", "auth"] }
+rmcp = { path = "../rust-sdk/crates/rmcp", features = ["schemars", "auth"] }
 anyhow = "1.0"
 async-stream = "0.3"
 async-trait = "0.1"
