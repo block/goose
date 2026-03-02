@@ -317,14 +317,25 @@ const SessionItem: React.FC<{
         This row is "click anywhere" to navigate, but contains nested interactive controls
         (rename + delete).
 
-        Important: InlineEditText renders a <button> when not editing. That means we cannot
-        wrap the whole row in a <button>. Instead, we use a full-row overlay <button> for
-        reliable hit-testing, and we disable pointer events on the display container so
-        clicks go to the overlay.
+        InlineEditText renders a <button> when not editing.
+        We *want* clicks on that button (the session name) to open the session.
 
-        Interactive children (rename + delete) opt back in via pointer-events-auto.
+        So we make the row itself the click target (div with button semantics), and rely on
+        event bubbling from the InlineEditText <button>.
+
+        Nested controls that should NOT navigate (delete) must stopPropagation.
       */}
+      {/* biome-ignore lint/a11y/useSemanticElements: cannot wrap entire row in <button> because it contains nested interactive controls */}
       <div
+        role="button"
+        tabIndex={0}
+        onClick={openSession}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openSession();
+          }
+        }}
         className={`relative w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm transition-colors ${
           activeSessionId === session.id
             ? 'bg-background-medium text-text-default'
@@ -332,27 +343,19 @@ const SessionItem: React.FC<{
         }`}
         title={displayName}
       >
-        <button
-          type="button"
-          className="absolute inset-0 z-10 rounded-md"
-          aria-label={`Open session ${displayName}`}
-          onClick={openSession}
-        />
-
-        <div className="relative z-20 flex items-center gap-1 min-w-0 pointer-events-none">
+        <div className="flex items-center gap-1 min-w-0">
           {session.recipe && <ChefHat className="w-3.5 h-3.5 flex-shrink-0" />}
 
           <div className="flex-1 min-w-0">
             {canRename ? (
-              <div className="pointer-events-auto">
-                <InlineEditText
-                  value={displayName}
-                  onSave={(newName) => handleRenameSession(session.id, newName)}
-                  className="text-sm -mx-2 -my-1"
-                  editClassName="text-sm"
-                  singleClickEdit={false}
-                />
-              </div>
+              <InlineEditText
+                value={displayName}
+                onSave={(newName) => handleRenameSession(session.id, newName)}
+                className="text-sm -mx-2 -my-1"
+                editClassName="text-sm"
+                singleClickEdit={false}
+                onActivate={openSession}
+              />
             ) : (
               <span className="truncate block">{displayName}</span>
             )}

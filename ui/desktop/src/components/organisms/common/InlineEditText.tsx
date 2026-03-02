@@ -15,6 +15,16 @@ interface InlineEditTextProps {
   onEditEnd?: () => void;
   allowEmpty?: boolean;
   singleClickEdit?: boolean;
+
+  /**
+   * Optional activation handler for the non-editing display state.
+   *
+   * Intended for cases like the sidebar session list:
+   * - single click should activate (open)
+   * - double click should edit
+   */
+  onActivate?: () => void;
+  activateDelayMs?: number;
 }
 
 export const InlineEditText: React.FC<InlineEditTextProps> = ({
@@ -29,12 +39,15 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
   onEditEnd,
   allowEmpty = false,
   singleClickEdit = true,
+  onActivate,
+  activateDelayMs = 200,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
   const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const originalValue = useRef(value);
+  const activateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!isEditing) {
@@ -50,8 +63,23 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    return () => {
+      if (activateTimeoutRef.current) {
+        clearTimeout(activateTimeoutRef.current);
+        activateTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   const handleStartEdit = useCallback(() => {
     if (disabled || isSaving) return;
+
+    if (activateTimeoutRef.current) {
+      clearTimeout(activateTimeoutRef.current);
+      activateTimeoutRef.current = null;
+    }
+
     setIsEditing(true);
     setEditValue(value);
     onEditStart?.();
@@ -122,17 +150,40 @@ export const InlineEditText: React.FC<InlineEditTextProps> = ({
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
+      if (disabled || isSaving) return;
+
       if (singleClickEdit) {
         e.stopPropagation();
         handleStartEdit();
+        return;
+      }
+
+      // If single-click edit is disabled, a click can be treated as an activation
+      // (e.g. open sidebar session). Delay activation slightly so a double click
+      // can still enter edit mode.
+      if (onActivate) {
+        e.stopPropagation();
+
+        if (activateTimeoutRef.current) {
+          clearTimeout(activateTimeoutRef.current);
+        }
+
+        activateTimeoutRef.current = setTimeout(() => {
+          activateTimeoutRef.current = null;
+          onActivate();
+        }, activateDelayMs);
       }
     },
-    [singleClickEdit, handleStartEdit]
+    [activateDelayMs, disabled, handleStartEdit, isSaving, onActivate, singleClickEdit]
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       if (!singleClickEdit) {
+        if (activateTimeoutRef.current) {
+          clearTimeout(activateTimeoutRef.current);
+          activateTimeoutRef.current = null;
+        }
         e.stopPropagation();
         handleStartEdit();
       }
