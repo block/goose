@@ -11,6 +11,7 @@ import {
   setConfigProvider,
   type DownloadProgress,
   type LocalModelResponse,
+  type SpeedTier,
 } from '../../../api';
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
@@ -21,6 +22,20 @@ const formatBytes = (bytes: number): string => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+};
+
+const SpeedBadge = ({ speed }: { speed: SpeedTier }) => {
+  const config: Record<SpeedTier, { label: string; className: string }> = {
+    fast: { label: '🚀 Fast', className: 'bg-green-600 text-white' },
+    medium: { label: '⚡ Medium', className: 'bg-yellow-600 text-white' },
+    slow: { label: '🐢 Slow', className: 'bg-orange-600 text-white' },
+  };
+
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded ${config[speed].className}`}>
+      {config[speed].label}
+    </span>
+  );
 };
 
 export const LocalInferenceSettings = () => {
@@ -272,6 +287,7 @@ export const LocalInferenceSettings = () => {
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
                       </span>
+                      <SpeedBadge speed={model.speed_tier} />
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
                           Recommended
@@ -321,6 +337,7 @@ export const LocalInferenceSettings = () => {
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
                       </span>
+                      <SpeedBadge speed={model.speed_tier} />
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
                           Recommended
