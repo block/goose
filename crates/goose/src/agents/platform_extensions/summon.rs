@@ -1455,9 +1455,8 @@ impl SummonClient {
 
         let max_turns = self.resolve_max_turns(session);
 
-        let mut task_config =
-            TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-        task_config.max_turns = Some(max_turns);
+        let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+            .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1512,15 +1511,21 @@ impl SummonClient {
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
-        Config::global()
-            .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
+        // Priority: env var > recipe settings > config.yaml > default
+        std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
             .ok()
+            .and_then(|v| v.parse().ok())
             .or_else(|| {
                 session
                     .recipe
                     .as_ref()
                     .and_then(|r| r.settings.as_ref())
                     .and_then(|s| s.max_turns)
+            })
+            .or_else(|| {
+                Config::global()
+                    .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
+                    .ok()
             })
             .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS)
     }
