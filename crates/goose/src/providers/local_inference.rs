@@ -135,18 +135,6 @@ pub fn resolve_model_path(
     None
 }
 
-/// Get available memory for inference in bytes.
-/// Re-exported from recommender module for backward compatibility.
-pub fn available_inference_memory_bytes(runtime: &InferenceRuntime) -> u64 {
-    recommender::available_inference_memory_bytes(runtime)
-}
-
-/// Recommend the best local model for the current hardware.
-/// Re-exported from recommender module for backward compatibility.
-pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
-    recommender::recommend_local_model(runtime)
-}
-
 fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
     use crate::providers::formats::openai::format_messages;
     use crate::providers::utils::ImageFormat;

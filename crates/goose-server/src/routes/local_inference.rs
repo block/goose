@@ -10,14 +10,15 @@ use goose::config::paths::Paths;
 use goose::download_manager::{get_download_manager, DownloadProgress};
 use goose::providers::local_inference::hf_models::{self, HfModelInfo, HfQuantVariant};
 use goose::providers::local_inference::{
-    available_inference_memory_bytes,
     hf_models::{resolve_model_spec, HfGgufFile},
     local_model_registry::{
         get_registry, is_featured_model, model_id_from_repo, LocalModelEntry,
         ModelDownloadStatus as RegistryDownloadStatus, ModelSettings, FEATURED_MODELS,
     },
-    recommend_local_model, recommender,
-    recommender::{estimate_params_billion, estimate_speed_tps, has_gpu_accelerator, SpeedTier},
+    recommender::{
+        available_inference_memory_bytes, estimate_params_billion, estimate_speed_tps,
+        has_gpu_accelerator, recommend_local_model, recommend_variant, SpeedTier,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -245,7 +246,7 @@ pub async fn get_repo_files(
         .map_err(|e| ErrorResponse::internal(format!("Failed to fetch repo files: {}", e)))?;
 
     let available_memory = available_inference_memory_bytes(&state.inference_runtime);
-    let recommended_index = recommender::recommend_variant(&variants, available_memory);
+    let recommended_index = recommend_variant(&variants, available_memory);
 
     Ok(Json(RepoVariantsResponse {
         variants,
