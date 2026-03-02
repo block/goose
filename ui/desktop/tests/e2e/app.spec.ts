@@ -29,26 +29,6 @@ const test = base.extend<TestFixtures>({
 
 let mainWindow: Page;
 
-test.beforeEach(async ({ goosePage }, testInfo) => {
-  mainWindow = goosePage;
-
-  const testName = testInfo.titlePath[testInfo.titlePath.length - 1];
-
-  const providerSuite = testInfo.titlePath.find(t => t.startsWith('Provider:'));
-  const providerName = providerSuite ? providerSuite.split(': ')[1] : undefined;
-
-  if (!process.env.NO_TEST_OVERLAY) {
-    console.log(`Setting overlay for test: "${testName}"${providerName ? ` (Provider: ${providerName})` : ''}`);
-    await showTestName(mainWindow, testName, providerName);
-  }
-});
-
-test.afterEach(async () => {
-  if (mainWindow && !process.env.NO_TEST_OVERLAY) {
-    await clearTestName(mainWindow);
-  }
-});
-
 // Helper function to select a provider
 async function selectProvider(mainWindow: Page, provider: Provider) {
   console.log(`Selecting provider: ${provider.name}`);
