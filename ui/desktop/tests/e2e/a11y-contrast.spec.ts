@@ -327,6 +327,24 @@ test.describe('a11y: color contrast (axe-core)', () => {
     const title = await goosePage.locator('text=Extensions').isVisible().catch(() => false);
     if (!title) test.skip(true, 'Extensions view not ready');
 
+    // Ensure the "Available Extensions" section is present and in the viewport.
+    // This is where we have historically missed contrast regressions (e.g. off-state toggles).
+    const availableHeading = goosePage.locator('text=/Available Extensions/i').first();
+    await availableHeading.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {
+      test.skip(true, 'Available Extensions section not present');
+    });
+
+    await availableHeading.scrollIntoViewIfNeeded().catch(() => {});
+
+    // Wait for extension cards in that section (best effort).
+    // Cards are rendered as a grid of ExtensionItem components.
+    const extensionCards = goosePage
+      .locator('text=/Available Extensions/i')
+      .locator('..')
+      .locator('..')
+      .locator('[data-slot="card"]');
+    await extensionCards.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+
     await runContrastAudit(goosePage, 'extensions-light', testInfo);
   });
 
