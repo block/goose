@@ -239,13 +239,17 @@ export default function CatalogsOverview() {
     try {
       const resp = await getExtensions();
       const extensions = resp.data?.extensions || [];
-      const toolItems: CatalogItem[] = extensions.map((ext) => ({
-        id: ext.name,
-        name: ext.name,
-        description: ext.description || '',
-        status: ext.enabled ? ('installed' as const) : ('available' as const),
-        type: ext.type,
-      }));
+
+      const hiddenExtensions = new Set(['genui_service']);
+      const toolItems: CatalogItem[] = extensions
+        .filter((ext) => !hiddenExtensions.has(ext.name))
+        .map((ext) => ({
+          id: ext.name,
+          name: ext.name,
+          description: ext.description || '',
+          status: ext.enabled ? ('installed' as const) : ('available' as const),
+          type: ext.type,
+        }));
       setCategories((prev) =>
         prev.map((c) => (c.id === 'tools' ? { ...c, items: toolItems, loading: false } : c))
       );

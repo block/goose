@@ -53,7 +53,13 @@ export default function ExtensionsSection({
   const extensions = useMemo(() => {
     if (extensionsList.length === 0) return [];
 
+    // Hide internal/bundled helper extensions that aren't meant to be toggled directly in the UI.
+    // "genui_service" is an internal MCP service used by other UI/agent features and showing it
+    // alongside "Generative UI" is confusing.
+    const hiddenExtensions = new Set(['genui_service']);
+
     return [...extensionsList]
+      .filter((ext) => !hiddenExtensions.has(ext.name))
       .sort((a, b) => {
         // First sort by builtin
         if (a.type === 'builtin' && b.type !== 'builtin') return -1;
