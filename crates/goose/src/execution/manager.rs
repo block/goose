@@ -78,6 +78,8 @@ impl AgentManager {
         {
             let mut sessions = self.sessions.write().await;
             if let Some(existing) = sessions.get(&session_id) {
+                let mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
+                existing.update_goose_mode(mode).await;
                 return Ok(Arc::clone(existing));
             }
         }
