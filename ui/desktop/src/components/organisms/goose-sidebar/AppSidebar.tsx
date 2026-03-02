@@ -283,6 +283,10 @@ const SessionItem: React.FC<{
   const displayName = getSessionDisplayName(session);
   const canRename = !session.recipe?.title;
 
+  const openSession = React.useCallback(() => {
+    onSessionClick(session);
+  }, [onSessionClick, session]);
+
   const handleRenameSession = async (sessionId: string, newName: string) => {
     await updateSessionName({
       path: { session_id: sessionId },
@@ -310,12 +314,15 @@ const SessionItem: React.FC<{
       <div className="absolute left-0 w-2 h-px bg-border-strong top-1/2" />
 
       {/*
-        The session row is "click anywhere" for navigation, but also contains interactive
-        controls (rename, delete). Use an overlay button to avoid nesting interactive
-        elements (e.g. InlineEditText renders a button/input).
+        This row is "click anywhere" to navigate, but contains nested interactive controls
+        (rename + delete).
+
+        We use a full-row overlay <button> for reliable hit-testing (and to behave properly
+        in Electron drag-region scenarios), and disable pointer events on the display content.
+        Interactive children (rename + delete) opt back in via pointer-events-auto.
       */}
       <div
-        className={`relative z-10 w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm rounded-md transition-colors ${
+        className={`relative w-full text-left ml-3 px-1.5 py-1.5 pr-7 rounded-md text-sm transition-colors ${
           activeSessionId === session.id
             ? 'bg-background-medium text-text-default'
             : 'text-text-muted hover:bg-background-medium/50 hover:text-text-default'
@@ -326,13 +333,7 @@ const SessionItem: React.FC<{
           type="button"
           className="absolute inset-0 z-10 rounded-md"
           aria-label={`Open session ${displayName}`}
-          onClick={() => onSessionClick(session)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onSessionClick(session);
-            }
-          }}
+          onClick={openSession}
         />
 
         <div className="relative z-20 flex items-center gap-1 min-w-0 pointer-events-none">

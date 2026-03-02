@@ -16,6 +16,23 @@ export function shouldShowNewChatTitle(session: Session): boolean {
   return !session.user_set_name && session.message_count === 0;
 }
 
+function createNavNonce(): string {
+  const maybeCrypto = globalThis.crypto as Crypto | undefined;
+  if (maybeCrypto?.randomUUID) {
+    return maybeCrypto.randomUUID();
+  }
+
+  if (maybeCrypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    maybeCrypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
 export function resumeSession(session: Session, setView: setViewType) {
   window.dispatchEvent(
     new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
@@ -32,8 +49,15 @@ export function resumeSession(session: Session, setView: setViewType) {
   setView('session', {
     disableAnimation: true,
     resumeSessionId: session.id,
-    __navNonce: crypto.randomUUID(),
+    __navNonce: createNavNonce(),
   } as unknown as Parameters<setViewType>[1]);
+
+  // Fallback: under HashRouter, force the hash if something prevents React Router
+  // from applying navigation (observed in some desktop builds).
+  const targetHash = `#/sessions/${encodeURIComponent(session.id)}`;
+  if (typeof window !== 'undefined' && window.location?.hash !== targetHash) {
+    window.location.hash = targetHash;
+  }
 }
 
 export async function createSession(

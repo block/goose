@@ -387,7 +387,6 @@ export function AppInner() {
 
   const navigate = useNavigate();
   const setView = useNavigation();
-  const location = useLocation();
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -475,18 +474,11 @@ export function AppInner() {
     }
   }, []);
 
-  // If the user is currently viewing a deleted session route, navigate back to /sessions
-  // to avoid follow-up 404s and a blank state.
-  useEffect(() => {
-    if (!location.pathname.startsWith('/sessions/')) return;
-    const maybeId = location.pathname.slice('/sessions/'.length);
-    if (!maybeId) return;
-
-    const stillActive = activeSessions.some((s) => s.sessionId === maybeId);
-    if (!stillActive) {
-      navigate('/sessions/history', { replace: true });
-    }
-  }, [activeSessions, location.pathname, navigate]);
+  // NOTE: We intentionally do NOT redirect away from /sessions/:id just because the
+  // session isn't present in `activeSessions`. `activeSessions` is an in-memory LRU of
+  // mounted chat sessions and is not authoritative for whether a session exists.
+  //
+  // We only navigate away when we *know* a session was deleted (see SESSION_DELETED handler).
 
   useEffect(() => {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
