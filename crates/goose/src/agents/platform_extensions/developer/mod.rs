@@ -14,7 +14,7 @@ use rmcp::model::{
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
-use shell::{ShellParams, ShellTool};
+use shell::{ShellOutput, ShellParams, ShellTool};
 use std::path::Path;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -121,9 +121,10 @@ impl DeveloperClient {
             }),
             Tool::new(
                 "shell".to_string(),
-                "Execute a shell command in the user's default shell in the current dir and return both stdout/stderr. The output is limited to up to 2000 lines, and longer outputs will be saved to a temporary file.".to_string(),
+                "Execute a shell command in the user's default shell in the current dir. Returns an object with stdout and stderr as separate fields. The output of each stream is limited to up to 2000 lines, and longer outputs will be saved to a temporary file.".to_string(),
                 Self::schema::<ShellParams>(),
             )
+            .with_output_schema::<ShellOutput>()
             .annotate(ToolAnnotations {
                 title: Some("Shell".to_string()),
                 read_only_hint: Some(false),

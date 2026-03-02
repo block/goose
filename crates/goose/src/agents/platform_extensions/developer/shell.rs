@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Content};
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio_stream::{wrappers::SplitStream, StreamExt};
 
@@ -20,6 +20,12 @@ pub struct ShellParams {
     pub command: String,
     #[serde(default)]
     pub timeout_secs: Option<u64>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ShellOutput {
+    pub stdout: String,
+    pub stderr: String,
 }
 
 /// Resolve the user's full PATH by running a login shell.
@@ -94,11 +100,32 @@ impl ShellTool {
             }
         };
 
-        let mut rendered = match render_output(&execution.output) {
+        let stdout = match render_output(&execution.stdout) {
             Ok(rendered) => rendered,
             Err(error) => {
                 return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
             }
+        };
+        let stderr = match render_output(&execution.stderr) {
+            Ok(rendered) => rendered,
+            Err(error) => {
+                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
+            }
+        };
+
+        let shell_output = ShellOutput {
+            stdout: stdout.clone(),
+            stderr: stderr.clone(),
+        };
+        let structured_content = serde_json::to_value(&shell_output).ok();
+
+        // Combine for the text content shown to the user
+        let mut rendered = if stderr.is_empty() || stderr == "(no output)" {
+            stdout
+        } else if stdout.is_empty() || stdout == "(no output)" {
+            stderr
+        } else {
+            format!("{stdout}\n{stderr}")
         };
 
         if execution.timed_out {
@@ -121,7 +148,9 @@ impl ShellTool {
             return CallToolResult::error(vec![Content::text(rendered).with_priority(0.0)]);
         }
 
-        CallToolResult::success(vec![Content::text(rendered).with_priority(0.0)])
+        let mut result = CallToolResult::success(vec![Content::text(rendered).with_priority(0.0)]);
+        result.structured_content = structured_content;
+        result
     }
 }
 
@@ -132,7 +161,8 @@ impl Default for ShellTool {
 }
 
 struct ExecutionOutput {
-    output: String,
+    stdout: String,
+    stderr: String,
     exit_code: Option<i32>,
     timed_out: bool,
 }
@@ -160,16 +190,17 @@ async fn run_command(
         .spawn()
         .map_err(|error| format!("Failed to spawn shell command: {}", error))?;
 
-    let stdout = child
+    let child_stdout = child
         .stdout
         .take()
         .ok_or_else(|| "Failed to capture stdout".to_string())?;
-    let stderr = child
+    let child_stderr = child
         .stderr
         .take()
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
-    let output_task = tokio::spawn(async move { collect_merged_output(stdout, stderr).await });
+    let stdout_task = tokio::spawn(collect_stream(child_stdout));
+    let stderr_task = tokio::spawn(collect_stream(child_stderr));
 
     let mut timed_out = false;
     let exit_code = if let Some(timeout_secs) = timeout_secs.filter(|value| *value > 0) {
@@ -192,13 +223,18 @@ async fn run_command(
             .code()
     };
 
-    let output = output_task
+    let stdout = stdout_task
+        .await
+        .map_err(|error| format!("Failed to collect shell output: {}", error))?
+        .map_err(|error| format!("Failed to collect shell output: {}", error))?;
+    let stderr = stderr_task
         .await
         .map_err(|error| format!("Failed to collect shell output: {}", error))?
         .map_err(|error| format!("Failed to collect shell output: {}", error))?;
 
     Ok(ExecutionOutput {
-        output,
+        stdout,
+        stderr,
         exit_code,
         timed_out,
     })
@@ -228,18 +264,14 @@ fn build_shell_command(command_line: &str) -> tokio::process::Command {
     command
 }
 
-async fn collect_merged_output(
-    stdout: tokio::process::ChildStdout,
-    stderr: tokio::process::ChildStderr,
+async fn collect_stream<R: tokio::io::AsyncRead + Unpin>(
+    reader: R,
 ) -> Result<String, std::io::Error> {
-    let stdout = BufReader::new(stdout);
-    let stderr = BufReader::new(stderr);
-    let stdout = SplitStream::new(stdout.split(b'\n')).map(|line| ("stdout", line));
-    let stderr = SplitStream::new(stderr.split(b'\n')).map(|line| ("stderr", line));
-    let mut merged = stdout.merge(stderr);
+    let buf_reader = BufReader::new(reader);
+    let mut lines = SplitStream::new(buf_reader.split(b'\n'));
 
     let mut output = String::new();
-    while let Some((_stream, line)) = merged.next().await {
+    while let Some(line) = lines.next().await {
         let mut line = line?;
         line.push(b'\n');
         output.push_str(&String::from_utf8_lossy(&line));
