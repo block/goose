@@ -1,6 +1,8 @@
+#!/usr/bin/env node
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { render, Box, Text, useApp, useInput, useStdout } from "ink";
 import TextInput from "ink-text-input";
+import meow from "meow";
 import type {
   SessionNotification,
   RequestPermissionRequest,
@@ -546,7 +548,7 @@ function SplashScreen({
   );
 }
 
-export default function App({
+function App({
   serverUrl,
   initialPrompt,
 }: {
@@ -1022,3 +1024,25 @@ export default function App({
     </Box>
   );
 }
+
+// ─── CLI entry point ──────────────────────────────────────────────────────
+
+const cli = meow(
+  `
+  Usage
+    $ goose-text
+
+  Options
+    --server, -s  Server URL (default: http://127.0.0.1:3284)
+    --text, -t    Send a single prompt and exit
+`,
+  {
+    importMeta: import.meta,
+    flags: {
+      server: { type: "string", shortFlag: "s", default: "http://127.0.0.1:3284" },
+      text: { type: "string", shortFlag: "t" },
+    },
+  }
+);
+
+render(<App serverUrl={cli.flags.server} initialPrompt={cli.flags.text} />);
