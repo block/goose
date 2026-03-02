@@ -2108,14 +2108,22 @@ async function appMain() {
       }
     }
 
-    let windowMenu = menu.items.find((item) => item.label === 'Window' || item.id === 'goose.window.menu');
+    let windowMenu = menu.items.find((item) => item.id === 'goose.window.menu');
+    if (!windowMenu) {
+      windowMenu = menu.items.find((item) => item.role === 'windowMenu' || item.label === 'Window');
+      if (windowMenu) {
+        windowMenu.id = 'goose.window.menu';
+      }
+    }
     if (!windowMenu) {
       windowMenu = new MenuItem({
         id: 'goose.window.menu',
         label: tMain('nativeMenu.window'),
         submenu: Menu.buildFromTemplate([]),
       });
-      const helpMenuIndex = menu.items.findIndex((item) => item.label === 'Help');
+      const helpMenuIndex = menu.items.findIndex(
+        (item) => item.id === 'goose.help.menu' || item.role === 'help' || item.label === 'Help'
+      );
       if (helpMenuIndex >= 0) {
         menu.items.splice(helpMenuIndex, 0, windowMenu);
       } else {
@@ -2178,7 +2186,13 @@ async function appMain() {
     }
 
     if (process.platform !== 'darwin') {
-      let helpMenu = menu.items.find((item) => item.label === 'Help' || item.id === 'goose.help.menu');
+      let helpMenu = menu.items.find((item) => item.id === 'goose.help.menu');
+      if (!helpMenu) {
+        helpMenu = menu.items.find((item) => item.role === 'help' || item.label === 'Help');
+        if (helpMenu) {
+          helpMenu.id = 'goose.help.menu';
+        }
+      }
       if (!helpMenu) {
         helpMenu = new MenuItem({
           id: 'goose.help.menu',
