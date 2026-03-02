@@ -175,10 +175,7 @@ impl McpClientTrait for DeveloperClient {
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),

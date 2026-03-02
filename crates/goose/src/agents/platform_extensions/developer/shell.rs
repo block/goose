@@ -164,7 +164,7 @@ impl ShellTool {
         result
     }
 
-    fn error_result(message: &str, exit_code: Option<i32>) -> CallToolResult {
+    pub fn error_result(message: &str, exit_code: Option<i32>) -> CallToolResult {
         let shell_output = ShellOutput {
             stdout: String::new(),
             stderr: message.to_string(),
