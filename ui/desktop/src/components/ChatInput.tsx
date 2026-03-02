@@ -1517,6 +1517,7 @@ export default function ChatInput({
           <ContextWindowIndicator
             totalTokens={totalTokens || 0}
             tokenLimit={tokenLimit}
+            alerts={alerts}
           />
           <Tooltip>
             <div>
@@ -1524,7 +1525,6 @@ export default function ChatInput({
                 sessionId={sessionId}
                 dropdownRef={dropdownRef}
                 setView={setView}
-                alerts={alerts}
               />
             </div>
           </Tooltip>

@@ -1,8 +1,10 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
+import BottomMenuAlertPopover from './BottomMenuAlertPopover';
+import { Alert } from '../alerts';
 
 interface ContextWindowIndicatorProps {
   totalTokens: number;
   tokenLimit: number;
+  alerts: Alert[];
 }
 
 const formatTokenCount = (count: number): string => {
@@ -22,7 +24,11 @@ const getProgressColor = (percentage: number): string => {
   return 'text-red-500';
 };
 
-export function ContextWindowIndicator({ totalTokens, tokenLimit }: ContextWindowIndicatorProps) {
+export function ContextWindowIndicator({
+  totalTokens,
+  tokenLimit,
+  alerts,
+}: ContextWindowIndicatorProps) {
   if (!tokenLimit) return null;
 
   const percentage = Math.round((totalTokens / tokenLimit) * 100);
@@ -30,16 +36,12 @@ export function ContextWindowIndicator({ totalTokens, tokenLimit }: ContextWindo
 
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center justify-center h-full cursor-default translate-y-[1px]">
-            <span className={`text-xs font-mono ${colorClass}`}>
-              {formatTokenCount(totalTokens)} / {formatTokenCount(tokenLimit)}
-            </span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>Context window: {percentage}% used</TooltipContent>
-      </Tooltip>
+      <div className="flex items-center h-full">
+        <BottomMenuAlertPopover alerts={alerts} />
+        <span className={`text-xs font-mono cursor-default ${colorClass}`}>
+          {formatTokenCount(totalTokens)} / {formatTokenCount(tokenLimit)}
+        </span>
+      </div>
       <div className="w-px h-4 bg-border-primary mx-2" />
     </>
   );
