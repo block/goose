@@ -105,10 +105,26 @@ impl ShellTool {
             Err(error) => return Self::error_result(&error, None),
         };
 
-        // Structured content uses raw streams (empty string when no output)
+        let truncated_stdout = if execution.stdout.is_empty() {
+            String::new()
+        } else {
+            match truncate_output(&execution.stdout, "stdout") {
+                Ok(t) => t,
+                Err(error) => return Self::error_result(&error, None),
+            }
+        };
+        let truncated_stderr = if execution.stderr.is_empty() {
+            String::new()
+        } else {
+            match truncate_output(&execution.stderr, "stderr") {
+                Ok(t) => t,
+                Err(error) => return Self::error_result(&error, None),
+            }
+        };
+
         let shell_output = ShellOutput {
-            stdout: execution.stdout,
-            stderr: execution.stderr,
+            stdout: truncated_stdout,
+            stderr: truncated_stderr,
             exit_code: execution.exit_code,
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
@@ -299,7 +315,10 @@ fn render_output(full_output: &str, label: &str) -> Result<String, String> {
     if full_output.is_empty() {
         return Ok("(no output)".to_string());
     }
+    truncate_output(full_output, label)
+}
 
+fn truncate_output(full_output: &str, label: &str) -> Result<String, String> {
     let lines: Vec<&str> = full_output.split('\n').collect();
     let total_lines = lines.len();
     let total_bytes = full_output.len();
