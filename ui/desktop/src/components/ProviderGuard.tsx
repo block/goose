@@ -22,6 +22,7 @@ import {
 } from '../utils/analytics';
 
 import { Goose, OpenRouter, Tetrate, ChatGPT } from './icons';
+import { useTranslation } from 'react-i18next';
 
 interface ProviderGuardProps {
   didSelectProvider: boolean;
@@ -30,6 +31,7 @@ interface ProviderGuardProps {
 
 export default function ProviderGuard({ didSelectProvider, children }: ProviderGuardProps) {
   const { read, upsert } = useConfig();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isChecking, setIsChecking] = useState(true);
   const [hasProvider, setHasProvider] = useState(false);
@@ -91,7 +93,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         trackOnboardingSetupFailed('tetrate', result.message);
         setTetrateSetupState({
           show: true,
-          title: 'Setup Failed',
+          title: t('onboarding.setup.failed'),
           message: result.message,
           showRetry: true,
         });
@@ -101,8 +103,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       trackOnboardingSetupFailed('tetrate', 'unexpected_error');
       setTetrateSetupState({
         show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
+        title: t('onboarding.setup.error'),
+        message: t('onboarding.setup.unexpectedError'),
         showRetry: true,
       });
     }
@@ -119,7 +121,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         trackOnboardingSetupFailed('chatgpt_codex', result.message);
         setChatgptCodexSetupState({
           show: true,
-          title: 'Setup Failed',
+          title: t('onboarding.setup.failed'),
           message: result.message,
           showRetry: true,
         });
@@ -129,8 +131,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       trackOnboardingSetupFailed('chatgpt_codex', 'unexpected_error');
       setChatgptCodexSetupState({
         show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
+        title: t('onboarding.setup.error'),
+        message: t('onboarding.setup.unexpectedError'),
         showRetry: true,
       });
     }
@@ -172,7 +174,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         trackOnboardingSetupFailed('openrouter', result.message);
         setOpenRouterSetupState({
           show: true,
-          title: 'Setup Failed',
+          title: t('onboarding.setup.failed'),
           message: result.message,
           showRetry: true,
         });
@@ -182,8 +184,8 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
       trackOnboardingSetupFailed('openrouter', 'unexpected_error');
       setOpenRouterSetupState({
         show: true,
-        title: 'Setup Error',
-        message: 'An unexpected error occurred during setup.',
+        title: t('onboarding.setup.error'),
+        message: t('onboarding.setup.unexpectedError'),
         showRetry: true,
       });
     }
@@ -333,11 +335,12 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   <div className="origin-bottom-left goose-icon-animation">
                     <Goose className="size-6 sm:size-8" />
                   </div>
-                  <h1 className="text-2xl sm:text-4xl font-light text-left">Welcome to Goose</h1>
+                  <h1 className="text-2xl sm:text-4xl font-light text-left">
+                    {t('onboarding.welcome.title')}
+                  </h1>
                 </div>
                 <p className="text-text-secondary text-base sm:text-lg mt-4 sm:mt-6">
-                  Since it’s your first time here, let’s get you set up with an AI provider so goose
-                  can work its magic.
+                  {t('onboarding.welcome.subtitle')}
                 </p>
               </div>
 
@@ -352,7 +355,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               <div className="relative w-full mb-4">
                 <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
                   <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
-                    Free &amp; Private
+                    {t('onboarding.cards.runLocally.badge')}
                   </span>
                 </div>
                 <div
@@ -365,7 +368,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-text-default text-sm sm:text-base">
-                        Run Locally
+                        {t('onboarding.cards.runLocally.title')}
                       </span>
                     </div>
                     <div className="text-text-muted group-hover:text-text-default transition-colors">
@@ -385,7 +388,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </div>
                   </div>
                   <p className="text-text-muted text-sm sm:text-base">
-                    Download a model and run entirely on your machine. No API keys, no accounts.
+                    {t('onboarding.cards.runLocally.description')}
                   </p>
                 </div>
               </div>
@@ -394,7 +397,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               <div className="relative w-full mb-4">
                 <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
                   <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                    Recommended if you have ChatGPT Plus/Pro
+                    {t('onboarding.cards.chatgpt.badge')}
                   </span>
                 </div>
 
@@ -406,7 +409,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     <div className="flex items-center gap-2">
                       <ChatGPT className="w-5 h-5 text-text-primary" />
                       <span className="font-medium text-text-primary text-sm sm:text-base">
-                        ChatGPT Subscription
+                        {t('onboarding.cards.chatgpt.title')}
                       </span>
                     </div>
                     <div className="text-text-secondary group-hover:text-text-primary transition-colors">
@@ -426,7 +429,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </div>
                   </div>
                   <p className="text-text-secondary text-sm sm:text-base">
-                    Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models.
+                    {t('onboarding.cards.chatgpt.description')}
                   </p>
                 </div>
               </div>
@@ -435,7 +438,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
               <div className="relative w-full mb-4">
                 <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-20">
                   <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                    Recommended for new users
+                    {t('onboarding.cards.tetrate.badge')}
                   </span>
                 </div>
 
@@ -447,8 +450,13 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     <div className="flex items-center gap-2">
                       <Tetrate className="w-5 h-5 text-text-primary" />
                       <span className="text-sm sm:text-base">
-                        <span className="font-medium text-text-primary">Agent Router</span>
-                        <span className="text-text-secondary text-xs"> by Tetrate</span>
+                        <span className="font-medium text-text-primary">
+                          {t('onboarding.cards.tetrate.title')}
+                        </span>
+                        <span className="text-text-secondary text-xs">
+                          {' '}
+                          {t('onboarding.cards.tetrate.byline')}
+                        </span>
                       </span>
                     </div>
                     <div className="text-text-secondary group-hover:text-text-primary transition-colors">
@@ -468,7 +476,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                     </div>
                   </div>
                   <p className="text-text-secondary text-sm sm:text-base">
-                    Access multiple AI models with automatic setup. Sign up to receive $10 credit.
+                    {t('onboarding.cards.tetrate.description')}
                   </p>
                 </div>
               </div>
@@ -485,7 +493,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   <div className="flex items-center gap-2">
                     <OpenRouter className="w-5 h-5 text-text-primary" />
                     <span className="font-medium text-text-primary text-sm sm:text-base">
-                      OpenRouter
+                      {t('onboarding.cards.openrouter.title')}
                     </span>
                   </div>
                   <div className="text-text-secondary group-hover:text-text-primary transition-colors">
@@ -505,23 +513,24 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
                   </div>
                 </div>
                 <p className="text-text-secondary text-sm sm:text-base">
-                  Access 200+ models with one API. Pay-per-use pricing.
+                  {t('onboarding.cards.openrouter.description')}
                 </p>
               </div>
 
               {/* Other providers section */}
               <div className="w-full p-4 sm:p-6 bg-transparent border rounded-xl">
                 <h3 className="font-medium text-text-primary text-sm sm:text-base mb-3">
-                  Other Providers
+                  {t('onboarding.cards.otherProviders.title')}
                 </h3>
                 <p className="text-text-secondary text-sm sm:text-base mb-4">
-                  Set up additional providers manually through settings.
+                  {t('onboarding.cards.otherProviders.description')}
                 </p>
                 <button
                   onClick={() => navigate('/welcome', { replace: true })}
                   className="text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors"
+                  data-testid="go-to-provider-settings-button"
                 >
-                  Go to Provider Settings →
+                  {t('onboarding.cards.otherProviders.cta')}
                 </button>
               </div>
               <div className="mt-6">
@@ -535,7 +544,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
         {showScrollIndicator && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none transition-opacity duration-300 opacity-60 animate-bounce">
             <div className="flex flex-col items-center gap-1 text-text-secondary">
-              <span className="text-xs">More options below</span>
+              <span className="text-xs">{t('onboarding.welcome.moreOptionsBelow')}</span>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
@@ -589,7 +598,7 @@ export default function ProviderGuard({ didSelectProvider, children }: ProviderG
             setView={setView}
             onModelSelected={handleModelSelected}
             initialProvider={switchModelProvider}
-            titleOverride="Choose Model"
+            titleOverride={t('onboarding.setup.chooseModel')}
           />
         )}
       </div>

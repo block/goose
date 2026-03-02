@@ -33,6 +33,7 @@ export interface Settings {
   showDockIcon: boolean;
   enableWakelock: boolean;
   spellcheckEnabled: boolean;
+  uiLanguage: 'system' | 'en' | 'zh-Hans' | 'zh-Hant';
   externalGoosed: ExternalGoosedConfig;
   globalShortcut?: string | null;
   keyboardShortcuts: KeyboardShortcuts;
@@ -68,6 +69,7 @@ export const defaultSettings: Settings = {
   showDockIcon: true,
   enableWakelock: false,
   spellcheckEnabled: true,
+  uiLanguage: 'system',
   keyboardShortcuts: defaultKeyboardShortcuts,
   externalGoosed: {
     enabled: false,

@@ -9,6 +9,7 @@ import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
   trackTelemetryPreference,
 } from '../../../utils/analytics';
+import { useTranslation } from 'react-i18next';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -17,6 +18,7 @@ interface TelemetrySettingsProps {
 }
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
+  const { t } = useTranslation();
   const { read, upsert } = useConfig();
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -67,17 +69,17 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     return null;
   }
 
-  const title = 'Privacy';
-  const description = 'Control how your data is used';
-  const toggleLabel = 'Anonymous usage data';
-  const toggleDescription = 'Help improve goose by sharing anonymous usage statistics.';
+  const title = t('settings.telemetry.title');
+  const description = t('settings.telemetry.description');
+  const toggleLabel = t('settings.telemetry.anonymousUsageData');
+  const toggleDescription = t('settings.telemetry.anonymousUsageDataDescription');
 
   const learnMoreLink = (
     <button
       onClick={() => setShowModal(true)}
       className="text-blue-600 dark:text-blue-400 hover:underline"
     >
-      Learn more
+      {t('settings.telemetry.learnMore')}
     </button>
   );
 

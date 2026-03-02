@@ -1280,6 +1280,7 @@ const validSettingKeys: Set<string> = new Set([
   'showDockIcon',
   'enableWakelock',
   'spellcheckEnabled',
+  'uiLanguage',
   'externalGoosed',
   'globalShortcut',
   'keyboardShortcuts',
@@ -1290,11 +1291,24 @@ const validSettingKeys: Set<string> = new Set([
   'sessionSharing',
   'seenAnnouncementIds',
 ]);
+const validUiLanguageValues: Set<Settings['uiLanguage']> = new Set([
+  'system',
+  'en',
+  'zh-Hans',
+  'zh-Hant',
+]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   // Validate key at runtime to prevent prototype pollution
   if (!validSettingKeys.has(key)) {
     console.error(`Invalid setting key rejected: ${key}`);
+    return;
+  }
+  if (
+    key === 'uiLanguage' &&
+    (typeof value !== 'string' || !validUiLanguageValues.has(value as Settings['uiLanguage']))
+  ) {
+    console.error(`Invalid uiLanguage value rejected: ${String(value)}`);
     return;
   }
 

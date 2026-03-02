@@ -77,7 +77,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
 
     // Click Reset Provider and Model button
     console.log('Clicking Reset provider and model...');
-    const resetButton = await mainWindow.waitForSelector('button:has-text("Reset provider and model")', {
+    const resetButton = await mainWindow.waitForSelector('[data-testid="reset-provider-and-model-button"]', {
       timeout: 5000,
       state: 'visible'
     });
@@ -117,7 +117,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
   if (otherProvidersSection) {
     console.log('Found "Other Providers" section, clicking "Go to Provider Settings" link...');
     // Click the "Go to Provider Settings" link (includes arrow →)
-    const providerSettingsLink = await mainWindow.waitForSelector('button:has-text("Go to Provider Settings")', {
+    const providerSettingsLink = await mainWindow.waitForSelector('[data-testid="go-to-provider-settings-button"]', {
       timeout: 3000,
       state: 'visible'
     });
@@ -437,7 +437,7 @@ test.describe('Goose App', () => {
 
             // Click "Add custom extension" button
             console.log('Looking for Add custom extension button...');
-            const addExtensionButton = await mainWindow.waitForSelector('button:has-text("Add custom extension")', {
+            const addExtensionButton = await mainWindow.waitForSelector('[data-testid="add-custom-extension-button"]', {
               timeout: 2000,
               state: 'visible'
             });

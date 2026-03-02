@@ -39,6 +39,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { LanguageProvider } from './contexts/LanguageContext';
+import './i18n';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
@@ -702,13 +704,15 @@ export function AppInner() {
 export default function App() {
   return (
     <ThemeProvider>
-      <ModelAndProviderProvider>
-        <HashRouter>
-          <AppInner />
-        </HashRouter>
-        <AnnouncementModal />
-        <TelemetryOptOutModal controlled={false} />
-      </ModelAndProviderProvider>
+      <LanguageProvider>
+        <ModelAndProviderProvider>
+          <HashRouter>
+            <AppInner />
+          </HashRouter>
+          <AnnouncementModal />
+          <TelemetryOptOutModal controlled={false} />
+        </ModelAndProviderProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }
