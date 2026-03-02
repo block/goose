@@ -1,5 +1,5 @@
 import { AppEvents } from '../../constants/events';
-import { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
 import { isEqual } from 'lodash';
 import { cn } from '../../utils';
@@ -8,9 +8,10 @@ import { AlertBox } from '../alerts';
 
 interface AlertPopoverProps {
   alerts: Alert[];
+  children?: React.ReactNode;
 }
 
-export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
+export default function BottomMenuAlertPopover({ alerts, children }: AlertPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [wasAutoShown, setWasAutoShown] = useState(false);
@@ -187,7 +188,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
   }, [isOpen]);
 
   // Use shouldShowIndicator instead of alerts.length for rendering decision
-  if (!shouldShowIndicator) {
+  if (!shouldShowIndicator && !children) {
     return null;
   }
 
@@ -205,7 +206,7 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
       <div className="relative">
         <button
           ref={triggerRef}
-          className="cursor-pointer flex items-center justify-center min-w-5 min-h-5 rounded hover:bg-background-secondary"
+          className="cursor-pointer flex items-center gap-1.5 min-h-5 rounded hover:bg-background-secondary px-1"
           onClick={() => {
             setIsOpen(true);
           }}
@@ -227,9 +228,12 @@ export default function BottomMenuAlertPopover({ alerts }: AlertPopoverProps) {
             }, 100);
           }}
         >
-          <div className={cn('relative', triggerColor)}>
-            <FaCircle size={5} />
-          </div>
+          {shouldShowIndicator && (
+            <div className={cn('relative', triggerColor)}>
+              <FaCircle size={5} />
+            </div>
+          )}
+          {children}
         </button>
       </div>
 
