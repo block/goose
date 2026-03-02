@@ -1512,9 +1512,9 @@ impl SummonClient {
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
-        std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
+        Config::global()
+            .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
             .ok()
-            .and_then(|v| v.parse().ok())
             .or_else(|| {
                 session
                     .recipe

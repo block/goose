@@ -1118,7 +1118,11 @@ impl Agent {
             let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream");
             let _stream_guard = reply_stream_span.enter();
             let mut turns_taken = 0u32;
-            let max_turns = session_config.max_turns.unwrap_or(DEFAULT_MAX_TURNS);
+            let max_turns = session_config.max_turns.unwrap_or_else(|| {
+                Config::global()
+                    .get_param::<u32>("GOOSE_MAX_TURNS")
+                    .unwrap_or(DEFAULT_MAX_TURNS)
+            });
             let mut compaction_attempts = 0;
             let mut last_assistant_text = String::new();
 
