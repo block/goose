@@ -426,6 +426,40 @@ pub async fn update_model_settings(
     Ok(Json(settings))
 }
 
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PreloadModelRequest {
+    pub model_id: String,
+}
+
+#[utoipa::path(
+    post,
+    path = "/local-inference/preload",
+    request_body = PreloadModelRequest,
+    responses(
+        (status = 202, description = "Model preload started"),
+        (status = 400, description = "Invalid model")
+    )
+)]
+pub async fn preload_model(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    Json(req): Json<PreloadModelRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let runtime = state.inference_runtime.clone();
+    let model_slot = runtime.get_or_create_model_slot(&req.model_id);
+    let model_id = req.model_id;
+
+    tokio::spawn(async move {
+        if let Err(e) =
+            goose::providers::local_inference::ensure_model_loaded(&runtime, &model_slot, &model_id)
+                .await
+        {
+            tracing::warn!(model_id, error = %e, "Preload failed");
+        }
+    });
+
+    Ok(StatusCode::ACCEPTED)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     goose::download_manager::cleanup_partial_downloads(&Paths::in_data_dir("models"));
 
@@ -436,6 +470,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
             "/local-inference/repo/{author}/{repo}/files",
             get(get_repo_files),
         )
+        .route("/local-inference/preload", post(preload_model))
         .route("/local-inference/download", post(download_hf_model))
         .route(
             "/local-inference/models/{model_id}/download",

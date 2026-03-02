@@ -1,4 +1,5 @@
 import { AppEvents } from '../constants/events';
+import { getApiUrl } from '../config';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { Bug, ChefHat, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
@@ -133,6 +134,7 @@ export default function ChatInput({
   const queuePausedRef = useRef(false);
   const editingMessageIdRef = useRef<string | null>(null);
   const [lastInterruption, setLastInterruption] = useState<string | null>(null);
+  const preloadTriggeredRef = useRef<string | null>(null);
 
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
@@ -521,6 +523,16 @@ export default function ChatInput({
   const handleChange = (evt: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = evt.target.value;
     const cursorPosition = evt.target.selectionStart;
+
+    // Trigger eager model preload for local inference on first keystroke
+    if (currentProvider === 'local' && currentModel && preloadTriggeredRef.current !== currentModel) {
+      preloadTriggeredRef.current = currentModel;
+      fetch(getApiUrl('/local-inference/preload'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_id: currentModel }),
+      }).catch(() => {});
+    }
 
     setDisplayValue(val);
     updateValue(val);

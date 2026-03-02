@@ -2115,6 +2115,32 @@
         }
       }
     },
+    "/local-inference/preload": {
+      "post": {
+        "tags": [
+          "super::routes::local_inference"
+        ],
+        "operationId": "preload_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreloadModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Model preload started"
+          },
+          "400": {
+            "description": "Invalid model"
+          }
+        }
+      }
+    },
     "/local-inference/repo/{author}/{repo}/files": {
       "get": {
         "tags": [
@@ -6195,6 +6221,17 @@
           "microphone": {
             "type": "boolean",
             "description": "Request microphone access (maps to Permission Policy `microphone` feature)"
+          }
+        }
+      },
+      "PreloadModelRequest": {
+        "type": "object",
+        "required": [
+          "model_id"
+        ],
+        "properties": {
+          "model_id": {
+            "type": "string"
           }
         }
       },

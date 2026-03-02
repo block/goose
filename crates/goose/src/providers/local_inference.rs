@@ -9,7 +9,7 @@ use inference_emulated_tools::{
     build_emulator_tool_description, generate_with_emulated_tools, load_tiny_model_prompt,
 };
 use inference_engine::GenerationContext;
-use inference_engine::LoadedModel;
+pub use inference_engine::LoadedModel;
 use inference_native_tools::generate_with_native_tools;
 use tool_parsing::compact_tools_json;
 
@@ -93,7 +93,7 @@ impl InferenceRuntime {
         &self.backend
     }
 
-    fn get_or_create_model_slot(&self, model_id: &str) -> ModelSlot {
+    pub fn get_or_create_model_slot(&self, model_id: &str) -> ModelSlot {
         let mut map = self.models.lock().expect("model cache lock poisoned");
         map.entry(model_id.to_string())
             .or_insert_with(|| Arc::new(Mutex::new(None)))
@@ -107,6 +107,87 @@ impl InferenceRuntime {
             .map(|(_, slot)| slot.clone())
             .collect()
     }
+}
+
+/// Ensure a model is loaded into the given slot, unloading other models first to free memory.
+/// This is idempotent — if the model is already loaded, it returns immediately.
+pub async fn ensure_model_loaded(
+    runtime: &Arc<InferenceRuntime>,
+    model_slot: &ModelSlot,
+    model_id: &str,
+) -> Result<(), ProviderError> {
+    let mut model_lock = model_slot.lock().await;
+    if model_lock.is_some() {
+        return Ok(());
+    }
+
+    let (_, _, settings) = resolve_model_path(model_id)
+        .ok_or_else(|| ProviderError::ExecutionError(format!("Model not found: {}", model_id)))?;
+
+    for slot in runtime.other_model_slots(model_id) {
+        let mut other = slot.lock().await;
+        if other.is_some() {
+            tracing::info!("Unloading previous model to free memory");
+            *other = None;
+        }
+    }
+
+    let runtime_clone = runtime.clone();
+    let model_id_owned = model_id.to_string();
+    let loaded = tokio::task::spawn_blocking(move || {
+        load_model_sync(&runtime_clone, &model_id_owned, &settings)
+    })
+    .await
+    .map_err(|e| ProviderError::ExecutionError(e.to_string()))??;
+    *model_lock = Some(loaded);
+    Ok(())
+}
+
+fn load_model_sync(
+    runtime: &InferenceRuntime,
+    model_id: &str,
+    settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
+) -> Result<LoadedModel, ProviderError> {
+    let (model_path, _context_limit, _) = resolve_model_path(model_id)
+        .ok_or_else(|| ProviderError::ExecutionError(format!("Unknown model: {}", model_id)))?;
+
+    if !model_path.exists() {
+        return Err(ProviderError::ExecutionError(format!(
+            "Model not downloaded: {}. Please download it from Settings > Local Inference.",
+            model_id
+        )));
+    }
+
+    tracing::info!("Loading {} from: {}", model_id, model_path.display());
+
+    let backend = runtime.backend();
+
+    let mut params = LlamaModelParams::default();
+    if let Some(n_gpu_layers) = settings.n_gpu_layers {
+        params = params.with_n_gpu_layers(n_gpu_layers);
+    }
+    if settings.use_mlock {
+        params = params.with_use_mlock(true);
+    }
+    let model = LlamaModel::load_from_file(backend, &model_path, &params)
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+
+    let template = match model.chat_template(None) {
+        Ok(t) => t,
+        Err(_) => {
+            tracing::warn!("Model has no embedded chat template, falling back to chatml");
+            LlamaChatTemplate::new("chatml").map_err(|e| {
+                ProviderError::ExecutionError(format!(
+                    "Failed to create fallback chat template: {}",
+                    e
+                ))
+            })?
+        }
+    };
+
+    tracing::info!("Model loaded successfully");
+
+    Ok(LoadedModel { model, template })
 }
 
 const PROVIDER_NAME: &str = "local";
@@ -317,53 +398,6 @@ impl LocalInferenceProvider {
             name: PROVIDER_NAME.to_string(),
         })
     }
-
-    fn load_model_sync(
-        runtime: &InferenceRuntime,
-        model_id: &str,
-        settings: &crate::providers::local_inference::local_model_registry::ModelSettings,
-    ) -> Result<LoadedModel, ProviderError> {
-        let (model_path, _context_limit, _) = resolve_model_path(model_id)
-            .ok_or_else(|| ProviderError::ExecutionError(format!("Unknown model: {}", model_id)))?;
-
-        if !model_path.exists() {
-            return Err(ProviderError::ExecutionError(format!(
-                "Model not downloaded: {}. Please download it from Settings > Local Inference.",
-                model_id
-            )));
-        }
-
-        tracing::info!("Loading {} from: {}", model_id, model_path.display());
-
-        let backend = runtime.backend();
-
-        let mut params = LlamaModelParams::default();
-        if let Some(n_gpu_layers) = settings.n_gpu_layers {
-            params = params.with_n_gpu_layers(n_gpu_layers);
-        }
-        if settings.use_mlock {
-            params = params.with_use_mlock(true);
-        }
-        let model = LlamaModel::load_from_file(backend, &model_path, &params)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-
-        let template = match model.chat_template(None) {
-            Ok(t) => t,
-            Err(_) => {
-                tracing::warn!("Model has no embedded chat template, falling back to chatml");
-                LlamaChatTemplate::new("chatml").map_err(|e| {
-                    ProviderError::ExecutionError(format!(
-                        "Failed to create fallback chat template: {}",
-                        e
-                    ))
-                })?
-            }
-        };
-
-        tracing::info!("Model loaded successfully");
-
-        Ok(LoadedModel { model, template })
-    }
 }
 
 impl ProviderDef for LocalInferenceProvider {
@@ -453,29 +487,7 @@ impl Provider for LocalInferenceProvider {
                 ))
             })?;
 
-        // Ensure model is loaded — unload any other models first to free memory.
-        {
-            let mut model_lock = self.model.lock().await;
-            if model_lock.is_none() {
-                for slot in self.runtime.other_model_slots(&model_config.model_name) {
-                    let mut other = slot.lock().await;
-                    if other.is_some() {
-                        tracing::info!("Unloading previous model to free memory");
-                        *other = None;
-                    }
-                }
-
-                let model_id = model_config.model_name.clone();
-                let settings_for_load = model_settings.clone();
-                let runtime_for_load = self.runtime.clone();
-                let loaded = tokio::task::spawn_blocking(move || {
-                    Self::load_model_sync(&runtime_for_load, &model_id, &settings_for_load)
-                })
-                .await
-                .map_err(|e| ProviderError::ExecutionError(e.to_string()))??;
-                *model_lock = Some(loaded);
-            }
-        }
+        ensure_model_loaded(&self.runtime, &self.model, &model_config.model_name).await?;
 
         // Models that support native OpenAI-compatible tool-call JSON use the
         // native path (template-based tool calling with JSON output). All other

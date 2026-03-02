@@ -21,7 +21,7 @@ pub(super) struct GenerationContext<'a> {
     pub log: &'a mut RequestLog,
 }
 
-pub(super) struct LoadedModel {
+pub struct LoadedModel {
     pub model: LlamaModel,
     pub template: LlamaChatTemplate,
 }

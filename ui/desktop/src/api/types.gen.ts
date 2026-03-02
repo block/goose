@@ -828,6 +828,10 @@ export type PermissionsMetadata = {
     microphone?: boolean;
 };
 
+export type PreloadModelRequest = {
+    model_id: string;
+};
+
 export type PrincipalType = 'Extension' | 'Tool';
 
 export type PromptContentResponse = {
@@ -3194,6 +3198,27 @@ export type UpdateModelSettingsResponses = {
 };
 
 export type UpdateModelSettingsResponse = UpdateModelSettingsResponses[keyof UpdateModelSettingsResponses];
+
+export type PreloadModelData = {
+    body: PreloadModelRequest;
+    path?: never;
+    query?: never;
+    url: '/local-inference/preload';
+};
+
+export type PreloadModelErrors = {
+    /**
+     * Invalid model
+     */
+    400: unknown;
+};
+
+export type PreloadModelResponses = {
+    /**
+     * Model preload started
+     */
+    202: unknown;
+};
 
 export type GetRepoFilesData = {
     body?: never;
