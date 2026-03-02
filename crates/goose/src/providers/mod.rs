@@ -25,6 +25,7 @@ mod init;
 pub mod lead_worker;
 pub mod litellm;
 pub mod local_inference;
+pub mod nanogpt;
 pub mod oauth;
 pub mod ollama;
 pub mod openai;

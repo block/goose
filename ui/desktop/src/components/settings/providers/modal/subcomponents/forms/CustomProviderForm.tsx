@@ -11,7 +11,7 @@ import ProviderCatalogPicker from '../ProviderCatalogPicker';
 type Step = 'choice' | 'catalog' | 'form';
 
 interface CustomProviderFormProps {
-  onSubmit: (data: UpdateCustomProviderRequest) => void;
+  onSubmit: (data: UpdateCustomProviderRequest) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: () => Promise<void>;
   isActiveProvider?: boolean;
@@ -43,6 +43,7 @@ export default function CustomProviderForm({
     value: false,
   });
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   // Template + step state
@@ -181,8 +182,10 @@ export default function CustomProviderForm({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
+    setValidationErrors({});
 
     const errors: Record<string, string> = {};
     if (!displayName) errors.displayName = 'Display name is required';
@@ -223,17 +226,22 @@ export default function CustomProviderForm({
       {} as Record<string, string>
     );
 
-    onSubmit({
-      engine,
-      display_name: displayName,
-      api_url: apiUrl,
-      api_key: apiKey,
-      models: modelList,
-      supports_streaming: supportsStreaming,
-      requires_auth: requiresAuth,
-      headers: headersObject,
-      catalog_provider_id: selectedTemplate?.id ?? initialData?.catalog_provider_id ?? undefined,
-    });
+    try {
+      await onSubmit({
+        engine,
+        display_name: displayName,
+        api_url: apiUrl,
+        api_key: apiKey,
+        models: modelList,
+        supports_streaming: supportsStreaming,
+        requires_auth: requiresAuth,
+        headers: headersObject,
+        catalog_provider_id: selectedTemplate?.id ?? initialData?.catalog_provider_id ?? undefined,
+      });
+    } catch (error) {
+      console.error('Failed to save custom provider:', error);
+      setSubmitError('Failed to save provider. Please check your configuration and try again.');
+    }
   };
 
   // Aggregate capability badges for template models
@@ -642,6 +650,8 @@ export default function CustomProviderForm({
       )}
 
       <SecureStorageNotice />
+
+      {submitError && <p className="text-red-500 text-sm">{submitError}</p>}
 
       {showDeleteConfirmation ? (
         <div className="pt-4 space-y-3">

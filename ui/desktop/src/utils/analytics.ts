@@ -67,19 +67,7 @@ async function sendEvent(
 export type AnalyticsEvent =
   | { name: 'page_view'; properties: { page: string; referrer?: string } }
   | { name: 'onboarding_started'; properties: Record<string, never> }
-  | {
-      name: 'onboarding_provider_selected';
-      properties: {
-        method:
-          | 'api_key'
-          | 'openrouter'
-          | 'tetrate'
-          | 'chatgpt_codex'
-          | 'ollama'
-          | 'local'
-          | 'other';
-      };
-    }
+  | { name: 'onboarding_provider_selected'; properties: { method: string } }
   | {
       name: 'onboarding_completed';
       properties: { provider: string; model?: string; duration_seconds?: number };
@@ -293,9 +281,7 @@ export function trackOnboardingStarted(): void {
   trackEvent({ name: 'onboarding_started', properties: {} });
 }
 
-export function trackOnboardingProviderSelected(
-  method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'local' | 'other'
-): void {
+export function trackOnboardingProviderSelected(method: string): void {
   trackEvent({
     name: 'onboarding_provider_selected',
     properties: { method },
