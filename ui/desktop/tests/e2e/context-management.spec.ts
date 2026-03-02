@@ -23,14 +23,13 @@ test.describe('Context Management E2E Tests', () => {
     // Verify the context window alert is shown
     const alertBox = goosePage.locator('[role="alert"]');
     await expect(alertBox).toBeVisible();
-    await expect(alertBox).toContainText('Context window');
     
     // Verify progress bar is shown
     const progressBar = goosePage.locator('[role="progressbar"]');
     await expect(progressBar).toBeVisible();
     
     // Verify compact button is present
-    const compactButton = goosePage.locator('text=Compact now');
+    const compactButton = goosePage.locator('[data-testid="compact-now-button"]');
     await expect(compactButton).toBeVisible();
   });
 
@@ -60,20 +59,19 @@ test.describe('Context Management E2E Tests', () => {
     await goosePage.click('[data-testid="alert-indicator"]');
     
     // Click the compact button
-    const compactButton = goosePage.locator('text=Compact now');
+    const compactButton = goosePage.locator('[data-testid="compact-now-button"]');
     await expect(compactButton).toBeVisible();
     await compactButton.click();
     
     // Verify compaction loading state
     const loadingGoose = goosePage.locator('[data-testid="loading-goose"]');
     await expect(loadingGoose).toBeVisible();
-    await expect(loadingGoose).toContainText('goose is compacting the conversation...');
     
     // Wait for compaction to complete
     await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
     
     // Verify compaction marker appears
-    const compactionMarker = goosePage.locator('text=Conversation compacted and summarized');
+    const compactionMarker = goosePage.locator('[data-testid="compaction-success-marker"]');
     await expect(compactionMarker).toBeVisible();
     
     // Verify alert popover is closed after compaction
@@ -102,11 +100,11 @@ test.describe('Context Management E2E Tests', () => {
     // Perform manual compaction
     await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
     await goosePage.click('[data-testid="alert-indicator"]');
-    await goosePage.click('text=Compact now');
+    await goosePage.click('[data-testid="compact-now-button"]');
     
     // Wait for compaction to complete
     await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
-    await expect(goosePage.locator('text=Conversation compacted and summarized')).toBeVisible();
+    await expect(goosePage.locator('[data-testid="compaction-success-marker"]')).toBeVisible();
     
     // Scroll up to verify past messages are still visible
     const chatContainer = goosePage.locator('[data-testid="chat-container"]');
@@ -147,13 +145,13 @@ test.describe('Context Management E2E Tests', () => {
     // Attempt compaction
     await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
     await goosePage.click('[data-testid="alert-indicator"]');
-    await goosePage.click('text=Compact now');
+    await goosePage.click('[data-testid="compact-now-button"]');
     
     // Wait for compaction to fail
     await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
     
     // Verify error message appears
-    const errorMarker = goosePage.locator('text=Compaction failed. Please try again or start a new session.');
+    const errorMarker = goosePage.locator('[data-testid="compaction-error-marker"]');
     await expect(errorMarker).toBeVisible();
   });
 
@@ -182,11 +180,11 @@ test.describe('Context Management E2E Tests', () => {
     // Perform compaction
     await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
     await goosePage.click('[data-testid="alert-indicator"]');
-    await goosePage.click('text=Compact now');
+    await goosePage.click('[data-testid="compact-now-button"]');
     await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
     
     // Verify compaction marker
-    await expect(goosePage.locator('text=Conversation compacted and summarized')).toBeVisible();
+    await expect(goosePage.locator('[data-testid="compaction-success-marker"]')).toBeVisible();
     
     // Continue conversation after compaction
     await chatInput.fill('Thank you, that was helpful. What about Vue.js?');
@@ -215,12 +213,11 @@ test.describe('Context Management E2E Tests', () => {
     // Start compaction
     await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
     await goosePage.click('[data-testid="alert-indicator"]');
-    await goosePage.click('text=Compact now');
+    await goosePage.click('[data-testid="compact-now-button"]');
     
     // Verify loading state immediately after clicking compact
     const loadingGoose = goosePage.locator('[data-testid="loading-goose"]');
     await expect(loadingGoose).toBeVisible();
-    await expect(loadingGoose).toContainText('goose is compacting the conversation...');
     
     // Verify chat input is disabled during compaction
     const submitButton = goosePage.locator('[data-testid="submit-button"]');
@@ -244,7 +241,7 @@ test.describe('Context Management E2E Tests', () => {
     await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
     await goosePage.click('[data-testid="alert-indicator"]');
     
-    const compactButton = goosePage.locator('text=Compact now');
+    const compactButton = goosePage.locator('[data-testid="compact-now-button"]');
     await expect(compactButton).toBeVisible();
     
     // Click multiple times rapidly
@@ -257,7 +254,7 @@ test.describe('Context Management E2E Tests', () => {
     // Verify only one compaction occurs
     await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
     
-    const compactionMarkers = goosePage.locator('text=Conversation compacted and summarized');
+    const compactionMarkers = goosePage.locator('[data-testid="compaction-success-marker"]');
     await expect(compactionMarkers).toHaveCount(1);
   });
 });

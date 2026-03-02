@@ -51,6 +51,7 @@ import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { translateMain } from './i18n/mainProcess';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -89,6 +90,29 @@ function updateSettings(modifier: (settings: Settings) => void): void {
   const settings = getSettings();
   modifier(settings);
   fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+}
+
+function tMain(
+  key: Parameters<typeof translateMain>[0],
+  params?: Parameters<typeof translateMain>[3]
+): string {
+  const settings = getSettings();
+  return translateMain(key, settings.uiLanguage, app.getLocale(), params);
+}
+
+type SettingChangedPayload = {
+  key: SettingKey;
+  value: Settings[SettingKey];
+};
+
+let rebuildLocalizedMenus: (() => void) | null = null;
+
+function broadcastSettingChanged(payload: SettingChangedPayload): void {
+  BrowserWindow.getAllWindows().forEach((window) => {
+    if (!window.isDestroyed()) {
+      window.webContents.send('setting-changed', payload);
+    }
+  });
 }
 
 async function configureProxy() {
@@ -441,8 +465,10 @@ async function handleFileOpen(filePath: string) {
 
     // Show user-friendly error notification
     new Notification({
-      title: 'Goose',
-      body: `Could not open directory: ${path.basename(filePath)}`,
+      title: tMain('nativeNotification.openDirectoryFailedTitle'),
+      body: tMain('nativeNotification.openDirectoryFailedBody', {
+        directoryName: path.basename(filePath),
+      }),
     }).show();
   }
 }
@@ -647,10 +673,15 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     if (isUsingExternalBackend) {
       const response = dialog.showMessageBoxSync({
         type: 'error',
-        title: 'External Backend Unreachable',
-        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
-        detail: 'The external goosed server may not be running.',
-        buttons: ['Disable External Backend & Retry', 'Quit'],
+        title: tMain('nativeDialog.externalBackendUnreachableTitle'),
+        message: tMain('nativeDialog.externalBackendUnreachableMessage', {
+          backendUrl: settings.externalGoosed?.url ?? '',
+        }),
+        detail: tMain('nativeDialog.externalBackendUnreachableDetail'),
+        buttons: [
+          tMain('nativeDialog.externalBackendDisableAndRetry'),
+          tMain('nativeDialog.quit'),
+        ],
         defaultId: 0,
         cancelId: 1,
       });
@@ -667,10 +698,10 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     } else {
       dialog.showMessageBoxSync({
         type: 'error',
-        title: 'Goose Failed to Start',
-        message: 'The backend server failed to start.',
+        title: tMain('nativeDialog.gooseFailedToStartTitle'),
+        message: tMain('nativeDialog.gooseFailedToStartMessage'),
         detail: errorLog.join('\n'),
-        buttons: ['OK'],
+        buttons: [tMain('nativeDialog.ok')],
       });
     }
     app.quit();
@@ -1321,6 +1352,16 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   if (key === 'keyboardShortcuts') {
     registerGlobalShortcuts();
   }
+
+  const payload: SettingChangedPayload = {
+    key,
+    value: settings[key],
+  };
+  broadcastSettingChanged(payload);
+
+  if (key === 'uiLanguage') {
+    rebuildLocalizedMenus?.();
+  }
 });
 
 ipcMain.handle('get-secret-key', () => {
@@ -1853,207 +1894,255 @@ async function appMain() {
     }
   }, 2000);
 
-  if (process.platform === 'darwin') {
-    const dockMenu = Menu.buildFromTemplate([
-      {
-        label: 'New Window',
-        click: () => {
-          createNewWindow(app);
+  const removeMenuItemById = (menuRef: Menu, id: string) => {
+    const index = menuRef.items.findIndex((item) => item.id === id);
+    if (index >= 0) {
+      menuRef.items.splice(index, 1);
+    }
+  };
+
+  const applyLocalizedMenu = () => {
+    if (process.platform === 'darwin') {
+      const dockMenu = Menu.buildFromTemplate([
+        {
+          label: tMain('nativeMenu.newWindow'),
+          click: () => {
+            createNewWindow(app);
+          },
         },
-      },
-    ]);
-    app.dock?.setMenu(dockMenu);
-  }
+      ]);
+      app.dock?.setMenu(dockMenu);
+    }
 
-  const menu = Menu.getApplicationMenu();
+    const menu = Menu.getApplicationMenu();
+    if (!menu) {
+      return;
+    }
 
-  const shortcuts = getKeyboardShortcuts(settings);
+    const currentSettings = getSettings();
+    const shortcuts = getKeyboardShortcuts(currentSettings);
 
-  const appMenu = menu?.items.find((item) => item.label === 'Goose');
-  if (appMenu?.submenu) {
-    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-    if (shortcuts.settings) {
+    const appMenu = menu.items.find((item) => item.label === 'Goose');
+    if (appMenu?.submenu) {
+      removeMenuItemById(appMenu.submenu, 'goose.app.settings.separator.before');
+      removeMenuItemById(appMenu.submenu, 'goose.app.settings');
+      removeMenuItemById(appMenu.submenu, 'goose.app.settings.separator.after');
+
       appMenu.submenu.insert(
         1,
-        new MenuItem({
-          label: 'Settings',
-          accelerator: shortcuts.settings,
+        new MenuItem({ id: 'goose.app.settings.separator.before', type: 'separator' })
+      );
+      if (shortcuts.settings) {
+        appMenu.submenu.insert(
+          1,
+          new MenuItem({
+            id: 'goose.app.settings',
+            label: tMain('nativeMenu.settings'),
+            accelerator: shortcuts.settings,
+            click() {
+              const focusedWindow = BrowserWindow.getFocusedWindow();
+              if (focusedWindow) {
+                focusedWindow.webContents.send('set-view', 'settings');
+              }
+            },
+          })
+        );
+      }
+      appMenu.submenu.insert(
+        1,
+        new MenuItem({ id: 'goose.app.settings.separator.after', type: 'separator' })
+      );
+    }
+
+    const editMenu = menu.items.find((item) => item.label === 'Edit');
+    if (editMenu?.submenu) {
+      removeMenuItemById(editMenu.submenu, 'goose.edit.find');
+      const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
+      const safeInsertIndex = selectAllIndex >= 0 ? selectAllIndex + 1 : editMenu.submenu.items.length;
+      const findSubmenu = Menu.buildFromTemplate([
+        {
+          id: 'goose.edit.find.command',
+          label: tMain('nativeMenu.findEllipsis'),
+          accelerator: shortcuts.find || undefined,
           click() {
             const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
+            if (focusedWindow) focusedWindow.webContents.send('find-command');
           },
-        })
-      );
-    }
-    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-  }
-
-  const editMenu = menu?.items.find((item) => item.label === 'Edit');
-  if (editMenu?.submenu) {
-    const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
-
-    const findSubmenu = Menu.buildFromTemplate([
-      {
-        label: 'Find…',
-        accelerator: shortcuts.find || undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('find-command');
         },
-      },
-      {
-        label: 'Find Next',
-        accelerator: shortcuts.findNext || undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('find-next');
-        },
-      },
-      {
-        label: 'Find Previous',
-        accelerator: shortcuts.findPrevious || undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('find-previous');
-        },
-      },
-      {
-        label: 'Use Selection for Find',
-        accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
-        },
-        visible: process.platform === 'darwin', // Only show on Mac
-      },
-    ]);
-
-    editMenu.submenu.insert(
-      selectAllIndex + 1,
-      new MenuItem({
-        label: 'Find',
-        submenu: findSubmenu,
-      })
-    );
-  }
-
-  const fileMenu = menu?.items.find((item) => item.label === 'File');
-
-  if (fileMenu?.submenu) {
-    // Use a counter to track the actual insertion index
-    let menuIndex = 0;
-
-    if (shortcuts.newChat) {
-      fileMenu.submenu.insert(
-        menuIndex++,
-        new MenuItem({
-          label: 'New Chat',
-          accelerator: shortcuts.newChat,
+        {
+          id: 'goose.edit.find.next',
+          label: tMain('nativeMenu.findNext'),
+          accelerator: shortcuts.findNext || undefined,
           click() {
             const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) focusedWindow.webContents.send('new-chat');
+            if (focusedWindow) focusedWindow.webContents.send('find-next');
           },
+        },
+        {
+          id: 'goose.edit.find.previous',
+          label: tMain('nativeMenu.findPrevious'),
+          accelerator: shortcuts.findPrevious || undefined,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) focusedWindow.webContents.send('find-previous');
+          },
+        },
+        {
+          id: 'goose.edit.find.useSelection',
+          label: tMain('nativeMenu.useSelectionForFind'),
+          accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
+          click() {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
+          },
+          visible: process.platform === 'darwin',
+        },
+      ]);
+
+      editMenu.submenu.insert(
+        safeInsertIndex,
+        new MenuItem({
+          id: 'goose.edit.find',
+          label: tMain('nativeMenu.find'),
+          submenu: findSubmenu,
         })
       );
     }
 
-    if (shortcuts.newChatWindow) {
+    const fileMenu = menu.items.find((item) => item.label === 'File');
+    if (fileMenu?.submenu) {
+      const fileIds = [
+        'goose.file.newChat',
+        'goose.file.newChatWindow',
+        'goose.file.openDirectory',
+        'goose.file.recentDirectories',
+        'goose.file.custom.separator',
+        'goose.file.focusWindow',
+        'goose.file.quickLauncher',
+      ];
+      fileIds.forEach((id) => removeMenuItemById(fileMenu.submenu!, id));
+
+      let menuIndex = 0;
+      if (shortcuts.newChat) {
+        fileMenu.submenu.insert(
+          menuIndex++,
+          new MenuItem({
+            id: 'goose.file.newChat',
+            label: tMain('nativeMenu.newChat'),
+            accelerator: shortcuts.newChat,
+            click() {
+              const focusedWindow = BrowserWindow.getFocusedWindow();
+              if (focusedWindow) focusedWindow.webContents.send('new-chat');
+            },
+          })
+        );
+      }
+
+      if (shortcuts.newChatWindow) {
+        fileMenu.submenu.insert(
+          menuIndex++,
+          new MenuItem({
+            id: 'goose.file.newChatWindow',
+            label: tMain('nativeMenu.newChatWindow'),
+            accelerator: shortcuts.newChatWindow,
+            click() {
+              ipcMain.emit('create-chat-window');
+            },
+          })
+        );
+      }
+
+      if (shortcuts.openDirectory) {
+        fileMenu.submenu.insert(
+          menuIndex++,
+          new MenuItem({
+            id: 'goose.file.openDirectory',
+            label: tMain('nativeMenu.openDirectory'),
+            accelerator: shortcuts.openDirectory,
+            click: () => openDirectoryDialog(),
+          })
+        );
+      }
+
+      const recentFilesSubmenu = buildRecentFilesMenu();
+      if (recentFilesSubmenu.length > 0) {
+        fileMenu.submenu.insert(
+          menuIndex++,
+          new MenuItem({
+            id: 'goose.file.recentDirectories',
+            label: tMain('nativeMenu.recentDirectories'),
+            submenu: recentFilesSubmenu,
+          })
+        );
+      }
+
       fileMenu.submenu.insert(
         menuIndex++,
-        new MenuItem({
-          label: 'New Chat Window',
-          accelerator: shortcuts.newChatWindow,
-          click() {
-            ipcMain.emit('create-chat-window');
-          },
-        })
+        new MenuItem({ id: 'goose.file.custom.separator', type: 'separator' })
       );
+
+      if (shortcuts.focusWindow) {
+        fileMenu.submenu.append(
+          new MenuItem({
+            id: 'goose.file.focusWindow',
+            label: tMain('nativeMenu.focusGooseWindow'),
+            accelerator: shortcuts.focusWindow,
+            click() {
+              focusWindow();
+            },
+          })
+        );
+      }
+
+      if (shortcuts.quickLauncher) {
+        fileMenu.submenu.append(
+          new MenuItem({
+            id: 'goose.file.quickLauncher',
+            label: tMain('nativeMenu.quickLauncher'),
+            accelerator: shortcuts.quickLauncher,
+            click() {
+              createLauncher();
+            },
+          })
+        );
+      }
     }
 
-    if (shortcuts.openDirectory) {
-      fileMenu.submenu.insert(
-        menuIndex++,
-        new MenuItem({
-          label: 'Open Directory...',
-          accelerator: shortcuts.openDirectory,
-          click: () => openDirectoryDialog(),
-        })
-      );
-    }
-
-    const recentFilesSubmenu = buildRecentFilesMenu();
-    if (recentFilesSubmenu.length > 0) {
-      fileMenu.submenu.insert(
-        menuIndex++,
-        new MenuItem({
-          label: 'Recent Directories',
-          submenu: recentFilesSubmenu,
-        })
-      );
-    }
-
-    fileMenu.submenu.insert(menuIndex++, new MenuItem({ type: 'separator' }));
-
-    if (shortcuts.focusWindow) {
-      fileMenu.submenu.append(
-        new MenuItem({
-          label: 'Focus Goose Window',
-          accelerator: shortcuts.focusWindow,
-          click() {
-            focusWindow();
-          },
-        })
-      );
-    }
-
-    if (shortcuts.quickLauncher) {
-      fileMenu.submenu.append(
-        new MenuItem({
-          label: 'Quick Launcher',
-          accelerator: shortcuts.quickLauncher,
-          click() {
-            createLauncher();
-          },
-        })
-      );
-    }
-  }
-
-  if (menu) {
-    let windowMenu = menu.items.find((item) => item.label === 'Window');
-
+    let windowMenu = menu.items.find((item) => item.label === 'Window' || item.id === 'goose.window.menu');
     if (!windowMenu) {
       windowMenu = new MenuItem({
-        label: 'Window',
+        id: 'goose.window.menu',
+        label: tMain('nativeMenu.window'),
         submenu: Menu.buildFromTemplate([]),
       });
-
       const helpMenuIndex = menu.items.findIndex((item) => item.label === 'Help');
       if (helpMenuIndex >= 0) {
         menu.items.splice(helpMenuIndex, 0, windowMenu);
       } else {
         menu.items.push(windowMenu);
       }
+    } else {
+      windowMenu.label = tMain('nativeMenu.window');
     }
 
     if (windowMenu.submenu) {
+      removeMenuItemById(windowMenu.submenu, 'goose.window.alwaysOnTop');
       if (shortcuts.alwaysOnTop) {
         windowMenu.submenu.append(
           new MenuItem({
-            label: 'Always on Top',
+            id: 'goose.window.alwaysOnTop',
+            label: tMain('nativeMenu.alwaysOnTop'),
             type: 'checkbox',
             accelerator: shortcuts.alwaysOnTop,
             click(menuItem) {
               const focusedWindow = BrowserWindow.getFocusedWindow();
               if (focusedWindow) {
                 const isAlwaysOnTop = menuItem.checked;
-
                 if (process.platform === 'darwin') {
                   focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
                 } else {
                   focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
                 }
-
                 console.log(
                   `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
                 );
@@ -2065,68 +2154,76 @@ async function appMain() {
     }
 
     const viewMenu = menu.items.find((item) => item.label === 'View');
-    if (viewMenu?.submenu && shortcuts.toggleNavigation) {
-      viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      viewMenu.submenu.append(
-        new MenuItem({
-          label: 'Toggle Navigation',
-          accelerator: shortcuts.toggleNavigation,
-          click() {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) {
-              focusedWindow.webContents.send('toggle-navigation');
-            }
-          },
-        })
-      );
-    }
-  }
-
-  // on macOS, the topbar is hidden
-  if (menu && process.platform !== 'darwin') {
-    let helpMenu = menu.items.find((item) => item.label === 'Help');
-
-    // If Help menu doesn't exist, create it and add it to the menu
-    if (!helpMenu) {
-      helpMenu = new MenuItem({
-        label: 'Help',
-        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu
-      });
-      // Find a reasonable place to insert the Help menu, usually near the end
-      const insertIndex = menu.items.length > 0 ? menu.items.length - 1 : 0;
-      menu.items.splice(insertIndex, 0, helpMenu);
-    }
-
-    // Ensure the Help menu has a submenu before appending
-    if (helpMenu.submenu) {
-      // Add a separator before the About item if the submenu is not empty
-      if (helpMenu.submenu.items.length > 0) {
-        helpMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      }
-
-      // Create the About Goose menu item with a submenu
-      const aboutGooseMenuItem = new MenuItem({
-        label: 'About Goose',
-        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
-      });
-
-      // Add the Version menu item (display only) to the About Goose submenu
-      if (aboutGooseMenuItem.submenu) {
-        aboutGooseMenuItem.submenu.append(
+    if (viewMenu?.submenu) {
+      removeMenuItemById(viewMenu.submenu, 'goose.view.toggleNavigation.separator');
+      removeMenuItemById(viewMenu.submenu, 'goose.view.toggleNavigation');
+      if (shortcuts.toggleNavigation) {
+        viewMenu.submenu.append(
+          new MenuItem({ id: 'goose.view.toggleNavigation.separator', type: 'separator' })
+        );
+        viewMenu.submenu.append(
           new MenuItem({
-            label: `Version ${version || app.getVersion()}`,
-            enabled: false,
+            id: 'goose.view.toggleNavigation',
+            label: tMain('nativeMenu.toggleNavigation'),
+            accelerator: shortcuts.toggleNavigation,
+            click() {
+              const focusedWindow = BrowserWindow.getFocusedWindow();
+              if (focusedWindow) {
+                focusedWindow.webContents.send('toggle-navigation');
+              }
+            },
           })
         );
       }
-
-      helpMenu.submenu.append(aboutGooseMenuItem);
     }
-  }
 
-  if (menu) {
+    if (process.platform !== 'darwin') {
+      let helpMenu = menu.items.find((item) => item.label === 'Help' || item.id === 'goose.help.menu');
+      if (!helpMenu) {
+        helpMenu = new MenuItem({
+          id: 'goose.help.menu',
+          label: tMain('nativeMenu.help'),
+          submenu: Menu.buildFromTemplate([]),
+        });
+        const insertIndex = menu.items.length > 0 ? menu.items.length - 1 : 0;
+        menu.items.splice(insertIndex, 0, helpMenu);
+      } else {
+        helpMenu.label = tMain('nativeMenu.help');
+      }
+
+      if (helpMenu.submenu) {
+        removeMenuItemById(helpMenu.submenu, 'goose.help.about.separator');
+        removeMenuItemById(helpMenu.submenu, 'goose.help.about');
+
+        if (helpMenu.submenu.items.length > 0) {
+          helpMenu.submenu.append(
+            new MenuItem({ id: 'goose.help.about.separator', type: 'separator' })
+          );
+        }
+
+        const aboutGooseMenuItem = new MenuItem({
+          id: 'goose.help.about',
+          label: tMain('nativeMenu.aboutGoose'),
+          submenu: Menu.buildFromTemplate([
+            {
+              id: 'goose.help.about.version',
+              label: tMain('nativeMenu.version', {
+                version: version || app.getVersion(),
+              }),
+              enabled: false,
+            },
+          ]),
+        });
+
+        helpMenu.submenu.append(aboutGooseMenuItem);
+      }
+    }
+
     Menu.setApplicationMenu(menu);
-  }
+  };
+
+  rebuildLocalizedMenus = applyLocalizedMenu;
+  applyLocalizedMenu();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -2456,7 +2553,10 @@ app.whenReady().then(async () => {
   try {
     await appMain();
   } catch (error) {
-    dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
+    dialog.showErrorBox(
+      tMain('nativeDialog.appStartupErrorTitle'),
+      tMain('nativeDialog.appStartupErrorMessage', { error: String(error) })
+    );
     app.quit();
   }
 });

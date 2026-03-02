@@ -7,6 +7,7 @@ import {
   SupportedLanguage,
   UiLanguageSetting,
 } from '../i18n/language';
+import type { SettingKey, Settings } from '../utils/settings';
 
 interface LanguageContextValue {
   uiLanguageSetting: UiLanguageSetting;
@@ -52,6 +53,24 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
     }
 
     loadLanguageFromSettings();
+  }, []);
+
+  useEffect(() => {
+    const onSettingChanged = (key: SettingKey, value: Settings[SettingKey]) => {
+      if (key !== 'uiLanguage') {
+        return;
+      }
+      const setting = normalizeUiLanguageSetting(value);
+      const resolved = resolveLanguage(setting, getSystemLocale());
+      setUiLanguageSettingState(setting);
+      setResolvedLanguage(resolved);
+      void i18n.changeLanguage(resolved);
+    };
+
+    window.electron.onSettingChanged(onSettingChanged);
+    return () => {
+      window.electron.offSettingChanged(onSettingChanged);
+    };
   }, []);
 
   useEffect(() => {

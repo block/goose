@@ -88,6 +88,8 @@ Object.defineProperty(window, 'electron', {
       mockSettings[key] = value;
       return Promise.resolve();
     }),
+    onSettingChanged: vi.fn(),
+    offSettingChanged: vi.fn(),
     showMessageBox: vi.fn(() => Promise.resolve({ response: 0 })),
   },
 });

@@ -2,6 +2,7 @@ import { SyntheticEvent } from 'react';
 import { Button } from '../../../../ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
 import { ConfigKey } from '../../../../../api';
+import { useTranslation } from 'react-i18next';
 
 interface ProviderSetupActionsProps {
   onCancel: () => void;
@@ -32,6 +33,7 @@ export default function ProviderSetupActions({
   primaryParameters,
   isActiveProvider = false, // Default value provided
 }: ProviderSetupActionsProps) {
+  const { t } = useTranslation();
   // If we're showing delete confirmation, render the delete confirmation buttons
   if (showDeleteConfirmation) {
     // Check if this is the active provider
@@ -42,8 +44,7 @@ export default function ProviderSetupActions({
             <p className="text-yellow-500 text-sm mb-2 flex items-start">
               <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
               <span>
-                You cannot delete {providerName} while it's currently in use. Please switch to a
-                different model before deleting this provider.
+                {t('providerModal.cannotDeleteProviderDetailed', { provider: providerName })}
               </span>
             </p>
           </div>
@@ -52,7 +53,7 @@ export default function ProviderSetupActions({
             onClick={onCancelDelete}
             className="w-full h-[60px] rounded-none hover:bg-background-secondary text-text-secondary hover:text-text-primary text-md font-regular"
           >
-            Ok
+            {t('common.ok')}
           </Button>
         </div>
       );
@@ -63,22 +64,21 @@ export default function ProviderSetupActions({
       <div className="w-full">
         <div className="w-full px-6 py-4 bg-red-900/20 border-t border-red-500/30">
           <p className="text-red-400 text-sm mb-2">
-            Are you sure you want to delete the configuration parameters for {providerName}? This
-            action cannot be undone.
+            {t('providerModal.confirmDeleteDescription', { provider: providerName })}
           </p>
         </div>
         <Button
           onClick={onConfirmDelete}
           className="w-full h-[60px] rounded-none border-b border-border-primary bg-transparent hover:bg-red-900/20 text-red-500 font-medium text-md"
         >
-          <Trash2 className="h-4 w-4 mr-2" /> Confirm Delete
+          <Trash2 className="h-4 w-4 mr-2" /> {t('providerModal.confirmDelete')}
         </Button>
         <Button
           variant="ghost"
           onClick={onCancelDelete}
           className="w-full h-[60px] rounded-none hover:bg-background-secondary text-text-secondary hover:text-text-primary text-md font-regular"
         >
-          Cancel
+          {t('common.cancel')}
         </Button>
       </div>
     );
@@ -93,7 +93,7 @@ export default function ProviderSetupActions({
           onClick={onDelete}
           className="w-full h-[60px] rounded-none border-t border-border-primary bg-transparent hover:bg-background-secondary text-red-500 font-medium text-md"
         >
-          <Trash2 className="h-4 w-4 mr-2" /> Delete Provider
+          <Trash2 className="h-4 w-4 mr-2" /> {t('providerModal.deleteProvider')}
         </Button>
       )}
       {primaryParameters && primaryParameters.length > 0 ? (
@@ -104,7 +104,7 @@ export default function ProviderSetupActions({
             onClick={onSubmit}
             className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
           >
-            Submit
+            {t('common.submit')}
           </Button>
           <Button
             type="button"
@@ -112,7 +112,7 @@ export default function ProviderSetupActions({
             onClick={onCancel}
             className="w-full h-[60px] rounded-none border-t border-border-primary hover:text-text-primary text-text-secondary hover:bg-background-secondary text-md font-regular"
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
         </>
       ) : (
@@ -123,7 +123,7 @@ export default function ProviderSetupActions({
             onClick={onSubmit}
             className="w-full h-[60px] rounded-none border-t border-border-primary text-md hover:bg-background-secondary text-text-primary font-medium"
           >
-            Enable Provider
+            {t('providerModal.enableProvider')}
           </Button>
           <Button
             type="button"
@@ -131,7 +131,7 @@ export default function ProviderSetupActions({
             onClick={onCancel}
             className="w-full h-[60px] rounded-none border-t border-border-primary hover:text-text-primary text-text-secondary hover:bg-background-secondary text-md font-regular"
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
         </>
       )}

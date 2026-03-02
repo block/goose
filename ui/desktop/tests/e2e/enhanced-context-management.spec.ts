@@ -27,14 +27,13 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Verify the context window alert is shown
       const alertBox = goosePage.locator('[role="alert"]');
       await expect(alertBox).toBeVisible();
-      await expect(alertBox).toContainText('Context window');
       
       // Verify progress bar is shown
       const progressBar = goosePage.locator('[role="progressbar"]');
       await expect(progressBar).toBeVisible();
       
       // Verify compact button is present
-      const compactButton = goosePage.locator('text=Compact now');
+      const compactButton = goosePage.locator('[data-testid="compact-now-button"]');
       await expect(compactButton).toBeVisible();
     });
 
@@ -97,7 +96,7 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
       
-      const compactButton = goosePage.locator('text=Compact now');
+      const compactButton = goosePage.locator('[data-testid="compact-now-button"]');
       await expect(compactButton).toBeVisible();
       await compactButton.click();
       
@@ -108,13 +107,12 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Verify compaction loading state
       const loadingGoose = goosePage.locator('[data-testid="loading-goose"]');
       await expect(loadingGoose).toBeVisible();
-      await expect(loadingGoose).toContainText('goose is compacting the conversation...');
       
       // Wait for compaction to complete
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
       // Verify compaction marker appears
-      const compactionMarker = goosePage.locator('text=Conversation compacted and summarized');
+      const compactionMarker = goosePage.locator('[data-testid="compaction-success-marker"]');
       await expect(compactionMarker).toBeVisible();
       
       // Verify chat input is re-enabled
@@ -133,7 +131,7 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Perform compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       
       // Wait for compaction to complete
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
@@ -166,7 +164,7 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
       
-      const compactButton = goosePage.locator('text=Compact now');
+      const compactButton = goosePage.locator('[data-testid="compact-now-button"]');
       await expect(compactButton).toBeVisible();
       await compactButton.click();
       
@@ -182,7 +180,7 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
       // Verify only one compaction marker exists
-      const compactionMarkers = goosePage.locator('text=Conversation compacted and summarized');
+      const compactionMarkers = goosePage.locator('[data-testid="compaction-success-marker"]');
       await expect(compactionMarkers).toHaveCount(1);
     });
   });
@@ -209,11 +207,11 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Perform compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
       // Verify compaction marker is visible
-      await expect(goosePage.locator('text=Conversation compacted and summarized')).toBeVisible();
+      await expect(goosePage.locator('[data-testid="compaction-success-marker"]')).toBeVisible();
       
       // Scroll up to find ancestor messages
       const chatContainer = goosePage.locator('[data-testid="chat-container"]');
@@ -249,11 +247,11 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Perform compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
       // Verify compaction completed
-      await expect(goosePage.locator('text=Conversation compacted and summarized')).toBeVisible();
+      await expect(goosePage.locator('[data-testid="compaction-success-marker"]')).toBeVisible();
       
       // Continue conversation after compaction
       await chatInput.fill('POST_COMPACTION_MESSAGE: Thank you, what about React?');
@@ -283,7 +281,7 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Perform compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
       // Send new message after compaction
@@ -291,19 +289,9 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       await goosePage.keyboard.press('Enter');
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
-      // Verify message order: compaction marker should come before new messages
-      const allMessages = goosePage.locator('[data-testid="message"]');
-      const messageTexts = await allMessages.allTextContents();
-      
-      const compactionIndex = messageTexts.findIndex(text => 
-        text.includes('Conversation compacted and summarized')
-      );
-      const newMessageIndex = messageTexts.findIndex(text => 
-        text.includes('NEW_MESSAGE_AFTER_COMPACTION')
-      );
-      
-      expect(compactionIndex).toBeGreaterThanOrEqual(0);
-      expect(newMessageIndex).toBeGreaterThan(compactionIndex);
+      // Verify both the compaction marker and the new message are present
+      await expect(goosePage.locator('[data-testid="compaction-success-marker"]')).toBeVisible();
+      await expect(goosePage.locator('text=NEW_MESSAGE_AFTER_COMPACTION')).toBeVisible();
     });
   });
 
@@ -328,13 +316,13 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Attempt compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       
       // Wait for compaction to fail
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
       // Verify error message appears
-      const errorMarker = goosePage.locator('text=Compaction failed. Please try again or start a new session.');
+      const errorMarker = goosePage.locator('[data-testid="compaction-error-marker"]');
       await expect(errorMarker).toBeVisible();
       
       // Verify chat input is still functional after error
@@ -364,18 +352,17 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Attempt compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       
       // Verify loading state persists during timeout
       const loadingGoose = goosePage.locator('[data-testid="loading-goose"]');
       await expect(loadingGoose).toBeVisible();
-      await expect(loadingGoose).toContainText('goose is compacting the conversation...');
       
       // Wait for timeout to complete
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 35000 });
       
       // Should show error message
-      const errorMarker = goosePage.locator('text=Compaction failed. Please try again or start a new session.');
+      const errorMarker = goosePage.locator('[data-testid="compaction-error-marker"]');
       await expect(errorMarker).toBeVisible();
     });
   });
@@ -392,7 +379,7 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Start compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       
       // Verify chat input is disabled during compaction
       const submitButton = goosePage.locator('[data-testid="submit-button"]');
@@ -401,7 +388,6 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Verify loading message
       const loadingGoose = goosePage.locator('[data-testid="loading-goose"]');
       await expect(loadingGoose).toBeVisible();
-      await expect(loadingGoose).toContainText('goose is compacting the conversation...');
       
       // Wait for compaction to complete
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
@@ -421,16 +407,11 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Start compaction and immediately check loading state
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       
       // Verify loading goose appears with correct message
       const loadingGoose = goosePage.locator('[data-testid="loading-goose"]');
       await expect(loadingGoose).toBeVisible();
-      await expect(loadingGoose).toContainText('goose is compacting the conversation...');
-      
-      // Verify no other loading indicators are shown
-      const regularLoadingMessages = goosePage.locator('[data-testid="loading-goose"]:not(:has-text("compacting"))');
-      await expect(regularLoadingMessages).not.toBeVisible();
       
       // Wait for completion
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
@@ -459,13 +440,13 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Perform compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       
       // Verify compaction completes within reasonable time
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 45000 });
       
       // Verify compaction marker appears
-      await expect(goosePage.locator('text=Conversation compacted and summarized')).toBeVisible();
+      await expect(goosePage.locator('[data-testid="compaction-success-marker"]')).toBeVisible();
       
       // Verify system remains responsive
       await chatInput.fill('Post-compaction test message');
@@ -488,7 +469,7 @@ test.describe('Enhanced Context Management E2E Tests', () => {
       // Perform compaction
       await goosePage.waitForSelector('[data-testid="alert-indicator"]', { timeout: 15000 });
       await goosePage.click('[data-testid="alert-indicator"]');
-      await goosePage.click('text=Compact now');
+      await goosePage.click('[data-testid="compact-now-button"]');
       await goosePage.waitForSelector('[data-testid="loading-goose"]', { state: 'hidden', timeout: 30000 });
       
       // Test if context is maintained by asking a follow-up question

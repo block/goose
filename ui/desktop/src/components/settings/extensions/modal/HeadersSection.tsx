@@ -3,6 +3,7 @@ import { Button } from '../../../ui/button';
 import { Plus, X } from 'lucide-react';
 import { Input } from '../../../ui/input';
 import { cn } from '../../../../utils';
+import { useTranslation } from 'react-i18next';
 
 interface HeadersSectionProps {
   headers: { key: string; value: string; isEdited?: boolean }[];
@@ -24,6 +25,7 @@ export default function HeadersSection({
   submitAttempted,
   onPendingInputChange,
 }: HeadersSectionProps) {
+  const { t } = useTranslation();
   const [newKey, setNewKey] = React.useState('');
   const [newValue, setNewValue] = React.useState('');
   const [validationError, setValidationError] = React.useState<string | null>(null);
@@ -52,7 +54,7 @@ export default function HeadersSection({
         key: keyEmpty,
         value: valueEmpty,
       });
-      setValidationError('Both header name and value must be entered');
+      setValidationError(t('extensionModal.headers.validationRequired'));
       return;
     }
 
@@ -61,7 +63,7 @@ export default function HeadersSection({
         key: true,
         value: false,
       });
-      setValidationError('Header name cannot contain spaces');
+      setValidationError(t('extensionModal.headers.validationNoSpaces'));
       return;
     }
 
@@ -70,7 +72,7 @@ export default function HeadersSection({
         key: true,
         value: false,
       });
-      setValidationError('A header with this name already exists');
+      setValidationError(t('extensionModal.headers.validationDuplicate'));
       return;
     }
 
@@ -95,10 +97,11 @@ export default function HeadersSection({
   return (
     <div>
       <div className="relative mb-2">
-        <label className="text-sm font-medium text-text-primary mb-2 block">Request Headers</label>
+        <label className="text-sm font-medium text-text-primary mb-2 block">
+          {t('extensionModal.headers.title')}
+        </label>
         <p className="text-xs text-text-secondary mb-4">
-          Add custom HTTP headers to include in requests to the MCP server. Click the "+" button to
-          add after filling both fields.
+          {t('extensionModal.headers.description')}
         </p>
       </div>
       <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
@@ -109,7 +112,7 @@ export default function HeadersSection({
               <Input
                 value={header.key}
                 onChange={(e) => onChange(index, 'key', e.target.value)}
-                placeholder="Header name"
+                placeholder={t('extensionModal.headers.headerNamePlaceholder')}
                 className={cn(
                   'w-full text-text-primary border-border-primary hover:border-border-primary',
                   isFieldInvalid(index, 'key') && 'border-red-500 focus:border-red-500'
@@ -120,7 +123,7 @@ export default function HeadersSection({
               <Input
                 value={header.value}
                 onChange={(e) => onChange(index, 'value', e.target.value)}
-                placeholder="Value"
+                placeholder={t('extensionModal.headers.valuePlaceholder')}
                 className={cn(
                   'w-full text-text-primary border-border-primary hover:border-border-primary',
                   isFieldInvalid(index, 'value') && 'border-red-500 focus:border-red-500'
@@ -144,7 +147,7 @@ export default function HeadersSection({
             setNewKey(e.target.value);
             clearValidation();
           }}
-          placeholder="Header name"
+          placeholder={t('extensionModal.headers.headerNamePlaceholder')}
           className={cn(
             'w-full text-text-primary border-border-primary hover:border-border-primary',
             invalidFields.key && 'border-red-500 focus:border-red-500'
@@ -156,7 +159,7 @@ export default function HeadersSection({
             setNewValue(e.target.value);
             clearValidation();
           }}
-          placeholder="Value"
+          placeholder={t('extensionModal.headers.valuePlaceholder')}
           className={cn(
             'w-full text-text-primary border-border-primary hover:border-border-primary',
             invalidFields.value && 'border-red-500 focus:border-red-500'
@@ -167,7 +170,7 @@ export default function HeadersSection({
           variant="ghost"
           className="flex items-center justify-start gap-1 px-2 pr-4 text-sm rounded-full text-text-primary bg-background-primary border border-border-primary hover:border-border-primary transition-colors min-w-[60px] h-9 [&>svg]:!size-4"
         >
-          <Plus /> Add
+          <Plus /> {t('common.add')}
         </Button>
       </div>
       {validationError && <div className="mt-2 text-red-500 text-sm">{validationError}</div>}

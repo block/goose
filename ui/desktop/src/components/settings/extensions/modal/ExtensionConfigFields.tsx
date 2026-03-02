@@ -1,4 +1,5 @@
 import { Input } from '../../../ui/input';
+import { useTranslation } from 'react-i18next';
 
 interface ExtensionConfigFieldsProps {
   type: 'stdio' | 'sse' | 'streamable_http' | 'builtin';
@@ -17,20 +18,26 @@ export default function ExtensionConfigFields({
   submitAttempted = false,
   isValid,
 }: ExtensionConfigFieldsProps) {
+  const { t } = useTranslation();
   if (type === 'stdio') {
     return (
       <div className="space-y-4">
         <div>
-          <label className="text-sm font-medium mb-2 block text-text-primary">Command</label>
+          <label className="text-sm font-medium mb-2 block text-text-primary">
+            {t('extensionModal.command')}
+          </label>
           <div className="relative">
             <Input
+              data-testid="extension-command-input"
               value={full_cmd}
               onChange={(e) => onChange('cmd', e.target.value)}
-              placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"
+              placeholder={t('extensionModal.commandPlaceholder')}
               className={`w-full ${!submitAttempted || isValid ? 'border-border-primary' : 'border-red-500'} text-text-primary`}
             />
             {submitAttempted && !isValid && (
-              <div className="absolute text-xs text-red-500 mt-1">Command is required</div>
+              <div className="absolute text-xs text-red-500 mt-1">
+                {t('extensionModal.commandRequired')}
+              </div>
             )}
           </div>
         </div>
@@ -39,16 +46,21 @@ export default function ExtensionConfigFields({
   } else {
     return (
       <div>
-        <label className="text-sm font-medium mb-2 block text-text-primary">Endpoint</label>
+        <label className="text-sm font-medium mb-2 block text-text-primary">
+          {t('extensionModal.endpoint')}
+        </label>
         <div className="relative">
           <Input
+            data-testid="extension-endpoint-input"
             value={endpoint}
             onChange={(e) => onChange('endpoint', e.target.value)}
-            placeholder="Enter endpoint URL..."
+            placeholder={t('extensionModal.endpointPlaceholder')}
             className={`w-full ${!submitAttempted || isValid ? 'border-border-primary' : 'border-red-500'} text-text-primary`}
           />
           {submitAttempted && !isValid && (
-            <div className="absolute text-xs text-red-500 mt-1">Endpoint URL is required</div>
+            <div className="absolute text-xs text-red-500 mt-1">
+              {t('extensionModal.endpointRequired')}
+            </div>
           )}
         </div>
       </div>

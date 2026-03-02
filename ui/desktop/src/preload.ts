@@ -89,6 +89,8 @@ interface UpdaterEvent {
   data?: unknown;
 }
 
+type SettingChangedCallback = <K extends SettingKey>(key: K, value: Settings[K]) => void;
+
 export interface CreateChatWindowOptions {
   query?: string;
   dir?: string;
@@ -137,6 +139,8 @@ type ElectronAPI = {
   openNotificationsSettings: () => Promise<boolean>;
   onMouseBackButtonClicked: (callback: () => void) => void;
   offMouseBackButtonClicked: (callback: () => void) => void;
+  onSettingChanged: (callback: SettingChangedCallback) => void;
+  offSettingChanged: (callback: SettingChangedCallback) => void;
   on: (
     channel: string,
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
@@ -177,6 +181,11 @@ type AppConfigAPI = {
   get: (key: string) => unknown;
   getAll: () => Record<string, unknown>;
 };
+
+const settingChangedWrappers = new Map<
+  SettingChangedCallback,
+  (event: Electron.IpcRendererEvent, payload?: { key?: SettingKey; value?: unknown }) => void
+>();
 
 const electronAPI: ElectronAPI = {
   platform: process.platform,
@@ -258,6 +267,28 @@ const electronAPI: ElectronAPI = {
   },
   offMouseBackButtonClicked: (callback: () => void) => {
     ipcRenderer.removeListener('mouse-back-button-clicked', callback);
+  },
+  onSettingChanged: (callback: SettingChangedCallback) => {
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      payload?: { key?: SettingKey; value?: unknown }
+    ) => {
+      if (!payload || typeof payload.key !== 'string') {
+        return;
+      }
+      const key = payload.key as SettingKey;
+      callback(key, payload.value as Settings[typeof key]);
+    };
+    settingChangedWrappers.set(callback, wrapped);
+    ipcRenderer.on('setting-changed', wrapped);
+  },
+  offSettingChanged: (callback: SettingChangedCallback) => {
+    const wrapped = settingChangedWrappers.get(callback);
+    if (!wrapped) {
+      return;
+    }
+    ipcRenderer.off('setting-changed', wrapped);
+    settingChangedWrappers.delete(callback);
   },
   on: (
     channel: string,

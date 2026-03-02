@@ -485,7 +485,7 @@ export const SwitchModelModal = ({
 
   return (
     <Dialog open={true} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px]" data-testid="switch-model-modal">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot size={24} className="text-text-primary" />
@@ -743,7 +743,7 @@ export const SwitchModelModal = ({
             <Button variant="outline" onClick={handleClose} type="button">
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={!isValid}>
+            <Button onClick={handleSubmit} disabled={!isValid} data-testid="switch-model-confirm-button">
               Select model
             </Button>
           </div>

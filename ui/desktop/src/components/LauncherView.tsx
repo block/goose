@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import { getInitialWorkingDir } from '../utils/workingDir';
+import { useTranslation } from 'react-i18next';
 
 export default function LauncherView() {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -37,7 +39,7 @@ export default function LauncherView() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           className="w-full h-full bg-transparent text-text-primary text-xl px-6 outline-none placeholder:text-text-secondary"
-          placeholder="Ask goose anything..."
+          placeholder={t('launcher.placeholder')}
           autoFocus
         />
       </form>

@@ -6,6 +6,7 @@ import { errorMessage } from '../../utils/conversionUtils';
 import { Alert, AlertType } from './types';
 import { upsertConfig } from '../../api';
 import { useConfig } from '../ConfigContext';
+import { useTranslation } from 'react-i18next';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
   [AlertType.Error]: <IoIosCloseCircle className="h-5 w-5" />,
@@ -37,6 +38,7 @@ const formatTokenCount = (count: number): string => {
 };
 
 export const AlertBox = ({ alert, className }: AlertBoxProps) => {
+  const { t } = useTranslation();
   const { read } = useConfig();
   const [isEditingThreshold, setIsEditingThreshold] = useState(false);
   const [loadedThreshold, setLoadedThreshold] = useState<number>(0.8);
@@ -99,6 +101,8 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
   return (
     <div
       className={cn('flex flex-col gap-2 px-3 py-3', alertStyles[alert.type], className)}
+      role="alert"
+      data-testid="alert-box"
       onMouseDown={(e) => {
         // Prevent popover from closing when clicking inside the alert box
         if (isEditingThreshold) {
@@ -114,7 +118,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           <div className="flex items-center justify-center gap-1 min-h-[20px]">
             {isEditingThreshold ? (
               <>
-                <span className="text-[10px] opacity-70">Auto compact at</span>
+                <span className="text-[10px] opacity-70">{t('alerts.autoCompactAt')}</span>
                 <input
                   type="number"
                   min="1"
@@ -179,7 +183,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
             ) : (
               <>
                 <span className="text-[10px] opacity-70">
-                  Auto compact at {Math.round(currentThreshold * 100)}%
+                  {t('alerts.autoCompactAtPercent', { percent: Math.round(currentThreshold * 100) })}
                 </span>
                 <button
                   type="button"
@@ -264,6 +268,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
           </div>
           {alert.showCompactButton && alert.onCompact && (
             <button
+              data-testid="compact-now-button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -278,7 +283,7 @@ export const AlertBox = ({ alert, className }: AlertBoxProps) => {
               )}
             >
               {alert.compactIcon}
-              <span>Compact now</span>
+              <span>{t('alerts.compactNow')}</span>
             </button>
           )}
         </div>

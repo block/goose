@@ -42,6 +42,7 @@ import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
+import { useTranslation } from 'react-i18next';
 
 interface PastedImage {
   id: string;
@@ -118,6 +119,7 @@ export default function ChatInput({
   onWorkingDirChange,
   inputRef,
 }: ChatInputProps) {
+  const { t } = useTranslation();
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
@@ -431,7 +433,7 @@ export default function ChatInput({
     if ((totalTokens && totalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
       addAlert({
         type: AlertType.Info,
-        message: 'Context window',
+        message: t('chat.contextWindow'),
         progress: {
           current: totalTokens || 0,
           total: tokenLimit,
@@ -452,7 +454,7 @@ export default function ChatInput({
         type: AlertType.Warning,
         message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
         action: {
-          text: 'View extensions',
+          text: t('chat.viewExtensions'),
           onClick: () => setView('extensions'),
         },
         autoShow: false, // Don't auto-show tool count warnings
@@ -460,7 +462,7 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts, setView, t]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -1090,13 +1092,13 @@ export default function ChatInput({
     chatState === ChatState.RestartingAgent;
 
   const getSubmitButtonTooltip = (): string => {
-    if (isAnyImageLoading) return 'Waiting for images to save...';
-    if (isAnyDroppedFileLoading) return 'Processing dropped files...';
-    if (isRecording) return 'Recording...';
-    if (isTranscribing) return 'Transcribing...';
-    if (chatState === ChatState.RestartingAgent) return 'Restarting session...';
-    if (!hasSubmittableContent) return 'Type a message to send';
-    return 'Send';
+    if (isAnyImageLoading) return t('chat.waitingForImages');
+    if (isAnyDroppedFileLoading) return t('chat.processingDroppedFiles');
+    if (isRecording) return t('chat.recording');
+    if (isTranscribing) return t('chat.transcribingEllipsis');
+    if (chatState === ChatState.RestartingAgent) return t('chat.restartingSession');
+    if (!hasSubmittableContent) return t('chat.typeMessageToSend');
+    return t('chat.send');
   };
 
   // Queue management functions - no storage persistence, only in-memory
@@ -1247,21 +1249,18 @@ export default function ChatInput({
                     <TooltipContent>
                       {dictationProvider === 'openai' ? (
                         <p>
-                          OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Models.</b>
+                          {t('chat.dictation.openaiNotConfigured')}
                         </p>
                       ) : dictationProvider === 'elevenlabs' ? (
                         <p>
-                          ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
+                          {t('chat.dictation.elevenlabsNotConfigured')}
                         </p>
                       ) : dictationProvider === 'local' ? (
                         <p>
-                          Local Whisper model not found. Download a model in{' '}
-                          <b>Settings &gt; Dictation &gt; Local (Offline)</b>
+                          {t('chat.dictation.localModelNotFound')}
                         </p>
                       ) : (
-                        <p>Dictation provider is not properly configured.</p>
+                        <p>{t('chat.dictation.notConfigured')}</p>
                       )}
                     </TooltipContent>
                   </Tooltip>
@@ -1296,8 +1295,8 @@ export default function ChatInput({
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
-                        Voice dictation
-                        {isRecording ? '' : ' • Say "submit" to send'}
+                        {t('chat.voiceDictation')}
+                        {isRecording ? '' : ` ${t('chat.saySubmitToSend')}`}
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -1323,6 +1322,7 @@ export default function ChatInput({
                   <span>
                     <Button
                       type="submit"
+                      data-testid="submit-button"
                       size="sm"
                       shape="round"
                       variant="outline"
@@ -1334,7 +1334,7 @@ export default function ChatInput({
                       }`}
                     >
                       <Send className="w-4 h-4" />
-                      <span className="text-sm">Send</span>
+                      <span className="text-sm">{t('chat.send')}</span>
                     </Button>
                   </span>
                 </TooltipTrigger>
@@ -1351,14 +1351,14 @@ export default function ChatInput({
                   {isRecording && (
                     <span className="flex items-center gap-1 text-text-secondary">
                       <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                      Listening
+                      {t('chat.listening')}
                     </span>
                   )}
                   {isRecording && isTranscribing && <span className="text-text-secondary">•</span>}
                   {isTranscribing && (
                     <span className="flex items-center gap-1 text-blue-500">
                       <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                      Transcribing
+                      {t('chat.transcribing')}
                     </span>
                   )}
                 </span>
@@ -1496,7 +1496,7 @@ export default function ChatInput({
               <Attach className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Attach file</TooltipContent>
+          <TooltipContent>{t('chat.attachFile')}</TooltipContent>
         </Tooltip>
         <div className="w-px h-4 bg-border-primary mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}
@@ -1551,7 +1551,7 @@ export default function ChatInput({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {recipe ? 'View/Edit Recipe' : 'Create Recipe from Session'}
+                    {recipe ? t('chat.viewEditRecipe') : t('chat.createRecipeFromSession')}
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -1573,7 +1573,7 @@ export default function ChatInput({
                   <Bug className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Generate diagnostics bundle</TooltipContent>
+              <TooltipContent>{t('chat.generateDiagnosticsBundle')}</TooltipContent>
             </Tooltip>
           )}
         </div>
