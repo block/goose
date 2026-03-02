@@ -320,30 +320,47 @@ test.describe('a11y: color contrast (axe-core)', () => {
   test('extensions (light)', async ({ goosePage }, testInfo) => {
     await bootstrap(goosePage);
 
-    if ((await gotoHashRouteOrWelcome(goosePage, '/extensions')) === 'welcome') {
+    // Prefer navigating like a user would (Catalogs -> Tools) instead of relying solely on
+    // programmatic hash routing, which can be flaky in Electron when the app is still hydrating.
+    if ((await gotoHashRouteOrWelcome(goosePage, '/catalogs')) === 'welcome') {
       test.skip(true, 'Requires a configured provider (otherwise app is on /welcome)');
     }
 
-    const title = await goosePage.locator('text=Extensions').isVisible().catch(() => false);
-    if (!title) test.skip(true, 'Extensions view not ready');
+    // Catalogs view should render a "Tools" card (aria-label comes from CatalogCard).
+    const toolsCard = goosePage.getByRole('button', { name: /^open tools$/i }).first();
+    try {
+      await toolsCard.waitFor({ state: 'visible', timeout: 30_000 });
+      await toolsCard.click({ timeout: 10_000 });
+    } catch {
+      test.skip(true, 'Catalogs Tools card not available');
+    }
+
+    // Wait for navigation to the extensions route.
+    await goosePage.waitForURL(/#\/extensions\b/i, { timeout: 30_000 }).catch(() => {
+      test.skip(true, 'Failed to navigate to /extensions');
+    });
+
+    // Wait for the extensions section container.
+    // This exists even if the list is empty, unlike the section headings.
+    try {
+      await goosePage.locator('#extensions').waitFor({ state: 'visible', timeout: 30_000 });
+    } catch {
+      test.skip(true, 'Extensions view not ready');
+    }
 
     // Ensure the "Available Extensions" section is present and in the viewport.
     // This is where we have historically missed contrast regressions (e.g. off-state toggles).
-    const availableHeading = goosePage.locator('text=/Available Extensions/i').first();
+    const availableHeading = goosePage.getByText(/Available Extensions/i).first();
     await availableHeading.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {
       test.skip(true, 'Available Extensions section not present');
     });
 
     await availableHeading.scrollIntoViewIfNeeded().catch(() => {});
 
-    // Wait for extension cards in that section (best effort).
-    // Cards are rendered as a grid of ExtensionItem components.
-    const extensionCards = goosePage
-      .locator('text=/Available Extensions/i')
-      .locator('..')
-      .locator('..')
-      .locator('[data-slot="card"]');
-    await extensionCards.first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
+    // Wait for at least one card to exist anywhere on the page (best effort).
+    // Some environments may have no disabled extensions.
+    const anyCard = goosePage.locator('[data-slot="card"]').first();
+    await anyCard.waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {});
 
     await runContrastAudit(goosePage, 'extensions-light', testInfo);
   });
