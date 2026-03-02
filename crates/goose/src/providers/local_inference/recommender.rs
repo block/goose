@@ -149,9 +149,13 @@ impl fmt::Display for SpeedTier {
 
 impl SpeedTier {
     pub fn from_tps(tps: f64) -> Self {
-        if tps >= 80.0 {
+        // Thresholds calibrated for practical usability:
+        // - Fast: comfortable interactive use
+        // - Medium: usable but noticeable delay
+        // - Slow: significant wait between responses
+        if tps >= 20.0 {
             SpeedTier::Fast
-        } else if tps >= 40.0 {
+        } else if tps >= 8.0 {
             SpeedTier::Medium
         } else {
             SpeedTier::Slow
@@ -228,9 +232,11 @@ pub fn estimate_speed_tps_with_memory(
 ) -> f64 {
     // Base speed constant by backend (empirically calibrated)
     // These represent rough tok/s for a 1B parameter model
+    // Modern GPUs (M3, RTX 4090, etc) can do 200+ tok/s on 1B models
     let base_k = if has_gpu {
-        // GPU backends - Metal/CUDA/etc average around 160-220 for 1B
-        180.0
+        // GPU backends - Metal/CUDA/etc
+        // Calibrated for M3/M4 and modern NVIDIA cards
+        300.0
     } else {
         // CPU-only is much slower
         if cfg!(target_arch = "aarch64") {
@@ -643,11 +649,12 @@ mod tests {
 
     #[test]
     fn test_speed_tier() {
+        // New thresholds: Fast >= 20, Medium >= 8, Slow < 8
         assert_eq!(SpeedTier::from_tps(100.0), SpeedTier::Fast);
-        assert_eq!(SpeedTier::from_tps(80.0), SpeedTier::Fast);
-        assert_eq!(SpeedTier::from_tps(79.0), SpeedTier::Medium);
-        assert_eq!(SpeedTier::from_tps(40.0), SpeedTier::Medium);
-        assert_eq!(SpeedTier::from_tps(39.0), SpeedTier::Slow);
-        assert_eq!(SpeedTier::from_tps(10.0), SpeedTier::Slow);
+        assert_eq!(SpeedTier::from_tps(20.0), SpeedTier::Fast);
+        assert_eq!(SpeedTier::from_tps(19.9), SpeedTier::Medium);
+        assert_eq!(SpeedTier::from_tps(8.0), SpeedTier::Medium);
+        assert_eq!(SpeedTier::from_tps(7.9), SpeedTier::Slow);
+        assert_eq!(SpeedTier::from_tps(3.0), SpeedTier::Slow);
     }
 }
