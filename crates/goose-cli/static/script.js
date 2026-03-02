@@ -269,11 +269,18 @@ function handleToolRequest(data) {
     const contentDiv = document.createElement('div');
     contentDiv.className = 'tool-content';
     
+    const isShellTool = data.tool_name === 'shell';
+    const isDeveloperFileTool = [
+        'read',
+        'write',
+        'edit'
+    ].includes(data.tool_name);
+
     // Format the arguments
-    if (data.tool_name === 'developer__shell' && data.arguments.command) {
+    if (isShellTool && data.arguments.command) {
         contentDiv.innerHTML = `<pre><code>${escapeHtml(data.arguments.command)}</code></pre>`;
-    } else if (data.tool_name === 'developer__text_editor') {
-        const action = data.arguments.command || 'unknown';
+    } else if (isDeveloperFileTool) {
+        const action = data.arguments.command || data.tool_name;
         const path = data.arguments.path || 'unknown';
         contentDiv.innerHTML = `<div class="tool-param"><strong>action:</strong> ${action}</div>`;
         contentDiv.innerHTML += `<div class="tool-param"><strong>path:</strong> ${escapeHtml(path)}</div>`;

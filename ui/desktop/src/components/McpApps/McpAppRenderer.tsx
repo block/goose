@@ -24,6 +24,7 @@ import type {
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
+import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
@@ -40,13 +41,20 @@ import {
   McpAppToolInputPartial,
   McpAppToolResult,
   DimensionLayout,
+  OnDisplayModeChange,
   SamplingCreateMessageParams,
   SamplingCreateMessageResponse,
 } from './types';
+import {
+  useDisplayMode,
+  AVAILABLE_DISPLAY_MODES,
+  PIP_WIDTH,
+  PIP_HEIGHT,
+  PIP_MARGIN_RIGHT,
+  PIP_MARGIN_BOTTOM,
+} from './useDisplayMode';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
-
-const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -139,6 +147,7 @@ interface McpAppRendererProps {
   append?: (text: string) => void;
   displayMode?: GooseDisplayMode;
   cachedHtml?: string;
+  onDisplayModeChange?: OnDisplayModeChange;
 }
 
 interface ResourceMeta {
@@ -235,8 +244,27 @@ export default function McpAppRenderer({
   append,
   displayMode = 'inline',
   cachedHtml,
+  onDisplayModeChange,
 }: McpAppRendererProps) {
-  const isExpandedView = displayMode === 'fullscreen' || displayMode === 'standalone';
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const dm = useDisplayMode({ displayMode, onDisplayModeChange, containerRef });
+  const {
+    activeDisplayMode,
+    effectiveDisplayModes,
+    isStandalone,
+    isFullscreen,
+    isPip,
+    isFillsViewport,
+    isInline,
+    appSupportsFullscreen,
+    appSupportsPip,
+    changeDisplayMode,
+    inlineHeight,
+    pipPosition,
+    pipHandlers,
+    fullscreenCloseRef,
+  } = dm;
 
   const { resolvedTheme, mcpHostStyles } = useTheme();
 
@@ -264,7 +292,18 @@ export default function McpAppRenderer({
   });
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Restore iframeHeight from the saved snapshot when returning to inline.
+  // While in fullscreen/pip, handleSizeChanged ignores size notifications, so
+  // iframeHeight may be stale. This ensures the container starts at the correct
+  // height the moment the mode flips back to inline.
+  useEffect(() => {
+    if (isInline) {
+      setIframeHeight(inlineHeight);
+    }
+  }, [isInline, inlineHeight]);
+
+  const effectiveInlineHeight = iframeHeight || DEFAULT_IFRAME_HEIGHT;
+
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
   const [apiHost, setApiHost] = useState<string | null>(null);
@@ -512,11 +551,14 @@ export default function McpAppRenderer({
     []
   );
 
-  const handleSizeChanged = useCallback(({ height }: McpUiSizeChangedNotification['params']) => {
-    if (height !== undefined && height > 0) {
-      setIframeHeight(height);
-    }
-  }, []);
+  const handleSizeChanged = useCallback(
+    ({ height }: McpUiSizeChangedNotification['params']) => {
+      if (height !== undefined && height > 0 && isInline) {
+        setIframeHeight(height);
+      }
+    },
+    [isInline]
+  );
 
   // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
   useEffect(() => {
@@ -605,12 +647,17 @@ export default function McpAppRenderer({
       // todo: toolInfo: {}
       theme: resolvedTheme,
       styles: mcpHostStyles,
-      // 'standalone' is a Goose-specific display mode (dedicated Electron window)
-      // that maps to the spec's inline | fullscreen | pip modes.
-      displayMode: displayMode as McpUiDisplayMode,
-      availableDisplayModes:
-        displayMode === 'standalone' ? [displayMode as McpUiDisplayMode] : AVAILABLE_DISPLAY_MODES,
-      containerDimensions: getContainerDimensions(displayMode, containerWidth, containerHeight),
+      displayMode: activeDisplayMode as McpUiDisplayMode,
+      availableDisplayModes: isStandalone
+        ? [activeDisplayMode as McpUiDisplayMode]
+        : effectiveDisplayModes.length > 0
+          ? effectiveDisplayModes
+          : AVAILABLE_DISPLAY_MODES,
+      containerDimensions: getContainerDimensions(
+        activeDisplayMode,
+        containerWidth,
+        containerHeight
+      ),
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: navigator.userAgent,
@@ -628,7 +675,15 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, mcpHostStyles, displayMode, containerWidth, containerHeight]);
+  }, [
+    resolvedTheme,
+    mcpHostStyles,
+    activeDisplayMode,
+    isStandalone,
+    containerWidth,
+    containerHeight,
+    effectiveDisplayModes,
+  ]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
@@ -694,23 +749,171 @@ export default function McpAppRenderer({
     );
   };
 
+  const showControls = !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip);
+
+  const renderDisplayModeControls = () => {
+    if (!showControls) return null;
+
+    if (activeDisplayMode === 'fullscreen') {
+      return (
+        <div className="no-drag absolute top-3 right-3 z-[60] flex gap-1">
+          {appSupportsPip && (
+            <button
+              onClick={() => changeDisplayMode('pip')}
+              className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+              title="Picture-in-Picture"
+              aria-label="Picture-in-Picture"
+            >
+              <PictureInPicture2 size={16} />
+            </button>
+          )}
+          <button
+            ref={fullscreenCloseRef}
+            onClick={() => changeDisplayMode('inline')}
+            className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Exit fullscreen (Esc)"
+            aria-label="Exit fullscreen"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      );
+    }
+
+    if (activeDisplayMode === 'pip') {
+      return (
+        <>
+          {appSupportsFullscreen && (
+            <button
+              onClick={() => changeDisplayMode('fullscreen')}
+              className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+              title="Fullscreen"
+              aria-label="Fullscreen"
+            >
+              <Maximize2 size={14} />
+            </button>
+          )}
+          <button
+            onClick={() => changeDisplayMode('inline')}
+            className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Close"
+            aria-label="Close"
+          >
+            <X size={14} />
+          </button>
+        </>
+      );
+    }
+
+    // Inline mode — show controls on hover or keyboard focus
+    return (
+      <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover/mcp-app:opacity-100 focus-within:opacity-100">
+        {appSupportsFullscreen && (
+          <button
+            onClick={() => changeDisplayMode('fullscreen')}
+            className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+            title="Fullscreen"
+            aria-label="Fullscreen"
+          >
+            <Maximize2 size={14} />
+          </button>
+        )}
+        {appSupportsPip && (
+          <button
+            onClick={() => changeDisplayMode('pip')}
+            className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+            title="Picture-in-Picture"
+            aria-label="Picture-in-Picture"
+          >
+            <PictureInPicture2 size={14} />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Single stable container — CSS switches between inline/fullscreen/pip positioning.
+  // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
-    'bg-background-primary overflow-hidden [&_iframe]:!w-full',
-    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
-    !isError && !isExpandedView && 'mt-6 mb-2',
-    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-primary rounded-lg'
+    'mcp-app-container bg-background-primary [&_iframe]:!w-full',
+    isFillsViewport && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
+    isPip &&
+      'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-primary shadow-2xl',
+    isInline && 'group/mcp-app relative overflow-hidden',
+    isInline && !isError && 'mt-6 mb-2',
+    isInline && !isError && meta.prefersBorder && 'border border-border-primary rounded-lg',
+    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20'
   );
 
-  const containerStyle = isExpandedView
-    ? { width: '100%', height: '100%' }
-    : {
-        width: '100%',
-        height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
-      };
+  const containerStyle: React.CSSProperties = {
+    ...(isFillsViewport
+      ? {}
+      : isPip
+        ? {
+            width: `${PIP_WIDTH}px`,
+            height: `${PIP_HEIGHT}px`,
+            right: `${PIP_MARGIN_RIGHT - pipPosition.x}px`,
+            bottom: `${PIP_MARGIN_BOTTOM - pipPosition.y}px`,
+          }
+        : {
+            width: '100%',
+            height: `${effectiveInlineHeight}px`,
+          }),
+  };
 
   return (
-    <div ref={containerRef} className={containerClasses} style={containerStyle}>
-      {renderContent()}
-    </div>
+    <>
+      {/* Placeholder in chat flow when app is detached (fullscreen or pip) */}
+      {isFullscreen && (
+        <div
+          className="invisible mt-6 mb-2"
+          style={{ width: '100%', height: `${inlineHeight}px` }}
+        />
+      )}
+      {isPip && (
+        <div
+          className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-primary bg-black/[0.02] dark:bg-white/[0.02]"
+          style={{ width: '100%', height: `${inlineHeight}px` }}
+        >
+          <button
+            onClick={() => changeDisplayMode('inline')}
+            className="cursor-pointer flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/5"
+          >
+            <PictureInPicture2 size={14} />
+            <span>Playing in Picture-in-Picture</span>
+          </button>
+        </div>
+      )}
+
+      {/* Stable app container — never unmounted, only repositioned via CSS */}
+      <div
+        ref={containerRef}
+        className={cn(containerClasses, isPip && 'group/pip')}
+        style={containerStyle}
+      >
+        {isPip && (
+          <div className="pointer-events-none sticky top-1 z-20 flex h-0 items-start justify-between px-1 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Move Picture-in-Picture window (use arrow keys)"
+              className="pointer-events-auto cursor-grab rounded-md bg-black/50 p-1 text-white backdrop-blur-sm hover:bg-black/70 active:cursor-grabbing"
+              onPointerDown={pipHandlers.onPointerDown}
+              onPointerMove={pipHandlers.onPointerMove}
+              onPointerUp={pipHandlers.onPointerUp}
+              onLostPointerCapture={pipHandlers.onLostPointerCapture}
+              onKeyDown={pipHandlers.onKeyDown}
+            >
+              <GripHorizontal size={14} />
+            </div>
+            <div className="flex gap-1">{renderDisplayModeControls()}</div>
+          </div>
+        )}
+        <div className={cn('relative w-full', !isPip && 'h-full')}>
+          {!isPip && renderDisplayModeControls()}
+          {renderContent()}
+        </div>
+      </div>
+    </>
   );
 }

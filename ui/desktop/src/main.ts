@@ -8,6 +8,7 @@ import {
   ipcMain,
   Menu,
   MenuItem,
+  net,
   Notification,
   powerSaveBlocker,
   screen,
@@ -16,6 +17,7 @@ import {
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
+import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -25,6 +27,7 @@ import { spawn } from 'child_process';
 import 'dotenv/config';
 import { checkServerStatus } from './goosed';
 import { startGoosed } from './goosed';
+import { createClient, createConfig } from './api/client';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
@@ -106,6 +109,66 @@ async function configureProxy() {
 }
 
 if (started) app.quit();
+
+// Accept self-signed certificates from the local goosed server.
+// Both certificate-error (renderer) and setCertificateVerifyProc (main-process
+// net.fetch) pin to the exact cert fingerprint emitted by goosed at startup.
+// Before the fingerprint is available (during the health-check bootstrap
+// window) any localhost cert is accepted so the server can come up.
+let pinnedCertFingerprint: string | null = null;
+
+function isLocalhost(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === 'localhost';
+}
+
+function normalizeFingerprint(fp: string): string {
+  if (fp.startsWith('sha256/')) {
+    const b64 = fp.slice('sha256/'.length);
+    const buf = Buffer.from(b64, 'base64');
+    return Array.from(buf)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(':')
+      .toUpperCase();
+  }
+  return fp.toUpperCase();
+}
+
+// Renderer requests: pin to the exact cert goosed generated once known.
+// Before the fingerprint is available (during the health-check bootstrap
+// window) any localhost cert is accepted so the server can come up.
+app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
+  const parsed = new URL(url);
+  if (!isLocalhost(parsed.hostname)) {
+    callback(false);
+    return;
+  }
+  if (pinnedCertFingerprint) {
+    const match =
+      normalizeFingerprint(certificate.fingerprint) === pinnedCertFingerprint.toUpperCase();
+    event.preventDefault();
+    callback(match);
+  } else {
+    event.preventDefault();
+    callback(true);
+  }
+});
+
+// Main-process net.fetch: pin to the exact cert goosed generated.
+app.whenReady().then(() => {
+  session.defaultSession.setCertificateVerifyProc((request, callback) => {
+    if (!isLocalhost(request.hostname)) {
+      callback(-3);
+      return;
+    }
+    if (!pinnedCertFingerprint) {
+      callback(0);
+      return;
+    }
+    const match =
+      normalizeFingerprint(request.certificate.fingerprint) === pinnedCertFingerprint.toUpperCase();
+    callback(match ? 0 : -3);
+  });
+});
 
 if (process.env.ENABLE_PLAYWRIGHT) {
   const debugPort = process.env.PLAYWRIGHT_DEBUG_PORT || '9222';
@@ -449,7 +512,7 @@ let appConfig = {
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
-  GOOSE_API_HOST: 'http://127.0.0.1',
+  GOOSE_API_HOST: 'https://localhost',
   GOOSE_WORKING_DIR: '',
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
@@ -498,18 +561,18 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     logger: log,
   });
 
+  // Pin the certificate fingerprint so the cert handlers above only accept
+  // the exact cert that *this* goosed instance generated.
+  if (goosedResult.certFingerprint) {
+    pinnedCertFingerprint = goosedResult.certFingerprint;
+  }
+
   app.on('will-quit', async () => {
     log.info('App quitting, terminating goosed server');
     await goosedResult.cleanup();
   });
 
-  const {
-    baseUrl,
-    workingDir,
-    process: goosedProcess,
-    errorLog,
-    client: goosedClient,
-  } = goosedResult;
+  const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
     defaultWidth: 940,
@@ -563,6 +626,18 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       .catch((err) => log.info('failed to install react dev tools:', err));
   }
 
+  // Re-create the client with Electron's net.fetch so requests to the local
+  // self-signed HTTPS server go through the session's certificate handling.
+  const goosedClient = createClient(
+    createConfig({
+      baseUrl,
+      fetch: net.fetch as unknown as typeof globalThis.fetch,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Secret-Key': serverSecret,
+      },
+    })
+  );
   goosedClients.set(mainWindow.id, goosedClient);
 
   const serverReady = await checkServerStatus(goosedClient, errorLog);
@@ -1674,6 +1749,9 @@ async function appMain() {
     const sources = [
       "'self'",
       'http://127.0.0.1:*',
+      'https://127.0.0.1:*',
+      'http://localhost:*',
+      'https://localhost:*',
       'https://api.github.com',
       'https://github.com',
       'https://objects.githubusercontent.com',

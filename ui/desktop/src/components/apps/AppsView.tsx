@@ -231,14 +231,11 @@ export default function AppsView() {
                 Applications from your MCP servers and Apps build by goose itself. You can ask it to
                 create new apps through the chat interface and they will appear here.
               </p>
-              <p className="text-xs text-amber-600 dark:text-amber-500">
-                ⚠️ Experimental feature - may change or be removed at any time
-              </p>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-background-secondary px-8 pb-8">
+        <div className="flex-1 overflow-y-auto px-8 pb-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <p className="text-text-secondary">Loading apps...</p>

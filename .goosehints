@@ -14,5 +14,5 @@ that you can call the functionality from the server from the typescript.
 
 tips: 
 - can look at unstaged changes for what is being worked on if starting
-- always check rust compiles, cargo fmt etc and `./scripts/clippy-lint.sh` (as well as run tests in files you are working on)
+- always check rust compiles, cargo fmt etc and `cargo clippy --all-targets -- -D warnings` (as well as run tests in files you are working on)
 - in ui/desktop, look at how you can run lint checks and if other tests can run

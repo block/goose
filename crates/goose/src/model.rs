@@ -44,7 +44,7 @@ pub enum ConfigError {
     InvalidRange(String, String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,
     pub context_limit: Option<usize>,
@@ -283,6 +283,22 @@ impl ModelConfig {
         4_096
     }
 
+    pub fn get_config_param<T: for<'de> serde::Deserialize<'de>>(
+        &self,
+        request_key: &str,
+        config_key: &str,
+    ) -> Option<T> {
+        self.request_params
+            .as_ref()
+            .and_then(|params| params.get(request_key))
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param::<T>(config_key)
+                    .ok()
+            })
+    }
+
     pub fn new_or_fail(model_name: &str) -> ModelConfig {
         ModelConfig::new(model_name)
             .unwrap_or_else(|_| panic!("Failed to create model config for {}", model_name))
@@ -355,5 +371,41 @@ mod tests {
         ]);
         let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, None);
+    }
+
+    #[test]
+    fn test_get_config_param() {
+        let _guard = env_lock::lock_env([
+            ("CLAUDE_THINKING_EFFORT", Some("high")),
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+        ]);
+
+        let mut params = HashMap::new();
+        params.insert("effort".to_string(), serde_json::json!("low"));
+
+        let config_with_params = ModelConfig {
+            model_name: "test".to_string(),
+            request_params: Some(params),
+            ..Default::default()
+        };
+
+        let config_without_params = ModelConfig {
+            request_params: None,
+            ..config_with_params.clone()
+        };
+
+        assert_eq!(
+            config_with_params.get_config_param::<String>("effort", "CLAUDE_THINKING_EFFORT"),
+            Some("low".to_string())
+        );
+        assert_eq!(
+            config_without_params.get_config_param::<String>("effort", "CLAUDE_THINKING_EFFORT"),
+            Some("high".to_string())
+        );
+        assert_eq!(
+            config_without_params
+                .get_config_param::<String>("nonexistent", "NONEXISTENT_CONFIG_KEY"),
+            None
+        );
     }
 }

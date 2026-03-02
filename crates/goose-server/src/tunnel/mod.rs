@@ -229,6 +229,7 @@ impl TunnelManager {
             tunnel_secret,
             server_secret,
             agent_id,
+            "https",
             self.lapstone_handle.clone(),
             restart_tx,
         )

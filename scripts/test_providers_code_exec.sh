@@ -10,7 +10,7 @@ echo ""
 # --- Setup ---
 
 GOOSE_BIN=$(build_goose)
-BUILTINS="developer,code_execution"
+BUILTINS="memory,code_execution"
 
 # --- Test case ---
 
@@ -18,8 +18,7 @@ run_test() {
   local provider="$1" model="$2" result_file="$3" output_file="$4"
   local testdir=$(mktemp -d)
 
-  echo "hello" > "$testdir/hello.txt"
-  local prompt="Run 'ls' to list files in the current directory."
+  local prompt="Store a memory with category 'test' and data 'hello world', then retrieve all memories from category 'test'."
 
   # Run goose
   (
@@ -28,7 +27,6 @@ run_test() {
     cd "$testdir" && "$GOOSE_BIN" run --text "$prompt" --with-builtin "$BUILTINS" 2>&1
   ) > "$output_file" 2>&1
 
-  # Verify: code_execution tool must be called
   # Matches: "execute | code_execution", "get_function_details | code_execution",
   #           "tool call | execute", "tool calls | execute" (old format)
   #           "▸ execute N tool call" (new format with tool_graph)
