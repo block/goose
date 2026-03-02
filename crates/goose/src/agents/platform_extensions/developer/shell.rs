@@ -92,41 +92,23 @@ impl ShellTool {
         working_dir: Option<&std::path::Path>,
     ) -> CallToolResult {
         if params.command.trim().is_empty() {
-            return CallToolResult::error(vec![Content::text(
-                "Command cannot be empty.".to_string(),
-            )
-            .with_priority(0.0)]);
+            return Self::error_result("Command cannot be empty.", None);
         }
 
         let execution = match run_command(&params.command, params.timeout_secs, working_dir).await {
             Ok(execution) => execution,
-            Err(error) => {
-                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
-            }
+            Err(error) => return Self::error_result(&error, None),
         };
 
-        let stdout = match render_output(&execution.stdout, "stdout") {
-            Ok(rendered) => rendered,
-            Err(error) => {
-                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
-            }
-        };
-        let stderr = match render_output(&execution.stderr, "stderr") {
-            Ok(rendered) => rendered,
-            Err(error) => {
-                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
-            }
-        };
         let mut rendered = match render_output(&execution.interleaved, "output") {
             Ok(rendered) => rendered,
-            Err(error) => {
-                return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
-            }
+            Err(error) => return Self::error_result(&error, None),
         };
 
+        // Structured content uses raw streams (empty string when no output)
         let shell_output = ShellOutput {
-            stdout,
-            stderr,
+            stdout: execution.stdout,
+            stderr: execution.stderr,
             exit_code: execution.exit_code,
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
@@ -157,6 +139,17 @@ impl ShellTool {
 
         let mut result = CallToolResult::success(vec![Content::text(rendered).with_priority(0.0)]);
         result.structured_content = structured_content;
+        result
+    }
+
+    fn error_result(message: &str, exit_code: Option<i32>) -> CallToolResult {
+        let shell_output = ShellOutput {
+            stdout: String::new(),
+            stderr: message.to_string(),
+            exit_code,
+        };
+        let mut result = CallToolResult::error(vec![Content::text(message).with_priority(0.0)]);
+        result.structured_content = serde_json::to_value(&shell_output).ok();
         result
     }
 }
