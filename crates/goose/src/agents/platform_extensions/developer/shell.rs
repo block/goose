@@ -31,6 +31,9 @@ pub struct ShellOutput {
     /// Absent if the process was killed (e.g. timeout).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
+    /// True if the command was killed because it exceeded the timeout.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub timed_out: bool,
 }
 
 /// Resolve the user's full PATH by running a login shell.
@@ -124,6 +127,7 @@ impl ShellTool {
             stdout: truncated_stdout,
             stderr: truncated_stderr,
             exit_code: execution.exit_code,
+            timed_out: execution.timed_out,
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
         let mut rendered = match render_output(&interleaved, "output") {
@@ -165,6 +169,7 @@ impl ShellTool {
             stdout: String::new(),
             stderr: message.to_string(),
             exit_code,
+            timed_out: false,
         };
         let mut result = CallToolResult::error(vec![Content::text(message).with_priority(0.0)]);
         result.structured_content = serde_json::to_value(&shell_output).ok();
