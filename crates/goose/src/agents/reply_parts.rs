@@ -182,6 +182,7 @@ impl Agent {
         let model_config = provider.get_model_config();
 
         let prompt_manager = self.prompt_manager.lock().await;
+        let current_mode = *self.current_goose_mode.lock().await;
         let mut system_prompt = prompt_manager
             .builder()
             .with_extensions(extensions_info.into_iter())
@@ -189,6 +190,7 @@ impl Agent {
             .with_extension_and_tool_counts(extension_count, tool_count)
             .with_code_execution_mode(code_execution_active)
             .with_hints(working_dir)
+            .with_goose_mode(current_mode)
             .build();
 
         // Handle toolshim if enabled
