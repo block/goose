@@ -281,15 +281,22 @@ fn split_lines(lines: &[(bool, String)]) -> (String, String, String) {
     let mut stdout = String::new();
     let mut stderr = String::new();
     let mut interleaved = String::new();
+    let mut stdout_started = false;
+    let mut stderr_started = false;
     for (i, (is_stderr, text)) in lines.iter().enumerate() {
         if i > 0 {
             interleaved.push('\n');
         }
         interleaved.push_str(text);
-        let target = if *is_stderr { &mut stderr } else { &mut stdout };
-        if !target.is_empty() {
+        let (target, started) = if *is_stderr {
+            (&mut stderr, &mut stderr_started)
+        } else {
+            (&mut stdout, &mut stdout_started)
+        };
+        if *started {
             target.push('\n');
         }
+        *started = true;
         target.push_str(text);
     }
     (stdout, stderr, interleaved)
