@@ -1,10 +1,10 @@
 import { test, expect, waitForLoadingDone } from './fixtures.electron.packaged';
 
-const LLM_TIMEOUT = 90000;
+const LLM_TIMEOUT = 30000;
 const PLAYWRIGHT_DEEPLINK =
   'goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation';
 
-test.describe('Goose App Extensions', () => {
+test.describe('Goose App Extensions', {tag: '@release'}, () => {
   test('install playwright extension and run a google cats search', async ({ goosePage }) => {
     const mainWindow = goosePage;
 

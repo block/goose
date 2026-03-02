@@ -2,7 +2,7 @@ import { test, expect, waitForLoadingDone } from './fixtures.electron.packaged';
 
 const LLM_TIMEOUT = 30000;
 
-test.describe('Goose App', () => {
+test.describe('Goose App', {tag: '@release'}, () => {
   test('goose conversation', async ({ goosePage }) => {
     const mainWindow = goosePage;
 

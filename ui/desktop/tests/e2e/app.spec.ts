@@ -1,6 +1,5 @@
 import { test as base, expect, waitForLoadingDone } from './fixtures.electron.packaged';
 import { Page } from '@playwright/test';
-import { showTestName, clearTestName } from './test-overlay';
 import { join } from 'path';
 
 const { runningQuotes } = require('./basic-mcp');
