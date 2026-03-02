@@ -18,10 +18,13 @@ import {
 import {
   createUserMessage,
   createElicitationResponseMessage,
+  createToolResponseMessage,
   getCompactingMessage,
   getThinkingMessage,
+  getToolRequests,
   NotificationEvent,
   UserInput,
+  ToolResultContent,
 } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
@@ -29,10 +32,22 @@ import { maybeHandlePlatformEvent } from '../utils/platform_events';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+interface ForwardedToolCall {
+  toolCallId: string;
+  toolName: string;
+  arguments: Record<string, unknown>;
+}
+
+interface ForwardedToolResult {
+  content: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }>;
+  isError?: boolean;
+}
+
 interface UseChatStreamProps {
   sessionId: string;
   onStreamFinish: () => void;
   onSessionLoaded?: () => void;
+  onForwardedToolCall?: (tool: ForwardedToolCall) => Promise<ForwardedToolResult>;
 }
 
 interface UseChatStreamReturn {
@@ -45,7 +60,6 @@ interface UseChatStreamReturn {
     elicitationId: string,
     userData: Record<string, unknown>
   ) => Promise<void>;
-  submitToolResult: (toolCallId: string, result: string, isError?: boolean) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;
@@ -320,10 +334,13 @@ async function streamFromResponse(
   }
 }
 
+export { type ForwardedToolCall, type ForwardedToolResult };
+
 export function useChatStream({
   sessionId,
   onStreamFinish,
   onSessionLoaded,
+  onForwardedToolCall,
 }: UseChatStreamProps): UseChatStreamReturn {
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
@@ -331,6 +348,9 @@ export function useChatStream({
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastInteractionTimeRef = useRef<number>(Date.now());
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onForwardedToolCallRef = useRef(onForwardedToolCall);
+  onForwardedToolCallRef.current = onForwardedToolCall;
+  const submitToolResultRef = useRef<(toolCallId: string, content: ToolResultContent[], isError?: boolean) => Promise<void>>(undefined);
 
   // Ref to access latest state in callbacks (avoids stale closures)
   const stateRef = useRef(state);
@@ -408,7 +428,39 @@ export function useChatStream({
         }
       }
 
-      onStreamFinish();
+      // Check if the last assistant message has a forwarded tool call
+      let handledForward = false;
+      if (!error && onForwardedToolCallRef.current) {
+        const currentState = stateRef.current;
+        const lastAssistantMsg = [...currentState.messages].reverse().find((m) => m.role === 'assistant');
+        if (lastAssistantMsg) {
+          const toolRequests = getToolRequests(lastAssistantMsg);
+          for (const tr of toolRequests) {
+            const meta = tr._meta as Record<string, unknown> | undefined;
+            if (!meta?.forward_to_client) continue;
+            const toolCall = tr.toolCall as { status: string; value?: { name: string; arguments?: Record<string, unknown> } };
+            if (toolCall.status !== 'success' || !toolCall.value) continue;
+            const fullName = toolCall.value.name;
+            const delimiterIndex = fullName.lastIndexOf('__');
+            const toolName = delimiterIndex === -1 ? fullName : fullName.substring(delimiterIndex + 2);
+            handledForward = true;
+            dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
+            const toolResult = await onForwardedToolCallRef.current({
+              toolCallId: tr.id,
+              toolName,
+              arguments: toolCall.value.arguments ?? {},
+            });
+            if (submitToolResultRef.current) {
+              await submitToolResultRef.current(tr.id, toolResult.content, toolResult.isError);
+            }
+            break;
+          }
+        }
+      }
+
+      if (!handledForward) {
+        onStreamFinish();
+      }
     },
     [onStreamFinish, sessionId]
   );
@@ -650,7 +702,7 @@ export function useChatStream({
   );
 
   const submitToolResult = useCallback(
-    async (toolCallId: string, result: string, isError: boolean = false) => {
+    async (toolCallId: string, content: ToolResultContent[], isError: boolean = false) => {
       const currentState = stateRef.current;
 
       if (!currentState.session || currentState.chatState === ChatState.LoadingConversation) {
@@ -660,20 +712,7 @@ export function useChatStream({
       dispatch({ type: 'START_STREAMING' });
       abortControllerRef.current = new AbortController();
 
-      const toolResponseMessage: Message = {
-        role: 'user',
-        created: Date.now() / 1000,
-        metadata: { agentVisible: true, userVisible: false },
-        content: [
-          {
-            type: 'toolResponse',
-            id: toolCallId,
-            toolResult: isError
-              ? { error: result }
-              : { content: [{ type: 'text', text: result }] },
-          },
-        ],
-      };
+      const toolResponseMessage = createToolResponseMessage(toolCallId, content, isError);
 
       try {
         const { stream } = await reply({
@@ -702,6 +741,8 @@ export function useChatStream({
     },
     [sessionId, onFinish]
   );
+
+  submitToolResultRef.current = submitToolResult;
 
   const setRecipeUserParams = useCallback(
     async (user_recipe_values: Record<string, string>) => {
@@ -883,7 +924,6 @@ export function useChatStream({
     setChatState,
     handleSubmit,
     submitElicitationResponse,
-    submitToolResult,
     stopStreaming,
     setRecipeUserParams,
     tokenState: state.tokenState,

@@ -1,7 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
 import BaseChat from './BaseChat';
-import BrowserPanel from './BrowserPanel';
-import { BrowserProvider } from './BrowserContext';
 import { ChatType } from '../types/chat';
 import { UserInput } from '../types/message';
 
@@ -43,21 +41,16 @@ export default function ChatSessionsContainer({
         return (
           <div
             key={session.sessionId}
-            className={`absolute inset-0 ${isVisible ? 'flex' : 'hidden'}`}
+            className={`absolute inset-0 ${isVisible ? 'block' : 'hidden'}`}
             data-session-id={session.sessionId}
           >
-            <BrowserProvider>
-              <div className="flex-1 min-w-0 relative">
-                <BaseChat
-                  setChat={setChat}
-                  sessionId={session.sessionId}
-                  initialMessage={session.initialMessage}
-                  suppressEmptyState={false}
-                  isActiveSession={isVisible}
-                />
-              </div>
-              <BrowserPanel />
-            </BrowserProvider>
+            <BaseChat
+              setChat={setChat}
+              sessionId={session.sessionId}
+              initialMessage={session.initialMessage}
+              suppressEmptyState={false}
+              isActiveSession={isVisible}
+            />
           </div>
         );
       })}

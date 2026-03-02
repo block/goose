@@ -1515,6 +1515,38 @@ mod tests {
     }
 
     #[test]
+    fn test_tool_response_from_typescript_client() {
+        // Exact JSON produced by createToolResponseMessage in TypeScript
+        let json = r#"{
+            "id": "msg_abc123",
+            "role": "user",
+            "created": 1640995200,
+            "content": [{
+                "type": "toolResponse",
+                "id": "call_xyz",
+                "toolResult": {
+                    "status": "success",
+                    "value": {
+                        "content": [{ "type": "text", "text": "some browser result" }]
+                    }
+                }
+            }],
+            "metadata": { "userVisible": false, "agentVisible": true }
+        }"#;
+
+        let result: Result<Message, _> = serde_json::from_str(json);
+        assert!(result.is_ok(), "Failed to deserialize: {:?}", result.err());
+        let message = result.unwrap();
+        assert_eq!(message.role, Role::User);
+        assert_eq!(message.content.len(), 1);
+        if let MessageContent::ToolResponse(response) = &message.content[0] {
+            assert_eq!(response.id, "call_xyz");
+        } else {
+            panic!("Expected ToolResponse content");
+        }
+    }
+
+    #[test]
     fn test_tool_request_with_value_arguments_backward_compatibility() {
         struct TestCase {
             name: &'static str,

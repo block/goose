@@ -1472,6 +1472,8 @@ impl Agent {
                                         });
 
                                         if is_forward_to_client {
+                                            // Annotate the tool request with forward_to_client
+                                            // so the client knows to execute this tool locally
                                             let mut meta = request.tool_meta.clone()
                                                 .unwrap_or_else(|| serde_json::json!({}));
                                             meta.as_object_mut().unwrap()

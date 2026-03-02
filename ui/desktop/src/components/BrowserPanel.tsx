@@ -1,26 +1,26 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useBrowser } from './BrowserContext';
 
-export default function BrowserPanel() {
-  const { state, webviewRef, close } = useBrowser();
+interface BrowserPanelProps {
+  url: string;
+  webviewRef: React.MutableRefObject<Electron.WebviewTag | null>;
+  onClose: () => void;
+}
+
+export default function BrowserPanel({ url, webviewRef, onClose }: BrowserPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [displayUrl, setDisplayUrl] = useState(state.url);
+  const [displayUrl, setDisplayUrl] = useState(url);
   const [isLoading, setIsLoading] = useState(false);
   const [panelWidth, setPanelWidth] = useState(500);
   const isDragging = useRef(false);
 
   useEffect(() => {
-    setDisplayUrl(state.url);
-  }, [state.url]);
+    setDisplayUrl(url);
+  }, [url]);
 
-  // Attach webview event listeners once the element mounts
   useEffect(() => {
-    if (!state.isOpen) return;
-
     const container = containerRef.current;
     if (!container) return;
 
-    // The webview element is rendered declaratively but we need to grab it
     const wv = container.querySelector('webview') as Electron.WebviewTag | null;
     if (!wv) return;
 
@@ -30,7 +30,6 @@ export default function BrowserPanel() {
     const onLoadStop = () => setIsLoading(false);
     const onNavigate = (e: Electron.DidNavigateEvent) => setDisplayUrl(e.url);
     const onFailLoad = (e: Electron.DidFailLoadEvent) => {
-      // ERR_ABORTED (-3) happens on redirects — not a real error
       if (e.errorCode === -3) return;
       console.error(`Webview load failed: ${e.errorDescription} (${e.errorCode})`);
       setIsLoading(false);
@@ -48,13 +47,10 @@ export default function BrowserPanel() {
       wv.removeEventListener('did-navigate', onNavigate as EventListener);
       wv.removeEventListener('did-navigate-in-page', onNavigate as EventListener);
       wv.removeEventListener('did-fail-load', onFailLoad as EventListener);
-      if (webviewRef.current === wv) {
-        webviewRef.current = null;
-      }
+      webviewRef.current = null;
     };
-  }, [state.isOpen, state.url, webviewRef]);
+  }, [webviewRef]);
 
-  // Resize drag handler
   const onResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -85,18 +81,16 @@ export default function BrowserPanel() {
     e.preventDefault();
     const wv = webviewRef.current;
     if (wv && displayUrl) {
-      let url = displayUrl;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'https://' + url;
+      let submitUrl = displayUrl;
+      if (!submitUrl.startsWith('http://') && !submitUrl.startsWith('https://')) {
+        submitUrl = 'https://' + submitUrl;
       }
-      wv.loadURL(url).catch((err: Error) => {
+      wv.loadURL(submitUrl).catch((err: Error) => {
         if (err.message?.includes('ERR_ABORTED')) return;
         console.error('URL load failed:', err);
       });
     }
   };
-
-  if (!state.isOpen) return null;
 
   return (
     <div
@@ -104,13 +98,11 @@ export default function BrowserPanel() {
       className="relative flex flex-col border-l border-border-subtle bg-surface-default"
       style={{ width: panelWidth, minWidth: 300 }}
     >
-      {/* Resize handle */}
       <div
         className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-accent-default/30 z-10"
         onMouseDown={onResizeMouseDown}
       />
 
-      {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border-subtle bg-surface-raised">
         <form onSubmit={handleUrlSubmit} className="flex-1 flex">
           <input
@@ -125,7 +117,7 @@ export default function BrowserPanel() {
           <div className="w-4 h-4 border-2 border-accent-default border-t-transparent rounded-full animate-spin" />
         )}
         <button
-          onClick={close}
+          onClick={onClose}
           className="p-1 rounded hover:bg-surface-hover text-text-muted hover:text-text-default"
           title="Close browser"
         >
@@ -140,11 +132,10 @@ export default function BrowserPanel() {
         </button>
       </div>
 
-      {/* Webview */}
       <div className="flex-1">
         {/* eslint-disable-next-line react/no-unknown-property */}
         <webview
-          src={state.url}
+          src={url}
           style={{ width: '100%', height: '100%' }}
           /* @ts-expect-error webview is an Electron-specific element */
           allowpopups="true"

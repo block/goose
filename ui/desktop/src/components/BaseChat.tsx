@@ -40,7 +40,8 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { useForwardedToolHandler } from '../hooks/useForwardedToolHandler';
+import { ForwardedToolCall, ForwardedToolResult } from '../hooks/useChatStream';
+import BrowserPanel from './BrowserPanel';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
@@ -88,6 +89,90 @@ export default function BaseChat({
   const onStreamFinish = useCallback(() => {}, []);
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
+  // Browser panel state
+  const webviewRef = useRef<Electron.WebviewTag | null>(null);
+  const [isBrowserOpen, setIsBrowserOpen] = useState(false);
+  const [browserUrl, setBrowserUrl] = useState('');
+  const onForwardedToolCall = useCallback(async (tool: ForwardedToolCall): Promise<ForwardedToolResult> => {
+    const { toolName, arguments: args } = tool;
+    const command = toolName.replace('browser_', '');
+
+    const text = (msg: string) => ({ content: [{ type: 'text' as const, text: msg }] });
+
+    if (command === 'open') {
+      const url = (args.url as string) || 'about:blank';
+      setBrowserUrl(url);
+      setIsBrowserOpen(true);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return text(`Browser opened to ${url}`);
+    }
+
+    if (command === 'close') {
+      setIsBrowserOpen(false);
+      setBrowserUrl('');
+      return text('Browser closed');
+    }
+
+    const wv = webviewRef.current;
+    if (!wv) {
+      return { content: [{ type: 'text', text: 'Browser is not open' }], isError: true };
+    }
+
+    try {
+      switch (command) {
+        case 'navigate':
+          await wv.loadURL(args.url as string).catch(() => {});
+          return text(`Navigated to ${args.url}`);
+        case 'screenshot': {
+          const image = await wv.capturePage();
+          const dataUrl = image.toDataURL();
+          const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+          return { content: [{ type: 'image', data: base64, mimeType: 'image/png' }] };
+        }
+        case 'click': {
+          const clickJs = `document.querySelector(${JSON.stringify(args.selector)})?.click()`;
+          await wv.executeJavaScript(clickJs);
+          return text(`Clicked ${args.selector}`);
+        }
+        case 'type': {
+          const typeJs = `(() => { const el = document.querySelector(${JSON.stringify(args.selector)}); if(el) { el.focus(); el.value = ${JSON.stringify(args.text)}; el.dispatchEvent(new Event('input', {bubbles:true})); } })()`;
+          await wv.executeJavaScript(typeJs);
+          return text(`Typed "${args.text}" into ${args.selector}`);
+        }
+        case 'get_text': {
+          const selector = (args.selector as string) || 'body';
+          const pageText = await wv.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.innerText || ''`);
+          return text(pageText);
+        }
+        case 'get_html': {
+          const htmlSelector = (args.selector as string) || 'html';
+          const html = await wv.executeJavaScript(`document.querySelector(${JSON.stringify(htmlSelector)})?.outerHTML || ''`);
+          return text(html);
+        }
+        case 'evaluate': {
+          const evalResult = await wv.executeJavaScript(args.script as string);
+          return text(typeof evalResult === 'string' ? evalResult : JSON.stringify(evalResult));
+        }
+        case 'wait': {
+          const waitJs = `new Promise((resolve, reject) => { const check = () => { if(document.querySelector(${JSON.stringify(args.selector)})) resolve(true); else setTimeout(check, 100); }; check(); setTimeout(() => reject('timeout'), ${(args.timeout as number) || 5000}); })`;
+          await wv.executeJavaScript(waitJs);
+          return text(`Element ${args.selector} found`);
+        }
+        case 'scroll': {
+          const scrollJs = args.selector
+            ? `document.querySelector(${JSON.stringify(args.selector)})?.scrollBy(${args.x || 0}, ${args.y || 0})`
+            : `window.scrollBy(${args.x || 0}, ${args.y || 0})`;
+          await wv.executeJavaScript(scrollJs);
+          return text('Scrolled');
+        }
+        default:
+          return { content: [{ type: 'text', text: `Unknown command: ${command}` }], isError: true };
+      }
+    } catch (err) {
+      return { content: [{ type: 'text', text: String(err) }], isError: true };
+    }
+  }, []);
+
   const {
     session,
     messages,
@@ -95,7 +180,6 @@ export default function BaseChat({
     setChatState,
     handleSubmit,
     submitElicitationResponse,
-    submitToolResult,
     stopStreaming,
     sessionLoadError,
     setRecipeUserParams,
@@ -105,6 +189,7 @@ export default function BaseChat({
   } = useChatStream({
     sessionId,
     onStreamFinish,
+    onForwardedToolCall,
   });
 
   const recipe = session?.recipe;
@@ -117,8 +202,6 @@ export default function BaseChat({
     initialMessage,
     handleSubmit,
   });
-
-  useForwardedToolHandler(messages, chatState, submitToolResult);
 
   useEffect(() => {
     let streamState: 'idle' | 'loading' | 'streaming' | 'error' = 'idle';
@@ -373,7 +456,8 @@ export default function BaseChat({
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className="h-full flex flex-row min-h-0">
+    <div className={`h-full flex flex-col min-h-0 ${isBrowserOpen ? 'flex-1' : 'w-full'}`}>
       <MainPanelLayout
         backgroundColor={'bg-background-secondary'}
         removeTopPadding={true}
@@ -532,6 +616,18 @@ export default function BaseChat({
         sessionId={chat.sessionId}
         onRecipeCreated={handleRecipeCreated}
       />
+    </div>
+
+    {isBrowserOpen && (
+      <BrowserPanel
+        webviewRef={webviewRef}
+        url={browserUrl}
+        onClose={() => {
+          setIsBrowserOpen(false);
+          setBrowserUrl('');
+        }}
+      />
+    )}
     </div>
   );
 }
