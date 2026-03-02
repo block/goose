@@ -561,7 +561,7 @@ At the bottom of the `Schedule Details` page you can view the list of sessions c
   ```
   You can use either a 5, 6, or 7-digit cron expression for full scheduling precision, following the format "seconds minutes hours day-of-month month day-of-week year".
 
-  See the [`schedule` command documentation](/docs/guides/goose-cli-commands.md#schedule) for detailed examples and options.
+  See the [`schedule` command documentation](/docs/guides/goose-cli-commands#schedule) for detailed examples and options.
 </TabItem>
 </Tabs>
 

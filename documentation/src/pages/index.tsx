@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "@docusaurus/Link";
 import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import Layout from "@theme/Layout";
+import Translate, { translate } from "@docusaurus/Translate";
 import HomepageFeatures from "@site/src/components/HomepageFeatures";
 
 import styles from "./index.module.css";
@@ -18,7 +19,7 @@ function HomepageHeader() {
           </div>
           <p className={styles.subtitle}>{siteConfig.tagline}</p>
           <Link className="button button--primary button--lg" to="docs/getting-started/installation">
-            install goose
+            <Translate id="homepage.installButton">install goose</Translate>
           </Link>
         </div>
 
@@ -26,7 +27,10 @@ function HomepageHeader() {
           <iframe
             src="https://www.youtube.com/embed/D-DpDunrbpo"
             className="aspect-ratio"
-            title="vibe coding with goose"
+            title={translate({
+              id: "homepage.videoTitle",
+              message: "vibe coding with goose",
+            })}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           ></iframe>
@@ -39,7 +43,12 @@ function HomepageHeader() {
 
 export default function Home(): ReactNode {
   return (
-    <Layout description="your open source AI agent, automating engineering tasks seamlessly">
+    <Layout
+      description={translate({
+        id: "homepage.layoutDescription",
+        message: "your open source AI agent, automating engineering tasks seamlessly",
+      })}
+    >
       <HomepageHeader />
       <main>
         <HomepageFeatures />
