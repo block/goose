@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::{Mutex, OnceLock};
@@ -100,13 +101,13 @@ impl ShellTool {
             }
         };
 
-        let stdout = match render_output(&execution.stdout) {
+        let stdout = match render_output(&execution.stdout, "stdout") {
             Ok(rendered) => rendered,
             Err(error) => {
                 return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
             }
         };
-        let stderr = match render_output(&execution.stderr) {
+        let stderr = match render_output(&execution.stderr, "stderr") {
             Ok(rendered) => rendered,
             Err(error) => {
                 return CallToolResult::error(vec![Content::text(error).with_priority(0.0)])
@@ -128,7 +129,7 @@ impl ShellTool {
             format!("{stdout}\n{stderr}")
         };
 
-        if execution.timed_out {
+        let is_error = if execution.timed_out {
             if let Some(timeout_secs) = params.timeout_secs {
                 rendered.push_str(&format!(
                     "\n\nCommand timed out after {} seconds",
@@ -137,15 +138,19 @@ impl ShellTool {
             } else {
                 rendered.push_str("\n\nCommand timed out");
             }
-            return CallToolResult::error(vec![Content::text(rendered).with_priority(0.0)]);
-        }
+            true
+        } else {
+            execution.exit_code.unwrap_or(1) != 0
+        };
 
-        if execution.exit_code.unwrap_or(1) != 0 {
-            rendered.push_str(&format!(
-                "\n\nCommand exited with code {}",
-                execution.exit_code.unwrap_or(1)
-            ));
-            return CallToolResult::error(vec![Content::text(rendered).with_priority(0.0)]);
+        if is_error {
+            if let Some(code) = execution.exit_code.filter(|c| *c != 0) {
+                rendered.push_str(&format!("\n\nCommand exited with code {code}"));
+            }
+            let mut result =
+                CallToolResult::error(vec![Content::text(rendered).with_priority(0.0)]);
+            result.structured_content = structured_content;
+            return result;
         }
 
         let mut result = CallToolResult::success(vec![Content::text(rendered).with_priority(0.0)]);
@@ -280,7 +285,7 @@ async fn collect_stream<R: tokio::io::AsyncRead + Unpin>(
     Ok(output.trim_end_matches('\n').to_string())
 }
 
-fn render_output(full_output: &str) -> Result<String, String> {
+fn render_output(full_output: &str, label: &str) -> Result<String, String> {
     if full_output.is_empty() {
         return Ok("(no output)".to_string());
     }
@@ -296,7 +301,7 @@ fn render_output(full_output: &str) -> Result<String, String> {
         return Ok(full_output.to_string());
     }
 
-    let output_path = save_full_output(full_output)?;
+    let output_path = save_full_output(full_output, label)?;
 
     let preview_start = total_lines.saturating_sub(OUTPUT_PREVIEW_LINES);
     let preview = lines[preview_start..].join("\n");
@@ -318,10 +323,11 @@ fn render_output(full_output: &str) -> Result<String, String> {
     ))
 }
 
-fn output_buffer_path() -> Result<PathBuf, String> {
-    static PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
-    let mut guard = PATH.lock().map_err(|e| format!("Lock poisoned: {e}"))?;
-    if let Some(path) = guard.as_ref() {
+fn output_buffer_path(label: &str) -> Result<PathBuf, String> {
+    static PATHS: Mutex<Option<HashMap<String, PathBuf>>> = Mutex::new(None);
+    let mut guard = PATHS.lock().map_err(|e| format!("Lock poisoned: {e}"))?;
+    let map = guard.get_or_insert_with(HashMap::new);
+    if let Some(path) = map.get(label) {
         return Ok(path.clone());
     }
     let temp_file =
@@ -329,12 +335,12 @@ fn output_buffer_path() -> Result<PathBuf, String> {
     let (_, path) = temp_file
         .keep()
         .map_err(|e| format!("Failed to persist temp file: {}", e.error))?;
-    *guard = Some(path.clone());
+    map.insert(label.to_string(), path.clone());
     Ok(path)
 }
 
-fn save_full_output(output: &str) -> Result<PathBuf, String> {
-    let path = output_buffer_path()?;
+fn save_full_output(output: &str, label: &str) -> Result<PathBuf, String> {
+    let path = output_buffer_path(label)?;
     std::fs::write(&path, output).map_err(|e| format!("Failed to write output buffer: {e}"))?;
     Ok(path)
 }
@@ -408,13 +414,13 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let rendered = render_output(&input).unwrap();
+        let rendered = render_output(&input, "test").unwrap();
         assert_eq!(rendered, input);
     }
 
     #[test]
     fn render_output_shows_empty_message() {
-        let rendered = render_output("").unwrap();
+        let rendered = render_output("", "test").unwrap();
         assert_eq!(rendered, "(no output)");
     }
 
@@ -425,7 +431,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let rendered = render_output(&input).unwrap();
+        let rendered = render_output(&input, "test_lines").unwrap();
         let (preview, metadata) = rendered.split_once("\n\n[").unwrap();
 
         assert_eq!(preview.lines().count(), OUTPUT_PREVIEW_LINES);
@@ -448,7 +454,7 @@ mod tests {
         assert!(input.len() > OUTPUT_LIMIT_BYTES);
         assert!(input.lines().count() <= OUTPUT_LIMIT_LINES);
 
-        let rendered = render_output(&input).unwrap();
+        let rendered = render_output(&input, "test_bytes").unwrap();
         let (_preview, metadata) = rendered.split_once("\n\n[").unwrap();
 
         assert!(metadata.contains("byte limit"));
@@ -458,9 +464,18 @@ mod tests {
 
     #[test]
     fn save_full_output_reuses_same_path() {
-        let path1 = save_full_output("first").unwrap();
-        let path2 = save_full_output("second").unwrap();
+        let path1 = save_full_output("first", "test_reuse").unwrap();
+        let path2 = save_full_output("second", "test_reuse").unwrap();
         assert_eq!(path1, path2);
         assert_eq!(std::fs::read_to_string(&path2).unwrap(), "second");
+    }
+
+    #[test]
+    fn save_full_output_uses_separate_files_per_label() {
+        let path_a = save_full_output("aaa", "label_a").unwrap();
+        let path_b = save_full_output("bbb", "label_b").unwrap();
+        assert_ne!(path_a, path_b);
+        assert_eq!(std::fs::read_to_string(&path_a).unwrap(), "aaa");
+        assert_eq!(std::fs::read_to_string(&path_b).unwrap(), "bbb");
     }
 }
