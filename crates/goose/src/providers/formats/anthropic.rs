@@ -196,10 +196,6 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                         }));
                     }
                 }
-                MessageContent::Reasoning(_reasoning) => {
-                    // Reasoning content is for OpenAI-compatible APIs (e.g., DeepSeek)
-                    // Anthropic doesn't use this format, so skip it
-                }
             }
         }
 
