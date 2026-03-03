@@ -772,34 +772,19 @@ pub fn create_request(
     let is_reasoning_model = model_config.is_openai_reasoning_model();
 
     let (model_name, reasoning_effort) = if is_reasoning_model {
-        // Unified thinking effort takes priority
-        if let Some(effort) = model_config.thinking_effort() {
-            use crate::model::ThinkingEffort;
-            let effort_str = match effort {
-                ThinkingEffort::Off | ThinkingEffort::Low => "low",
-                ThinkingEffort::Medium => "medium",
-                ThinkingEffort::High | ThinkingEffort::Max => "high",
-            };
-            (
-                model_config.model_name.to_string(),
-                Some(effort_str.to_string()),
-            )
-        } else {
-            // Legacy: parse effort from model name suffix (e.g., "o3-mini-high")
-            let parts: Vec<&str> = model_config.model_name.split('-').collect();
-            let last_part = parts.last().unwrap();
-
-            match *last_part {
-                "low" | "medium" | "high" => {
-                    let base_name = parts[..parts.len() - 1].join("-");
-                    (base_name, Some(last_part.to_string()))
-                }
-                _ => (
-                    model_config.model_name.to_string(),
-                    Some("medium".to_string()),
-                ),
-            }
-        }
+        use crate::model::ThinkingEffort;
+        let effort = model_config
+            .thinking_effort()
+            .unwrap_or(ThinkingEffort::Medium);
+        let effort_str = match effort {
+            ThinkingEffort::Off | ThinkingEffort::Low => "low",
+            ThinkingEffort::Medium => "medium",
+            ThinkingEffort::High | ThinkingEffort::Max => "high",
+        };
+        (
+            model_config.model_name.to_string(),
+            Some(effort_str.to_string()),
+        )
     } else {
         (model_config.model_name.to_string(), None)
     };
@@ -1533,8 +1518,9 @@ mod tests {
     }
 
     #[test]
-    fn test_create_request_o1_default() -> anyhow::Result<()> {
-        // Test default medium reasoning effort for O1 model
+    fn test_create_request_o1_medium_effort() -> anyhow::Result<()> {
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("medium"));
         let model_config = ModelConfig {
             model_name: "o1".to_string(),
             context_limit: Some(4096),
@@ -1543,7 +1529,7 @@ mod tests {
             toolshim: false,
             toolshim_model: None,
             fast_model_config: None,
-            request_params: None,
+            request_params: Some(params),
             reasoning: None,
         };
         let request = create_request(
@@ -1576,16 +1562,17 @@ mod tests {
 
     #[test]
     fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
-        // Test custom reasoning effort for O3 model
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
         let model_config = ModelConfig {
-            model_name: "o3-mini-high".to_string(),
+            model_name: "o3-mini".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
             fast_model_config: None,
-            request_params: None,
+            request_params: Some(params),
             reasoning: None,
         };
         let request = create_request(

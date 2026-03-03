@@ -550,34 +550,19 @@ pub fn create_request(
         model_name.contains("claude-3-7-sonnet") || model_name.contains("claude-4-sonnet"); // can be goose- or databricks-
 
     let (model_name, reasoning_effort) = if is_openai_reasoning_model {
-        // Unified thinking effort takes priority
-        if let Some(effort) = model_config.thinking_effort() {
-            use crate::model::ThinkingEffort;
-            let effort_str = match effort {
-                ThinkingEffort::Off | ThinkingEffort::Low => "low",
-                ThinkingEffort::Medium => "medium",
-                ThinkingEffort::High | ThinkingEffort::Max => "high",
-            };
-            (
-                model_config.model_name.to_string(),
-                Some(effort_str.to_string()),
-            )
-        } else {
-            // Legacy: parse effort from model name suffix
-            let parts: Vec<&str> = model_config.model_name.split('-').collect();
-            let last_part = parts.last().unwrap();
-
-            match *last_part {
-                "low" | "medium" | "high" => {
-                    let base_name = parts[..parts.len() - 1].join("-");
-                    (base_name, Some(last_part.to_string()))
-                }
-                _ => (
-                    model_config.model_name.to_string(),
-                    Some("medium".to_string()),
-                ),
-            }
-        }
+        use crate::model::ThinkingEffort;
+        let effort = model_config
+            .thinking_effort()
+            .unwrap_or(ThinkingEffort::Medium);
+        let effort_str = match effort {
+            ThinkingEffort::Off | ThinkingEffort::Low => "low",
+            ThinkingEffort::Medium => "medium",
+            ThinkingEffort::High | ThinkingEffort::Max => "high",
+        };
+        (
+            model_config.model_name.to_string(),
+            Some(effort_str.to_string()),
+        )
     } else {
         (model_config.model_name.to_string(), None)
     };
@@ -621,32 +606,18 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
 
-    let is_thinking_enabled = {
-        // Unified thinking effort: any non-Off value enables thinking
-        if let Some(effort) = model_config.thinking_effort() {
-            effort != crate::model::ThinkingEffort::Off
-        } else {
-            // Legacy fallback
-            std::env::var("CLAUDE_THINKING_ENABLED").is_ok()
-        }
-    };
+    let thinking_effort = model_config
+        .thinking_effort()
+        .unwrap_or(crate::model::ThinkingEffort::Off);
+    let is_thinking_enabled = thinking_effort != crate::model::ThinkingEffort::Off;
     if is_claude_sonnet && is_thinking_enabled {
-        // Anthropic requires budget_tokens >= 1024
-        const DEFAULT_THINKING_BUDGET: i32 = 16000;
-        let budget_tokens: i32 = if let Some(effort) = model_config.thinking_effort() {
-            use crate::model::ThinkingEffort;
-            match effort {
-                ThinkingEffort::Off => 1024,
-                ThinkingEffort::Low => 4000,
-                ThinkingEffort::Medium => 10000,
-                ThinkingEffort::High => 16000,
-                ThinkingEffort::Max => 32000,
-            }
-        } else {
-            std::env::var("CLAUDE_THINKING_BUDGET")
-                .ok()
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(DEFAULT_THINKING_BUDGET)
+        use crate::model::ThinkingEffort;
+        let budget_tokens: i32 = match thinking_effort {
+            ThinkingEffort::Off => 1024,
+            ThinkingEffort::Low => 4000,
+            ThinkingEffort::Medium => 10000,
+            ThinkingEffort::High => 16000,
+            ThinkingEffort::Max => 32000,
         };
 
         // With thinking enabled, max_tokens must include both output and thinking budget
@@ -1103,15 +1074,17 @@ mod tests {
 
     #[test]
     fn test_create_request_reasoning_effort() -> anyhow::Result<()> {
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), serde_json::json!("high"));
         let model_config = ModelConfig {
-            model_name: "o3-mini-high".to_string(),
+            model_name: "o3-mini".to_string(),
             context_limit: Some(4096),
             temperature: None,
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
             fast_model_config: None,
-            request_params: None,
+            request_params: Some(params),
             reasoning: None,
         };
         let request = create_request(&model_config, "system", &[], &[], &ImageFormat::OpenAi)?;
