@@ -10,10 +10,15 @@ export const Switch = React.forwardRef<
 >(({ className, variant = 'default', ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      'peer inline-flex h-[16px] w-[28px] shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
+      'peer inline-flex h-[16px] w-[28px] shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
       variant === 'default'
-        ? 'data-[state=checked]:bg-background-default data-[state=unchecked]:bg-input'
-        : 'data-[state=checked]:bg-text-default data-[state=unchecked]:bg-background-muted',
+        ? [
+            // Ensure the off-state is visible on light backgrounds (e.g. Cards in Catalogs/Tools).
+            'data-[state=unchecked]:bg-background-muted data-[state=unchecked]:border-border-default',
+            // Make the on-state clearly distinct.
+            'data-[state=checked]:bg-border-accent data-[state=checked]:border-border-accent',
+          ].join(' ')
+        : 'data-[state=checked]:bg-text-default data-[state=unchecked]:bg-background-muted data-[state=unchecked]:border-border-default data-[state=checked]:border-text-default',
       className
     )}
     {...props}
