@@ -1,3 +1,9 @@
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-rpath,/usr/lib/swift"]
+
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-args=/FORCE:MULTIPLE"]
 

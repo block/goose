@@ -94,8 +94,8 @@ pub fn inspect_keys(
 pub fn check_provider_configured(metadata: &ProviderMetadata, provider_type: ProviderType) -> bool {
     let config = Config::global();
 
-    // Special override
-    if metadata.name == "local" {
+    // Providers that need no configuration
+    if metadata.name == "local" || metadata.name == "apple_fm" {
         return true;
     }
 

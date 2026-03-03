@@ -139,7 +139,7 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     !costInfo ||
     (costInfo.input_token_cost === undefined && costInfo.output_token_cost === undefined)
   ) {
-    const freeProviders = ['ollama', 'local', 'localhost'];
+    const freeProviders = ['ollama', 'local', 'localhost', 'apple_fm'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
       return (
         <>

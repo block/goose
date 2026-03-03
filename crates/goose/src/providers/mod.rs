@@ -1,5 +1,7 @@
 pub mod anthropic;
 pub mod api_client;
+#[cfg(target_os = "macos")]
+pub mod apple_fm;
 pub mod auto_detect;
 pub mod azure;
 pub mod azureauth;

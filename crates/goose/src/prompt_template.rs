@@ -47,6 +47,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "session_name.md",
         "System prompt for generating short session names from conversation history",
     ),
+    (
+        "apple_fm_system.md",
+        "System prompt for Apple Intelligence on-device inference",
+    ),
 ];
 
 /// Information about a template including its content and customization status

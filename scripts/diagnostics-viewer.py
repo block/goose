@@ -33,7 +33,8 @@ def truncate_string(s: str, max_len: int = 100, edge_len: int = 35) -> str:
         return s
 
     omitted = len(s) - (2 * edge_len)
-    return f"{s[:edge_len]}[{omitted} more]{s[-edge_len:]}"
+    preview = f"{s[:edge_len]}[{omitted} more]{s[-edge_len:]}"
+    return preview.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
 
 
 class JsonTreeView(Tree):
@@ -104,7 +105,8 @@ class JsonTreeView(Tree):
                         child.data = {"key": key, "value": value, "type": "str", "truncated": True, "expandable": True}
                         child.allow_expand = False  # Don't show expand icon initially
                     else:
-                        node.add_leaf(f"[cyan]{key}[/cyan]: [green]\"{value}\"[/green]")
+                        display = value.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+                        node.add_leaf(f"[cyan]{key}[/cyan]: [green]\"{display}\"[/green]")
                 elif isinstance(value, bool):
                     # Check bool before int/float since bool is a subclass of int
                     node.add_leaf(f"[cyan]{key}[/cyan]: [magenta]{str(value).lower()}[/magenta]")
@@ -130,7 +132,8 @@ class JsonTreeView(Tree):
                         child.data = {"key": i, "value": item, "type": "str", "truncated": True, "expandable": True}
                         child.allow_expand = False  # Don't show expand icon initially
                     else:
-                        node.add_leaf(f"[yellow]{i}[/yellow]: [green]\"{item}\"[/green]")
+                        display = item.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+                        node.add_leaf(f"[yellow]{i}[/yellow]: [green]\"{display}\"[/green]")
                 elif isinstance(item, bool):
                     # Check bool before int/float since bool is a subclass of int
                     node.add_leaf(f"[yellow]{i}[/yellow]: [magenta]{str(item).lower()}[/magenta]")

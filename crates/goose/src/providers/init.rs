@@ -1,5 +1,7 @@
 use std::sync::{Arc, RwLock};
 
+#[cfg(target_os = "macos")]
+use super::apple_fm::AppleFMProvider;
 use super::{
     anthropic::AnthropicProvider,
     azure::AzureProvider,
@@ -45,6 +47,8 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
+        #[cfg(target_os = "macos")]
+        registry.register::<AppleFMProvider>(false);
         registry.register::<AnthropicProvider>(true);
         registry.register::<AzureProvider>(false);
         registry.register::<BedrockProvider>(false);
