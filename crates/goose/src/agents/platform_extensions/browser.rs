@@ -14,55 +14,40 @@ use tokio_util::sync::CancellationToken;
 pub static EXTENSION_NAME: &str = "browser";
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-struct BrowserOpenParams {
-    /// URL to open in the browser
-    url: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct BrowserNavigateParams {
-    /// URL to navigate to
+    /// URL to navigate to. Opens the browser panel if not already open.
     url: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct BrowserClickParams {
-    /// CSS selector for the element to click
-    selector: String,
+    /// Element to click — use [index] from inspect results or a CSS selector
+    target: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct BrowserTypeParams {
-    /// CSS selector for the input element
-    selector: String,
+    /// Element to type into — use [index] from inspect results or a CSS selector
+    target: String,
     /// Text to type into the element
     text: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-struct BrowserGetTextParams {
-    /// CSS selector (defaults to "body" if not provided)
-    selector: Option<String>,
-}
+struct BrowserInspectParams {}
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
-struct BrowserGetHtmlParams {
+struct BrowserGetParams {
     /// CSS selector (defaults to "body" if not provided)
     selector: Option<String>,
+    /// Output format: "text", "html", or "markdown" (default: "text")
+    format: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct BrowserEvaluateParams {
     /// JavaScript code to execute in the page context
     script: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
-struct BrowserWaitParams {
-    /// CSS selector to wait for
-    selector: String,
-    /// Timeout in milliseconds (default: 5000)
-    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -124,26 +109,6 @@ impl BrowserClient {
         schema_value.as_object().unwrap().clone()
     }
 
-    fn forward_to_client(command: &str, arguments: Option<JsonObject>) -> CallToolResult {
-        let params = arguments
-            .map(serde_json::Value::Object)
-            .unwrap_or(json!({}));
-
-        let content = json!({
-            "command": command,
-            "params": params,
-        });
-
-        let mut meta_map = serde_json::Map::new();
-        meta_map.insert("forward_to_client".to_string(), json!(true));
-
-        CallToolResult {
-            content: vec![Content::text(content.to_string())],
-            structured_content: None,
-            is_error: Some(false),
-            meta: Some(Meta(meta_map)),
-        }
-    }
 }
 
 #[async_trait]
@@ -156,60 +121,49 @@ impl McpClientTrait for BrowserClient {
     ) -> Result<ListToolsResult, Error> {
         let tools = vec![
             McpTool::new(
-                "browser_open".to_string(),
-                "Open a URL in the embedded browser. This will display a browser panel in the UI."
-                    .to_string(),
-                Self::schema::<BrowserOpenParams>(),
-            ),
-            McpTool::new(
-                "browser_close".to_string(),
-                "Close the embedded browser panel.".to_string(),
-                Self::schema::<BrowserCloseParams>(),
-            ),
-            McpTool::new(
-                "browser_navigate".to_string(),
-                "Navigate to a different URL in the browser.".to_string(),
+                "navigate".to_string(),
+                "Navigate to a URL. Opens the browser panel if not already open. Returns a page summary with interactive elements.".to_string(),
                 Self::schema::<BrowserNavigateParams>(),
             ),
             McpTool::new(
-                "browser_screenshot".to_string(),
+                "inspect".to_string(),
+                "Get a summary of the current page including interactive elements (links, buttons, inputs) with indexed references. Use after interactions that change the page.".to_string(),
+                Self::schema::<BrowserInspectParams>(),
+            ),
+            McpTool::new(
+                "click".to_string(),
+                "Click an element. Use [index] from inspect results (e.g., '[3]') or a CSS selector.".to_string(),
+                Self::schema::<BrowserClickParams>(),
+            ),
+            McpTool::new(
+                "type".to_string(),
+                "Type text into an input element. Use [index] from inspect results (e.g., '[3]') or a CSS selector.".to_string(),
+                Self::schema::<BrowserTypeParams>(),
+            ),
+            McpTool::new(
+                "get".to_string(),
+                "Get page content. Format: 'text' (default), 'html', or 'markdown'. Selector defaults to 'body'.".to_string(),
+                Self::schema::<BrowserGetParams>(),
+            ),
+            McpTool::new(
+                "screenshot".to_string(),
                 "Take a screenshot of the current browser view.".to_string(),
                 Self::schema::<BrowserScreenshotParams>(),
             ),
             McpTool::new(
-                "browser_click".to_string(),
-                "Click an element in the page by CSS selector.".to_string(),
-                Self::schema::<BrowserClickParams>(),
+                "scroll".to_string(),
+                "Scroll the page. Direction: 'up', 'down', 'top', or 'bottom'.".to_string(),
+                Self::schema::<BrowserScrollParams>(),
             ),
             McpTool::new(
-                "browser_type".to_string(),
-                "Type text into an input element.".to_string(),
-                Self::schema::<BrowserTypeParams>(),
-            ),
-            McpTool::new(
-                "browser_get_text".to_string(),
-                "Get the text content of an element (default: body).".to_string(),
-                Self::schema::<BrowserGetTextParams>(),
-            ),
-            McpTool::new(
-                "browser_get_html".to_string(),
-                "Get the HTML content of an element (default: body).".to_string(),
-                Self::schema::<BrowserGetHtmlParams>(),
-            ),
-            McpTool::new(
-                "browser_evaluate".to_string(),
-                "Execute JavaScript in the page context and return the result.".to_string(),
+                "evaluate".to_string(),
+                "Execute JavaScript in the page context. Use as a last resort for complex interactions.".to_string(),
                 Self::schema::<BrowserEvaluateParams>(),
             ),
             McpTool::new(
-                "browser_wait".to_string(),
-                "Wait for an element to appear in the page.".to_string(),
-                Self::schema::<BrowserWaitParams>(),
-            ),
-            McpTool::new(
-                "browser_scroll".to_string(),
-                "Scroll the page. Direction can be 'up', 'down', 'top', or 'bottom'.".to_string(),
-                Self::schema::<BrowserScrollParams>(),
+                "close".to_string(),
+                "Close the embedded browser panel.".to_string(),
+                Self::schema::<BrowserCloseParams>(),
             ),
         ];
 
@@ -228,8 +182,18 @@ impl McpClientTrait for BrowserClient {
         _working_dir: Option<&str>,
         _cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let command = name.strip_prefix("browser_").unwrap_or(name);
-        Ok(Self::forward_to_client(command, arguments))
+        let params = arguments
+            .map(serde_json::Value::Object)
+            .unwrap_or(json!({}));
+        let content = json!({ "command": name, "params": params });
+        let mut meta_map = serde_json::Map::new();
+        meta_map.insert("forward_to_client".to_string(), json!(true));
+        Ok(CallToolResult {
+            content: vec![Content::text(content.to_string())],
+            structured_content: None,
+            is_error: Some(false),
+            meta: Some(Meta(meta_map)),
+        })
     }
 
     async fn list_resources(

@@ -7,7 +7,7 @@ use axum::{
     http::{self},
     response::IntoResponse,
     routing::post,
-    Router,
+    Json, Router,
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
@@ -207,7 +207,7 @@ async fn stream_event(
 )]
 pub async fn reply(
     State(state): State<Arc<AppState>>,
-    axum::Json(request): axum::Json<ChatRequest>,
+    Json(request): Json<ChatRequest>,
 ) -> Result<SseResponse, ErrorResponse> {
     let session_start = std::time::Instant::now();
 
