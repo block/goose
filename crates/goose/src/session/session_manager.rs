@@ -494,7 +494,11 @@ impl SessionStorage {
             .busy_timeout(std::time::Duration::from_secs(30))
             .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
 
-        SqlitePoolOptions::new().connect_lazy_with(options)
+        SqlitePoolOptions::new()
+            .max_connections(1)
+            .idle_timeout(Some(std::time::Duration::from_secs(60)))
+            .max_lifetime(Some(std::time::Duration::from_secs(1800)))
+            .connect_lazy_with(options)
     }
 
     pub fn new(data_dir: PathBuf) -> Self {
@@ -1635,5 +1639,69 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+    }
+
+    #[tokio::test]
+    async fn test_multi_pool_concurrent_writes_no_sqlite_busy() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_dir = temp_dir.path().to_path_buf();
+
+        let primary = Arc::new(SessionManager::new(db_dir.clone()));
+        let session = primary
+            .create_session(
+                PathBuf::from("/tmp/multi_pool"),
+                "pool contention test".to_string(),
+                SessionType::User,
+            )
+            .await
+            .unwrap();
+
+        let num_pools = 4;
+        let writes_per_pool = 5;
+        let mut handles = vec![];
+
+        for pool_idx in 0..num_pools {
+            let sm = Arc::new(SessionManager::new(db_dir.clone()));
+            let session_id = session.id.clone();
+
+            let handle = tokio::spawn(async move {
+                for write_idx in 0..writes_per_pool {
+                    sm.add_message(
+                        &session_id,
+                        &Message {
+                            id: None,
+                            role: if write_idx % 2 == 0 {
+                                Role::User
+                            } else {
+                                Role::Assistant
+                            },
+                            created: chrono::Utc::now().timestamp_millis(),
+                            content: vec![MessageContent::text(format!(
+                                "pool {} msg {}",
+                                pool_idx, write_idx
+                            ))],
+                            metadata: Default::default(),
+                        },
+                    )
+                    .await
+                    .unwrap();
+
+                    sm.update(&session_id)
+                        .total_tokens(Some(pool_idx * 100 + write_idx))
+                        .apply()
+                        .await
+                        .unwrap();
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
+
+        let final_session = primary.get_session(&session.id, true).await.unwrap();
+        let expected_messages = num_pools * writes_per_pool;
+        assert_eq!(final_session.message_count, expected_messages as usize);
     }
 }
