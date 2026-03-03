@@ -102,7 +102,7 @@ export default function ExtensionItem({
               checked={(isToggling && visuallyEnabled) || extension.enabled}
               onCheckedChange={() => handleToggle(extension)}
               disabled={isToggling}
-              variant="mono"
+              variant="surface"
               aria-label={`Toggle ${getFriendlyTitle(extension)} extension On or Off`}
             />
           </div>

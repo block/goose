@@ -5,7 +5,7 @@ import { cn } from '@/utils';
 export const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root> & {
-    variant?: 'default' | 'mono';
+    variant?: 'default' | 'mono' | 'surface';
   }
 >(({ className, variant = 'default', ...props }, ref) => (
   <SwitchPrimitives.Root
@@ -19,7 +19,15 @@ export const Switch = React.forwardRef<
             // Make the on-state clearly distinct.
             'data-[state=checked]:bg-border-accent data-[state=checked]:border-border-accent',
           ].join(' ')
-        : 'data-[state=checked]:bg-text-default data-[state=unchecked]:bg-background-muted data-[state=unchecked]:border-border-default data-[state=checked]:border-text-default',
+        : variant === 'surface'
+          ? [
+              // Surface variant: keep the track subtle and swap thumb color for on/off contrast.
+              // ON:  track muted, thumb white
+              // OFF: track white, thumb muted
+              'data-[state=checked]:bg-background-muted data-[state=checked]:border-border-default',
+              'data-[state=unchecked]:bg-background-default data-[state=unchecked]:border-border-default',
+            ].join(' ')
+          : 'data-[state=checked]:bg-text-default data-[state=unchecked]:bg-background-muted data-[state=unchecked]:border-border-default data-[state=checked]:border-text-default',
       className
     )}
     {...props}
@@ -27,9 +35,9 @@ export const Switch = React.forwardRef<
   >
     <SwitchPrimitives.Thumb
       className={cn(
-        'pointer-events-none block h-3 w-3 rounded-full shadow-lg ring-0 transition-transform',
-        variant === 'default'
-          ? 'bg-background-default data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
+        'pointer-events-none block h-3 w-3 rounded-full shadow-lg ring-1 ring-border-default transition-transform',
+        variant === 'surface'
+          ? 'data-[state=checked]:bg-background-default data-[state=unchecked]:bg-background-muted data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
           : 'bg-background-default data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
       )}
     />
