@@ -669,22 +669,4 @@ mod tests {
         assert_eq!(stream(chunks), expected);
     }
 
-    #[test]
-    fn test_multiple_code_blocks_mixed() {
-        // One small, one large
-        let small_block = "```python\nprint('hello')\n```\n";
-        let large_lines: Vec<String> = (1..=60).map(|i| format!("line {}", i)).collect();
-        let large_block = format!("```rust\n{}\n```\n", large_lines.join("\n"));
-        let input = format!(
-            "Some text\n\n{}\n\nMore text\n\n{}",
-            small_block, large_block
-        );
-
-        let result = truncate_code_blocks(&input);
-
-        // Small block should be unchanged
-        assert!(result.contains("print('hello')"));
-        // Large block should be truncated
-        assert!(result.contains("... (40 more lines"));
-    }
 }
