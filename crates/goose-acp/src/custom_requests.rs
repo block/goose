@@ -119,6 +119,24 @@ pub struct GetExtensionsResponse {
     pub warnings: Vec<String>,
 }
 
+/// Apply system prompt instructions to an active session.
+/// Equivalent to POST /agent/update_from_session in the HTTP API.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetSessionInstructionsRequest {
+    pub session_id: String,
+    /// Instructions to prepend to the agent's system prompt (e.g. channel context, persona).
+    pub instructions: String,
+}
+
+/// Health check.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct HealthRequest {}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct HealthResponse {
+    pub status: String,
+}
+
 /// Empty success response for operations that return no data.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct EmptyResponse {}
