@@ -6,8 +6,8 @@ const config: PlaywrightTestConfig = {
   expect: {
     timeout: 10000
   },
-  fullyParallel: false,
-  workers: 1,
+  fullyParallel: true,
+  workers: 3,
   reporter: [
     ['html', { open: 'never' }],
     ['list']
