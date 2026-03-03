@@ -16,11 +16,14 @@
   </script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    html, body {
+      height: 100%;
+      font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, sans-serif);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
+    }
 
     body { display: flex; flex-direction: column; }
-    body.light { background: #fff; color: #000; }
-    body.dark { background: #1e1e2e; color: #cdd6f4; }
 
     .messages {
       flex: 1;
@@ -34,27 +37,31 @@
     .message {
       max-width: 80%;
       padding: 10px 14px;
-      border-radius: 16px;
+      border-radius: var(--border-radius-lg, 16px);
       line-height: 1.4;
       font-size: 14px;
       word-wrap: break-word;
     }
 
-    body.light .message.user { align-self: flex-end; background: #000; color: #fff; }
-    body.light .message.assistant { align-self: flex-start; background: #f0f0f0; color: #000; }
-    body.dark .message.user { align-self: flex-end; background: #89b4fa; color: #1e1e2e; }
-    body.dark .message.assistant { align-self: flex-start; background: #313244; color: #cdd6f4; }
-
+    .message.user {
+      align-self: flex-end;
+      background: var(--color-background-inverse);
+      color: var(--color-text-inverse);
+    }
+    .message.assistant {
+      align-self: flex-start;
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
+    }
     .message.loading { font-style: italic; opacity: 0.6; }
 
     .input-area {
       display: flex;
       gap: 8px;
       padding: 12px;
+      border-top: 1px solid var(--color-border-primary);
+      background: var(--color-background-secondary);
     }
-
-    body.light .input-area { border-top: 1px solid #e0e0e0; background: #fafafa; }
-    body.dark .input-area { border-top: 1px solid #45475a; background: #181825; }
 
     #messageInput {
       flex: 1;
@@ -62,12 +69,11 @@
       border-radius: 20px;
       font-size: 14px;
       outline: none;
+      border: 1px solid var(--color-border-primary);
+      background: var(--color-background-primary);
+      color: var(--color-text-primary);
     }
-
-    body.light #messageInput { border: 1px solid #ddd; background: #fff; color: #000; }
-    body.light #messageInput:focus { border-color: #999; }
-    body.dark #messageInput { border: 1px solid #45475a; background: #313244; color: #cdd6f4; }
-    body.dark #messageInput:focus { border-color: #89b4fa; }
+    #messageInput:focus { border-color: var(--color-text-info); }
 
     #sendBtn {
       padding: 10px 20px;
@@ -75,14 +81,13 @@
       border-radius: 20px;
       font-size: 14px;
       cursor: pointer;
+      background: var(--color-background-inverse);
+      color: var(--color-text-inverse);
     }
-
-    body.light #sendBtn { background: #000; color: #fff; }
-    body.dark #sendBtn { background: #89b4fa; color: #1e1e2e; }
     #sendBtn:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
-<body class="light">
+<body>
   <div class="messages" id="messages"></div>
   <div class="input-area">
     <input type="text" id="messageInput" placeholder="Type a message..." />
@@ -141,11 +146,7 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    goose.onReady = () => {
-      document.body.className = goose.theme;
-      inputEl.focus();
-    };
-    goose.onThemeChange = (theme) => document.body.className = theme;
+    goose.onReady = () => inputEl.focus();
   </script>
 </body>
 </html>

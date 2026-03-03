@@ -127,9 +127,10 @@ impl GooseApp {
 
     /// Produce HTML for rendering in the sandbox, with the Goose bridge injected.
     pub fn to_render_html(&self) -> Result<String, String> {
+        let escaped_name = serde_json::to_string(&self.resource.name).unwrap_or_default();
         let bridge = format!(
             "<script>\n{}\n</script>\n",
-            BRIDGE_JS.replace("'{{APP_NAME}}'", &format!("'{}'", self.resource.name))
+            BRIDGE_JS.replace("'{{APP_NAME}}'", &escaped_name)
         );
         self.to_html(Some(&bridge))
     }

@@ -223,11 +223,6 @@ impl AppsManagerClient {
             .result_with_platform_notification(result, EXTENSION_NAME, event_type, params)
     }
 
-    fn is_platform_extension(name: &str) -> bool {
-        use super::PLATFORM_EXTENSIONS;
-        PLATFORM_EXTENSIONS.contains_key(name)
-    }
-
     async fn get_available_tools_description(&self, session_id: &str) -> String {
         let extension_manager = match self
             .context
@@ -277,7 +272,7 @@ impl AppsManagerClient {
         for tool in &tools {
             let name = tool.name.to_string();
             if let Some((ext, tool_name)) = name.split_once("__") {
-                if Self::is_platform_extension(ext) {
+                if super::PLATFORM_EXTENSIONS.contains_key(ext) {
                     continue;
                 }
                 let desc = tool
@@ -313,12 +308,19 @@ impl AppsManagerClient {
                 .filter(|d| !d.is_empty())
                 .map(|d| format!(" — {d}"))
                 .unwrap_or_default();
-            lines.push(format!("  goose.{ext}:{ext_desc}"));
+            let is_ident =
+                ext.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+            let ext_accessor = if is_ident {
+                format!("goose.{ext}")
+            } else {
+                format!("goose[\"{ext}\"]")
+            };
+            lines.push(format!("  {ext_accessor}:{ext_desc}"));
             for (tool_name, desc, params) in &ext_tools {
                 let sig = if params.is_empty() {
-                    format!("goose.{ext}.{tool_name}()")
+                    format!("{ext_accessor}.{tool_name}()")
                 } else {
-                    format!("goose.{ext}.{tool_name}({{{params}}})")
+                    format!("{ext_accessor}.{tool_name}({{{params}}})")
                 };
                 let short_desc = desc
                     .split_once(". ")

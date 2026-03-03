@@ -28,7 +28,6 @@ impl McpAppCache {
             if self.get_app(APPS_EXTENSION_NAME, uri).is_none() {
                 if let Ok(mut app) = GooseApp::from_html(html) {
                     app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
-                    // Store with bridge-injected HTML so cached display works
                     if let Ok(render_html) = app.to_render_html() {
                         app.resource.text = Some(render_html);
                     }

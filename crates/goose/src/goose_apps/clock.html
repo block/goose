@@ -98,32 +98,18 @@
       this.animationFrame = null;
       this.lastSecond = -1;
       this.pauseUntil = 0;
-      this.theme = 'light';
     }
 
     get colors() {
-      if (this.theme === 'dark') {
-        return {
-          face: '#1e1e2e',
-          border: '#585868',
-          tick: '#cdd6f4',
-          hand: '#cdd6f4',
-          text: '#cdd6f4',
-          accent: '#d32f2f',
-        };
-      }
+      var s = getComputedStyle(document.documentElement);
       return {
-        face: '#ffffff',
-        border: '#000000',
-        tick: '#000000',
-        hand: '#000000',
-        text: '#000000',
-        accent: '#d32f2f',
+        face: s.getPropertyValue('--color-background-primary').trim() || '#ffffff',
+        border: s.getPropertyValue('--color-border-primary').trim() || '#000000',
+        tick: s.getPropertyValue('--color-text-primary').trim() || '#000000',
+        hand: s.getPropertyValue('--color-text-primary').trim() || '#000000',
+        text: s.getPropertyValue('--color-text-secondary').trim() || '#000000',
+        accent: s.getPropertyValue('--color-text-danger').trim() || '#d32f2f',
       };
-    }
-
-    setTheme(theme) {
-      this.theme = theme;
     }
 
     onMount() {
@@ -267,12 +253,7 @@
 
 <script>
   const widget = new ClockWidget();
-
-  goose.onReady = () => {
-    widget.onMount();
-    widget.setTheme(goose.theme);
-  };
-  goose.onThemeChange = (theme) => widget.setTheme(theme);
+  goose.onReady = () => widget.onMount();
 </script>
 </body>
 </html>
