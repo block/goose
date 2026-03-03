@@ -1,5 +1,5 @@
 pub mod hf_models;
-mod inference_emulated_tools;
+pub(crate) mod inference_emulated_tools;
 mod inference_engine;
 mod inference_native_tools;
 pub mod local_model_registry;
@@ -8,6 +8,7 @@ mod tool_parsing;
 use inference_emulated_tools::{
     build_emulator_tool_description, generate_with_emulated_tools, load_tiny_model_prompt,
 };
+
 use inference_engine::GenerationContext;
 use inference_engine::LoadedModel;
 use inference_native_tools::generate_with_native_tools;
@@ -485,7 +486,8 @@ impl Provider for LocalInferenceProvider {
         // their system prompts.
         let use_emulator = !model_settings.native_tool_calling && !tools.is_empty();
         let system_prompt = if use_emulator {
-            load_tiny_model_prompt()
+            let code_mode = tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
+            load_tiny_model_prompt(code_mode)
         } else {
             system.to_string()
         };

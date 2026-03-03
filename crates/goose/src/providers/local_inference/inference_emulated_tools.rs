@@ -35,9 +35,37 @@ use super::inference_engine::{
 use super::{finalize_usage, StreamSender, CODE_EXECUTION_TOOL, SHELL_TOOL};
 
 const HOLD_BACK_CODE_MODE: usize = " ```execute\n".len();
+
+/// Fence tags accepted as execute blocks (beyond plain ```execute).
+const EXECUTE_FENCE_TAGS: &[&str] = &[
+    "```execute\n",
+    "```sh\n",
+    "```shell\n",
+    "```js\n",
+    "```javascript\n",
+];
+
+/// Search `buf` for an accepted execute fence tag. Returns the text before the
+/// fence and the text after the tag line (i.e. the code body to parse).
+fn find_execute_fence(buf: &str) -> Option<(String, String)> {
+    for tag in EXECUTE_FENCE_TAGS {
+        if let Some((before, after)) = buf.split_once(tag) {
+            return Some((before.to_string(), after.to_string()));
+        }
+    }
+    // Handle tags without trailing newline (still accumulating)
+    for tag in EXECUTE_FENCE_TAGS {
+        let trimmed = tag.trim_end_matches('\n');
+        if buf.ends_with(trimmed) {
+            let before = buf.trim_end_matches(trimmed);
+            return Some((before.to_string(), String::new()));
+        }
+    }
+    None
+}
 const HOLD_BACK_SHELL_ONLY: usize = "\n$".len();
 
-pub(super) fn load_tiny_model_prompt() -> String {
+pub(crate) fn load_tiny_model_prompt(code_execution_mode: bool) -> String {
     use std::env;
 
     let os = if cfg!(target_os = "macos") {
@@ -60,6 +88,7 @@ pub(super) fn load_tiny_model_prompt() -> String {
         "os": os,
         "working_directory": working_directory,
         "shell": shell,
+        "code_execution_mode": code_execution_mode,
     });
 
     crate::prompt_template::render_template("tiny_model_system.md", &context).unwrap_or_else(|e| {
@@ -69,26 +98,11 @@ pub(super) fn load_tiny_model_prompt() -> String {
     })
 }
 
-pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled: bool) -> String {
+pub(crate) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled: bool) -> String {
     let mut tool_desc = String::new();
 
     if code_mode_enabled {
-        tool_desc.push_str("\n\n# Running Code\n\n");
-        tool_desc.push_str(
-            "You can call tools by writing code in a ```execute block. \
-             The code runs immediately — do not explain it, just run it.\n\n",
-        );
-        tool_desc.push_str("Example — counting files in /tmp:\n\n");
-        tool_desc.push_str("```execute\nasync function run() {\n");
-        tool_desc.push_str(
-            "  const result = await Developer.shell({ command: \"ls -1 /tmp | wc -l\" });\n",
-        );
-        tool_desc.push_str("  return result;\n}\n```\n\n");
-        tool_desc.push_str("Rules:\n");
-        tool_desc.push_str("- Code MUST define async function run() and return a result\n");
-        tool_desc.push_str("- All function calls are async — use await\n");
-        tool_desc.push_str("- Use ```execute for tool calls, $ for simple shell one-liners\n\n");
-        tool_desc.push_str("Available functions:\n\n");
+        tool_desc.push_str("\n\nAvailable functions:\n\n");
 
         for tool in tools {
             if tool.name.starts_with("code_execution__") {
@@ -137,7 +151,7 @@ pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
     tool_desc
 }
 
-enum EmulatorAction {
+pub(crate) enum EmulatorAction {
     Text(String),
     ShellCommand(String),
     ExecuteCode(String),
@@ -149,14 +163,14 @@ enum ParserState {
     InExecuteBlock,
 }
 
-struct StreamingEmulatorParser {
+pub(crate) struct StreamingEmulatorParser {
     buffer: String,
     state: ParserState,
     code_mode_enabled: bool,
 }
 
 impl StreamingEmulatorParser {
-    fn new(code_mode_enabled: bool) -> Self {
+    pub(crate) fn new(code_mode_enabled: bool) -> Self {
         Self {
             buffer: String::new(),
             state: ParserState::Normal,
@@ -164,7 +178,7 @@ impl StreamingEmulatorParser {
         }
     }
 
-    fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
+    pub(crate) fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
         self.buffer.push_str(chunk);
         let mut results = Vec::new();
 
@@ -204,25 +218,22 @@ impl StreamingEmulatorParser {
                     }
                 }
                 ParserState::Normal => {
-                    // Check for ```execute block (code mode)
+                    // Check for code fence block (code mode).
+                    // We accept ```execute plus common mistaken tags (```sh, ```js,
+                    // ```javascript) but NOT bare ``` so the model can still show
+                    // code to the user in plain fenced blocks.
                     if self.code_mode_enabled {
-                        if let Some((before, after)) = self.buffer.split_once("```execute\n") {
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
+                        if let Some((before, after)) = find_execute_fence(&self.buffer) {
+                            if !before.is_empty() {
+                                results.push(EmulatorAction::Text(before));
                             }
-                            self.buffer = after.to_string();
+                            self.buffer = after;
                             self.state = ParserState::InExecuteBlock;
                             continue;
                         }
-                        // Also handle without newline after tag (accumulating)
-                        if self.buffer.ends_with("```execute") {
-                            let before = self.buffer.trim_end_matches("```execute");
-                            if !before.trim().is_empty() {
-                                results.push(EmulatorAction::Text(before.to_string()));
-                            }
-                            self.buffer.clear();
-                            self.state = ParserState::InExecuteBlock;
-                            continue;
+                        // Fence tag may be partially buffered — hold back
+                        if self.buffer.ends_with('`') || self.buffer.ends_with("``") {
+                            break;
                         }
                     }
 
@@ -262,7 +273,7 @@ impl StreamingEmulatorParser {
         results
     }
 
-    fn flush(&mut self) -> Vec<EmulatorAction> {
+    pub(crate) fn flush(&mut self) -> Vec<EmulatorAction> {
         let mut results = Vec::new();
 
         if !self.buffer.is_empty() {
@@ -667,6 +678,42 @@ mod tests {
                 assert!(code.contains("Developer.shell"));
             }
             _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn sh_fence_treated_as_execute_in_code_mode() {
+        let input = "```sh\necho hello\n```\n";
+        let actions = parse_all(input, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ExecuteCode(_)))
+            .collect();
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "echo hello");
+    }
+
+    #[test]
+    fn js_fence_treated_as_execute_in_code_mode() {
+        let input = "```js\nlet x = 1;\n```\n";
+        let actions = parse_all(input, true);
+        let executes: Vec<_> = actions
+            .iter()
+            .filter(|a| matches!(a, EmulatorAction::ExecuteCode(_)))
+            .collect();
+        assert_eq!(executes.len(), 1);
+        assert_execute(executes[0], "let x = 1;");
+    }
+
+    #[test]
+    fn sh_fence_not_treated_as_execute_without_code_mode() {
+        let input = "```sh\necho hello\n```\n";
+        let actions = parse_all(input, false);
+        for action in &actions {
+            assert!(
+                matches!(action, EmulatorAction::Text(_)),
+                "```sh should be text without code mode"
+            );
         }
     }
 
