@@ -9,7 +9,7 @@ const config: PlaywrightTestConfig = {
   fullyParallel: false,
   workers: 1,
   reporter: [
-    ['html'],
+    ['html', { open: 'never' }],
     ['list']
   ],
   use: {
