@@ -30,6 +30,7 @@ use super::extension::{
     ExtensionConfig, ExtensionError, ExtensionInfo, ExtensionResult, PlatformExtensionContext,
     ToolInfo, PLATFORM_EXTENSIONS,
 };
+use super::platform_extensions::developer::edit::{Fs, LocalFs};
 use super::tool_execution::ToolCallResult;
 use super::types::SharedProvider;
 use crate::agents::extension::{Envs, ProcessExit};
@@ -481,6 +482,7 @@ impl ExtensionManager {
     pub fn new(
         provider: SharedProvider,
         session_manager: Arc<crate::session::SessionManager>,
+        fs: Arc<dyn Fs>,
         client_name: String,
         capabilities: ExtensionManagerCapabilities,
     ) -> Self {
@@ -488,6 +490,7 @@ impl ExtensionManager {
             extensions: Mutex::new(HashMap::new()),
             context: PlatformExtensionContext {
                 extension_manager: None,
+                fs,
                 session_manager,
                 session: None,
             },
@@ -499,12 +502,12 @@ impl ExtensionManager {
         }
     }
 
-    #[cfg(test)]
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
+            Arc::new(LocalFs),
             "goose-cli".to_string(),
             ExtensionManagerCapabilities { mcpui: false },
         )

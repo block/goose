@@ -3,6 +3,7 @@
 
 use async_trait::async_trait;
 use fs_err as fs;
+use goose::agents::platform_extensions::developer::edit::{Fs, LocalFs};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod};
@@ -13,13 +14,15 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionModelState, ToolCallStatus,
+    McpServer, PermissionOptionKind, ReadTextFileRequest, ReadTextFileResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SelectedPermissionOutcome, SessionModelState, ToolCallStatus, WriteTextFileRequest,
+    WriteTextFileResponse,
 };
 use std::collections::VecDeque;
 use std::future::Future;
-use std::path::Path;
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -191,10 +194,11 @@ pub async fn serve_agent_in_process(
 #[allow(dead_code)]
 pub async fn spawn_acp_server_in_process(
     openai_base_url: &str,
+    provider_factory: Option<ProviderConstructor>,
     builtins: &[String],
+    fs: Option<Arc<dyn Fs>>,
     data_root: &Path,
     goose_mode: GooseMode,
-    provider_factory: Option<ProviderConstructor>,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
     let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
@@ -224,6 +228,7 @@ pub async fn spawn_acp_server_in_process(
         GooseAcpAgent::new(
             provider_factory,
             builtins.to_vec(),
+            fs.unwrap_or_else(|| Arc::new(LocalFs)),
             data_root.to_path_buf(),
             data_root.to_path_buf(),
             goose_mode,
@@ -243,22 +248,149 @@ pub struct TestOutput {
     pub tool_status: Option<ToolCallStatus>,
 }
 
+pub struct AssertReadFs {
+    path: PathBuf,
+    content: String,
+}
+
+#[allow(clippy::new_ret_no_self)]
+impl AssertReadFs {
+    pub fn new(path: &str, content: &str) -> Arc<dyn Fs> {
+        Arc::new(Self {
+            path: PathBuf::from(path),
+            content: content.to_string(),
+        })
+    }
+}
+
+#[async_trait]
+impl Fs for AssertReadFs {
+    async fn read_text_file(
+        &self,
+        path: &Path,
+        _: Option<u32>,
+        _: Option<u32>,
+    ) -> io::Result<String> {
+        if path == self.path {
+            Ok(self.content.clone())
+        } else {
+            Err(io::Error::other(format!(
+                "Expected read of {}, got: {}",
+                self.path.display(),
+                path.display()
+            )))
+        }
+    }
+
+    async fn write_text_file(&self, path: &Path, _content: &str) -> io::Result<()> {
+        Err(io::Error::other(format!(
+            "Unexpected write of {}",
+            path.display()
+        )))
+    }
+}
+
+pub struct AssertWriteFs {
+    path: PathBuf,
+    content: String,
+}
+
+#[allow(clippy::new_ret_no_self)]
+impl AssertWriteFs {
+    pub fn new(path: &str, content: &str) -> Arc<dyn Fs> {
+        Arc::new(Self {
+            path: PathBuf::from(path),
+            content: content.to_string(),
+        })
+    }
+}
+
+#[async_trait]
+impl Fs for AssertWriteFs {
+    async fn read_text_file(
+        &self,
+        path: &Path,
+        _: Option<u32>,
+        _: Option<u32>,
+    ) -> io::Result<String> {
+        Err(io::Error::other(format!(
+            "Unexpected read of {}",
+            path.display()
+        )))
+    }
+
+    async fn write_text_file(&self, path: &Path, content: &str) -> io::Result<()> {
+        if path == self.path && content == self.content {
+            Ok(())
+        } else {
+            Err(io::Error::other(format!(
+                "Expected write of {} with {:?}, got: {} with {:?}",
+                self.path.display(),
+                self.content,
+                path.display(),
+                content
+            )))
+        }
+    }
+}
+
+pub struct NoOpFs;
+
+#[allow(clippy::new_ret_no_self)]
+impl NoOpFs {
+    pub fn new() -> Arc<dyn Fs> {
+        Arc::new(Self)
+    }
+}
+
+#[async_trait]
+impl Fs for NoOpFs {
+    async fn read_text_file(
+        &self,
+        path: &Path,
+        _: Option<u32>,
+        _: Option<u32>,
+    ) -> io::Result<String> {
+        Err(io::Error::other(format!(
+            "Unexpected read of {}",
+            path.display()
+        )))
+    }
+
+    async fn write_text_file(&self, path: &Path, _content: &str) -> io::Result<()> {
+        Err(io::Error::other(format!(
+            "Unexpected write of {}",
+            path.display()
+        )))
+    }
+}
+
+type ReadTextFileHandler = Arc<dyn Fn(&ReadTextFileRequest) -> ReadTextFileResponse + Send + Sync>;
+type WriteTextFileHandler =
+    Arc<dyn Fn(&WriteTextFileRequest) -> WriteTextFileResponse + Send + Sync>;
+
 pub struct TestConnectionConfig {
-    pub mcp_servers: Vec<McpServer>,
-    pub builtins: Vec<String>,
-    pub goose_mode: GooseMode,
-    pub data_root: PathBuf,
     pub provider_factory: Option<ProviderConstructor>,
+    pub builtins: Vec<String>,
+    pub fs: Option<Arc<dyn Fs>>,
+    pub data_root: PathBuf,
+    pub goose_mode: GooseMode,
+    pub mcp_servers: Vec<McpServer>,
+    pub read_text_file: Option<ReadTextFileHandler>,
+    pub write_text_file: Option<WriteTextFileHandler>,
 }
 
 impl Default for TestConnectionConfig {
     fn default() -> Self {
         Self {
-            mcp_servers: Vec::new(),
-            builtins: Vec::new(),
-            goose_mode: GooseMode::Auto,
-            data_root: PathBuf::new(),
             provider_factory: None,
+            builtins: Vec::new(),
+            fs: None,
+            data_root: PathBuf::new(),
+            goose_mode: GooseMode::Auto,
+            mcp_servers: Vec::new(),
+            read_text_file: None,
+            write_text_file: None,
         }
     }
 }

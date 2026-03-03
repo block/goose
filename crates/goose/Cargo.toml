@@ -94,6 +94,7 @@ aws-sdk-sagemakerruntime = "1.62.0"
 jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 
 blake3 = "1.5"
+fs-err = { workspace = true }
 fs2 = { workspace = true }
 tokio-stream = { workspace = true, features = ["io-util"] }
 tempfile = { workspace = true }

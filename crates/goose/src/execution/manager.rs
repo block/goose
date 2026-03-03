@@ -1,3 +1,4 @@
+use crate::agents::platform_extensions::developer::edit::LocalFs;
 use crate::agents::{Agent, AgentConfig, GoosePlatform};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
@@ -87,6 +88,7 @@ impl AgentManager {
         let config = AgentConfig::new(
             Arc::clone(&self.session_manager),
             permission_manager,
+            Arc::new(LocalFs),
             Some(Arc::clone(&self.scheduler)),
             mode,
             Config::global()

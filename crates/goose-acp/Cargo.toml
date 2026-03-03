@@ -28,6 +28,7 @@ goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
 agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model", "unstable_session_list"] }
+async-trait = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat", "rt"] }
@@ -35,7 +36,7 @@ tracing = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
 regex = { workspace = true }
-fs-err = "3"
+fs-err = { workspace = true }
 url = { workspace = true }
 
 # HTTP server dependencies

@@ -1154,6 +1154,7 @@ impl SummonClient {
         let agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
+            self.context.fs.clone(),
             None,
             crate::config::GooseMode::Auto,
             true, // disable session naming for subagents
@@ -1606,6 +1607,7 @@ impl SummonClient {
         let agent_config = AgentConfig::new(
             self.context.session_manager.clone(),
             crate::config::permission::PermissionManager::instance(),
+            self.context.fs.clone(),
             None,
             crate::config::GooseMode::Auto,
             true, // disable session naming for subagents
@@ -1813,6 +1815,7 @@ impl McpClientTrait for SummonClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents::platform_extensions::developer::edit::LocalFs;
     use std::fs;
     use std::sync::Arc;
     use tempfile::TempDir;
@@ -1820,6 +1823,7 @@ mod tests {
     fn create_test_context() -> PlatformExtensionContext {
         PlatformExtensionContext {
             extension_manager: None,
+            fs: Arc::new(LocalFs),
             session_manager: Arc::new(crate::session::SessionManager::instance()),
             session: None,
         }

@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
+use goose::agents::platform_extensions::developer::edit::LocalFs;
 use goose::agents::GoosePlatform;
 use goose::model::ModelConfig;
 
@@ -260,6 +261,7 @@ async fn test_replayed_session(
     let extension_manager = Arc::new(ExtensionManager::new(
         provider,
         session_manager,
+        Arc::new(LocalFs),
         GoosePlatform::GooseDesktop.to_string(),
         ExtensionManagerCapabilities { mcpui: true },
     ));

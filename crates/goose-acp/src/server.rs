@@ -1,7 +1,9 @@
 use crate::custom_requests::*;
 use anyhow::Result;
+use async_trait::async_trait;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
+use goose::agents::platform_extensions::developer::edit::Fs;
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
@@ -23,18 +25,21 @@ use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
-    EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
-    ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
-    ModelId, ModelInfo, NewSessionRequest, NewSessionResponse, PermissionOption,
-    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
-    SessionId, SessionInfo, SessionListCapabilities, SessionModelState, SessionNotification,
-    SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
-    TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
-    ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    EmbeddedResourceResource, FileSystemCapability, ImageContent, InitializeRequest,
+    InitializeResponse, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
+    McpCapabilities, McpServer, ModelId, ModelInfo, NewSessionRequest, NewSessionResponse,
+    PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
+    ReadTextFileRequest, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink,
+    SessionCapabilities, SessionId, SessionInfo, SessionListCapabilities, SessionModelState,
+    SessionNotification, SessionUpdate, SetSessionModelRequest, SetSessionModelResponse,
+    StopReason, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
+    ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
+    WriteTextFileRequest,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
+use std::io;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
@@ -54,12 +59,120 @@ struct GooseAcpSession {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     provider_factory: ProviderConstructor,
+    builtins: Vec<String>,
+    fs: Arc<dyn Fs>,
+    client_fs_capabilities: Mutex<FileSystemCapability>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
-    builtins: Vec<String>,
+}
+
+struct AcpFs {
+    cx: JrConnectionCx<AgentToClient>,
+    session_id: SessionId,
+}
+
+struct AcpReadFs {
+    cx: JrConnectionCx<AgentToClient>,
+    session_id: SessionId,
+    local: Arc<dyn Fs>,
+}
+
+struct AcpWriteFs {
+    cx: JrConnectionCx<AgentToClient>,
+    session_id: SessionId,
+    local: Arc<dyn Fs>,
+}
+
+fn io_error_from_sacp(error: sacp::Error) -> io::Error {
+    io::Error::other(format!("{:?}", error))
+}
+
+async fn acp_read_text_file(
+    cx: &JrConnectionCx<AgentToClient>,
+    session_id: &SessionId,
+    path: &Path,
+    line: Option<u32>,
+    limit: Option<u32>,
+) -> io::Result<String> {
+    let mut request = ReadTextFileRequest::new(session_id.clone(), path.to_path_buf());
+    if let Some(l) = line {
+        request = request.line(l);
+    }
+    if let Some(l) = limit {
+        request = request.limit(l);
+    }
+    let response = cx
+        .send_request(request)
+        .block_task()
+        .await
+        .map_err(io_error_from_sacp)?;
+    Ok(response.content)
+}
+
+async fn acp_write_text_file(
+    cx: &JrConnectionCx<AgentToClient>,
+    session_id: &SessionId,
+    path: &Path,
+    content: &str,
+) -> io::Result<()> {
+    let request =
+        WriteTextFileRequest::new(session_id.clone(), path.to_path_buf(), content.to_string());
+    cx.send_request(request)
+        .block_task()
+        .await
+        .map_err(io_error_from_sacp)?;
+    Ok(())
+}
+
+#[async_trait]
+impl Fs for AcpFs {
+    async fn read_text_file(
+        &self,
+        path: &Path,
+        line: Option<u32>,
+        limit: Option<u32>,
+    ) -> io::Result<String> {
+        acp_read_text_file(&self.cx, &self.session_id, path, line, limit).await
+    }
+
+    async fn write_text_file(&self, path: &Path, content: &str) -> io::Result<()> {
+        acp_write_text_file(&self.cx, &self.session_id, path, content).await
+    }
+}
+
+#[async_trait]
+impl Fs for AcpReadFs {
+    async fn read_text_file(
+        &self,
+        path: &Path,
+        line: Option<u32>,
+        limit: Option<u32>,
+    ) -> io::Result<String> {
+        acp_read_text_file(&self.cx, &self.session_id, path, line, limit).await
+    }
+
+    async fn write_text_file(&self, path: &Path, content: &str) -> io::Result<()> {
+        self.local.write_text_file(path, content).await
+    }
+}
+
+#[async_trait]
+impl Fs for AcpWriteFs {
+    async fn read_text_file(
+        &self,
+        path: &Path,
+        line: Option<u32>,
+        limit: Option<u32>,
+    ) -> io::Result<String> {
+        self.local.read_text_file(path, line, limit).await
+    }
+
+    async fn write_text_file(&self, path: &Path, content: &str) -> io::Result<()> {
+        acp_write_text_file(&self.cx, &self.session_id, path, content).await
+    }
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -95,6 +208,13 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn get_requested_line(arguments: Option<&rmcp::model::JsonObject>) -> Option<u32> {
+    arguments
+        .and_then(|args| args.get("line"))
+        .and_then(|v| v.as_u64())
+        .map(|l| l as u32)
+}
+
 fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
     let mut loc = ToolCallLocation::new(path);
     if let Some(l) = line {
@@ -104,7 +224,7 @@ fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
 }
 
 fn is_developer_file_tool(tool_name: &str) -> bool {
-    matches!(tool_name, "write" | "edit")
+    matches!(tool_name, "read" | "write" | "edit")
 }
 
 fn extract_tool_locations(
@@ -126,6 +246,12 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
+            if matches!(tool_name, "read") {
+                let line = get_requested_line(tool_call.arguments.as_ref());
+                locations.push(create_tool_location(path_str, line));
+                return locations;
+            }
+
             if matches!(tool_name, "write" | "edit") {
                 locations.push(create_tool_location(path_str, Some(1)));
                 return locations;
@@ -312,6 +438,7 @@ impl GooseAcpAgent {
     pub async fn new(
         provider_factory: ProviderConstructor,
         builtins: Vec<String>,
+        fs: Arc<dyn Fs>,
         data_dir: std::path::PathBuf,
         config_dir: std::path::PathBuf,
         goose_mode: goose::config::GooseMode,
@@ -323,19 +450,54 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             provider_factory,
+            builtins,
+            fs,
+            client_fs_capabilities: Mutex::new(FileSystemCapability::new()),
             config_dir,
             session_manager,
             permission_manager,
             goose_mode,
             disable_session_naming,
-            builtins,
         })
     }
 
-    async fn create_agent_for_session(&self) -> Arc<Agent> {
+    fn build_fs(
+        &self,
+        cx: &JrConnectionCx<AgentToClient>,
+        session_id: &SessionId,
+        capabilities: &FileSystemCapability,
+    ) -> Arc<dyn Fs> {
+        debug!(
+            session_id = %session_id.0,
+            read_text_file = capabilities.read_text_file,
+            write_text_file = capabilities.write_text_file,
+            "fs capabilities"
+        );
+        let local = Arc::clone(&self.fs);
+        match (capabilities.read_text_file, capabilities.write_text_file) {
+            (false, false) => local,
+            (true, true) => Arc::new(AcpFs {
+                cx: cx.clone(),
+                session_id: session_id.clone(),
+            }),
+            (true, false) => Arc::new(AcpReadFs {
+                cx: cx.clone(),
+                session_id: session_id.clone(),
+                local,
+            }),
+            (false, true) => Arc::new(AcpWriteFs {
+                cx: cx.clone(),
+                session_id: session_id.clone(),
+                local,
+            }),
+        }
+    }
+
+    async fn create_agent_for_session(&self, fs: Arc<dyn Fs>) -> Arc<Agent> {
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&self.session_manager),
             Arc::clone(&self.permission_manager),
+            fs,
             None,
             self.goose_mode,
             self.disable_session_naming,
@@ -663,6 +825,8 @@ impl GooseAcpAgent {
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
 
+        *self.client_fs_capabilities.lock().await = args.client_capabilities.fs.clone();
+
         let capabilities = AgentCapabilities::new()
             .load_session(true)
             .session_capabilities(SessionCapabilities::new().list(SessionListCapabilities::new()))
@@ -687,6 +851,7 @@ impl GooseAcpAgent {
     async fn on_new_session(
         &self,
         args: NewSessionRequest,
+        cx: &JrConnectionCx<AgentToClient>,
     ) -> Result<NewSessionResponse, sacp::Error> {
         debug!(?args, "new session request");
 
@@ -702,7 +867,10 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to create session: {}", e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let caps = self.client_fs_capabilities.lock().await.clone();
+        let session_id = SessionId::new(goose_session.id.clone());
+        let fs = self.build_fs(cx, &session_id, &caps);
+        let agent = self.create_agent_for_session(fs).await;
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -780,7 +948,10 @@ impl GooseAcpAgent {
                     .data(format!("Failed to load session {}: {}", session_id, e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let caps = self.client_fs_capabilities.lock().await.clone();
+        let acp_session_id = SessionId::new(session_id.clone());
+        let fs = self.build_fs(cx, &acp_session_id, &caps);
+        let agent = self.create_agent_for_session(fs).await;
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -1235,7 +1406,7 @@ impl JrMessageHandler for GooseAcpHandler {
                 .await
                 .if_request(
                     |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
-                        req_cx.respond(agent.on_new_session(req).await?)
+                        req_cx.respond(agent.on_new_session(req, &cx).await?)
                     },
                 )
                 .await
@@ -1356,11 +1527,15 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::conversation::message::{ToolRequest, ToolResponse};
+    use goose::providers::errors::ProviderError;
+    use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
     use sacp::schema::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
 
@@ -1506,8 +1681,6 @@ print(\"hello, world\")
         assert_eq!(outcome_to_confirmation(&input), expected);
     }
 
-    use goose::providers::errors::ProviderError;
-
     struct MockModelProvider {
         models: Result<Vec<String>, ProviderError>,
     }
@@ -1573,5 +1746,126 @@ print(\"hello, world\")
     ) -> SessionModelState {
         let provider = MockModelProvider { models };
         build_model_state(&provider, current_model).await
+    }
+
+    fn json_object(pairs: Vec<(&str, serde_json::Value)>) -> rmcp::model::JsonObject {
+        pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
+    }
+
+    #[test_case(None => None ; "none arguments")]
+    #[test_case(Some(json_object(vec![])) => None ; "missing line key")]
+    #[test_case(Some(json_object(vec![("line", serde_json::json!(5))])) => Some(5) ; "line present")]
+    #[test_case(Some(json_object(vec![("line", serde_json::json!("not_a_number"))])) => None ; "line not a number")]
+    fn test_get_requested_line(arguments: Option<rmcp::model::JsonObject>) -> Option<u32> {
+        get_requested_line(arguments.as_ref())
+    }
+
+    #[test_case("read", true ; "read is developer file tool")]
+    #[test_case("write", true ; "write is developer file tool")]
+    #[test_case("edit", true ; "edit is developer file tool")]
+    #[test_case("shell", false ; "shell is not developer file tool")]
+    #[test_case("analyze", false ; "analyze is not developer file tool")]
+    fn test_is_developer_file_tool(tool_name: &str, expected: bool) {
+        assert_eq!(is_developer_file_tool(tool_name), expected);
+    }
+
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams {
+                meta: None, task: None,
+                name: "read".to_string().into(),
+                arguments: Some(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone()),
+            }),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
+        ; "read returns requested line"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams {
+                meta: None, task: None,
+                name: "read".to_string().into(),
+                arguments: Some(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone()),
+            }),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), None)]
+        ; "read without line"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams {
+                meta: None, task: None,
+                name: "write".to_string().into(),
+                arguments: Some(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone()),
+            }),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+        ; "write returns line 1"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams {
+                meta: None, task: None,
+                name: "edit".to_string().into(),
+                arguments: Some(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone()),
+            }),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+        ; "edit returns line 1"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams {
+                meta: None, task: None,
+                name: "shell".to_string().into(),
+                arguments: Some(serde_json::json!({"command": "ls"}).as_object().unwrap().clone()),
+            }),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => Vec::<(PathBuf, Option<u32>)>::new()
+        ; "non file tool returns empty"
+    )]
+    fn test_extract_tool_locations(
+        request: ToolRequest,
+        response: ToolResponse,
+    ) -> Vec<(PathBuf, Option<u32>)> {
+        extract_tool_locations(&request, &response)
+            .into_iter()
+            .map(|loc| (loc.path, loc.line))
+            .collect()
     }
 }
