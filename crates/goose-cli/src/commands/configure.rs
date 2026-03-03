@@ -2027,6 +2027,7 @@ fn add_provider() -> anyhow::Result<()> {
         headers,
         requires_auth,
         catalog_provider_id: None,
+        base_path: None,
     })?;
 
     cliclack::outro(format!("Custom provider added: {}", display_name))?;

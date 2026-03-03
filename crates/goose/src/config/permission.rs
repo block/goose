@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, RwLock};
+use tracing;
 use utoipa::ToSchema;
 
 const PERMISSION_FILE: &str = "permission.yaml";
@@ -45,7 +46,17 @@ impl PermissionManager {
         let permission_map = if permission_path.exists() {
             let file_contents =
                 fs::read_to_string(&permission_path).expect("Failed to read permission.yaml");
-            serde_yaml::from_str(&file_contents).unwrap_or_else(|_| HashMap::new())
+            serde_yaml::from_str(&file_contents).unwrap_or_else(|e| {
+                tracing::error!(
+                    "Failed to parse {}: {}. Refusing to start with corrupted permission config.",
+                    permission_path.display(),
+                    e,
+                );
+                panic!(
+                    "Corrupted permission config at {}. Fix or remove the file to continue.",
+                    permission_path.display(),
+                );
+            })
         } else {
             // Consolidate directory creation for re-use in global singleton or ACP.
             fs::create_dir_all(&config_dir).expect("Failed to create config directory");
@@ -292,5 +303,14 @@ mod tests {
         assert!(config
             .always_allow
             .contains(&"nonprefix__tool2".to_string()));
+    }
+
+    #[test]
+    #[should_panic(expected = "Corrupted permission config")]
+    fn test_corrupted_permission_file_panics() {
+        let temp_dir = TempDir::new().unwrap();
+        let permission_path = temp_dir.path().join(PERMISSION_FILE);
+        fs::write(&permission_path, "{{invalid yaml: [broken").unwrap();
+        PermissionManager::new(temp_dir.path().to_path_buf());
     }
 }

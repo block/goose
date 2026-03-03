@@ -1550,6 +1550,16 @@ impl Agent {
                             );
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::NetworkError(_)) => {
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+                            yield AgentEvent::Message(
+                                Message::assistant().with_text(
+                                    format!("{provider_err}\n\nPlease resend your message to try again.")
+                                )
+                            );
+                            break;
+                        }
                         Err(ref provider_err) => {
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
                             error!("Error: {}", provider_err);
