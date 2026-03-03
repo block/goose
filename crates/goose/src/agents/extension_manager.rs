@@ -962,7 +962,7 @@ impl ExtensionManager {
                 let expose_unprefixed = is_unprefixed_extension(&config);
 
                 loop {
-                    for tool in client_tools.tools {
+                    for mut tool in client_tools.tools {
                         if config.is_tool_available(&tool.name) {
                             let public_name = if expose_unprefixed {
                                 tool.name.to_string()
@@ -980,7 +980,10 @@ impl ExtensionManager {
                                 serde_json::Value::String(name.clone()),
                             );
 
-                            tools.push(Tool::new_with_raw(public_name, tool.description, tool.input_schema));
+                            tool.name = public_name.into();
+                            tool.meta = Some(rmcp::model::Meta(meta_map));
+
+                            tools.push(tool);
                         }
                     }
 
