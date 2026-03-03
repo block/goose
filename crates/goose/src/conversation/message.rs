@@ -31,6 +31,19 @@ where
     // Filter out old "conversationCompacted" messages from pre-14.0
     raw.retain(|item| item.get("type").and_then(|v| v.as_str()) != Some("conversationCompacted"));
 
+    // Migrate old "reasoning" content to "thinking"
+    for item in &mut raw {
+        if item.get("type").and_then(|v| v.as_str()) == Some("reasoning") {
+            if let Some(text) = item.get("text").cloned() {
+                *item = serde_json::json!({
+                    "type": "thinking",
+                    "thinking": text,
+                    "signature": ""
+                });
+            }
+        }
+    }
+
     let mut content: Vec<MessageContent> = serde_json::from_value(serde_json::Value::Array(raw))
         .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
@@ -177,11 +190,6 @@ pub struct SystemNotificationContent {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
-pub struct ReasoningContent {
-    pub text: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
@@ -195,7 +203,6 @@ pub enum MessageContent {
     Thinking(ThinkingContent),
     RedactedThinking(RedactedThinkingContent),
     SystemNotification(SystemNotificationContent),
-    Reasoning(ReasoningContent),
 }
 
 impl fmt::Display for MessageContent {
@@ -237,7 +244,7 @@ impl fmt::Display for MessageContent {
             MessageContent::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
-            MessageContent::Reasoning(r) => write!(f, "[Reasoning: {}]", r.text),
+
         }
     }
 }
@@ -529,13 +536,6 @@ impl MessageContent {
         }
     }
 
-    /// Get the reasoning content if this is a ReasoningContent variant
-    pub fn as_reasoning(&self) -> Option<&ReasoningContent> {
-        match self {
-            MessageContent::Reasoning(reasoning) => Some(reasoning),
-            _ => None,
-        }
-    }
 }
 
 impl From<Content> for MessageContent {

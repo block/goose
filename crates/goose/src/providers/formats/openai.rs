@@ -114,9 +114,6 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                 MessageContent::SystemNotification(_) => {
                     continue;
                 }
-                MessageContent::Reasoning(r) => {
-                    reasoning_text.push_str(&r.text);
-                }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
                         let sanitized_name = sanitize_function_name(&tool_call.name);
