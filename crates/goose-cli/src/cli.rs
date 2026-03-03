@@ -26,6 +26,10 @@ use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
 use goose::agents::Container;
+use goose::providers::local_inference::hf_models;
+use goose::providers::local_inference::local_model_registry::{
+    get_registry, model_id_from_repo, LocalModelEntry,
+};
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
 use std::io::Read;
@@ -1497,11 +1501,6 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
 }
 
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
-    use goose::providers::local_inference::hf_models;
-    use goose::providers::local_inference::local_model_registry::{
-        get_registry, model_id_from_repo, LocalModelEntry,
-    };
-
     match command {
         LocalModelsCommand::Search { query, limit } => {
             println!("Searching HuggingFace for '{}'...", query);
@@ -1554,9 +1553,7 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 }
             );
 
-            let quality_rank = goose::providers::local_inference::hf_models::quant_quality_rank(
-                &file.quantization,
-            );
+            let quality_rank = hf_models::quant_quality_rank(&file.quantization);
             let entry = LocalModelEntry {
                 id: model_id.clone(),
                 repo_id: repo_id.clone(),
