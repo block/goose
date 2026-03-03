@@ -127,7 +127,7 @@ export const SwitchModelModal = ({
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
   const [providerWarnings, setProviderWarnings] = useState<Record<string, string>>({});
-  const [thinkingEffort, setThinkingEffort] = useState<string>('off');
+  const [thinkingEffort, setThinkingEffort] = useState<string | null>(null);
 
   const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const showThinkingControl = supportsThinking(modelName);
@@ -196,7 +196,7 @@ export const SwitchModelModal = ({
         } as Model;
       }
 
-      if (showThinkingControl) {
+      if (showThinkingControl && thinkingEffort !== null) {
         modelObj = {
           ...modelObj,
           request_params: { ...modelObj.request_params, thinking_effort: thinkingEffort },
@@ -411,7 +411,7 @@ export const SwitchModelModal = ({
       <label className="text-sm text-textSubtle mb-1 block">Thinking Effort</label>
       <Select
         options={THINKING_EFFORT_OPTIONS}
-        value={THINKING_EFFORT_OPTIONS.find((o) => o.value === thinkingEffort)}
+        value={THINKING_EFFORT_OPTIONS.find((o) => o.value === (thinkingEffort ?? 'off'))}
         onChange={(newValue: unknown) => {
           const option = newValue as { value: string; label: string } | null;
           setThinkingEffort(option?.value || 'off');
