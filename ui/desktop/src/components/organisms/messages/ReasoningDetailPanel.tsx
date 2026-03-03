@@ -214,10 +214,12 @@ export function extractActivityEntries(messages: Message[], isStreaming: boolean
 
         const pairedResponse = requestId ? responseMap.get(requestId) : undefined;
 
-        // If the provider supplies an explicit status, respect it.
+        // Prefer the ToolRequestMessageContent.status if present (it describes request lifecycle).
+        // Some providers also nest a status inside the toolCall wrapper.
         // Otherwise, fall back to response pairing (no response yet => pending).
         const requestStatus =
-          toolCallData && typeof toolCallData.status === 'string' ? toolCallData.status : undefined;
+          (typeof cTyped.status === 'string' ? cTyped.status : undefined) ??
+          (toolCallData && typeof toolCallData.status === 'string' ? toolCallData.status : undefined);
 
         const isPending =
           Boolean(requestId) &&
