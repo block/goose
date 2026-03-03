@@ -15,6 +15,7 @@ use goose::mcp_utils::ToolResult;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
+use goose::providers::create as create_provider;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
@@ -971,24 +972,38 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
         model_id: &str,
+        provider_override: Option<&str>,
     ) -> Result<SetSessionModelResponse, sacp::Error> {
         let config_path = self.config_dir.join(CONFIG_YAML_NAME);
         let config = Config::new(&config_path, "goose").map_err(|e| {
             sacp::Error::internal_error().data(format!("Failed to read config: {}", e))
         })?;
-        let provider_name = config.get_goose_provider().map_err(|_| {
-            sacp::Error::internal_error().data("No provider configured".to_string())
-        })?;
+        let provider_name = if let Some(p) = provider_override {
+            p.to_string()
+        } else {
+            config.get_goose_provider().map_err(|_| {
+                sacp::Error::internal_error().data("No provider configured".to_string())
+            })?
+        };
         let model_config = goose::model::ModelConfig::new(model_id)
             .map_err(|e| {
                 sacp::Error::invalid_params().data(format!("Invalid model config: {}", e))
             })?
             .with_canonical_limits(&provider_name);
-        let provider = (self.provider_factory)(model_config, Vec::new())
-            .await
-            .map_err(|e| {
-                sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
-            })?;
+        let provider = if provider_override.is_some() {
+            // When switching providers, use the global registry (same as HTTP update_agent_provider).
+            create_provider(&provider_name, model_config, Vec::new())
+                .await
+                .map_err(|e| {
+                    sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
+                })?
+        } else {
+            (self.provider_factory)(model_config, Vec::new())
+                .await
+                .map_err(|e| {
+                    sacp::Error::internal_error().data(format!("Failed to create provider: {}", e))
+                })?
+        };
 
         let agent = {
             let sessions = self.sessions.lock().await;
@@ -1169,6 +1184,25 @@ impl GooseAcpAgent {
         })
     }
 
+    #[custom_method("health")]
+    async fn on_health(&self, _req: HealthRequest) -> Result<HealthResponse, sacp::Error> {
+        Ok(HealthResponse {
+            status: "ok".to_string(),
+        })
+    }
+
+    #[custom_method("session/set_instructions")]
+    async fn on_set_session_instructions(
+        &self,
+        req: SetSessionInstructionsRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        agent
+            .extend_system_prompt("recipe".to_string(), req.instructions)
+            .await;
+        Ok(EmptyResponse {})
+    }
+
     #[custom_method("config/extensions")]
     async fn on_get_extensions(&self) -> Result<GetExtensionsResponse, sacp::Error> {
         let extensions = goose::config::extensions::get_all_extensions();
@@ -1276,12 +1310,24 @@ impl JrMessageHandler for GooseAcpHandler {
                             MessageCx::Request(req, request_cx)
                                 if req.method == "session/set_model" =>
                             {
+                                // Extract optional `provider` before consuming params (sacp's
+                                // SetSessionModelRequest doesn't have this field).
+                                let provider_override = req
+                                    .params
+                                    .get("provider")
+                                    .and_then(|v| v.as_str())
+                                    .filter(|s| !s.is_empty())
+                                    .map(String::from);
                                 let params: SetSessionModelRequest =
                                     serde_json::from_value(req.params).map_err(|e| {
                                         sacp::Error::invalid_params().data(e.to_string())
                                     })?;
                                 let resp = agent
-                                    .on_set_model(&params.session_id.0, &params.model_id.0)
+                                    .on_set_model(
+                                        &params.session_id.0,
+                                        &params.model_id.0,
+                                        provider_override.as_deref(),
+                                    )
                                     .await?;
                                 let json = serde_json::to_value(resp).map_err(|e| {
                                     sacp::Error::internal_error().data(e.to_string())
