@@ -2018,7 +2018,7 @@ fn add_provider() -> anyhow::Result<()> {
     let base_path_input: String = cliclack::input("API base path (optional, press Enter to skip):")
         .placeholder("e.g., v1/chat/completions or project_id/v1")
         .required(false)
-    .interact()?;
+        .interact()?;
 
     let base_path = if base_path_input.trim().is_empty() {
         None
