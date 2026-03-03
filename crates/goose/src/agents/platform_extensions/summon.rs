@@ -500,7 +500,8 @@ impl SummonClient {
 
                 for file_path in &skill.supporting_files {
                     if let Ok(rel) = file_path.strip_prefix(&skill.path) {
-                        if rel.to_string_lossy() == relative_path {
+                        let rel_normalized = rel.to_string_lossy().replace('\\', "/");
+                        if rel_normalized == relative_path {
                             let safe = file_path
                                 .canonicalize()
                                 .map(|p| p.starts_with(&canonical_skill_dir))
@@ -1112,11 +1113,10 @@ impl SummonClient {
                     ));
                     for file in &source.supporting_files {
                         if let Ok(relative) = file.strip_prefix(&source.path) {
+                            let rel_str = relative.to_string_lossy().replace('\\', "/");
                             output.push_str(&format!(
                                 "- {} → load(source: \"{}/{}\")\n",
-                                relative.display(),
-                                source.name,
-                                relative.display()
+                                rel_str, source.name, rel_str
                             ));
                         }
                     }
@@ -1140,7 +1140,7 @@ impl SummonClient {
                             .filter_map(|f| {
                                 f.strip_prefix(&skill.path)
                                     .ok()
-                                    .map(|r| r.to_string_lossy().to_string())
+                                    .map(|r| r.to_string_lossy().replace('\\', "/"))
                             })
                             .collect();
                         if !available.is_empty() {
