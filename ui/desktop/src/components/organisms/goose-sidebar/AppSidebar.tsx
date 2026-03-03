@@ -488,11 +488,11 @@ const SessionList = React.memo<{
 
           return (
             <div key={group.project}>
-              <div className="flex items-center group/project">
+              <div className="relative flex items-center group/project">
                 <button
                   type="button"
                   onClick={() => toggleCollapsed(group.project)}
-                  className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 text-xs font-medium text-text-muted hover:text-text-default transition-colors rounded-md hover:bg-background-medium/30"
+                  className="flex items-center gap-1.5 flex-1 min-w-0 px-2 py-1 pr-2 text-xs font-medium text-text-muted hover:text-text-default transition-all rounded-md hover:bg-background-medium/30 group-hover/project:pr-16"
                 >
                   <FolderOpen className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{group.project}</span>
@@ -504,8 +504,8 @@ const SessionList = React.memo<{
                     className={`w-3 h-3 flex-shrink-0 transition-transform duration-200 ${!collapsed ? 'rotate-90' : ''}`}
                   />
                 </button>
-                {/* Hover action strip — inline icons that appear on hover */}
-                <div className="flex-shrink-0 flex items-center gap-0 opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto transition-opacity duration-150">
+                {/* Hover action strip — horizontal ribbon that does not reserve layout space */}
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0 opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto transition-opacity duration-150 z-50">
                   {onNewSessionInProject && (
                     <button
                       type="button"
