@@ -99,9 +99,10 @@ export function getTextAndImageContent(message: Message): {
 
 export function getReasoningContent(message: Message): string | null {
   const reasoningContents = message.content
-    .filter((content) => content.type === 'reasoning')
+    .filter((content) => content.type === 'reasoning' || content.type === 'thinking')
     .map((content) => {
       if ('text' in content) return content.text;
+      if ('thinking' in content) return content.thinking;
       return '';
     })
     .filter((text) => text.length > 0);
