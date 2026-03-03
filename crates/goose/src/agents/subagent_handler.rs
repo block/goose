@@ -10,8 +10,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use rmcp::model::{
-    ErrorCode, ErrorData, LoggingLevel, LoggingMessageNotification,
-    LoggingMessageNotificationMethod, LoggingMessageNotificationParam, ServerNotification,
+    ErrorCode, ErrorData, LoggingLevel,
+    LoggingMessageNotificationParam, Notification, ServerNotification,
 };
 use serde::Serialize;
 use std::future::Future;
@@ -272,22 +272,18 @@ pub fn create_tool_notification(
         let tool_call = req.tool_call.as_ref().ok()?;
 
         Some(ServerNotification::LoggingMessageNotification(
-            LoggingMessageNotification {
-                method: LoggingMessageNotificationMethod,
-                params: LoggingMessageNotificationParam {
-                    level: LoggingLevel::Info,
-                    logger: Some(format!("subagent:{}", subagent_id)),
-                    data: serde_json::json!({
-                        "type": SUBAGENT_TOOL_REQUEST_TYPE,
-                        "subagent_id": subagent_id,
-                        "tool_call": {
-                            "name": tool_call.name,
-                            "arguments": tool_call.arguments
-                        }
-                    }),
-                },
-                extensions: Default::default(),
-            },
+            Notification::new(LoggingMessageNotificationParam::with_logger(
+                LoggingLevel::Info,
+                format!("subagent:{}", subagent_id),
+                serde_json::json!({
+                    "type": SUBAGENT_TOOL_REQUEST_TYPE,
+                    "subagent_id": subagent_id,
+                    "tool_call": {
+                        "name": tool_call.name,
+                        "arguments": tool_call.arguments
+                    }
+                }),
+            )),
         ))
     } else {
         None
@@ -303,12 +299,8 @@ mod tests {
 
     #[test]
     fn create_tool_notification_for_tool_request() {
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "developer__shell".to_string().into(),
-            arguments: Some(json!({"command": "ls"}).as_object().unwrap().clone()),
-        };
+        let tool_call = CallToolRequestParams::new("developer__shell".to_string())
+            .with_arguments(json!({"command": "ls"}).as_object().unwrap().clone());
         let content = MessageContent::tool_request("req1", Ok(tool_call));
         let notification =
             create_tool_notification(&content, "session_1").expect("expected notification");

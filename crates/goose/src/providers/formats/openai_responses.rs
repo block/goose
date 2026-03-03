@@ -473,12 +473,8 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                         ResponseContentBlock::ToolCall { id, name, input } => {
                             content.push(MessageContent::tool_request(
                                 id.clone(),
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: name.clone().into(),
-                                    arguments: Some(object(input.clone())),
-                                }),
+                                Ok(CallToolRequestParams::new(name.clone())
+                                    .with_arguments(object(input.clone()))),
                             ));
                         }
                     }
@@ -499,12 +495,8 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
 
                 content.push(MessageContent::tool_request(
                     id.clone(),
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: name.clone().into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
+                    Ok(CallToolRequestParams::new(name.clone())
+                        .with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -559,12 +551,8 @@ fn process_streaming_output_items(
 
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: name.into(),
-                                    arguments: Some(object(parsed_args)),
-                                }),
+                                Ok(CallToolRequestParams::new(name)
+                                    .with_arguments(object(parsed_args))),
                             ));
                         }
                     }
@@ -584,12 +572,7 @@ fn process_streaming_output_items(
 
                 content.push(MessageContent::tool_request(
                     call_id,
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: name.into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
+                    Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -834,23 +817,15 @@ mod tests {
                 .with_text("I'll create that file.")
                 .with_tool_request(
                     "call_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "shell".into(),
-                        arguments: Some(object!({"command": "echo hello"})),
-                    }),
+                    Ok(CallToolRequestParams::new("shell")
+                        .with_arguments(object!({"command": "echo hello"}))),
                 ),
             Message::assistant()
                 .with_text("Now let me verify.")
                 .with_tool_request(
                     "call_2",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "shell".into(),
-                        arguments: Some(object!({"command": "cat file.txt"})),
-                    }),
+                    Ok(CallToolRequestParams::new("shell")
+                        .with_arguments(object!({"command": "cat file.txt"}))),
                 ),
         ];
 

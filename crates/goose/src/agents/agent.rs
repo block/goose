@@ -431,12 +431,9 @@ impl Agent {
                 let mut response = response_msg.lock().await;
                 *response = response.clone().with_tool_response_with_metadata(
                     request.id.clone(),
-                    Ok(CallToolResult {
-                        content: vec![rmcp::model::Content::text(DECLINED_RESPONSE)],
-                        structured_content: None,
-                        is_error: Some(true),
-                        meta: None,
-                    }),
+                    Ok(CallToolResult::error(vec![rmcp::model::Content::text(
+                        DECLINED_RESPONSE,
+                    )])),
                     request.metadata.as_ref(),
                 );
             }
@@ -514,12 +511,7 @@ impl Agent {
             let result = self
                 .handle_schedule_management(arguments, request_id.clone())
                 .await;
-            let wrapped_result = result.map(|content| CallToolResult {
-                content,
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            });
+            let wrapped_result = result.map(CallToolResult::success);
             return (request_id, Ok(ToolCallResult::from(wrapped_result)));
         }
 
@@ -1257,12 +1249,7 @@ impl Agent {
                                             let mut response = response_msg.lock().await;
                                             *response = response.clone().with_tool_response_with_metadata(
                                                 request.id.clone(),
-                                                Ok(CallToolResult {
-                                                    content: vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)],
-                                                    structured_content: None,
-                                                    is_error: Some(false),
-                                                    meta: None,
-                                                }),
+                                                Ok(CallToolResult::success(vec![Content::text(CHAT_MODE_TOOL_SKIPPED_RESPONSE)])),
                                                 request.metadata.as_ref(),
                                             );
                                         }

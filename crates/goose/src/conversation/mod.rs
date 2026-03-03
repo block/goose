@@ -550,21 +550,11 @@ mod tests {
                 .with_text("I'll help you search.")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "web_search".into(),
-                        arguments: Some(object!({"query": "rust programming"})),
-                    }),
+                    Ok(CallToolRequestParams::new("web_search").with_arguments(object!({"query": "rust programming"}))),
                 ),
             Message::user().with_tool_response(
                 "search_1",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![])),
             ),
             Message::assistant().with_text("Based on the search results, here's what I found..."),
         ];
@@ -604,23 +594,13 @@ mod tests {
                 .with_text("Response")
                 .with_tool_response(
                     "orphan_1",
-                    Ok(rmcp::model::CallToolResult {
-                        content: vec![],
-                        structured_content: None,
-                        is_error: Some(false),
-                        meta: None,
-                    }),
+                    Ok(rmcp::model::CallToolResult::success(vec![])),
                 ), // Wrong role
             Message::assistant().with_thinking("Let me think", "sig"),
             Message::user()
                 .with_tool_request(
                     "bad_req",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "search".into(),
-                        arguments: Some(object!({})),
-                    }),
+                    Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
                 )
                 .with_text("User with bad tool request"),
         ];
@@ -656,31 +636,16 @@ mod tests {
                 .with_text("I'll search for you")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "search".into(),
-                        arguments: Some(object!({})),
-                    }),
+                    Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
                 ),
             Message::user(),
             Message::user().with_tool_response(
                 "wrong_id",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![])),
             ),
             Message::assistant().with_tool_request(
                 "search_2",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "search".into(),
-                    arguments: Some(object!({})),
-                }),
+                Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
             ),
         ];
 
@@ -712,19 +677,14 @@ mod tests {
 
             Message::assistant()
                 .with_text("I'll help you run `ls` in the current directory and then perform a word count on the smallest file. Let me start by listing the directory contents.")
-                .with_tool_request("toolu_bdrk_018adWbP4X26CfoJU5hkhu3i", Ok(CallToolRequestParams { meta: None, task: None, name: "developer__shell".into(), arguments: Some(object!({"command": "ls -la"})) })),
+                .with_tool_request("toolu_bdrk_018adWbP4X26CfoJU5hkhu3i", Ok(CallToolRequestParams::new("developer__shell").with_arguments(object!({"command": "ls -la"})))),
 
             Message::assistant()
                 .with_text("Now I'll identify the smallest file by size. Looking at the output, I can see that both `slack.yaml` and `subrecipes.yaml` have a size of 0 bytes, making them the smallest files. I'll run a word count on one of them:")
-                .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParams { meta: None, task: None, name: "developer__shell".into(), arguments: Some(object!({"command": "wc slack.yaml"})) })),
+                .with_tool_request("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(CallToolRequestParams::new("developer__shell").with_arguments(object!({"command": "wc slack.yaml"})))),
 
             Message::user()
-                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                })),
+                .with_tool_response("toolu_bdrk_01KgDYHs4fAodi22NqxRzmwx", Ok(rmcp::model::CallToolResult::success(vec![]))),
 
             Message::assistant()
                 .with_text("I ran `ls -la` in the current directory and found several files. Looking at the file sizes, I can see that both `slack.yaml` and `subrecipes.yaml` are 0 bytes (the smallest files). I ran a word count on `slack.yaml` which shows: **0 lines**, **0 words**, **0 characters**"),
@@ -750,21 +710,11 @@ mod tests {
                 .with_text("I'll search for you")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "search".into(),
-                        arguments: Some(object!({})),
-                    }),
+                    Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
                 ),
             Message::user().with_tool_response(
                 "search_1",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![])),
             ),
             Message::user().with_text("Thanks!"),
         ];

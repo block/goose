@@ -42,11 +42,12 @@ impl ToolCallWithValueArguments {
                 Some(map)
             }
         };
-        CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: Cow::Owned(self.name),
-            arguments,
+        {
+            let mut params = CallToolRequestParams::new(self.name);
+            if let Some(args) = arguments {
+                params = params.with_arguments(args);
+            }
+            params
         }
     }
 }
@@ -232,12 +233,7 @@ mod tests {
     use std::borrow::Cow;
     #[test]
     fn test_validate_accepts_valid_call_tool_result() {
-        let valid_result = CallToolResult {
-            content: vec![Content::text("test")],
-            is_error: Some(false),
-            structured_content: None,
-            meta: None,
-        };
+        let valid_result = CallToolResult::success(vec![Content::text("test")]);
 
         let tool_result: ToolResult<CallToolResult> = Ok(valid_result);
         let validated = call_tool_result::validate(tool_result);
@@ -249,12 +245,7 @@ mod tests {
     }
     #[test]
     fn test_validate_returns_error_for_invalid_calltoolresult() {
-        let valid_result = CallToolResult {
-            content: vec![],
-            is_error: Some(false),
-            structured_content: None,
-            meta: None,
-        };
+        let valid_result = CallToolResult::success(vec![]);
 
         let tool_result: ToolResult<CallToolResult> = Ok(valid_result);
         let validated = call_tool_result::validate(tool_result);

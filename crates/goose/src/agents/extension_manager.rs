@@ -980,17 +980,7 @@ impl ExtensionManager {
                                 serde_json::Value::String(name.clone()),
                             );
 
-                            tools.push(Tool {
-                                name: public_name.into(),
-                                description: tool.description,
-                                input_schema: tool.input_schema,
-                                annotations: tool.annotations,
-                                output_schema: tool.output_schema,
-                                execution: tool.execution,
-                                icons: tool.icons,
-                                title: tool.title,
-                                meta: Some(rmcp::model::Meta(meta_map)),
-                            });
+                            tools.push(Tool::new_with_raw(public_name, tool.description, tool.input_schema));
                         }
                     }
 
@@ -1774,12 +1764,9 @@ mod tests {
             _cancellation_token: CancellationToken,
         ) -> Result<CallToolResult, Error> {
             match name {
-                "tool" | "test__tool" | "available_tool" | "hidden_tool" => Ok(CallToolResult {
-                    content: vec![],
-                    is_error: None,
-                    structured_content: None,
-                    meta: None,
-                }),
+                "tool" | "test__tool" | "available_tool" | "hidden_tool" => {
+                    Ok(CallToolResult::success(vec![]))
+                }
                 _ => Err(Error::TransportClosed),
             }
         }
@@ -1827,12 +1814,8 @@ mod tests {
             .add_mock_extension("client 🚀".to_string(), Arc::new(MockClient {}))
             .await;
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_client__tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call =
+            CallToolRequestParams::new("test_client__tool".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1844,12 +1827,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_client__available_tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call = CallToolRequestParams::new("test_client__available_tool".to_string())
+            .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1861,12 +1840,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "__cli__ent____tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call = CallToolRequestParams::new("__cli__ent____tool".to_string())
+            .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1878,12 +1853,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "client___tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let tool_call =
+            CallToolRequestParams::new("client___tool".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1895,12 +1866,8 @@ mod tests {
             .await;
         assert!(result.is_ok());
 
-        let invalid_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "client___tools".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let invalid_tool_call =
+            CallToolRequestParams::new("client___tools".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -1917,12 +1884,8 @@ mod tests {
             panic!("Expected ErrorData with ErrorCode::RESOURCE_NOT_FOUND");
         }
 
-        let invalid_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "_client__tools".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let invalid_tool_call =
+            CallToolRequestParams::new("_client__tools".to_string()).with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -2019,12 +1982,8 @@ mod tests {
             )
             .await;
 
-        let unavailable_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_extension__tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let unavailable_tool_call = CallToolRequestParams::new("test_extension__tool".to_string())
+            .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(
@@ -2043,12 +2002,9 @@ mod tests {
         }
 
         // Try to call an available tool - should succeed
-        let available_tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_extension__available_tool".to_string().into(),
-            arguments: Some(object!({})),
-        };
+        let available_tool_call =
+            CallToolRequestParams::new("test_extension__available_tool".to_string())
+                .with_arguments(object!({}));
 
         let result = extension_manager
             .dispatch_tool_call(

@@ -9,8 +9,8 @@ use crate::providers::base::Provider;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListResourcesResult,
-    ListToolsResult, Meta, ProtocolVersion, RawResource, ReadResourceResult, Resource,
-    ResourceContents, ResourcesCapability, ServerCapabilities, Tool as McpTool, ToolsCapability,
+    ListToolsResult, Meta, RawResource, ReadResourceResult, Resource,
+    ResourceContents, ServerCapabilities, Tool as McpTool,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -116,36 +116,16 @@ impl AppsManagerClient {
     }
 
     fn create_info() -> InitializeResult {
-        InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                resources: Some(ResourcesCapability {
-                    subscribe: Some(false),
-                    list_changed: Some(false),
-                }),
-                prompts: None,
-                completions: None,
-                experimental: None,
-                tasks: None,
-                logging: None,
-                extensions: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                title: Some("Apps Manager".to_string()),
-                version: "1.0.0".to_string(),
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(
-                "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps."
-                    .to_string(),
-            ),
-        }
+        InitializeResult::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0"))
+        .with_instructions(
+            "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps.",
+        )
     }
 
     fn ensure_default_apps(&self) -> Result<(), String> {
@@ -641,9 +621,9 @@ impl McpClientTrait for AppsManagerClient {
             .text
             .unwrap_or_else(|| String::from("No content"));
 
-        Ok(ReadResourceResult {
-            contents: vec![ResourceContents::text(html, uri)],
-        })
+        Ok(ReadResourceResult::new(vec![ResourceContents::text(
+            html, uri,
+        )]))
     }
 
     fn get_info(&self) -> Option<&InitializeResult> {

@@ -8,16 +8,13 @@ use rmcp::model::{
 /// MCP client implementation for Goose
 use rmcp::{
     model::{
-        CallToolRequest, CallToolRequestParams, CallToolResult, CancelledNotification,
-        CancelledNotificationMethod, CancelledNotificationParam, ClientCapabilities, ClientInfo,
-        ClientRequest, CreateMessageRequestParams, CreateMessageResult, GetPromptRequest,
-        GetPromptRequestParams, GetPromptResult, Implementation, InitializeResult,
-        ListPromptsRequest, ListPromptsResult, ListResourcesRequest, ListResourcesResult,
-        ListToolsRequest, ListToolsResult, LoggingMessageNotification,
-        LoggingMessageNotificationMethod, PaginatedRequestParams, ProgressNotification,
-        ProgressNotificationMethod, ProtocolVersion, ReadResourceRequest,
-        ReadResourceRequestParams, ReadResourceResult, RequestId, Role, SamplingMessage,
-        ServerNotification, ServerResult,
+        CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
+        ClientInfo, ClientRequest, CreateMessageRequestParams, CreateMessageResult,
+        GetPromptRequestParams, GetPromptResult, Implementation, InitializeRequestParams,
+        InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult, Notification,
+        PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams, ReadResourceResult,
+        Request, RequestId, RequestOptionalParam, Role, SamplingMessage, ServerNotification,
+        ServerResult,
     },
     service::{
         ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
@@ -164,7 +161,7 @@ impl ClientHandler for GooseClient {
     async fn on_progress(
         &self,
         params: rmcp::model::ProgressNotificationParam,
-        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+        _context: rmcp::service::NotificationContext<rmcp::RoleClient>,
     ) {
         self.notification_handlers
             .lock()
@@ -172,11 +169,7 @@ impl ClientHandler for GooseClient {
             .iter()
             .for_each(|handler| {
                 let _ = handler.try_send(ServerNotification::ProgressNotification(
-                    ProgressNotification {
-                        params: params.clone(),
-                        method: ProgressNotificationMethod,
-                        extensions: context.extensions.clone(),
-                    },
+                    Notification::new(params.clone()),
                 ));
             });
     }
@@ -184,7 +177,7 @@ impl ClientHandler for GooseClient {
     async fn on_logging_message(
         &self,
         params: rmcp::model::LoggingMessageNotificationParam,
-        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+        _context: rmcp::service::NotificationContext<rmcp::RoleClient>,
     ) {
         self.notification_handlers
             .lock()
@@ -192,11 +185,7 @@ impl ClientHandler for GooseClient {
             .iter()
             .for_each(|handler| {
                 let _ = handler.try_send(ServerNotification::LoggingMessageNotification(
-                    LoggingMessageNotification {
-                        params: params.clone(),
-                        method: LoggingMessageNotificationMethod,
-                        extensions: context.extensions.clone(),
-                    },
+                    Notification::new(params.clone()),
                 ));
             });
     }
@@ -260,10 +249,8 @@ impl ClientHandler for GooseClient {
                 )
             })?;
 
-        Ok(CreateMessageResult {
-            model: usage.model,
-            stop_reason: Some(CreateMessageResult::STOP_REASON_END_TURN.to_string()),
-            message: SamplingMessage::new(
+        Ok(CreateMessageResult::new(
+            SamplingMessage::new(
                 Role::Assistant,
                 if let Some(content) = response.content.first() {
                     match content {
@@ -283,7 +270,9 @@ impl ClientHandler for GooseClient {
                     SamplingMessageContent::text("")
                 },
             ),
-        })
+            usage.model,
+        )
+        .with_stop_reason(Some(CreateMessageResult::STOP_REASON_END_TURN.to_string())))
     }
 
     async fn create_elicitation(
@@ -344,24 +333,19 @@ impl ClientHandler for GooseClient {
             );
         }
 
-        ClientInfo {
-            meta: None,
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ClientCapabilities::builder()
+        InitializeRequestParams::new(
+            ClientCapabilities::builder()
                 .enable_extensions_with(extensions)
                 .enable_sampling()
                 .enable_elicitation()
                 .build(),
-            client_info: Implementation {
-                name: self.client_name.clone(),
-                version: std::env::var("GOOSE_MCP_CLIENT_VERSION")
+            Implementation::new(
+                self.client_name.clone(),
+                std::env::var("GOOSE_MCP_CLIENT_VERSION")
                     .unwrap_or(env!("CARGO_PKG_VERSION").to_owned()),
-                icons: None,
-                title: None,
-                description: None,
-                website_url: None,
-            },
-        }
+            ),
+        )
+        .with_protocol_version(ProtocolVersion::V_2025_03_26)
     }
 }
 
@@ -491,12 +475,7 @@ async fn send_cancel_message(
     reason: Option<String>,
 ) -> Result<(), ServiceError> {
     peer.send_notification(
-        CancelledNotification {
-            params: CancelledNotificationParam { request_id, reason },
-            method: CancelledNotificationMethod,
-            extensions: Default::default(),
-        }
-        .into(),
+        Notification::new(CancelledNotificationParam { request_id, reason }).into(),
     )
     .await
 }
@@ -517,11 +496,9 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 session_id,
                 None,
-                ClientRequest::ListResourcesRequest(ListResourcesRequest {
-                    params: Some(PaginatedRequestParams { meta: None, cursor }),
-                    method: Default::default(),
-                    extensions: Default::default(),
-                }),
+                ClientRequest::ListResourcesRequest(RequestOptionalParam::with_param(
+                    PaginatedRequestParams::default().with_cursor(cursor),
+                )),
                 cancel_token,
             )
             .await?;
@@ -542,14 +519,9 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 session_id,
                 None,
-                ClientRequest::ReadResourceRequest(ReadResourceRequest {
-                    params: ReadResourceRequestParams {
-                        meta: None,
-                        uri: uri.to_string(),
-                    },
-                    method: Default::default(),
-                    extensions: Default::default(),
-                }),
+                ClientRequest::ReadResourceRequest(Request::new(ReadResourceRequestParams::new(
+                    uri.to_string(),
+                ))),
                 cancel_token,
             )
             .await?;
@@ -570,11 +542,9 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 session_id,
                 None,
-                ClientRequest::ListToolsRequest(ListToolsRequest {
-                    params: Some(PaginatedRequestParams { meta: None, cursor }),
-                    method: Default::default(),
-                    extensions: Default::default(),
-                }),
+                ClientRequest::ListToolsRequest(RequestOptionalParam::with_param(
+                    PaginatedRequestParams::default().with_cursor(cursor),
+                )),
                 cancel_token,
             )
             .await?;
@@ -593,16 +563,11 @@ impl McpClientTrait for McpClient {
         working_dir: Option<&str>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let request = ClientRequest::CallToolRequest(CallToolRequest {
-            params: CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: name.to_string().into(),
-                arguments,
-            },
-            method: Default::default(),
-            extensions: Default::default(),
-        });
+        let mut params = CallToolRequestParams::new(name.to_string());
+        if let Some(args) = arguments {
+            params = params.with_arguments(args);
+        }
+        let request = ClientRequest::CallToolRequest(Request::new(params));
 
         let result = self
             .send_request_with_context(session_id, working_dir, request, cancel_token)
@@ -624,11 +589,9 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 session_id,
                 None,
-                ClientRequest::ListPromptsRequest(ListPromptsRequest {
-                    params: Some(PaginatedRequestParams { meta: None, cursor }),
-                    method: Default::default(),
-                    extensions: Default::default(),
-                }),
+                ClientRequest::ListPromptsRequest(RequestOptionalParam::with_param(
+                    PaginatedRequestParams::default().with_cursor(cursor),
+                )),
                 cancel_token,
             )
             .await?;
@@ -650,19 +613,15 @@ impl McpClientTrait for McpClient {
             Value::Object(map) => Some(map),
             _ => None,
         };
+        let mut params = GetPromptRequestParams::new(name.to_string());
+        if let Some(args) = arguments {
+            params = params.with_arguments(args);
+        }
         let res = self
             .send_request_with_context(
                 session_id,
                 None,
-                ClientRequest::GetPromptRequest(GetPromptRequest {
-                    params: GetPromptRequestParams {
-                        meta: None,
-                        name: name.to_string(),
-                        arguments,
-                    },
-                    method: Default::default(),
-                    extensions: Default::default(),
-                }),
+                ClientRequest::GetPromptRequest(Request::new(params)),
                 cancel_token,
             )
             .await?;
@@ -791,72 +750,41 @@ mod tests {
     }
 
     fn list_resources_request(extensions: Extensions) -> ClientRequest {
-        ClientRequest::ListResourcesRequest(ListResourcesRequest {
-            params: Some(PaginatedRequestParams {
-                meta: None,
-                cursor: None,
-            }),
-            method: Default::default(),
-            extensions,
-        })
+        let mut req = RequestOptionalParam::with_param(PaginatedRequestParams::default());
+        req.extensions = extensions;
+        ClientRequest::ListResourcesRequest(req)
     }
 
     fn read_resource_request(extensions: Extensions) -> ClientRequest {
-        ClientRequest::ReadResourceRequest(ReadResourceRequest {
-            params: ReadResourceRequestParams {
-                meta: None,
-                uri: "test://resource".to_string(),
-            },
-            method: Default::default(),
-            extensions,
-        })
+        let mut req = Request::new(ReadResourceRequestParams::new(
+            "test://resource".to_string(),
+        ));
+        req.extensions = extensions;
+        ClientRequest::ReadResourceRequest(req)
     }
 
     fn list_tools_request(extensions: Extensions) -> ClientRequest {
-        ClientRequest::ListToolsRequest(ListToolsRequest {
-            params: Some(PaginatedRequestParams {
-                meta: None,
-                cursor: None,
-            }),
-            method: Default::default(),
-            extensions,
-        })
+        let mut req = RequestOptionalParam::with_param(PaginatedRequestParams::default());
+        req.extensions = extensions;
+        ClientRequest::ListToolsRequest(req)
     }
 
     fn call_tool_request(extensions: Extensions) -> ClientRequest {
-        ClientRequest::CallToolRequest(CallToolRequest {
-            params: CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "tool".to_string().into(),
-                arguments: None,
-            },
-            method: Default::default(),
-            extensions,
-        })
+        let mut req = Request::new(CallToolRequestParams::new("tool".to_string()));
+        req.extensions = extensions;
+        ClientRequest::CallToolRequest(req)
     }
 
     fn list_prompts_request(extensions: Extensions) -> ClientRequest {
-        ClientRequest::ListPromptsRequest(ListPromptsRequest {
-            params: Some(PaginatedRequestParams {
-                meta: None,
-                cursor: None,
-            }),
-            method: Default::default(),
-            extensions,
-        })
+        let mut req = RequestOptionalParam::with_param(PaginatedRequestParams::default());
+        req.extensions = extensions;
+        ClientRequest::ListPromptsRequest(req)
     }
 
     fn get_prompt_request(extensions: Extensions) -> ClientRequest {
-        ClientRequest::GetPromptRequest(GetPromptRequest {
-            params: GetPromptRequestParams {
-                meta: None,
-                name: "prompt".to_string(),
-                arguments: None,
-            },
-            method: Default::default(),
-            extensions,
-        })
+        let mut req = Request::new(GetPromptRequestParams::new("prompt".to_string()));
+        req.extensions = extensions;
+        ClientRequest::GetPromptRequest(req)
     }
 
     #[test_case(

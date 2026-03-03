@@ -3,8 +3,7 @@ use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, ServerCapabilities,
 };
 use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
@@ -20,28 +19,9 @@ pub struct TomClient {
 impl TomClient {
     pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
         Ok(Self {
-            info: InitializeResult {
-                protocol_version: ProtocolVersion::V_2025_03_26,
-                capabilities: ServerCapabilities {
-                    tools: None,
-                    tasks: None,
-                    resources: None,
-                    prompts: None,
-                    completions: None,
-                    experimental: None,
-                    logging: None,
-                    extensions: None,
-                },
-                server_info: Implementation {
-                    name: EXTENSION_NAME.to_string(),
-                    title: Some("Top Of Mind".to_string()),
-                    version: "1.0.0".to_string(),
-                    description: None,
-                    icons: None,
-                    website_url: None,
-                },
-                instructions: None,
-            },
+            info: InitializeResult::new(ServerCapabilities::builder().build()).with_server_info(
+                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string()),
+            ),
         })
     }
 }

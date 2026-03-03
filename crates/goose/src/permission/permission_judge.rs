@@ -65,13 +65,7 @@ fn create_read_only_tool() -> Tool {
             },
             "required": []
         })
-    ).annotate(ToolAnnotations {
-        title: Some("Check tool operation".to_string()),
-        read_only_hint: Some(true),
-        destructive_hint: Some(false),
-        idempotent_hint: Some(false),
-        open_world_hint: Some(false),
-    })
+    ).annotate(ToolAnnotations::with_title("Check tool operation".to_string()).read_only(true).destructive(false).idempotent(false).open_world(false))
 }
 
 /// Builds the message to be sent to the LLM for detecting read-only operations.

@@ -21,8 +21,7 @@ use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, ServerNotification, Tool, ToolsCapability,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -517,30 +516,9 @@ impl SummonClient {
             None
         };
 
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tasks: None,
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                resources: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-                extensions: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                title: Some("Summon".to_string()),
-                version: "1.0.0".to_string(),
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            instructions,
-        };
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0"))
+            .with_instructions(instructions.unwrap_or_default());
 
         Ok(Self {
             info,
@@ -2031,17 +2009,12 @@ You review code."#;
             use crate::conversation::message::MessageContent;
             use rmcp::model::CallToolRequestParams;
 
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "developer__shell".to_string().into(),
-                arguments: Some(
-                    serde_json::json!({"command": "ls"})
-                        .as_object()
-                        .unwrap()
-                        .clone(),
-                ),
-            };
+            let tool_call = CallToolRequestParams::new("developer__shell").with_arguments(
+                serde_json::json!({"command": "ls"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            );
             let content = MessageContent::tool_request("req1", Ok(tool_call));
             let notif = create_tool_notification(&content, "20260204_1").unwrap();
 

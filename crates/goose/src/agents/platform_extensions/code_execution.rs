@@ -8,8 +8,8 @@ use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInpu
 use pctx_code_mode::{CallbackRegistry, CodeMode};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, ProtocolVersion, RawContent, Role, ServerCapabilities, Tool as McpTool,
-    ToolAnnotations, ToolsCapability,
+    ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool,
+    ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
@@ -53,29 +53,12 @@ pub struct ExecuteWithToolGraph {
 
 impl CodeExecutionClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                tasks: None,
-                resources: None,
-                extensions: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                description: None,
-                title: Some("Code Mode".to_string()),
-                version: "1.0.0".to_string(),
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some(indoc! {r#"
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(
+                EXTENSION_NAME.to_string(),
+                "1.0.0".to_string(),
+            ))
+            .with_instructions(indoc! {r#"
                 BATCH MULTIPLE TOOL CALLS INTO ONE execute CALL.
 
                 This extension exists to reduce round-trips. When a task requires multiple tool calls:
@@ -90,8 +73,7 @@ impl CodeExecutionClient {
                        all the namespaces returned by list_functions and get_function_details will be available
                     3. Chain results: use output from one tool as input to the next
                     4. Only return and console.log data you need, tools could have very large responses.
-            "#}.to_string()),
-        };
+            "#}.to_string());
 
         Ok(Self {
             info,
@@ -264,11 +246,12 @@ fn create_tool_callback(
         let full_name = full_name.clone();
         let manager = manager.clone();
         Box::pin(async move {
-            let tool_call = CallToolRequestParams {
-                task: None,
-                meta: None,
-                name: full_name.into(),
-                arguments: args.and_then(|v| v.as_object().cloned()),
+            let tool_call = {
+                let mut params = CallToolRequestParams::new(full_name);
+                if let Some(args) = args.and_then(|v| v.as_object().cloned()) {
+                    params = params.with_arguments(args);
+                }
+                params
             };
             match manager
                 .dispatch_tool_call(&session_id, tool_call, None, CancellationToken::new())
@@ -345,13 +328,13 @@ impl McpClientTrait for CodeExecutionClient {
                     .to_string(),
                     empty_schema,
                 )
-                .annotate(ToolAnnotations {
-                    title: Some("List functions".to_string()),
-                    read_only_hint: Some(true),
-                    destructive_hint: Some(false),
-                    idempotent_hint: Some(true),
-                    open_world_hint: Some(false),
-                }),
+                .annotate(ToolAnnotations::from_raw(
+                    Some("List functions".to_string()),
+                    Some(true),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                )),
                 McpTool::new(
                     "get_function_details".to_string(),
                     indoc! {r#"
@@ -366,13 +349,13 @@ impl McpClientTrait for CodeExecutionClient {
                     .to_string(),
                     schema::<GetFunctionDetailsInput>(),
                 )
-                .annotate(ToolAnnotations {
-                    title: Some("Get function details".to_string()),
-                    read_only_hint: Some(true),
-                    destructive_hint: Some(false),
-                    idempotent_hint: Some(true),
-                    open_world_hint: Some(false),
-                }),
+                .annotate(ToolAnnotations::from_raw(
+                    Some("Get function details".to_string()),
+                    Some(true),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                )),
                 McpTool::new(
                     "execute".to_string(),
                     indoc! {r#"
@@ -423,13 +406,13 @@ impl McpClientTrait for CodeExecutionClient {
                     .to_string(),
                     schema::<ExecuteWithToolGraph>(),
                 )
-                .annotate(ToolAnnotations {
-                    title: Some("Execute TypeScript".to_string()),
-                    read_only_hint: Some(false),
-                    destructive_hint: Some(true),
-                    idempotent_hint: Some(false),
-                    open_world_hint: Some(true),
-                }),
+                .annotate(ToolAnnotations::from_raw(
+                    Some("Execute TypeScript".to_string()),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                    Some(true),
+                )),
             ],
             next_cursor: None,
             meta: None,
