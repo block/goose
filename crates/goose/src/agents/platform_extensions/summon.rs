@@ -695,13 +695,65 @@ impl SummonClient {
         working_dir: &Path,
     ) -> Option<Source> {
         let sources = self.get_sources(session_id, working_dir).await;
-        let mut source = sources.into_iter().find(|s| s.name == name)?;
 
-        if source.kind == SourceKind::Subrecipe && source.content.is_empty() {
-            source.content = self.load_subrecipe_content(session_id, &source.name).await;
+        if let Some(mut source) = sources.iter().find(|s| s.name == name).cloned() {
+            if source.kind == SourceKind::Subrecipe && source.content.is_empty() {
+                source.content = self.load_subrecipe_content(session_id, &source.name).await;
+            }
+            return Some(source);
         }
 
-        Some(source)
+        if let Some((skill_name, relative_path)) = name.split_once('/') {
+            if let Some(skill) = sources.iter().find(|s| {
+                s.name == skill_name
+                    && matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
+            }) {
+                let canonical_skill_dir = skill
+                    .path
+                    .canonicalize()
+                    .unwrap_or_else(|_| skill.path.clone());
+
+                for file_path in &skill.supporting_files {
+                    if let Ok(rel) = file_path.strip_prefix(&skill.path) {
+                        if rel.to_string_lossy() == relative_path {
+                            let safe = file_path
+                                .canonicalize()
+                                .map(|p| p.starts_with(&canonical_skill_dir))
+                                .unwrap_or(false);
+                            if !safe {
+                                warn!(
+                                    "Refusing to load supporting file outside skill directory: {}",
+                                    file_path.display()
+                                );
+                                return None;
+                            }
+                            match std::fs::read_to_string(file_path) {
+                                Ok(content) => {
+                                    return Some(Source {
+                                        name: name.to_string(),
+                                        kind: SourceKind::Skill,
+                                        description: format!("Supporting file for {}", skill_name),
+                                        path: file_path.clone(),
+                                        content,
+                                        supporting_files: vec![],
+                                    });
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        "Failed to read supporting file {}: {}",
+                                        file_path.display(),
+                                        e
+                                    );
+                                    return None;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     async fn load_subrecipe_content(&self, session_id: &str, name: &str) -> String {
@@ -1053,60 +1105,23 @@ impl SummonClient {
                 );
 
                 if !source.supporting_files.is_empty() {
-                    let mut other_files: Vec<std::path::PathBuf> = Vec::new();
-                    let canonical_skill_dir = source
-                        .path
-                        .canonicalize()
-                        .unwrap_or_else(|_| source.path.clone());
-
+                    output.push_str(&format!(
+                        "\n## Supporting Files\n\nSkill directory: {}\n\nThe following supporting files are available:\n",
+                        source.path.display()
+                    ));
                     for file in &source.supporting_files {
-                        let is_md = file
-                            .extension()
-                            .is_some_and(|ext| ext == "md" || ext == "mdx");
-
                         if let Ok(relative) = file.strip_prefix(&source.path) {
-                            let safe_to_inline = is_md
-                                && file
-                                    .canonicalize()
-                                    .map(|p| p.starts_with(&canonical_skill_dir))
-                                    .unwrap_or(false);
-
-                            if safe_to_inline {
-                                match std::fs::read_to_string(file) {
-                                    Ok(file_content) => {
-                                        output.push_str(&format!(
-                                            "\n## {}\n\n{}\n",
-                                            relative.display(),
-                                            file_content.trim()
-                                        ));
-                                    }
-                                    Err(e) => {
-                                        warn!(
-                                            "Failed to read supporting file {}: {}",
-                                            file.display(),
-                                            e
-                                        );
-                                        other_files.push(relative.to_path_buf());
-                                    }
-                                }
-                            } else {
-                                other_files.push(relative.to_path_buf());
-                            }
+                            output.push_str(&format!(
+                                "- {} → load(source: \"{}/{}\")\n",
+                                relative.display(),
+                                source.name,
+                                relative.display()
+                            ));
                         }
                     }
-
-                    if !other_files.is_empty() {
-                        output.push_str(&format!(
-                            "\n## Other Files\n\nSkill directory: {}\n\n",
-                            source.path.display()
-                        ));
-                        for relative in &other_files {
-                            output.push_str(&format!("- {}\n", relative.display()));
-                        }
-                        output.push_str(
-                            "\nUse the file tools to read these files or run scripts as directed.\n",
-                        );
-                    }
+                    output.push_str(
+                        "\nUse load(source: \"<skill-name>/<path>\") to load individual files into context, or use file tools to read/run them directly.\n",
+                    );
                 }
 
                 output.push_str("\n---\nThis knowledge is now available in your context.");
@@ -1115,6 +1130,31 @@ impl SummonClient {
             }
             None => {
                 let sources = self.get_sources(session_id, working_dir).await;
+
+                if let Some((skill_name, _)) = name.split_once('/') {
+                    if let Some(skill) = sources.iter().find(|s| s.name == skill_name) {
+                        let available: Vec<String> = skill
+                            .supporting_files
+                            .iter()
+                            .filter_map(|f| {
+                                f.strip_prefix(&skill.path)
+                                    .ok()
+                                    .map(|r| r.to_string_lossy().to_string())
+                            })
+                            .collect();
+                        if !available.is_empty() {
+                            return Err(format!(
+                                "Source '{}' not found. Available files for {}: {}",
+                                name,
+                                skill_name,
+                                available.join(", ")
+                            ));
+                        } else {
+                            return Err(format!("Skill '{}' has no supporting files.", skill_name));
+                        }
+                    }
+                }
+
                 let suggestions: Vec<&str> = sources
                     .iter()
                     .filter(|s| {
@@ -1965,7 +2005,7 @@ You review code."#;
     }
 
     #[tokio::test]
-    async fn test_load_source_inlines_markdown_supporting_files() {
+    async fn test_load_source_lists_supporting_files_with_load_names() {
         let temp_dir = TempDir::new().unwrap();
 
         let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
@@ -1991,18 +2031,109 @@ You review code."#;
         let text = &result[0].as_text().expect("expected text content").text;
 
         assert!(
-            text.contains("Ops Guide"),
-            "md file content should be inlined"
+            !text.contains("Ops Guide"),
+            "md file content should not be inlined"
         );
-        assert!(text.contains("Do the thing."));
-        assert!(text.contains("run.sh"), "non-md file should be listed");
+        assert!(
+            !text.contains("Do the thing."),
+            "md file content should not be inlined"
+        );
         assert!(
             !text.contains("#!/bin/bash"),
             "script content should not be inlined"
         );
         assert!(
-            text.contains("Use the file tools"),
-            "non-md files should have file tools message"
+            text.contains("load(source: \"my-skill/references/ops.md\")"),
+            "md file should be listed with load() name"
+        );
+        assert!(
+            text.contains("load(source: \"my-skill/run.sh\")"),
+            "script should be listed with load() name"
+        );
+        assert!(
+            text.contains("load(source: \"<skill-name>/<path>\")"),
+            "should include usage hint"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_supporting_file_by_path() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("references")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nSee references.",
+        )
+        .unwrap();
+        fs::write(
+            skill_dir.join("references/ops.md"),
+            "# Ops Guide\n\nDo the thing.",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("run.sh"), "#!/bin/bash\necho ok").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let md_result = client
+            .handle_load_source("test", "my-skill/references/ops.md", temp_dir.path())
+            .await
+            .unwrap();
+        let md_text = &md_result[0].as_text().expect("expected text content").text;
+        assert!(
+            md_text.contains("Ops Guide"),
+            "markdown content should be loaded"
+        );
+        assert!(md_text.contains("Do the thing."));
+
+        let sh_result = client
+            .handle_load_source("test", "my-skill/run.sh", temp_dir.path())
+            .await
+            .unwrap();
+        let sh_text = &sh_result[0].as_text().expect("expected text content").text;
+        assert!(
+            sh_text.contains("#!/bin/bash"),
+            "script content should be loaded"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_load_supporting_file_not_found_suggests_available() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(skill_dir.join("references")).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nSee references.",
+        )
+        .unwrap();
+        fs::write(
+            skill_dir.join("references/ops.md"),
+            "# Ops Guide\n\nDo the thing.",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let err = client
+            .handle_load_source(
+                "test",
+                "my-skill/references/nonexistent.md",
+                temp_dir.path(),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.contains("references/ops.md"),
+            "error should list available files: {}",
+            err
+        );
+        assert!(
+            err.contains("my-skill"),
+            "error should name the skill: {}",
+            err
         );
     }
 
