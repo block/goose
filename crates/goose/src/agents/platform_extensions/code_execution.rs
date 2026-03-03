@@ -53,10 +53,10 @@ pub struct ExecuteWithToolGraph {
 impl CodeExecutionClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(
-                EXTENSION_NAME.to_string(),
-                "1.0.0".to_string(),
-            ))
+            .with_server_info(
+                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string())
+                    .with_title("Code Mode"),
+            )
             .with_instructions(indoc! {r#"
                 BATCH MULTIPLE TOOL CALLS INTO ONE execute CALL.
 

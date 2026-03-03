@@ -55,7 +55,7 @@ pub struct AnalyzeClient {
 impl AnalyzeClient {
     pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0"))
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Analyze"))
             .with_instructions(indoc! {"
             Analyze code structure using tree-sitter AST parsing. Three auto-selected modes:
             - Directory path → structure overview (file tree with function/class counts)

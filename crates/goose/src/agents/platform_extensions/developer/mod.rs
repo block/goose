@@ -34,7 +34,7 @@ impl DeveloperClient {
         let info = InitializeResult::new(
             ServerCapabilities::builder().enable_tools().build(),
         )
-        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0"))
+        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Developer"))
         .with_instructions(indoc! {"
             Use the developer extension to build software and operate a terminal.
 

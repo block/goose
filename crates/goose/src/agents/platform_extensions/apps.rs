@@ -122,7 +122,7 @@ impl AppsManagerClient {
                 .enable_resources()
                 .build(),
         )
-        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0"))
+        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Apps Manager"))
         .with_instructions(
             "Use this extension to create, manage, and iterate on custom HTML/CSS/JavaScript apps.",
         )

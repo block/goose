@@ -79,7 +79,7 @@ impl ExtensionManagerClient {
         let info = InitializeResult::new(
             ServerCapabilities::builder().enable_tools().build(),
         )
-        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0"))
+        .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title(EXTENSION_NAME))
         .with_instructions(indoc! {r#"
             Extension Management
 

@@ -21,7 +21,8 @@ impl TomClient {
     pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
         Ok(Self {
             info: InitializeResult::new(ServerCapabilities::builder().build()).with_server_info(
-                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string()),
+                Implementation::new(EXTENSION_NAME.to_string(), "1.0.0".to_string())
+                    .with_title("Top Of Mind"),
             ),
         })
     }
