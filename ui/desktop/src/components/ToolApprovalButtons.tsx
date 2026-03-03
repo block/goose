@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { confirmToolAction, Permission } from '../api';
+import { useTranslation } from 'react-i18next';
 
 const globalApprovalState = new Map<
   string,
@@ -19,6 +20,7 @@ export interface ToolApprovalData {
 }
 
 export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }) {
+  const { t } = useTranslation();
   const { id, toolName, prompt, sessionId, isClicked: initialIsClicked } = data;
 
   const storedState = globalApprovalState.get(id);
@@ -60,11 +62,11 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
 
   if (isClicked && decision) {
     const statusMessages: Record<Permission, string> = {
-      allow_once: 'Allowed once',
-      always_allow: 'Always allowed',
-      always_deny: 'Denied',
-      deny_once: 'Denied once',
-      cancel: 'Cancelled',
+      allow_once: t('toolApproval.status.allowOnce'),
+      always_allow: t('toolApproval.status.alwaysAllow'),
+      always_deny: t('toolApproval.status.denied'),
+      deny_once: t('toolApproval.status.denyOnce'),
+      cancel: t('toolApproval.status.cancelled'),
     };
     return (
       <p className="text-sm text-muted-foreground mt-2">
@@ -80,7 +82,7 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
         variant="secondary"
         onClick={() => handleAction('allow_once')}
       >
-        Allow Once
+        {t('toolApproval.actions.allowOnce')}
       </Button>
       {!prompt && (
         <Button
@@ -88,11 +90,11 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
           variant="secondary"
           onClick={() => handleAction('always_allow')}
         >
-          Always Allow
+          {t('toolApproval.actions.alwaysAllow')}
         </Button>
       )}
       <Button className="rounded-full" variant="outline" onClick={() => handleAction('deny_once')}>
-        Deny
+        {t('toolApproval.actions.deny')}
       </Button>
     </div>
   );

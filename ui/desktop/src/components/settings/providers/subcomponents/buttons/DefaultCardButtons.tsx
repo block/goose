@@ -1,5 +1,6 @@
 import { ConfigureSettingsButton, RocketButton } from './CardButtons';
 import { ProviderDetails } from '../../../../../api';
+import { useTranslation } from 'react-i18next';
 
 // can define other optional callbacks as needed
 interface CardButtonsProps {
@@ -9,31 +10,21 @@ interface CardButtonsProps {
   onLaunch: (provider: ProviderDetails) => void;
 }
 
-function getDefaultTooltipMessages(name: string, actionType: string) {
-  switch (actionType) {
-    case 'add':
-      return `Configure ${name} settings`;
-    case 'edit':
-      return `Edit ${name} settings`;
-    case 'delete':
-      return `Delete ${name} settings`;
-    default:
-      return null;
-  }
-}
-
 export default function DefaultCardButtons({
   provider,
   isOnboardingPage,
   onLaunch,
   onConfigure,
 }: CardButtonsProps) {
+  const { t } = useTranslation();
   return (
     <>
       {/*Set up an unconfigured provider */}
       {!provider.is_configured && (
         <ConfigureSettingsButton
-          tooltip={getDefaultTooltipMessages(provider.metadata.display_name, 'add')}
+          tooltip={t('providerCards.configureSettingsTooltip', {
+            provider: provider.metadata.display_name,
+          })}
           onClick={(e) => {
             e.stopPropagation();
             onConfigure(provider);
@@ -43,7 +34,9 @@ export default function DefaultCardButtons({
       {/*show edit tooltip instead when hovering over button for configured providers*/}
       {provider.is_configured && !isOnboardingPage && (
         <ConfigureSettingsButton
-          tooltip={getDefaultTooltipMessages(provider.metadata.display_name, 'edit')}
+          tooltip={t('providerCards.editSettingsTooltip', {
+            provider: provider.metadata.display_name,
+          })}
           onClick={(e) => {
             e.stopPropagation();
             onConfigure(provider);
@@ -53,7 +46,8 @@ export default function DefaultCardButtons({
       {/*show Launch button for configured providers on onboarding page*/}
       {provider.is_configured && isOnboardingPage && (
         <RocketButton
-          tooltip={'Get started with goose!'}
+          data-testid={`provider-launch-button-${provider.name.toLowerCase()}`}
+          tooltip={t('providerCards.getStartedTooltip')}
           onClick={(e) => {
             e.stopPropagation();
             onLaunch(provider);

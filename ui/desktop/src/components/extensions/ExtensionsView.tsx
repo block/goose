@@ -17,6 +17,7 @@ import { activateExtensionDefault } from '../settings/extensions';
 import { useConfig } from '../ConfigContext';
 import { SearchView } from '../conversation/SearchView';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { useTranslation } from 'react-i18next';
 
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -34,6 +35,7 @@ export default function ExtensionsView({
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const { addExtension } = useConfig();
+  const { t } = useTranslation();
 
   // Only trigger refresh when deep link config changes AND we don't need to show env vars
   useEffect(() => {
@@ -98,16 +100,14 @@ export default function ExtensionsView({
         <div className="bg-background-primary px-8 pb-4 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
-              <h1 className="text-4xl font-light">Extensions</h1>
+              <h1 className="text-4xl font-light">{t('extensions.title')}</h1>
             </div>
             <p className="text-sm text-text-secondary mb-2">
-              These extensions use the Model Context Protocol (MCP). They can expand Goose's
-              capabilities using three main components: Prompts, Resources, and Tools.{' '}
+              {t('extensions.description1')}{' '}
               {getSearchShortcutText()} to search.
             </p>
             <p className="text-sm text-text-secondary mb-6">
-              Extensions enabled here are used as the default for new chats. You can also toggle
-              active extensions during chat.
+              {t('extensions.description2')}
             </p>
 
             {/* Action Buttons */}
@@ -116,9 +116,10 @@ export default function ExtensionsView({
                 className="flex items-center gap-2 justify-center"
                 variant="default"
                 onClick={() => setIsAddModalOpen(true)}
+                data-testid="add-custom-extension-button"
               >
                 <Plus className="h-4 w-4" />
-                Add custom extension
+                {t('extensions.addCustom')}
               </Button>
               <Button
                 className="flex items-center gap-2 justify-center"
@@ -128,14 +129,14 @@ export default function ExtensionsView({
                 }
               >
                 <GPSIcon size={12} />
-                Browse extensions
+                {t('extensions.browse')}
               </Button>
             </div>
           </div>
         </div>
 
         <div className="px-8 pb-16">
-          <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search extensions...">
+          <SearchView onSearch={(term) => setSearchTerm(term)} placeholder={t('extensions.searchPlaceholder')}>
             <ExtensionsSection
               key={refreshKey}
               deepLinkConfig={viewOptions.deepLinkConfig}
@@ -156,7 +157,7 @@ export default function ExtensionsView({
       {/* Modal for adding a new extension */}
       {isAddModalOpen && (
         <ExtensionModal
-          title="Add custom extension"
+          title={t('extensions.addCustom')}
           initialData={getDefaultFormData()}
           onClose={handleModalClose}
           onSubmit={handleAddExtension}

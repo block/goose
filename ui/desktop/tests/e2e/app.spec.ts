@@ -77,7 +77,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
 
     // Click Reset Provider and Model button
     console.log('Clicking Reset provider and model...');
-    const resetButton = await mainWindow.waitForSelector('button:has-text("Reset provider and model")', {
+    const resetButton = await mainWindow.waitForSelector('[data-testid="reset-provider-and-model-button"]', {
       timeout: 5000,
       state: 'visible'
     });
@@ -108,8 +108,8 @@ async function selectProvider(mainWindow: any, provider: Provider) {
     return; // Provider is already selected, no need to do anything
   }
 
-  // Check if we're on the welcome screen with "Other Providers" section
-  const otherProvidersSection = await mainWindow.waitForSelector('text="Other Providers"', {
+  // Check if we're on the welcome screen with provider settings entry point
+  const otherProvidersSection = await mainWindow.waitForSelector('[data-testid="go-to-provider-settings-button"]', {
     timeout: 3000,
     state: 'visible'
   }).catch(() => null);
@@ -117,7 +117,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
   if (otherProvidersSection) {
     console.log('Found "Other Providers" section, clicking "Go to Provider Settings" link...');
     // Click the "Go to Provider Settings" link (includes arrow →)
-    const providerSettingsLink = await mainWindow.waitForSelector('button:has-text("Go to Provider Settings")', {
+    const providerSettingsLink = await mainWindow.waitForSelector('[data-testid="go-to-provider-settings-button"]', {
       timeout: 3000,
       state: 'visible'
     });
@@ -138,18 +138,18 @@ async function selectProvider(mainWindow: any, provider: Provider) {
   console.log(`Looking for ${provider.name} card with Launch button...`);
 
   try {
-    // Each provider card has data-testid="provider-card-{provider-name-lowercase}"
-    const providerCardTestId = `provider-card-${provider.name.toLowerCase()}`;
-    const launchButton = mainWindow.locator(`[data-testid="${providerCardTestId}"] button:has-text("Launch")`);
+    const launchButton = mainWindow.locator(
+      `[data-testid="provider-launch-button-${provider.name.toLowerCase()}"]`
+    );
 
     await launchButton.waitFor({ state: 'visible', timeout: 5000 });
     console.log(`Found Launch button in ${provider.name} card, clicking it...`);
     await launchButton.click();
     await mainWindow.waitForTimeout(1000);
 
-    // Wait for "Choose Model" dialog to appear and select a model
+    // Wait for model dialog to appear and select a model
     console.log('Waiting for model selection dialog...');
-    const chooseModelDialog = await mainWindow.waitForSelector('text="Choose Model"', {
+    const chooseModelDialog = await mainWindow.waitForSelector('[data-testid="switch-model-modal"]', {
       timeout: 5000,
       state: 'visible'
     }).catch(() => null);
@@ -162,7 +162,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
       await mainWindow.waitForTimeout(5000);
       console.log('Waited for models to load');
 
-      const confirmButton = await mainWindow.waitForSelector('button:has-text("Select model")', {
+      const confirmButton = await mainWindow.waitForSelector('[data-testid="switch-model-confirm-button"]', {
         timeout: 5000,
         state: 'visible'
       });
@@ -437,7 +437,7 @@ test.describe('Goose App', () => {
 
             // Click "Add custom extension" button
             console.log('Looking for Add custom extension button...');
-            const addExtensionButton = await mainWindow.waitForSelector('button:has-text("Add custom extension")', {
+            const addExtensionButton = await mainWindow.waitForSelector('[data-testid="add-custom-extension-button"]', {
               timeout: 2000,
               state: 'visible'
             });
@@ -457,14 +457,14 @@ test.describe('Goose App', () => {
             console.log('Filling form fields...');
 
             // Fill Extension Name
-            const nameInput = await mainWindow.waitForSelector('input[placeholder="Enter extension name..."]', {
+            const nameInput = await mainWindow.waitForSelector('[data-testid="extension-name-input"]', {
               timeout: 2000,
               state: 'visible'
             });
             await nameInput.fill('Running Quotes');
 
             // Fill Description
-            const descriptionInput = await mainWindow.waitForSelector('input[placeholder="Optional description..."]', {
+            const descriptionInput = await mainWindow.waitForSelector('[data-testid="extension-description-input"]', {
               timeout: 2000,
               state: 'visible'
             });
@@ -472,7 +472,7 @@ test.describe('Goose App', () => {
 
             // Fill Command
             const mcpScriptPath = join(__dirname, 'basic-mcp.ts');
-            const commandInput = await mainWindow.waitForSelector('input[placeholder="e.g. npx -y @modelcontextprotocol/my-extension <filepath>"]', {
+            const commandInput = await mainWindow.waitForSelector('[data-testid="extension-command-input"]', {
               timeout: 2000,
               state: 'visible'
             });

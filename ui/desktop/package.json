@@ -42,7 +42,6 @@
     "start-alpha-gui": "ALPHA=true npm run start-gui"
   },
   "dependencies": {
-    "goose-acp-types": "file:../acp",
     "@mcp-ui/client": "^6.1.0",
     "@modelcontextprotocol/ext-apps": "^1.1.1",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -71,12 +70,15 @@
     "electron-window-state": "^5.0.3",
     "express": "^5.2.1",
     "framer-motion": "^12.34.3",
+    "goose-acp-types": "file:../acp",
+    "i18next": "^25.8.13",
     "katex": "^0.16.33",
     "lodash": "^4.17.23",
     "lucide-react": "^0.575.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-i18next": "^16.5.4",
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.1",

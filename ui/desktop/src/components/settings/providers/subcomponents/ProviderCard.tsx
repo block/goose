@@ -4,6 +4,7 @@ import CardHeader from './CardHeader';
 import CardBody from './CardBody';
 import DefaultCardButtons from './buttons/DefaultCardButtons';
 import { ProviderDetails, ProviderMetadata } from '../../../../api';
+import { useTranslation } from 'react-i18next';
 
 type ProviderCardProps = {
   provider: ProviderDetails;
@@ -18,6 +19,7 @@ export const ProviderCard = function ProviderCard({
   onLaunch,
   isOnboarding,
 }: ProviderCardProps) {
+  const { t } = useTranslation();
   // Safely access metadata with null checks
   const providerMetadata: ProviderMetadata | null = provider?.metadata || null;
 
@@ -25,7 +27,7 @@ export const ProviderCard = function ProviderCard({
   const metadata = useMemo(() => providerMetadata, [providerMetadata]);
 
   if (!metadata) {
-    return <div>ProviderCard error: No metadata provided</div>;
+    return <div>{t('providerCards.noMetadataError')}</div>;
   }
 
   const handleCardClick = () => {
@@ -41,7 +43,7 @@ export const ProviderCard = function ProviderCard({
       onClick={handleCardClick}
       header={
         <CardHeader
-          name={metadata.display_name || provider?.name || 'Unknown Provider'}
+          name={metadata.display_name || provider?.name || t('providerCards.unknownProvider')}
           description={metadata.description || ''}
           isConfigured={provider?.is_configured || false}
         />

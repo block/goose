@@ -13,6 +13,7 @@ import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import type { View } from '../../../utils/navigationUtils';
+import { useTranslation } from 'react-i18next';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,7 +29,15 @@ const GridLayout = memo(function GridLayout({ children }: { children: React.Reac
   );
 });
 
-const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onClick: () => void }) {
+const CustomProviderCard = memo(function CustomProviderCard({
+  onClick,
+  title,
+  description,
+}: {
+  onClick: () => void;
+  title: string;
+  description: string;
+}) {
   return (
     <CardContainer
       testId="add-custom-provider-card"
@@ -38,8 +47,8 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
         <div className="flex flex-col items-center justify-center min-h-[200px]">
           <Plus className="w-8 h-8 text-gray-400 mb-2" />
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-            <div className="font-medium">Add Provider</div>
-            <div className="text-xs text-gray-500 mt-1">From template or manual setup</div>
+            <div className="font-medium">{title}</div>
+            <div className="text-xs text-gray-500 mt-1">{description}</div>
           </div>
         </div>
       }
@@ -62,6 +71,7 @@ function ProviderCards({
   setView?: (view: View) => void;
   onModelSelected?: (model?: string) => void;
 }) {
+  const { t } = useTranslation();
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
   const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
@@ -226,11 +236,22 @@ function ProviderCards({
     ));
 
     cards.push(
-      <CustomProviderCard key="add-custom" onClick={() => setShowCustomProviderModal(true)} />
+      <CustomProviderCard
+        key="add-custom"
+        onClick={() => setShowCustomProviderModal(true)}
+        title={t('providerCards.addProvider')}
+        description={t('providerCards.fromTemplateOrManual')}
+      />
     );
 
     return cards;
-  }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
+  }, [
+    providers,
+    isOnboarding,
+    configureProviderViaModal,
+    handleProviderLaunchWithModelSelection,
+    t,
+  ]);
 
   const initialData = editingProvider && {
     engine: editingProvider.config.engine,
@@ -245,7 +266,11 @@ function ProviderCards({
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
-  const title = (editingProvider ? (editable ? 'Edit' : 'Configure') : 'Add') + '  Provider';
+  const title = editingProvider
+    ? editable
+      ? t('providerCards.editProvider')
+      : t('providerCards.configureProvider')
+    : t('providerCards.addProviderTitle');
   return (
     <>
       {providerCards}
@@ -280,7 +305,7 @@ function ProviderCards({
           setView={handleSetView}
           onModelSelected={onModelSelected}
           initialProvider={switchModelProvider}
-          titleOverride="Choose Model"
+          titleOverride={t('onboarding.setup.chooseModel')}
         />
       )}
     </>

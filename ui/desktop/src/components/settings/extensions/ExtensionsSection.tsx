@@ -14,6 +14,7 @@ import {
 
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
 import { ExtensionConfig } from '../../../api/types.gen';
+import { useTranslation } from 'react-i18next';
 
 interface ExtensionSectionProps {
   deepLinkConfig?: ExtensionConfig;
@@ -37,6 +38,7 @@ export default function ExtensionsSection({
   searchTerm = '',
 }: ExtensionSectionProps) {
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
+  const { t } = useTranslation();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -196,9 +198,10 @@ export default function ExtensionsSection({
               className="flex items-center gap-2 justify-center"
               variant="default"
               onClick={() => setIsAddModalOpen(true)}
+              data-testid="add-custom-extension-button"
             >
               <Plus className="h-4 w-4" />
-              Add custom extension
+              {t('extensions.addCustom')}
             </Button>
             <Button
               className="flex items-center gap-2 justify-center"
@@ -206,7 +209,7 @@ export default function ExtensionsSection({
               onClick={() => window.open('https://block.github.io/goose/v1/extensions/', '_blank')}
             >
               <GPSIcon size={12} />
-              Browse extensions
+              {t('extensions.browse')}
             </Button>
           </div>
         )}
@@ -227,7 +230,7 @@ export default function ExtensionsSection({
         {/* Modal for adding a new extension */}
         {isAddModalOpen && (
           <ExtensionModal
-            title="Add custom extension"
+            title={t('extensions.addCustom')}
             initialData={getDefaultFormData()}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
@@ -239,7 +242,7 @@ export default function ExtensionsSection({
         {/* Modal for adding extension from deeplink*/}
         {deepLinkConfigStateVar && showEnvVarsStateVar && (
           <ExtensionModal
-            title="Add custom extension"
+            title={t('extensions.addCustom')}
             initialData={extensionToFormData({
               ...deepLinkConfig,
               enabled: true,

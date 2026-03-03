@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { vi, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import '../i18n';
 
 // Mock Electron modules before any imports
 vi.mock('electron', () => ({
@@ -48,6 +49,7 @@ const mockSettings: Record<string, unknown> = {
   showDockIcon: true,
   enableWakelock: false,
   spellcheckEnabled: true,
+  uiLanguage: 'system',
   keyboardShortcuts: {
     focusWindow: 'CommandOrControl+Alt+G',
     quickLauncher: 'CommandOrControl+Alt+Shift+G',
@@ -86,6 +88,8 @@ Object.defineProperty(window, 'electron', {
       mockSettings[key] = value;
       return Promise.resolve();
     }),
+    onSettingChanged: vi.fn(),
+    offSettingChanged: vi.fn(),
     showMessageBox: vi.fn(() => Promise.resolve({ response: 0 })),
   },
 });

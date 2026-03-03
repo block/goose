@@ -3,6 +3,7 @@ import { Button } from '../../../../ui/button';
 import clsx from 'clsx';
 import { TooltipWrapper } from './TooltipWrapper';
 import { Check, Rocket, Sliders } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ActionButtonProps extends React.ComponentProps<typeof Button> {
   /** Icon component to render, e.g. `RefreshCw` from lucide-react */
@@ -65,12 +66,13 @@ export function GreenCheckButton({ tooltip, className = '', ...props }: ActionBu
 }
 
 export function ConfigureSettingsButton({ tooltip, className, ...props }: ActionButtonProps) {
+  const { t } = useTranslation();
   return (
     <ActionButton
       icon={Sliders}
       tooltip={tooltip}
       variant="outline"
-      text={'Configure'}
+      text={t('providerCards.configure')}
       iconClassName="rotate-90"
       className={clsx('cursor-pointer', className)}
       {...props}
@@ -79,13 +81,13 @@ export function ConfigureSettingsButton({ tooltip, className, ...props }: Action
 }
 
 export function RocketButton({ tooltip, className, ...props }: ActionButtonProps) {
+  const { t } = useTranslation();
   return (
     <ActionButton
-      data-testid="provider-launch-button"
       icon={Rocket}
       tooltip={tooltip}
       variant="outline"
-      text={'Launch'}
+      text={t('providerCards.launch')}
       className={clsx('cursor-pointer', className)}
       {...props}
     />
