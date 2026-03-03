@@ -220,7 +220,17 @@ export default function ProgressiveMessageList({
           if (!seenBlocks.has(blockKey)) {
             // First message of this block — render the WorkBlockIndicator
             seenBlocks.add(blockKey);
-            const blockMessages = block.intermediateIndices.map((i: number) => messages[i]);
+            const blockIndices = new Set<number>(block.allBlockIndices);
+            if (block.finalIndex >= 0) {
+              // Include the final answer message for activity extraction.
+              // It is still rendered normally in the chat, but the activity panel
+              // needs it to display tool requests that may live on the final message.
+              blockIndices.add(block.finalIndex);
+            }
+
+            const blockMessages = Array.from(blockIndices)
+              .sort((a, b) => a - b)
+              .map((i: number) => messages[i]);
 
             // Extract agent/mode from the first assistant message's routing info
             const firstAssistant = blockMessages.find((m) => m.role === 'assistant');
@@ -333,6 +343,10 @@ export default function ProgressiveMessageList({
   const hasStreamingWorkBlock = Array.from(workBlocks.values()).some((b) => b.isStreaming);
   const showPendingIndicator = isStreamingMessage && messages.length > 0 && !hasStreamingWorkBlock;
 
+  // If we don't have a recognized streaming work block yet, feed recent messages into the
+  // pending indicator so the Activity panel can still extract tool calls as they stream.
+  const pendingMessages = showPendingIndicator ? messages.slice(Math.max(0, messages.length - 10)) : [];
+
   return (
     <>
       {renderMessages()}
@@ -344,7 +358,7 @@ export default function ProgressiveMessageList({
       {showPendingIndicator && chat && (
         <div className="relative mt-4 assistant">
           <WorkBlockIndicator
-            messages={[]}
+            messages={pendingMessages}
             blockId="pending"
             isStreaming={true}
             sessionId={chat.sessionId}

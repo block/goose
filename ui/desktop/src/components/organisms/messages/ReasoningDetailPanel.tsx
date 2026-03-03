@@ -98,7 +98,7 @@ export function buildToolResponseMap(messages: Message[]): ToolResponseMap {
   const map: ToolResponseMap = new Map();
 
   for (const msg of messages) {
-    if (msg.role !== 'user') continue;
+    // Tool responses may be emitted as user or assistant messages depending on provider.
     if (!Array.isArray(msg.content)) continue;
 
     for (const c of msg.content) {
@@ -200,19 +200,21 @@ export function extractActivityEntries(messages: Message[], isStreaming: boolean
       }
 
       if (cTyped.type === 'toolRequest') {
-        const toolCall = cTyped.toolCall as
-          | {
-              status?: string;
-              value?: { name?: string; arguments?: Record<string, unknown> };
-            }
-          | undefined;
+        // Handle both wrapped and unwrapped toolCall shapes.
+        // ToolCallWithResponse uses the same logic.
+        const toolCallData = cTyped.toolCall as Record<string, unknown> | undefined;
+        const toolCall =
+          toolCallData && toolCallData.status === 'success'
+            ? (toolCallData.value as { name?: string; arguments?: Record<string, unknown> })
+            : (toolCallData as { name?: string; arguments?: Record<string, unknown> } | undefined);
+
         const requestId = cTyped.id;
-        const name = toolCall?.value?.name || 'unknown';
-        const args = (toolCall?.value?.arguments || {}) as Record<string, unknown>;
-        const isPending = !toolCall?.status || toolCall.status === 'pending';
-        const isActive = isStreamingMsg && isPending;
+        const name = toolCall?.name || 'unknown';
+        const args = (toolCall?.arguments || {}) as Record<string, unknown>;
 
         const pairedResponse = requestId ? responseMap.get(requestId) : undefined;
+        const isPending = Boolean(requestId) && !pairedResponse;
+        const isActive = isStreamingMsg && isPending;
 
         entries.push({
           kind: 'tool',
