@@ -26,6 +26,7 @@ pub mod scheduler_trait;
 pub mod security;
 pub mod session;
 pub mod session_context;
+pub mod skill_loader;
 pub mod slash_commands;
 pub mod subprocess;
 pub mod token_counter;
