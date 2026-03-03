@@ -4,8 +4,6 @@ import { goToHome, openSettingsAppTab } from './helpers/test-steps';
 
 test.describe('Settings', {tag: '@release'}, () => {
   test('dark mode toggle', async ({ goosePage }) => {
-    console.log('Testing dark mode toggle...');
-
     await openSettingsAppTab(goosePage);
 
     const darkModeButton = goosePage.getByTestId('dark-mode-button');
@@ -15,7 +13,6 @@ test.describe('Settings', {tag: '@release'}, () => {
     await expect(darkModeButton).toBeVisible();
 
     const isDarkMode = await goosePage.evaluate(() => document.documentElement.classList.contains('dark'));
-    console.log('Initial dark mode state:', isDarkMode);
 
     if (isDarkMode) {
       await lightModeButton.click();
