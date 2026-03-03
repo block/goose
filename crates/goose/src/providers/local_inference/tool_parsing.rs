@@ -141,7 +141,7 @@ pub(super) fn extract_tool_call_messages(tool_calls_json: &str, message_id: &str
     for tc in tool_calls {
         // Try OpenAI format first: {"function": {"name": ..., "arguments": ...}, "id": ...}
         // Then model's native format: {"name": ..., "arguments": {...}, "id": ...}
-        let (name, _arguments) = if let Some(func) = tc.get("function") {
+        let (name, arguments) = if let Some(func) = tc.get("function") {
             let n = func.get("name").and_then(|v| v.as_str()).unwrap_or("");
             let args_str = func
                 .get("arguments")
@@ -172,7 +172,7 @@ pub(super) fn extract_tool_call_messages(tool_calls_json: &str, message_id: &str
             .map(|s| s.to_string())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        let tool_call = CallToolRequestParams::new(Cow::Owned(name));
+        let tool_call = CallToolRequestParams::new(Cow::Owned(name)).with_arguments(arguments);
 
         let mut msg = Message::assistant();
         msg.content
@@ -313,8 +313,12 @@ pub(super) fn extract_xml_tool_call_messages(
 ) -> Vec<Message> {
     tool_calls
         .into_iter()
-        .map(|(name, _args)| {
-            let tool_call = CallToolRequestParams::new(Cow::Owned(name));
+        .map(|(name, args)| {
+            let tool_call = if args.is_empty() {
+                CallToolRequestParams::new(Cow::Owned(name))
+            } else {
+                CallToolRequestParams::new(Cow::Owned(name)).with_arguments(args)
+            };
             let mut msg = Message::assistant();
             msg.content.push(MessageContent::tool_request(
                 Uuid::new_v4().to_string(),
