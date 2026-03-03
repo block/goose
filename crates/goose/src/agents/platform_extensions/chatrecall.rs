@@ -1,5 +1,6 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
+use crate::user_memory;
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -313,5 +314,16 @@ impl McpClientTrait for ChatRecallClient {
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+
+    async fn get_moim(&self, _session_id: &str) -> Option<String> {
+        let memory = user_memory::load_user_memory()?;
+        if memory.facts.trim().is_empty() {
+            return None;
+        }
+        Some(format!(
+            "Important facts about the user (from past conversations):\n{}",
+            memory.facts
+        ))
     }
 }

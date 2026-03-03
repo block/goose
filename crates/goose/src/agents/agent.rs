@@ -1658,6 +1658,18 @@ impl Agent {
             if !last_assistant_text.is_empty() {
                 tracing::info!(target: "goose::agents::agent", trace_output = last_assistant_text.as_str());
             }
+
+            // Extract user memory in the background when chatrecall is enabled
+            if self.extension_manager.is_extension_enabled("chatrecall").await {
+                if let Ok(provider) = self.provider().await {
+                    let conv = conversation.clone();
+                    tokio::spawn(async move {
+                        if let Err(e) = crate::user_memory::extract_and_update_memory(provider, conv).await {
+                            tracing::warn!("User memory extraction failed: {}", e);
+                        }
+                    });
+                }
+            }
         }))
     }
 
