@@ -111,7 +111,16 @@ function countToolCalls(messages: Message[]): number {
 // ── Props ───────────────────────────────────────────────────────────
 
 interface WorkBlockIndicatorProps {
+  /**
+   * Messages used for the compact inline indicator (one-liner + counts).
+   * Keep this small/curated to avoid showing raw streaming payloads.
+   */
   messages: Message[];
+  /**
+   * Optional message set used for the Activity/Reasoning side panel.
+   * This lets us feed richer context to the panel without polluting the inline preview.
+   */
+  detailMessages?: Message[];
   blockId: string;
   isStreaming: boolean;
   agentName?: string;
@@ -125,6 +134,7 @@ interface WorkBlockIndicatorProps {
 
 export default function WorkBlockIndicator({
   messages,
+  detailMessages,
   blockId,
   isStreaming,
   agentName,
@@ -137,18 +147,36 @@ export default function WorkBlockIndicator({
     useReasoningDetail();
 
   const hasAutoOpened = useRef(false);
+
+  // Inline preview (keep small/curated)
   const oneLiner = useMemo(() => extractLastToolDescription(messages), [messages]);
-  const toolCount = countToolCalls(messages);
+  const toolCountPreview = useMemo(() => countToolCalls(messages), [messages]);
+
+  // Side panel detail (may include richer context)
+  const detailMessageList = detailMessages ?? messages;
+  const toolCountDetail = useMemo(() => countToolCalls(detailMessageList), [detailMessageList]);
 
   const isActive =
     isOpen && panelDetail?.type === 'workblock' && panelDetail.data.messageId === blockId;
 
   // Keep a mutable ref so callbacks always read fresh values without re-creating
-  const latestRef = useRef({ messages, toolCount, isStreaming, toolCallNotifications, isActive });
-  latestRef.current = { messages, toolCount, isStreaming, toolCallNotifications, isActive };
+  const latestRef = useRef({
+    detailMessageList,
+    toolCountDetail,
+    isStreaming,
+    toolCallNotifications,
+    isActive,
+  });
+  latestRef.current = {
+    detailMessageList,
+    toolCountDetail,
+    isStreaming,
+    toolCallNotifications,
+    isActive,
+  };
 
   const buildUpdateToken = useCallback((): string => {
-    const { messages: blockMessages, toolCallNotifications: notifs } = latestRef.current;
+    const { detailMessageList: blockMessages, toolCallNotifications: notifs } = latestRef.current;
 
     // Fast(ish) signature: last assistant message id + counts of tool requests/responses
     // + a count of tool notifications. This changes when:
@@ -191,8 +219,8 @@ export default function WorkBlockIndicator({
     (): WorkBlockDetail => ({
       title: 'Activity',
       messageId: blockId,
-      messages: latestRef.current.messages,
-      toolCount: latestRef.current.toolCount,
+      messages: latestRef.current.detailMessageList,
+      toolCount: latestRef.current.toolCountDetail,
       updateToken: buildUpdateToken(),
       isStreaming: latestRef.current.isStreaming,
       agentName,
@@ -266,11 +294,11 @@ export default function WorkBlockIndicator({
             <span className="text-xs font-medium text-text-default">
               {isStreaming ? 'Working…' : `${messages.length} steps`}
             </span>
-            {toolCount > 0 && !isStreaming && (
+            {toolCountPreview > 0 && !isStreaming && (
               <>
                 <span className="text-xs text-text-muted/40">·</span>
                 <span className="text-xs text-text-muted/70">
-                  {toolCount} tool{toolCount !== 1 ? 's' : ''}
+                  {toolCountPreview} tool{toolCountPreview !== 1 ? 's' : ''}
                 </span>
               </>
             )}

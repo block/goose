@@ -96,13 +96,14 @@ describe('buildToolResponseMap', () => {
     expect(map.get('req-b')?.resultText).toBe('result-b');
   });
 
-  it('ignores assistant messages (only user messages have tool responses)', () => {
+  it('includes tool responses from assistant messages', () => {
     const messages: Message[] = [
-      makeMsg('assistant', [makeToolResponse('req-x', 'should be ignored')]),
+      makeMsg('assistant', [makeToolResponse('req-x', 'assistant tool response')]),
     ];
 
     const map = buildToolResponseMap(messages);
-    expect(map.size).toBe(0);
+    expect(map.size).toBe(1);
+    expect(map.get('req-x')?.resultText).toBe('assistant tool response');
   });
 
   it('handles messages with no tool responses', () => {

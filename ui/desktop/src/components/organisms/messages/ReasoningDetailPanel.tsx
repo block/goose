@@ -213,7 +213,16 @@ export function extractActivityEntries(messages: Message[], isStreaming: boolean
         const args = (toolCall?.arguments || {}) as Record<string, unknown>;
 
         const pairedResponse = requestId ? responseMap.get(requestId) : undefined;
-        const isPending = Boolean(requestId) && !pairedResponse;
+
+        // If the provider supplies an explicit status, respect it.
+        // Otherwise, fall back to response pairing (no response yet => pending).
+        const requestStatus =
+          toolCallData && typeof toolCallData.status === 'string' ? toolCallData.status : undefined;
+
+        const isPending =
+          Boolean(requestId) &&
+          !pairedResponse &&
+          (requestStatus === undefined || requestStatus === 'pending');
         const isActive = isStreamingMsg && isPending;
 
         entries.push({

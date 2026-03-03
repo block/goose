@@ -345,7 +345,10 @@ export default function ProgressiveMessageList({
 
   // If we don't have a recognized streaming work block yet, feed recent messages into the
   // pending indicator so the Activity panel can still extract tool calls as they stream.
-  const pendingMessages = showPendingIndicator ? messages.slice(Math.max(0, messages.length - 10)) : [];
+  const pendingMessages = showPendingIndicator
+    ? messages.slice(Math.max(0, messages.length - 10))
+    : [];
+  const pendingPreviewMessages: Message[] = [];
 
   return (
     <>
@@ -358,7 +361,8 @@ export default function ProgressiveMessageList({
       {showPendingIndicator && chat && (
         <div className="relative mt-4 assistant">
           <WorkBlockIndicator
-            messages={pendingMessages}
+            messages={pendingPreviewMessages}
+            detailMessages={pendingMessages}
             blockId="pending"
             isStreaming={true}
             sessionId={chat.sessionId}
