@@ -868,7 +868,23 @@ pub fn create_request(
         ));
     }
 
-    let (model_name, reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    // Unified thinking effort takes priority for reasoning models
+    let (model_name, reasoning_effort) = if let Some(effort) = model_config.thinking_effort() {
+        let (base_name, legacy_effort) = extract_reasoning_effort(&model_config.model_name);
+        if legacy_effort.is_some() {
+            use crate::model::ThinkingEffort;
+            let effort_str = match effort {
+                ThinkingEffort::Off | ThinkingEffort::Low => "low",
+                ThinkingEffort::Medium => "medium",
+                ThinkingEffort::High | ThinkingEffort::Max => "high",
+            };
+            (base_name, Some(effort_str.to_string()))
+        } else {
+            (base_name, None)
+        }
+    } else {
+        extract_reasoning_effort(&model_config.model_name)
+    };
     let is_reasoning_model = reasoning_effort.is_some();
 
     let system_message = json!({
