@@ -172,7 +172,8 @@ pub(super) fn extract_tool_call_messages(tool_calls_json: &str, message_id: &str
             .map(|s| s.to_string())
             .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-        let tool_call = CallToolRequestParams::new(Cow::Owned(name)).with_arguments(arguments);
+        let tool_call = CallToolRequestParams::new(Cow::Owned(name))
+            .with_arguments(arguments.unwrap_or_default());
 
         let mut msg = Message::assistant();
         msg.content
