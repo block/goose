@@ -33,7 +33,6 @@ use crate::conversation::message::{
     ActionRequiredData, Message, MessageContent, ProviderMetadata, SystemNotificationType,
     ToolRequest,
 };
-use crate::conversation::tool_result_serde::call_tool_result;
 use crate::conversation::{debug_conversation_fix, fix_conversation, Conversation};
 use crate::mcp_utils::ToolResult;
 use crate::permission::permission_inspector::PermissionInspector;
@@ -1343,8 +1342,6 @@ impl Agent {
                                                     Some((request_id, item)) => {
                                                         match item {
                                                             ToolStreamItem::Result(output) => {
-                                                                let output = call_tool_result::validate(output);
-
                                                                 if let Ok(ref call_result) = output {
                                                                     if let Some(ref meta) = call_result.meta {
                                                                         if let Some(notification_data) = meta.0.get("platform_notification") {
