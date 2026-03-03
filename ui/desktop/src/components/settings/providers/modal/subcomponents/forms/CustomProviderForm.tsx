@@ -83,6 +83,7 @@ export default function CustomProviderForm({
     // Prefill fields from template
     setDisplayName(template.name);
     setApiUrl(template.api_url);
+    setBasePath('');
     setSupportsStreaming(template.supports_streaming);
     setRequiresAuth(true);
 
