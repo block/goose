@@ -772,18 +772,33 @@ pub fn create_request(
     let is_reasoning_model = model_config.is_openai_reasoning_model();
 
     let (model_name, reasoning_effort) = if is_reasoning_model {
-        let parts: Vec<&str> = model_config.model_name.split('-').collect();
-        let last_part = parts.last().unwrap();
-
-        match *last_part {
-            "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
-            }
-            _ => (
+        // Unified thinking effort takes priority
+        if let Some(effort) = model_config.thinking_effort() {
+            use crate::model::ThinkingEffort;
+            let effort_str = match effort {
+                ThinkingEffort::Off | ThinkingEffort::Low => "low",
+                ThinkingEffort::Medium => "medium",
+                ThinkingEffort::High | ThinkingEffort::Max => "high",
+            };
+            (
                 model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
+                Some(effort_str.to_string()),
+            )
+        } else {
+            // Legacy: parse effort from model name suffix (e.g., "o3-mini-high")
+            let parts: Vec<&str> = model_config.model_name.split('-').collect();
+            let last_part = parts.last().unwrap();
+
+            match *last_part {
+                "low" | "medium" | "high" => {
+                    let base_name = parts[..parts.len() - 1].join("-");
+                    (base_name, Some(last_part.to_string()))
+                }
+                _ => (
+                    model_config.model_name.to_string(),
+                    Some("medium".to_string()),
+                ),
+            }
         }
     } else {
         (model_config.model_name.to_string(), None)

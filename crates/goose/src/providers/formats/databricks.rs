@@ -550,18 +550,33 @@ pub fn create_request(
         model_name.contains("claude-3-7-sonnet") || model_name.contains("claude-4-sonnet"); // can be goose- or databricks-
 
     let (model_name, reasoning_effort) = if is_openai_reasoning_model {
-        let parts: Vec<&str> = model_config.model_name.split('-').collect();
-        let last_part = parts.last().unwrap();
-
-        match *last_part {
-            "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
-            }
-            _ => (
+        // Unified thinking effort takes priority
+        if let Some(effort) = model_config.thinking_effort() {
+            use crate::model::ThinkingEffort;
+            let effort_str = match effort {
+                ThinkingEffort::Off | ThinkingEffort::Low => "low",
+                ThinkingEffort::Medium => "medium",
+                ThinkingEffort::High | ThinkingEffort::Max => "high",
+            };
+            (
                 model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
+                Some(effort_str.to_string()),
+            )
+        } else {
+            // Legacy: parse effort from model name suffix
+            let parts: Vec<&str> = model_config.model_name.split('-').collect();
+            let last_part = parts.last().unwrap();
+
+            match *last_part {
+                "low" | "medium" | "high" => {
+                    let base_name = parts[..parts.len() - 1].join("-");
+                    (base_name, Some(last_part.to_string()))
+                }
+                _ => (
+                    model_config.model_name.to_string(),
+                    Some("medium".to_string()),
+                ),
+            }
         }
     } else {
         (model_config.model_name.to_string(), None)
@@ -606,14 +621,33 @@ pub fn create_request(
             .insert("tools".to_string(), json!(tools_spec));
     }
 
-    let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
+    let is_thinking_enabled = {
+        // Unified thinking effort: any non-Off value enables thinking
+        if let Some(effort) = model_config.thinking_effort() {
+            effort != crate::model::ThinkingEffort::Off
+        } else {
+            // Legacy fallback
+            std::env::var("CLAUDE_THINKING_ENABLED").is_ok()
+        }
+    };
     if is_claude_sonnet && is_thinking_enabled {
         // Anthropic requires budget_tokens >= 1024
         const DEFAULT_THINKING_BUDGET: i32 = 16000;
-        let budget_tokens: i32 = std::env::var("CLAUDE_THINKING_BUDGET")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(DEFAULT_THINKING_BUDGET);
+        let budget_tokens: i32 = if let Some(effort) = model_config.thinking_effort() {
+            use crate::model::ThinkingEffort;
+            match effort {
+                ThinkingEffort::Off => 1024,
+                ThinkingEffort::Low => 4000,
+                ThinkingEffort::Medium => 10000,
+                ThinkingEffort::High => 16000,
+                ThinkingEffort::Max => 32000,
+            }
+        } else {
+            std::env::var("CLAUDE_THINKING_BUDGET")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(DEFAULT_THINKING_BUDGET)
+        };
 
         // With thinking enabled, max_tokens must include both output and thinking budget
         let max_tokens = model_config.max_output_tokens() + budget_tokens;
