@@ -1,15 +1,12 @@
 import { test } from './fixtures.electron.packaged';
 import { expect } from '@playwright/test';
+import { goToHome, openSettingsAppTab } from './helpers/test-steps';
 
 test.describe('Settings', {tag: '@release'}, () => {
   test('dark mode toggle', async ({ goosePage }) => {
     console.log('Testing dark mode toggle...');
 
-    await expect(goosePage.getByTestId('chat-input')).toBeVisible();
-
-    await goosePage.getByTestId('sidebar-settings-button').click();
-
-    await goosePage.getByTestId('settings-app-tab').click();
+    await openSettingsAppTab(goosePage);
 
     const darkModeButton = goosePage.getByTestId('dark-mode-button');
     const lightModeButton = goosePage.getByTestId('light-mode-button');
@@ -32,6 +29,6 @@ test.describe('Settings', {tag: '@release'}, () => {
 
     await lightModeButton.click();
 
-    await goosePage.getByTestId('sidebar-home-button').click();
+    await goToHome(goosePage);
   });
 });

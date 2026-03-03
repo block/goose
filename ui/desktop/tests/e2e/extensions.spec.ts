@@ -1,11 +1,9 @@
 import { test } from './fixtures.electron.packaged';
 import { expect } from '@playwright/test';
-import { waitForLoadingDone } from './helpers/video';
+import { expectLastChatMessageContains, goToHome, sendMessage } from './helpers/test-steps';
 import { join } from 'path';
 
 const { runningQuotes } = require('./basic-mcp');
-
-const LLM_TIMEOUT = 30000;
 const PLAYWRIGHT_DEEPLINK =
   'goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation';
 
@@ -31,13 +29,8 @@ test.describe('Goose App Extensions', {tag: '@release'}, () => {
       goosePage.locator('#extension-playwright button[role="switch"][data-state="checked"]')
     ).toBeVisible();
 
-    await goosePage.getByTestId('sidebar-home-button').click();
-    const chatInput = goosePage.locator('[data-testid="chat-input"]:visible').first();
-    await expect(chatInput).toBeVisible();
-
-    await chatInput.fill('open a browser and search on google for cats');
-    await chatInput.press('Enter');
-    await waitForLoadingDone(goosePage, LLM_TIMEOUT);
+    await goToHome(goosePage);
+    await sendMessage(goosePage, 'open a browser and search on google for cats');
 
     const toolCalls = goosePage.locator('.goose-message-tool');
     await expect(toolCalls.first()).toBeVisible();
@@ -45,8 +38,7 @@ test.describe('Goose App Extensions', {tag: '@release'}, () => {
     const toolCallsText = ((await toolCalls.allTextContents()) || []).join(' ').toLowerCase();
     expect(toolCallsText).toMatch(/playwright|browser|navigate|google|cats/);
 
-    const latestMessage = goosePage.locator('[data-testid="message-container"]:visible').last();
-    await expect(latestMessage).toContainText(/google|cats/i);
+    await expectLastChatMessageContains(goosePage, /google|cats/i);
   });
 
   test('add custom extension', async ({ goosePage }) => {
@@ -66,13 +58,8 @@ test.describe('Goose App Extensions', {tag: '@release'}, () => {
       goosePage.locator('#extension-running-quotes button[role="switch"][data-state="checked"]')
     ).toBeVisible();
 
-    await goosePage.getByTestId('sidebar-home-button').click();
-
-    const chatInput = goosePage.getByTestId('chat-input');
-    await chatInput.fill('Can you give me an inspirational running quote using the runningQuote tool?');
-    await chatInput.press('Enter');
-
-    await waitForLoadingDone(goosePage, LLM_TIMEOUT);
+    await goToHome(goosePage);
+    await sendMessage(goosePage, 'Can you give me an inspirational running quote using the runningQuote tool?');
 
     const lastMessage = goosePage.locator('.goose-message').last();
     const outputText = await lastMessage.textContent();
