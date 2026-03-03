@@ -69,7 +69,7 @@ function WorkflowCard({ category }: { category: WorkflowCategory }) {
             <p className="text-sm text-text-muted">{category.description}</p>
           </div>
         </div>
-        <ChevronRight className="w-5 h-5 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+        <ChevronRight className="w-5 h-5 text-text-muted opacity-40 group-hover:opacity-100 transition-opacity" />
       </div>
 
       <div className="flex items-center gap-4 mb-4">
