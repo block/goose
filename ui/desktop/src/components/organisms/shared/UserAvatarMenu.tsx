@@ -46,7 +46,7 @@ export function UserAvatarMenu() {
         <Button
           variant="ghost"
           size="sm"
-          className="relative h-8 w-8 rounded-full p-0"
+          className="flex h-9 w-full items-center gap-2 rounded-md px-2 py-1 text-left group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
           aria-label={isGuest ? 'Guest menu' : `${user?.name ?? 'User'} menu`}
         >
           {initials ? (
@@ -58,6 +58,16 @@ export function UserAvatarMenu() {
               <User className="h-4 w-4" />
             </span>
           )}
+
+          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+            <div className="truncate text-sm font-medium leading-none text-text-default">
+              {user?.name ?? 'Guest'}
+            </div>
+            <div className="truncate text-xs leading-none text-text-muted">
+              {isGuest ? 'Not signed in' : authMethodLabel(user?.auth_method ?? '')}
+              {user?.tenant && ` · ${user.tenant}`}
+            </div>
+          </div>
         </Button>
       </DropdownMenuTrigger>
 
