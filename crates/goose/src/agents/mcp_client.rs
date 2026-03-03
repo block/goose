@@ -161,16 +161,16 @@ impl ClientHandler for GooseClient {
     async fn on_progress(
         &self,
         params: rmcp::model::ProgressNotificationParam,
-        _context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
     ) {
         self.notification_handlers
             .lock()
             .await
             .iter()
             .for_each(|handler| {
-                let _ = handler.try_send(ServerNotification::ProgressNotification(
-                    Notification::new(params.clone()),
-                ));
+                let mut not = Notification::new(params.clone());
+                not.extensions = context.extensions.clone();
+                let _ = handler.try_send(ServerNotification::ProgressNotification(not));
             });
     }
 
