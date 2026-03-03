@@ -244,7 +244,6 @@ impl fmt::Display for MessageContent {
             MessageContent::SystemNotification(r) => {
                 write!(f, "[SystemNotification: {}]", r.msg)
             }
-
         }
     }
 }
@@ -536,7 +535,6 @@ impl MessageContent {
             _ => None,
         }
     }
-
 }
 
 impl From<Content> for MessageContent {
