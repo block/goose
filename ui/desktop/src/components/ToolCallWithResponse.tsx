@@ -866,7 +866,7 @@ interface ToolResultViewProps {
   isStartExpanded: boolean;
 }
 
-function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewProps) {
+function ToolResultView({ result, isStartExpanded }: ToolResultViewProps) {
   const hasText = (c: ContentBlock): c is ContentBlock & { text: string } =>
     'text' in c && typeof (c as Record<string, unknown>).text === 'string';
 
@@ -879,18 +879,6 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
   const hasResource = (c: ContentBlock): c is ContentBlock & { resource: unknown } =>
     'resource' in c;
 
-  const wrapMarkdown = (text: string): string => {
-    if (
-      ['code_execution__list_functions', 'code_execution__get_function_details'].includes(
-        toolCall.name
-      )
-    ) {
-      return '```typescript\n' + text + '\n```';
-    } else {
-      return text;
-    }
-  };
-
   return (
     <ToolCallExpandable
       label={<span className="pl-4 py-1 font-sans text-sm">Output</span>}
@@ -898,10 +886,9 @@ function ToolResultView({ toolCall, result, isStartExpanded }: ToolResultViewPro
     >
       <div className="pl-4 pr-4 py-4">
         {hasText(result) && (
-          <MarkdownContent
-            content={wrapMarkdown(result.text)}
-            className="whitespace-pre-wrap max-w-full overflow-x-auto"
-          />
+          <pre className="font-mono text-xs whitespace-pre-wrap max-w-full overflow-x-auto">
+            {result.text.trim()}
+          </pre>
         )}
         {hasImage(result) && (
           <img
