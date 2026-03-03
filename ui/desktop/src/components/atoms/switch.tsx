@@ -15,7 +15,7 @@ export const Switch = React.forwardRef<
         ? [
             // Ensure the off-state is visible on light backgrounds (e.g. Cards in Catalogs/Tools).
             // Use a slightly stronger surface + border so the track doesn't disappear on white cards.
-            'data-[state=unchecked]:bg-background-subtle data-[state=unchecked]:border-border-strong',
+            'data-[state=unchecked]:bg-background-medium data-[state=unchecked]:border-border-strong',
             // Make the on-state clearly distinct.
             'data-[state=checked]:bg-border-accent data-[state=checked]:border-border-accent',
           ].join(' ')
