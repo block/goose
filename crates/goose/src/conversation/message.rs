@@ -295,9 +295,11 @@ impl MessageContent {
 
                 // Preserve ToolResponse even when content is empty - some providers
                 // (like Google) need to handle empty tool responses specially
+                let mut tool_result = result.clone();
+                tool_result.content = filtered_content;
                 Some(MessageContent::ToolResponse(ToolResponse {
                     id: res.id.clone(),
-                    tool_result: Ok(CallToolResult::success(filtered_content)),
+                    tool_result: Ok(tool_result),
                     metadata: res.metadata.clone(),
                 }))
             }
