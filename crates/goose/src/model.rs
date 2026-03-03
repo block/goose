@@ -348,7 +348,7 @@ impl ModelConfig {
         4_096
     }
 
-    fn normalize_effort_suffix(&mut self) {
+    pub fn normalize_effort_suffix(&mut self) {
         if !self.is_openai_reasoning_model() {
             return;
         }
