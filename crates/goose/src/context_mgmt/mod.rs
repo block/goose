@@ -625,13 +625,13 @@ mod tests {
         let provider = MockProvider::new(response_message, 1);
         let basic_conversation = vec![
             Message::user().with_text("read hello.txt"),
-            Message::assistant().with_tool_request(
-                "tool_0",
-                Ok(CallToolRequestParams::new("read_file")),
-            ),
+            Message::assistant()
+                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
             Message::user().with_tool_response(
                 "tool_0",
-                Ok(rmcp::model::CallToolResult::success(vec![RawContent::text("hello, world").no_annotation()])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text("hello, world").no_annotation(),
+                ])),
             ),
         ];
 
@@ -662,7 +662,9 @@ mod tests {
             ));
             messages.push(Message::user().with_tool_response(
                 format!("tool_{}", i),
-                Ok(rmcp::model::CallToolResult::success(vec![RawContent::text(format!("response{}", i)).no_annotation()])),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text(format!("response{}", i)).no_annotation(),
+                ])),
             ));
         }
 
@@ -694,7 +696,9 @@ mod tests {
                 Message::user()
                     .with_tool_response(
                         call_id,
-                        Ok(rmcp::model::CallToolResult::success(vec![RawContent::text(response_text).no_annotation()])),
+                        Ok(rmcp::model::CallToolResult::success(vec![
+                            RawContent::text(response_text).no_annotation(),
+                        ])),
                     )
                     .with_id(response_id),
             ]

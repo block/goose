@@ -6,8 +6,8 @@ use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Implementation,
-    InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult, ReadResourceResult, ServerCapabilities, ServerNotification, Tool,
-    ToolAnnotations,
+    InitializeResult, JsonObject, ListPromptsResult, ListResourcesResult, ListToolsResult,
+    ReadResourceResult, ServerCapabilities, ServerNotification, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};

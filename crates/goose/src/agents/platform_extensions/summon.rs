@@ -21,7 +21,8 @@ use crate::session::SessionType;
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, ServerCapabilities, ServerNotification, Tool,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;

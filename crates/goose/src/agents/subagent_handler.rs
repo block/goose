@@ -10,8 +10,8 @@ use crate::{
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use rmcp::model::{
-    ErrorCode, ErrorData, LoggingLevel,
-    LoggingMessageNotificationParam, Notification, ServerNotification,
+    ErrorCode, ErrorData, LoggingLevel, LoggingMessageNotificationParam, Notification,
+    ServerNotification,
 };
 use serde::Serialize;
 use std::future::Future;

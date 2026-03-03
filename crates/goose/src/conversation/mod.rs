@@ -550,12 +550,11 @@ mod tests {
                 .with_text("I'll help you search.")
                 .with_tool_request(
                     "search_1",
-                    Ok(CallToolRequestParams::new("web_search").with_arguments(object!({"query": "rust programming"}))),
+                    Ok(CallToolRequestParams::new("web_search")
+                        .with_arguments(object!({"query": "rust programming"}))),
                 ),
-            Message::user().with_tool_response(
-                "search_1",
-                Ok(rmcp::model::CallToolResult::success(vec![])),
-            ),
+            Message::user()
+                .with_tool_response("search_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
             Message::assistant().with_text("Based on the search results, here's what I found..."),
         ];
 
@@ -592,10 +591,7 @@ mod tests {
             Message::user().with_text("Another user message"),
             Message::assistant()
                 .with_text("Response")
-                .with_tool_response(
-                    "orphan_1",
-                    Ok(rmcp::model::CallToolResult::success(vec![])),
-                ), // Wrong role
+                .with_tool_response("orphan_1", Ok(rmcp::model::CallToolResult::success(vec![]))), // Wrong role
             Message::assistant().with_thinking("Let me think", "sig"),
             Message::user()
                 .with_tool_request(
@@ -639,10 +635,8 @@ mod tests {
                     Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
                 ),
             Message::user(),
-            Message::user().with_tool_response(
-                "wrong_id",
-                Ok(rmcp::model::CallToolResult::success(vec![])),
-            ),
+            Message::user()
+                .with_tool_response("wrong_id", Ok(rmcp::model::CallToolResult::success(vec![]))),
             Message::assistant().with_tool_request(
                 "search_2",
                 Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
@@ -712,10 +706,8 @@ mod tests {
                     "search_1",
                     Ok(CallToolRequestParams::new("search").with_arguments(object!({}))),
                 ),
-            Message::user().with_tool_response(
-                "search_1",
-                Ok(rmcp::model::CallToolResult::success(vec![])),
-            ),
+            Message::user()
+                .with_tool_response("search_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
             Message::user().with_text("Thanks!"),
         ];
 

@@ -4,7 +4,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, ServerCapabilities, Tool, ToolAnnotations,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};

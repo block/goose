@@ -8,8 +8,7 @@ use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInpu
 use pctx_code_mode::{CallbackRegistry, CodeMode};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
-    ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool,
-    ToolAnnotations,
+    ListToolsResult, RawContent, Role, ServerCapabilities, Tool as McpTool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};

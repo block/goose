@@ -13,8 +13,7 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
     let mut inspector = RepetitionInspector::new(Some(2));
 
     // First identical call → allowed
-    let call_v1 = CallToolRequestParams::new("fetch_user")
-        .with_arguments(object!({"id": 123}));
+    let call_v1 = CallToolRequestParams::new("fetch_user").with_arguments(object!({"id": 123}));
     assert!(inspector.check_tool_call(call_v1.clone()));
 
     // Second identical call → still allowed (at limit)
@@ -24,8 +23,7 @@ fn test_repetition_inspector_denies_after_exceeding_and_resets_on_param_change()
     assert!(!inspector.check_tool_call(call_v1.clone()));
 
     // Change parameters; this should reset the consecutive counter
-    let call_v2 = CallToolRequestParams::new("fetch_user")
-        .with_arguments(object!({"id": 456}));
+    let call_v2 = CallToolRequestParams::new("fetch_user").with_arguments(object!({"id": 456}));
 
     assert!(inspector.check_tool_call(call_v2.clone()));
 

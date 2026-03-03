@@ -876,7 +876,8 @@ mod tests {
     fn test_prepare_input_tool_request() {
         use rmcp::model::CallToolRequestParams;
         let dir = tempfile::tempdir().unwrap();
-        let tool_call = Ok(CallToolRequestParams::new("developer__shell").with_arguments(serde_json::from_value(json!({"cmd": "ls"})).unwrap()));
+        let tool_call = Ok(CallToolRequestParams::new("developer__shell")
+            .with_arguments(serde_json::from_value(json!({"cmd": "ls"})).unwrap()));
         let messages = vec![Message::new(
             Role::Assistant,
             0,

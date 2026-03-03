@@ -3,7 +3,8 @@ use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, ServerCapabilities,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ServerCapabilities,
 };
 use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;

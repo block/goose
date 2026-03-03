@@ -37,7 +37,10 @@ async fn main() -> Result<()> {
             ),
             Message::user().with_tool_response(
                 "000",
-                Ok(rmcp::model::CallToolResult::success(vec![Content::image(base64_image, "image/png")])),
+                Ok(rmcp::model::CallToolResult::success(vec![Content::image(
+                    base64_image,
+                    "image/png",
+                )])),
             ),
         ];
 

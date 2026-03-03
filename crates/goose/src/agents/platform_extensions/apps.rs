@@ -9,8 +9,8 @@ use crate::providers::base::Provider;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListResourcesResult,
-    ListToolsResult, Meta, RawResource, ReadResourceResult, Resource,
-    ResourceContents, ServerCapabilities, Tool as McpTool,
+    ListToolsResult, Meta, RawResource, ReadResourceResult, Resource, ResourceContents,
+    ServerCapabilities, Tool as McpTool,
 };
 use schemars::{schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
