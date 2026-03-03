@@ -79,7 +79,7 @@
   --background-info: var(--color-blue-200);
 
   /* Message surfaces (DS-first; do not reuse accent as a reading surface) */
-  --message-user-bg: var(--background-medium);
+  --message-user-bg: #f4f4f4;
   --message-user-fg: var(--text-default);
   --message-user-inline-code-bg: var(--background-muted);
   --message-user-inline-code-fg: var(--text-default);
