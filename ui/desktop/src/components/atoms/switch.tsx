@@ -21,10 +21,10 @@ export const Switch = React.forwardRef<
           ].join(' ')
         : variant === 'surface'
           ? [
-              // Surface variant: keep the track subtle and swap thumb color for on/off contrast.
-              // ON:  track muted, thumb white
-              // OFF: track white, thumb muted
-              'data-[state=checked]:bg-background-muted data-[state=checked]:border-border-default',
+              // Surface variant: maximize on/off affordance using the neutral border color.
+              // ON:  track neutral-400, thumb white
+              // OFF: track white, thumb neutral-400
+              'data-[state=checked]:bg-border-default data-[state=checked]:border-border-default',
               'data-[state=unchecked]:bg-background-default data-[state=unchecked]:border-border-default',
             ].join(' ')
           : 'data-[state=checked]:bg-text-default data-[state=unchecked]:bg-background-muted data-[state=unchecked]:border-border-default data-[state=checked]:border-text-default',
@@ -37,7 +37,7 @@ export const Switch = React.forwardRef<
       className={cn(
         'pointer-events-none block h-3 w-3 rounded-full shadow-lg ring-1 ring-border-default transition-transform',
         variant === 'surface'
-          ? 'data-[state=checked]:bg-background-default data-[state=unchecked]:bg-background-muted data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
+          ? 'data-[state=checked]:bg-background-default data-[state=unchecked]:bg-border-default data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
           : 'bg-background-default data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
       )}
     />
