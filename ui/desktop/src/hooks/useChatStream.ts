@@ -47,6 +47,7 @@ interface UseChatStreamReturn {
   ) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
+  clearSessionLoadError: () => void;
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
@@ -80,6 +81,15 @@ type StreamAction =
         session: Session;
         messages: Message[];
         tokenState: TokenState;
+      };
+    }
+  | {
+      type: 'SESSION_LOADED_WITH_ERROR';
+      payload: {
+        session: Session;
+        messages: Message[];
+        tokenState: TokenState;
+        error: string;
       };
     }
   | { type: 'RESET_FOR_NEW_SESSION' }
@@ -136,6 +146,16 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         tokenState: action.payload.tokenState,
         chatState: ChatState.Idle,
         sessionLoadError: undefined,
+      };
+
+    case 'SESSION_LOADED_WITH_ERROR':
+      return {
+        ...state,
+        session: action.payload.session,
+        messages: action.payload.messages,
+        tokenState: action.payload.tokenState,
+        chatState: ChatState.Idle,
+        sessionLoadError: action.payload.error,
       };
 
     case 'RESET_FOR_NEW_SESSION':
@@ -490,7 +510,35 @@ export function useChatStream({
       } catch (error) {
         if (cancelled) return;
 
-        dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
+        // resumeAgent failed. Try to load history read-only
+        // so the user can still see their conversation and continue with a different provider.
+        try {
+          const fallback = await getSession({
+            path: { session_id: sessionId },
+            throwOnError: true,
+          });
+          if (cancelled) return;
+
+          const loadedSession = fallback.data;
+          dispatch({
+            type: 'SESSION_LOADED_WITH_ERROR',
+            payload: {
+              session: loadedSession!,
+              messages: loadedSession?.conversation || [],
+              tokenState: {
+                inputTokens: loadedSession?.input_tokens ?? 0,
+                outputTokens: loadedSession?.output_tokens ?? 0,
+                totalTokens: loadedSession?.total_tokens ?? 0,
+                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
+                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
+                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+              },
+              error: errorMessage(error),
+            },
+          });
+        } catch {
+          dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
+        }
       }
     })();
 
@@ -805,6 +853,10 @@ export function useChatStream({
     dispatch({ type: 'SET_CHAT_STATE', payload: newState });
   }, []);
 
+  const clearSessionLoadError = useCallback(() => {
+    dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+  }, []);
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
@@ -826,6 +878,7 @@ export function useChatStream({
     session: maybe_cached_session,
     chatState: state.chatState,
     setChatState,
+    clearSessionLoadError,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
