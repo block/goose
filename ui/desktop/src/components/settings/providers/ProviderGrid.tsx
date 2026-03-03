@@ -196,11 +196,13 @@ function ProviderCards({
   const handleCreateCustomProvider = useCallback(
     async (data: UpdateCustomProviderRequest) => {
       const { createCustomProvider } = await import('../../../api');
-      await createCustomProvider({ body: data, throwOnError: true });
+      const result = await createCustomProvider({ body: data, throwOnError: true });
+      const providerId = result.data?.replace('Custom provider added - ID: ', '') || null;
       setShowCustomProviderModal(false);
       if (refreshProviders) {
-        refreshProviders();
+        await refreshProviders();
       }
+      setSwitchModelProvider(providerId);
       setShowSwitchModelModal(true);
     },
     [refreshProviders]
