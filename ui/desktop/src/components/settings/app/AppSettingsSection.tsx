@@ -4,7 +4,6 @@ import { Button } from '../../ui/button';
 import { Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import UpdateSection from './UpdateSection';
-import TunnelSection from '../tunnel/TunnelSection';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -335,8 +334,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
       {/* Navigation Settings */}
       <NavigationSettingsCard />
-
-      <TunnelSection />
 
       <TelemetrySettings isWelcome={false} />
 

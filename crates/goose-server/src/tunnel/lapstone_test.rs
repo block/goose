@@ -88,6 +88,7 @@ async fn test_tunnel_end_to_end() {
         tunnel_secret.clone(),
         server_secret.clone(),
         agent_id.clone(),
+        "http",
         handle.clone(),
         restart_tx,
     )
@@ -138,6 +139,7 @@ async fn test_tunnel_post_request() {
         tunnel_secret.clone(),
         server_secret.clone(),
         agent_id.clone(),
+        "http",
         handle.clone(),
         restart_tx,
     )

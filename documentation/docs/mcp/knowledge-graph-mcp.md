@@ -14,7 +14,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the [Knowledge Graph Memory MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) as a goose extension. This enables goose to analyze relationships, detect patterns, and gain a deeper understanding of your data. The knowledge graph builds on the [memory extension](/docs/mcp/memory-mcp) by mapping complex relationships between concepts and providing persistent memory across goose sessions.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-memory&id=knowledge_graph_memory&name=Knowledge%20Graph%20Memory&description=Graph-based%20memory%20system%20for%20persistent%20knowledge%20storage)

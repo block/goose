@@ -130,11 +130,8 @@ run-ui:
 run-ui-playwright:
     #!/usr/bin/env sh
     just release-binary
-    echo "Running UI with Playwright debugging..."
-    RUN_DIR="$HOME/goose-runs/$(date +%Y%m%d-%H%M%S)"
-    mkdir -p "$RUN_DIR"
-    echo "Using isolated directory: $RUN_DIR"
-    cd ui/desktop && ENABLE_PLAYWRIGHT=true GOOSE_PATH_ROOT="$RUN_DIR" npm run start-gui
+    echo "Running UI with Playwright"
+    cd ui/desktop && npm run test-e2e:video
 
 run-ui-only:
     @echo "Running UI..."

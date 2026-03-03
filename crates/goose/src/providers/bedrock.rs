@@ -284,10 +284,11 @@ impl BedrockProvider {
                     ProviderError::Authentication(format!("Failed to call Bedrock: {:?}", err))
                 }
                 ConverseError::ValidationException(err)
-                    if err
-                        .message()
-                        .unwrap_or_default()
-                        .contains("Input is too long for requested model.") =>
+                    if {
+                        let msg = err.message().unwrap_or_default();
+                        msg.contains("Input is too long for requested model.")
+                            || msg.contains("prompt is too long")
+                    } =>
                 {
                     ProviderError::ContextLengthExceeded(format!(
                         "Failed to call Bedrock: {:?}",
@@ -428,6 +429,7 @@ mod tests {
                 toolshim_model: None,
                 fast_model_config: None,
                 request_params: None,
+                reasoning: None,
             },
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),
