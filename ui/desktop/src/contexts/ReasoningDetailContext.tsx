@@ -20,6 +20,12 @@ export interface WorkBlockDetail {
   messageId: string;
   messages: Message[];
   toolCount: number;
+  /**
+   * Cheap change detector for live updates while the activity panel is open.
+   * Should change whenever a tool request/response status or relevant content changes,
+   * even if message count stays the same.
+   */
+  updateToken: string;
   isStreaming?: boolean;
   agentName?: string;
   modeName?: string;
@@ -120,15 +126,8 @@ export function ReasoningDetailProvider({ children }: { children: ReactNode }) {
   const updateWorkBlock = useCallback((workBlock: WorkBlockDetail) => {
     setPanelDetail((prev) => {
       if (prev?.type === 'workblock' && prev.data.messageId === workBlock.messageId) {
-        // Compare by value — messages array is recreated every render by the parent
-        // (.map() in ProgressiveMessageList), so reference equality always fails.
-        // Length + toolCount + isStreaming are sufficient change detectors during streaming.
         const d = prev.data;
-        if (
-          d.messages.length === workBlock.messages.length &&
-          d.toolCount === workBlock.toolCount &&
-          d.isStreaming === workBlock.isStreaming
-        ) {
+        if (d.updateToken === workBlock.updateToken && d.isStreaming === workBlock.isStreaming) {
           return prev; // same content → no re-render
         }
         const pd: PanelDetail = { type: 'workblock', data: workBlock };

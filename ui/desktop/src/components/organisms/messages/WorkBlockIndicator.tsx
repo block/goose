@@ -147,12 +147,53 @@ export default function WorkBlockIndicator({
   const latestRef = useRef({ messages, toolCount, isStreaming, toolCallNotifications, isActive });
   latestRef.current = { messages, toolCount, isStreaming, toolCallNotifications, isActive };
 
+  const buildUpdateToken = useCallback((): string => {
+    const { messages: blockMessages, toolCallNotifications: notifs } = latestRef.current;
+
+    // Fast(ish) signature: last assistant message id + counts of tool requests/responses
+    // + a count of tool notifications. This changes when:
+    // - toolRequest status transitions
+    // - toolResponse payloads appear
+    // - streaming assistant message id advances
+    let toolReq = 0;
+    let toolResp = 0;
+    let pending = 0;
+
+    for (const m of blockMessages) {
+      if (!Array.isArray(m.content)) continue;
+      for (const c of m.content) {
+        if (c.type === 'toolRequest') {
+          toolReq++;
+          const status = (c.toolCall as { status?: string } | undefined)?.status;
+          if (!status || status === 'pending') pending++;
+        } else if (c.type === 'toolResponse') {
+          toolResp++;
+        }
+      }
+    }
+
+    const lastAssistantId = [...blockMessages].reverse().find((m) => m.role === 'assistant')?.id;
+    const notifCount = notifs
+      ? Array.from(notifs.values()).reduce((acc, arr) => acc + arr.length, 0)
+      : 0;
+
+    return [
+      lastAssistantId ?? 'no-assistant',
+      `req:${toolReq}`,
+      `resp:${toolResp}`,
+      `pending:${pending}`,
+      `notif:${notifCount}`,
+      latestRef.current.isStreaming ? 'streaming' : 'done',
+    ].join('|');
+  }, []);
+
   const buildDetail = useCallback(
     (): WorkBlockDetail => ({
       title: 'Activity',
       messageId: blockId,
       messages: latestRef.current.messages,
       toolCount: latestRef.current.toolCount,
+      updateToken: buildUpdateToken(),
       isStreaming: latestRef.current.isStreaming,
       agentName,
       modeName,
@@ -162,7 +203,7 @@ export default function WorkBlockIndicator({
         | Map<string, unknown[]>
         | undefined,
     }),
-    [blockId, agentName, modeName, showAgentBadge, sessionId]
+    [blockId, agentName, modeName, showAgentBadge, sessionId, buildUpdateToken]
   );
 
   const handleClick = () => {
@@ -178,12 +219,11 @@ export default function WorkBlockIndicator({
   }, [isStreaming, messages.length, toggleWorkBlock, buildDetail]);
 
   // Live-update during streaming
-  // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length and toolCount are intentional change detectors
   useEffect(() => {
     if (isActive && isStreaming) {
       updateWorkBlock(buildDetail());
     }
-  }, [messages.length, toolCount, isStreaming, isActive, updateWorkBlock, buildDetail]);
+  }, [isStreaming, isActive, updateWorkBlock, buildDetail]);
 
   // Auto-close when streaming ends
   const prevStreamingRef = useRef(isStreaming);
