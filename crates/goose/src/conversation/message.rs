@@ -452,7 +452,10 @@ impl MessageContent {
     }
 
     pub fn reasoning<S: Into<String>>(text: S) -> Self {
-        MessageContent::Reasoning(ReasoningContent { text: text.into() })
+        MessageContent::Thinking(ThinkingContent {
+            thinking: text.into(),
+            signature: String::new(),
+        })
     }
 
     pub fn as_system_notification(&self) -> Option<&SystemNotificationContent> {

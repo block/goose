@@ -8,7 +8,7 @@ import ToolCallWithResponse from '../ToolCallWithResponse';
 import ImagePreview from '../ImagePreview';
 import {
   getTextAndImageContent,
-  getReasoningContent,
+  getThinkingContent,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
 } from '../../types/message';
@@ -83,7 +83,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
               messages
                 .map((message, index) => {
                   const { textContent, imagePaths } = getTextAndImageContent(message);
-                  const reasoningContent = getReasoningContent(message);
+                  const thinkingContent = getThinkingContent(message);
 
                   // Get tool requests from the message
                   const toolRequests = message.content
@@ -122,13 +122,13 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
 
                       <div className="flex flex-col w-full">
                         {/* Reasoning content */}
-                        {reasoningContent && (
+                        {thinkingContent && (
                           <details className="mb-2">
                             <summary className="cursor-pointer text-xs text-textSubtle select-none">
-                              Show reasoning
+                              Show thinking
                             </summary>
                             <div className="mt-2 text-sm">
-                              <MarkdownContent content={reasoningContent} />
+                              <MarkdownContent content={thinkingContent} />
                             </div>
                           </details>
                         )}

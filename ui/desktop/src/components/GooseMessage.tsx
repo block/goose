@@ -5,7 +5,7 @@ import MarkdownContent from './MarkdownContent';
 import ToolCallWithResponse from './ToolCallWithResponse';
 import {
   getTextAndImageContent,
-  getReasoningContent,
+  getThinkingContent,
   getToolRequests,
   getToolResponses,
   getToolConfirmationContent,
@@ -48,7 +48,7 @@ export default function GooseMessage({
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   let { textContent, imagePaths } = getTextAndImageContent(message);
-  const reasoningContent = getReasoningContent(message);
+  const thinkingContent = getThinkingContent(message);
 
   const splitChainOfThought = (text: string): { displayText: string; cotText: string | null } => {
     const regex = /<think>([\s\S]*?)<\/think>/i;
@@ -131,9 +131,9 @@ export default function GooseMessage({
   return (
     <div className="goose-message flex w-[90%] justify-start min-w-0">
       <div className="flex flex-col w-full min-w-0">
-        {reasoningContent && (
+        {thinkingContent && (
           <div className="mb-2 text-sm text-gray-400 italic">
-            <MarkdownContent content={reasoningContent} />
+            <MarkdownContent content={thinkingContent} />
           </div>
         )}
 

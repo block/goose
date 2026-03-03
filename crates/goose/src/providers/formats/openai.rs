@@ -105,12 +105,10 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                         }
                     }
                 }
-                MessageContent::Thinking(_) => {
-                    // Thinking blocks are not directly used in OpenAI format
-                    continue;
+                MessageContent::Thinking(t) => {
+                    reasoning_text.push_str(&t.thinking);
                 }
                 MessageContent::RedactedThinking(_) => {
-                    // Redacted thinking blocks are not directly used in OpenAI format
                     continue;
                 }
                 MessageContent::SystemNotification(_) => {
@@ -1898,11 +1896,11 @@ data: [DONE]"#;
         let message = response_to_message(&response)?;
         assert_eq!(message.content.len(), 2);
 
-        // First should be reasoning content
-        if let MessageContent::Reasoning(reasoning) = &message.content[0] {
-            assert_eq!(reasoning.text, "Let me think about this step by step...");
+        // First should be thinking content (reasoning is mapped to thinking)
+        if let MessageContent::Thinking(thinking) = &message.content[0] {
+            assert_eq!(thinking.thinking, "Let me think about this step by step...");
         } else {
-            panic!("Expected Reasoning content");
+            panic!("Expected Thinking content, got {:?}", message.content[0]);
         }
 
         // Second should be text content
