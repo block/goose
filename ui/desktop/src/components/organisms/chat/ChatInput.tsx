@@ -1200,7 +1200,7 @@ export default function ChatInput({
         isFocused
           ? 'border-border-strong hover:border-border-strong'
           : 'border-border-default hover:border-border-default'
-      } bg-background-default z-10 rounded-t-2xl`}
+      } bg-background-default z-10 rounded-t-3xl`}
       data-drop-zone="true"
       onDrop={handleLocalDrop}
       onDragOver={handleLocalDragOver}
