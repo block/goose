@@ -9,11 +9,12 @@ use async_trait::async_trait;
 use edit::{EditTools, FileEditParams, FileWriteParams};
 use indoc::indoc;
 use rmcp::model::{
-    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, ServerCapabilities, Tool, ToolAnnotations,
+    CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
+    ServerCapabilities, Tool, ToolAnnotations,
 };
 use schemars::{schema_for, JsonSchema};
 use serde_json::Value;
-use shell::{ShellParams, ShellTool};
+use shell::{ShellOutput, ShellParams, ShellTool};
 use std::path::Path;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
@@ -101,9 +102,10 @@ impl DeveloperClient {
             )),
             Tool::new(
                 "shell".to_string(),
-                "Execute a shell command in the user's default shell in the current dir and return both stdout/stderr. The output is limited to up to 2000 lines, and longer outputs will be saved to a temporary file.".to_string(),
+                "Execute a shell command in the user's default shell in the current dir. Returns an object with stdout and stderr as separate fields. The output of each stream is limited to up to 2000 lines, and longer outputs will be saved to a temporary file.".to_string(),
                 Self::schema::<ShellParams>(),
             )
+            .with_output_schema::<ShellOutput>()
             .annotate(ToolAnnotations::from_raw(
                 Some("Shell".to_string()),
                 Some(false),
@@ -154,10 +156,7 @@ impl McpClientTrait for DeveloperClient {
         match name {
             "shell" => match Self::parse_args::<ShellParams>(arguments) {
                 Ok(params) => Ok(self.shell_tool.shell_with_cwd(params, working_dir).await),
-                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
-                    "Error: {error}"
-                ))
-                .with_priority(0.0)])),
+                Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
                 Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),

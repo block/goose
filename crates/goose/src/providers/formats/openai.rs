@@ -760,14 +760,9 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model = model_config.model_name.starts_with("o1")
-        || model_config.model_name.starts_with("o2")
-        || model_config.model_name.starts_with("o3")
-        || model_config.model_name.starts_with("o4")
-        || model_config.model_name.starts_with("gpt-5");
+    let is_reasoning_model = model_config.is_openai_reasoning_model();
 
-    // Only extract reasoning effort for O-series models
-    let (model_name, reasoning_effort) = if is_ox_model {
+    let (model_name, reasoning_effort) = if is_reasoning_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
 
@@ -782,12 +777,11 @@ pub fn create_request(
             ),
         }
     } else {
-        // For non-O family models, use the model name as is and no reasoning effort
         (model_config.model_name.to_string(), None)
     };
 
     let system_message = json!({
-        "role": if is_ox_model { "developer" } else { "system" },
+        "role": if is_reasoning_model { "developer" } else { "system" },
         "content": system
     });
 
@@ -813,22 +807,16 @@ pub fn create_request(
     }
 
     // o1, o3 models currently don't support temperature
-    if !is_ox_model {
+    if !is_reasoning_model {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
     }
 
-    // o1/o3 models use max_completion_tokens instead of max_tokens
-    let key = if is_ox_model {
-        "max_completion_tokens"
-    } else {
-        "max_tokens"
-    };
-    payload
-        .as_object_mut()
-        .unwrap()
-        .insert(key.to_string(), json!(model_config.max_output_tokens()));
+    payload.as_object_mut().unwrap().insert(
+        "max_completion_tokens".to_string(),
+        json!(model_config.max_output_tokens()),
+    );
 
     if for_streaming {
         payload["stream"] = json!(true);
@@ -1452,6 +1440,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(
             &model_config,
@@ -1470,7 +1459,7 @@ mod tests {
                     "content": "system"
                 }
             ],
-            "max_tokens": 1024
+            "max_completion_tokens": 1024
         });
 
         for (key, value) in expected.as_object().unwrap() {
@@ -1492,6 +1481,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(
             &model_config,
@@ -1533,6 +1523,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(
             &model_config,

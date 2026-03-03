@@ -104,7 +104,9 @@ export const SwitchModelModal = ({
   const [provider, setProvider] = useState<string | null>(
     initialProvider || currentProvider || null
   );
-  const [model, setModel] = useState<string>(currentModel || '');
+  const [model, setModel] = useState<string>(
+    initialProvider && initialProvider !== currentProvider ? '' : currentModel || ''
+  );
   const [isCustomModel, setIsCustomModel] = useState(false);
   const [validationErrors, setValidationErrors] = useState({
     provider: '',
@@ -118,6 +120,7 @@ export const SwitchModelModal = ({
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
+  const [providerWarnings, setProviderWarnings] = useState<Record<string, string>>({});
   const [thinkingLevel, setThinkingLevel] = useState<string>('low');
   const [claudeThinkingType, setClaudeThinkingType] = useState<string>('disabled');
   const [claudeThinkingEffort, setClaudeThinkingEffort] = useState<string>('high');
@@ -231,7 +234,11 @@ export const SwitchModelModal = ({
         if (claudeThinkingType === 'adaptive') {
           upsert('CLAUDE_THINKING_EFFORT', claudeThinkingEffort, false).catch(console.warn);
         } else if (claudeThinkingType === 'enabled') {
-          upsert('CLAUDE_THINKING_BUDGET', parseInt(claudeThinkingBudget, 10) || 16000, false).catch(console.warn);
+          upsert(
+            'CLAUDE_THINKING_BUDGET',
+            parseInt(claudeThinkingBudget, 10) || 16000,
+            false
+          ).catch(console.warn);
         }
       }
 
@@ -297,8 +304,12 @@ export const SwitchModelModal = ({
           options: { value: string; label: string; provider: string; providerType: ProviderType }[];
         }[] = [];
         const errorMap: Record<string, string> = {};
+        const warningMap: Record<string, string> = {};
 
-        results.forEach(({ provider: p, models, error }) => {
+        results.forEach(({ provider: p, models, error, warning }) => {
+          if (warning) {
+            warningMap[p.name] = warning;
+          }
           if (error) {
             errorMap[p.name] = error;
             return;
@@ -332,8 +343,9 @@ export const SwitchModelModal = ({
           }
         });
 
-        // Save provider errors to state
+        // Save provider errors and warnings to state
         setProviderErrors(errorMap);
+        setProviderWarnings(warningMap);
 
         setModelOptions(groupedOptions);
         setOriginalModelOptions(groupedOptions);
@@ -679,6 +691,13 @@ export const SwitchModelModal = ({
 
                       {attemptedSubmit && validationErrors.model && (
                         <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+                      )}
+                      {provider && providerWarnings[provider] && (
+                        <div className="rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-3 mt-2">
+                          <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                            {providerWarnings[provider]}
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (

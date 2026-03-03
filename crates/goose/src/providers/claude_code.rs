@@ -344,7 +344,7 @@ impl ClaudeCodeProvider {
         cmd
     }
 
-    /// Returns true when the control protocol is enabled (Approve mode).
+    /// Returns true when the control protocol is enabled.
     fn apply_permission_flags(cmd: &mut Command) -> Result<bool, ProviderError> {
         let config = Config::global();
         let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
@@ -354,11 +354,7 @@ impl ClaudeCodeProvider {
                 cmd.arg("--dangerously-skip-permissions");
                 Ok(false)
             }
-            GooseMode::SmartApprove => {
-                cmd.arg("--permission-mode").arg("acceptEdits");
-                Ok(false)
-            }
-            GooseMode::Approve => {
+            GooseMode::SmartApprove | GooseMode::Approve => {
                 cmd.arg("--permission-prompt-tool").arg("stdio");
                 Ok(true)
             }
