@@ -362,6 +362,12 @@ export type ExtensionConfig = {
      * The name used to identify this extension
      */
     name: string;
+    /**
+     * Unix domain socket path to route HTTP through (e.g. "@egress.sock" for Envoy sidecar).
+     * When set, the physical connection goes through this socket while `uri` is used for the
+     * HTTP Host header and path. Useful in K8s environments where DNS only resolves via Envoy.
+     */
+    socket?: string | null;
     timeout?: number | null;
     type: 'streamable_http';
     uri: string;

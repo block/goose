@@ -230,6 +230,11 @@ pub enum ExtensionConfig {
         env_keys: Vec<String>,
         #[serde(default)]
         headers: HashMap<String, String>,
+        /// Unix domain socket path to route HTTP through (e.g. "@egress.sock" for Envoy sidecar).
+        /// When set, the physical connection goes through this socket while `uri` is used for the
+        /// HTTP Host header and path. Useful in K8s environments where DNS only resolves via Envoy.
+        #[serde(default)]
+        socket: Option<String>,
         // NOTE: set timeout to be optional for compatibility.
         // However, new configurations should include this field.
         timeout: Option<u64>,
@@ -301,6 +306,7 @@ impl ExtensionConfig {
             envs: Envs::default(),
             env_keys: Vec::new(),
             headers: HashMap::new(),
+            socket: None,
             description: description.into(),
             timeout: Some(timeout.into()),
             bundled: None,
@@ -455,6 +461,7 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 headers,
+                socket,
                 timeout,
                 bundled,
                 available_tools,
@@ -474,6 +481,7 @@ impl ExtensionConfig {
                     envs: Envs::new(merged),
                     env_keys: vec![],
                     headers,
+                    socket,
                     timeout,
                     bundled,
                     available_tools,
@@ -490,9 +498,12 @@ impl std::fmt::Display for ExtensionConfig {
             ExtensionConfig::Sse { name, .. } => {
                 write!(f, "SSE({}: unsupported)", name)
             }
-            ExtensionConfig::StreamableHttp { name, uri, .. } => {
-                write!(f, "StreamableHttp({}: {})", name, uri)
-            }
+            ExtensionConfig::StreamableHttp {
+                name, uri, socket, ..
+            } => match socket {
+                Some(s) => write!(f, "StreamableHttp({}: {} via {})", name, uri, s),
+                None => write!(f, "StreamableHttp({}: {})", name, uri),
+            },
             ExtensionConfig::Stdio {
                 name, cmd, args, ..
             } => {
@@ -665,6 +676,7 @@ available_tools: []
             )]
             .into_iter()
             .collect(),
+            socket: None,
             timeout: None,
             bundled: None,
             available_tools: vec![],
@@ -685,6 +697,7 @@ available_tools: []
             )]
             .into_iter()
             .collect(),
+            socket: None,
             timeout: None,
             bundled: None,
             available_tools: vec![],
@@ -758,6 +771,7 @@ available_tools: []
             )]
             .into_iter()
             .collect(),
+            socket: None,
             timeout: None,
             bundled: None,
             available_tools: vec![],
@@ -775,6 +789,7 @@ available_tools: []
             headers: [("Authorization".to_string(), "Bearer secret_value".to_string())]
                 .into_iter()
                 .collect(),
+            socket: None,
             timeout: None,
             bundled: None,
             available_tools: vec![],
@@ -824,5 +839,65 @@ available_tools: []
         .unwrap();
         cfg.set("MY_SECRET", &"secret_value", true).unwrap();
         assert_eq!(config.resolve(&cfg).await.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_deserialize_streamable_http_with_socket() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "type: streamable_http\nname: ai-app-info\ndescription: test\nuri: http://example.com/mcp\nsocket: \"@egress.sock\"\n",
+        )
+        .unwrap();
+        if let ExtensionConfig::StreamableHttp { socket, .. } = config {
+            assert_eq!(socket, Some("@egress.sock".to_string()));
+        } else {
+            panic!("unexpected variant");
+        }
+    }
+
+    #[test]
+    fn test_deserialize_streamable_http_without_socket() {
+        let config: ExtensionConfig = serde_yaml::from_str(
+            "type: streamable_http\nname: ai-app-info\ndescription: test\nuri: http://example.com/mcp\n",
+        )
+        .unwrap();
+        if let ExtensionConfig::StreamableHttp { socket, .. } = config {
+            assert_eq!(socket, None);
+        } else {
+            panic!("unexpected variant");
+        }
+    }
+
+    #[test]
+    fn test_display_streamable_http_without_socket() {
+        let config = ExtensionConfig::streamable_http(
+            "ai-app-info",
+            "http://example.com/mcp",
+            "test",
+            300u64,
+        );
+        assert_eq!(
+            format!("{config}"),
+            "StreamableHttp(ai-app-info: http://example.com/mcp)"
+        );
+    }
+
+    #[test]
+    fn test_display_streamable_http_with_socket() {
+        let config = ExtensionConfig::StreamableHttp {
+            name: "ai-app-info".to_string(),
+            uri: "http://example.com/mcp".to_string(),
+            description: "test".to_string(),
+            timeout: Some(300),
+            headers: Default::default(),
+            envs: Default::default(),
+            env_keys: vec![],
+            socket: Some("@egress.sock".to_string()),
+            bundled: None,
+            available_tools: vec![],
+        };
+        assert_eq!(
+            format!("{config}"),
+            "StreamableHttp(ai-app-info: http://example.com/mcp via @egress.sock)"
+        );
     }
 }

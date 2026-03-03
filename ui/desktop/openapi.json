@@ -4691,6 +4691,11 @@
                 "type": "string",
                 "description": "The name used to identify this extension"
               },
+              "socket": {
+                "type": "string",
+                "description": "Unix domain socket path to route HTTP through (e.g. \"@egress.sock\" for Envoy sidecar).\nWhen set, the physical connection goes through this socket while `uri` is used for the\nHTTP Host header and path. Useful in K8s environments where DNS only resolves via Envoy.",
+                "nullable": true
+              },
               "timeout": {
                 "type": "integer",
                 "format": "int64",

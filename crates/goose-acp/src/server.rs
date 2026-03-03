@@ -86,6 +86,7 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
                 .into_iter()
                 .map(|h| (h.name, h.value))
                 .collect(),
+            socket: None,
             timeout: None,
             bundled: Some(false),
             available_tools: vec![],
@@ -1403,6 +1404,7 @@ mod tests {
                 "Authorization".into(),
                 "Bearer ghp_xxxxxxxxxxxx".into()
             )]),
+            socket: None,
             timeout: None,
             bundled: Some(false),
             available_tools: vec![],
