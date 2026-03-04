@@ -55,7 +55,7 @@ dirs = { workspace = true }
 rcgen = "0.13"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 aws-lc-rs = "1.16.0"
-sentry = { version = "0.46.2", features = ["tower", "tower-http", "tracing"] }
+sentry = { version = "0.46.2", default-features = false, features = ["backtrace", "contexts", "panic", "debug-images", "reqwest", "rustls", "tower", "tower-http", "tracing"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
