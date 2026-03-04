@@ -54,8 +54,8 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
         };
 
         if needs_migration {
-            let existing_entry = existing
-                .and_then(|v| serde_yaml::from_value::<ExtensionEntry>(v.clone()).ok());
+            let existing_entry =
+                existing.and_then(|v| serde_yaml::from_value::<ExtensionEntry>(v.clone()).ok());
 
             let enabled = existing_entry
                 .as_ref()

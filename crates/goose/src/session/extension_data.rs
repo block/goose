@@ -2,7 +2,7 @@
 // Provides a simple way to store extension-specific data with versioned keys
 
 use crate::config::base::Config;
-use crate::config::extensions::{is_extension_available, normalize_platform_extension};
+use crate::config::extensions::is_extension_available;
 use crate::config::ExtensionConfig;
 use crate::session::SessionManager;
 use anyhow::Result;
@@ -117,11 +117,6 @@ impl EnabledExtensionsState {
 
     pub fn from_extension_data(extension_data: &ExtensionData) -> Option<Self> {
         let mut state = <Self as ExtensionState>::from_extension_data(extension_data)?;
-        state.extensions = state
-            .extensions
-            .into_iter()
-            .map(normalize_platform_extension)
-            .collect();
         state.extensions.retain(is_extension_available);
         Some(state)
     }
