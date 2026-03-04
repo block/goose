@@ -1446,6 +1446,19 @@ impl Agent {
                                         .collect();
 
                                     if !specs.is_empty() {
+                                        yield AgentEvent::McpNotification((
+                                            "genui".to_string(),
+                                            ServerNotification::CustomNotification(
+                                                rmcp::model::CustomNotification::new(
+                                                    "goose/activity".to_string(),
+                                                    Some(serde_json::json!({
+                                                        "phase": "render",
+                                                        "text": "Validating generated UI spec",
+                                                    })),
+                                                ),
+                                            ),
+                                        ));
+
                                         if let Err(e) = self
                                             .validate_json_render_spec_via_genui_tool(
                                                 &session,
@@ -1464,6 +1477,21 @@ impl Agent {
                                                 ),
                                             );
 
+                                            yield AgentEvent::McpNotification((
+                                                "genui".to_string(),
+                                                ServerNotification::CustomNotification(
+                                                    rmcp::model::CustomNotification::new(
+                                                        "goose/activity".to_string(),
+                                                        Some(serde_json::json!({
+                                                            "phase": "render",
+                                                            "text": format!(
+                                                                "UI spec validation failed: {e}",
+                                                            ),
+                                                        })),
+                                                    ),
+                                                ),
+                                            ));
+
                                             messages_to_add.push(
                                                 Message::user()
                                                     .with_text(format!(
@@ -1477,6 +1505,19 @@ impl Agent {
                                             no_tools_called = false;
                                             break;
                                         }
+
+                                        yield AgentEvent::McpNotification((
+                                            "genui".to_string(),
+                                            ServerNotification::CustomNotification(
+                                                rmcp::model::CustomNotification::new(
+                                                    "goose/activity".to_string(),
+                                                    Some(serde_json::json!({
+                                                        "phase": "render",
+                                                        "text": "UI spec validated",
+                                                    })),
+                                                ),
+                                            ),
+                                        ));
                                     }
                                 }
 

@@ -18,7 +18,7 @@ use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, RoutingInfo, TokenState};
 use goose::conversation::Conversation;
 use goose::session::SessionManager;
-use rmcp::model::ServerNotification;
+use rmcp::model::{CustomNotification, ServerNotification};
 use serde::{Deserialize, Serialize};
 use std::{
     convert::Infallible,
@@ -230,6 +230,30 @@ async fn stream_event(
         tracing::info!("client hung up");
         cancel_token.cancel();
     }
+}
+
+fn goose_activity_notification(params: serde_json::Value) -> ServerNotification {
+    ServerNotification::CustomNotification(CustomNotification::new(
+        "goose/activity".to_string(),
+        Some(params),
+    ))
+}
+
+async fn stream_activity(
+    tx: &mpsc::Sender<String>,
+    cancel_token: &CancellationToken,
+    request_id: &str,
+    params: serde_json::Value,
+) {
+    stream_event(
+        MessageEvent::Notification {
+            request_id: request_id.to_string(),
+            message: goose_activity_notification(params),
+        },
+        tx,
+        cancel_token,
+    )
+    .await;
 }
 
 #[allow(clippy::too_many_lines)]
@@ -468,6 +492,17 @@ pub async fn reply(
                         max_concurrency = max_concurrency,
                         task_count = plan.tasks.len(),
                     );
+
+                    let _ = stream_activity(
+                        &task_tx,
+                        &task_cancel,
+                        "orchestrator",
+                        serde_json::json!({
+                            "phase": "subagent",
+                            "text": "Executing compound plan",
+                        }),
+                    )
+                    .await;
 
                     tracing::info!(
                         task_count = plan.tasks.len(),

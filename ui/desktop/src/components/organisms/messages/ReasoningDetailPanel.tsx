@@ -87,7 +87,14 @@ interface ThinkingActivityEntry {
   isActive: boolean;
 }
 
-type ActivityEntry = ToolActivityEntry | ThinkingActivityEntry;
+interface EventActivityEntry {
+  kind: 'event';
+  id: string;
+  description: string;
+  isActive: boolean;
+}
+
+type ActivityEntry = ToolActivityEntry | ThinkingActivityEntry | EventActivityEntry;
 
 // ── Tool response pairing ───────────────────────────────────────────
 
@@ -155,6 +162,43 @@ function firstSentence(text: string): string | null {
   return null;
 }
 
+function extractActivityNotifications(
+  toolCallNotifications: Map<string, unknown[]> | undefined
+): EventActivityEntry[] {
+  if (!toolCallNotifications) return [];
+
+  const entries: EventActivityEntry[] = [];
+
+  for (const [requestId, notifications] of toolCallNotifications.entries()) {
+    for (const raw of notifications) {
+      const n = raw as {
+        message?: { method?: string; params?: unknown };
+      };
+
+      const method = n.message?.method;
+      if (method !== 'goose/activity') continue;
+
+      const params = (n.message?.params || {}) as {
+        phase?: string;
+        text?: string;
+      };
+
+      const text = typeof params.text === 'string' ? params.text.trim() : '';
+      if (!text) continue;
+
+      const phase = typeof params.phase === 'string' ? params.phase : 'activity';
+      entries.push({
+        kind: 'event',
+        id: `evt-${requestId}-${entries.length}`,
+        description: `${phase}: ${text}`,
+        isActive: false,
+      });
+    }
+  }
+
+  return entries;
+}
+
 export function extractActivityEntries(messages: Message[], isStreaming: boolean): ActivityEntry[] {
   const entries: ActivityEntry[] = [];
   const responseMap = buildToolResponseMap(messages);
@@ -218,8 +262,12 @@ export function extractActivityEntries(messages: Message[], isStreaming: boolean
         // Some providers also nest a status inside the toolCall wrapper.
         // Otherwise, fall back to response pairing (no response yet => pending).
         const requestStatus =
-          (typeof cTyped.status === 'string' ? cTyped.status : undefined) ??
-          (toolCallData && typeof toolCallData.status === 'string' ? toolCallData.status : undefined);
+          (typeof (cTyped as { status?: unknown }).status === 'string'
+            ? ((cTyped as { status?: string }).status ?? undefined)
+            : undefined) ??
+          (toolCallData && typeof toolCallData.status === 'string'
+            ? toolCallData.status
+            : undefined);
 
         const isPending =
           Boolean(requestId) &&
@@ -266,7 +314,13 @@ export default function ReasoningDetailPanel() {
 
   const activityEntries = useMemo(() => {
     if (!workBlockData) return [];
-    return extractActivityEntries(workBlockData.messages, !!isLiveStreaming);
+
+    const eventEntries = extractActivityNotifications(workBlockData.toolCallNotifications);
+    const toolEntries = extractActivityEntries(workBlockData.messages, !!isLiveStreaming);
+
+    // Put backend-emitted lifecycle events first so users see high-level phases,
+    // then tool/thinking entries extracted from messages.
+    return [...eventEntries, ...toolEntries];
   }, [workBlockData, isLiveStreaming]);
 
   useEffect(() => {
@@ -348,6 +402,12 @@ export default function ReasoningDetailPanel() {
                 {activityEntries.map((entry) =>
                   entry.kind === 'thinking' ? (
                     <ThinkingEntry key={entry.id} text={entry.description} />
+                  ) : entry.kind === 'event' ? (
+                    <ActivityStep
+                      key={entry.id}
+                      description={entry.description}
+                      isActive={entry.isActive}
+                    />
                   ) : (
                     <ActivityStep
                       key={entry.id}
