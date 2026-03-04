@@ -187,11 +187,11 @@ export default function PromptsSettingsSection() {
             </div>
           </CardHeader>
           <CardContent className="px-4 space-y-4 flex flex-col h-full">
-            <div className="text-sm text-text-muted bg-background-muted p-3 rounded-lg">
+            <div className="text-sm text-text-secondary bg-background-secondary p-3 rounded-lg">
               <p>
                 <strong>Tip:</strong> Template variables like{' '}
-                <code className="bg-background-default px-1 rounded">{'{{ extensions }}'}</code> or{' '}
-                <code className="bg-background-default px-1 rounded">
+                <code className="bg-background-primary px-1 rounded">{'{{ extensions }}'}</code> or{' '}
+                <code className="bg-background-primary px-1 rounded">
                   {'{% for item in list %}'}
                 </code>{' '}
                 are replaced with actual values at runtime. Be careful not to remove required
@@ -215,7 +215,7 @@ export default function PromptsSettingsSection() {
               </div>
               <textarea
                 value={content}
-                className="w-full flex-1 min-h-[500px] border rounded-md p-3 text-sm font-mono resize-y bg-background-default text-text-default border-border-default focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full flex-1 min-h-[500px] border rounded-md p-3 text-sm font-mono resize-y bg-background-primary text-text-primary border-border-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Enter prompt content..."
                 spellCheck={false}
@@ -241,7 +241,7 @@ export default function PromptsSettingsSection() {
             <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-1" />
             <div className="flex-1">
               <CardTitle className="text-yellow-600 dark:text-yellow-400">Prompt Editing</CardTitle>
-              <p className="text-sm text-text-muted mt-2">
+              <p className="text-sm text-text-secondary mt-2">
                 Customize the prompts that define goose's behavior in different contexts. These
                 prompts use Jinja2 templating syntax. Be careful when modifying template variables,
                 as incorrect changes can break functionality. Please share any improvements with the
@@ -266,18 +266,20 @@ export default function PromptsSettingsSection() {
             {prompts.map((prompt) => (
               <div
                 key={prompt.name}
-                className="flex items-center justify-between p-3 rounded-lg border border-border-default hover:bg-background-muted transition-colors"
+                className="flex items-center justify-between p-3 rounded-lg border border-border-primary hover:bg-background-secondary transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-medium text-text-default truncate">{prompt.name}</h4>
+                    <h4 className="font-medium text-text-primary truncate">{prompt.name}</h4>
                     {prompt.is_customized && (
                       <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
                         Customized
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-text-muted mt-0.5 truncate">{prompt.description}</p>
+                  <p className="text-sm text-text-secondary mt-0.5 truncate">
+                    {prompt.description}
+                  </p>
                 </div>
                 <Button
                   variant="outline"

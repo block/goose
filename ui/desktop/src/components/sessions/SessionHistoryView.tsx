@@ -89,10 +89,10 @@ const SessionMessages: React.FC<{
         <div className="flex flex-col space-y-6">
           {isLoading ? (
             <div className="flex justify-center items-center py-12">
-              <LoaderCircle className="animate-spin h-8 w-8 text-text-default" />
+              <LoaderCircle className="animate-spin h-8 w-8 text-text-primary" />
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center py-8 text-text-muted">
+            <div className="flex flex-col items-center justify-center py-8 text-text-secondary">
               <div className="text-red-500 mb-4">
                 <AlertCircle size={32} />
               </div>
@@ -120,7 +120,7 @@ const SessionMessages: React.FC<{
               </SearchView>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-text-muted">
+            <div className="flex flex-col items-center justify-center py-8 text-text-secondary">
               <MessageSquareText className="w-12 h-12 mb-4" />
               <p className="text-lg mb-2">No messages found</p>
               <p className="text-sm">This session doesn't contain any messages</p>
@@ -259,7 +259,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             <div className="flex flex-col">
               {!isLoading ? (
                 <>
-                  <div className="flex items-center text-text-muted text-sm space-x-5 font-mono">
+                  <div className="flex items-center text-text-secondary text-sm space-x-5 font-mono">
                     <span className="flex items-center">
                       <Calendar className="w-4 h-4 mr-1" />
                       {formatMessageTimestamp(messages[0]?.created)}
@@ -275,7 +275,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center text-text-muted text-sm mt-1 font-mono">
+                  <div className="flex items-center text-text-secondary text-sm mt-1 font-mono">
                     <span className="flex items-center">
                       <Folder className="w-4 h-4 mr-1" />
                       {session.working_dir}
@@ -283,7 +283,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                   </div>
                 </>
               ) : (
-                <div className="flex items-center text-text-muted text-sm">
+                <div className="flex items-center text-text-secondary text-sm">
                   <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
                   <span>Loading session details...</span>
                 </div>
@@ -304,7 +304,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex justify-center items-center gap-2">
-              <Share2 className="w-6 h-6 text-text-default" />
+              <Share2 className="w-6 h-6 text-text-primary" />
               Share Session (beta)
             </DialogTitle>
             <DialogDescription>
@@ -313,8 +313,8 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           </DialogHeader>
 
           <div className="py-4">
-            <div className="relative rounded-full border border-border-default px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
-              <code className="text-sm text-text-default dark:text-text-inverse overflow-x-hidden break-all pr-8 w-full">
+            <div className="relative rounded-full border border-border-primary px-3 py-2 flex items-center bg-gray-100 dark:bg-gray-600">
+              <code className="text-sm text-text-primary dark:text-text-inverse overflow-x-hidden break-all pr-8 w-full">
                 {shareLink}
               </code>
               <Button

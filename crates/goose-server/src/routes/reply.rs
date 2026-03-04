@@ -79,8 +79,11 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
     pub user_message: Message,
+    /// Override the server's conversation history. Only use this when you need absolute control
+    /// over the conversation state (e.g., administrative tools). For normal operations, the server
+    /// is the source of truth - use truncate/fork endpoints to modify conversation history instead.
     #[serde(default)]
-    pub conversation_so_far: Option<Vec<Message>>,
+    pub override_conversation: Option<Vec<Message>>,
     pub session_id: String,
     pub recipe_name: Option<String>,
     pub recipe_version: Option<String>,
@@ -240,7 +243,7 @@ pub async fn reply(
     let cancel_token = CancellationToken::new();
 
     let user_message = request.user_message;
-    let conversation_so_far = request.conversation_so_far;
+    let override_conversation = request.override_conversation;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -285,7 +288,7 @@ pub async fn reply(
             retry_config: None,
         };
 
-        let mut all_messages = match conversation_so_far {
+        let mut all_messages = match override_conversation {
             Some(history) => {
                 let conv = Conversation::new_unvalidated(history);
                 if let Err(e) = state
@@ -489,7 +492,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
                         user_message: Message::user().with_text("test message"),
-                        conversation_so_far: None,
+                        override_conversation: None,
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,

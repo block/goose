@@ -14,12 +14,7 @@ import {
 } from '../../../api';
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../../ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`;
@@ -273,9 +268,7 @@ export const LocalInferenceSettings = () => {
                         onChange={() => selectModel(model.id)}
                         className="cursor-pointer"
                       />
-                      <span className="text-sm font-medium text-text-default">
-                        {model.id}
-                      </span>
+                      <span className="text-sm font-medium text-text-default">{model.id}</span>
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
                       </span>
@@ -324,9 +317,7 @@ export const LocalInferenceSettings = () => {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-sm font-medium text-text-default">
-                        {model.id}
-                      </h4>
+                      <h4 className="text-sm font-medium text-text-default">{model.id}</h4>
                       <span className="text-xs text-text-muted">
                         {formatBytes(model.size_bytes)}
                       </span>

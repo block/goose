@@ -5,7 +5,7 @@ description: Add I Ching MCP Server as a goose Extension
 
 This tutorial covers how to add the [I Ching MCP Server](https://github.com/threemachines/i-ching) as a goose extension to enable traditional I Ching divination readings.
 
-:::tip TLDR
+:::tip Quick Install
 1. Install: `cargo install i-ching`
 2. Configure: [Add I Ching Extension](goose://extension?cmd=i-ching-mcp-server&id=i-ching&name=I%20Ching&description=I%20Ching%20divination%20readings)
 :::

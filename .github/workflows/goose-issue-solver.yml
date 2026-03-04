@@ -181,9 +181,11 @@ jobs:
         run: |
           echo "number=$(jq -r '.number' /tmp/issue.json)" >> $GITHUB_OUTPUT
 
-          echo "title<<TITLE_EOF" >> $GITHUB_OUTPUT
+          # SECURITY: Use random delimiter to prevent injection if title contains our delimiter
+          DELIMITER="EOF_$(openssl rand -hex 8)"
+          echo "title<<$DELIMITER" >> $GITHUB_OUTPUT
           jq -r '.title' /tmp/issue.json >> $GITHUB_OUTPUT
-          echo "TITLE_EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
 
       - name: Run goose
         id: goose
@@ -202,9 +204,11 @@ jobs:
 
           if [ -n "$(git status --porcelain)" ] && [ -f /tmp/issue_summary.txt ]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
-            echo "summary<<SUMMARY_EOF" >> $GITHUB_OUTPUT
+            # SECURITY: Use random delimiter to prevent injection if summary contains our delimiter
+            SUMMARY_DELIMITER="EOF_$(openssl rand -hex 8)"
+            echo "summary<<$SUMMARY_DELIMITER" >> $GITHUB_OUTPUT
             cat /tmp/issue_summary.txt >> $GITHUB_OUTPUT
-            echo "SUMMARY_EOF" >> $GITHUB_OUTPUT
+            echo "$SUMMARY_DELIMITER" >> $GITHUB_OUTPUT
           else
             echo "has_changes=false" >> $GITHUB_OUTPUT
           fi

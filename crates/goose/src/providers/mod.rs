@@ -6,6 +6,7 @@ pub mod azureauth;
 pub mod base;
 pub mod bedrock;
 pub mod canonical;
+pub mod catalog;
 pub mod chatgpt_codex;
 pub mod claude_code;
 pub(crate) mod cli_common;

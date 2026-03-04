@@ -383,13 +383,13 @@ impl Client {
         messages: Vec<Message>,
         session_id: String,
     ) -> Result<impl Stream<Item = Result<MessageEvent>>> {
-        let (conversation_so_far, user_message) = if messages.is_empty() {
+        let (override_conversation, user_message) = if messages.is_empty() {
             (None, Message::user().with_text(""))
         } else {
             let mut msgs = messages;
             let user_message = msgs.pop().unwrap();
-            let conversation_so_far = if msgs.is_empty() { None } else { Some(msgs) };
-            (conversation_so_far, user_message)
+            let override_conversation = if msgs.is_empty() { None } else { Some(msgs) };
+            (override_conversation, user_message)
         };
 
         let stream = self
@@ -397,7 +397,7 @@ impl Client {
             .post(format!("{}/reply", self.base_url))
             .json(&ChatRequest {
                 user_message,
-                conversation_so_far,
+                override_conversation,
                 session_id,
                 recipe_name: None,
                 recipe_version: None,

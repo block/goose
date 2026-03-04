@@ -290,13 +290,18 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::create_app_content_tool()];
 
-        let mut model_config = provider.get_model_config();
-        model_config.max_tokens = Some(16384);
+        let model_config = provider.get_model_config();
 
-        let (response, _usage) = provider
+        let (response, usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
+
+        if let (Some(output), Some(max)) = (usage.usage.output_tokens, model_config.max_tokens) {
+            if output >= max {
+                return Err("App content generation was truncated because the response hit the token limit. Try simplifying your app description.".to_string());
+            }
+        }
 
         extract_tool_response(&response, "create_app_content")
     }
@@ -324,13 +329,18 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::update_app_content_tool()];
 
-        let mut model_config = provider.get_model_config();
-        model_config.max_tokens = Some(16384);
+        let model_config = provider.get_model_config();
 
-        let (response, _usage) = provider
+        let (response, usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)
             .await
             .map_err(|e| format!("LLM call failed: {}", e))?;
+
+        if let (Some(output), Some(max)) = (usage.usage.output_tokens, model_config.max_tokens) {
+            if output >= max {
+                return Err("App content update was truncated because the response hit the token limit. Try requesting smaller changes.".to_string());
+            }
+        }
 
         extract_tool_response(&response, "update_app_content")
     }

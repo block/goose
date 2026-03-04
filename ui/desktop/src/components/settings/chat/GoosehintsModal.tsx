@@ -12,7 +12,7 @@ import {
 import { errorMessage } from '../../../utils/conversionUtils';
 
 const HelpText = () => (
-  <div className="text-sm flex-col space-y-4 text-text-muted">
+  <div className="text-sm flex-col space-y-4 text-text-secondary">
     <p>
       .goosehints is a text file used to provide additional context about your project and improve
       the communication with Goose.
@@ -39,7 +39,7 @@ const HelpText = () => (
 );
 
 const ErrorDisplay = ({ error }: { error: Error }) => (
-  <div className="text-sm text-text-muted">
+  <div className="text-sm text-text-secondary">
     <div className="text-red-600">Error reading .goosehints file: {errorMessage(error)}</div>
   </div>
 );
@@ -123,7 +123,7 @@ export const GoosehintsModal = ({ directory, setIsGoosehintsModalOpen }: Goosehi
                 <FileInfo filePath={goosehintsFilePath} found={goosehintsFileFound} />
                 <textarea
                   value={goosehintsFile}
-                  className="w-full h-80 border rounded-md p-2 text-sm resize-none bg-background-default text-text-default border-border-default focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-80 border rounded-md p-2 text-sm resize-none bg-background-primary text-text-primary border-border-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(event) => setGoosehintsFile(event.target.value)}
                   placeholder="Enter project hints here..."
                 />

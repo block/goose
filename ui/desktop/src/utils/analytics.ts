@@ -70,7 +70,14 @@ export type AnalyticsEvent =
   | {
       name: 'onboarding_provider_selected';
       properties: {
-        method: 'api_key' | 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'ollama' | 'local' | 'other';
+        method:
+          | 'api_key'
+          | 'openrouter'
+          | 'tetrate'
+          | 'chatgpt_codex'
+          | 'ollama'
+          | 'local'
+          | 'other';
       };
     }
   | {
@@ -80,7 +87,10 @@ export type AnalyticsEvent =
   | { name: 'onboarding_abandoned'; properties: { step: string; duration_seconds?: number } }
   | {
       name: 'onboarding_setup_failed';
-      properties: { provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local'; error_message?: string };
+      properties: {
+        provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local';
+        error_message?: string;
+      };
     }
   | {
       name: 'error_occurred';

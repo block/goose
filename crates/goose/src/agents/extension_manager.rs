@@ -197,12 +197,13 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
 }
 
 fn is_unprefixed_extension(config: &ExtensionConfig) -> bool {
-    if let ExtensionConfig::Platform { name, .. } = config {
-        PLATFORM_EXTENSIONS
-            .get(name_to_key(name).as_str())
-            .is_some_and(|def| def.unprefixed_tools)
-    } else {
-        false
+    match config {
+        ExtensionConfig::Platform { name, .. } | ExtensionConfig::Builtin { name, .. } => {
+            PLATFORM_EXTENSIONS
+                .get(name_to_key(name).as_str())
+                .is_some_and(|def| def.unprefixed_tools)
+        }
+        _ => false,
     }
 }
 
@@ -488,6 +489,7 @@ impl ExtensionManager {
             context: PlatformExtensionContext {
                 extension_manager: None,
                 session_manager,
+                session: None,
             },
             provider,
             tools_cache: Mutex::new(None),
@@ -578,72 +580,91 @@ impl ExtensionManager {
                 )
                 .await?
             }
-            ExtensionConfig::Builtin { name, timeout, .. } => {
-                let timeout_duration = Duration::from_secs(timeout.unwrap_or(300));
-                let normalized_name = name_to_key(name);
-                let extension_fn =
-                    get_builtin_extension(normalized_name.as_str()).ok_or_else(|| {
-                        ExtensionError::ConfigError(format!("Unknown builtin extension: {}", name))
-                    })?;
-
-                if let Some(container) = container {
-                    let container_id = container.id();
-                    tracing::info!(
-                        container = %container_id,
-                        builtin = %name,
-                        "Starting builtin extension inside Docker container"
-                    );
-                    let normalized_name = name_to_key(name);
-                    let command = Command::new("docker").configure(|command| {
-                        command
-                            .arg("exec")
-                            .arg("-i")
-                            .arg(container_id)
-                            .arg("goose")
-                            .arg("mcp")
-                            .arg(&normalized_name);
-                    });
-
-                    let effective_working_dir = working_dir
-                        .clone()
-                        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
-                    let capabilities = GooseMcpClientCapabilities {
-                        mcpui: self.capabilities.mcpui,
-                    };
-
-                    let client = child_process_client(
-                        command,
-                        timeout,
-                        self.provider.clone(),
-                        Some(&effective_working_dir),
-                        Some(container_id.to_string()),
-                        self.client_name.clone(),
-                        capabilities,
-                    )
-                    .await?;
-                    Box::new(client)
+            ExtensionConfig::Builtin { ref name, .. }
+            | ExtensionConfig::Platform { ref name, .. } => {
+                let timeout = if let ExtensionConfig::Builtin { timeout, .. } = &config {
+                    *timeout
                 } else {
-                    // Non-containerized builtin runs in-process via duplex channels.
-                    // Working directory is passed per-request via call_tool metadata, not here.
-                    let (server_read, client_write) = tokio::io::duplex(65536);
-                    let (client_read, server_write) = tokio::io::duplex(65536);
-                    extension_fn(server_read, server_write);
+                    None
+                };
+                let normalized_name = name_to_key(name);
 
-                    let capabilities = GooseMcpClientCapabilities {
-                        mcpui: self.capabilities.mcpui,
-                    };
+                if let Some(def) = PLATFORM_EXTENSIONS.get(normalized_name.as_str()) {
+                    // Platform extension: create via in-process client factory
+                    let mut context = self.context.clone();
+                    context.extension_manager = Some(Arc::downgrade(self));
+                    if let Some(id) = session_id {
+                        if let Ok(session) =
+                            self.context.session_manager.get_session(id, false).await
+                        {
+                            context.session = Some(Arc::new(session));
+                        }
+                    }
+                    (def.client_factory)(context)
+                } else {
+                    // Builtin MCP server extension
+                    let timeout_secs = timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT);
+                    let extension_fn =
+                        get_builtin_extension(normalized_name.as_str()).ok_or_else(|| {
+                            ExtensionError::ConfigError(format!("Unknown extension: {}", name))
+                        })?;
 
-                    Box::new(
-                        McpClient::connect(
-                            (client_read, client_write),
-                            timeout_duration,
+                    if let Some(container) = container {
+                        let container_id = container.id();
+                        tracing::info!(
+                            container = %container_id,
+                            builtin = %name,
+                            "Starting builtin extension inside Docker container"
+                        );
+                        let command = Command::new("docker").configure(|command| {
+                            command
+                                .arg("exec")
+                                .arg("-i")
+                                .arg(container_id)
+                                .arg("goose")
+                                .arg("mcp")
+                                .arg(&normalized_name);
+                        });
+
+                        let effective_working_dir = working_dir
+                            .clone()
+                            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+                        let capabilities = GooseMcpClientCapabilities {
+                            mcpui: self.capabilities.mcpui,
+                        };
+
+                        let client = child_process_client(
+                            command,
+                            &Some(timeout_secs),
                             self.provider.clone(),
+                            Some(&effective_working_dir),
+                            Some(container_id.to_string()),
                             self.client_name.clone(),
                             capabilities,
                         )
-                        .await?,
-                    )
+                        .await?;
+                        Box::new(client)
+                    } else {
+                        let (server_read, client_write) = tokio::io::duplex(65536);
+                        let (client_read, server_write) = tokio::io::duplex(65536);
+                        extension_fn(server_read, server_write);
+
+                        let capabilities = GooseMcpClientCapabilities {
+                            mcpui: self.capabilities.mcpui,
+                        };
+
+                        Box::new(
+                            McpClient::connect(
+                                (client_read, client_write),
+                                Duration::from_secs(timeout_secs),
+                                self.provider.clone(),
+                                self.client_name.clone(),
+                                capabilities,
+                            )
+                            .await?,
+                        )
+                    }
                 }
             }
             ExtensionConfig::Stdio {
@@ -705,18 +726,6 @@ impl ExtensionManager {
                 )
                 .await?;
                 Box::new(client)
-            }
-            ExtensionConfig::Platform { name, .. } => {
-                let normalized_key = name_to_key(name);
-                let def = PLATFORM_EXTENSIONS
-                    .get(normalized_key.as_str())
-                    .ok_or_else(|| {
-                        ExtensionError::ConfigError(format!("Unknown platform extension: {}", name))
-                    })?;
-                let mut context = self.context.clone();
-                context.extension_manager = Some(Arc::downgrade(self));
-
-                (def.client_factory)(context)
             }
             ExtensionConfig::InlinePython {
                 name,
@@ -805,8 +814,7 @@ impl ExtensionManager {
             .iter()
             .map(|(name, ext)| {
                 let instructions = ext.get_instructions().unwrap_or_default();
-                let instructions =
-                    instructions.replace(goose_mcp::WORKING_DIR_PLACEHOLDER, &working_dir_str);
+                let instructions = instructions.replace("{{WORKING_DIR}}", &working_dir_str);
                 ExtensionInfo::new(name, &instructions, ext.supports_resources())
             })
             .collect()
@@ -1635,7 +1643,14 @@ impl ExtensionManager {
             extensions
                 .iter()
                 .filter_map(|(name, extension)| {
-                    if let ExtensionConfig::Platform { .. } = &extension.config {
+                    let is_platform = match &extension.config {
+                        ExtensionConfig::Platform { .. } => true,
+                        ExtensionConfig::Builtin { name: ext_name, .. } => {
+                            PLATFORM_EXTENSIONS.contains_key(name_to_key(ext_name).as_str())
+                        }
+                        _ => false,
+                    };
+                    if is_platform {
                         Some((name.clone(), extension.get_client()))
                     } else {
                         None

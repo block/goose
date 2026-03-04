@@ -848,6 +848,16 @@ async fn update_working_dir(
     Ok(StatusCode::OK)
 }
 
+async fn ensure_extensions_loaded(state: &AppState, session_id: &str) {
+    if let Some(_results) = state.take_extension_loading_task(session_id).await {
+        tracing::debug!(
+            "Awaited background extension loading for session {} before serving request",
+            session_id
+        );
+        state.remove_extension_loading_task(session_id).await;
+    }
+}
+
 #[utoipa::path(
     post,
     path = "/agent/read_resource",
@@ -866,6 +876,8 @@ async fn read_resource(
 ) -> Result<Json<ReadResourceResponse>, StatusCode> {
     use rmcp::model::ResourceContents;
 
+    ensure_extensions_loaded(&state, &payload.session_id).await;
+
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
         .await?;
@@ -879,7 +891,16 @@ async fn read_resource(
             CancellationToken::default(),
         )
         .await
-        .map_err(|_e| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!(
+                "read_resource failed for session={}, uri={}, extension={}: {:?}",
+                payload.session_id,
+                payload.uri,
+                payload.extension_name,
+                e
+            );
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let content = read_result
         .contents
@@ -936,6 +957,8 @@ async fn call_tool(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CallToolRequest>,
 ) -> Result<Json<CallToolResponse>, StatusCode> {
+    ensure_extensions_loaded(&state, &payload.session_id).await;
+
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
         .await?;

@@ -12,6 +12,7 @@ use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
+use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
 use rmcp::model::Tool;
 use utoipa::ToSchema;
@@ -175,9 +176,6 @@ pub struct ProviderMetadata {
     pub model_doc_link: String,
     /// Required configuration keys
     pub config_keys: Vec<ConfigKey>,
-    /// Whether this provider allows entering model names not in the fetched list
-    #[serde(default)]
-    pub allows_unlisted_models: bool,
 }
 
 impl ProviderMetadata {
@@ -210,7 +208,6 @@ impl ProviderMetadata {
                 .collect(),
             model_doc_link: model_doc_link.to_string(),
             config_keys,
-            allows_unlisted_models: false,
         }
     }
 
@@ -231,7 +228,6 @@ impl ProviderMetadata {
             known_models: models,
             model_doc_link: model_doc_link.to_string(),
             config_keys,
-            allows_unlisted_models: false,
         }
     }
 
@@ -244,14 +240,7 @@ impl ProviderMetadata {
             known_models: vec![],
             model_doc_link: "".to_string(),
             config_keys: vec![],
-            allows_unlisted_models: false,
         }
-    }
-
-    /// Set allows_unlisted_models flag (builder pattern)
-    pub fn with_unlisted_models(mut self) -> Self {
-        self.allows_unlisted_models = true;
-        self
     }
 }
 
@@ -442,6 +431,12 @@ pub trait ProviderDef: Send + Sync {
     ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PermissionRouting {
+    ActionRequired,
+    Noop,
 }
 
 /// Trait for LeadWorkerProvider-specific functionality
@@ -702,6 +697,18 @@ pub trait Provider: Send + Sync {
         Err(ProviderError::ExecutionError(
             "OAuth configuration not supported by this provider".to_string(),
         ))
+    }
+
+    fn permission_routing(&self) -> PermissionRouting {
+        PermissionRouting::Noop
+    }
+
+    async fn handle_permission_confirmation(
+        &self,
+        _request_id: &str,
+        _confirmation: &PermissionConfirmation,
+    ) -> bool {
+        false
     }
 }
 

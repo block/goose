@@ -1,12 +1,14 @@
 import React from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import AppSidebar from '../GooseSidebar/AppSidebar';
-import { View, ViewOptions } from '../../utils/navigationUtils';
-import { AppWindowMac, AppWindow } from 'lucide-react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Menu } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Sidebar, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '../ui/sidebar';
 import ChatSessionsContainer from '../ChatSessionsContainer';
 import { useChatContext } from '../../contexts/ChatContext';
+import { NavigationProvider, useNavigationContext } from './NavigationContext';
+import { Navigation } from './NavigationPanel';
+import { NAV_DIMENSIONS, Z_INDEX } from './constants';
+import { cn } from '../../utils';
 import { UserInput } from '../../types/message';
 
 interface AppLayoutContentProps {
@@ -17,12 +19,20 @@ interface AppLayoutContentProps {
 }
 
 const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) => {
-  const navigate = useNavigate();
   const location = useLocation();
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
-  const { isMobile, openMobile } = useSidebar();
   const chatContext = useChatContext();
   const isOnPairRoute = location.pathname === '/pair';
+
+  const {
+    isNavExpanded,
+    setIsNavExpanded,
+    effectiveNavigationMode,
+    effectiveNavigationStyle,
+    navigationPosition,
+    isHorizontalNav,
+    isCondensedIconOnly,
+  } = useNavigationContext();
 
   if (!chatContext) {
     throw new Error('AppLayoutContent must be used within ChatProvider');
@@ -30,99 +40,160 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   const { setChat } = chatContext;
 
-  // Calculate padding based on sidebar state and macOS
+  // Hide the titlebar drag region when nav is at the top in push mode,
+  // since the nav occupies that space and the drag region blocks interactions
+  const isPushTopNav =
+    effectiveNavigationMode === 'push' && navigationPosition === 'top' && isNavExpanded;
+  React.useEffect(() => {
+    const dragRegion = document.querySelector('.titlebar-drag-region') as HTMLElement | null;
+    if (!dragRegion) return;
+    if (isPushTopNav) {
+      dragRegion.style.display = 'none';
+    } else {
+      dragRegion.style.display = '';
+    }
+    return () => {
+      dragRegion.style.display = '';
+    };
+  }, [isPushTopNav]);
+
+  // Calculate padding based on macOS traffic lights
   const headerPadding = safeIsMacOS ? 'pl-21' : 'pl-4';
-  // const headerPadding = '';
 
-  // Hide buttons when mobile sheet is showing
-  const shouldHideButtons = isMobile && openMobile;
+  // Determine flex direction based on navigation position (for push mode)
+  const getLayoutClass = () => {
+    if (effectiveNavigationMode === 'overlay') {
+      return 'flex-row';
+    }
 
-  const setView = (view: View, viewOptions?: ViewOptions) => {
-    // Convert view-based navigation to route-based navigation
-    switch (view) {
-      case 'chat':
-        navigate('/');
-        break;
-      case 'pair':
-        navigate('/pair');
-        break;
-      case 'settings':
-        navigate('/settings', { state: viewOptions });
-        break;
-      case 'extensions':
-        navigate('/extensions', { state: viewOptions });
-        break;
-      case 'sessions':
-        navigate('/sessions');
-        break;
-      case 'schedules':
-        navigate('/schedules');
-        break;
-      case 'recipes':
-        navigate('/recipes');
-        break;
-      case 'permission':
-        navigate('/permission', { state: viewOptions });
-        break;
-      case 'ConfigureProviders':
-        navigate('/configure-providers');
-        break;
-      case 'sharedSession':
-        navigate('/shared-session', { state: viewOptions });
-        break;
-      case 'welcome':
-        navigate('/welcome');
-        break;
+    switch (navigationPosition) {
+      case 'top':
+        return 'flex-col';
+      case 'bottom':
+        return 'flex-col-reverse';
+      case 'left':
+        return 'flex-row';
+      case 'right':
+        return 'flex-row-reverse';
       default:
-        navigate('/');
+        return 'flex-row';
     }
   };
 
-  const handleSelectSession = async (sessionId: string) => {
-    // Navigate to chat with session data
-    navigate('/', { state: { sessionId } });
-  };
-
-  const handleNewWindow = () => {
-    window.electron.createChatWindow(
-      undefined,
-      window.appConfig.get('GOOSE_WORKING_DIR') as string | undefined
-    );
-  };
-
-  return (
-    <div className="flex flex-1 w-full min-h-0 relative animate-fade-in">
-      {!shouldHideButtons && (
-        <div className={`${headerPadding} absolute top-3 z-100 flex items-center`}>
-          <SidebarTrigger
-            className={`no-drag hover:border-border-strong hover:text-text-default hover:!bg-background-medium hover:scale-105`}
-          />
-          <Button
-            onClick={handleNewWindow}
-            className="no-drag hover:!bg-background-medium"
-            variant="ghost"
-            size="xs"
-            title="Start a new session in a new window"
-          >
-            {safeIsMacOS ? <AppWindowMac className="w-4 h-4" /> : <AppWindow className="w-4 h-4" />}
-          </Button>
-        </div>
-      )}
-      <Sidebar variant="inset" collapsible="offcanvas">
-        <AppSidebar
-          onSelectSession={handleSelectSession}
-          setView={setView}
-          currentPath={location.pathname}
-        />
-      </Sidebar>
-      <SidebarInset>
+  // Main content area
+  const mainContent = (
+    <div className="flex-1 overflow-hidden min-h-0">
+      <div className="h-full w-full bg-background-primary rounded-lg overflow-hidden">
         <Outlet />
         {/* Always render ChatSessionsContainer to keep SSE connections alive.
-            When navigating away from /pair */}
+            When navigating away from /pair, hide it with CSS */}
         <div className={isOnPairRoute ? 'contents' : 'hidden'}>
           <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
         </div>
-      </SidebarInset>
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={cn(
+        'flex flex-1 w-full h-full relative animate-fade-in bg-background-secondary',
+        getLayoutClass()
+      )}
+    >
+      {/* Header controls */}
+      <div
+        style={{ zIndex: Z_INDEX.HEADER }}
+        className={cn(
+          'absolute flex items-center gap-1',
+          effectiveNavigationStyle === 'condensed' &&
+            navigationPosition === 'bottom' &&
+            effectiveNavigationMode === 'push'
+            ? 'bottom-4 right-6'
+            : cn(
+                headerPadding,
+                'top-[11px]',
+                navigationPosition === 'right' ? 'right-6 left-auto' : 'ml-1.5'
+              )
+        )}
+      >
+        {/* Navigation trigger */}
+        <Button
+          onClick={() => setIsNavExpanded(!isNavExpanded)}
+          className="no-drag hover:!bg-background-tertiary"
+          variant="ghost"
+          size="xs"
+          title={isNavExpanded ? 'Close navigation' : 'Open navigation'}
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
+      </div>
+
+      {/* Main content with navigation */}
+      <div className={cn('flex flex-1 w-full h-full min-h-0 p-[2px]', getLayoutClass())}>
+        {/* Push mode navigation (inline) with animation */}
+        {effectiveNavigationMode === 'push' && (
+          <motion.div
+            key="push-nav"
+            initial={false}
+            animate={{
+              width: isHorizontalNav
+                ? '100%'
+                : isNavExpanded
+                  ? effectiveNavigationStyle === 'expanded'
+                    ? '30%'
+                    : isCondensedIconOnly
+                      ? NAV_DIMENSIONS.CONDENSED_ICON_ONLY_WIDTH
+                      : NAV_DIMENSIONS.CONDENSED_WIDTH
+                  : 0,
+              height: isHorizontalNav
+                ? isNavExpanded
+                  ? effectiveNavigationStyle === 'expanded'
+                    ? NAV_DIMENSIONS.EXPANDED_HEIGHT
+                    : NAV_DIMENSIONS.CONDENSED_HEIGHT
+                  : 0
+                : '100%',
+            }}
+            transition={{
+              type: 'spring',
+              stiffness: 400,
+              damping: 40,
+            }}
+            style={{
+              maxWidth:
+                !isHorizontalNav && effectiveNavigationStyle === 'expanded' ? '400px' : undefined,
+              minWidth:
+                !isHorizontalNav && effectiveNavigationStyle === 'condensed' && isNavExpanded
+                  ? isCondensedIconOnly
+                    ? NAV_DIMENSIONS.CONDENSED_ICON_ONLY_WIDTH
+                    : NAV_DIMENSIONS.CONDENSED_WIDTH
+                  : undefined,
+              minHeight:
+                isHorizontalNav && isNavExpanded
+                  ? effectiveNavigationStyle === 'expanded'
+                    ? NAV_DIMENSIONS.EXPANDED_HEIGHT
+                    : NAV_DIMENSIONS.CONDENSED_HEIGHT
+                  : undefined,
+              height: !isHorizontalNav ? '100%' : undefined,
+            }}
+            className={cn(
+              'flex-shrink-0',
+              effectiveNavigationStyle === 'condensed' && !isHorizontalNav
+                ? 'overflow-visible'
+                : 'overflow-hidden',
+              isHorizontalNav ? 'w-full' : 'h-full'
+            )}
+          >
+            <Navigation />
+          </motion.div>
+        )}
+
+        {/* Main content */}
+        {mainContent}
+      </div>
+
+      {/* Overlay mode navigation */}
+      {effectiveNavigationMode === 'overlay' && <Navigation />}
     </div>
   );
 };
@@ -136,8 +207,8 @@ interface AppLayoutProps {
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ activeSessions }) => {
   return (
-    <SidebarProvider>
+    <NavigationProvider>
       <AppLayoutContent activeSessions={activeSessions} />
-    </SidebarProvider>
+    </NavigationProvider>
   );
 };
