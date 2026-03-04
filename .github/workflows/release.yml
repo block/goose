@@ -52,6 +52,7 @@ jobs:
       signing: true
     secrets:
       OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   # ------------------------------------------------------------
   # 4) Bundle Desktop App (macOS)
@@ -65,12 +66,15 @@ jobs:
       signing: true
     secrets:
       OSX_CODESIGN_ROLE: ${{ secrets.OSX_CODESIGN_ROLE }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux)
   # ------------------------------------------------------------
   bundle-desktop-linux:
     uses: ./.github/workflows/bundle-desktop-linux.yml
+    secrets:
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
 #  # ------------------------------------------------------------
 #  # 6) Bundle Desktop App (Windows)
@@ -83,6 +87,7 @@ jobs:
       WINDOWS_CODESIGN_CERTIFICATE: ${{ secrets.WINDOWS_CODESIGN_CERTIFICATE }}
       WINDOW_SIGNING_ROLE: ${{ secrets.WINDOW_SIGNING_ROLE }}
       WINDOW_SIGNING_ROLE_TAG: ${{ secrets.WINDOW_SIGNING_ROLE_TAG }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   # ------------------------------------
   # 7) Create/Update GitHub Release

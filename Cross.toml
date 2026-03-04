@@ -1,6 +1,6 @@
 # Configuration for cross-compiling using cross
 [build.env]
-passthrough = [ "CC" ]
+passthrough = [ "CC", "SENTRY_DSN" ]
 
 [target.aarch64-unknown-linux-gnu]
 xargo = false

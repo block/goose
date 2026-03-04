@@ -28,6 +28,8 @@ on:
     secrets:
       OSX_CODESIGN_ROLE:
         required: false
+      SENTRY_DSN:
+        required: false
 
 name: Reusable workflow to bundle desktop app for Intel Mac
 
@@ -69,6 +71,8 @@ jobs:
 
 
       - name: Build goose-server for Intel macOS (x86_64)
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           source ./bin/activate-hermit
           rustup target add x86_64-apple-darwin
@@ -120,6 +124,8 @@ jobs:
         run: df -h
 
       - name: Build App
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           source ../../bin/activate-hermit
           attempt=0

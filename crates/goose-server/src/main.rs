@@ -43,9 +43,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _sentry_guard = if goose::posthog::is_telemetry_enabled() {
-        Some(sentry::init((
-            "https://4ded405f3749b4952425eb404e212119@o160250.ingest.us.sentry.io/4510975954124800",
+    let _sentry_guard = match option_env!("SENTRY_DSN") {
+        Some(dsn) if goose::posthog::is_telemetry_enabled() => Some(sentry::init((
+            dsn,
             sentry::ClientOptions {
                 release: sentry::release_name!(),
                 traces_sample_rate: 1.0,
@@ -56,9 +56,8 @@ async fn main() -> anyhow::Result<()> {
                 ),
                 ..Default::default()
             },
-        )))
-    } else {
-        None
+        ))),
+        _ => None,
     };
 
     let cli = Cli::parse();
