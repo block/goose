@@ -785,14 +785,16 @@ impl Provider for ClaudeCodeProvider {
                                                     .and_then(|d| d.get("text"))
                                                     .and_then(|t| t.as_str())
                                                 {
-                                                    let mut partial_message = Message::new(
-                                                        Role::Assistant,
-                                                        stream_timestamp,
-                                                        vec![MessageContent::text(text)],
-                                                    );
-                                                    partial_message.id =
-                                                        Some(message_id.clone());
-                                                    yield (Some(partial_message), None);
+                                                    if !text.is_empty() {
+                                                        let mut partial_message = Message::new(
+                                                            Role::Assistant,
+                                                            stream_timestamp,
+                                                            vec![MessageContent::text(text)],
+                                                        );
+                                                        partial_message.id =
+                                                            Some(message_id.clone());
+                                                        yield (Some(partial_message), None);
+                                                    }
                                                 }
                                             }
                                             Some("message_start") => {

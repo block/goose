@@ -654,21 +654,23 @@ where
 
                 ResponsesStreamEvent::OutputTextDelta { delta, .. } => {
                     is_text_response = true;
-                    accumulated_text.push_str(&delta);
-
-                    // Yield incremental text updates for true streaming
-                    let mut content = Vec::new();
                     if !delta.is_empty() {
-                        content.push(MessageContent::text(&delta));
-                    }
-                    let mut msg = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
+                        accumulated_text.push_str(&delta);
 
-                    // Add ID so desktop client knows these deltas are part of the same message
-                    if let Some(id) = &response_id {
-                        msg = msg.with_id(id.clone());
-                    }
+                        // Yield incremental text updates for true streaming
+                        let mut msg = Message::new(
+                            Role::Assistant,
+                            chrono::Utc::now().timestamp(),
+                            vec![MessageContent::text(&delta)],
+                        );
 
-                    yield (Some(msg), None);
+                        // Add ID so desktop client knows these deltas are part of the same message
+                        if let Some(id) = &response_id {
+                            msg = msg.with_id(id.clone());
+                        }
+
+                        yield (Some(msg), None);
+                    }
                 }
 
                 ResponsesStreamEvent::OutputItemDone { item, .. } => {
