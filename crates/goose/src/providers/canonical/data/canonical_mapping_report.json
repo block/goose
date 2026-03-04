@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-02-27T21:19:29.234488431+00:00",
+  "timestamp": "2026-03-04T20:40:06.585183820+00:00",
   "unmapped_models": [
     {
       "provider": "google",
@@ -44,6 +44,10 @@
     {
       "provider": "google",
       "model": "gemini-3.1-flash-image-preview"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-3.1-flash-lite-preview"
     },
     {
       "provider": "google",
@@ -255,6 +259,10 @@
     },
     {
       "provider": "openai",
+      "model": "gpt-5.3-chat-latest"
+    },
+    {
+      "provider": "openai",
       "model": "gpt-audio"
     },
     {
@@ -403,6 +411,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "allenai/olmo-3.1-32b-think"
+    },
+    {
+      "provider": "openrouter",
       "model": "alpindale/goliath-120b"
     },
     {
@@ -539,6 +551,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "google/gemini-3.1-flash-lite-preview"
+    },
+    {
+      "provider": "openrouter",
       "model": "google/gemma-2-27b-it"
     },
     {
@@ -659,15 +675,7 @@
     },
     {
       "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct"
-    },
-    {
-      "provider": "openrouter",
       "model": "mistralai/mistral-7b-instruct-v0.1"
-    },
-    {
-      "provider": "openrouter",
-      "model": "mistralai/mistral-7b-instruct-v0.3"
     },
     {
       "provider": "openrouter",
@@ -783,6 +791,10 @@
     },
     {
       "provider": "openrouter",
+      "model": "openai/gpt-5.3-chat"
+    },
+    {
+      "provider": "openrouter",
       "model": "openai/gpt-audio"
     },
     {
@@ -796,10 +808,6 @@
     {
       "provider": "openrouter",
       "model": "openai/o4-mini-high"
-    },
-    {
-      "provider": "openrouter",
-      "model": "opengvlab/internvl3-78b"
     },
     {
       "provider": "openrouter",
@@ -1031,7 +1039,7 @@
     },
     {
       "provider": "openrouter",
-      "model": "upstage/solar-pro-3:free"
+      "model": "upstage/solar-pro-3"
     },
     {
       "provider": "openrouter",
@@ -1496,10 +1504,6 @@
     {
       "provider": "tetrate",
       "model": "xai/grok-code-fast"
-    },
-    {
-      "provider": "xai",
-      "model": "grok-2-image-1212"
     },
     {
       "provider": "xai",
@@ -2887,10 +2891,6 @@
     ],
     "venice": [],
     "xai": [
-      {
-        "provider_model": "grok-2-vision-1212",
-        "canonical_model": "x-ai/grok-2-vision"
-      },
       {
         "provider_model": "grok-3",
         "canonical_model": "x-ai/grok-3"
@@ -4962,12 +4962,6 @@
     },
     {
       "provider": "xai",
-      "model": "grok-2-vision-1212",
-      "canonical": "x-ai/grok-2-vision",
-      "recommended": true
-    },
-    {
-      "provider": "xai",
       "model": "grok-3",
       "canonical": "x-ai/grok-3",
       "recommended": true
@@ -5021,12 +5015,12 @@
     "azure_openai": 0,
     "databricks": 0,
     "gcp_vertex_ai": 0,
-    "google": 44,
-    "openai": 116,
+    "google": 45,
+    "openai": 117,
     "openrouter": 343,
     "tetrate": 201,
     "venice": 0,
-    "xai": 13
+    "xai": 11
   },
   "canonical_models_used": [
     "anthropic/claude-3-haiku",
