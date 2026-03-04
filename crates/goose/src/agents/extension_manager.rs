@@ -538,20 +538,14 @@ impl ExtensionManager {
     ) -> ExtensionResult<()> {
         let sanitized_name = config.key();
 
-        {
-            let mut extensions = self.extensions.lock().await;
-            if let Some(existing) = extensions.get(&sanitized_name) {
-                if existing.config == config {
-                    return Ok(());
-                }
-                tracing::debug!(
-                    name = sanitized_name,
-                    "extension config changed, restarting with updated config"
-                );
-                extensions.remove(&sanitized_name);
-                drop(extensions);
-                self.invalidate_tools_cache_and_bump_version().await;
+        if let Some(existing) = self.extensions.lock().await.get(&sanitized_name) {
+            if existing.config == config {
+                return Ok(());
             }
+            tracing::debug!(
+                name = sanitized_name,
+                "extension config changed, restarting with updated config"
+            );
         }
 
         let mut temp_dir = None;
@@ -2322,14 +2316,15 @@ mod tests {
         .await;
         assert_eq!(em.extensions.lock().await.len(), 1);
 
-        // add_extension with changed config must remove the old entry (before failing to
-        // re-create because Frontend configs cannot be added as server extensions).
+        // add_extension with changed config attempts to create a new client (fails here
+        // because Frontend configs cannot be added as server extensions), but must preserve
+        // the old extension so the session isn't left without it.
         let result = em.add_extension(config_b, None, None, None).await;
         assert!(result.is_err(), "Frontend add_extension must return Err");
         assert_eq!(
             em.extensions.lock().await.len(),
-            0,
-            "stale extension must be removed when config changes"
+            1,
+            "old extension must be preserved when replacement client creation fails"
         );
     }
 }
