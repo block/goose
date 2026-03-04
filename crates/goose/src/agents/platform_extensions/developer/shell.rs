@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use rmcp::model::{CallToolResult, Content};
@@ -15,6 +15,8 @@ use crate::subprocess::SubprocessExt;
 const OUTPUT_LIMIT_LINES: usize = 2000;
 const OUTPUT_LIMIT_BYTES: usize = 50_000;
 const OUTPUT_PREVIEW_LINES: usize = 50;
+
+const OUTPUT_SLOTS: usize = 8;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ShellParams {
@@ -78,11 +80,17 @@ fn user_login_path() -> Option<&'static str> {
     CACHED.get_or_init(resolve_login_shell_path).as_deref()
 }
 
-pub struct ShellTool;
+pub struct ShellTool {
+    output_dir: tempfile::TempDir,
+    call_index: AtomicUsize,
+}
 
 impl ShellTool {
     pub fn new() -> Self {
-        Self
+        Self {
+            output_dir: tempfile::tempdir().expect("failed to create temp dir for shell output"),
+            call_index: AtomicUsize::new(0),
+        }
     }
 
     pub async fn shell(&self, params: ShellParams) -> CallToolResult {
@@ -106,10 +114,12 @@ impl ShellTool {
         // Derive stdout, stderr, and interleaved display from the single tagged-line buffer
         let (raw_stdout, raw_stderr, interleaved) = split_lines(&execution.lines);
 
+        let output_dir = self.output_dir.path();
+        let slot = self.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
         let truncated_stdout = if raw_stdout.is_empty() {
             String::new()
         } else {
-            match truncate_output(&raw_stdout, "stdout") {
+            match truncate_output(&raw_stdout, &format!("stdout-{slot}"), output_dir) {
                 Ok(t) => t,
                 Err(error) => return Self::error_result(&error, None),
             }
@@ -117,7 +127,7 @@ impl ShellTool {
         let truncated_stderr = if raw_stderr.is_empty() {
             String::new()
         } else {
-            match truncate_output(&raw_stderr, "stderr") {
+            match truncate_output(&raw_stderr, &format!("stderr-{slot}"), output_dir) {
                 Ok(t) => t,
                 Err(error) => return Self::error_result(&error, None),
             }
@@ -130,7 +140,8 @@ impl ShellTool {
             timed_out: execution.timed_out,
         };
         let structured_content = serde_json::to_value(&shell_output).ok();
-        let mut rendered = match render_output(&interleaved, "output") {
+        let mut rendered = match render_output(&interleaved, &format!("output-{slot}"), output_dir)
+        {
             Ok(rendered) => rendered,
             Err(error) => return Self::error_result(&error, None),
         };
@@ -325,14 +336,22 @@ async fn collect_tagged_lines(
     Ok(lines)
 }
 
-fn render_output(full_output: &str, label: &str) -> Result<String, String> {
+fn render_output(
+    full_output: &str,
+    label: &str,
+    output_dir: &std::path::Path,
+) -> Result<String, String> {
     if full_output.is_empty() {
         return Ok("(no output)".to_string());
     }
-    truncate_output(full_output, label)
+    truncate_output(full_output, label, output_dir)
 }
 
-fn truncate_output(full_output: &str, label: &str) -> Result<String, String> {
+fn truncate_output(
+    full_output: &str,
+    label: &str,
+    output_dir: &std::path::Path,
+) -> Result<String, String> {
     let lines: Vec<&str> = full_output.split('\n').collect();
     let total_lines = lines.len();
     let total_bytes = full_output.len();
@@ -344,7 +363,7 @@ fn truncate_output(full_output: &str, label: &str) -> Result<String, String> {
         return Ok(full_output.to_string());
     }
 
-    let output_path = save_full_output(full_output, label)?;
+    let output_path = save_full_output(full_output, label, output_dir)?;
 
     let preview_start = total_lines.saturating_sub(OUTPUT_PREVIEW_LINES);
     let preview = lines[preview_start..].join("\n");
@@ -366,24 +385,12 @@ fn truncate_output(full_output: &str, label: &str) -> Result<String, String> {
     ))
 }
 
-fn output_buffer_path(label: &str) -> Result<PathBuf, String> {
-    static PATHS: Mutex<Option<HashMap<String, PathBuf>>> = Mutex::new(None);
-    let mut guard = PATHS.lock().map_err(|e| format!("Lock poisoned: {e}"))?;
-    let map = guard.get_or_insert_with(HashMap::new);
-    if let Some(path) = map.get(label) {
-        return Ok(path.clone());
-    }
-    let temp_file =
-        tempfile::NamedTempFile::new().map_err(|e| format!("Failed to create temp file: {e}"))?;
-    let (_, path) = temp_file
-        .keep()
-        .map_err(|e| format!("Failed to persist temp file: {}", e.error))?;
-    map.insert(label.to_string(), path.clone());
-    Ok(path)
-}
-
-fn save_full_output(output: &str, label: &str) -> Result<PathBuf, String> {
-    let path = output_buffer_path(label)?;
+fn save_full_output(
+    output: &str,
+    label: &str,
+    output_dir: &std::path::Path,
+) -> Result<PathBuf, String> {
+    let path = output_dir.join(label);
     std::fs::write(&path, output).map_err(|e| format!("Failed to write output buffer: {e}"))?;
     Ok(path)
 }
@@ -452,29 +459,32 @@ mod tests {
 
     #[test]
     fn render_output_returns_full_output_when_under_limit() {
+        let dir = tempfile::tempdir().unwrap();
         let input = (0..100)
             .map(|i| format!("line {}", i))
             .collect::<Vec<_>>()
             .join("\n");
 
-        let rendered = render_output(&input, "test").unwrap();
+        let rendered = render_output(&input, "test", dir.path()).unwrap();
         assert_eq!(rendered, input);
     }
 
     #[test]
     fn render_output_shows_empty_message() {
-        let rendered = render_output("", "test").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let rendered = render_output("", "test", dir.path()).unwrap();
         assert_eq!(rendered, "(no output)");
     }
 
     #[test]
     fn render_output_truncates_when_lines_exceeded() {
+        let dir = tempfile::tempdir().unwrap();
         let input = (0..2500)
             .map(|i| format!("line {}", i))
             .collect::<Vec<_>>()
             .join("\n");
 
-        let rendered = render_output(&input, "test_lines").unwrap();
+        let rendered = render_output(&input, "test_lines", dir.path()).unwrap();
         let (preview, metadata) = rendered.split_once("\n\n[").unwrap();
 
         assert_eq!(preview.lines().count(), OUTPUT_PREVIEW_LINES);
@@ -489,6 +499,7 @@ mod tests {
 
     #[test]
     fn render_output_truncates_when_bytes_exceeded() {
+        let dir = tempfile::tempdir().unwrap();
         let long_line = "x".repeat(1000);
         let input = (0..100)
             .map(|_| long_line.clone())
@@ -497,7 +508,7 @@ mod tests {
         assert!(input.len() > OUTPUT_LIMIT_BYTES);
         assert!(input.lines().count() <= OUTPUT_LIMIT_LINES);
 
-        let rendered = render_output(&input, "test_bytes").unwrap();
+        let rendered = render_output(&input, "test_bytes", dir.path()).unwrap();
         let (_preview, metadata) = rendered.split_once("\n\n[").unwrap();
 
         assert!(metadata.contains("byte limit"));
@@ -507,18 +518,42 @@ mod tests {
 
     #[test]
     fn save_full_output_reuses_same_path() {
-        let path1 = save_full_output("first", "test_reuse").unwrap();
-        let path2 = save_full_output("second", "test_reuse").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let path1 = save_full_output("first", "test_reuse", dir.path()).unwrap();
+        let path2 = save_full_output("second", "test_reuse", dir.path()).unwrap();
         assert_eq!(path1, path2);
         assert_eq!(std::fs::read_to_string(&path2).unwrap(), "second");
     }
 
     #[test]
     fn save_full_output_uses_separate_files_per_label() {
-        let path_a = save_full_output("aaa", "label_a").unwrap();
-        let path_b = save_full_output("bbb", "label_b").unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let path_a = save_full_output("aaa", "label_a", dir.path()).unwrap();
+        let path_b = save_full_output("bbb", "label_b", dir.path()).unwrap();
         assert_ne!(path_a, path_b);
         assert_eq!(std::fs::read_to_string(&path_a).unwrap(), "aaa");
         assert_eq!(std::fs::read_to_string(&path_b).unwrap(), "bbb");
+    }
+
+    #[test]
+    fn call_index_cycles_through_slots() {
+        let tool = ShellTool::new();
+        for _cycle in 0..3 {
+            for expected in 0..OUTPUT_SLOTS {
+                let slot = tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
+                assert_eq!(slot, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn concurrent_calls_get_distinct_slots() {
+        let tool = ShellTool::new();
+        let mut slots: Vec<usize> = (0..OUTPUT_SLOTS)
+            .map(|_| tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS)
+            .collect();
+        slots.sort();
+        let expected: Vec<usize> = (0..OUTPUT_SLOTS).collect();
+        assert_eq!(slots, expected);
     }
 }
