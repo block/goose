@@ -332,6 +332,8 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
         errorLog.push(line);
         if (isFatalError(line)) {
           logger.error(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
+        } else {
+          logger.info(`goosed stderr for port ${port} and dir ${workingDir}: ${line}`);
         }
       }
     }
