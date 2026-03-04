@@ -4727,6 +4727,37 @@
     }
   },
   {
+    "id": "azure/gpt-5.3-codex",
+    "name": "GPT-5.3 Codex",
+    "family": "gpt-codex",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-02-24",
+    "last_updated": "2026-02-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
+    }
+  },
+  {
     "id": "azure/grok-3",
     "name": "Grok 3",
     "family": "grok",
@@ -11560,6 +11591,39 @@
     }
   },
   {
+    "id": "openrouter/google/gemini-3.1-pro-preview-customtools",
+    "name": "Gemini 3.1 Pro Preview Custom Tools",
+    "family": "gemini-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-01",
+    "release_date": "2026-02-19",
+    "last_updated": "2026-02-19",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio",
+        "video",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 12.0
+    },
+    "limit": {
+      "context": 1048576,
+      "output": 65536
+    }
+  },
+  {
     "id": "openrouter/google/gemma-2-9b-it",
     "name": "Gemma 2 9B",
     "family": "gemma",
@@ -16198,6 +16262,34 @@
     }
   },
   {
+    "id": "venice/nvidia-nemotron-3-nano-30b-a3b",
+    "name": "NVIDIA Nemotron 3 Nano 30B",
+    "family": "nemotron",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-01-27",
+    "last_updated": "2026-02-26",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.075,
+      "output": 0.3
+    },
+    "limit": {
+      "context": 128000,
+      "output": 12288
+    }
+  },
+  {
     "id": "venice/olafangensan-glm-4.7-flash-heretic",
     "name": "GLM 4.7 Flash Heretic",
     "family": "glm-flash",
@@ -16284,6 +16376,36 @@
     "limit": {
       "context": 256000,
       "output": 64000
+    }
+  },
+  {
+    "id": "venice/openai-gpt-53-codex",
+    "name": "GPT-5.3 Codex",
+    "family": "gpt-codex",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-02-24",
+    "last_updated": "2026-02-25",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.19,
+      "output": 17.5,
+      "cache_read": 0.219
+    },
+    "limit": {
+      "context": 400000,
+      "output": 131072
     }
   },
   {
@@ -16429,6 +16551,35 @@
     "limit": {
       "context": 256000,
       "output": 64000
+    }
+  },
+  {
+    "id": "venice/qwen3-coder-480b-a35b-instruct-turbo",
+    "name": "Qwen 3 Coder 480B Turbo",
+    "family": "qwen",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-01-27",
+    "last_updated": "2026-02-26",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.35,
+      "output": 1.5,
+      "cache_read": 0.04
+    },
+    "limit": {
+      "context": 256000,
+      "output": 65536
     }
   },
   {
