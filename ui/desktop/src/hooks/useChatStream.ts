@@ -564,18 +564,35 @@ export function useChatStream({
     if (typeof globalThis === 'undefined') return;
 
     try {
+      const storage =
+        'localStorage' in globalThis
+          ? (globalThis.localStorage as Storage & { GOOSE_DEBUG_ACTIVITY?: string })
+          : null;
+
       const enabled =
-        'localStorage' in globalThis &&
-        globalThis.localStorage?.getItem('GOOSE_DEBUG_ACTIVITY') === 'true';
+        storage?.getItem('GOOSE_DEBUG_ACTIVITY') === 'true' ||
+        // allow `localStorage.GOOSE_DEBUG_ACTIVITY = "true"`
+        storage?.GOOSE_DEBUG_ACTIVITY === 'true';
+
       if (!enabled) return;
 
+      const notificationsTotal = Array.from(notificationsMap.values()).reduce(
+        (a, v) => a + v.length,
+        0
+      );
+      const activityTotal = Array.from(activityEventsMap.values()).reduce(
+        (a, v) => a + v.length,
+        0
+      );
+
+      // Use console.log so it shows up even when "Verbose" logs are hidden.
       // eslint-disable-next-line no-console
-      console.debug('[useChatStream] notification maps', {
+      console.log('[useChatStream] notification maps', {
         sessionId,
-        notificationsKeys: notificationsMap.size,
-        activityKeys: activityEventsMap.size,
-        notificationsTotal: Array.from(notificationsMap.values()).reduce((a, v) => a + v.length, 0),
-        activityTotal: Array.from(activityEventsMap.values()).reduce((a, v) => a + v.length, 0),
+        notificationsKeys: Array.from(notificationsMap.keys()),
+        activityKeys: Array.from(activityEventsMap.keys()),
+        notificationsTotal,
+        activityTotal,
       });
     } catch {
       // ignore

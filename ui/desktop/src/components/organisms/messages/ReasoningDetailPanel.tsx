@@ -1,13 +1,15 @@
 import { Brain, Wrench, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
+
 import type { Message } from '@/api';
-import { useReasoningDetail } from '@/contexts/ReasoningDetailContext';
-import { cn } from '@/utils';
 import { Badge } from '@/components/atoms/badge';
-import { StatusDot } from '@/components/atoms/status-dot';
 import { ScrollArea } from '@/components/atoms/scroll-area';
+import { StatusDot } from '@/components/atoms/status-dot';
 import { ActivityStep, ThinkingEntry } from '@/components/molecules/ui/activity-step';
 import MarkdownContent from './MarkdownContent';
+import { useReasoningDetail } from '@/contexts/ReasoningDetailContext';
+import { cn } from '@/utils';
+import { getGooseActivityFields, getNotificationMethod } from '@/utils/notificationUtils';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -171,26 +173,19 @@ function extractActivityNotifications(
 
   for (const [requestId, notifications] of toolCallNotifications.entries()) {
     for (const raw of notifications) {
-      const n = raw as {
-        message?: { method?: string; params?: unknown };
-      };
+      const n = raw as { message?: unknown };
+      const message = n.message;
 
-      const method = n.message?.method;
+      const method = getNotificationMethod(message);
       if (method !== 'goose/activity') continue;
 
-      const params = (n.message?.params || {}) as {
-        phase?: string;
-        text?: string;
-      };
+      const fields = getGooseActivityFields(message);
+      if (!fields) continue;
 
-      const text = typeof params.text === 'string' ? params.text.trim() : '';
-      if (!text) continue;
-
-      const phase = typeof params.phase === 'string' ? params.phase : 'activity';
       entries.push({
         kind: 'event',
         id: `evt-${requestId}-${entries.length}`,
-        description: `${phase}: ${text}`,
+        description: `${fields.phase}: ${fields.text}`,
         isActive: false,
       });
     }

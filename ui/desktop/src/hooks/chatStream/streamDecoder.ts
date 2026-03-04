@@ -174,12 +174,32 @@ export async function streamFromResponse(
           break;
         }
         case 'Notification': {
-          const method = (event.message as { method?: unknown } | undefined)?.method;
+          const { getNotificationMethod } = await import('@/utils/notificationUtils');
+          const method = getNotificationMethod(event.message);
+
           if (method === 'goose/activity') {
             dispatch({ type: 'ADD_ACTIVITY_EVENT', payload: event });
           } else {
             dispatch({ type: 'ADD_NOTIFICATION', payload: event });
           }
+
+          // Optional debug trace (helps confirm actual notification payload shapes in Electron)
+          const storage = globalThis.localStorage as Storage & { GOOSE_DEBUG_ACTIVITY?: string };
+          const debugEnabled =
+            storage?.getItem('GOOSE_DEBUG_ACTIVITY') === 'true' ||
+            // allow `localStorage.GOOSE_DEBUG_ACTIVITY = "true"`
+            storage?.GOOSE_DEBUG_ACTIVITY === 'true';
+
+          if (debugEnabled) {
+            // Use console.log so it shows up even when "Verbose" logs are hidden.
+            // eslint-disable-next-line no-console
+            console.log('[streamDecoder] Notification', {
+              requestId: event.request_id,
+              method,
+              rawMessage: event.message,
+            });
+          }
+
           await maybeHandlePlatformEvent(event.message, sessionId);
           break;
         }

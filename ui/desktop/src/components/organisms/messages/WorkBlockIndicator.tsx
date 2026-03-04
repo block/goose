@@ -6,6 +6,7 @@ import FlyingBird from '@/components/atoms/branding/FlyingBird';
 import GooseLogo from '@/components/atoms/branding/GooseLogo';
 import { Badge } from '@/components/atoms/badge';
 import { StatusDot } from '@/components/atoms/status-dot';
+import { getGooseActivityFields } from '@/utils/notificationUtils';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -70,20 +71,10 @@ function extractLastActivityDescription(activityEvents: Map<string, unknown[]>):
   const all = Array.from(activityEvents.values()).flat();
 
   for (let i = all.length - 1; i >= 0; i -= 1) {
-    const n = all[i] as {
-      message?: { method?: unknown; params?: unknown };
-    };
-
-    const message = n?.message as { method?: unknown; params?: unknown } | undefined;
-    if (!message || message.method !== 'goose/activity') continue;
-
-    const params = message.params as { phase?: unknown; text?: unknown } | undefined;
-    const phase = typeof params?.phase === 'string' ? params?.phase : null;
-    const text = typeof params?.text === 'string' ? params?.text.trim() : '';
-
-    if (!text) continue;
-
-    return phase ? `${phase}: ${text}` : text;
+    const n = all[i] as { message?: unknown };
+    const fields = getGooseActivityFields(n?.message);
+    if (!fields) continue;
+    return `${fields.phase}: ${fields.text}`;
   }
 
   return null;
