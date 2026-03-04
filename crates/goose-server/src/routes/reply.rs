@@ -543,7 +543,18 @@ pub async fn reply(
                     let dispatch_event_logger = tokio::spawn({
                         let session_id = session_id.clone();
                         let orchestration_run_id = orchestration_run_id.clone();
+                        let activity_tx = tx.clone();
+                        let activity_cancel = cancel_token.clone();
+                        let task_count = dispatch_tasks.len();
+
                         async move {
+                            fn now_ms() -> u128 {
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_millis()
+                            }
+
                             loop {
                                 match dispatch_event_rx.recv().await {
                                     Ok(event) => {
@@ -553,6 +564,75 @@ pub async fn reply(
                                             ?event,
                                             "Dispatch event"
                                         );
+
+                                        let (request_id, phase, text) = match &event {
+                                            goose::agents::dispatch::DispatchEvent::Started {
+                                                task_index,
+                                                agent_name,
+                                                strategy,
+                                            } => (
+                                                format!("dispatch:{}", task_index),
+                                                "subagent",
+                                                format!(
+                                                    "Task {}/{} started: {} ({})",
+                                                    task_index + 1,
+                                                    task_count,
+                                                    agent_name,
+                                                    strategy
+                                                ),
+                                            ),
+                                            goose::agents::dispatch::DispatchEvent::Progress {
+                                                task_index,
+                                                message,
+                                            } => (
+                                                format!("dispatch:{}", task_index),
+                                                "subagent",
+                                                format!(
+                                                    "Task {}/{}: {}",
+                                                    task_index + 1,
+                                                    task_count,
+                                                    message
+                                                ),
+                                            ),
+                                            goose::agents::dispatch::DispatchEvent::Completed {
+                                                task_index,
+                                                result,
+                                            } => (
+                                                format!("dispatch:{}", task_index),
+                                                "subagent",
+                                                format!(
+                                                    "Task {}/{} completed: {:?}",
+                                                    task_index + 1,
+                                                    task_count,
+                                                    result.status
+                                                ),
+                                            ),
+                                            goose::agents::dispatch::DispatchEvent::Failed {
+                                                task_index,
+                                                error,
+                                            } => (
+                                                format!("dispatch:{}", task_index),
+                                                "subagent",
+                                                format!(
+                                                    "Task {}/{} failed: {}",
+                                                    task_index + 1,
+                                                    task_count,
+                                                    error
+                                                ),
+                                            ),
+                                        };
+
+                                        let _ = stream_activity(
+                                            &activity_tx,
+                                            &activity_cancel,
+                                            &request_id,
+                                            serde_json::json!({
+                                                "phase": phase,
+                                                "text": text,
+                                                "ts_ms": now_ms(),
+                                            }),
+                                        )
+                                        .await;
                                     }
                                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
