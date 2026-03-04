@@ -22,7 +22,6 @@ path = "src/bin/generate_manpages.rs"
 clap_mangen = "0.2.31"
 goose = { path = "../goose", default-features = false }
 goose-acp = { path = "../goose-acp", default-features = false }
-goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 clap = { workspace = true }
 cliclack = "0.3.5"

@@ -264,6 +264,8 @@ mod tests {
     fn get_test_file() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src")
+            .join("agents")
+            .join("platform_extensions")
             .join("computercontroller")
             .join("tests")
             .join("data")

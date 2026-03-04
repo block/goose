@@ -17,7 +17,6 @@ cuda = ["goose/cuda"]
 
 [dependencies]
 goose = { path = "../goose", default-features = false }
-goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 axum = { workspace = true, features = ["ws", "macros"] }
 tokio = { workspace = true }

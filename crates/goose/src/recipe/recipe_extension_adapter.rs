@@ -4,6 +4,8 @@ use serde::de::Deserializer;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+/// Internal deserialization type that accepts legacy fields like `bundled` from recipe files
+/// and converts them to the current ExtensionConfig format.
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum RecipeExtensionConfigInternal {
@@ -20,8 +22,6 @@ enum RecipeExtensionConfigInternal {
         env_keys: Vec<String>,
         timeout: Option<u64>,
         #[serde(default)]
-        bundled: Option<bool>,
-        #[serde(default)]
         available_tools: Vec<String>,
     },
     #[serde(rename = "builtin")]
@@ -30,9 +30,8 @@ enum RecipeExtensionConfigInternal {
         #[serde(default)]
         description: Option<String>,
         display_name: Option<String>,
+        #[allow(dead_code)]
         timeout: Option<u64>,
-        #[serde(default)]
-        bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
     },
@@ -43,8 +42,6 @@ enum RecipeExtensionConfigInternal {
         description: Option<String>,
         #[serde(default)]
         display_name: Option<String>,
-        #[serde(default)]
-        bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
     },
@@ -62,8 +59,6 @@ enum RecipeExtensionConfigInternal {
         headers: HashMap<String, String>,
         timeout: Option<u64>,
         #[serde(default)]
-        bundled: Option<bool>,
-        #[serde(default)]
         available_tools: Vec<String>,
     },
     #[serde(rename = "frontend")]
@@ -73,8 +68,6 @@ enum RecipeExtensionConfigInternal {
         description: Option<String>,
         tools: Vec<Tool>,
         instructions: Option<String>,
-        #[serde(default)]
-        bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
     },
@@ -92,70 +85,100 @@ enum RecipeExtensionConfigInternal {
     },
 }
 
-macro_rules! map_recipe_extensions {
-    ($value:expr; $( $variant:ident { $( $field:ident ),* $(,)? } ),+ $(,)?) => {{
-        match $value {
-            $(
-                RecipeExtensionConfigInternal::$variant {
-                    name,
-                    description,
-                    $( $field ),*
-                } => ExtensionConfig::$variant {
-                    name,
-                    description: description.unwrap_or_default(),
-                    $( $field ),*
-                },
-            )+
-        }
-    }};
-}
-
 impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
-    fn from(internal_variant: RecipeExtensionConfigInternal) -> Self {
-        map_recipe_extensions!(
-        internal_variant;
-            Stdio {
+    fn from(internal: RecipeExtensionConfigInternal) -> Self {
+        match internal {
+            RecipeExtensionConfigInternal::Stdio {
+                name,
+                description,
                 cmd,
                 args,
                 envs,
                 env_keys,
                 timeout,
-                bundled,
-                available_tools
-            },
-            Builtin {
-                display_name,
+                available_tools,
+            } => ExtensionConfig::Stdio {
+                name,
+                description: description.unwrap_or_default(),
+                cmd,
+                args,
+                envs,
+                env_keys,
                 timeout,
-                bundled,
-                available_tools
+                available_tools,
             },
-            Platform {
+            // Legacy builtin entries in recipes are converted to Platform
+            RecipeExtensionConfigInternal::Builtin {
+                name,
+                description,
                 display_name,
-                bundled,
-                available_tools
+                available_tools,
+                ..
+            } => ExtensionConfig::Platform {
+                name,
+                description: description.unwrap_or_default(),
+                display_name,
+                available_tools,
             },
-            StreamableHttp {
+            RecipeExtensionConfigInternal::Platform {
+                name,
+                description,
+                display_name,
+                available_tools,
+            } => ExtensionConfig::Platform {
+                name,
+                description: description.unwrap_or_default(),
+                display_name,
+                available_tools,
+            },
+            RecipeExtensionConfigInternal::StreamableHttp {
+                name,
+                description,
                 uri,
                 envs,
                 env_keys,
                 headers,
                 timeout,
-                bundled,
-                available_tools
+                available_tools,
+            } => ExtensionConfig::StreamableHttp {
+                name,
+                description: description.unwrap_or_default(),
+                uri,
+                envs,
+                env_keys,
+                headers,
+                timeout,
+                available_tools,
             },
-            Frontend {
+            RecipeExtensionConfigInternal::Frontend {
+                name,
+                description,
                 tools,
                 instructions,
-                bundled,
-                available_tools
+                available_tools,
+            } => ExtensionConfig::Frontend {
+                name,
+                description: description.unwrap_or_default(),
+                tools,
+                instructions,
+                available_tools,
             },
-            InlinePython {
+            RecipeExtensionConfigInternal::InlinePython {
+                name,
+                description,
                 code,
                 timeout,
                 dependencies,
-                available_tools
-            }
-        )
+                available_tools,
+            } => ExtensionConfig::InlinePython {
+                name,
+                description: description.unwrap_or_default(),
+                code,
+                timeout,
+                dependencies,
+                available_tools,
+            },
+        }
     }
 }
 
@@ -182,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn builtin_extension_defaults_description() {
+    fn builtin_recipe_converts_to_platform() {
         let wrapper: Wrapper = serde_json::from_value(json!({
             "extensions": [{
                 "type": "builtin",
@@ -199,19 +222,15 @@ mod tests {
         assert_eq!(extensions.len(), 1);
 
         match &extensions[0] {
-            ExtensionConfig::Builtin {
+            ExtensionConfig::Platform {
                 name,
                 description,
                 display_name,
-                timeout,
-                bundled,
                 available_tools,
             } => {
                 assert_eq!(name, "test-builtin");
                 assert_eq!(description, "");
                 assert_eq!(display_name.as_deref(), Some("Test Builtin"));
-                assert_eq!(*timeout, Some(120));
-                assert_eq!(*bundled, Some(true));
                 assert_eq!(
                     available_tools,
                     &vec!["tool_a".to_string(), "tool_b".to_string()]
@@ -236,20 +255,11 @@ mod tests {
         assert_eq!(extensions.len(), 1);
 
         match &extensions[0] {
-            ExtensionConfig::Builtin {
-                name,
-                description,
-                display_name,
-                timeout,
-                bundled,
-                available_tools,
+            ExtensionConfig::Platform {
+                name, description, ..
             } => {
                 assert_eq!(name, "null-description-builtin");
                 assert_eq!(description, "");
-                assert!(display_name.is_none());
-                assert!(timeout.is_none());
-                assert!(bundled.is_none());
-                assert!(available_tools.is_empty());
             }
             other => panic!("unexpected extension variant: {:?}", other),
         }

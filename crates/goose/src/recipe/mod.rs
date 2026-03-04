@@ -234,7 +234,6 @@ impl Recipe {
             name: "summon".to_string(),
             description: String::new(),
             display_name: None,
-            bundled: None,
             available_tools: vec![],
         };
         match &mut self.extensions {

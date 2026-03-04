@@ -1107,7 +1107,6 @@ mod tests {
             envs: Envs::new([("API_KEY".into(), "secret".into())].into()),
             env_keys: vec![],
             timeout: None,
-            bundled: Some(false),
             available_tools: vec![],
         }],
         Some(json!({ "mcpServers": {
@@ -1129,7 +1128,6 @@ mod tests {
             env_keys: vec![],
             headers: HashMap::from([("Authorization".into(), "Bearer token".into())]),
             timeout: None,
-            bundled: Some(false),
             available_tools: vec![],
         }],
         Some(json!({ "mcpServers": {
@@ -1150,7 +1148,6 @@ mod tests {
             env_keys: vec![],
             headers: HashMap::new(),
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         }],
         Some(json!({ "mcpServers": {

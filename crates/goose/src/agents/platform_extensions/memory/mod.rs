@@ -191,7 +191,7 @@ impl MemoryServer {
              - Acknowledge the user about what is stored and where, for transparency and ease of future retrieval.
             "#};
 
-        let global_memory_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+        let global_memory_dir = choose_app_strategy(super::APP_STRATEGY.clone())
             .map(|strategy| strategy.in_config_dir("memory"))
             .unwrap_or_else(|_| PathBuf::from(".config/goose/memory"));
 

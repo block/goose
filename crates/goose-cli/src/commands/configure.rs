@@ -1042,16 +1042,13 @@ fn configure_builtin_extension() -> anyhow::Result<()> {
             name: extension.clone(),
             description,
             display_name: Some(display_name),
-            bundled: Some(true),
             available_tools: Vec::new(),
         }
     } else {
-        let timeout = prompt_extension_timeout()?;
-        ExtensionConfig::Builtin {
+        let _timeout = prompt_extension_timeout()?;
+        ExtensionConfig::Platform {
             name: extension.clone(),
             display_name: Some(display_name),
-            timeout: Some(timeout),
-            bundled: Some(true),
             description,
             available_tools: Vec::new(),
         }
@@ -1099,7 +1096,6 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
             env_keys,
             description,
             timeout: Some(timeout),
-            bundled: None,
             available_tools: Vec::new(),
         },
     });
@@ -1142,7 +1138,6 @@ fn configure_streamable_http_extension() -> anyhow::Result<()> {
             headers,
             description,
             timeout: Some(timeout),
-            bundled: None,
             available_tools: Vec::new(),
         },
     });
@@ -1804,7 +1799,6 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
                                 name: "developer".to_string(),
                                 description: "Developer extension".to_string(),
                                 display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                                bundled: Some(true),
                                 available_tools: Vec::new(),
                             },
                         });
@@ -1873,7 +1867,6 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
                                 name: "developer".to_string(),
                                 description: "Developer extension".to_string(),
                                 display_name: Some(goose::config::DEFAULT_DISPLAY_NAME.to_string()),
-                                bundled: Some(true),
                                 available_tools: Vec::new(),
                             },
                         });

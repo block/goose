@@ -475,7 +475,7 @@ mod tests {
     #[tokio::test]
     async fn test_docx_text_extraction() {
         let test_docx_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/sample.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/sample.docx");
 
         println!("Testing text extraction from: {}", test_docx_path.display());
 
@@ -495,7 +495,7 @@ mod tests {
     #[tokio::test]
     async fn test_docx_update_append() {
         let test_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_output.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_output.docx");
 
         let test_content =
             "Test Heading\nThis is a test paragraph.\n\nAnother paragraph with some content.";
@@ -541,7 +541,7 @@ mod tests {
     #[tokio::test]
     async fn test_docx_update_styled() {
         let test_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_styled.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_styled.docx");
 
         let test_content = "Styled Heading\nThis is a styled paragraph.";
         let params = json!({
@@ -573,7 +573,7 @@ mod tests {
     #[tokio::test]
     async fn test_docx_update_replace() {
         let test_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_replace.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_replace.docx");
 
         // First create a document
         let initial_content = "Original content\nThis should be replaced.\nKeep this text.";
@@ -636,11 +636,11 @@ mod tests {
     #[tokio::test]
     async fn test_docx_add_image() {
         let test_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_image.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_image.docx");
 
         // Create a test image file
         let test_image_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_image.png");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_image.png");
 
         // Create a simple test PNG image using the image crate
         let imgbuf = image::ImageBuffer::from_fn(32, 32, |x, y| {
@@ -691,7 +691,7 @@ mod tests {
     #[tokio::test]
     async fn test_docx_invalid_operation() {
         let test_docx_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/sample.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/sample.docx");
 
         let result = docx_tool(
             test_docx_path.to_str().unwrap(),
@@ -707,7 +707,7 @@ mod tests {
     #[tokio::test]
     async fn test_docx_update_without_content() {
         let test_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_output.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_output.docx");
 
         let result = docx_tool(test_output_path.to_str().unwrap(), "update_doc", None, None).await;
 
@@ -717,7 +717,7 @@ mod tests {
     #[tokio::test]
     async fn test_docx_update_preserve_content() {
         let test_output_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_preserve.docx");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_preserve.docx");
 
         // First create a document with initial content
         let initial_content =

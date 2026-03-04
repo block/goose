@@ -33,19 +33,15 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
         let needs_migration = match existing {
             None => true,
             Some(value) => match serde_yaml::from_value::<ExtensionEntry>(value.clone()) {
-                Ok(entry) => {
-                    if let ExtensionConfig::Platform {
+                Ok(entry) => !matches!(
+                    &entry.config,
+                    ExtensionConfig::Platform {
                         description,
                         display_name,
                         ..
-                    } = &entry.config
-                    {
-                        description != def.description
-                            || display_name.as_deref() != Some(def.display_name)
-                    } else {
-                        true
-                    }
-                }
+                    } if description == def.description
+                        && display_name.as_deref() == Some(def.display_name)
+                ),
                 Err(_) => true,
             },
         };
@@ -61,7 +57,6 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
                     name: def.name.to_string(),
                     description: def.description.to_string(),
                     display_name: Some(def.display_name.to_string()),
-                    bundled: Some(true),
                     available_tools: Vec::new(),
                 },
                 enabled,
@@ -69,6 +64,16 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
 
             if let Ok(value) = serde_yaml::to_value(&new_entry) {
                 extensions_map.insert(ext_key, value);
+                needs_save = true;
+            }
+        }
+    }
+
+    // Remove stale bundled field from any extension entries
+    for (_key, value) in extensions_map.iter_mut() {
+        if let serde_yaml::Value::Mapping(ref mut entry_map) = value {
+            let bundled_key = serde_yaml::Value::String("bundled".to_string());
+            if entry_map.remove(&bundled_key).is_some() {
                 needs_save = true;
             }
         }
@@ -104,7 +109,6 @@ mod tests {
                 name: "todo".to_string(),
                 description: "old description".to_string(),
                 display_name: Some("Old Name".to_string()),
-                bundled: Some(true),
                 available_tools: Vec::new(),
             },
             enabled: false,
@@ -137,5 +141,107 @@ mod tests {
 
         let changed = run_migrations(&mut config);
         assert!(!changed);
+    }
+
+    #[test]
+    fn test_migrate_removes_bundled_field() {
+        let mut config = Mapping::new();
+        let mut extensions = Mapping::new();
+        let mut entry_map = Mapping::new();
+        entry_map.insert(
+            serde_yaml::Value::String("type".to_string()),
+            serde_yaml::Value::String("stdio".to_string()),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("name".to_string()),
+            serde_yaml::Value::String("my-ext".to_string()),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("description".to_string()),
+            serde_yaml::Value::String("test".to_string()),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("cmd".to_string()),
+            serde_yaml::Value::String("echo".to_string()),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("args".to_string()),
+            serde_yaml::Value::Sequence(vec![]),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("enabled".to_string()),
+            serde_yaml::Value::Bool(true),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("bundled".to_string()),
+            serde_yaml::Value::Bool(true),
+        );
+        extensions.insert(
+            serde_yaml::Value::String("my-ext".to_string()),
+            serde_yaml::Value::Mapping(entry_map),
+        );
+        config.insert(
+            serde_yaml::Value::String(EXTENSIONS_CONFIG_KEY.to_string()),
+            serde_yaml::Value::Mapping(extensions),
+        );
+
+        let changed = run_migrations(&mut config);
+        assert!(changed);
+
+        let ext_key = serde_yaml::Value::String(EXTENSIONS_CONFIG_KEY.to_string());
+        let exts = config.get(ext_key).unwrap().as_mapping().unwrap();
+        let my_ext = exts
+            .get(serde_yaml::Value::String("my-ext".to_string()))
+            .unwrap()
+            .as_mapping()
+            .unwrap();
+        assert!(!my_ext.contains_key(serde_yaml::Value::String("bundled".to_string())));
+    }
+
+    #[test]
+    fn test_migrate_builtin_to_platform() {
+        let mut config = Mapping::new();
+        let mut extensions = Mapping::new();
+        let mut entry_map = Mapping::new();
+        entry_map.insert(
+            serde_yaml::Value::String("type".to_string()),
+            serde_yaml::Value::String("builtin".to_string()),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("name".to_string()),
+            serde_yaml::Value::String("computercontroller".to_string()),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("description".to_string()),
+            serde_yaml::Value::String("old desc".to_string()),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("enabled".to_string()),
+            serde_yaml::Value::Bool(true),
+        );
+        entry_map.insert(
+            serde_yaml::Value::String("bundled".to_string()),
+            serde_yaml::Value::Bool(true),
+        );
+        extensions.insert(
+            serde_yaml::Value::String("computercontroller".to_string()),
+            serde_yaml::Value::Mapping(entry_map),
+        );
+        config.insert(
+            serde_yaml::Value::String(EXTENSIONS_CONFIG_KEY.to_string()),
+            serde_yaml::Value::Mapping(extensions),
+        );
+
+        let changed = run_migrations(&mut config);
+        assert!(changed);
+
+        let ext_key = serde_yaml::Value::String(EXTENSIONS_CONFIG_KEY.to_string());
+        let exts = config.get(ext_key).unwrap().as_mapping().unwrap();
+        let cc = exts
+            .get(serde_yaml::Value::String("computercontroller".to_string()))
+            .unwrap();
+        let entry: ExtensionEntry = serde_yaml::from_value(cc.clone()).unwrap();
+        assert!(matches!(entry.config, ExtensionConfig::Platform { .. }));
+        assert!(entry.enabled);
     }
 }

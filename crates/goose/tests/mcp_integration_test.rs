@@ -246,7 +246,6 @@ async fn test_replayed_session(
         envs,
         env_keys: vec![],
         timeout: Some(30),
-        bundled: Some(false),
         available_tools: vec![],
     };
 

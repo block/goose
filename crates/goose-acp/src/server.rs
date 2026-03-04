@@ -3,7 +3,6 @@ use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
-use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::extensions::get_enabled_extensions_with_config;
 use goose::config::paths::Paths;
@@ -72,7 +71,6 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
             envs: Envs::new(stdio.env.into_iter().map(|e| (e.name, e.value)).collect()),
             env_keys: vec![],
             timeout: None,
-            bundled: Some(false),
             available_tools: vec![],
         }),
         McpServer::Http(http) => Ok(ExtensionConfig::StreamableHttp {
@@ -87,7 +85,6 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
                 .map(|h| (h.name, h.value))
                 .collect(),
             timeout: None,
-            bundled: Some(false),
             available_tools: vec![],
         }),
         McpServer::Sse(_) => Err("SSE is unsupported, migrate to streamable_http".to_string()),
@@ -249,15 +246,12 @@ async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
                 name: builtin.clone(),
                 description: builtin.clone(),
                 display_name: None,
-                bundled: None,
                 available_tools: Vec::new(),
             }
         } else {
-            ExtensionConfig::Builtin {
+            ExtensionConfig::Platform {
                 name: builtin.clone(),
                 display_name: None,
-                timeout: None,
-                bundled: None,
                 description: builtin.clone(),
                 available_tools: Vec::new(),
             }
@@ -1337,7 +1331,6 @@ where
 }
 
 pub async fn run(builtins: Vec<String>) -> Result<()> {
-    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
     info!("listening on stdio");
 
     let outgoing = tokio::io::stdout().compat_write();
@@ -1384,7 +1377,6 @@ mod tests {
             ),
             env_keys: vec![],
             timeout: None,
-            bundled: Some(false),
             available_tools: vec![],
         })
     )]
@@ -1404,7 +1396,6 @@ mod tests {
                 "Bearer ghp_xxxxxxxxxxxx".into()
             )]),
             timeout: None,
-            bundled: Some(false),
             available_tools: vec![],
         })
     )]

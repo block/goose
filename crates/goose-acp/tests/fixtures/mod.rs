@@ -3,7 +3,6 @@
 
 use async_trait::async_trait;
 use fs_err as fs;
-use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod};
 use goose::providers::base::Provider;
@@ -289,8 +288,6 @@ pub fn run_test<F>(fut: F)
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
-
     let handle = std::thread::Builder::new()
         .name("acp-test".to_string())
         .stack_size(8 * 1024 * 1024)

@@ -24,7 +24,6 @@ workspace = true
 
 [dependencies]
 goose = { path = "../goose", default-features = false }
-goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 sacp = "10.1.0"
 agent-client-protocol-schema = { version = "0.10", features = ["unstable_session_model", "unstable_session_list"] }

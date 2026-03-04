@@ -434,7 +434,7 @@ impl AutoVisualiserRouter {
         // choose_app_strategy().cache_dir()
         // - macOS/Linux: ~/.cache/goose/autovisualiser/
         // - Windows:     ~\AppData\Local\Block\goose\cache\autovisualiser\
-        let cache_dir = choose_app_strategy(crate::APP_STRATEGY.clone())
+        let cache_dir = choose_app_strategy(super::APP_STRATEGY.clone())
             .unwrap()
             .cache_dir()
             .join("autovisualiser");

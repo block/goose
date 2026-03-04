@@ -507,7 +507,6 @@ mod tests {
                     description: "desc".to_string(),
                     tools: frontend_tools,
                     instructions: None,
-                    bundled: None,
                     available_tools: vec![],
                 },
                 &session.id,

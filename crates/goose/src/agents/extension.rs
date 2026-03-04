@@ -181,11 +181,10 @@ pub enum ExtensionConfig {
         env_keys: Vec<String>,
         timeout: Option<u64>,
         #[serde(default)]
-        bundled: Option<bool>,
-        #[serde(default)]
         available_tools: Vec<String>,
     },
-    /// Built-in extension that is part of the bundled goose MCP server
+    /// Legacy builtin type - kept for config deserialization compatibility.
+    /// Automatically migrated to Platform on config load.
     #[serde(rename = "builtin")]
     Builtin {
         /// The name used to identify this extension
@@ -194,14 +193,12 @@ pub enum ExtensionConfig {
         #[serde(deserialize_with = "deserialize_null_with_default")]
         #[schema(required)]
         description: String,
-        display_name: Option<String>, // needed for the UI
+        display_name: Option<String>,
         timeout: Option<u64>,
-        #[serde(default)]
-        bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
     },
-    /// Platform extensions that have direct access to the agent etc and run in the agent process
+    /// Platform extensions that run in-process
     #[serde(rename = "platform")]
     Platform {
         /// The name used to identify this extension
@@ -210,8 +207,6 @@ pub enum ExtensionConfig {
         #[schema(required)]
         description: String,
         display_name: Option<String>,
-        #[serde(default)]
-        bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
     },
@@ -230,11 +225,7 @@ pub enum ExtensionConfig {
         env_keys: Vec<String>,
         #[serde(default)]
         headers: HashMap<String, String>,
-        // NOTE: set timeout to be optional for compatibility.
-        // However, new configurations should include this field.
         timeout: Option<u64>,
-        #[serde(default)]
-        bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
     },
@@ -250,8 +241,6 @@ pub enum ExtensionConfig {
         tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,
-        #[serde(default)]
-        bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
     },
@@ -277,12 +266,10 @@ pub enum ExtensionConfig {
 
 impl Default for ExtensionConfig {
     fn default() -> Self {
-        Self::Builtin {
+        Self::Platform {
             name: config::DEFAULT_EXTENSION.to_string(),
             display_name: Some(config::DEFAULT_DISPLAY_NAME.to_string()),
-            description: "default".to_string(),
-            timeout: Some(config::DEFAULT_EXTENSION_TIMEOUT),
-            bundled: Some(true),
+            description: "Write and edit files, and execute shell commands".to_string(),
             available_tools: Vec::new(),
         }
     }
@@ -303,7 +290,6 @@ impl ExtensionConfig {
             headers: HashMap::new(),
             description: description.into(),
             timeout: Some(timeout.into()),
-            bundled: None,
             available_tools: Vec::new(),
         }
     }
@@ -322,7 +308,6 @@ impl ExtensionConfig {
             env_keys: Vec::new(),
             description: description.into(),
             timeout: Some(timeout.into()),
-            bundled: None,
             available_tools: Vec::new(),
         }
     }
@@ -356,7 +341,6 @@ impl ExtensionConfig {
                 env_keys,
                 timeout,
                 description,
-                bundled,
                 available_tools,
                 ..
             } => Self::Stdio {
@@ -367,7 +351,6 @@ impl ExtensionConfig {
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,
-                bundled,
                 available_tools,
             },
             other => other,
@@ -432,7 +415,6 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
-                bundled,
                 available_tools,
             } => {
                 let merged = merge_environments(&envs, &env_keys, &name, config).await?;
@@ -444,7 +426,6 @@ impl ExtensionConfig {
                     envs: Envs::new(merged),
                     env_keys: vec![],
                     timeout,
-                    bundled,
                     available_tools,
                 })
             }
@@ -456,7 +437,6 @@ impl ExtensionConfig {
                 env_keys,
                 headers,
                 timeout,
-                bundled,
                 available_tools,
             } => {
                 let merged = merge_environments(&envs, &env_keys, &name, config).await?;
@@ -475,7 +455,6 @@ impl ExtensionConfig {
                     env_keys: vec![],
                     headers,
                     timeout,
-                    bundled,
                     available_tools,
                 })
             }
@@ -569,7 +548,7 @@ mod tests {
     use test_case::test_case;
 
     #[test]
-    fn test_deserialize_missing_description() {
+    fn test_deserialize_legacy_builtin() {
         let config: ExtensionConfig = serde_yaml::from_str(
             "enabled: true
 type: builtin
@@ -590,18 +569,15 @@ available_tools: []",
     #[test]
     fn test_deserialize_null_description() {
         let config: ExtensionConfig = serde_yaml::from_str(
-            "enabled: true
-type: builtin
+            "type: platform
 name: developer
-display_name: Developer
 description: null
-timeout: 300
-bundled: true
+display_name: Developer
 available_tools: []
 ",
         )
         .unwrap();
-        if let ExtensionConfig::Builtin { description, .. } = config {
+        if let ExtensionConfig::Platform { description, .. } = config {
             assert_eq!(description, "")
         } else {
             panic!("unexpected result of deserialization: {}", config)
@@ -611,18 +587,15 @@ available_tools: []
     #[test]
     fn test_deserialize_normal_description() {
         let config: ExtensionConfig = serde_yaml::from_str(
-            "enabled: true
-type: builtin
+            "type: platform
 name: developer
 display_name: Developer
 description: description goes here
-timeout: 300
-bundled: true
 available_tools: []
     ",
         )
         .unwrap();
-        if let ExtensionConfig::Builtin { description, .. } = config {
+        if let ExtensionConfig::Platform { description, .. } = config {
             assert_eq!(description, "description goes here")
         } else {
             panic!("unexpected result of deserialization: {}", config)
@@ -630,23 +603,19 @@ available_tools: []
     }
 
     #[test_case(
-        ExtensionConfig::Builtin {
+        ExtensionConfig::Platform {
             name: "developer".into(),
             description: "dev".into(),
             display_name: None,
-            timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
-        ExtensionConfig::Builtin {
+        ExtensionConfig::Platform {
             name: "developer".into(),
             description: "dev".into(),
             display_name: None,
-            timeout: None,
-            bundled: None,
             available_tools: vec![],
         }
-        ; "builtin_unchanged"
+        ; "platform_unchanged"
     )]
     #[test_case(
         ExtensionConfig::StreamableHttp {
@@ -666,7 +635,6 @@ available_tools: []
             .into_iter()
             .collect(),
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
         ExtensionConfig::StreamableHttp {
@@ -686,7 +654,6 @@ available_tools: []
             .into_iter()
             .collect(),
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         }
         ; "header_substitution"
@@ -700,7 +667,6 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
         ExtensionConfig::Stdio {
@@ -711,7 +677,6 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         }
         ; "env_keys_cleared"
@@ -725,7 +690,6 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
         ExtensionConfig::Stdio {
@@ -740,7 +704,6 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         }
         ; "env_key_resolved"
@@ -759,7 +722,6 @@ available_tools: []
             .into_iter()
             .collect(),
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
         ExtensionConfig::StreamableHttp {
@@ -776,7 +738,6 @@ available_tools: []
                 .into_iter()
                 .collect(),
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         }
         ; "http_env_key_and_header_substitution"
@@ -794,7 +755,6 @@ available_tools: []
             }),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
         ExtensionConfig::Stdio {
@@ -809,7 +769,6 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         }
         ; "env_key_skipped_when_already_in_envs"

@@ -45,11 +45,8 @@ pub(crate) fn normalize_platform_extension(config: ExtensionConfig) -> Extension
     match config {
         ExtensionConfig::Builtin {
             name,
-            description,
-            display_name,
-            timeout,
-            bundled,
             available_tools,
+            ..
         } => {
             let normalized = name_to_key(&name);
             if let Some(def) = PLATFORM_EXTENSIONS.get(normalized.as_str()) {
@@ -57,16 +54,13 @@ pub(crate) fn normalize_platform_extension(config: ExtensionConfig) -> Extension
                     name: def.name.to_string(),
                     description: def.description.to_string(),
                     display_name: Some(def.display_name.to_string()),
-                    bundled: bundled.or(Some(true)),
                     available_tools,
                 }
             } else {
-                ExtensionConfig::Builtin {
+                ExtensionConfig::Platform {
                     name,
-                    description,
-                    display_name,
-                    timeout,
-                    bundled,
+                    description: String::new(),
+                    display_name: None,
                     available_tools,
                 }
             }
@@ -236,20 +230,17 @@ mod tests {
             name: "definitely_not_real_platform_extension".to_string(),
             description: "unknown".to_string(),
             display_name: None,
-            bundled: None,
             available_tools: Vec::new(),
         };
 
-        let builtin = ExtensionConfig::Builtin {
+        let known_platform = ExtensionConfig::Platform {
             name: "developer".to_string(),
             description: "".to_string(),
             display_name: Some("Developer".to_string()),
-            timeout: None,
-            bundled: None,
             available_tools: Vec::new(),
         };
 
         assert!(!is_extension_available(&unknown_platform));
-        assert!(is_extension_available(&builtin));
+        assert!(is_extension_available(&known_platform));
     }
 }

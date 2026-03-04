@@ -162,12 +162,10 @@ mod tests {
     }
 
     fn legacy_test_extension() -> ExtensionConfig {
-        ExtensionConfig::Builtin {
+        ExtensionConfig::Platform {
             name: "developer".into(),
             description: "dev".into(),
             display_name: None,
-            timeout: None,
-            bundled: None,
             available_tools: vec![],
         }
     }
@@ -284,15 +282,12 @@ mod tests {
                 name: "definitely_not_real_platform_extension".to_string(),
                 description: "unknown".to_string(),
                 display_name: None,
-                bundled: None,
                 available_tools: Vec::new(),
             },
-            ExtensionConfig::Builtin {
+            ExtensionConfig::Platform {
                 name: "developer".to_string(),
                 description: "".to_string(),
                 display_name: Some("Developer".to_string()),
-                timeout: None,
-                bundled: None,
                 available_tools: Vec::new(),
             },
         ]);

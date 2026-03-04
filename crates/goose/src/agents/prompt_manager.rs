@@ -417,8 +417,9 @@ mod tests {
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS
             .values()
-            .map(|def| {
-                let client = (def.client_factory)(context.clone());
+            .filter_map(|def| {
+                let factory = def.client_factory?;
+                let client = factory(context.clone());
                 let info = client.get_info();
                 let instructions = info
                     .and_then(|i| i.instructions.clone())
@@ -426,7 +427,7 @@ mod tests {
                 let has_resources = info
                     .and_then(|i| i.capabilities.resources.as_ref())
                     .is_some();
-                ExtensionInfo::new(def.name, &instructions, has_resources)
+                Some(ExtensionInfo::new(def.name, &instructions, has_resources))
             })
             .collect();
 

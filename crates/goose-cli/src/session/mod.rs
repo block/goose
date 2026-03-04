@@ -304,7 +304,6 @@ impl CliSession {
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-            bundled: None,
             available_tools: Vec::new(),
         })
     }
@@ -339,7 +338,6 @@ impl CliSession {
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(timeout),
-            bundled: None,
             available_tools: Vec::new(),
         }
     }
@@ -355,15 +353,12 @@ impl CliSession {
                         name: extension_name.to_string(),
                         description: extension_name.to_string(),
                         display_name: None,
-                        bundled: None,
                         available_tools: Vec::new(),
                     }
                 } else {
-                    ExtensionConfig::Builtin {
+                    ExtensionConfig::Platform {
                         name: extension_name.to_string(),
                         display_name: None,
-                        timeout: None,
-                        bundled: None,
                         description: extension_name.to_string(),
                         available_tools: Vec::new(),
                     }
@@ -1997,7 +1992,6 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-            bundled: None,
             available_tools: vec![],
         }
         ; "name_from_cmd_basename"
@@ -2012,7 +2006,6 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
-            bundled: None,
             available_tools: vec![],
         }
         ; "env_prefix_name_from_cmd"
@@ -2036,7 +2029,6 @@ mod tests {
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(300),
-            bundled: None,
             available_tools: vec![],
         }
         ; "name_from_host"
@@ -2051,7 +2043,6 @@ mod tests {
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(300),
-            bundled: None,
             available_tools: vec![],
         }
         ; "port_and_path"
@@ -2066,7 +2057,6 @@ mod tests {
             headers: HashMap::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(300),
-            bundled: None,
             available_tools: vec![],
         }
         ; "different_port_and_path"

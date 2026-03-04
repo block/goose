@@ -1,5 +1,4 @@
 use axum::http::StatusCode;
-use goose::builtin_extension::register_builtin_extensions;
 use goose::execution::manager::AgentManager;
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
@@ -30,8 +29,6 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new() -> anyhow::Result<Arc<AppState>> {
-        register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
-
         let agent_manager = AgentManager::instance().await?;
         let tunnel_manager = Arc::new(TunnelManager::new());
         let gateway_manager = Arc::new(GatewayManager::new(agent_manager.clone())?);

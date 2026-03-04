@@ -367,7 +367,7 @@ mod tests {
     #[tokio::test]
     async fn test_pdf_text_extraction() {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test.pdf");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test.pdf");
         let cache_dir = tempfile::tempdir().unwrap().keep();
 
         println!("Testing text extraction from: {}", test_pdf_path.display());
@@ -389,7 +389,7 @@ mod tests {
     #[tokio::test]
     async fn test_pdf_image_extraction() {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test_image.pdf");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test_image.pdf");
         let cache_dir = tempfile::tempdir().unwrap().keep();
 
         println!("Testing image extraction from: {}", test_pdf_path.display());
@@ -445,7 +445,7 @@ mod tests {
     #[tokio::test]
     async fn test_pdf_invalid_operation() {
         let test_pdf_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("src/computercontroller/tests/data/test.pdf");
+            .join("src/agents/platform_extensions/computercontroller/tests/data/test.pdf");
         let cache_dir = tempfile::tempdir().unwrap().keep();
 
         let result = pdf_tool(

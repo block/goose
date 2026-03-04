@@ -17,13 +17,7 @@ workspace = true
 
 [dependencies]
 lru = { workspace = true }
-rmcp = { workspace = true, features = [
-    "client",
-    "reqwest",
-    "transport-child-process",
-    "transport-streamable-http-client",
-    "transport-streamable-http-client-reqwest",
-] }
+rmcp = { workspace = true, features = ["client", "macros", "reqwest", "server", "transport-child-process", "transport-io", "transport-streamable-http-client", "transport-streamable-http-client-reqwest"] }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 futures = { workspace = true }
@@ -140,6 +134,14 @@ unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
 encoding_rs = "0.8.35"
+xcap = "=0.4.0"
+lopdf = "0.36.0"
+docx-rs = "0.4.7"
+image = { version = "0.24.9", features = ["jpeg"] }
+umya-spreadsheet = "2.2.3"
+mpatch = "=0.2.0"
+shell-words = "1.1.1"
+libc = "0.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }

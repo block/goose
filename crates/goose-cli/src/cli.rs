@@ -1,12 +1,9 @@
 use anyhow::Result;
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell as ClapShell};
-use goose::builtin_extension::register_builtin_extensions;
 use goose::config::Config;
 use goose::posthog::get_telemetry_choice;
 use goose::recipe::Recipe;
-use goose_mcp::mcp_server_runner::{serve, McpCommand};
-use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer};
 
 use crate::commands::configure::{configure_telemetry_consent_dialog, handle_configure};
 use crate::commands::info::handle_info;
@@ -701,22 +698,14 @@ enum Command {
         verbose: bool,
     },
 
-    /// Manage system prompts and behaviors
-    #[command(about = "Run one of the mcp servers bundled with goose")]
-    Mcp {
-        #[arg(value_parser = clap::value_parser!(McpCommand))]
-        server: McpCommand,
-    },
-
     /// Run goose as an ACP (Agent Client Protocol) agent
     #[command(about = "Run goose as an ACP agent server on stdio")]
     Acp {
-        /// Add builtin extensions by name
+        /// Add platform extensions by name
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
-            help = "Add builtin extensions by name (e.g., 'developer' or multiple: 'developer,github')",
-            long_help = "Add one or more builtin extensions that are bundled with goose by specifying their names, comma-separated",
+            help = "Add platform extensions by name (e.g., 'developer' or multiple: 'developer,computercontroller')",
             value_delimiter = ','
         )]
         builtins: Vec<String>,
@@ -1031,7 +1020,6 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
     match command {
         Some(Command::Configure {}) => "configure",
         Some(Command::Info { .. }) => "info",
-        Some(Command::Mcp { .. }) => "mcp",
         Some(Command::Acp { .. }) => "acp",
         Some(Command::Session { .. }) => "session",
         Some(Command::Project {}) => "project",
@@ -1048,18 +1036,6 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::ValidateExtensions { .. }) => "validate-extensions",
         None => "default_session",
     }
-}
-
-async fn handle_mcp_command(server: McpCommand) -> Result<()> {
-    let name = server.name();
-    let _ = crate::logging::setup_logging(Some(&format!("mcp-{name}")));
-    match server {
-        McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
-        McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
-        McpCommand::Memory => serve(MemoryServer::new()).await?,
-        McpCommand::Tutorial => serve(TutorialServer::new()).await?,
-    }
-    Ok(())
 }
 
 async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
@@ -1695,8 +1671,6 @@ async fn handle_default_session() -> Result<()> {
 }
 
 pub async fn cli() -> anyhow::Result<()> {
-    register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
-
     let cli = Cli::parse();
 
     if let Err(e) = crate::project_tracker::update_project_tracker(None, None) {
@@ -1718,7 +1692,6 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Configure {}) => handle_configure().await,
         Some(Command::Info { verbose }) => handle_info(verbose),
-        Some(Command::Mcp { server }) => handle_mcp_command(server).await,
         Some(Command::Acp { builtins }) => goose_acp::server::run(builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..

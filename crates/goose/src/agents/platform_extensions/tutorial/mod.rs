@@ -11,7 +11,8 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize};
 
-static TUTORIALS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/tutorial/tutorials");
+static TUTORIALS_DIR: Dir =
+    include_dir!("$CARGO_MANIFEST_DIR/src/agents/platform_extensions/tutorial/tutorials");
 
 /// Parameters for the load_tutorial tool
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]

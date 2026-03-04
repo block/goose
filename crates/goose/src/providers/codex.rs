@@ -759,7 +759,6 @@ mod tests {
             env_keys: vec![],
             description: "Lookup".into(),
             timeout: Some(30),
-            bundled: None,
             available_tools: vec![],
         },
         &[
@@ -778,7 +777,6 @@ mod tests {
             env_keys: vec![],
             headers: HashMap::from([("Authorization".into(), "Bearer token".into())]),
             timeout: None,
-            bundled: Some(false),
             available_tools: vec![],
         },
         &[
@@ -796,7 +794,6 @@ mod tests {
             env_keys: vec![],
             headers: HashMap::new(),
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
         &[
@@ -813,7 +810,6 @@ mod tests {
             env_keys: vec![],
             description: String::new(),
             timeout: None,
-            bundled: None,
             available_tools: vec![],
         },
         &[

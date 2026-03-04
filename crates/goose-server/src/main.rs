@@ -11,10 +11,6 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use goose::agents::validate_extensions;
-use goose_mcp::{
-    mcp_server_runner::{serve, McpCommand},
-    AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer,
-};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -28,11 +24,6 @@ struct Cli {
 enum Commands {
     /// Run the agent server
     Agent,
-    /// Run the MCP server
-    Mcp {
-        #[arg(value_parser = clap::value_parser!(McpCommand))]
-        server: McpCommand,
-    },
     /// Validate a bundled-extensions JSON file
     #[command(name = "validate-extensions")]
     ValidateExtensions {
@@ -48,15 +39,6 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Agent => {
             commands::agent::run().await?;
-        }
-        Commands::Mcp { server } => {
-            logging::setup_logging(Some(&format!("mcp-{}", server.name())))?;
-            match server {
-                McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
-                McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
-                McpCommand::Memory => serve(MemoryServer::new()).await?,
-                McpCommand::Tutorial => serve(TutorialServer::new()).await?,
-            }
         }
         Commands::ValidateExtensions { path } => {
             match validate_extensions::validate_bundled_extensions(&path) {

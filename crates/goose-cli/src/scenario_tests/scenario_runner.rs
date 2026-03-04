@@ -221,12 +221,10 @@ where
         .extension_manager
         .add_client(
             "weather_extension".to_string(),
-            ExtensionConfig::Builtin {
+            ExtensionConfig::Platform {
                 name: "".to_string(),
                 display_name: None,
                 description: "".to_string(),
-                timeout: None,
-                bundled: None,
                 available_tools: vec![],
             },
             Arc::new(mock_client),
