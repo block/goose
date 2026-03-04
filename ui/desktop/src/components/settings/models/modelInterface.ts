@@ -72,18 +72,15 @@ export async function fetchModelsForProviders(
       const models = response.data || [];
       return { provider: p, models, error: null, warning: null };
     } catch (e: unknown) {
-      // For custom providers, fall back to the configured model list
-      if (p.provider_type === 'Custom') {
-        const fallbackModels = p.metadata.known_models.map((m) => m.name);
-        if (fallbackModels.length > 0) {
-          console.warn(`Failed to fetch models for ${p.name}:`, getErrorMessage(e));
-          return {
-            provider: p,
-            models: fallbackModels,
-            error: null,
-            warning: `Could not fetch models from provider — showing configured models instead.`,
-          };
-        }
+      const fallbackModels = p.metadata.known_models?.map((m) => m.name) || [];
+      if (fallbackModels.length > 0) {
+        console.warn(`Failed to fetch models for ${p.name}:`, getErrorMessage(e));
+        return {
+          provider: p,
+          models: fallbackModels,
+          error: null,
+          warning: `Could not fetch models from provider — showing configured models instead.`,
+        };
       }
 
       const errMsg = getErrorMessage(e);
