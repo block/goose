@@ -20,6 +20,7 @@ use goose::conversation::Conversation;
 use goose::session::SessionManager;
 use rmcp::model::{CustomNotification, ServerNotification};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{
     convert::Infallible,
     pin::Pin,
@@ -427,6 +428,25 @@ pub async fn reply(
                     },
                     &task_tx,
                     &task_cancel,
+                )
+                .await;
+
+                // Emit routing decision as a durable activity event for the UI timeline.
+                // This ensures GenUI runs (which may stream mostly json-render text) still produce
+                // a human-readable activity entry.
+                let _ = stream_activity(
+                    &task_tx,
+                    &task_cancel,
+                    "routing",
+                    json!({
+                        "phase": "routing",
+                        "text": format!(
+                            "Switched to {} / {}",
+                            primary.agent_name,
+                            primary.mode_slug
+                        ),
+                        "confidence": primary.confidence,
+                    }),
                 )
                 .await;
 
