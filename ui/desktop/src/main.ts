@@ -1,10 +1,22 @@
 import * as Sentry from '@sentry/electron/main';
 
+let telemetryEnabled = false;
+
 Sentry.init({
   dsn: 'https://4ded405f3749b4952425eb404e212119@o160250.ingest.us.sentry.io/4510975954124800',
   release: `goose-desktop@${process.env.npm_package_version || 'unknown'}`,
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+  beforeSend(event) {
+    return telemetryEnabled ? event : null;
+  },
+  beforeSendTransaction(transaction) {
+    return telemetryEnabled ? transaction : null;
+  },
 });
+
+export function enableSentryTelemetry(enabled: boolean) {
+  telemetryEnabled = enabled;
+}
 
 import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
@@ -56,7 +68,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
-import { GooseApp } from './api';
+import { GooseApp, readConfig } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
@@ -685,6 +697,17 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   }
 
   // Let windowStateKeeper manage the window
+  // Enable Sentry if the user has opted in to telemetry
+  try {
+    const telemetryResponse = await readConfig({
+      body: { key: 'GOOSE_TELEMETRY_ENABLED', is_secret: false },
+      client: goosedClient,
+    });
+    enableSentryTelemetry(telemetryResponse.data === true);
+  } catch {
+    // Telemetry stays disabled if we can't read the config
+  }
+
   mainWindowState.manage(mainWindow);
 
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
