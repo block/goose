@@ -1,7 +1,15 @@
 import * as Sentry from '@sentry/electron/renderer';
 
+let sentryEnabled = false;
+
 Sentry.init({
   environment: import.meta.env.MODE === 'production' ? 'production' : 'development',
+  beforeSend(event) {
+    return sentryEnabled ? event : null;
+  },
+  beforeSendTransaction(transaction) {
+    return sentryEnabled ? transaction : null;
+  },
 });
 
 import React, { Suspense, lazy } from 'react';
@@ -47,6 +55,7 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
       });
       const isTelemetryEnabled = telemetryResponse.data !== false;
       setTelemetryEnabled(isTelemetryEnabled);
+      sentryEnabled = isTelemetryEnabled;
     } catch (error) {
       console.warn('[Analytics] Failed to initialize analytics:', error);
     }
