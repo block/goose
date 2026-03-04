@@ -52,7 +52,9 @@ pub async fn run() -> Result<()> {
             secret_key.clone(),
             check_token,
         ))
-        .layer(cors);
+        .layer(cors)
+        .layer(sentry::integrations::tower::NewSentryLayer::new_from_top())
+        .layer(sentry::integrations::tower::SentryHttpLayer::new().enable_transaction());
 
     let addr = settings.socket_addr();
     let tls_setup = self_signed_config().await?;

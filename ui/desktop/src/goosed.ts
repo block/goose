@@ -113,7 +113,8 @@ export const isFatalError = (line: string): boolean => {
 export const buildGoosedEnv = (
   port: number,
   secretKey: string,
-  binaryPath?: string
+  binaryPath?: string,
+  isPackaged: boolean = false
 ): Record<string, string> => {
   // Environment variable naming follows the config crate convention:
   // - GOOSE_ prefix with _ separator for top-level fields (GOOSE_PORT, GOOSE_HOST)
@@ -123,6 +124,7 @@ export const buildGoosedEnv = (
     GOOSE_PORT: port.toString(),
     GOOSE_SERVER__SECRET_KEY: secretKey,
     HOME: homeDir,
+    GOOSE_ENVIRONMENT: isPackaged ? 'production' : 'development',
   };
 
   // Windows-specific environment variables
@@ -248,7 +250,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   const spawnEnv: Record<string, string | undefined> = {
     ...process.env,
-    ...buildGoosedEnv(port, serverSecret, goosedPath),
+    ...buildGoosedEnv(port, serverSecret, goosedPath, isPackaged),
   };
 
   for (const [key, value] of Object.entries(additionalEnv)) {

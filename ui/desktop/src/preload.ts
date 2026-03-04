@@ -1,3 +1,5 @@
+import '@sentry/electron/preload';
+
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
