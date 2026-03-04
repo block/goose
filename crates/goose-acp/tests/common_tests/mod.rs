@@ -120,7 +120,7 @@ pub async fn run_model_list<C: Connection>() {
     expected_session_id.set(session.session_id().0.to_string());
 
     let models = models.unwrap();
-    assert!(models.available_models.len() > 0);
+    assert!(!models.available_models.is_empty());
     assert_eq!(models.current_model_id, ModelId::new(TEST_MODEL));
 }
 
