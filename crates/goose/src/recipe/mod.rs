@@ -226,6 +226,36 @@ pub struct RecipeBuilder {
 }
 
 impl Recipe {
+    /// When a recipe has the old builtin developer extension but not analyze, auto-inject analyze.
+    /// The old builtin developer extension included analyze as a sub-tool, but they are
+    /// now separate platform extensions. This preserves backwards compatibility for old recipes.
+    /// Only targets `type: builtin` (old format), not `type: platform` (new format where the
+    /// author made a deliberate choice).
+    fn ensure_analyze_for_developer(&mut self) {
+        let has_builtin_developer = self.extensions.as_ref().is_some_and(|exts| {
+            exts.iter().any(|e| {
+                matches!(e, ExtensionConfig::Builtin { name, .. } if name == "developer")
+            })
+        });
+        let has_analyze = self
+            .extensions
+            .as_ref()
+            .is_some_and(|exts| exts.iter().any(|e| e.name() == "analyze"));
+
+        if has_builtin_developer && !has_analyze {
+            let analyze = ExtensionConfig::Platform {
+                name: "analyze".to_string(),
+                description: String::new(),
+                display_name: None,
+                bundled: None,
+                available_tools: vec![],
+            };
+            if let Some(exts) = &mut self.extensions {
+                exts.push(analyze);
+            }
+        }
+    }
+
     fn ensure_summon_for_subrecipes(&mut self) {
         if self.sub_recipes.is_none() {
             return;
@@ -309,6 +339,7 @@ impl Recipe {
                 .map_err(|e| anyhow::anyhow!("{}", strip_error_location(&e.to_string())))?,
         };
 
+        recipe.ensure_analyze_for_developer();
         recipe.ensure_summon_for_subrecipes();
         Ok(recipe)
     }

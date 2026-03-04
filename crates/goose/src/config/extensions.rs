@@ -222,6 +222,7 @@ pub fn resolve_extensions_for_new_session(
 
     extensions
         .into_iter()
+        .map(normalize_platform_extension)
         .filter(is_extension_available)
         .collect()
 }
