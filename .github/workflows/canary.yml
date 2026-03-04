@@ -78,6 +78,8 @@ jobs:
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false
+    secrets:
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   # ------------------------------------------------------------
   # 5) Bundle Desktop App (Linux) - builds goosed and Electron app
@@ -87,6 +89,8 @@ jobs:
     uses: ./.github/workflows/bundle-desktop-linux.yml
     with:
       version: ${{ needs.prepare-version.outputs.version }}
+    secrets:
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   # ------------------------------------------------------------
   # 6) Bundle Desktop App (Windows) - builds goosed and Electron app
@@ -97,6 +101,8 @@ jobs:
     with:
       version: ${{ needs.prepare-version.outputs.version }}
       signing: false
+    secrets:
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
 
   # ------------------------------------
   # 7) Create/Update GitHub Release

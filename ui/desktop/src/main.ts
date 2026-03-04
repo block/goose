@@ -3,7 +3,7 @@ import * as Sentry from '@sentry/electron/main';
 let telemetryEnabled = false;
 
 Sentry.init({
-  dsn: 'https://4ded405f3749b4952425eb404e212119@o160250.ingest.us.sentry.io/4510975954124800',
+  dsn: process.env.SENTRY_DSN || undefined,
   release: `goose-desktop@${process.env.npm_package_version || 'unknown'}`,
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
   beforeSend(event) {
