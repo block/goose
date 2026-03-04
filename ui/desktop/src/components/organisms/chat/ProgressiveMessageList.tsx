@@ -331,6 +331,7 @@ export default function ProgressiveMessageList({
     chat,
     append,
     toolCallNotifications,
+    activityEvents,
     isStreamingMessage,
     onMessageUpdate,
     toolCallChains,

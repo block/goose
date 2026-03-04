@@ -98,7 +98,7 @@ export default function BaseChat({
     setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
-    activityEvents: activityEvents,
+    activityEvents,
     onMessageUpdate,
   } = useChatStream({
     sessionId,

@@ -22,7 +22,7 @@ describe('WorkBlockIndicator one-liner', () => {
         ],
         created_at: new Date().toISOString(),
       },
-    ] as any;
+    ] as unknown as import('@/api').Message[];
 
     const activityEvents = new Map<string, unknown[]>([
       [
