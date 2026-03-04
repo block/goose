@@ -19,6 +19,7 @@ use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
 };
 use crate::agents::final_output_tool::{FINAL_OUTPUT_CONTINUATION_MESSAGE, FINAL_OUTPUT_TOOL_NAME};
+use crate::agents::platform_extensions::DeveloperFileIo;
 use crate::agents::platform_extensions::MANAGE_EXTENSIONS_TOOL_NAME_COMPLETE;
 use crate::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
 use crate::agents::prompt_manager::PromptManager;
@@ -110,6 +111,7 @@ pub struct AgentConfig {
     pub goose_mode: GooseMode,
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
+    pub developer_file_io: Option<DeveloperFileIo>,
 }
 
 impl AgentConfig {
@@ -128,7 +130,13 @@ impl AgentConfig {
             goose_mode,
             disable_session_naming,
             goose_platform,
+            developer_file_io: None,
         }
+    }
+
+    pub fn with_developer_file_io(mut self, developer_file_io: Option<DeveloperFileIo>) -> Self {
+        self.developer_file_io = developer_file_io;
+        self
     }
 }
 
@@ -228,6 +236,7 @@ impl Agent {
         };
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
+        let developer_file_io = config.developer_file_io.clone();
         Self {
             provider: provider.clone(),
             config,
@@ -236,6 +245,7 @@ impl Agent {
                 session_manager,
                 goose_platform.to_string(),
                 capabilities,
+                developer_file_io,
             )),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_tools: Mutex::new(HashMap::new()),

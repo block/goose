@@ -5,7 +5,8 @@
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
 use fixtures::{
-    initialize_agent, Connection, OpenAiFixture, PermissionDecision, Session, TestConnectionConfig,
+    initialize_agent, server::ClientToAgentConnection, Connection, OpenAiFixture,
+    PermissionDecision, Session, TestConnectionConfig,
 };
 use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
@@ -16,7 +17,87 @@ use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_MODEL};
 use sacp::schema::{
     McpServer, McpServerHttp, ModelId, ModelInfo, SessionModelState, ToolCallStatus,
 };
+use serde_json::json;
 use std::sync::Arc;
+
+const FS_READ_TEST_CONTENT: &str = "delegated-read-content";
+const FS_WRITE_DELEGATED_CONTENT: &str = "delegated write content";
+const FS_WRITE_LOCAL_CONTENT: &str = "local write content";
+
+fn openai_tool_call_fixture(
+    tool_call_id: &str,
+    tool_name: &str,
+    arguments: serde_json::Value,
+) -> String {
+    let args_json = arguments.to_string();
+    let chunk_1 = json!({
+        "id": "chatcmpl-test",
+        "object": "chat.completion.chunk",
+        "created": 1766229303,
+        "model": "gpt-5-nano",
+        "choices": [{
+            "index": 0,
+            "delta": {
+                "role": "assistant",
+                "content": serde_json::Value::Null,
+                "tool_calls": [{
+                    "index": 0,
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": ""
+                    }
+                }]
+            },
+            "finish_reason": serde_json::Value::Null
+        }]
+    });
+    let chunk_2 = json!({
+        "id": "chatcmpl-test",
+        "object": "chat.completion.chunk",
+        "created": 1766229303,
+        "model": "gpt-5-nano",
+        "choices": [{
+            "index": 0,
+            "delta": {
+                "tool_calls": [{
+                    "index": 0,
+                    "function": {
+                        "arguments": args_json
+                    }
+                }]
+            },
+            "finish_reason": serde_json::Value::Null
+        }]
+    });
+    let chunk_3 = json!({
+        "id": "chatcmpl-test",
+        "object": "chat.completion.chunk",
+        "created": 1766229303,
+        "model": "gpt-5-nano",
+        "choices": [{
+            "index": 0,
+            "delta": {},
+            "finish_reason": "tool_calls"
+        }]
+    });
+    let chunk_4 = json!({
+        "id": "chatcmpl-test",
+        "object": "chat.completion.chunk",
+        "created": 1766229303,
+        "model": "gpt-5-nano",
+        "choices": [],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 10,
+            "total_tokens": 110
+        }
+    });
+    format!(
+        "data: {chunk_1}\n\ndata: {chunk_2}\n\ndata: {chunk_3}\n\ndata: {chunk_4}\n\ndata: [DONE]\n"
+    )
+}
 
 pub async fn run_config_mcp<C: Connection>() {
     let temp_dir = tempfile::tempdir().unwrap();
@@ -326,7 +407,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
                 include_str!("../test_data/openai_builtin_execute.txt"),
             ),
             (
-                r#"Created /tmp/result.txt"#.into(),
+                r#"Wrote /tmp/result.txt"#.into(),
                 include_str!("../test_data/openai_builtin_final.txt"),
             ),
         ],
@@ -427,4 +508,156 @@ pub async fn run_prompt_mcp<C: Connection>() {
         .await;
     assert_eq!(output.text, FAKE_CODE);
     expected_session_id.assert_matches(&session.session_id().0);
+}
+
+pub async fn run_fs_read_delegation_without_permission() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let file_path = temp_dir.path().join("read-delegation.txt");
+    fs::write(&file_path, FS_READ_TEST_CONTENT).unwrap();
+    let expected_session_id = ExpectedSessionId::default();
+    let prompt = format!(
+        "Use edit on {} replacing not-present with replacement.",
+        file_path.display()
+    );
+    let openai = OpenAiFixture::new_dynamic(
+        vec![
+            (
+                prompt.clone(),
+                openai_tool_call_fixture(
+                    "call_read",
+                    "edit",
+                    json!({
+                        "path": file_path.to_string_lossy(),
+                        "before": "not-present",
+                        "after": "replacement"
+                    }),
+                ),
+            ),
+            (
+                FS_READ_TEST_CONTENT.to_string(),
+                include_str!("../test_data/openai_basic.txt").to_string(),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+    let config = TestConnectionConfig {
+        builtins: vec!["developer".to_string()],
+        fs_read_text_file: true,
+        goose_mode: GooseMode::Auto,
+        ..Default::default()
+    };
+    let mut conn = ClientToAgentConnection::new(config, openai).await;
+    let (mut session, _) = conn.new_session().await;
+    expected_session_id.set(session.session_id().0.to_string());
+
+    let _ = session.prompt(&prompt, PermissionDecision::Cancel).await;
+    assert_eq!(conn.permission_request_count(), 0);
+    assert_eq!(conn.read_requests().len(), 1);
+    assert_eq!(conn.write_requests().len(), 0);
+}
+
+async fn run_fs_write_test(
+    file_content: &str,
+    fs_write_enabled: bool,
+    decision: PermissionDecision,
+    expected_status: ToolCallStatus,
+    expect_client_write_calls: usize,
+    expect_file_exists: bool,
+) {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let file_path = temp_dir.path().join("write-target.txt");
+    let expected_session_id = ExpectedSessionId::default();
+    let prompt = format!(
+        "Write {} to {} using write.",
+        file_content,
+        file_path.display()
+    );
+    let openai = OpenAiFixture::new_dynamic(
+        vec![
+            (
+                prompt.clone(),
+                openai_tool_call_fixture(
+                    "call_write",
+                    "write",
+                    json!({
+                        "path": file_path.to_string_lossy(),
+                        "content": file_content
+                    }),
+                ),
+            ),
+            (
+                file_path.to_string_lossy().to_string(),
+                include_str!("../test_data/openai_basic.txt").to_string(),
+            ),
+        ],
+        expected_session_id.clone(),
+    )
+    .await;
+    let config = TestConnectionConfig {
+        builtins: vec!["developer".to_string()],
+        goose_mode: GooseMode::Approve,
+        fs_write_text_file: fs_write_enabled,
+        ..Default::default()
+    };
+    let mut conn = ClientToAgentConnection::new(config, openai).await;
+    let (mut session, _) = conn.new_session().await;
+    expected_session_id.set(session.session_id().0.to_string());
+
+    let output = session.prompt(&prompt, decision).await;
+    assert_eq!(output.tool_status, Some(expected_status));
+    assert_eq!(conn.permission_request_count(), 1);
+    assert_eq!(conn.write_requests().len(), expect_client_write_calls);
+    assert_eq!(file_path.exists(), expect_file_exists);
+    if expect_file_exists {
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), file_content);
+    }
+}
+
+pub async fn run_fs_write_delegation_with_permission_allowed() {
+    run_fs_write_test(
+        FS_WRITE_DELEGATED_CONTENT,
+        true,
+        PermissionDecision::AllowOnce,
+        ToolCallStatus::Completed,
+        1,
+        true,
+    )
+    .await;
+}
+
+pub async fn run_fs_write_delegation_with_permission_rejected() {
+    run_fs_write_test(
+        FS_WRITE_DELEGATED_CONTENT,
+        true,
+        PermissionDecision::RejectOnce,
+        ToolCallStatus::Failed,
+        0,
+        false,
+    )
+    .await;
+}
+
+pub async fn run_agent_side_write_when_fs_disabled() {
+    run_fs_write_test(
+        FS_WRITE_LOCAL_CONTENT,
+        false,
+        PermissionDecision::AllowOnce,
+        ToolCallStatus::Completed,
+        0,
+        true,
+    )
+    .await;
+}
+
+pub async fn run_agent_side_write_rejected_when_fs_disabled() {
+    run_fs_write_test(
+        FS_WRITE_LOCAL_CONTENT,
+        false,
+        PermissionDecision::RejectOnce,
+        ToolCallStatus::Failed,
+        0,
+        false,
+    )
+    .await;
 }

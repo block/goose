@@ -1838,6 +1838,7 @@ mod tests {
             extension_manager: None,
             session_manager: Arc::new(crate::session::SessionManager::instance()),
             session: None,
+            developer_file_io: None,
         }
     }
 

@@ -72,8 +72,8 @@ fn select_option(
 pub struct OpenAiFixture {
     _server: MockServer,
     base_url: String,
-    exchanges: Vec<(String, &'static str)>,
-    queue: Arc<Mutex<VecDeque<(String, &'static str)>>>,
+    exchanges: Vec<(String, String)>,
+    queue: Arc<Mutex<VecDeque<(String, String)>>>,
 }
 
 impl OpenAiFixture {
@@ -81,6 +81,17 @@ impl OpenAiFixture {
     /// On mismatch, returns 417 of the diff in OpenAI error format.
     pub async fn new(
         exchanges: Vec<(String, &'static str)>,
+        expected_session_id: ExpectedSessionId,
+    ) -> Self {
+        let exchanges = exchanges
+            .into_iter()
+            .map(|(pattern, response)| (pattern, response.to_string()))
+            .collect();
+        Self::new_dynamic(exchanges, expected_session_id).await
+    }
+
+    pub async fn new_dynamic(
+        exchanges: Vec<(String, String)>,
         expected_session_id: ExpectedSessionId,
     ) -> Self {
         let mock_server = MockServer::start().await;
@@ -247,6 +258,8 @@ pub struct TestConnectionConfig {
     pub mcp_servers: Vec<McpServer>,
     pub builtins: Vec<String>,
     pub goose_mode: GooseMode,
+    pub fs_read_text_file: bool,
+    pub fs_write_text_file: bool,
     pub data_root: PathBuf,
     pub provider_factory: Option<ProviderConstructor>,
 }
@@ -257,6 +270,8 @@ impl Default for TestConnectionConfig {
             mcp_servers: Vec::new(),
             builtins: Vec::new(),
             goose_mode: GooseMode::Auto,
+            fs_read_text_file: false,
+            fs_write_text_file: false,
             data_root: PathBuf::new(),
             provider_factory: None,
         }
