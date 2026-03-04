@@ -33,39 +33,60 @@ fn migrate_platform_extensions(config: &mut Mapping) -> bool {
         let needs_migration = match existing {
             None => true,
             Some(value) => match serde_yaml::from_value::<ExtensionEntry>(value.clone()) {
-                Ok(entry) => {
-                    if let ExtensionConfig::Platform {
+                Ok(entry) => match &entry.config {
+                    ExtensionConfig::Platform {
                         description,
                         display_name,
                         ..
-                    } = &entry.config
-                    {
+                    }
+                    | ExtensionConfig::Builtin {
+                        description,
+                        display_name,
+                        ..
+                    } => {
                         description != def.description
                             || display_name.as_deref() != Some(def.display_name)
-                    } else {
-                        true
                     }
-                }
+                    _ => true,
+                },
                 Err(_) => true,
             },
         };
 
         if needs_migration {
-            let enabled = existing
-                .and_then(|v| serde_yaml::from_value::<ExtensionEntry>(v.clone()).ok())
+            let existing_entry = existing
+                .and_then(|v| serde_yaml::from_value::<ExtensionEntry>(v.clone()).ok());
+
+            let enabled = existing_entry
+                .as_ref()
                 .map(|e| e.enabled)
                 .unwrap_or(def.default_enabled);
 
-            let new_entry = ExtensionEntry {
-                config: ExtensionConfig::Platform {
+            // If the extension already exists as type 'builtin', preserve that type
+            let is_existing_builtin = existing_entry
+                .as_ref()
+                .is_some_and(|e| matches!(e.config, ExtensionConfig::Builtin { .. }));
+
+            let config = if is_existing_builtin {
+                ExtensionConfig::Builtin {
+                    name: def.name.to_string(),
+                    description: def.description.to_string(),
+                    display_name: Some(def.display_name.to_string()),
+                    timeout: None,
+                    bundled: Some(true),
+                    available_tools: Vec::new(),
+                }
+            } else {
+                ExtensionConfig::Platform {
                     name: def.name.to_string(),
                     description: def.description.to_string(),
                     display_name: Some(def.display_name.to_string()),
                     bundled: Some(true),
                     available_tools: Vec::new(),
-                },
-                enabled,
+                }
             };
+
+            let new_entry = ExtensionEntry { config, enabled };
 
             if let Ok(value) = serde_yaml::to_value(&new_entry) {
                 extensions_map.insert(ext_key, value);
