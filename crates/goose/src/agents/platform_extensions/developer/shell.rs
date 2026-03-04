@@ -86,11 +86,11 @@ pub struct ShellTool {
 }
 
 impl ShellTool {
-    pub fn new() -> Self {
-        Self {
-            output_dir: tempfile::tempdir().expect("failed to create temp dir for shell output"),
+    pub fn new() -> std::io::Result<Self> {
+        Ok(Self {
+            output_dir: tempfile::tempdir()?,
             call_index: AtomicUsize::new(0),
-        }
+        })
     }
 
     pub async fn shell(&self, params: ShellParams) -> CallToolResult {
@@ -185,12 +185,6 @@ impl ShellTool {
         let mut result = CallToolResult::error(vec![Content::text(message).with_priority(0.0)]);
         result.structured_content = serde_json::to_value(&shell_output).ok();
         result
-    }
-}
-
-impl Default for ShellTool {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -409,7 +403,7 @@ mod tests {
 
     #[tokio::test]
     async fn shell_executes_command() {
-        let tool = ShellTool::new();
+        let tool = ShellTool::new().unwrap();
         let result = tool
             .shell(ShellParams {
                 command: "echo hello".to_string(),
@@ -424,7 +418,7 @@ mod tests {
     #[cfg(not(windows))]
     #[tokio::test]
     async fn shell_returns_error_for_non_zero_exit() {
-        let tool = ShellTool::new();
+        let tool = ShellTool::new().unwrap();
         let result = tool
             .shell(ShellParams {
                 command: "echo fail && exit 7".to_string(),
@@ -440,7 +434,7 @@ mod tests {
     #[tokio::test]
     async fn shell_uses_working_dir_for_relative_execution() {
         let dir = tempfile::tempdir().unwrap();
-        let tool = ShellTool::new();
+        let tool = ShellTool::new().unwrap();
         let result = tool
             .shell_with_cwd(
                 ShellParams {
@@ -537,7 +531,7 @@ mod tests {
 
     #[test]
     fn call_index_cycles_through_slots() {
-        let tool = ShellTool::new();
+        let tool = ShellTool::new().unwrap();
         for _cycle in 0..3 {
             for expected in 0..OUTPUT_SLOTS {
                 let slot = tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS;
@@ -548,7 +542,7 @@ mod tests {
 
     #[test]
     fn concurrent_calls_get_distinct_slots() {
-        let tool = ShellTool::new();
+        let tool = ShellTool::new().unwrap();
         let mut slots: Vec<usize> = (0..OUTPUT_SLOTS)
             .map(|_| tool.call_index.fetch_add(1, Ordering::Relaxed) % OUTPUT_SLOTS)
             .collect();
