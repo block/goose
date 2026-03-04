@@ -110,6 +110,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         session: undefined,
         sessionLoadError: undefined,
         chatState: ChatState.LoadingConversation,
+        notifications: [],
         activityEvents: [],
       };
 

@@ -559,6 +559,29 @@ export function useChatStream({
     }, new Map<string, NotificationEvent[]>());
   }, [state.activityEvents]);
 
+  // Debug-only observability for activity events vs transient notifications
+  useEffect(() => {
+    if (typeof globalThis === 'undefined') return;
+
+    try {
+      const enabled =
+        'localStorage' in globalThis &&
+        globalThis.localStorage?.getItem('GOOSE_DEBUG_ACTIVITY') === 'true';
+      if (!enabled) return;
+
+      // eslint-disable-next-line no-console
+      console.debug('[useChatStream] notification maps', {
+        sessionId,
+        notificationsKeys: notificationsMap.size,
+        activityKeys: activityEventsMap.size,
+        notificationsTotal: Array.from(notificationsMap.values()).reduce((a, v) => a + v.length, 0),
+        activityTotal: Array.from(activityEventsMap.values()).reduce((a, v) => a + v.length, 0),
+      });
+    } catch {
+      // ignore
+    }
+  }, [sessionId, notificationsMap, activityEventsMap]);
+
   return {
     sessionLoadError: state.sessionLoadError,
     messages: maybe_cached_messages,
