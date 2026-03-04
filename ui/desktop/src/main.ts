@@ -1368,6 +1368,10 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
   return client.getConfig().baseUrl || null;
 });
 
+ipcMain.on('set-sentry-telemetry', (_event, enabled: boolean) => {
+  enableSentryTelemetry(enabled === true);
+});
+
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
   updateSettings((s) => {

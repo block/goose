@@ -9,6 +9,7 @@ import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
   trackTelemetryPreference,
 } from '../../../utils/analytics';
+import { setSentryTelemetryEnabled } from '../../../utils/sentryTelemetry';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -47,6 +48,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
       await upsert(TELEMETRY_CONFIG_KEY, checked, false);
       setTelemetryEnabled(checked);
       setAnalyticsTelemetryEnabled(checked);
+      setSentryTelemetryEnabled(checked);
+      window.electron.setSentryTelemetryEnabled(checked);
       trackTelemetryPreference(checked, isWelcome ? 'onboarding' : 'settings');
     } catch (error) {
       console.error('Failed to update telemetry status:', error);

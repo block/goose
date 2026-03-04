@@ -43,24 +43,23 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let sentry_dsn = if goose::posthog::is_telemetry_enabled() {
-        "https://4ded405f3749b4952425eb404e212119@o160250.ingest.us.sentry.io/4510975954124800"
+    let _sentry_guard = if goose::posthog::is_telemetry_enabled() {
+        Some(sentry::init((
+            "https://4ded405f3749b4952425eb404e212119@o160250.ingest.us.sentry.io/4510975954124800",
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                traces_sample_rate: 1.0,
+                environment: Some(
+                    std::env::var("GOOSE_ENVIRONMENT")
+                        .unwrap_or_else(|_| "development".into())
+                        .into(),
+                ),
+                ..Default::default()
+            },
+        )))
     } else {
-        ""
+        None
     };
-    let _sentry_guard = sentry::init((
-        sentry_dsn,
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            traces_sample_rate: 1.0,
-            environment: Some(
-                std::env::var("GOOSE_ENVIRONMENT")
-                    .unwrap_or_else(|_| "development".into())
-                    .into(),
-            ),
-            ..Default::default()
-        },
-    ));
 
     let cli = Cli::parse();
 
