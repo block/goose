@@ -102,9 +102,7 @@ impl Provider for MiniMaxProvider {
         self.model.clone()
     }
 
-    async fn fetch_supported_models(
-        &self,
-    ) -> Result<Vec<String>, super::errors::ProviderError> {
+    async fn fetch_supported_models(&self) -> Result<Vec<String>, super::errors::ProviderError> {
         Ok(MINIMAX_KNOWN_MODELS
             .iter()
             .map(|(name, _)| name.to_string())
