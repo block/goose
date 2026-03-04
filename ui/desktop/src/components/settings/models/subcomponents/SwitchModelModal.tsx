@@ -650,19 +650,35 @@ export const SwitchModelModal = ({
                     </div>
                   ) : providerErrors[provider] ? (
                     /* Show error message when provider failed to connect */
-                    <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-                      <div className="flex items-start">
-                        <div className="flex-1">
-                          <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                            Could not contact provider
-                          </h3>
-                          <div className="mt-1 text-sm text-red-700 dark:text-red-300">
-                            {providerErrors[provider]}
-                          </div>
-                          <div className="mt-2 text-xs text-red-600 dark:text-red-400">
-                            Check your provider configuration in Settings → Providers
+                    <div className="flex flex-col gap-3">
+                      <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                        <div className="flex items-start">
+                          <div className="flex-1">
+                            <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                              Could not contact provider
+                            </h3>
+                            <div className="mt-1 text-sm text-red-700 dark:text-red-300">
+                              {providerErrors[provider]}
+                            </div>
+                            <div className="mt-2 text-xs text-red-600 dark:text-red-400">
+                              Check your provider configuration in Settings → Providers
+                            </div>
                           </div>
                         </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm text-text-secondary">
+                          Enter model name manually
+                        </label>
+                        <Input
+                          className="border-2 px-4 py-5"
+                          placeholder="Type model name here"
+                          onChange={(event) => setModel(event.target.value)}
+                          value={model}
+                        />
+                        {attemptedSubmit && validationErrors.model && (
+                          <div className="text-red-500 text-sm mt-1">{validationErrors.model}</div>
+                        )}
                       </div>
                     </div>
                   ) : !isCustomModel ? (
