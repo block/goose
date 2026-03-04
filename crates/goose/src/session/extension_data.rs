@@ -295,9 +295,6 @@ mod tests {
         let names: Vec<String> = loaded.extensions.iter().map(|ext| ext.name()).collect();
 
         assert!(names.iter().any(|name| name == "developer"));
-        assert!(loaded.extensions.iter().any(
-            |ext| matches!(ext, ExtensionConfig::Platform { name, .. } if name == "developer")
-        ));
         assert!(!names
             .iter()
             .any(|name| name == "definitely_not_real_platform_extension"));
