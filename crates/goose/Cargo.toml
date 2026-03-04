@@ -111,7 +111,7 @@ tokenizers = { version = "0.21.0", default-features = false, features = ["onig"]
 hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
-zip = "0.6"
+zip = { workspace = true, features = ["deflate"] }
 sys-info = "0.9"
 
 schemars = { workspace = true, features = [

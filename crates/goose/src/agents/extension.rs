@@ -13,6 +13,12 @@ use thiserror::Error;
 use tracing::warn;
 use utoipa::ToSchema;
 
+fn tool_vec_schema() -> utoipa::openapi::schema::Array {
+    utoipa::openapi::schema::ArrayBuilder::new()
+        .items(utoipa::openapi::Ref::from_schema_name("Tool"))
+        .build()
+}
+
 pub use crate::agents::platform_extensions::{
     PlatformExtensionContext, PlatformExtensionDef, PLATFORM_EXTENSIONS,
 };
@@ -247,6 +253,7 @@ pub enum ExtensionConfig {
         #[schema(required)]
         description: String,
         /// The tools provided by the frontend
+        #[schema(schema_with = tool_vec_schema)]
         tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,
