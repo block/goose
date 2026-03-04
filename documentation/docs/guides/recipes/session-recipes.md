@@ -246,7 +246,7 @@ You can customize how goose generates recipes by editing the `recipe.md` [prompt
      - **Required parameters** are marked with red asterisks (*)
      - **Optional parameters** show default values that can be changed
 
-  4. To run the recipe, click an activity bubble or send the prompt.
+  4. The recipe automatically submits and goose begins execution. If the recipe includes a [prompt](#core-components), it's sent as the first message. If not, you can click an activity bubble or send a prompt to get started.
 
   :::info Privacy & Isolation
   - Each person gets their own private session
