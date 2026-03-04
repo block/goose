@@ -171,11 +171,13 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                     // Skip
                 }
                 MessageContent::Thinking(thinking) => {
-                    content.push(json!({
-                        TYPE_FIELD: THINKING_TYPE,
-                        THINKING_TYPE: thinking.thinking,
-                        SIGNATURE_FIELD: thinking.signature
-                    }));
+                    if !thinking.signature.is_empty() {
+                        content.push(json!({
+                            TYPE_FIELD: THINKING_TYPE,
+                            THINKING_TYPE: thinking.thinking,
+                            SIGNATURE_FIELD: thinking.signature
+                        }));
+                    }
                 }
                 MessageContent::RedactedThinking(redacted) => {
                     content.push(json!({
@@ -959,6 +961,21 @@ mod tests {
         assert_eq!(spec[1]["content"][0]["text"], "Hi there");
         assert_eq!(spec[2]["role"], "user");
         assert_eq!(spec[2]["content"][0]["text"], "How are you?");
+    }
+
+    #[test]
+    fn test_message_to_anthropic_spec_skips_unsigned_thinking() {
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("internal", "")),
+            Message::assistant().with_text("Hi there"),
+        ];
+
+        let spec = format_messages(&messages);
+
+        assert_eq!(spec.len(), 1);
+        assert_eq!(spec[0]["role"], "assistant");
+        assert_eq!(spec[0]["content"][0]["type"], "text");
+        assert_eq!(spec[0]["content"][0]["text"], "Hi there");
     }
 
     #[test]
