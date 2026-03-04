@@ -124,11 +124,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 MessageContent::ToolRequest(tool_request) => {
                     match &tool_request.tool_call {
                         Ok(tool_call) => {
+                            let input = tool_call.arguments.clone().unwrap_or_default();
                             content.push(json!({
                                 TYPE_FIELD: TOOL_USE_TYPE,
                                 ID_FIELD: tool_request.id,
                                 NAME_FIELD: tool_call.name,
-                                INPUT_FIELD: tool_call.arguments
+                                INPUT_FIELD: input
                             }));
                         }
                         Err(_tool_error) => {
@@ -188,11 +189,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 }
                 MessageContent::FrontendToolRequest(tool_request) => {
                     if let Ok(tool_call) = &tool_request.tool_call {
+                        let input = tool_call.arguments.clone().unwrap_or_default();
                         content.push(json!({
                             TYPE_FIELD: TOOL_USE_TYPE,
                             ID_FIELD: tool_request.id,
                             NAME_FIELD: tool_call.name,
-                            INPUT_FIELD: tool_call.arguments
+                            INPUT_FIELD: input
                         }));
                     }
                 }
@@ -1160,6 +1162,22 @@ mod tests {
             "Error: -32603: Tool failed"
         );
         assert_eq!(spec[1]["content"][0]["is_error"], true);
+    }
+
+    #[test]
+    fn test_none_arguments_serialized_as_empty_object() {
+        let messages = vec![Message::assistant().with_tool_request(
+            "tool_1",
+            Ok(CallToolRequestParams {
+                meta: None,
+                task: None,
+                name: "browser_screenshot".into(),
+                arguments: None,
+            }),
+        )];
+
+        let spec = format_messages(&messages);
+        assert_eq!(spec[0]["content"][0]["input"], json!({}));
     }
 
     #[test]

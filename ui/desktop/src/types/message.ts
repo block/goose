@@ -53,6 +53,32 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
   };
 }
 
+export type ToolResultContent =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string };
+
+export function createToolResponseMessage(
+  toolCallId: string,
+  content: ToolResultContent[],
+  isError?: boolean
+): Message {
+  return {
+    id: generateMessageId(),
+    role: 'user',
+    created: Math.floor(Date.now() / 1000),
+    content: [
+      {
+        type: 'toolResponse',
+        id: toolCallId,
+        toolResult: isError
+          ? { status: 'error', error: content.map((c) => (c.type === 'text' ? c.text : '')).join('\n') }
+          : { status: 'success', value: { content } },
+      },
+    ],
+    metadata: { userVisible: false, agentVisible: true },
+  };
+}
+
 export function createElicitationResponseMessage(
   elicitationId: string,
   userData: Record<string, unknown>

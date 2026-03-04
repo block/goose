@@ -40,6 +40,9 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
+import { ForwardedToolCall, ForwardedToolResult } from '../hooks/useChatStream';
+import BrowserPanel from './BrowserPanel';
+import TurndownService from 'turndown';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
@@ -87,6 +90,175 @@ export default function BaseChat({
   const onStreamFinish = useCallback(() => {}, []);
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
+  // Browser panel state
+  const webviewRef = useRef<Electron.WebviewTag | null>(null);
+  const [isBrowserOpen, setIsBrowserOpen] = useState(false);
+  const [browserUrl, setBrowserUrl] = useState('');
+
+  // JS that runs inside the webview to inspect the page structure
+  const inspectJs = `(() => {
+    const els = document.querySelectorAll('a, button, [role="button"], [onclick], input, select, textarea, [contenteditable="true"]');
+    const items = [];
+    let idx = 0;
+    els.forEach(el => {
+      if (el.offsetParent === null && el.type !== 'hidden') return;
+      const tag = el.tagName.toLowerCase();
+      const role = el.getAttribute('role') || '';
+      const type = el.getAttribute('type') || '';
+      const name = el.getAttribute('name') || '';
+      const label = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
+      const text = (el.innerText || '').trim().substring(0, 80);
+      const href = el.href || '';
+      const value = el.value || '';
+
+      let kind = '';
+      if (tag === 'a') kind = 'link';
+      else if (tag === 'button' || role === 'button') kind = 'button';
+      else if (tag === 'select') kind = 'select';
+      else if (tag === 'textarea') kind = 'textarea';
+      else if (tag === 'input') kind = 'input[' + (type || 'text') + ']';
+      else if (el.getAttribute('contenteditable')) kind = 'editable';
+      else if (el.getAttribute('onclick')) kind = 'clickable';
+      else kind = tag;
+
+      el.setAttribute('data-goose-idx', String(idx));
+      const desc = text || label || name || href.substring(0, 60) || '(no label)';
+      items.push({ idx, kind, desc, value: value ? value.substring(0, 60) : undefined, href: kind === 'link' ? href : undefined });
+      idx++;
+    });
+    const title = document.title;
+    const url = location.href;
+    const headings = Array.from(document.querySelectorAll('h1,h2,h3')).slice(0, 10).map(h => h.tagName.toLowerCase() + ': ' + (h.innerText || '').trim().substring(0, 80));
+    return { title, url, headings, elements: items };
+  })()`;
+
+  // Resolve a target that is either a CSS selector or [index] to a JS expression
+  const resolveTarget = (target: string) => {
+    const idxMatch = target.match(/^\[(\d+)\]$/);
+    if (idxMatch) {
+      return `document.querySelector('[data-goose-idx="${idxMatch[1]}"]')`;
+    }
+    return `document.querySelector(${JSON.stringify(target)})`;
+  };
+
+  const formatInspectResult = (data: { title: string; url: string; headings: string[]; elements: { idx: number; kind: string; desc: string; value?: string; href?: string }[] }) => {
+    const lines: string[] = [];
+    lines.push(`Page: ${data.title}`);
+    lines.push(`URL: ${data.url}`);
+    if (data.headings.length > 0) {
+      lines.push('', 'Headings:');
+      data.headings.forEach(h => lines.push(`  ${h}`));
+    }
+    if (data.elements.length > 0) {
+      lines.push('', 'Interactive elements:');
+      data.elements.forEach(el => {
+        let line = `  [${el.idx}] ${el.kind} "${el.desc}"`;
+        if (el.value) line += ` value="${el.value}"`;
+        if (el.href) line += ` → ${el.href}`;
+        lines.push(line);
+      });
+    }
+    return lines.join('\n');
+  };
+
+  const onForwardedToolCall = useCallback(async (tool: ForwardedToolCall): Promise<ForwardedToolResult> => {
+    const { toolName: command, arguments: args } = tool;
+
+    const text = (msg: string) => ({ content: [{ type: 'text' as const, text: msg }] });
+
+    if (command === 'close') {
+      setIsBrowserOpen(false);
+      setBrowserUrl('');
+      return text('Browser closed');
+    }
+
+    if (command === 'navigate') {
+      const url = (args.url as string) || 'about:blank';
+      if (!isBrowserOpen) {
+        setBrowserUrl(url);
+        setIsBrowserOpen(true);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      const wv = webviewRef.current;
+      if (wv) {
+        await wv.loadURL(url).catch(() => {});
+        setBrowserUrl(url);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const pageData = await wv.executeJavaScript(inspectJs);
+        return text(formatInspectResult(pageData));
+      }
+      return text(`Navigated to ${url}`);
+    }
+
+    const wv = webviewRef.current;
+    if (!wv) {
+      return { content: [{ type: 'text', text: 'Browser is not open' }], isError: true };
+    }
+
+    try {
+      switch (command) {
+        case 'inspect': {
+          const pageData = await wv.executeJavaScript(inspectJs);
+          return text(formatInspectResult(pageData));
+        }
+        case 'screenshot': {
+          const image = await wv.capturePage();
+          const dataUrl = image.toDataURL();
+          const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+          return { content: [{ type: 'image', data: base64, mimeType: 'image/png' }] };
+        }
+        case 'click': {
+          const target = (args.selector as string) || (args.target as string);
+          const el = resolveTarget(target);
+          await wv.executeJavaScript(`${el}?.click()`);
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          return text(`Clicked ${target}`);
+        }
+        case 'type': {
+          const target = (args.selector as string) || (args.target as string);
+          const el = resolveTarget(target);
+          const typeText = args.text as string;
+          await wv.executeJavaScript(`(() => { const el = ${el}; if(el) { el.focus(); el.value = ${JSON.stringify(typeText)}; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); } })()`);
+          return text(`Typed "${typeText}" into ${target}`);
+        }
+        case 'get': {
+          const selector = (args.selector as string) || 'body';
+          const format = (args.format as string) || 'text';
+          if (format === 'html') {
+            const html = await wv.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.outerHTML || ''`);
+            return text(html);
+          } else if (format === 'markdown') {
+            const html = await wv.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.innerHTML || ''`);
+            const turndown = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced' });
+            return text(turndown.turndown(html));
+          } else {
+            const pageText = await wv.executeJavaScript(`document.querySelector(${JSON.stringify(selector)})?.innerText || ''`);
+            return text(pageText);
+          }
+        }
+        case 'evaluate': {
+          const evalResult = await wv.executeJavaScript(args.script as string);
+          return text(typeof evalResult === 'string' ? evalResult : JSON.stringify(evalResult));
+        }
+        case 'scroll': {
+          const dir = (args.direction as string) || 'down';
+          const amount = (args.amount as number) || 0;
+          let scrollJs: string;
+          if (dir === 'top') scrollJs = 'window.scrollTo(0, 0)';
+          else if (dir === 'bottom') scrollJs = 'window.scrollTo(0, document.body.scrollHeight)';
+          else if (dir === 'up') scrollJs = `window.scrollBy(0, -${amount || 'window.innerHeight'})`;
+          else scrollJs = `window.scrollBy(0, ${amount || 'window.innerHeight'})`;
+          await wv.executeJavaScript(scrollJs);
+          return text(`Scrolled ${dir}`);
+        }
+        default:
+          return { content: [{ type: 'text', text: `Unknown command: ${command}` }], isError: true };
+      }
+    } catch (err) {
+      return { content: [{ type: 'text', text: String(err) }], isError: true };
+    }
+  }, []);
+
   const {
     session,
     messages,
@@ -103,6 +275,7 @@ export default function BaseChat({
   } = useChatStream({
     sessionId,
     onStreamFinish,
+    onForwardedToolCall,
   });
 
   const recipe = session?.recipe;
@@ -369,7 +542,8 @@ export default function BaseChat({
   }
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className="h-full flex flex-row min-h-0">
+    <div className={`h-full flex flex-col min-h-0 ${isBrowserOpen ? 'flex-1' : 'w-full'}`}>
       <MainPanelLayout
         backgroundColor={'bg-background-secondary'}
         removeTopPadding={true}
@@ -528,6 +702,18 @@ export default function BaseChat({
         sessionId={chat.sessionId}
         onRecipeCreated={handleRecipeCreated}
       />
+    </div>
+
+    {isBrowserOpen && (
+      <BrowserPanel
+        webviewRef={webviewRef}
+        url={browserUrl}
+        onClose={() => {
+          setIsBrowserOpen(false);
+          setBrowserUrl('');
+        }}
+      />
+    )}
     </div>
   );
 }

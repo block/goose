@@ -1,5 +1,6 @@
 pub mod analyze;
 pub mod apps;
+pub mod browser;
 pub mod chatrecall;
 #[cfg(feature = "code-mode")]
 pub mod code_execution;
@@ -142,6 +143,19 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 unprefixed_tools: false,
                 client_factory: |ctx| Box::new(tom::TomClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            browser::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: browser::EXTENSION_NAME,
+                display_name: "Browser",
+                description:
+                    "Control an embedded browser window to navigate, interact with, and extract content from web pages",
+                default_enabled: false,
+                unprefixed_tools: false,
+                client_factory: |ctx| Box::new(browser::BrowserClient::new(ctx)),
             },
         );
 
