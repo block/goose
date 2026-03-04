@@ -19,7 +19,6 @@ use super::{
     google::GoogleProvider,
     lead_worker::LeadWorkerProvider,
     litellm::LiteLLMProvider,
-    local_inference::LocalInferenceProvider,
     ollama::OllamaProvider,
     openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
@@ -33,6 +32,8 @@ use super::{
 use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
+#[cfg(feature = "local-inference")]
+use crate::providers::local_inference::LocalInferenceProvider;
 use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
@@ -52,6 +53,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         registry.register::<BedrockProvider>(false);
+        #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
         registry.register::<ChatGptCodexProvider>(true);
         registry.register::<ClaudeAcpProvider>(false);

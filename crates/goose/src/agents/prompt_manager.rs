@@ -445,6 +445,9 @@ mod tests {
             .with_extensions(extensions.into_iter())
             .build();
 
+        #[cfg(feature = "code-mode")]
         assert_snapshot!(system_prompt);
+        #[cfg(not(feature = "code-mode"))]
+        assert_snapshot!("all_platform_extensions_no_code_mode", system_prompt);
     }
 }

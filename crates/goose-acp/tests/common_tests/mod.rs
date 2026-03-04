@@ -357,6 +357,7 @@ pub async fn run_prompt_basic<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
+#[cfg(feature = "code-mode")]
 pub async fn run_prompt_codemode<C: Connection>() {
     let expected_session_id = ExpectedSessionId::default();
     let prompt =
