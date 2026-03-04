@@ -47,6 +47,7 @@ const CLAUDE_THINKING_PROVIDERS = new Set(['anthropic', 'databricks']);
 const OPENAI_REASONING_THINKING_PROVIDERS = new Set([
   'openai',
   'codex',
+  'chatgpt_codex',
   'azure_openai',
   'openrouter',
   'litellm',
