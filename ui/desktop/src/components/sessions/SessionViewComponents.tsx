@@ -121,16 +121,11 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                       </div>
 
                       <div className="flex flex-col w-full">
-                        {/* Reasoning content */}
+                        {/* Thinking content */}
                         {thinkingContent && (
-                          <details className="mb-2">
-                            <summary className="cursor-pointer text-xs text-textSubtle select-none">
-                              Show thinking
-                            </summary>
-                            <div className="mt-2 text-sm">
-                              <MarkdownContent content={thinkingContent} />
-                            </div>
-                          </details>
+                          <div className="mb-2 text-sm text-gray-400 italic">
+                            <MarkdownContent content={thinkingContent} />
+                          </div>
                         )}
 
                         {/* Text content */}

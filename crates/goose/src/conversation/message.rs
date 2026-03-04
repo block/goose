@@ -26,26 +26,31 @@ where
 {
     use serde::de::Error;
 
-    let mut raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
+    let raw: Vec<serde_json::Value> = Vec::deserialize(deserializer)?;
 
-    // Filter out old "conversationCompacted" messages from pre-14.0
-    raw.retain(|item| item.get("type").and_then(|v| v.as_str()) != Some("conversationCompacted"));
-
-    // Migrate old "reasoning" content to "thinking"
-    for item in &mut raw {
-        if item.get("type").and_then(|v| v.as_str()) == Some("reasoning") {
-            if let Some(text) = item.get("text").cloned() {
-                *item = serde_json::json!({
-                    "type": "thinking",
-                    "thinking": text,
-                    "signature": ""
-                });
+    let mut migrated = Vec::with_capacity(raw.len());
+    for item in raw {
+        match item.get("type").and_then(|v| v.as_str()) {
+            // Filter out old "conversationCompacted" messages from pre-14.0
+            Some("conversationCompacted") => {}
+            // Migrate old "reasoning" content to "thinking". Invalid legacy reasoning
+            // blocks are dropped so they don't fail deserialization.
+            Some("reasoning") => {
+                if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
+                    migrated.push(serde_json::json!({
+                        "type": "thinking",
+                        "thinking": text,
+                        "signature": ""
+                    }));
+                }
             }
+            _ => migrated.push(item),
         }
     }
 
-    let mut content: Vec<MessageContent> = serde_json::from_value(serde_json::Value::Array(raw))
-        .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
+    let mut content: Vec<MessageContent> =
+        serde_json::from_value(serde_json::Value::Array(migrated))
+            .map_err(|e| Error::custom(format!("Failed to deserialize MessageContent: {}", e)))?;
 
     for message_content in &mut content {
         if let MessageContent::Text(text_content) = message_content {
@@ -1108,6 +1113,50 @@ mod tests {
         } else {
             panic!("Expected ToolRequest content");
         }
+    }
+
+    #[test]
+    fn test_deserialization_migrates_reasoning_to_thinking() {
+        let json = serde_json::json!({
+            "role": "assistant",
+            "created": 1740171566,
+            "content": [
+                { "type": "reasoning", "text": "step by step" },
+                { "type": "text", "text": "final answer" }
+            ],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        });
+
+        let message: Message = serde_json::from_value(json).unwrap();
+        assert_eq!(message.content.len(), 2);
+
+        let MessageContent::Thinking(thinking) = &message.content[0] else {
+            panic!("Expected Thinking content");
+        };
+        assert_eq!(thinking.thinking, "step by step");
+        assert!(thinking.signature.is_empty());
+    }
+
+    #[test]
+    fn test_deserialization_drops_invalid_reasoning_blocks() {
+        let json = serde_json::json!({
+            "role": "assistant",
+            "created": 1740171566,
+            "content": [
+                { "type": "reasoning" },
+                { "type": "reasoning", "text": 42 },
+                { "type": "text", "text": "still here" }
+            ],
+            "metadata": { "agentVisible": true, "userVisible": true }
+        });
+
+        let message: Message = serde_json::from_value(json).unwrap();
+        assert_eq!(message.content.len(), 1);
+
+        let MessageContent::Text(text) = &message.content[0] else {
+            panic!("Expected Text content");
+        };
+        assert_eq!(text.text, "still here");
     }
 
     #[test]
