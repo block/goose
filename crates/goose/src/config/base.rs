@@ -1029,7 +1029,6 @@ config_value!(CLAUDE_CODE_COMMAND, String, "claude");
 config_value!(GEMINI_CLI_COMMAND, String, "gemini");
 config_value!(CURSOR_AGENT_COMMAND, String, "cursor-agent");
 config_value!(CODEX_COMMAND, String, "codex");
-config_value!(CODEX_REASONING_EFFORT, String, "high");
 config_value!(CODEX_ENABLE_SKILLS, String, "true");
 config_value!(CODEX_SKIP_GIT_CHECK, String, "false");
 config_value!(CHATGPT_CODEX_REASONING_EFFORT, String, "medium");
