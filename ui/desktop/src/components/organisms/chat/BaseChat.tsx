@@ -98,6 +98,7 @@ export default function BaseChat({
     setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
+    activityEvents: activityEvents,
     onMessageUpdate,
   } = useChatStream({
     sessionId,
@@ -452,6 +453,7 @@ export default function BaseChat({
                     messages={messages}
                     chat={{ sessionId }}
                     toolCallNotifications={toolCallNotifications}
+                    activityEvents={activityEvents}
                     append={(text: string) => handleSubmit({ msg: text, images: [] })}
                     isUserMessage={(m: Message) => m.role === 'user'}
                     isStreamingMessage={chatState !== ChatState.Idle}

@@ -163,7 +163,7 @@ function firstSentence(text: string): string | null {
 }
 
 function extractActivityNotifications(
-  toolCallNotifications: Map<string, unknown[]> | undefined
+  toolCallNotifications?: Map<string, unknown[]>
 ): EventActivityEntry[] {
   if (!toolCallNotifications) return [];
 
@@ -313,9 +313,14 @@ export default function ReasoningDetailPanel() {
   const showAgentBadge = workBlockData?.agentName && workBlockData.agentName !== 'default';
 
   const activityEntries = useMemo(() => {
-    if (!workBlockData) return [];
+    if (!workBlockData) {
+      return [];
+    }
 
-    const eventEntries = extractActivityNotifications(workBlockData.toolCallNotifications);
+    const eventEntries = extractActivityNotifications(
+      (workBlockData.activityEvents as Map<string, unknown[]> | undefined) ??
+        workBlockData.toolCallNotifications
+    );
     const toolEntries = extractActivityEntries(workBlockData.messages, !!isLiveStreaming);
 
     // Put backend-emitted lifecycle events first so users see high-level phases,

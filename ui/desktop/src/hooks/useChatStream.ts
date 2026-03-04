@@ -47,6 +47,7 @@ interface UseChatStreamReturn {
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
+  activityEvents: Map<string, NotificationEvent[]>;
   onMessageUpdate: (
     messageId: string,
     newContent: string,
@@ -547,6 +548,17 @@ export function useChatStream({
     }, new Map<string, NotificationEvent[]>());
   }, [state.notifications]);
 
+  const activityEventsMap = useMemo(() => {
+    return state.activityEvents.reduce((map, notification) => {
+      const key = notification.request_id;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)?.push(notification);
+      return map;
+    }, new Map<string, NotificationEvent[]>());
+  }, [state.activityEvents]);
+
   return {
     sessionLoadError: state.sessionLoadError,
     messages: maybe_cached_messages,
@@ -559,6 +571,7 @@ export function useChatStream({
     setRecipeUserParams,
     tokenState: state.tokenState,
     notifications: notificationsMap,
+    activityEvents: activityEventsMap,
     onMessageUpdate,
   };
 }

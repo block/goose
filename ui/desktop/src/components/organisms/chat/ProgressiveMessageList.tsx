@@ -21,7 +21,7 @@ import type { MessageWithAttribution, NotificationEvent } from '@/types/message'
 import { identifyWorkBlocks } from '@/utils/assistantWorkBlocks';
 import { identifyConsecutiveToolCalls, isInChain } from '@/utils/toolCallChaining';
 import { SystemNotificationInline } from '../context-management/SystemNotificationInline';
-import WorkBlockIndicator from '../messages/WorkBlockIndicator';
+import { WorkBlockIndicator } from '../messages/WorkBlockIndicator';
 import GooseMessage from './GooseMessage';
 import LoadingGoose from './LoadingGoose';
 import UserMessage from './UserMessage';
@@ -30,6 +30,7 @@ interface ProgressiveMessageListProps {
   messages: Message[];
   chat: Pick<ChatType, 'sessionId'>;
   toolCallNotifications?: Map<string, NotificationEvent[]>; // Make optional
+  activityEvents?: Map<string, NotificationEvent[]>; // Durable lifecycle events
   append?: (value: string) => void; // Make optional
   isUserMessage: (message: Message) => boolean;
   batchSize?: number;
@@ -50,6 +51,7 @@ export default function ProgressiveMessageList({
   messages,
   chat,
   toolCallNotifications = new Map(),
+  activityEvents = new Map(),
   append = () => {},
   isUserMessage,
   batchSize = 20,
@@ -255,11 +257,12 @@ export default function ProgressiveMessageList({
                   messages={blockMessages}
                   blockId={blockKey}
                   isStreaming={block.isStreaming}
+                  sessionId={chat.sessionId}
                   agentName={agentName}
                   modeName={modeName}
                   showAgentBadge={showAgentBadge}
-                  sessionId={chat.sessionId}
                   toolCallNotifications={toolCallNotifications}
+                  activityEvents={activityEvents}
                 />
               </div>
             );
@@ -366,6 +369,8 @@ export default function ProgressiveMessageList({
             blockId="pending"
             isStreaming={true}
             sessionId={chat.sessionId}
+            toolCallNotifications={toolCallNotifications}
+            activityEvents={activityEvents}
           />
         </div>
       )}

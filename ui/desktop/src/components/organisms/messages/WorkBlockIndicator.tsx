@@ -65,6 +65,30 @@ function describeToolCall(name: string, args: Record<string, unknown>): string {
   return snakeToTitle(toolName);
 }
 
+function extractLastActivityDescription(activityEvents: Map<string, unknown[]>): string | null {
+  // Flatten in insertion order: request_id insertion corresponds roughly to time.
+  const all = Array.from(activityEvents.values()).flat();
+
+  for (let i = all.length - 1; i >= 0; i -= 1) {
+    const n = all[i] as {
+      message?: { method?: unknown; params?: unknown };
+    };
+
+    const message = n?.message as { method?: unknown; params?: unknown } | undefined;
+    if (!message || message.method !== 'goose/activity') continue;
+
+    const params = message.params as { phase?: unknown; text?: unknown } | undefined;
+    const phase = typeof params?.phase === 'string' ? params?.phase : null;
+    const text = typeof params?.text === 'string' ? params?.text.trim() : '';
+
+    if (!text) continue;
+
+    return phase ? `${phase}: ${text}` : text;
+  }
+
+  return null;
+}
+
 function extractLastToolDescription(messages: Message[]): string {
   // Search backwards: prefer the latest assistant thinking text over tool descriptions.
   // Thinking text (e.g. "I'll start by analyzing...") gives better context than
@@ -116,32 +140,38 @@ interface WorkBlockIndicatorProps {
    * Keep this small/curated to avoid showing raw streaming payloads.
    */
   messages: Message[];
+
   /**
    * Optional message set used for the Activity/Reasoning side panel.
    * This lets us feed richer context to the panel without polluting the inline preview.
    */
   detailMessages?: Message[];
+
   blockId: string;
   isStreaming: boolean;
+  sessionId: string;
+
   agentName?: string;
   modeName?: string;
   showAgentBadge?: boolean;
-  sessionId?: string;
+
   toolCallNotifications?: Map<string, unknown[]>;
+  activityEvents?: Map<string, unknown[]>;
 }
 
 // ── Component ───────────────────────────────────────────────────────
 
-export default function WorkBlockIndicator({
+export function WorkBlockIndicator({
   messages,
   detailMessages,
   blockId,
   isStreaming,
+  sessionId,
   agentName,
   modeName,
   showAgentBadge = true,
-  sessionId,
-  toolCallNotifications,
+  toolCallNotifications = new Map(),
+  activityEvents = new Map(),
 }: WorkBlockIndicatorProps) {
   const { isOpen, panelDetail, toggleWorkBlock, updateWorkBlock, closeDetail } =
     useReasoningDetail();
@@ -149,7 +179,15 @@ export default function WorkBlockIndicator({
   const hasAutoOpened = useRef(false);
 
   // Inline preview (keep small/curated)
-  const oneLiner = useMemo(() => extractLastToolDescription(messages), [messages]);
+  const activityOneLiner = useMemo(
+    () => extractLastActivityDescription(activityEvents),
+    [activityEvents]
+  );
+
+  const oneLiner = useMemo(
+    () => activityOneLiner ?? extractLastToolDescription(messages),
+    [activityOneLiner, messages]
+  );
   const toolCountPreview = useMemo(() => countToolCalls(messages), [messages]);
 
   // Side panel detail (may include richer context)
@@ -165,6 +203,7 @@ export default function WorkBlockIndicator({
     toolCountDetail,
     isStreaming,
     toolCallNotifications,
+    activityEvents,
     isActive,
   });
   latestRef.current = {
@@ -172,6 +211,7 @@ export default function WorkBlockIndicator({
     toolCountDetail,
     isStreaming,
     toolCallNotifications,
+    activityEvents,
     isActive,
   };
 
@@ -223,15 +263,14 @@ export default function WorkBlockIndicator({
       toolCount: latestRef.current.toolCountDetail,
       updateToken: buildUpdateToken(),
       isStreaming: latestRef.current.isStreaming,
-      agentName,
-      modeName,
       showAgentBadge,
       sessionId,
       toolCallNotifications: latestRef.current.toolCallNotifications as
         | Map<string, unknown[]>
         | undefined,
+      activityEvents: latestRef.current.activityEvents as Map<string, unknown[]> | undefined,
     }),
-    [blockId, agentName, modeName, showAgentBadge, sessionId, buildUpdateToken]
+    [blockId, showAgentBadge, sessionId, buildUpdateToken]
   );
 
   const handleClick = () => {

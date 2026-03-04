@@ -11,7 +11,6 @@ import {
   getCompactingMessage,
   getThinkingMessage,
   type MessageWithAttribution,
-  type NotificationEvent,
   type RoutingInfo,
 } from '@/types/message';
 import { errorMessage } from '@/utils/conversionUtils';
@@ -175,8 +174,13 @@ export async function streamFromResponse(
           break;
         }
         case 'Notification': {
-          dispatch({ type: 'ADD_NOTIFICATION', payload: event as NotificationEvent });
-          maybeHandlePlatformEvent(event.message, sessionId);
+          const method = (event.message as { method?: unknown } | undefined)?.method;
+          if (method === 'goose/activity') {
+            dispatch({ type: 'ADD_ACTIVITY_EVENT', payload: event });
+          } else {
+            dispatch({ type: 'ADD_NOTIFICATION', payload: event });
+          }
+          await maybeHandlePlatformEvent(event.message, sessionId);
           break;
         }
         case 'Ping':

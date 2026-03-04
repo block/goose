@@ -32,6 +32,7 @@ export interface WorkBlockDetail {
   showAgentBadge?: boolean;
   sessionId?: string;
   toolCallNotifications?: Map<string, unknown[]>;
+  activityEvents?: Map<string, unknown[]>;
 }
 
 type PanelDetail =

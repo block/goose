@@ -12,12 +12,13 @@ import type { NotificationEvent } from '@/types/message';
 // ── State ────────────────────────────────────────────────────────────
 
 export interface StreamState {
-  messages: Message[];
-  session: Session | undefined;
-  chatState: ChatState;
   sessionLoadError: string | undefined;
+  messages: Message[];
+  session?: Session;
+  chatState: ChatState;
   tokenState: TokenState;
   notifications: NotificationEvent[];
+  activityEvents: NotificationEvent[];
 }
 
 export const initialTokenState: TokenState = {
@@ -36,6 +37,7 @@ export const initialState: StreamState = {
   sessionLoadError: undefined,
   tokenState: initialTokenState,
   notifications: [],
+  activityEvents: [],
 };
 
 // ── Actions ──────────────────────────────────────────────────────────
@@ -47,6 +49,7 @@ export type StreamAction =
   | { type: 'SET_SESSION_LOAD_ERROR'; payload: string | undefined }
   | { type: 'SET_TOKEN_STATE'; payload: TokenState }
   | { type: 'ADD_NOTIFICATION'; payload: NotificationEvent }
+  | { type: 'ADD_ACTIVITY_EVENT'; payload: NotificationEvent }
   | { type: 'CLEAR_NOTIFICATIONS' }
   | {
       type: 'SESSION_LOADED';
@@ -83,6 +86,9 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
     case 'ADD_NOTIFICATION':
       return { ...state, notifications: [...state.notifications, action.payload] };
 
+    case 'ADD_ACTIVITY_EVENT':
+      return { ...state, activityEvents: [...state.activityEvents, action.payload] };
+
     case 'CLEAR_NOTIFICATIONS':
       return { ...state, notifications: [] };
 
@@ -94,6 +100,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         tokenState: action.payload.tokenState,
         chatState: ChatState.Idle,
         sessionLoadError: undefined,
+        activityEvents: [],
       };
 
     case 'RESET_FOR_NEW_SESSION':
@@ -103,6 +110,7 @@ export function streamReducer(state: StreamState, action: StreamAction): StreamS
         session: undefined,
         sessionLoadError: undefined,
         chatState: ChatState.LoadingConversation,
+        activityEvents: [],
       };
 
     case 'START_STREAMING':
