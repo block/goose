@@ -43,6 +43,20 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let _sentry_guard = sentry::init((
+        "https://4ded405f3749b4952425eb404e212119@o160250.ingest.us.sentry.io/4510975954124800",
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            traces_sample_rate: 1.0,
+            environment: Some(
+                std::env::var("GOOSE_ENVIRONMENT")
+                    .unwrap_or_else(|_| "development".into())
+                    .into(),
+            ),
+            ..Default::default()
+        },
+    ));
+
     let cli = Cli::parse();
 
     match cli.command {

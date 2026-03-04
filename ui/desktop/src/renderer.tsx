@@ -1,3 +1,9 @@
+import * as Sentry from '@sentry/electron/renderer';
+
+Sentry.init({
+  environment: import.meta.env.MODE === 'production' ? 'production' : 'development',
+});
+
 import React, { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import { ConfigProvider } from './components/ConfigContext';
