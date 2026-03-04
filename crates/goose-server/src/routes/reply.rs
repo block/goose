@@ -756,6 +756,19 @@ pub async fn reply(
                                 agent_name: agent_name.clone(),
                                 mode_slug: mode_slug.clone(),
                             });
+
+                            let _ = stream_activity(
+                                &tx,
+                                &cancel_token,
+                                "routing",
+                                serde_json::json!({
+                                    "phase": "routing",
+                                    "text": format!("Switched to {} / {}", agent_name, mode_slug),
+                                    "confidence": confidence,
+                                }),
+                            )
+                            .await;
+
                             stream_event(MessageEvent::RoutingDecision { agent_name, mode_slug, confidence, reasoning }, &tx, &cancel_token).await;
                         }
                         Ok(Some(Ok(AgentEvent::ToolAvailabilityChange { previous_count, current_count }))) => {
