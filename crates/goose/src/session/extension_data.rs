@@ -156,7 +156,7 @@ mod tests {
         Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap()
     }
 
-    fn legacy_test_extension() -> ExtensionConfig {
+    fn test_extension() -> ExtensionConfig {
         ExtensionConfig::Builtin {
             name: "developer".into(),
             description: "dev".into(),
@@ -165,10 +165,6 @@ mod tests {
             bundled: None,
             available_tools: vec![],
         }
-    }
-
-    fn normalized_test_extension() -> ExtensionConfig {
-        normalize_platform_extension(legacy_test_extension())
     }
 
     fn extension_data_with(extensions: Vec<ExtensionConfig>) -> ExtensionData {
@@ -180,8 +176,8 @@ mod tests {
     }
 
     #[test_case(
-        Some(extension_data_with(vec![legacy_test_extension()])),
-        Some(vec![normalized_test_extension()])
+        Some(extension_data_with(vec![test_extension()])),
+        Some(vec![test_extension()])
         ; "prefers_session_data"
     )]
     #[test_case(None, None ; "no_session_falls_back_to_config")]
