@@ -12,6 +12,7 @@ use tokio::task::JoinHandle;
 use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
 use goose::gateway::manager::GatewayManager;
+#[cfg(feature = "local-inference")]
 use goose::providers::local_inference::InferenceRuntime;
 
 type ExtensionLoadingTasks =
@@ -25,6 +26,7 @@ pub struct AppState {
     pub tunnel_manager: Arc<TunnelManager>,
     pub gateway_manager: Arc<GatewayManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
+    #[cfg(feature = "local-inference")]
     pub inference_runtime: Arc<InferenceRuntime>,
 }
 
@@ -43,6 +45,7 @@ impl AppState {
             tunnel_manager,
             gateway_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
+            #[cfg(feature = "local-inference")]
             inference_runtime: InferenceRuntime::get_or_init(),
         }))
     }

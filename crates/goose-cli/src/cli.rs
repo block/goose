@@ -894,6 +894,7 @@ enum Command {
         command: TermCommand,
     },
     /// Manage local inference models
+    #[cfg(feature = "local-inference")]
     #[command(about = "Manage local inference models", visible_alias = "lm")]
     LocalModels {
         #[command(subcommand)]
@@ -921,6 +922,7 @@ enum Command {
     },
 }
 
+#[cfg(feature = "local-inference")]
 #[derive(Subcommand)]
 enum LocalModelsCommand {
     /// Search HuggingFace for GGUF models
@@ -1043,6 +1045,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
+        #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
         Some(Command::ValidateExtensions { .. }) => "validate-extensions",
@@ -1496,6 +1499,7 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
     }
 }
 
+#[cfg(feature = "local-inference")]
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::{
@@ -1788,6 +1792,7 @@ pub async fn cli() -> anyhow::Result<()> {
             no_auth,
         }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
         Some(Command::ValidateExtensions { file }) => {
             use goose::agents::validate_extensions::validate_bundled_extensions;
