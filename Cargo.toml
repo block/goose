@@ -24,7 +24,7 @@ base64 = "0.22.1"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
-dirs = "5.0"
+dirs = "6.0"
 dotenvy = "0.15"
 env-lock = "1.0.1"
 etcetera = "0.11.0"

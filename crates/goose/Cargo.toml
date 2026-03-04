@@ -40,7 +40,7 @@ async-trait = { workspace = true }
 async-stream = { workspace = true }
 minijinja = { version = "2.12.0", features = ["loader"] }
 include_dir = { workspace = true }
-tiktoken-rs = "0.6.0"
+tiktoken-rs = "0.9.1"
 chrono = { workspace = true }
 clap = { workspace = true }
 indoc = { workspace = true }
@@ -108,7 +108,7 @@ candle-nn = { version = "0.9", default-features = false }
 candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
 tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
-hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
+hf-hub = { version = "0.5.0", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
 zip = { workspace = true, features = ["deflate"] }
