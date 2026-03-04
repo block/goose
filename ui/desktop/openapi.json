@@ -5198,6 +5198,35 @@
         }
       },
       "ImageContent": {
+        "type": "object",
+        "required": [
+          "data",
+          "mimeType"
+        ],
+        "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "annotations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Annotations"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "data": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          }
+        }
+      },
+      "ImageContentSchemaRef": {
         "$ref": "#/components/schemas/ImageContent"
       },
       "ImportAppRequest": {
@@ -5479,7 +5508,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/TextContent"
+                "$ref": "#/components/schemas/TextContentSchemaRef"
               },
               {
                 "type": "object",
@@ -5500,7 +5529,7 @@
           {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ImageContent"
+                "$ref": "#/components/schemas/ImageContentSchemaRef"
               },
               {
                 "type": "object",
@@ -8043,6 +8072,31 @@
         }
       },
       "TextContent": {
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "_meta": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "annotations": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Annotations"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "TextContentSchemaRef": {
         "$ref": "#/components/schemas/TextContent"
       },
       "ThinkingContent": {

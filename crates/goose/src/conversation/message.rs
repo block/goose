@@ -19,6 +19,8 @@ fn json_object_schema() -> RefOr<utoipa::openapi::Schema> {
 }
 
 /// Schema-only proxy for rmcp's TextContent (which lacks ToSchema in utoipa 5).
+/// Returns a `$ref` to the real "TextContent" component registered by `derive_utoipa!`.
+/// Uses a distinct name to avoid overwriting the real schema with a self-reference.
 struct TextContentSchemaRef;
 impl utoipa::PartialSchema for TextContentSchemaRef {
     fn schema() -> RefOr<utoipa::openapi::Schema> {
@@ -27,11 +29,13 @@ impl utoipa::PartialSchema for TextContentSchemaRef {
 }
 impl utoipa::ToSchema for TextContentSchemaRef {
     fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("TextContent")
+        std::borrow::Cow::Borrowed("TextContentSchemaRef")
     }
 }
 
 /// Schema-only proxy for rmcp's ImageContent (which lacks ToSchema in utoipa 5).
+/// Returns a `$ref` to the real "ImageContent" component registered by `derive_utoipa!`.
+/// Uses a distinct name to avoid overwriting the real schema with a self-reference.
 struct ImageContentSchemaRef;
 impl utoipa::PartialSchema for ImageContentSchemaRef {
     fn schema() -> RefOr<utoipa::openapi::Schema> {
@@ -40,7 +44,7 @@ impl utoipa::PartialSchema for ImageContentSchemaRef {
 }
 impl utoipa::ToSchema for ImageContentSchemaRef {
     fn name() -> std::borrow::Cow<'static, str> {
-        std::borrow::Cow::Borrowed("ImageContent")
+        std::borrow::Cow::Borrowed("ImageContentSchemaRef")
     }
 }
 
