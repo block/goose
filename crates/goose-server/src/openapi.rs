@@ -214,7 +214,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Array(array_builder.build()))
         }
         "string" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::Type(Type::String));
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::String));
 
             if let Some(Value::Number(min_length)) = obj.get("minLength") {
                 if let Some(min) = min_length.as_u64() {
@@ -236,7 +237,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Object(object_builder.build()))
         }
         "number" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::Type(Type::Number));
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::Number));
 
             if let Some(Value::Number(minimum)) = obj.get("minimum") {
                 if let Some(min) = minimum.as_f64() {
@@ -267,7 +269,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Object(object_builder.build()))
         }
         "integer" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::Type(Type::Integer));
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::Integer));
 
             if let Some(Value::Number(minimum)) = obj.get("minimum") {
                 if let Some(min) = minimum.as_f64() {
@@ -303,7 +306,9 @@ fn convert_typed_schema(
                 .build(),
         )),
         "null" => RefOr::T(Schema::Object(
-            ObjectBuilder::new().schema_type(SchemaType::Type(Type::String)).build(),
+            ObjectBuilder::new()
+                .schema_type(SchemaType::Type(Type::String))
+                .build(),
         )),
         _ => RefOr::T(Schema::Object(ObjectBuilder::new().build())),
     }
