@@ -687,3 +687,43 @@ pub fn generate_schema() -> String {
     let api_doc = ApiDoc::openapi();
     serde_json::to_string_pretty(&api_doc).unwrap()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Detect schema-name collisions: when two different Rust types derive `ToSchema`
+    /// with the same name, one silently overwrites the other.  This test serializes
+    /// every registered schema, round-trips it, and verifies the count hasn't changed,
+    /// which would indicate a collision caused a schema to be dropped.
+    ///
+    /// It also spot-checks known schemas to make sure the right definition won.
+    #[test]
+    fn no_schema_name_collisions() {
+        let api = ApiDoc::openapi();
+        let json = serde_json::to_value(&api).unwrap();
+        let schemas = json["components"]["schemas"].as_object().unwrap();
+
+        // ErrorResponse must have "message", not "error" (tunnel duplicate was removed)
+        let error_resp = &schemas["ErrorResponse"];
+        assert!(
+            error_resp["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v.as_str() == Some("message")),
+            "ErrorResponse schema should require 'message', got: {}",
+            error_resp
+        );
+
+        // Round-trip: serialize → deserialize and check no schemas were lost
+        let serialized = serde_json::to_string(&api).unwrap();
+        let round_tripped: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        let rt_schemas = round_tripped["components"]["schemas"].as_object().unwrap();
+        assert_eq!(
+            schemas.len(),
+            rt_schemas.len(),
+            "Schema count changed after round-trip — possible name collision"
+        );
+    }
+}

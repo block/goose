@@ -1,3 +1,4 @@
+use crate::routes::errors::ErrorResponse;
 use crate::state::AppState;
 use crate::tunnel::TunnelInfo;
 use axum::{
@@ -7,14 +8,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::Serialize;
 use std::sync::Arc;
-use utoipa::ToSchema;
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct ErrorResponse {
-    pub error: String,
-}
 
 /// Start the tunnel
 #[utoipa::path(
@@ -32,13 +26,7 @@ pub async fn start_tunnel(State(state): State<Arc<AppState>>) -> Response {
         Ok(info) => (StatusCode::OK, Json(info)).into_response(),
         Err(e) => {
             tracing::error!("Failed to start tunnel: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
+            ErrorResponse::internal(e.to_string()).into_response()
         }
     }
 }
