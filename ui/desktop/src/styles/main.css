@@ -76,6 +76,9 @@
   --background-medium: var(--color-neutral-100);
   --background-inverse: var(--color-black);
   --background-danger: var(--color-red-200);
+  --background-danger-muted: #fff5f5;
+  --background-success-muted: #e6f4ea;
+  --background-warning-muted: #fff8e1;
   --background-info: var(--color-blue-200);
 
   /* Message surfaces (DS-first; do not reuse accent as a reading surface) */
@@ -166,6 +169,9 @@
   --background-medium: var(--color-neutral-700);
   --background-inverse: var(--color-neutral-200);
   --background-danger: var(--color-red-100);
+  --background-danger-muted: #3d2222;
+  --background-success-muted: #1e2e1a;
+  --background-warning-muted: #302a18;
   --background-info: var(--color-blue-100);
 
   /* Message surfaces (DS-first; do not reuse accent as a reading surface) */
@@ -249,6 +255,9 @@
   --color-background-medium: var(--background-medium);
   --color-background-inverse: var(--background-inverse);
   --color-background-danger: var(--background-danger);
+  --color-background-danger-muted: var(--background-danger-muted);
+  --color-background-success-muted: var(--background-success-muted);
+  --color-background-warning-muted: var(--background-warning-muted);
   --color-background-info: var(--background-info);
 
   /* shadcn compatibility tokens (used by @json-render/shadcn components) */

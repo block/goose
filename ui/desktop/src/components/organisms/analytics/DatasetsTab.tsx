@@ -437,7 +437,7 @@ export default function DatasetsTab() {
                 <button
                   type="button"
                   onClick={() => handleDelete(ds.id)}
-                  className="px-3 py-1.5 rounded border border-border-default bg-background-default text-text-danger text-xs hover:bg-background-danger-muted transition-colors"
+                  className="px-3 py-1.5 rounded border border-border-danger text-text-danger text-xs bg-background-default hover:bg-background-danger-muted transition-colors"
                 >
                   Delete
                 </button>
