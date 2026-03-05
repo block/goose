@@ -17,6 +17,7 @@ use tokio::sync::Notify;
 
 pub struct ClientToAgentConnection {
     cx: JrConnectionCx<ClientToAgent>,
+    // MCP servers from config, consumed by the first new_session call.
     pending_mcp_servers: Vec<McpServer>,
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
@@ -91,7 +92,7 @@ impl Connection for ClientToAgentConnection {
             tokio::spawn(async move {
                 let permission_mapping = PermissionMapping;
 
-                let base = ClientToAgent::builder()
+                let result = ClientToAgent::builder()
                     .on_receive_notification(
                         {
                             let updates = updates_clone.clone();
@@ -117,9 +118,7 @@ impl Connection for ClientToAgentConnection {
                             }
                         },
                         sacp::on_receive_request!(),
-                    );
-
-                let result = base
+                    )
                     .on_receive_request(
                         async move |req: ReadTextFileRequest, request_cx, _cx| match read_handler {
                             Some(ref rh) => match rh(&req) {

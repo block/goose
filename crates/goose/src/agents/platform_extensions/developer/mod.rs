@@ -85,7 +85,7 @@ impl DeveloperClient {
                 Some("Read".to_string()),
                 Some(true),
                 Some(false),
-                Some(true),
+                Some(false),
                 Some(false),
             )),
             Tool::new(

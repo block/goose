@@ -1,12 +1,9 @@
 use crate::custom_requests::*;
+use crate::fs::AcpTools;
 use anyhow::Result;
-use async_trait::async_trait;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
-use goose::agents::mcp_client::{Error as McpError, McpClientTrait};
-use goose::agents::platform_extensions::developer::edit::{
-    resolve_path, string_replace, FileEditParams, FileReadParams, FileWriteParams,
-};
+use goose::agents::mcp_client::McpClientTrait;
 use goose::agents::platform_extensions::developer::DeveloperClient;
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
@@ -25,7 +22,7 @@ use goose::providers::provider_registry::ProviderConstructor;
 use goose::session::session_manager::SessionType;
 use goose::session::{Session, SessionManager};
 use goose_acp_macros::custom_methods;
-use rmcp::model::{CallToolResult, Content as RmcpContent, RawContent, ResourceContents, Role};
+use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
@@ -33,16 +30,14 @@ use sacp::schema::{
     InitializeResponse, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
     McpCapabilities, McpServer, ModelId, ModelInfo, NewSessionRequest, NewSessionResponse,
     PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
-    ReadTextFileRequest, RequestPermissionOutcome, RequestPermissionRequest, ResourceLink,
-    SessionCapabilities, SessionId, SessionInfo, SessionListCapabilities, SessionModelState,
-    SessionNotification, SessionUpdate, SetSessionModelRequest, SetSessionModelResponse,
-    StopReason, TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId,
-    ToolCallLocation, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind,
-    WriteTextFileRequest,
+    RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
+    SessionId, SessionInfo, SessionListCapabilities, SessionModelState, SessionNotification,
+    SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
+    TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus,
+    ToolCallUpdate, ToolCallUpdateFields, ToolKind,
 };
 use sacp::{AgentToClient, ByteStreams, Handled, JrConnectionCx, JrMessageHandler, MessageCx};
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
@@ -69,198 +64,6 @@ pub struct GooseAcpAgent {
     permission_manager: Arc<PermissionManager>,
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
-}
-
-async fn acp_read_text_file(
-    cx: &JrConnectionCx<AgentToClient>,
-    session_id: &SessionId,
-    path: &Path,
-    line: Option<u32>,
-    limit: Option<u32>,
-) -> Result<String, String> {
-    let mut request = ReadTextFileRequest::new(session_id.clone(), path.to_path_buf());
-    if let Some(l) = line {
-        request = request.line(l);
-    }
-    if let Some(l) = limit {
-        request = request.limit(l);
-    }
-    let response = cx
-        .send_request(request)
-        .block_task()
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-    Ok(response.content)
-}
-
-async fn acp_write_text_file(
-    cx: &JrConnectionCx<AgentToClient>,
-    session_id: &SessionId,
-    path: &Path,
-    content: &str,
-) -> Result<(), String> {
-    let request =
-        WriteTextFileRequest::new(session_id.clone(), path.to_path_buf(), content.to_string());
-    cx.send_request(request)
-        .block_task()
-        .await
-        .map_err(|e| format!("{e:?}"))?;
-    Ok(())
-}
-
-struct AcpTools {
-    inner: Arc<dyn McpClientTrait>,
-    cx: JrConnectionCx<AgentToClient>,
-    session_id: SessionId,
-    fs_read: bool,
-    fs_write: bool,
-}
-
-fn error_result(msg: impl std::fmt::Display) -> CallToolResult {
-    CallToolResult::error(vec![RmcpContent::text(msg.to_string()).with_priority(0.0)])
-}
-
-fn fail(action: &str, path: &str, err: impl std::fmt::Display) -> CallToolResult {
-    error_result(format!("Failed to {action} {path}: {err}"))
-}
-
-impl AcpTools {
-    fn parse_args<T: serde::de::DeserializeOwned>(
-        arguments: Option<rmcp::model::JsonObject>,
-    ) -> Result<T, String> {
-        DeveloperClient::parse_args(arguments).map_err(|e| format!("Error: {e}"))
-    }
-
-    async fn read_content(&self, path: &Path) -> Result<String, String> {
-        if self.fs_read {
-            acp_read_text_file(&self.cx, &self.session_id, path, None, None).await
-        } else {
-            fs::read_to_string(path).map_err(|e| e.to_string())
-        }
-    }
-
-    async fn acp_read(
-        &self,
-        arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
-    ) -> Result<CallToolResult, McpError> {
-        let params: FileReadParams = match Self::parse_args(arguments) {
-            Ok(p) => p,
-            Err(e) => return Ok(error_result(e)),
-        };
-        let path = resolve_path(&params.path, working_dir.map(Path::new));
-        match acp_read_text_file(&self.cx, &self.session_id, &path, params.line, params.limit).await
-        {
-            Ok(content) => Ok(CallToolResult::success(vec![
-                RmcpContent::text(content).with_priority(0.0)
-            ])),
-            Err(e) => Ok(fail("read", &params.path, e)),
-        }
-    }
-
-    async fn acp_write(
-        &self,
-        arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
-    ) -> Result<CallToolResult, McpError> {
-        let params: FileWriteParams = match Self::parse_args(arguments) {
-            Ok(p) => p,
-            Err(e) => return Ok(error_result(e)),
-        };
-        let path = resolve_path(&params.path, working_dir.map(Path::new));
-        match acp_write_text_file(&self.cx, &self.session_id, &path, &params.content).await {
-            Ok(()) => {
-                let line_count = params.content.lines().count();
-                let action = if path.exists() { "Wrote" } else { "Created" };
-                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
-                    "{action} {} ({line_count} lines)",
-                    params.path
-                ))
-                .with_priority(0.0)]))
-            }
-            Err(e) => Ok(fail("write", &params.path, e)),
-        }
-    }
-
-    async fn acp_edit(
-        &self,
-        arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
-    ) -> Result<CallToolResult, McpError> {
-        let params: FileEditParams = match Self::parse_args(arguments) {
-            Ok(p) => p,
-            Err(e) => return Ok(error_result(e)),
-        };
-        let path = resolve_path(&params.path, working_dir.map(Path::new));
-
-        let content = match self.read_content(&path).await {
-            Ok(c) => c,
-            Err(e) => return Ok(fail("read", &params.path, e)),
-        };
-
-        let new_content = match string_replace(&content, &params.before, &params.after) {
-            Ok(c) => c,
-            Err(msg) => return Ok(error_result(msg)),
-        };
-
-        let write_result = if self.fs_write {
-            acp_write_text_file(&self.cx, &self.session_id, &path, &new_content).await
-        } else {
-            fs::write(&path, &new_content).map_err(|e| e.to_string())
-        };
-
-        match write_result {
-            Ok(()) => {
-                let old_lines = params.before.lines().count();
-                let new_lines = params.after.lines().count();
-                Ok(CallToolResult::success(vec![RmcpContent::text(format!(
-                    "Edited {} ({old_lines} lines -> {new_lines} lines)",
-                    params.path
-                ))
-                .with_priority(0.0)]))
-            }
-            Err(e) => Ok(fail("write", &params.path, e)),
-        }
-    }
-}
-
-#[async_trait]
-impl McpClientTrait for AcpTools {
-    async fn list_tools(
-        &self,
-        session_id: &str,
-        next_cursor: Option<String>,
-        cancellation_token: CancellationToken,
-    ) -> Result<rmcp::model::ListToolsResult, McpError> {
-        self.inner
-            .list_tools(session_id, next_cursor, cancellation_token)
-            .await
-    }
-
-    async fn call_tool(
-        &self,
-        session_id: &str,
-        name: &str,
-        arguments: Option<rmcp::model::JsonObject>,
-        working_dir: Option<&str>,
-        cancellation_token: CancellationToken,
-    ) -> Result<CallToolResult, McpError> {
-        match name {
-            "read" if self.fs_read => self.acp_read(arguments, working_dir).await,
-            "write" if self.fs_write => self.acp_write(arguments, working_dir).await,
-            // edit needs interception when either cap is present: it reads then writes
-            "edit" if self.fs_read || self.fs_write => self.acp_edit(arguments, working_dir).await,
-            _ => {
-                self.inner
-                    .call_tool(session_id, name, arguments, working_dir, cancellation_token)
-                    .await
-            }
-        }
-    }
-
-    fn get_info(&self) -> Option<&rmcp::model::InitializeResult> {
-        self.inner.get_info()
-    }
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -1634,7 +1437,7 @@ mod tests {
     use super::*;
     use goose::conversation::message::{ToolRequest, ToolResponse};
     use goose::providers::errors::ProviderError;
-    use rmcp::model::CallToolRequestParams;
+    use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
     use sacp::schema::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,

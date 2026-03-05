@@ -1,4 +1,4 @@
-use fs_err as fs;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use rmcp::model::{CallToolResult, Content};
@@ -196,7 +196,7 @@ pub fn string_replace(content: &str, before: &str, after: &str) -> Result<String
     }
 }
 
-pub fn apply_line_limit(content: &str, line: Option<u32>, limit: Option<u32>) -> String {
+fn apply_line_limit(content: &str, line: Option<u32>, limit: Option<u32>) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let start = line
         .map(|l| (l as usize).saturating_sub(1))

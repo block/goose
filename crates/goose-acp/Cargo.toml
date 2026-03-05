@@ -36,7 +36,7 @@ tracing = { workspace = true }
 serde_json = { workspace = true }
 futures = { workspace = true }
 regex = { workspace = true }
-fs-err = { workspace = true }
+fs-err = "3"
 url = { workspace = true }
 
 # HTTP server dependencies

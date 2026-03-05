@@ -4294,7 +4294,6 @@ dependencies = [
  "encoding_rs",
  "env-lock",
  "etcetera 0.11.0",
- "fs-err",
  "fs2",
  "futures",
  "goose-test-support",
