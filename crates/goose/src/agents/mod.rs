@@ -54,6 +54,7 @@ pub mod retry;
 pub mod routing_eval;
 mod schedule_tool;
 pub mod security_agent;
+pub mod semantic_router;
 pub(crate) mod specialist_config;
 pub(crate) mod specialist_handler;
 pub mod subagent_execution_tool;

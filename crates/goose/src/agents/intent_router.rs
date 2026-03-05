@@ -7,6 +7,7 @@ use crate::agents::pm_agent::PmAgent;
 use crate::agents::qa_agent::QaAgent;
 use crate::agents::research_agent::ResearchAgent;
 use crate::agents::security_agent::SecurityAgent;
+use crate::agents::semantic_router::SemanticRouter;
 use crate::registry::manifest::AgentMode;
 
 /// Represents a routing decision: which agent + mode should handle this message.
@@ -31,11 +32,13 @@ pub struct AgentSlot {
 
 /// Routes user messages to the best agent/mode combination.
 ///
-/// Uses a two-tier strategy:
-/// 1. Fast-path keyword matching against mode `when_to_use` hints
-/// 2. Fallback: default agent in default mode
+/// Uses a three-tier strategy:
+/// 1. Fast-path keyword matching against mode `when_to_use` hints (<10ms)
+/// 2. TF-IDF semantic similarity against route descriptions (~1ms)
+/// 3. Fallback: default agent in default mode
 pub struct IntentRouter {
     slots: Vec<AgentSlot>,
+    semantic: SemanticRouter,
 }
 
 impl Default for IntentRouter {
@@ -54,7 +57,7 @@ impl IntentRouter {
         slots.push(AgentSlot {
             name: "Goose Agent".into(),
             description:
-                "General-purpose AI assistant for conversations, planning, and task execution"
+                "General-purpose AI assistant for conversations, planning, writing, reviewing documents, creating data visualizations and charts, and building interactive apps"
                     .into(),
             modes: goose_modes,
             default_mode: goose.default_mode_slug().into(),
@@ -67,7 +70,7 @@ impl IntentRouter {
         let dev_modes = dev.to_agent_modes();
         slots.push(AgentSlot {
             name: "Developer Agent".into(),
-            description: "Software engineer for implementing features, fixing bugs, debugging errors, CI/CD pipelines, infrastructure, and DevOps".into(),
+            description: "Software engineer for coding, debugging, code review, architecture design, CI/CD pipelines, deployment, DevOps, backend, frontend, API endpoints, server infrastructure".into(),
             modes: dev_modes,
             default_mode: dev.default_mode().into(),
             enabled: true,
@@ -79,7 +82,7 @@ impl IntentRouter {
         let qa_modes = qa.to_agent_modes();
         slots.push(AgentSlot {
             name: "QA Agent".into(),
-            description: "Quality assurance agent for test coverage analysis, testing strategy, bug investigation, and code quality review".into(),
+            description: "Quality assurance engineer for test strategy, test writing, code quality review, bug investigation, and debugging test failures".into(),
             modes: qa_modes,
             default_mode: qa.default_mode().into(),
             enabled: true,
@@ -91,7 +94,7 @@ impl IntentRouter {
         let pm_modes = pm.to_agent_modes();
         slots.push(AgentSlot {
             name: "PM Agent".into(),
-            description: "Product management agent for requirements, prioritization, and roadmaps"
+            description: "Product manager for requirements, user stories, PRDs, roadmaps, prioritization, and stakeholder communication"
                 .into(),
             modes: pm_modes,
             default_mode: pm.default_mode().into(),
@@ -105,7 +108,7 @@ impl IntentRouter {
         slots.push(AgentSlot {
             name: "Security Agent".into(),
             description:
-                "Security agent for threat modeling, vulnerability analysis, and compliance".into(),
+                "Security engineer for threat modeling, vulnerability analysis, security review, compliance auditing, and penetration testing".into(),
             modes: security_modes,
             default_mode: security.default_mode().into(),
             enabled: true,
@@ -118,7 +121,7 @@ impl IntentRouter {
         slots.push(AgentSlot {
             name: "Research Agent".into(),
             description:
-                "Research agent for investigating topics, comparing technologies, and learning"
+                "Research analyst for investigating topics, comparing technologies, fact-checking, competitive analysis, and documentation synthesis"
                     .into(),
             modes: research_modes,
             default_mode: research.default_mode().into(),
@@ -126,13 +129,43 @@ impl IntentRouter {
             bound_extensions: vec![],
         });
 
-        Self { slots }
+        Self {
+            semantic: Self::build_semantic(&slots),
+            slots,
+        }
+    }
+
+    /// Build a SemanticRouter from current enabled slots and their non-internal modes.
+    fn build_semantic(slots: &[AgentSlot]) -> SemanticRouter {
+        let mut routes = Vec::new();
+        for slot in slots.iter().filter(|s| s.enabled) {
+            for mode in &slot.modes {
+                if mode.is_internal {
+                    continue;
+                }
+                // Combine description + when_to_use for a richer route corpus
+                let mut corpus = format!("{} {}", slot.description, mode.description);
+                if let Some(ref when) = mode.when_to_use {
+                    corpus.push(' ');
+                    corpus.push_str(when);
+                }
+                routes.push((slot.name.clone(), mode.slug.clone(), corpus));
+            }
+        }
+        // Threshold 0.15: tuned to be above noise but below keyword threshold (0.2)
+        SemanticRouter::new(routes, 0.15)
+    }
+
+    /// Rebuild the semantic router after slot changes.
+    fn refresh_semantic(&mut self) {
+        self.semantic = Self::build_semantic(&self.slots);
     }
 
     pub fn set_enabled(&mut self, agent_name: &str, enabled: bool) {
         if let Some(slot) = self.slots.iter_mut().find(|s| s.name == agent_name) {
             slot.enabled = enabled;
         }
+        self.refresh_semantic();
     }
 
     pub fn set_bound_extensions(&mut self, agent_name: &str, extensions: Vec<String>) {
@@ -143,10 +176,12 @@ impl IntentRouter {
 
     pub fn add_slot(&mut self, slot: AgentSlot) {
         self.slots.push(slot);
+        self.refresh_semantic();
     }
 
     pub fn remove_slot(&mut self, agent_name: &str) {
         self.slots.retain(|s| s.name != agent_name);
+        self.refresh_semantic();
     }
 
     pub fn slots(&self) -> &[AgentSlot] {
@@ -213,6 +248,10 @@ impl IntentRouter {
             };
 
             for mode in &slot.modes {
+                // Skip internal modes — they're for orchestrator use, not user routing
+                if mode.is_internal {
+                    continue;
+                }
                 let mode_score = self.score_mode_match(&message_lower, mode);
                 let score = mode_score + agent_bonus;
                 if score > 0.0 {
@@ -232,32 +271,23 @@ impl IntentRouter {
 
         let decision = if let Some((score, slot, mode)) = best {
             if score >= 0.2 {
+                span.record("router.strategy", "keyword");
                 RoutingDecision {
                     agent_name: slot.name.clone(),
                     mode_slug: mode.slug.clone(),
                     confidence: score.min(1.0),
-                    reasoning: format!("Matched mode '{}' (score: {:.2})", mode.name, score),
-                }
-            } else {
-                let default_slot = enabled_slots.first().unwrap();
-                RoutingDecision {
-                    agent_name: default_slot.name.clone(),
-                    mode_slug: default_slot.default_mode.clone(),
-                    confidence: 0.5,
                     reasoning: format!(
-                        "Best score {:.2} below threshold; using default agent",
-                        score
+                        "[keyword] Matched mode '{}' (score: {:.2})",
+                        mode.name, score
                     ),
                 }
+            } else {
+                // Layer 2: keyword score too low → try TF-IDF semantic similarity
+                self.try_semantic_or_default(user_message, &span, &enabled_slots, score)
             }
         } else {
-            let default_slot = enabled_slots.first().unwrap();
-            RoutingDecision {
-                agent_name: default_slot.name.clone(),
-                mode_slug: default_slot.default_mode.clone(),
-                confidence: 0.5,
-                reasoning: "No mode keyword matches; using default agent".into(),
-            }
+            // No keyword matches at all → try semantic routing
+            self.try_semantic_or_default(user_message, &span, &enabled_slots, 0.0)
         };
 
         span.record("router.agent", decision.agent_name.as_str());
@@ -274,6 +304,54 @@ impl IntentRouter {
         );
 
         decision
+    }
+
+    /// Layer 2: Try TF-IDF semantic similarity when keyword score is below threshold.
+    /// Falls back to default agent if semantic score is also too low.
+    fn try_semantic_or_default(
+        &self,
+        user_message: &str,
+        span: &Span,
+        enabled_slots: &[&AgentSlot],
+        keyword_score: f32,
+    ) -> RoutingDecision {
+        if let Some(hit) = self.semantic.route(user_message) {
+            // Verify the matched agent is still enabled
+            let agent_enabled = enabled_slots.iter().any(|s| s.name == hit.agent_name);
+            if agent_enabled {
+                span.record("router.strategy", "semantic");
+                debug!(
+                    agent = hit.agent_name.as_str(),
+                    mode = hit.mode_slug.as_str(),
+                    semantic_score = hit.similarity,
+                    keyword_score = keyword_score,
+                    top_terms = format!("{:?}", hit.top_terms).as_str(),
+                    "routing.semantic_match"
+                );
+                return RoutingDecision {
+                    agent_name: hit.agent_name,
+                    mode_slug: hit.mode_slug,
+                    confidence: hit.similarity.min(1.0),
+                    reasoning: format!(
+                        "[semantic] TF-IDF match (score: {:.3}, terms: {:?})",
+                        hit.similarity, hit.top_terms
+                    ),
+                };
+            }
+        }
+
+        // Layer 3: Fall back to default agent
+        span.record("router.strategy", "default");
+        let default_slot = enabled_slots.first().unwrap();
+        RoutingDecision {
+            agent_name: default_slot.name.clone(),
+            mode_slug: default_slot.default_mode.clone(),
+            confidence: 0.5,
+            reasoning: format!(
+                "[default] keyword={:.2}, semantic=none; using default agent",
+                keyword_score
+            ),
+        }
     }
 
     /// Score a mode against a message, returning the score and matched keywords.
@@ -519,6 +597,25 @@ mod tests {
     }
 
     #[test]
+    fn test_route_generate_chart_to_genui() {
+        let router = IntentRouter::new();
+        let decision = router.route("generate a chart visualization from random data");
+        assert_eq!(decision.agent_name, "Goose Agent");
+        assert_eq!(decision.mode_slug, "genui");
+    }
+
+    #[test]
+    fn test_internal_modes_not_routable() {
+        let router = IntentRouter::new();
+        // "generating a recipe" should NOT route to recipe_maker (internal)
+        let decision = router.route("generating a recipe yaml from this conversation");
+        assert_ne!(
+            decision.mode_slug, "recipe_maker",
+            "Internal mode recipe_maker should not be routable"
+        );
+    }
+
+    #[test]
     fn test_route_qa_dashboard_prefers_qa_agent() {
         let router = IntentRouter::new();
         let decision = router
@@ -532,5 +629,31 @@ mod tests {
         let decision = router
             .route("create a dashboard of CVEs and security vulnerabilities for our dependencies");
         assert_eq!(decision.agent_name, "Security Agent");
+    }
+
+    #[test]
+    fn test_semantic_layer_routes_research() {
+        let router = IntentRouter::new();
+        // This phrasing avoids direct keyword matches but has strong semantic overlap
+        // with "investigating topics, comparing technologies, fact-checking"
+        let decision =
+            router.route("investigate and compare different database technologies for our project");
+        assert_eq!(
+            decision.agent_name, "Research Agent",
+            "Semantic layer should catch research-oriented queries even without exact keyword hits"
+        );
+    }
+
+    #[test]
+    fn test_semantic_layer_falls_back_for_greetings() {
+        let router = IntentRouter::new();
+        let decision = router.route("hey there, what's up?");
+        assert_eq!(decision.agent_name, "Goose Agent");
+        // Should fall back to default — no keyword or semantic match for greetings
+        assert!(
+            decision.reasoning.contains("[default]") || decision.reasoning.contains("[keyword]"),
+            "Greetings should not match via semantic layer: {}",
+            decision.reasoning
+        );
     }
 }
