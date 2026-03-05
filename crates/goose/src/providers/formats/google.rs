@@ -31,12 +31,17 @@ pub fn get_thought_signature(metadata: &Option<ProviderMetadata>) -> Option<&str
         .and_then(|v| v.as_str())
 }
 
+fn is_moim_text(content: &MessageContent) -> bool {
+    matches!(content, MessageContent::Text(t) if t.text.starts_with("<info-msg>"))
+}
+
 fn is_user_loop_boundary(message: &Message) -> bool {
     message.role == Role::User
-        && message
+        && !message
             .content
             .iter()
-            .any(|content| !matches!(content, MessageContent::ToolResponse(_)))
+            .any(|content| matches!(content, MessageContent::ToolResponse(_)))
+        && !message.content.iter().all(is_moim_text)
 }
 
 fn insert_thought_signature(part: &mut Map<String, Value>, signature: &str) {
@@ -102,7 +107,12 @@ pub fn format_messages(messages: &[Message]) -> Vec<Value> {
                 match message_content {
                     MessageContent::Text(text) => {
                         if !text.text.is_empty() {
-                            parts.push(json!({"text": text.text}));
+                            let mut part = Map::new();
+                            part.insert("text".to_string(), json!(text.text));
+                            if include_signature && message.role == Role::User {
+                                insert_thought_signature(&mut part, SYNTHETIC_THOUGHT_SIGNATURE);
+                            }
+                            parts.push(json!(part));
                         }
                     }
                     MessageContent::ToolRequest(request) => match &request.tool_call {
@@ -1108,6 +1118,94 @@ mod tests {
         assert_eq!(
             formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY],
             SYNTHETIC_THOUGHT_SIGNATURE
+        );
+    }
+
+    #[test]
+    fn test_moim_text_in_tool_loop_gets_synthetic_signature() {
+        const SIG: &str = "sig_tool_loop";
+
+        let user_prompt = set_up_text_message("Do something", Role::User);
+
+        let assistant_tool = response_to_message(google_response(vec![json!({
+            "functionCall": {"name": "shell", "args": {"cmd": "ls"}},
+            "thoughtSignature": SIG
+        })]))
+        .unwrap();
+
+        let tool_req = assistant_tool.content[0].as_tool_request().unwrap();
+
+        let user_tool_and_moim = Message::user()
+            .with_tool_response_with_metadata(
+                tool_req.id.clone(),
+                Ok(tool_result("file list output")),
+                tool_req.metadata.as_ref(),
+            )
+            .with_text(
+                "<info-msg>\nIt is currently 2026-03-05\nWorking directory: /tmp\n</info-msg>",
+            );
+
+        let formatted = format_messages(&[user_prompt, assistant_tool, user_tool_and_moim]);
+
+        assert_eq!(
+            formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY], SIG,
+            "functionCall should keep its real signature"
+        );
+
+        assert!(
+            formatted[2]["parts"][0]["functionResponse"].is_object(),
+            "First part should be functionResponse"
+        );
+
+        let moim_part = &formatted[2]["parts"][1];
+        assert!(
+            moim_part["text"].as_str().unwrap().contains("<info-msg>"),
+            "Second part should be the MOIM text"
+        );
+        assert_eq!(
+            moim_part[THOUGHT_SIGNATURE_KEY], SYNTHETIC_THOUGHT_SIGNATURE,
+            "MOIM text part should get synthetic thought signature"
+        );
+    }
+
+    #[test]
+    fn test_standalone_moim_preserves_thought_signatures() {
+        const SIG: &str = "sig_standalone_moim";
+
+        let user_prompt = set_up_text_message("Summarize AGENTS.md", Role::User);
+
+        let assistant_tool = response_to_message(google_response(vec![json!({
+            "functionCall": {"name": "shell", "args": {"cmd": "cat AGENTS.md"}},
+            "thoughtSignature": SIG
+        })]))
+        .unwrap();
+        let req = assistant_tool.content[0].as_tool_request().unwrap();
+
+        let user_tool_response = Message::user().with_tool_response_with_metadata(
+            req.id.clone(),
+            Ok(tool_result("file contents")),
+            req.metadata.as_ref(),
+        );
+
+        let standalone_moim = Message::user()
+            .with_text("<info-msg>\nIt is 2026-03-05\nWorking directory: /tmp\n</info-msg>");
+
+        let formatted = format_messages(&[
+            user_prompt,
+            assistant_tool,
+            user_tool_response,
+            standalone_moim,
+        ]);
+
+        assert_eq!(formatted.len(), 4);
+
+        assert_eq!(
+            formatted[1]["parts"][0][THOUGHT_SIGNATURE_KEY], SIG,
+            "functionCall should keep its real signature"
+        );
+        assert_eq!(
+            formatted[3]["parts"][0][THOUGHT_SIGNATURE_KEY], SYNTHETIC_THOUGHT_SIGNATURE,
+            "standalone MOIM should get synthetic thought signature"
         );
     }
 
