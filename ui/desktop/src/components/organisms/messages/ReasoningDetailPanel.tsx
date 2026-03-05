@@ -6,10 +6,10 @@ import { Badge } from '@/components/atoms/badge';
 import { ScrollArea } from '@/components/atoms/scroll-area';
 import { StatusDot } from '@/components/atoms/status-dot';
 import { ActivityStep, ThinkingEntry } from '@/components/molecules/ui/activity-step';
-import MarkdownContent from './MarkdownContent';
 import { useReasoningDetail } from '@/contexts/ReasoningDetailContext';
 import { cn } from '@/utils';
 import { getGooseActivityFields, getNotificationMethod } from '@/utils/notificationUtils';
+import MarkdownContent from './MarkdownContent';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

@@ -1,13 +1,13 @@
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ConfigKey, ProviderDetails } from '@/api';
-import { useConfig } from '@/contexts/ConfigContext';
 import { Input } from '@/components/atoms/input';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/molecules/ui/collapsible';
+import { useConfig } from '@/contexts/ConfigContext';
 
 type ValidationErrors = Record<string, string>;
 

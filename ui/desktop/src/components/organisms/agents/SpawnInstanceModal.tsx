@@ -2,7 +2,6 @@ import { AlertCircle, ChevronDown, Rocket } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { providers as fetchProviders, getProviderModels, type ProviderDetails } from '@/api';
-import type { SpawnInstanceRequest } from '@/lib/instances';
 import {
   Dialog,
   DialogClose,
@@ -12,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/molecules/ui/dialog';
+import type { SpawnInstanceRequest } from '@/lib/instances';
 
 interface SpawnInstanceModalProps {
   open: boolean;

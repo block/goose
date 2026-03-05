@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Ollama } from '@/components/atoms/icons';
 import { useConfig } from '@/contexts/ConfigContext';
 import { toastService } from '@/toasts';
 import { errorMessage } from '@/utils/conversionUtils';
@@ -11,7 +12,6 @@ import {
   pollForOllama,
   pullOllamaModel,
 } from '@/utils/ollamaDetection';
-import { Ollama } from '@/components/atoms/icons';
 
 interface OllamaSetupProps {
   onSuccess: () => void;

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { getAnnouncementContent } from '../../../../announcements/content';
-import packageJson from '../../../../package.json';
-import { ANNOUNCEMENTS_ENABLED } from '@/updates';
 import { Button } from '@/components/atoms/button';
 import { BaseModal } from '@/components/molecules/ui/base-modal';
 import MarkdownContent from '@/components/organisms/messages/MarkdownContent';
+import { ANNOUNCEMENTS_ENABLED } from '@/updates';
+import { getAnnouncementContent } from '../../../../announcements/content';
+import packageJson from '../../../../package.json';
 
 interface AnnouncementMeta {
   id: string;

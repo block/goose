@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message } from '@/api';
+import { Button } from '@/components/atoms/button';
+import Edit from '@/components/atoms/icons/Edit';
 import { getTextAndImageContent } from '@/types/message';
 import { formatMessageTimestamp } from '@/utils/timeUtils';
-import Edit from '@/components/atoms/icons/Edit';
 import MarkdownContent from '../messages/MarkdownContent';
 import MessageCopyLink from '../messages/MessageCopyLink';
 import ImagePreview from '../shared/ImagePreview';
-import { Button } from '@/components/atoms/button';
 
 interface UserMessageProps {
   message: Message;

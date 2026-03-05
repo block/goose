@@ -1,8 +1,8 @@
-import { ChatState } from '@/types/chatState';
-import type { RoutingInfo } from '@/types/message';
 import AnimatedIcons from '@/components/atoms/branding/AnimatedIcons';
 import FlyingBird from '@/components/atoms/branding/FlyingBird';
 import GooseLogo from '@/components/atoms/branding/GooseLogo';
+import { ChatState } from '@/types/chatState';
+import type { RoutingInfo } from '@/types/message';
 
 interface LoadingGooseProps {
   message?: string;

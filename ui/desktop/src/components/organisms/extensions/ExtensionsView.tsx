@@ -2,21 +2,21 @@ import kebabCase from 'lodash/kebabCase';
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { ExtensionConfig } from '@/api';
+import { Button } from '@/components/atoms/button';
+import { GPSIcon } from '@/components/atoms/icons';
+import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';
 import { useConfig } from '@/contexts/ConfigContext';
 import { getSearchShortcutText } from '@/utils/keyboardShortcuts';
 import type { View, ViewOptions } from '@/utils/navigationUtils';
 import { SearchView } from '../conversation/SearchView';
-import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';
 import { activateExtensionDefault } from '../settings/extensions';
 import ExtensionsSection from '../settings/extensions/ExtensionsSection';
 import ExtensionModal from '../settings/extensions/modal/ExtensionModal';
 import {
   createExtensionConfig,
-  getDefaultFormData,
   type ExtensionFormData,
+  getDefaultFormData,
 } from '../settings/extensions/utils';
-import { Button } from '@/components/atoms/button';
-import { GPSIcon } from '@/components/atoms/icons';
 
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;

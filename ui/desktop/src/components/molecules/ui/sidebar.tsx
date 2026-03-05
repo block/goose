@@ -4,8 +4,6 @@ import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import * as React from 'react';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { cn } from '@/utils';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import { Separator } from '@/components/atoms/separator';
@@ -16,6 +14,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/atoms/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/utils';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from './sheet';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';

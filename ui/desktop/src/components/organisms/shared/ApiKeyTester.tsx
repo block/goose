@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { detectProvider } from '@/api';
+import { Button } from '@/components/atoms/button';
 import { ArrowRight } from '@/components/atoms/icons/ArrowRight';
 import { Key } from '@/components/atoms/icons/Key';
-import { Button } from '@/components/atoms/button';
 
 interface ApiKeyTesterProps {
   onSuccess: (provider: string, model: string, apiKey: string) => void;

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   Category,
-  Zone,
-  zoneOf,
   parseLogLines,
   parseSession,
   toMessages,
+  Zone,
+  zoneOf,
 } from '../diagnosticLogParser';
 
 // ── Test helpers ─────────────────────────────────────────────────────

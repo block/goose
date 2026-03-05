@@ -1,15 +1,14 @@
 import { ChevronDown } from 'lucide-react';
 import React, { useState } from 'react';
 import type { ExtensionConfig } from '@/api';
-import type { Parameter } from '@/recipe';
-
-import ParameterInput from '../../parameter/ParameterInput';
 import { Button } from '@/components/atoms/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/molecules/ui/collapsible';
+import type { Parameter } from '@/recipe';
+import ParameterInput from '../../parameter/ParameterInput';
 import RecipeActivityEditor from '../RecipeActivityEditor';
 import InstructionsEditor from './InstructionsEditor';
 import JsonSchemaEditor from './JsonSchemaEditor';

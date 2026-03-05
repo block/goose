@@ -4,8 +4,8 @@ import { readConfig } from '@/api';
 import { client } from '@/api/client.gen';
 import { ErrorBoundary } from '@/components/organisms/shared/ErrorBoundary';
 import { ConfigProvider } from '@/contexts/ConfigContext';
-import SuspenseLoader from './suspense-loader';
 import { setTelemetryEnabled } from '@/utils/analytics';
+import SuspenseLoader from './suspense-loader';
 
 const App = lazy(() => import('./App'));
 

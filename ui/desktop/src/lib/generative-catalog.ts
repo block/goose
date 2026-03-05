@@ -5,4 +5,4 @@
  * of truth for the model-visible catalog/prompt and the renderer behavior.
  */
 
-export { catalog, catalogPrompt, CatalogRenderer } from '@/components/organisms/json-render/setup';
+export { CatalogRenderer, catalog, catalogPrompt } from '@/components/organisms/json-render/setup';

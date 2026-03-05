@@ -17,4 +17,5 @@ export enum AppEvents {
   SCROLL_CHAT_TO_BOTTOM = 'scroll-chat-to-bottom',
   HIDE_ALERT_POPOVER = 'hide-alert-popover',
   RESPONSE_STYLE_CHANGED = 'responseStyleChanged',
+  MODEL_CHANGED = 'model-changed',
 }

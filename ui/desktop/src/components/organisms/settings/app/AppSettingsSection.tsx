@@ -1,8 +1,5 @@
 import { Settings } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '@/updates';
-import { trackSettingToggled } from '@/utils/analytics';
-import ThemeSelector from '@/components/organisms/goose-sidebar/ThemeSelector';
 import { Button } from '@/components/atoms/button';
 import { Switch } from '@/components/atoms/switch';
 import {
@@ -19,6 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/molecules/ui/dialog';
+import ThemeSelector from '@/components/organisms/goose-sidebar/ThemeSelector';
+import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '@/updates';
+import { trackSettingToggled } from '@/utils/analytics';
 import TunnelSection from '../tunnel/TunnelSection';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';

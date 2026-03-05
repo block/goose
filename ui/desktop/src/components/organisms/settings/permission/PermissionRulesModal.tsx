@@ -1,9 +1,9 @@
 import { ChevronRight } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { useConfig, type FixedExtensionEntry } from '@/contexts/ConfigContext';
 import { Button } from '@/components/atoms/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/molecules/ui/dialog';
+import { type FixedExtensionEntry, useConfig } from '@/contexts/ConfigContext';
 import PermissionModal from './PermissionModal';
 
 function RuleItem({ title, description }: { title: string; description: string }) {

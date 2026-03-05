@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { PricingData } from '@/api';
+import { CoinIcon } from '@/components/atoms/icons';
 import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import { fetchModelPricing } from '@/utils/pricing';
-import { CoinIcon } from '@/components/atoms/icons';
 
 interface CostTrackerProps {
   inputTokens?: number;

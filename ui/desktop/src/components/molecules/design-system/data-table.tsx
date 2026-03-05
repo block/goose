@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
 import type React from 'react';
+import { useMemo, useState } from 'react';
 
 import ArrowDown from '@/components/atoms/icons/ArrowDown';
 import ArrowUp from '@/components/atoms/icons/ArrowUp';

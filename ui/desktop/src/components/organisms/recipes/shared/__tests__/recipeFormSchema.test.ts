@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { recipeFormSchema, type RecipeFormData } from '../recipeFormSchema';
+import { type RecipeFormData, recipeFormSchema } from '../recipeFormSchema';
 
 describe('recipeFormSchema', () => {
   const validFormData: RecipeFormData = {

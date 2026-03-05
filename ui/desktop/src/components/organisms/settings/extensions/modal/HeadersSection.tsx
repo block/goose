@@ -1,8 +1,8 @@
 import { Plus, X } from 'lucide-react';
 import React from 'react';
-import { cn } from '@/utils';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
+import { cn } from '@/utils';
 
 interface HeadersSectionProps {
   headers: { key: string; value: string; isEdited?: boolean }[];

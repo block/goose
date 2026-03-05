@@ -1,4 +1,4 @@
-import { startAgent, type ExtensionConfig, type Session } from '@/api';
+import { type ExtensionConfig, type Session, startAgent } from '@/api';
 import { AppEvents } from '@/constants/events';
 import type { FixedExtensionEntry } from '@/contexts/ConfigContext';
 import type { setViewType } from '@/hooks/useNavigation';

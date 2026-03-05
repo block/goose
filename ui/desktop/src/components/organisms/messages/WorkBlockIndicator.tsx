@@ -1,11 +1,11 @@
 import { ChevronRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Message } from '@/api';
-import { useReasoningDetail, type WorkBlockDetail } from '@/contexts/ReasoningDetailContext';
+import { Badge } from '@/components/atoms/badge';
 import FlyingBird from '@/components/atoms/branding/FlyingBird';
 import GooseLogo from '@/components/atoms/branding/GooseLogo';
-import { Badge } from '@/components/atoms/badge';
 import { StatusDot } from '@/components/atoms/status-dot';
+import { useReasoningDetail, type WorkBlockDetail } from '@/contexts/ReasoningDetailContext';
 import { getGooseActivityFields } from '@/utils/notificationUtils';
 
 // ── Helpers ─────────────────────────────────────────────────────────

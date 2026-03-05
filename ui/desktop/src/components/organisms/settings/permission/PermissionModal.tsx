@@ -1,7 +1,6 @@
 import { AlertCircle, ChevronDownIcon, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { getTools, upsertPermissions, type PermissionLevel, type ToolInfo } from '@/api';
-import { useChatContext } from '@/contexts/ChatContext';
+import { getTools, type PermissionLevel, type ToolInfo, upsertPermissions } from '@/api';
 import { Button } from '@/components/atoms/button';
 import {
   Dialog,
@@ -16,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/molecules/ui/dropdown-menu';
+import { useChatContext } from '@/contexts/ChatContext';
 
 function getFirstSentence(text: string): string {
   const match = text.match(/^([^.?!]+[.?!])/);

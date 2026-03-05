@@ -1,18 +1,19 @@
 import { Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ExtensionConfig } from '@/api';
-import { useConfig, type FixedExtensionEntry } from '@/contexts/ConfigContext';
 import { Button } from '@/components/atoms/button';
 import { GPSIcon } from '@/components/atoms/icons';
+import { type FixedExtensionEntry, useConfig } from '@/contexts/ConfigContext';
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
+import ExtensionModal from './modal/ExtensionModal';
 import ExtensionList from './subcomponents/ExtensionList';
 import {
   createExtensionConfig,
+  type ExtensionFormData,
   extensionToFormData,
   getDefaultFormData,
-  type ExtensionFormData,
 } from './utils';
-import ExtensionModal from './modal/ExtensionModal';
+
 interface ExtensionSectionProps {
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;

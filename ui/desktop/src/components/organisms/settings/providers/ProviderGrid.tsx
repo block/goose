@@ -6,9 +6,9 @@ import type {
   ProviderDetails,
   UpdateCustomProviderRequest,
 } from '@/api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/molecules/ui/dialog';
 import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import type { View } from '@/utils/navigationUtils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/molecules/ui/dialog';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import ProviderConfigurationModal from './modal/ProviderConfiguationModal';
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
@@ -243,7 +243,7 @@ function ProviderCards({
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
-  const title = `${editingProvider ? (editable ? 'Edit' : 'Configure') : 'Add'}  Provider`;
+  const title = `${editingProvider ? (editable ? 'Edit' : 'Configure') : 'Add'} Provider`;
   return (
     <>
       {providerCards}

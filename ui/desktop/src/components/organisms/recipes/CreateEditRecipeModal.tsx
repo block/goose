@@ -2,14 +2,14 @@ import { useForm } from '@tanstack/react-form';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import type { Settings } from '@/api';
+import { Button } from '@/components/atoms/button';
+import Copy from '@/components/atoms/icons/Copy';
+import { Geese } from '@/components/atoms/icons/Geese';
 import type { ExtensionConfig } from '@/contexts/ConfigContext';
 import { generateDeepLink, type Parameter, type Recipe } from '@/recipe';
 import { saveRecipe } from '@/recipe/recipe_management';
 import { toastError, toastSuccess } from '@/toasts';
 import { errorMessage } from '@/utils/conversionUtils';
-import Copy from '@/components/atoms/icons/Copy';
-import { Geese } from '@/components/atoms/icons/Geese';
-import { Button } from '@/components/atoms/button';
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import type { RecipeFormData } from './shared/recipeFormSchema';
 

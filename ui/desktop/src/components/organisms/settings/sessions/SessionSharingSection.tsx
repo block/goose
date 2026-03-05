@@ -1,7 +1,6 @@
 import { AlertCircle, Check, Loader2, Lock } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { trackSettingToggled } from '@/utils/analytics';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import { Switch } from '@/components/atoms/switch';
@@ -12,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/molecules/ui/card';
+import { trackSettingToggled } from '@/utils/analytics';
 
 export default function SessionSharingSection() {
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');

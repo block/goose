@@ -1,7 +1,7 @@
-import { substituteParameters } from '@/utils/providerUtils';
 import GooseLogo from '@/components/atoms/branding/GooseLogo';
-import MarkdownContent from '../messages/MarkdownContent';
 import { Card } from '@/components/molecules/ui/card';
+import { substituteParameters } from '@/utils/providerUtils';
+import MarkdownContent from '../messages/MarkdownContent';
 
 interface RecipeActivitiesProps {
   append: (text: string) => void;

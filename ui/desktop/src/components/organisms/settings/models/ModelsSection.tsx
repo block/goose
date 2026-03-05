@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Card, CardContent } from '@/components/molecules/ui/card';
 import { useConfig } from '@/contexts/ConfigContext';
 import {
   UNKNOWN_PROVIDER_MSG,
@@ -7,7 +8,6 @@ import {
 } from '@/contexts/ModelAndProviderContext';
 import { toastError } from '@/toasts';
 import type { View } from '@/utils/navigationUtils';
-import { Card, CardContent } from '@/components/molecules/ui/card';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
 
 interface ModelsSectionProps {

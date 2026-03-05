@@ -1,8 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-
-import { ReasoningDetailProvider } from '@/contexts/ReasoningDetailContext';
 import { WorkBlockIndicator } from '@/components/organisms/messages/WorkBlockIndicator';
+import { ReasoningDetailProvider } from '@/contexts/ReasoningDetailContext';
 
 function wrap(ui: React.ReactNode) {
   return <ReasoningDetailProvider>{ui}</ReasoningDetailProvider>;

@@ -1,6 +1,9 @@
 import { AlertCircle, MessageSquare } from 'lucide-react';
 import type React from 'react';
 import type { Message } from '@/api';
+import { Button } from '@/components/atoms/button';
+import { ScrollArea } from '@/components/atoms/scroll-area';
+import { Card } from '@/components/molecules/ui/card';
 import {
   getTextAndImageContent,
   type ToolRequestMessageContent,
@@ -10,9 +13,6 @@ import { formatMessageTimestamp } from '@/utils/timeUtils';
 import MarkdownContent from '../messages/MarkdownContent';
 import ToolCallWithResponse from '../messages/ToolCallWithResponse';
 import ImagePreview from '../shared/ImagePreview';
-import { Button } from '@/components/atoms/button';
-import { ScrollArea } from '@/components/atoms/scroll-area';
-import { Card } from '@/components/molecules/ui/card';
 
 /**
  * Get tool responses map from messages

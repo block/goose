@@ -4,9 +4,9 @@ import { toast } from 'react-toastify';
 import {
   getPrompt,
   getPrompts,
+  type PromptContentResponse,
   resetPrompt,
   savePrompt,
-  type PromptContentResponse,
   type Template,
 } from '@/api';
 import { Button } from '@/components/atoms/button';

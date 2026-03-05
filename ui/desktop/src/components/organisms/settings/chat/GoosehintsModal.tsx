@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Check } from '@/components/atoms/icons';
 import { Button } from '@/components/atoms/button';
+import { Check } from '@/components/atoms/icons';
 import {
   Dialog,
   DialogContent,

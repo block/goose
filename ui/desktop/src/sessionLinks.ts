@@ -1,6 +1,6 @@
-import { fetchSharedSessionDetails, type SharedSessionDetails } from './sharedSessions';
 import { errorMessage } from '@/utils/conversionUtils';
 import type { View, ViewOptions } from '@/utils/navigationUtils';
+import { fetchSharedSessionDetails, type SharedSessionDetails } from './sharedSessions';
 
 /**
  * Handles opening a shared session from a deep link

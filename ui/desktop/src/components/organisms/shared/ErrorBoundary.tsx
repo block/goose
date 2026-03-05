@@ -1,8 +1,8 @@
 import { AlertTriangle } from 'lucide-react';
 import React from 'react';
+import { Button } from '@/components/atoms/button';
 import { getErrorType, trackErrorWithContext, trackEvent } from '@/utils/analytics';
 import { errorMessage } from '@/utils/conversionUtils';
-import { Button } from '@/components/atoms/button';
 
 function getCurrentPage(): string {
   return window.location.hash.replace('#', '') || '/';

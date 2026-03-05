@@ -1,8 +1,8 @@
 import debounce from 'lodash/debounce';
 import type { PropsWithChildren } from 'react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { SearchHighlighter } from '@/utils/searchHighlighter';
 import { onFindEvent } from '@/utils/findEvents';
+import { SearchHighlighter } from '@/utils/searchHighlighter';
 import SearchBar from './SearchBar';
 
 /**

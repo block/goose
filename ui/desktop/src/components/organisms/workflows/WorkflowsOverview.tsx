@@ -15,9 +15,9 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listPipelines, listSchedules, type RecipeManifest } from '@/api';
-import { listSavedRecipes } from '@/recipe/recipe_management';
-import { PageShell } from '@/components/templates/layout/PageShell';
 import { OverlayActionCard } from '@/components/molecules/interactive/OverlayActionCard';
+import { PageShell } from '@/components/templates/layout/PageShell';
+import { listSavedRecipes } from '@/recipe/recipe_management';
 
 interface WorkflowItem {
   id: string;

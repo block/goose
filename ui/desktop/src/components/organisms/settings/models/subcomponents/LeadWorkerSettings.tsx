@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useConfig } from '@/contexts/ConfigContext';
-import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/molecules/ui/dialog';
 import { Select } from '@/components/molecules/ui/select';
+import { useConfig } from '@/contexts/ConfigContext';
+import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import { fetchModelsForProviders } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 

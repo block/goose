@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  type EvalDatasetSummary,
+  type EvalRunDetail,
+  type EvalRunSummary,
   getEvalRun,
   listEvalDatasets,
   listEvalRuns,
   runEval,
-  type EvalDatasetSummary,
-  type EvalRunDetail,
-  type EvalRunSummary,
 } from '@/api';
 import RunComparisonView from './RunComparisonView';
 import SankeyDiagram from './SankeyDiagram';

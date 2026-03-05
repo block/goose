@@ -2,7 +2,7 @@ import type React from 'react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/atoms/button';
 import { Card } from '@/components/molecules/ui/card';
-import { ModeSelectionItem, type GooseMode } from './ModeSelectionItem';
+import { type GooseMode, ModeSelectionItem } from './ModeSelectionItem';
 
 interface ConfigureApproveModeProps {
   onClose: () => void;

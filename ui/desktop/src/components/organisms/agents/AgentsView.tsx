@@ -27,9 +27,9 @@ import {
   unbindExtensionFromAgent,
 } from '@/api/sdk.gen';
 import type { BuiltinAgentMode } from '@/api/types.gen';
-import { useInstances } from '@/hooks/useInstances';
-import { PageShell } from '@/components/templates/layout/PageShell';
 import { TabBar, type TabGroup } from '@/components/molecules/design-system';
+import { PageShell } from '@/components/templates/layout/PageShell';
+import { useInstances } from '@/hooks/useInstances';
 import { InstanceDetail } from './InstanceDetail';
 import { InstanceList } from './InstanceList';
 import { SpawnInstanceModal } from './SpawnInstanceModal';

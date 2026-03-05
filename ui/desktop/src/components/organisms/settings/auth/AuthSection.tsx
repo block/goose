@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { addOidcProvider, listOidcProviders, removeOidcProvider } from '@/api';
-import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import { Separator } from '@/components/atoms/separator';
+import { useAuth } from '@/hooks/useAuth';
 
 /* ───────── Auth method presets ───────── */
 

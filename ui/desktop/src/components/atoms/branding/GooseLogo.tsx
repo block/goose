@@ -1,5 +1,5 @@
-import { cn } from '@/utils';
 import { Goose, Rain } from '@/components/atoms/icons/Goose';
+import { cn } from '@/utils';
 
 interface GooseLogoProps {
   className?: string;

@@ -1,8 +1,8 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/atoms/button';
 import type { Parameter } from '@/recipe';
 import { getInitialWorkingDir } from '@/utils/workingDir';
-import { Button } from '@/components/atoms/button';
 
 interface ParameterInputModalProps {
   parameters: Parameter[];

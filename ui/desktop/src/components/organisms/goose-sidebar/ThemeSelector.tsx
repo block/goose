@@ -1,7 +1,7 @@
 import { Moon, Sliders, Sun } from 'lucide-react';
 import type React from 'react';
-import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/atoms/button';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface ThemeSelectorProps {
   className?: string;

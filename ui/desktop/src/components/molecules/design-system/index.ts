@@ -7,9 +7,9 @@
  * Compatible with @vercel-labs/json-render for generative UI.
  */
 
+export { CardGrid } from './card-grid';
 export { DataCard } from './data-card';
 export { DataTable } from './data-table';
-export { CardGrid } from './card-grid';
 export { ElementErrorBoundary } from './element-error-boundary';
 export { EmptyState } from './empty-state';
 export { ErrorState } from './error-state';

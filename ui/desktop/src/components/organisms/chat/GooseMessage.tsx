@@ -2,6 +2,7 @@ import { Brain, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Message } from '@/api';
+import { GooseGenerativeUI } from '@/components/molecules/design-system/goose-renderer';
 import { AppEvents } from '@/constants/events';
 import { useReasoningDetail } from '@/contexts/ReasoningDetailContext';
 import type {
@@ -26,14 +27,13 @@ import {
 } from '@/utils/generativeSpec';
 import { formatMessageTimestamp } from '@/utils/timeUtils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '@/utils/toolCallChaining';
+import { JsonRenderBlock } from '../json-render';
 import ElicitationRequest from '../messages/ElicitationRequest';
 import MarkdownContent from '../messages/MarkdownContent';
 import MessageCopyLink from '../messages/MessageCopyLink';
 import ToolCallConfirmation from '../messages/ToolCallConfirmation';
 import ToolCallWithResponse from '../messages/ToolCallWithResponse';
-import { JsonRenderBlock } from '../json-render';
 import ImagePreview from '../shared/ImagePreview';
-import { GooseGenerativeUI } from '@/components/molecules/design-system/goose-renderer';
 
 function ThinkingSection({
   cotText,

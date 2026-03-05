@@ -1,14 +1,14 @@
 import { Check, ChevronRight, Key, Loader2, LogIn, Shield } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { ProviderDetails } from '@/api';
-import { useConfig } from '@/contexts/ConfigContext';
-import { useAuth } from '@/hooks/useAuth';
 import WelcomeGooseLogo from '@/components/atoms/branding/WelcomeGooseLogo';
-import ProviderConfigurationModal from '@/components/organisms/settings/providers/modal/ProviderConfiguationModal';
-import { ProviderCard } from '@/components/organisms/settings/providers/subcomponents/ProviderCard';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import { Separator } from '@/components/atoms/separator';
+import ProviderConfigurationModal from '@/components/organisms/settings/providers/modal/ProviderConfiguationModal';
+import { ProviderCard } from '@/components/organisms/settings/providers/subcomponents/ProviderCard';
+import { useConfig } from '@/contexts/ConfigContext';
+import { useAuth } from '@/hooks/useAuth';
 
 /* ─── Auth provider helpers ────────────────────────────────────── */
 

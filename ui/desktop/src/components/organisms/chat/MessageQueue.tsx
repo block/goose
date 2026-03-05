@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronUp, Clock, GripVertical, Send, Sparkles, X, Zap } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
-import type { ImageData } from '@/types/message';
 import { Button } from '@/components/atoms/button';
+import type { ImageData } from '@/types/message';
 
 export interface QueuedMessage {
   id: string;

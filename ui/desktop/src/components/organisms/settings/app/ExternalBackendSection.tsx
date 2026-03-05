@@ -1,7 +1,5 @@
 import { AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import type { ExternalGoosedConfig } from '@/utils/settings';
-import { WEB_PROTOCOLS } from '@/utils/urlSecurity';
 import { Input } from '@/components/atoms/input';
 import { Switch } from '@/components/atoms/switch';
 import {
@@ -11,6 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/molecules/ui/card';
+import type { ExternalGoosedConfig } from '@/utils/settings';
+import { WEB_PROTOCOLS } from '@/utils/urlSecurity';
 
 const DEFAULT_CONFIG: ExternalGoosedConfig = {
   enabled: false,

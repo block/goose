@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { View } from '@/utils/navigationUtils';
 import { Button } from '@/components/atoms/button';
+import type { View } from '@/utils/navigationUtils';
 import { shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { SwitchModelModal } from './SwitchModelModal';
 

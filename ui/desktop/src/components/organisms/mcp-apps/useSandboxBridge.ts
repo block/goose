@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import packageJson from '../../../../package.json';
 import { useTheme } from '@/contexts/ThemeContext';
 import { errorMessage } from '@/utils/conversionUtils';
+import packageJson from '../../../../package.json';
 import type {
   CspMetadata,
   HostContext,

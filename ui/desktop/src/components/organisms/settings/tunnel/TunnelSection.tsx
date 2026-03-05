@@ -12,7 +12,6 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { getTunnelStatus, startTunnel, stopTunnel } from '@/api/sdk.gen';
 import type { TunnelInfo } from '@/api/types.gen';
-import { errorMessage } from '@/utils/conversionUtils';
 import { Button } from '@/components/atoms/button';
 import {
   Card,
@@ -28,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/molecules/ui/dialog';
+import { errorMessage } from '@/utils/conversionUtils';
 
 const STATUS_MESSAGES = {
   idle: 'Tunnel is not running',

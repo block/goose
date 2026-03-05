@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Switch } from '@/components/atoms/switch';
 import { useConfig } from '@/contexts/ConfigContext';
 import { trackSettingToggled } from '@/utils/analytics';
-import { Switch } from '@/components/atoms/switch';
 
 interface SecurityConfig {
   SECURITY_PROMPT_ENABLED?: boolean;

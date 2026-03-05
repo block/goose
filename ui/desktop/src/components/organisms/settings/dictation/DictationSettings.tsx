@@ -1,10 +1,10 @@
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { getDictationConfig, type DictationProvider, type DictationProviderStatus } from '@/api';
-import { useConfig } from '@/contexts/ConfigContext';
-import { trackSettingToggled } from '@/utils/analytics';
+import { type DictationProvider, type DictationProviderStatus, getDictationConfig } from '@/api';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
+import { useConfig } from '@/contexts/ConfigContext';
+import { trackSettingToggled } from '@/utils/analytics';
 import { LocalModelManager } from './LocalModelManager';
 
 export const DictationSettings = () => {

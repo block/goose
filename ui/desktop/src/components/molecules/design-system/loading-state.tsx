@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { cn } from '@/utils';
 import { Skeleton } from '@/components/atoms/skeleton';
+import { cn } from '@/utils';
 
 interface LoadingStateProps {
   variant?: 'spinner' | 'pulse' | 'skeleton';

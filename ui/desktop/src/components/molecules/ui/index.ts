@@ -2,13 +2,12 @@
 
 export {
   ActivityStep,
-  ThinkingEntry,
   type ActivityStepProps,
+  ThinkingEntry,
   type ThinkingEntryProps,
 } from './activity-step';
 export { default as BackButton } from './back-button';
 export { BaseModal } from './base-modal';
-export { ConfirmationModal } from './confirmation-modal';
 export {
   Card,
   CardContent,
@@ -22,6 +21,7 @@ export {
   CollapsibleContent,
   CollapsibleTrigger,
 } from './collapsible';
+export { ConfirmationModal } from './confirmation-modal';
 export { DiagnosticsModal } from './diagnostics';
 export {
   Dialog,

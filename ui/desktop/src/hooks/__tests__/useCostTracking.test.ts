@@ -4,9 +4,8 @@
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-
-import { useCostTracking } from '../useCostTracking';
 import type { Session } from '@/api';
+import { useCostTracking } from '../useCostTracking';
 
 const mockUseModelAndProvider = vi.fn();
 vi.mock('../../contexts/ModelAndProviderContext', () => ({

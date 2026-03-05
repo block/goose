@@ -27,10 +27,10 @@ const customOneDarkTheme = {
   cdata: { ...oneDark.cdata, color: '#a0a0a0' },
 };
 
+import { Check, Copy } from '@/components/atoms/icons';
 import { wrapHTMLInCodeBlock } from '@/utils/htmlSecurity';
 import { wrapBareJsonRender } from '@/utils/jsonRenderDetection';
 import { BLOCKED_PROTOCOLS, getProtocol, isProtocolSafe } from '@/utils/urlSecurity';
-import { Check, Copy } from '@/components/atoms/icons';
 import { JsonRenderBlock } from '../json-render';
 
 interface CodeProps extends React.ClassAttributes<HTMLElement>, React.HTMLAttributes<HTMLElement> {

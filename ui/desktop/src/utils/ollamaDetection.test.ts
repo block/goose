@@ -7,8 +7,8 @@ import {
   getOllamaModels,
   getPreferredModel,
   hasModel,
-  pollForOllama,
   type PullProgress,
+  pollForOllama,
   pullOllamaModel,
 } from './ollamaDetection';
 

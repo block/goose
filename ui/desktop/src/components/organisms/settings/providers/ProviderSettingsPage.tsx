@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProviderDetails } from '@/api';
-import { useConfig } from '@/contexts/ConfigContext';
-import { createNavigationHandler } from '@/utils/navigationUtils';
 import { ScrollArea } from '@/components/atoms/scroll-area';
 import BackButton from '@/components/molecules/ui/back-button';
+import { useConfig } from '@/contexts/ConfigContext';
+import { createNavigationHandler } from '@/utils/navigationUtils';
 import ProviderGrid from './ProviderGrid';
 
 interface ProviderSettingsProps {

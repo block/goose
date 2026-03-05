@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { Button } from '@/components/atoms/button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 interface InstructionsEditorProps {
   isOpen: boolean;

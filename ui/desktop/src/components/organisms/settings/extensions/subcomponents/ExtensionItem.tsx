@@ -1,6 +1,5 @@
 import kebabCase from 'lodash/kebabCase';
 import { useEffect, useState } from 'react';
-import type { FixedExtensionEntry } from '@/contexts/ConfigContext';
 import { Gear } from '@/components/atoms/icons';
 import { Switch } from '@/components/atoms/switch';
 import {
@@ -10,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/molecules/ui/card';
+import type { FixedExtensionEntry } from '@/contexts/ConfigContext';
 import { getFriendlyTitle, getSubtitle } from './ExtensionList';
 
 interface ExtensionItemProps {

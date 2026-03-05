@@ -1,9 +1,7 @@
 import { AlertTriangle, LogIn } from 'lucide-react';
 import { useState } from 'react';
-import { configureProviderOauth, removeCustomProvider, type ProviderDetails } from '@/api';
+import { configureProviderOauth, type ProviderDetails, removeCustomProvider } from '@/api';
 import { Button } from '@/components/atoms/button';
-import { useConfig } from '@/contexts/ConfigContext';
-import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/molecules/ui/dialog';
+import { useConfig } from '@/contexts/ConfigContext';
+import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import type { ConfigInput } from './subcomponents/forms/DefaultProviderSetupForm';
 import DefaultProviderSetupForm from './subcomponents/forms/DefaultProviderSetupForm';
 import { providerConfigSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';

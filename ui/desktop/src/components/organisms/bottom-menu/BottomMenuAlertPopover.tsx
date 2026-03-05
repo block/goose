@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FaCircle } from 'react-icons/fa';
 import { AppEvents } from '@/constants/events';
 import { cn } from '@/utils';
-import { AlertBox, AlertType, type Alert } from '../alerts';
+import { type Alert, AlertBox, AlertType } from '../alerts';
 
 interface AlertPopoverProps {
   alerts: Alert[];

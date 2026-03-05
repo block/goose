@@ -3,7 +3,7 @@
  */
 
 import type { ExtensionLoadResult } from '@/api/types.gen';
-import { toastService, type ExtensionLoadingStatus } from '@/toasts';
+import { type ExtensionLoadingStatus, toastService } from '@/toasts';
 
 export const MAX_ERROR_MESSAGE_LENGTH = 70;
 

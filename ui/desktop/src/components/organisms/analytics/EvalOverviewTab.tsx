@@ -12,11 +12,11 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  type EvalDatasetSummary,
+  type EvalOverview,
   getEvalOverview,
   listEvalDatasets,
   runEval,
-  type EvalDatasetSummary,
-  type EvalOverview,
 } from '@/api';
 
 const COLORS = {

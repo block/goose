@@ -2,8 +2,8 @@ import debounce from 'lodash/debounce';
 import { Search as SearchIcon } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Close } from '@/components/atoms/icons';
 import { Button } from '@/components/atoms/button';
+import { ArrowDown, ArrowUp, Close } from '@/components/atoms/icons';
 
 /**
  * Props for the SearchBar component

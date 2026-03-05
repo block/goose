@@ -3,11 +3,11 @@ import { useEffect, useState } from 'react';
 import { FaPencilAlt, FaSave } from 'react-icons/fa';
 import { IoIosCloseCircle, IoIosInformationCircle, IoIosWarning } from 'react-icons/io';
 import { upsertConfig } from '@/api';
+import { Button } from '@/components/atoms/button';
 import { useConfig } from '@/contexts/ConfigContext';
 import { cn } from '@/utils';
 import { errorMessage } from '@/utils/conversionUtils';
-import { Button } from '@/components/atoms/button';
-import { AlertType, type Alert } from './types';
+import { type Alert, AlertType } from './types';
 
 const alertIcons: Record<AlertType, React.ReactNode> = {
   [AlertType.Error]: <IoIosCloseCircle className="h-5 w-5" />,

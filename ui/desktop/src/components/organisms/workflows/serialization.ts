@@ -3,8 +3,8 @@
  */
 import type { Edge, Node } from '@xyflow/react';
 import {
-  defaultConfig,
   type DagNodeData,
+  defaultConfig,
   type NodeKind,
   type Pipeline,
   type PipelineMetadata,

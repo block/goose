@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-
+import { initialState, type StreamAction, streamReducer } from '@/hooks/chatStream/streamReducer';
 import { ChatState } from '@/types/chatState';
-import { initialState, streamReducer, type StreamAction } from '@/hooks/chatStream/streamReducer';
 import type { NotificationEvent } from '@/types/message';
 
 function notif(message: Record<string, unknown>, request_id = 'r1'): NotificationEvent {

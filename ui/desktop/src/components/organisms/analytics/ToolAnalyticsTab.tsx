@@ -12,9 +12,9 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  type AgentPerformanceMetrics,
   getAgentPerformance,
   getToolAnalytics,
-  type AgentPerformanceMetrics,
   type ToolAnalytics,
 } from '@/api';
 

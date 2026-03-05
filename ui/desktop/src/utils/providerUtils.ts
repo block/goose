@@ -1,4 +1,4 @@
-import { updateAgentProvider, type Recipe } from '@/api';
+import { type Recipe, updateAgentProvider } from '@/api';
 import {
   initializeBundledExtensions,
   syncBundledExtensions,

@@ -9,8 +9,8 @@ import {
   listModels,
   type WhisperModelResponse,
 } from '@/api';
-import { useConfig } from '@/contexts/ConfigContext';
 import { Button } from '@/components/atoms/button';
+import { useConfig } from '@/contexts/ConfigContext';
 
 const LOCAL_WHISPER_MODEL_CONFIG_KEY = 'LOCAL_WHISPER_MODEL';
 

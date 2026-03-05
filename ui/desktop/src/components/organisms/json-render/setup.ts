@@ -5,7 +5,7 @@
  * Both goose-ui and json-render code blocks use this CatalogRenderer.
  */
 import { defineCatalog } from '@json-render/core';
-import { createRenderer, defineRegistry, type ComponentRenderProps } from '@json-render/react';
+import { type ComponentRenderProps, createRenderer, defineRegistry } from '@json-render/react';
 import { schema } from '@json-render/react/schema';
 import { shadcnComponents } from '@json-render/shadcn';
 import { shadcnComponentDefinitions as catalogDefs } from '@json-render/shadcn/catalog';

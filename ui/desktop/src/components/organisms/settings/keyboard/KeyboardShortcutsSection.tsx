@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { trackSettingToggled } from '@/utils/analytics';
-import { defaultKeyboardShortcuts, type KeyboardShortcuts } from '@/utils/settings';
 import { Button } from '@/components/atoms/button';
 import { Switch } from '@/components/atoms/switch';
 import {
@@ -10,6 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/molecules/ui/card';
+import { trackSettingToggled } from '@/utils/analytics';
+import { defaultKeyboardShortcuts, type KeyboardShortcuts } from '@/utils/settings';
 import { ShortcutRecorder } from './ShortcutRecorder';
 
 interface ShortcutConfig {

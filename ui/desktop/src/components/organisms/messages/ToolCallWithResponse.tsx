@@ -2,6 +2,9 @@ import { isUIResource } from '@mcp-ui/client';
 import { ChevronRight, FlaskConical } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import type { CallToolResponse, Content, EmbeddedResource } from '@/api';
+import { Button } from '@/components/atoms/button';
+import type { LoadingStatus } from '@/components/atoms/dot';
+import McpAppRenderer from '@/components/organisms/mcp-apps/McpAppRenderer';
 import { AppEvents } from '@/constants/events';
 import type {
   NotificationEvent,
@@ -11,15 +14,12 @@ import type {
 } from '@/types/message';
 import { cn, snakeToTitleCase } from '@/utils';
 import { getToolCallIcon } from '@/utils/toolIconMapping';
-import McpAppRenderer from '@/components/organisms/mcp-apps/McpAppRenderer';
 import { TooltipWrapper } from '../settings/providers/subcomponents/buttons/TooltipWrapper';
-import { Button } from '@/components/atoms/button';
-import type { LoadingStatus } from '@/components/atoms/dot';
 import MarkdownContent from './MarkdownContent';
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 import { ToolCallArguments, type ToolCallArgumentValue } from './ToolCallArguments';
-import { ToolIconWithStatus, type ToolCallStatus } from './ToolCallStatusIndicator';
+import { type ToolCallStatus, ToolIconWithStatus } from './ToolCallStatusIndicator';
 
 interface ToolGraphNode {
   tool: string;
