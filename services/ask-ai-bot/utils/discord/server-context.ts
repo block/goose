@@ -1,5 +1,28 @@
 import type { Guild, TextChannel } from "discord.js";
-import { ChannelType } from "discord.js";
+import { ChannelType, PermissionFlagsBits } from "discord.js";
+
+function isPublicChannel(ch: TextChannel, guild: Guild): boolean {
+  // Check @everyone role permissions
+  const everyoneOverwrite = ch.permissionOverwrites.cache.get(guild.id);
+
+  // If @everyone is explicitly denied ViewChannel, the channel is private.
+  if (everyoneOverwrite?.deny.has(PermissionFlagsBits.ViewChannel)) {
+    return false;
+  }
+
+  // If the channel has any role/user overwrites that grant ViewChannel,
+  // it's restricted to specific roles, treat as private.
+  const hasRestrictiveOverwrites = ch.permissionOverwrites.cache.some(
+    (overwrite) =>
+      overwrite.id !== guild.id && // skip @everyone
+      overwrite.allow.has(PermissionFlagsBits.ViewChannel),
+  );
+  if (hasRestrictiveOverwrites) {
+    return false;
+  }
+
+  return true;
+}
 
 export async function buildServerContext(guild: Guild): Promise<string> {
   try {
@@ -8,7 +31,9 @@ export async function buildServerContext(guild: Guild): Promise<string> {
     const textChannels = Array.from(channels.values())
       .filter(
         (ch): ch is TextChannel =>
-          ch?.type === ChannelType.GuildText && ch !== null && ch.viewable,
+          ch?.type === ChannelType.GuildText &&
+          ch !== null &&
+          isPublicChannel(ch, guild),
       )
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 
