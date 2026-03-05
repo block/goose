@@ -14,7 +14,7 @@ use rmcp::model::{
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
     TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
-use utoipa::{Modify, OpenApi, ToSchema};
+use utoipa::{OpenApi, ToSchema};
 
 use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
@@ -333,62 +333,8 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
 
-/// Post-processing modifier that fixes OpenAPI schema issues not handled by utoipa 5 derives:
-///
-/// 1. Adds `discriminator` to internally-tagged enums (`#[serde(tag = "...")]`), which
-///    utoipa 5 does not emit automatically.
-/// 2. Fixes binary response schemas (e.g. diagnostics ZIP download) to use
-///    `type: string, format: binary` instead of `type: array, items: integer`.
-struct SchemaFixups;
-
-impl Modify for SchemaFixups {
-    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-        use utoipa::openapi::schema::{Discriminator, Schema};
-        use utoipa::openapi::RefOr;
-
-        // --- Discriminators for tagged enums ---
-        if let Some(components) = openapi.components.as_mut() {
-            let discriminators: &[(&str, &str)] = &[
-                ("MessageContent", "type"),
-                ("ExtensionConfig", "type"),
-                ("MessageEvent", "type"),
-                ("ActionRequiredData", "actionType"),
-            ];
-
-            for &(schema_name, property_name) in discriminators {
-                if let Some(RefOr::T(Schema::OneOf(one_of))) =
-                    components.schemas.get_mut(schema_name)
-                {
-                    one_of.discriminator = Some(Discriminator::new(property_name));
-                }
-            }
-        }
-
-        // --- Fix binary response schemas ---
-        // The diagnostics endpoint returns a ZIP file; utoipa renders `Vec<u8>` as
-        // `array<integer>` instead of `string/binary`, so codegen produces the wrong TS type.
-        if let Some(path) = openapi.paths.paths.get_mut("/diagnostics/{session_id}") {
-            if let Some(op) = &mut path.get {
-                if let Some(RefOr::T(resp)) = op.responses.responses.get_mut("200") {
-                    if let Some(content) = resp.content.get_mut("application/zip") {
-                        content.schema = Some(RefOr::T(Schema::Object(
-                            ObjectBuilder::new()
-                                .schema_type(SchemaType::new(Type::String))
-                                .format(Some(SchemaFormat::KnownFormat(
-                                    utoipa::openapi::schema::KnownFormat::Binary,
-                                )))
-                                .build(),
-                        )));
-                    }
-                }
-            }
-        }
-    }
-}
-
 #[derive(OpenApi)]
 #[openapi(
-    modifiers(&SchemaFixups),
     paths(
         super::routes::status::status,
         super::routes::status::system_info,
