@@ -197,7 +197,10 @@ pub fn string_replace(content: &str, before: &str, after: &str) -> Result<String
 }
 
 fn apply_line_limit(content: &str, line: Option<u32>, limit: Option<u32>) -> String {
-    let lines: Vec<&str> = content.lines().collect();
+    if line.is_none() && limit.is_none() {
+        return content.to_string();
+    }
+    let lines: Vec<&str> = content.split_inclusive('\n').collect();
     let start = line
         .map(|l| (l as usize).saturating_sub(1))
         .unwrap_or(0)
@@ -206,7 +209,7 @@ fn apply_line_limit(content: &str, line: Option<u32>, limit: Option<u32>) -> Str
         .map(|l| start + l as usize)
         .unwrap_or(lines.len())
         .min(lines.len());
-    lines[start..end].join("\n")
+    lines[start..end].concat()
 }
 
 pub fn resolve_path(path: &str, working_dir: Option<&Path>) -> PathBuf {
@@ -296,8 +299,8 @@ mod tests {
 
     #[test_case(None, None, "line1\nline2\nline3" ; "full content")]
     #[test_case(Some(2), None, "line2\nline3" ; "from line 2")]
-    #[test_case(None, Some(2), "line1\nline2" ; "limit 2")]
-    #[test_case(Some(2), Some(1), "line2" ; "line 2 limit 1")]
+    #[test_case(None, Some(2), "line1\nline2\n" ; "limit 2")]
+    #[test_case(Some(2), Some(1), "line2\n" ; "line 2 limit 1")]
     #[test_case(Some(99), None, "" ; "beyond eof")]
     fn test_apply_line_limit(line: Option<u32>, limit: Option<u32>, expected: &str) {
         assert_eq!(
@@ -343,7 +346,7 @@ mod tests {
         );
 
         assert!(!result.is_error.unwrap_or(false));
-        assert_eq!(extract_text(&result), "line2");
+        assert_eq!(extract_text(&result), "line2\n");
     }
 
     #[test]

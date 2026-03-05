@@ -330,7 +330,7 @@ impl GooseAcpAgent {
         &self,
         cx: Option<&JrConnectionCx<AgentToClient>>,
         session_id: Option<&SessionId>,
-    ) -> Arc<Agent> {
+    ) -> Result<Arc<Agent>> {
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&self.session_manager),
             Arc::clone(&self.permission_manager),
@@ -356,19 +356,28 @@ impl GooseAcpAgent {
             {
                 let context = agent.extension_manager.get_context().clone();
                 let client: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
-                    inner: Arc::new(DeveloperClient::new(context).unwrap()),
+                    inner: Arc::new(DeveloperClient::new(context)?),
                     cx: cx.clone(),
                     session_id: sid.clone(),
                     fs_read: caps.read_text_file,
                     fs_write: caps.write_text_file,
                 });
+                let dev_ext = extensions.iter().find(|e| e.name() == "developer");
+                let available_tools = dev_ext
+                    .and_then(|e| match e {
+                        ExtensionConfig::Platform {
+                            available_tools, ..
+                        } => Some(available_tools.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
                 let def = &PLATFORM_EXTENSIONS["developer"];
                 let config = ExtensionConfig::Platform {
                     name: def.name.into(),
                     description: def.description.into(),
                     display_name: Some(def.display_name.into()),
                     bundled: Some(true),
-                    available_tools: vec![],
+                    available_tools,
                 };
                 Some((client, config))
             }
@@ -398,7 +407,7 @@ impl GooseAcpAgent {
                 .await;
         }
 
-        agent
+        Ok(agent)
     }
 
     pub async fn has_session(&self, session_id: &str) -> bool {
@@ -757,7 +766,10 @@ impl GooseAcpAgent {
 
         let agent = self
             .create_agent_for_session(Some(cx), Some(&session_id))
-            .await;
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
+            })?;
 
         let provider = self
             .init_provider(&agent, &goose_session)
@@ -840,7 +852,10 @@ impl GooseAcpAgent {
 
         let agent = self
             .create_agent_for_session(Some(cx), Some(&acp_session_id))
-            .await;
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
+            })?;
 
         let provider = self
             .init_provider(&agent, &goose_session)
