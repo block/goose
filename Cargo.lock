@@ -4268,7 +4268,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4377,7 +4377,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "agent-client-protocol-schema",
  "anyhow",
@@ -4414,7 +4414,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4423,7 +4423,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -4476,7 +4476,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4526,7 +4526,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
@@ -4576,7 +4576,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4584,7 +4584,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "axum 0.7.9",
  "rmcp 1.0.0-alpha",
@@ -5007,7 +5007,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.2",
  "system-configuration 0.7.0",
  "tokio",
  "tower-service",
@@ -5789,8 +5789,9 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.136"
-source = "git+https://github.com/jh-block/llama-cpp-rs.git?branch=goose-patches#09f48aefc28b74cd28a1cfe12071b17990ed9835"
+version = "0.1.137"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aedc4f4ca22ad992bc43fe20734b3a0f37363b9621419727821bf6572b9c0395"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -5802,8 +5803,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.136"
-source = "git+https://github.com/jh-block/llama-cpp-rs.git?branch=goose-patches#09f48aefc28b74cd28a1cfe12071b17990ed9835"
+version = "0.1.137"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da365e84fbe4d10e849fa3bfd5a0d70b3b4a59e8c5adc8b7be5c189327566bdb"
 dependencies = [
  "bindgen",
  "cc",
@@ -7665,7 +7667,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.1",
  "rustls 0.23.36",
- "socket2 0.5.10",
+ "socket2 0.6.2",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -7703,9 +7705,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

@@ -351,10 +351,19 @@ pub(super) fn generate_with_emulated_tools(
     ctx: &mut GenerationContext<'_>,
     code_mode_enabled: bool,
 ) -> Result<(), ProviderError> {
+    // Use oaicompat variant — its C++ wrapper catches exceptions that would
+    // otherwise abort the process when other native libs disturb the C++ ABI.
     let prompt = ctx
         .loaded
         .model
-        .apply_chat_template(&ctx.loaded.template, ctx.chat_messages, true)
+        .apply_chat_template_with_tools_oaicompat(
+            &ctx.loaded.template,
+            ctx.chat_messages,
+            None, // no tools for emulated path
+            None, // no json_schema
+            true, // add_generation_prompt
+        )
+        .map(|r| r.prompt)
         .map_err(|e| {
             ProviderError::ExecutionError(format!("Failed to apply chat template: {}", e))
         })?;

@@ -51,7 +51,7 @@ impl DeveloperClient {
 
         Ok(Self {
             info,
-            shell_tool: Arc::new(ShellTool::new()),
+            shell_tool: Arc::new(ShellTool::new()?),
             edit_tools: Arc::new(EditTools::new()),
             tree_tool: Arc::new(TreeTool::new()),
         })
