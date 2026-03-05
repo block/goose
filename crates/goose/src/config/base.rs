@@ -452,15 +452,6 @@ impl Config {
             paths.push(self.config_path.with_file_name(backup_name));
         }
 
-        // Timestamped backups
-        for i in 1..=5 {
-            if let Some(file_name) = self.config_path.file_name() {
-                let mut backup_name = file_name.to_os_string();
-                backup_name.push(format!(".bak.{}", i));
-                paths.push(self.config_path.with_file_name(backup_name));
-            }
-        }
-
         paths
     }
 
@@ -529,9 +520,6 @@ impl Config {
             return Ok(());
         }
 
-        // Rotate existing backups
-        self.rotate_backups()?;
-
         // Create new backup
         if let Some(file_name) = self.config_path.file_name() {
             let mut backup_name = file_name.to_os_string();
@@ -543,40 +531,6 @@ impl Config {
                 // Don't fail the entire operation if backup fails
             } else {
                 tracing::debug!("Created config backup: {:?}", backup_path);
-            }
-        }
-
-        Ok(())
-    }
-
-    // Rotate backup files to keep the most recent ones
-    fn rotate_backups(&self) -> Result<(), ConfigError> {
-        if let Some(file_name) = self.config_path.file_name() {
-            // Move .bak.4 to .bak.5, .bak.3 to .bak.4, etc.
-            for i in (1..5).rev() {
-                let mut current_backup = file_name.to_os_string();
-                current_backup.push(format!(".bak.{}", i));
-                let current_path = self.config_path.with_file_name(&current_backup);
-
-                let mut next_backup = file_name.to_os_string();
-                next_backup.push(format!(".bak.{}", i + 1));
-                let next_path = self.config_path.with_file_name(&next_backup);
-
-                if current_path.exists() {
-                    let _ = std::fs::rename(&current_path, &next_path);
-                }
-            }
-
-            // Move .bak to .bak.1
-            let mut backup_name = file_name.to_os_string();
-            backup_name.push(".bak");
-            let backup_path = self.config_path.with_file_name(&backup_name);
-
-            if backup_path.exists() {
-                let mut backup_1_name = file_name.to_os_string();
-                backup_1_name.push(".bak.1");
-                let backup_1_path = self.config_path.with_file_name(&backup_1_name);
-                let _ = std::fs::rename(&backup_path, &backup_1_path);
             }
         }
 
@@ -1488,7 +1442,7 @@ mod tests {
         // Should have backups but not more than our limit
         let existing_backups: Vec<_> = backup_paths.iter().filter(|p| p.exists()).collect();
         assert!(
-            existing_backups.len() <= 6,
+            existing_backups.len() == 1,
             "Should not exceed backup limit"
         ); // .bak + .bak.1 through .bak.5
 
