@@ -8,7 +8,7 @@ export async function buildServerContext(guild: Guild): Promise<string> {
     const textChannels = Array.from(channels.values())
       .filter(
         (ch): ch is TextChannel =>
-          ch?.type === ChannelType.GuildText && ch !== null,
+          ch?.type === ChannelType.GuildText && ch !== null && ch.viewable,
       )
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 
