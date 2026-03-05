@@ -146,7 +146,7 @@ export default function CreateRecipeFromSessionModal({
     const valid = !!(hasTitle && hasDescription && hasInstructions);
     setIsFormValid(valid);
 
-    return unsubscribe;
+    return () => unsubscribe.unsubscribe();
   }, [form]);
 
   const handleCreateRecipe = async (formData: RecipeFormData, runAfterSave = false) => {

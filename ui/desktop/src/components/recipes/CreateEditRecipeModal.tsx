@@ -78,7 +78,7 @@ export default function CreateEditRecipeModal({
 
   // Subscribe to form changes to update local state
   useEffect(() => {
-    return form.store.subscribe(() => {
+    const subscription = form.store.subscribe(() => {
       setTitle(form.state.values.title);
       setDescription(form.state.values.description);
       setInstructions(form.state.values.instructions);
@@ -90,6 +90,7 @@ export default function CreateEditRecipeModal({
       setProvider(form.state.values.provider);
       setExtensions(form.state.values.extensions);
     });
+    return () => subscription.unsubscribe();
   }, [form]);
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
