@@ -14,7 +14,7 @@ use rmcp::model::{
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
     TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
-use utoipa::{OpenApi, ToSchema};
+use utoipa::{Modify, OpenApi, ToSchema};
 
 use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
@@ -333,8 +333,38 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
 
+/// utoipa renders `Vec<u8>` as `array<integer>` which produces `number[]` in TS codegen,
+/// failing typecheck at `new Blob([response.data])`. This fixup sets `string/binary` so
+/// codegen emits `Blob | File`. There is no utoipa annotation for response body format.
+struct BinaryResponseFixup;
+
+impl Modify for BinaryResponseFixup {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        use utoipa::openapi::schema::Schema;
+        use utoipa::openapi::RefOr;
+
+        if let Some(path) = openapi.paths.paths.get_mut("/diagnostics/{session_id}") {
+            if let Some(op) = &mut path.get {
+                if let Some(RefOr::T(resp)) = op.responses.responses.get_mut("200") {
+                    if let Some(content) = resp.content.get_mut("application/zip") {
+                        content.schema = Some(RefOr::T(Schema::Object(
+                            ObjectBuilder::new()
+                                .schema_type(SchemaType::new(Type::String))
+                                .format(Some(SchemaFormat::KnownFormat(
+                                    utoipa::openapi::schema::KnownFormat::Binary,
+                                )))
+                                .build(),
+                        )));
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(OpenApi)]
 #[openapi(
+    modifiers(&BinaryResponseFixup),
     paths(
         super::routes::status::status,
         super::routes::status::system_info,

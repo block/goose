@@ -2822,7 +2822,7 @@ export type DiagnosticsResponses = {
     /**
      * Diagnostics zip file
      */
-    200: Array<number>;
+    200: Blob | File;
 };
 
 export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
