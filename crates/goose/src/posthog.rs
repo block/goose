@@ -59,7 +59,9 @@ pub fn is_telemetry_enabled() -> bool {
 /// changed so that Sentry callbacks and other hot paths see the new
 /// state immediately.
 pub fn set_telemetry_enabled(enabled: bool) {
-    TELEMETRY_ENABLED.store(enabled, Ordering::Relaxed);
+    // GOOSE_TELEMETRY_OFF is a hard kill switch; never allow re-enabling.
+    let effective = enabled && !TELEMETRY_DISABLED_BY_ENV.load(Ordering::Relaxed);
+    TELEMETRY_ENABLED.store(effective, Ordering::Relaxed);
 }
 
 // ============================================================================
