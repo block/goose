@@ -25,7 +25,7 @@ goose-acp = { path = "../goose-acp", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 clap = { workspace = true }
-cliclack = "0.3.5"
+cliclack = "0.4.0"
 console = "0.16.1"
 uuid = { workspace = true }
 dotenvy = { workspace = true }
@@ -50,7 +50,7 @@ base64 = { workspace = true }
 regex = { workspace = true }
 tar = "0.4"
 reqwest = { workspace = true, features = ["blocking", "rustls"], default-features = false }
-zip = { version = "^8.0", default-features = false, features = ["deflate"] }
+zip = { workspace = true, features = ["deflate"] }
 bzip2 = "0.5"
 # Web server dependencies
 axum = { workspace = true, features = ["ws", "macros"] }

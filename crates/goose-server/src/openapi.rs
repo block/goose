@@ -14,7 +14,7 @@ use rmcp::model::{
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
     TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
-use utoipa::{OpenApi, ToSchema};
+use utoipa::{Modify, OpenApi, ToSchema};
 
 use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
@@ -30,7 +30,7 @@ use crate::routes::recipe_utils::RecipeManifest;
 use crate::routes::reply::MessageEvent;
 use utoipa::openapi::schema::{
     AdditionalProperties, AnyOfBuilder, ArrayBuilder, ObjectBuilder, OneOfBuilder, Schema,
-    SchemaFormat, SchemaType,
+    SchemaFormat, SchemaType, Type,
 };
 use utoipa::openapi::{AllOfBuilder, Ref, RefOr};
 
@@ -38,17 +38,18 @@ macro_rules! derive_utoipa {
     ($inner_type:ident as $schema_name:ident) => {
         struct $schema_name {}
 
-        impl<'__s> ToSchema<'__s> for $schema_name {
-            fn schema() -> (&'__s str, utoipa::openapi::RefOr<utoipa::openapi::Schema>) {
+        impl utoipa::PartialSchema for $schema_name {
+            fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::Schema> {
                 let settings = rmcp::schemars::generate::SchemaSettings::openapi3();
                 let generator = settings.into_generator();
                 let schema = generator.into_root_schema_for::<$inner_type>();
-                let schema = convert_schemars_to_utoipa(schema);
-                (stringify!($inner_type), schema)
+                convert_schemars_to_utoipa(schema)
             }
+        }
 
-            fn aliases() -> Vec<(&'__s str, utoipa::openapi::schema::Schema)> {
-                Vec::new()
+        impl ToSchema for $schema_name {
+            fn name() -> std::borrow::Cow<'static, str> {
+                std::borrow::Cow::Borrowed(stringify!($inner_type))
             }
         }
     };
@@ -213,7 +214,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Array(array_builder.build()))
         }
         "string" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::String);
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::String));
 
             if let Some(Value::Number(min_length)) = obj.get("minLength") {
                 if let Some(min) = min_length.as_u64() {
@@ -235,7 +237,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Object(object_builder.build()))
         }
         "number" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::Number);
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::Number));
 
             if let Some(Value::Number(minimum)) = obj.get("minimum") {
                 if let Some(min) = minimum.as_f64() {
@@ -266,7 +269,8 @@ fn convert_typed_schema(
             RefOr::T(Schema::Object(object_builder.build()))
         }
         "integer" => {
-            let mut object_builder = ObjectBuilder::new().schema_type(SchemaType::Integer);
+            let mut object_builder =
+                ObjectBuilder::new().schema_type(SchemaType::Type(Type::Integer));
 
             if let Some(Value::Number(minimum)) = obj.get("minimum") {
                 if let Some(min) = minimum.as_f64() {
@@ -298,11 +302,13 @@ fn convert_typed_schema(
         }
         "boolean" => RefOr::T(Schema::Object(
             ObjectBuilder::new()
-                .schema_type(SchemaType::Boolean)
+                .schema_type(SchemaType::Type(Type::Boolean))
                 .build(),
         )),
         "null" => RefOr::T(Schema::Object(
-            ObjectBuilder::new().schema_type(SchemaType::String).build(),
+            ObjectBuilder::new()
+                .schema_type(SchemaType::Type(Type::String))
+                .build(),
         )),
         _ => RefOr::T(Schema::Object(ObjectBuilder::new().build())),
     }
@@ -327,8 +333,38 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
 
+/// utoipa renders `Vec<u8>` as `array<integer>` which produces `number[]` in TS codegen,
+/// failing typecheck at `new Blob([response.data])`. This fixup sets `string/binary` so
+/// codegen emits `Blob | File`. There is no utoipa annotation for response body format.
+struct BinaryResponseFixup;
+
+impl Modify for BinaryResponseFixup {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        use utoipa::openapi::schema::Schema;
+        use utoipa::openapi::RefOr;
+
+        if let Some(path) = openapi.paths.paths.get_mut("/diagnostics/{session_id}") {
+            if let Some(op) = &mut path.get {
+                if let Some(RefOr::T(resp)) = op.responses.responses.get_mut("200") {
+                    if let Some(content) = resp.content.get_mut("application/zip") {
+                        content.schema = Some(RefOr::T(Schema::Object(
+                            ObjectBuilder::new()
+                                .schema_type(SchemaType::new(Type::String))
+                                .format(Some(SchemaFormat::KnownFormat(
+                                    utoipa::openapi::schema::KnownFormat::Binary,
+                                )))
+                                .build(),
+                        )));
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(OpenApi)]
 #[openapi(
+    modifiers(&BinaryResponseFixup),
     paths(
         super::routes::status::status,
         super::routes::status::system_info,
@@ -626,4 +662,44 @@ pub struct ApiDoc;
 pub fn generate_schema() -> String {
     let api_doc = ApiDoc::openapi();
     serde_json::to_string_pretty(&api_doc).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Detect schema-name collisions: when two different Rust types derive `ToSchema`
+    /// with the same name, one silently overwrites the other.  This test serializes
+    /// every registered schema, round-trips it, and verifies the count hasn't changed,
+    /// which would indicate a collision caused a schema to be dropped.
+    ///
+    /// It also spot-checks known schemas to make sure the right definition won.
+    #[test]
+    fn no_schema_name_collisions() {
+        let api = ApiDoc::openapi();
+        let json = serde_json::to_value(&api).unwrap();
+        let schemas = json["components"]["schemas"].as_object().unwrap();
+
+        // ErrorResponse must have "message", not "error" (tunnel duplicate was removed)
+        let error_resp = &schemas["ErrorResponse"];
+        assert!(
+            error_resp["required"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v.as_str() == Some("message")),
+            "ErrorResponse schema should require 'message', got: {}",
+            error_resp
+        );
+
+        // Round-trip: serialize → deserialize and check no schemas were lost
+        let serialized = serde_json::to_string(&api).unwrap();
+        let round_tripped: serde_json::Value = serde_json::from_str(&serialized).unwrap();
+        let rt_schemas = round_tripped["components"]["schemas"].as_object().unwrap();
+        assert_eq!(
+            schemas.len(),
+            rt_schemas.len(),
+            "Schema count changed after round-trip — possible name collision"
+        );
+    }
 }

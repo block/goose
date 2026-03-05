@@ -36,6 +36,12 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
 
+fn content_schema() -> utoipa::openapi::schema::Array {
+    utoipa::openapi::schema::ArrayBuilder::new()
+        .items(utoipa::openapi::Ref::from_schema_name("Content"))
+        .build()
+}
+
 #[derive(Deserialize, utoipa::ToSchema)]
 pub struct UpdateFromSessionRequest {
     session_id: String,
@@ -136,6 +142,7 @@ pub struct CallToolRequest {
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct CallToolResponse {
+    #[schema(schema_with = content_schema)]
     content: Vec<Content>,
     #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,
