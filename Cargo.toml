@@ -1,5 +1,9 @@
 [workspace]
-members = ["crates/*"]
+members = [
+    "crates/*", 
+    # Mainly for cargo-machete to not error out during inspection.
+    "vendor/v8"
+]
 resolver = "2"
 
 [workspace.package]

@@ -112,7 +112,6 @@ candle-nn = { version = "0.9", default-features = false }
 candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
 tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
-hf-hub = { version = "0.5.0", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
 zip = "0.6"
@@ -138,7 +137,6 @@ tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pctx_code_mode = { version = "^0.2.3", optional = true }
-unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
 encoding_rs = "0.8.35"
@@ -183,3 +181,12 @@ path = "src/bin/analyze_cli.rs"
 [[bin]]
 name = "build_canonical_models"
 path = "src/providers/canonical/build_canonical_models.rs"
+
+[package.metadata.cargo-machete]
+
+ignored = [
+    # Used only on windows
+    "winapi", 
+    # Used to provide sacp additional schemas to deserialization
+    "agent-client-protocol-schema"
+]
