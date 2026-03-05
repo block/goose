@@ -11,7 +11,7 @@ description.workspace = true
 workspace = true
 
 [[bin]]
-name = "goose"
+name = "goose-legacy"
 path = "src/main.rs"
 
 [[bin]]

@@ -7,6 +7,10 @@ license.workspace = true
 repository.workspace = true
 description = "A terminal user interface for Goose"
 
+[[bin]]
+name = "goose"
+path = "src/main.rs"
+
 [dependencies]
 goose = { path = "../goose" }
 goose-server = { path = "../goose-server" }
@@ -39,6 +43,22 @@ git2 = { version = "0.19", default-features = false }
 rustyline = "15"
 dirs = "6.0.0"
 syntect = { version = "5.3.0", default-features = false, features = ["default-syntaxes", "default-themes", "parsing", "regex-fancy"] }
+cliclack = "0.3.5"
+console = "0.16.1"
+clap_complete = "4.5.62"
+chrono = "0.4"
+etcetera = "0.11.0"
+regex = "1.12"
+serde_yaml = "0.9"
+tempfile = "3"
+tar = "0.4"
+bzip2 = "0.5"
+open = "5.3.2"
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+urlencoding = "2.1"
+
+[features]
+disable-update = []
 
 [dev-dependencies]
 chrono = "0.4.42"

@@ -1,11 +1,11 @@
+use crate::auth::check_token;
 use crate::configuration;
 use crate::state;
+use crate::tls::self_signed_config;
 use anyhow::Result;
 use axum::middleware;
 use axum::Router;
 use axum_server::Handle;
-use crate::auth::check_token;
-use crate::tls::self_signed_config;
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;

@@ -329,7 +329,7 @@ fn handle_create_new_session(
         let cwd = std::env::current_dir().unwrap_or_default();
         match client.start_agent(cwd.to_string_lossy().to_string()).await {
             Ok(s) => {
-                crate::configure_session_from_global(&client, &s.id).await;
+                crate::configure_session_from_global(&client, &s.id, None, None).await;
                 if smart_context {
                     spawn_cwd_analysis(&s.id, &client, &tx);
                 }

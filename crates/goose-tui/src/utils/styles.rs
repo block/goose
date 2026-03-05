@@ -135,7 +135,7 @@ impl ThemeDefinition {
 
 impl Default for Theme {
     fn default() -> Self {
-        Theme::gemini()
+        Theme::retrowave()
     }
 }
 
