@@ -272,18 +272,20 @@ pub fn create_tool_notification(
         let tool_call = req.tool_call.as_ref().ok()?;
 
         Some(ServerNotification::LoggingMessageNotification(
-            Notification::new(LoggingMessageNotificationParam::with_logger(
-                LoggingLevel::Info,
-                format!("subagent:{}", subagent_id),
-                serde_json::json!({
-                    "type": SUBAGENT_TOOL_REQUEST_TYPE,
-                    "subagent_id": subagent_id,
-                    "tool_call": {
-                        "name": tool_call.name,
-                        "arguments": tool_call.arguments
-                    }
-                }),
-            )),
+            Notification::new(
+                LoggingMessageNotificationParam::new(
+                    LoggingLevel::Info,
+                    serde_json::json!({
+                        "type": SUBAGENT_TOOL_REQUEST_TYPE,
+                        "subagent_id": subagent_id,
+                        "tool_call": {
+                            "name": tool_call.name,
+                            "arguments": tool_call.arguments
+                        }
+                    }),
+                )
+                .with_logger(format!("subagent:{}", subagent_id)),
+            ),
         ))
     } else {
         None
