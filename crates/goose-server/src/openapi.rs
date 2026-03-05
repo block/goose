@@ -14,7 +14,7 @@ use rmcp::model::{
     RawEmbeddedResource, RawImageContent, RawResource, RawTextContent, ResourceContents, Role,
     TaskSupport, TextContent, Tool, ToolAnnotations, ToolExecution,
 };
-use utoipa::{OpenApi, ToSchema};
+use utoipa::{Modify, OpenApi, ToSchema};
 
 use goose::config::declarative_providers::{
     DeclarativeProviderConfig, LoadedProvider, ProviderEngine,
@@ -333,8 +333,41 @@ derive_utoipa!(ResourceContents as ResourceContentsSchema);
 derive_utoipa!(JsonObject as JsonObjectSchema);
 derive_utoipa!(Icon as IconSchema);
 
+/// Post-processing modifier that adds OpenAPI discriminators to internally-tagged enums.
+///
+/// utoipa 5 does not automatically emit `discriminator` for `#[serde(tag = "...")]`
+/// internally-tagged enums. This modifier restores the discriminator metadata that
+/// clients depend on for deserialization.
+struct DiscriminatorAddon;
+
+impl Modify for DiscriminatorAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        use utoipa::openapi::schema::{Discriminator, Schema};
+        use utoipa::openapi::RefOr;
+
+        let Some(components) = openapi.components.as_mut() else {
+            return;
+        };
+
+        let discriminators: &[(&str, &str)] = &[
+            ("MessageContent", "type"),
+            ("ExtensionConfig", "type"),
+            ("MessageEvent", "type"),
+            ("ActionRequiredData", "actionType"),
+        ];
+
+        for &(schema_name, property_name) in discriminators {
+            if let Some(RefOr::T(Schema::OneOf(one_of))) = components.schemas.get_mut(schema_name)
+            {
+                one_of.discriminator = Some(Discriminator::new(property_name));
+            }
+        }
+    }
+}
+
 #[derive(OpenApi)]
 #[openapi(
+    modifiers(&DiscriminatorAddon),
     paths(
         super::routes::status::status,
         super::routes::status::system_info,

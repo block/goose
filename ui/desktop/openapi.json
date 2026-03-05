@@ -3795,7 +3795,10 @@
               "user_data": {}
             }
           }
-        ]
+        ],
+        "discriminator": {
+          "propertyName": "actionType"
+        }
       },
       "AddExtensionRequest": {
         "type": "object",
@@ -4899,7 +4902,10 @@
             }
           }
         ],
-        "description": "Represents the different types of MCP extensions that can be added to the manager"
+        "description": "Represents the different types of MCP extensions that can be added to the manager",
+        "discriminator": {
+          "propertyName": "type"
+        }
       },
       "ExtensionData": {
         "type": "object",
@@ -5737,7 +5743,10 @@
             ]
           }
         ],
-        "description": "Content passed inside a message, which can be both simple content and tool content"
+        "description": "Content passed inside a message, which can be both simple content and tool content",
+        "discriminator": {
+          "propertyName": "type"
+        }
       },
       "MessageEvent": {
         "oneOf": [
@@ -5879,7 +5888,10 @@
               }
             }
           }
-        ]
+        ],
+        "discriminator": {
+          "propertyName": "type"
+        }
       },
       "MessageMetadata": {
         "type": "object",
