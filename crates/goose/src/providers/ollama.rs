@@ -227,6 +227,7 @@ impl Provider for OllamaProvider {
             OLLAMA_BACKOFF_MULTIPLIER,
             OLLAMA_MAX_RETRY_INTERVAL_MS,
         )
+        .transient_only()
     }
 
     async fn stream(
@@ -373,6 +374,39 @@ mod tests {
         assert_eq!(OLLAMA_INITIAL_RETRY_INTERVAL_MS, 2000);
         assert!((OLLAMA_BACKOFF_MULTIPLIER - 1.5).abs() < f64::EPSILON);
         assert_eq!(OLLAMA_MAX_RETRY_INTERVAL_MS, 15_000);
+    }
+
+    #[test]
+    fn test_ollama_retry_config_is_transient_only() {
+        let config = RetryConfig::new(
+            OLLAMA_MAX_RETRIES,
+            OLLAMA_INITIAL_RETRY_INTERVAL_MS,
+            OLLAMA_BACKOFF_MULTIPLIER,
+            OLLAMA_MAX_RETRY_INTERVAL_MS,
+        )
+        .transient_only();
+
+        assert!(config.transient_only);
+
+        use super::super::errors::ProviderError;
+        use super::super::retry::should_retry;
+
+        assert!(!should_retry(
+            &ProviderError::RequestFailed("Resource not found (404)".into()),
+            &config
+        ));
+        assert!(!should_retry(
+            &ProviderError::RequestFailed("Bad request (400)".into()),
+            &config
+        ));
+        assert!(should_retry(
+            &ProviderError::ServerError("500 model loading".into()),
+            &config
+        ));
+        assert!(should_retry(
+            &ProviderError::NetworkError("connection refused".into()),
+            &config
+        ));
     }
 
     #[test]

@@ -185,12 +185,12 @@ impl DatabricksProvider {
             .and_then(|v: String| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
 
-        RetryConfig {
+        RetryConfig::new(
             max_retries,
             initial_interval_ms,
             backoff_multiplier,
             max_interval_ms,
-        }
+        )
     }
 
     fn load_fast_retry_config(_config: &crate::config::Config) -> RetryConfig {
