@@ -94,6 +94,7 @@ pub fn configure_telemetry_consent_dialog() -> anyhow::Result<bool> {
         .interact()?;
 
     config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+    goose::posthog::set_telemetry_enabled(enabled);
 
     if enabled {
         let _ = cliclack::log::success("Thank you for helping improve goose!");
@@ -1383,6 +1384,7 @@ pub fn configure_telemetry_dialog() -> anyhow::Result<()> {
         .interact()?;
 
     config.set_param(TELEMETRY_ENABLED_KEY, enabled)?;
+    goose::posthog::set_telemetry_enabled(enabled);
 
     if enabled {
         cliclack::outro("Telemetry enabled - thank you for helping improve goose!")?;
