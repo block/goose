@@ -261,22 +261,22 @@ fn format_tool_name(tool_name: &str) -> String {
 
 async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
     for builtin in builtins {
-        let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
+        let config = if let Some(def) = PLATFORM_EXTENSIONS.get(builtin.as_str()) {
             ExtensionConfig::Platform {
-                name: builtin.clone(),
-                description: builtin.clone(),
-                display_name: None,
-                bundled: None,
-                available_tools: Vec::new(),
+                name: def.name.into(),
+                description: def.description.into(),
+                display_name: Some(def.display_name.into()),
+                bundled: Some(true),
+                available_tools: vec![],
             }
         } else {
             ExtensionConfig::Builtin {
                 name: builtin.clone(),
                 display_name: None,
                 timeout: None,
-                bundled: None,
+                bundled: Some(true),
                 description: builtin.clone(),
-                available_tools: Vec::new(),
+                available_tools: vec![],
             }
         };
 
@@ -377,10 +377,11 @@ impl GooseAcpAgent {
         session_id: &SessionId,
     ) -> Arc<Agent> {
         let caps = self.client_fs_capabilities.lock().await.clone();
-        let wrap_developer = self.builtins.iter().any(|b| b == "developer")
+
+        let should_wrap_developer = self.builtins.iter().any(|b| b == "developer")
             && (caps.read_text_file || caps.write_text_file);
 
-        let builtins = if wrap_developer {
+        let builtins = if should_wrap_developer {
             self.builtins
                 .iter()
                 .filter(|b| b.as_str() != "developer")
@@ -389,34 +390,32 @@ impl GooseAcpAgent {
         } else {
             self.builtins.clone()
         };
+
         let agent = self.create_agent_for_session(builtins).await;
 
-        if wrap_developer {
-            debug!(
-                session_id = %session_id.0,
-                read_text_file = caps.read_text_file,
-                write_text_file = caps.write_text_file,
-                "registering developer extension with ACP fs delegation"
-            );
+        if should_wrap_developer {
             let context = agent.extension_manager.get_context().clone();
-            let inner: Arc<dyn McpClientTrait> = Arc::new(DeveloperClient::new(context).unwrap());
+
             let acp_tools: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
-                inner,
+                inner: Arc::new(DeveloperClient::new(context).unwrap()),
                 cx: cx.clone(),
                 session_id: session_id.clone(),
                 fs_read: caps.read_text_file,
                 fs_write: caps.write_text_file,
             });
+
+            let def = &PLATFORM_EXTENSIONS["developer"];
             let config = ExtensionConfig::Platform {
-                name: "developer".to_string(),
-                description: "developer".to_string(),
-                display_name: None,
-                bundled: None,
-                available_tools: Vec::new(),
+                name: def.name.into(),
+                description: def.description.into(),
+                display_name: Some(def.display_name.into()),
+                bundled: Some(true),
+                available_tools: vec![],
             };
+
             agent
                 .extension_manager
-                .add_client("developer".to_string(), config, acp_tools, None, None)
+                .add_client("developer".into(), config, acp_tools, None, None)
                 .await;
         }
 
