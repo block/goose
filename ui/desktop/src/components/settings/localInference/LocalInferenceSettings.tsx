@@ -28,6 +28,7 @@ export const LocalInferenceSettings = () => {
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
   const { currentModel, currentProvider, setProviderAndModel } = useModelAndProvider();
   const downloadSectionRef = useRef<HTMLDivElement>(null);
   const selectedModelId = currentProvider === 'local' ? currentModel : null;
@@ -35,6 +36,10 @@ export const LocalInferenceSettings = () => {
   const loadModels = useCallback(async () => {
     try {
       const response = await listLocalModels();
+      if (response.response?.status === 404) {
+        setFeatureDisabled(true);
+        return;
+      }
       if (response.data) {
         setModels(response.data);
       }
@@ -164,6 +169,20 @@ export const LocalInferenceSettings = () => {
   const recommendedModels = notDownloadedModels.filter((m) => m.recommended);
   const displayedFeatured = showAllFeatured ? notDownloadedModels : recommendedModels;
   const showFeaturedToggle = notDownloadedModels.length > recommendedModels.length;
+
+  if (featureDisabled) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h3 className="text-text-default font-medium">Local Inference</h3>
+          <p className="text-sm text-text-muted mt-2">
+            Local inference is not available in this build. The server was compiled without
+            local inference support.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

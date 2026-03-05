@@ -73,7 +73,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 default = ["code-mode", "local-inference"]
 code-mode = ["goose/code-mode", "goose-acp/code-mode"]
 cuda = ["goose/cuda"]
-local-inference = ["goose/local-inference"]
+local-inference = ["goose/local-inference", "goose-acp/local-inference"]
 # disables the update command
 disable-update = []
 
