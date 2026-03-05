@@ -1,21 +1,29 @@
 import * as Sentry from '@sentry/electron/main';
 
+let sentryInitialized = false;
 let telemetryEnabled = false;
 
-Sentry.init({
-  dsn: process.env.SENTRY_DSN || undefined,
-  release: `goose-desktop@${process.env.npm_package_version || 'unknown'}`,
-  environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
-  beforeSend(event) {
-    return telemetryEnabled ? event : null;
-  },
-  beforeSendTransaction(transaction) {
-    return telemetryEnabled ? transaction : null;
-  },
-});
+function ensureSentryInitialized() {
+  if (sentryInitialized) return;
+  sentryInitialized = true;
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN || undefined,
+    release: `goose-desktop@${process.env.npm_package_version || 'unknown'}`,
+    environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+    beforeSend(event) {
+      return telemetryEnabled ? event : null;
+    },
+    beforeSendTransaction(transaction) {
+      return telemetryEnabled ? transaction : null;
+    },
+  });
+}
 
 export function enableSentryTelemetry(enabled: boolean) {
   telemetryEnabled = enabled;
+  if (enabled) {
+    ensureSentryInitialized();
+  }
 }
 
 import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
