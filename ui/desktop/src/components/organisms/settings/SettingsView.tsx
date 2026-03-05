@@ -1,20 +1,20 @@
 import { Bot, FileText, Keyboard, MessageSquare, Monitor, Share2, Shield } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { ExtensionConfig } from '@/api';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/atoms/tabs';
+import SessionSharingSection from '@/components/organisms/settings/sessions/SessionSharingSection';
+import { PageShell } from '@/components/templates/layout/PageShell';
 import { CONFIGURATION_ENABLED } from '@/updates';
 import { trackSettingsTabViewed } from '@/utils/analytics';
 import type { View, ViewOptions } from '@/utils/navigationUtils';
-import { PageShell } from '@/components/templates/layout/PageShell';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/atoms/tabs';
 import AppSettingsSection from './app/AppSettingsSection';
 import ExternalBackendSection from './app/ExternalBackendSection';
 import AuthSection from './auth/AuthSection';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import ConfigSettings from './config/ConfigSettings';
-import PromptsSettingsSection from './PromptsSettingsSection';
-import SessionSharingSection from '@/components/organisms/settings/sessions/SessionSharingSection';
-import ModelsSection from './models/ModelsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
+import ModelsSection from './models/ModelsSection';
+import PromptsSettingsSection from './PromptsSettingsSection';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;

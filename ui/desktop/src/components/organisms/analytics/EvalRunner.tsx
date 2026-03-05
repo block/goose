@@ -1,38 +1,54 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { client } from '@/api/client.gen';
 
-interface TestCaseResult {
+// Backend types (snake_case, matching Rust serialization)
+interface RoutingEvalResult {
   input: string;
   expected_agent: string;
   expected_mode: string;
   actual_agent: string;
   actual_mode: string;
-  pass: boolean;
+  confidence: number;
+  reasoning: string;
+  agent_correct: boolean;
+  mode_correct: boolean;
+  fully_correct: boolean;
 }
 
-interface ModeAccuracy {
-  mode: string;
-  accuracy: number;
+interface AgentMetrics {
   total: number;
   correct: number;
+  accuracy: number;
 }
 
-interface AgentAccuracy {
-  agent: string;
-  accuracy: number;
+interface ModeMetrics {
   total: number;
   correct: number;
+  accuracy: number;
 }
 
-interface EvalResult {
+interface ConfusionEntry {
+  expected: string;
+  actual: string;
+  count: number;
+}
+
+interface RoutingEvalMetrics {
+  total: number;
+  correct: number;
+  agent_correct: number;
   overall_accuracy: number;
-  total_cases: number;
-  passed: number;
-  failed: number;
-  per_agent: AgentAccuracy[];
-  per_mode: ModeAccuracy[];
-  results: TestCaseResult[];
-  confusion_matrix?: Record<string, Record<string, number>>;
+  agent_accuracy: number;
+  mode_accuracy_given_agent: number;
+  per_agent: Record<string, AgentMetrics>;
+  per_mode: Record<string, ModeMetrics>;
+  confusion_matrix: ConfusionEntry[];
+}
+
+interface EvalResponse {
+  metrics: RoutingEvalMetrics;
+  results: RoutingEvalResult[];
+  report: string;
 }
 
 const EXAMPLE_YAML = `# Eval test set — YAML format
@@ -51,7 +67,7 @@ const EXAMPLE_YAML = `# Eval test set — YAML format
 export default function EvalRunner() {
   const yamlInputId = 'eval-runner-yaml-input';
   const [yamlInput, setYamlInput] = useState(EXAMPLE_YAML);
-  const [result, setResult] = useState<EvalResult | null>(null);
+  const [result, setResult] = useState<EvalResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,12 +92,12 @@ export default function EvalRunner() {
       const resp = await fetch(`${baseUrl}/analytics/routing/eval`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ yaml_content: yamlInput.trim() }),
+        body: JSON.stringify({ yaml: yamlInput.trim() }),
       });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
       }
-      const data: EvalResult = await resp.json();
+      const data: EvalResponse = await resp.json();
       setResult(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed');
@@ -104,7 +120,46 @@ export default function EvalRunner() {
     input.click();
   };
 
-  const confusionKeys = result?.confusion_matrix ? Object.keys(result.confusion_matrix).sort() : [];
+  // Convert per_agent HashMap to sorted array for rendering
+  const perAgentList = useMemo(() => {
+    if (!result) return [];
+    return Object.entries(result.metrics.per_agent)
+      .map(([agent, m]) => ({ agent, ...m }))
+      .sort((a, b) => a.agent.localeCompare(b.agent));
+  }, [result]);
+
+  // Convert per_mode HashMap to sorted array for rendering
+  const perModeList = useMemo(() => {
+    if (!result) return [];
+    return Object.entries(result.metrics.per_mode)
+      .map(([mode, m]) => ({ mode, ...m }))
+      .sort((a, b) => a.mode.localeCompare(b.mode));
+  }, [result]);
+
+  // Build confusion matrix as nested map from ConfusionEntry array
+  const confusionMap = useMemo(() => {
+    if (!result?.metrics.confusion_matrix?.length) return null;
+    const map: Record<string, Record<string, number>> = {};
+    for (const entry of result.metrics.confusion_matrix) {
+      if (!map[entry.expected]) map[entry.expected] = {};
+      map[entry.expected][entry.actual] = entry.count;
+    }
+    return map;
+  }, [result]);
+
+  const confusionKeys = useMemo(() => {
+    if (!confusionMap) return [];
+    const keys = new Set<string>();
+    for (const expected of Object.keys(confusionMap)) {
+      keys.add(expected);
+      for (const actual of Object.keys(confusionMap[expected])) {
+        keys.add(actual);
+      }
+    }
+    return Array.from(keys).sort();
+  }, [confusionMap]);
+
+  const metrics = result?.metrics;
 
   return (
     <div className="space-y-4">
@@ -146,7 +201,7 @@ export default function EvalRunner() {
         </div>
       )}
 
-      {result && (
+      {result && metrics && (
         <div className="space-y-4">
           {/* Overall metrics */}
           <div className="rounded-lg border border-border-default bg-background-muted p-4">
@@ -154,43 +209,56 @@ export default function EvalRunner() {
             <div className="flex items-center gap-6 text-sm">
               <div className="text-center">
                 <div className="text-2xl font-bold text-text-default">
-                  {(result.overall_accuracy * 100).toFixed(1)}%
+                  {(metrics.overall_accuracy * 100).toFixed(1)}%
                 </div>
                 <div className="text-text-muted">Accuracy</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-medium text-text-success">{result.passed}</div>
+                <div className="text-lg font-medium text-text-success">{metrics.correct}</div>
                 <div className="text-text-muted">Passed</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-medium text-text-danger">{result.failed}</div>
+                <div className="text-lg font-medium text-text-danger">
+                  {metrics.total - metrics.correct}
+                </div>
                 <div className="text-text-muted">Failed</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-medium text-text-default">{result.total_cases}</div>
+                <div className="text-lg font-medium text-text-default">{metrics.total}</div>
                 <div className="text-text-muted">Total</div>
               </div>
             </div>
+            {/* Accuracy breakdown */}
+            <div className="mt-3 space-y-1 text-xs text-text-muted">
+              <div className="flex justify-between">
+                <span>Agent accuracy</span>
+                <span>{(metrics.agent_accuracy * 100).toFixed(1)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Mode accuracy (given correct agent)</span>
+                <span>{(metrics.mode_accuracy_given_agent * 100).toFixed(1)}%</span>
+              </div>
+            </div>
             {/* Overall accuracy bar */}
-            <div className="mt-3 h-2 w-full rounded-full bg-background-muted">
+            <div className="mt-3 h-2 w-full rounded-full bg-background-default">
               <div
                 className="h-2 rounded-full bg-background-accent transition-all"
-                style={{ width: `${result.overall_accuracy * 100}%` }}
+                style={{ width: `${metrics.overall_accuracy * 100}%` }}
               />
             </div>
           </div>
 
           {/* Per-agent accuracy */}
-          {result.per_agent.length > 0 && (
+          {perAgentList.length > 0 && (
             <div className="rounded-lg border border-border-default bg-background-muted p-4">
               <h3 className="text-sm font-semibold text-text-default mb-3">Per-Agent Accuracy</h3>
               <div className="space-y-2">
-                {result.per_agent.map((a) => (
+                {perAgentList.map((a) => (
                   <div key={a.agent} className="flex items-center gap-3 text-sm">
                     <span className="w-28 text-text-muted truncate" title={a.agent}>
                       {a.agent}
                     </span>
-                    <div className="flex-1 h-4 rounded bg-background-muted relative overflow-hidden">
+                    <div className="flex-1 h-4 rounded bg-background-default relative overflow-hidden">
                       <div
                         className="h-4 rounded bg-background-success-muted transition-all"
                         style={{ width: `${a.accuracy * 100}%` }}
@@ -206,18 +274,18 @@ export default function EvalRunner() {
           )}
 
           {/* Per-mode accuracy */}
-          {result.per_mode.length > 0 && (
+          {perModeList.length > 0 && (
             <div className="rounded-lg border border-border-default bg-background-muted p-4">
               <h3 className="text-sm font-semibold text-text-default mb-3">Per-Mode Accuracy</h3>
               <div className="space-y-2">
-                {result.per_mode.map((m) => (
+                {perModeList.map((m) => (
                   <div key={m.mode} className="flex items-center gap-3 text-sm">
                     <span className="w-28 text-text-muted truncate" title={m.mode}>
                       {m.mode}
                     </span>
-                    <div className="flex-1 h-4 rounded bg-background-muted relative overflow-hidden">
+                    <div className="flex-1 h-4 rounded bg-background-default relative overflow-hidden">
                       <div
-                        className="h-4 rounded bg-purple-600 transition-all"
+                        className="h-4 rounded bg-background-success-muted transition-all"
                         style={{ width: `${m.accuracy * 100}%` }}
                       />
                     </div>
@@ -230,8 +298,18 @@ export default function EvalRunner() {
             </div>
           )}
 
-          {/* Results table */}
-          <div className="rounded-lg border border-border-default bg-background-muted overflow-hidden">
+          {/* Report */}
+          {result.report && (
+            <div className="rounded-lg border border-border-default bg-background-muted p-4">
+              <h3 className="text-sm font-semibold text-text-default mb-3">Report</h3>
+              <pre className="text-xs text-text-default whitespace-pre-wrap font-mono">
+                {result.report}
+              </pre>
+            </div>
+          )}
+
+          {/* Test case results */}
+          <div className="rounded-lg border border-border-default bg-background-muted">
             <h3 className="text-sm font-semibold text-text-default px-4 pt-3 pb-2">
               Test Case Results
             </h3>
@@ -243,18 +321,24 @@ export default function EvalRunner() {
                     <th className="px-4 py-2">Input</th>
                     <th className="px-4 py-2">Expected</th>
                     <th className="px-4 py-2">Actual</th>
+                    <th className="px-4 py-2">Confidence</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.results.map((r) => (
                     <tr
-                      key={`${r.input}-${r.expected_agent}-${r.expected_mode}-${r.actual_agent}-${r.actual_mode}`}
+                      key={`${r.input}-${r.expected_agent}-${r.expected_mode}`}
                       className="border-b border-border-muted"
+                      title={r.reasoning}
                     >
                       <td className="px-4 py-2">
-                        {r.pass ? (
+                        {r.fully_correct ? (
                           <span className="text-text-success" title="Pass">
                             ✓
+                          </span>
+                        ) : r.agent_correct ? (
+                          <span className="text-yellow-500" title="Agent correct, mode wrong">
+                            ◐
                           </span>
                         ) : (
                           <span className="text-text-danger" title="Fail">
@@ -269,9 +353,12 @@ export default function EvalRunner() {
                         {r.expected_agent}/{r.expected_mode}
                       </td>
                       <td
-                        className={`px-4 py-2 ${r.pass ? 'text-text-default' : 'text-text-danger'}`}
+                        className={`px-4 py-2 ${r.fully_correct ? 'text-text-default' : 'text-text-danger'}`}
                       >
                         {r.actual_agent}/{r.actual_mode}
+                      </td>
+                      <td className="px-4 py-2 text-text-muted font-mono">
+                        {(r.confidence * 100).toFixed(0)}%
                       </td>
                     </tr>
                   ))}
@@ -281,7 +368,7 @@ export default function EvalRunner() {
           </div>
 
           {/* Confusion matrix */}
-          {confusionKeys.length > 0 && result.confusion_matrix && (
+          {confusionKeys.length > 0 && confusionMap && (
             <div className="rounded-lg border border-border-default bg-background-muted p-4">
               <h3 className="text-sm font-semibold text-text-default mb-3">
                 Confusion Matrix (Expected → Actual)
@@ -303,7 +390,7 @@ export default function EvalRunner() {
                       <tr key={expected}>
                         <td className="px-3 py-1 text-text-muted font-medium">{expected}</td>
                         {confusionKeys.map((actual) => {
-                          const count = result.confusion_matrix?.[expected]?.[actual] ?? 0;
+                          const count = confusionMap[expected]?.[actual] ?? 0;
                           const isDiagonal = expected === actual;
                           return (
                             <td

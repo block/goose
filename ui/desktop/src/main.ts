@@ -1,9 +1,11 @@
 import { spawn } from 'node:child_process';
+import * as crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { format as formatUrl, pathToFileURL, URLSearchParams } from 'node:url';
+import dotenv from 'dotenv';
 import type { App, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
@@ -21,11 +23,8 @@ import {
   Tray,
 } from 'electron';
 import started from 'electron-squirrel-startup';
-import dotenv from 'dotenv';
-import * as crypto from 'node:crypto';
 import windowStateKeeper from 'electron-window-state';
 import * as yaml from 'yaml';
-import { checkServerStatus, startGoosed } from './goosed';
 import { UPDATES_ENABLED } from '@/updates';
 import {
   getUpdateAvailable,
@@ -35,6 +34,7 @@ import {
   updateTrayMenu,
 } from '@/utils/autoUpdater';
 import log from '@/utils/logger';
+import { checkServerStatus, startGoosed } from './goosed';
 
 function loadDesktopDotenv(): void {
   const projectRoot = process.cwd();
@@ -84,7 +84,7 @@ import { ensureWinShims } from '@/utils/winShims';
 import './utils/recipeHash';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import type { GooseApp } from '@/api';
-import { createClient, createConfig, type Client } from '@/api/client';
+import { type Client, createClient, createConfig } from '@/api/client';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from '@/utils/urlSecurity';
 
 function shouldSetupUpdater(): boolean {
@@ -1722,7 +1722,11 @@ const registerGlobalShortcuts = () => {
 };
 
 async function appMain() {
-  loadDesktopDotenv();
+  // Only load .env files for e2e/Playwright testing — in normal operation,
+  // config comes from config.yaml and env vars set by the user.
+  if (process.env.ENABLE_PLAYWRIGHT === 'true') {
+    loadDesktopDotenv();
+  }
   assertE2EProviderEnvOrThrow();
 
   await configureProxy();

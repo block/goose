@@ -1,12 +1,5 @@
 // Atoms — self-contained UI primitives
 
-export { Alert } from './alert';
-export { Badge } from './badge';
-export { Button, buttonVariants } from './button';
-export { CodeBlock } from './code-block';
-export type { LoadingStatus } from './dot';
-export { default as Dot } from './dot';
-export { default as Expand } from './expand';
 export {
   AttachmentIcon,
   Bird,
@@ -20,6 +13,13 @@ export {
   UserIcon,
   VercelIcon,
 } from '@/components/atoms/icons';
+export { Alert } from './alert';
+export { Badge } from './badge';
+export { Button, buttonVariants } from './button';
+export { CodeBlock } from './code-block';
+export type { LoadingStatus } from './dot';
+export { default as Dot } from './dot';
+export { default as Expand } from './expand';
 export { Input } from './input';
 export { NativeSelect } from './native-select';
 export { Progress } from './progress';

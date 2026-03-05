@@ -3,6 +3,11 @@ import { Edit, Eye, Loader2, Pause, Play, Square } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { getSession, type Session } from '@/api';
+import { Button } from '@/components/atoms/button';
+import { ScrollArea } from '@/components/atoms/scroll-area';
+import BackButton from '@/components/molecules/ui/back-button';
+import { Card } from '@/components/molecules/ui/card';
+import SessionHistoryView from '@/components/organisms/sessions/SessionHistoryView';
 import type { ScheduledJob } from '@/schedule';
 import {
   getScheduleSessions,
@@ -18,12 +23,7 @@ import { toastError, toastSuccess } from '@/toasts';
 import { getErrorType, trackScheduleRunNow } from '@/utils/analytics';
 import { errorMessage } from '@/utils/conversionUtils';
 import { formatToLocalDateWithTimezone } from '@/utils/date';
-import SessionHistoryView from '@/components/organisms/sessions/SessionHistoryView';
-import { Button } from '@/components/atoms/button';
-import { ScrollArea } from '@/components/atoms/scroll-area';
-import BackButton from '@/components/molecules/ui/back-button';
-import { Card } from '@/components/molecules/ui/card';
-import { ScheduleModal, type NewSchedulePayload } from './ScheduleModal';
+import { type NewSchedulePayload, ScheduleModal } from './ScheduleModal';
 
 interface ScheduleSessionMeta {
   id: string;

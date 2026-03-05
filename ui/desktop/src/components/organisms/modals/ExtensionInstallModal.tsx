@@ -1,12 +1,6 @@
 import type { IpcRendererEvent } from 'electron';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ExtensionConfig } from '@/api/types.gen';
-import { useConfig } from '@/contexts/ConfigContext';
-import { toastService } from '@/toasts';
-import { errorMessage } from '@/utils/conversionUtils';
-import type { View, ViewOptions } from '@/utils/navigationUtils';
-import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
-import { extractExtensionName } from '../settings/extensions/utils';
 import { Button } from '@/components/atoms/button';
 import {
   Dialog,
@@ -16,6 +10,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/molecules/ui/dialog';
+import { useConfig } from '@/contexts/ConfigContext';
+import { toastService } from '@/toasts';
+import { errorMessage } from '@/utils/conversionUtils';
+import type { View, ViewOptions } from '@/utils/navigationUtils';
+import { addExtensionFromDeepLink } from '../settings/extensions/deeplink';
+import { extractExtensionName } from '../settings/extensions/utils';
 
 type ModalType = 'blocked' | 'untrusted' | 'trusted';
 

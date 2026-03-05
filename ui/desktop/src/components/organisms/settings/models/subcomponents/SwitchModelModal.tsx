@@ -1,10 +1,6 @@
 import { Bot, ExternalLink } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import type { ProviderType } from '@/api';
-import { useConfig } from '@/contexts/ConfigContext';
-import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
-import { trackModelChanged } from '@/utils/analytics';
-import type { View } from '@/utils/navigationUtils';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import {
@@ -16,6 +12,10 @@ import {
   DialogTitle,
 } from '@/components/molecules/ui/dialog';
 import { Select } from '@/components/molecules/ui/select';
+import { useConfig } from '@/contexts/ConfigContext';
+import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
+import { trackModelChanged } from '@/utils/analytics';
+import type { View } from '@/utils/navigationUtils';
 import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
 import type Model from '../modelInterface';
 import { fetchModelsForProviders, getProviderMetadata } from '../modelInterface';
@@ -81,7 +81,7 @@ export const SwitchModelModal = ({
   titleOverride,
 }: SwitchModelModalProps) => {
   const { getProviders, read } = useConfig();
-  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
+  const { changeModel, currentModel, currentProvider, isChangingModel } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
@@ -607,8 +607,8 @@ export const SwitchModelModal = ({
             <Button variant="outline" onClick={handleClose} type="button">
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={!isValid}>
-              Select model
+            <Button onClick={handleSubmit} disabled={!isValid || isChangingModel}>
+              {isChangingModel ? 'Switching...' : 'Select model'}
             </Button>
           </div>
         </DialogFooter>

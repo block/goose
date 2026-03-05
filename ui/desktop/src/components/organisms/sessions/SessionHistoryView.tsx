@@ -12,11 +12,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { Message, Session } from '@/api';
-import { toastError } from '@/toasts';
-import { formatMessageTimestamp } from '@/utils/timeUtils';
-import ProgressiveMessageList from '../chat/ProgressiveMessageList';
-import { SearchView } from '../conversation/SearchView';
-import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';
 import { Button } from '@/components/atoms/button';
 import { ScrollArea } from '@/components/atoms/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/atoms/tooltip';
@@ -29,10 +24,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/molecules/ui/dialog';
-import { createSharedSession } from '@/sharedSessions';
-import { errorMessage } from '@/utils/conversionUtils';
+import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';
 import { useNavigation } from '@/hooks/useNavigation';
 import { resumeSession } from '@/sessions';
+import { createSharedSession } from '@/sharedSessions';
+import { toastError } from '@/toasts';
+import { errorMessage } from '@/utils/conversionUtils';
+import { formatMessageTimestamp } from '@/utils/timeUtils';
+import ProgressiveMessageList from '../chat/ProgressiveMessageList';
+import { SearchView } from '../conversation/SearchView';
 
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {

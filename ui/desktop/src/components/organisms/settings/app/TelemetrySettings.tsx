@@ -1,12 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useConfig } from '@/contexts/ConfigContext';
-import { toastService } from '@/toasts';
-import { TELEMETRY_UI_ENABLED } from '@/updates';
-import {
-  setTelemetryEnabled as setAnalyticsTelemetryEnabled,
-  trackTelemetryPreference,
-} from '@/utils/analytics';
-import TelemetryOptOutModal from '../../modals/TelemetryOptOutModal';
 import { Switch } from '@/components/atoms/switch';
 import {
   Card,
@@ -15,6 +7,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/molecules/ui/card';
+import { useConfig } from '@/contexts/ConfigContext';
+import { toastService } from '@/toasts';
+import { TELEMETRY_UI_ENABLED } from '@/updates';
+import {
+  setTelemetryEnabled as setAnalyticsTelemetryEnabled,
+  trackTelemetryPreference,
+} from '@/utils/analytics';
+import TelemetryOptOutModal from '../../modals/TelemetryOptOutModal';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 

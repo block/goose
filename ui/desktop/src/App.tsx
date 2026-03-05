@@ -2,30 +2,30 @@ import type { IpcRendererEvent } from 'electron';
 import { useEffect, useRef, useState } from 'react';
 import { HashRouter, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
+import { TooltipProvider } from '@/components/atoms/tooltip';
 import { AuthGuard } from '@/components/organisms/guards/AuthGuard';
 import ProviderGuard from '@/components/organisms/guards/ProviderGuard';
 import AnnouncementModal from '@/components/organisms/modals/AnnouncementModal';
 import { ExtensionInstallModal } from '@/components/organisms/modals/ExtensionInstallModal';
 import TelemetryOptOutModal from '@/components/organisms/modals/TelemetryOptOutModal';
-import LoginView from '@/components/pages/LoginView';
+import { ErrorUI } from '@/components/organisms/shared/ErrorBoundary';
 import AgentsPage from '@/components/pages/AgentsPage';
 import AppsPage from '@/components/pages/AppsPage';
 import CatalogsPage from '@/components/pages/CatalogsPage';
 import EvaluatePage from '@/components/pages/EvaluatePage';
+import LoginView from '@/components/pages/LoginView';
 import MonitoringPage from '@/components/pages/MonitoringPage';
 import PipelinesPage from '@/components/pages/PipelinesPage';
 import RecipesPage from '@/components/pages/RecipesPage';
 import SchedulesPage from '@/components/pages/SchedulesPage';
 import SessionsPage from '@/components/pages/SessionsPage';
 import ToolsPage from '@/components/pages/ToolsPage';
-import WorkflowsPage from '@/components/pages/WorkflowsPage';
 import WelcomePage from '@/components/pages/WelcomePage';
-import { ErrorUI } from '@/components/organisms/shared/ErrorBoundary';
-import { TooltipProvider } from '@/components/atoms/tooltip';
+import WorkflowsPage from '@/components/pages/WorkflowsPage';
 import { AuthProvider } from '@/hooks/useAuth';
 import { setupAuthInterceptor } from '@/lib/authInterceptor';
-import { openSharedSessionFromDeepLink } from './sessionLinks';
 import { createSession, startNewSession } from '@/sessions';
+import { openSharedSessionFromDeepLink } from './sessionLinks';
 import type { SharedSessionDetails } from './sharedSessions';
 
 // Initialize auth interceptor before any API calls — attaches
@@ -40,14 +40,14 @@ interface SessionRouteState {
   shouldStartAgent?: boolean;
 }
 
-import { AppLayout } from '@/components/templates/layout/AppLayout';
-import LauncherView from '@/components/pages/LauncherView';
+import WelcomeState from '@/components/organisms/chat/WelcomeState';
 import SharedSessionView from '@/components/organisms/sessions/SharedSessionView';
 import ProviderSettings from '@/components/organisms/settings/providers/ProviderSettingsPage';
 import type { SettingsViewOptions } from '@/components/organisms/settings/SettingsView';
 import SettingsView from '@/components/organisms/settings/SettingsView';
+import LauncherView from '@/components/pages/LauncherView';
+import { AppLayout } from '@/components/templates/layout/AppLayout';
 import { ChatProvider, DEFAULT_CHAT_TITLE } from '@/contexts/ChatContext';
-import WelcomeState from '@/components/organisms/chat/WelcomeState';
 
 import 'react-toastify/dist/ReactToastify.css';
 import StandaloneAppView from '@/components/organisms/apps/StandaloneAppView';

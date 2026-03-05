@@ -1,11 +1,5 @@
 import { FileText, RotateCcw, Save, Settings } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useConfig } from '@/contexts/ConfigContext';
-import { toastError, toastSuccess } from '@/toasts';
-import type { ConfigData, ConfigValue } from '@/types/config';
-import { cn } from '@/utils';
-import { getUiNames, providerPrefixes } from '@/utils/configUtils';
-import { errorMessage } from '@/utils/conversionUtils';
 import { Button } from '@/components/atoms/button';
 import { Input } from '@/components/atoms/input';
 import {
@@ -24,6 +18,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/molecules/ui/dialog';
+import { useConfig } from '@/contexts/ConfigContext';
+import { toastError, toastSuccess } from '@/toasts';
+import type { ConfigData, ConfigValue } from '@/types/config';
+import { cn } from '@/utils';
+import { getUiNames, providerPrefixes } from '@/utils/configUtils';
+import { errorMessage } from '@/utils/conversionUtils';
 
 export default function ConfigSettings() {
   const { config, upsert } = useConfig();

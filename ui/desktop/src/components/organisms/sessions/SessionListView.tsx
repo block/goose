@@ -26,6 +26,19 @@ import {
   searchSessions,
   updateSessionName,
 } from '@/api';
+import { Button } from '@/components/atoms/button';
+import { ScrollArea } from '@/components/atoms/scroll-area';
+import { Skeleton } from '@/components/atoms/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/atoms/tooltip';
+import { OverlayActionCard } from '@/components/molecules/interactive/OverlayActionCard';
+import { Card } from '@/components/molecules/ui/card';
+import { ConfirmationModal } from '@/components/molecules/ui/confirmation-modal';
+import { PageShell } from '@/components/templates/layout/PageShell';
 import { AppEvents } from '@/constants/events';
 import { DEFAULT_CHAT_TITLE } from '@/contexts/ChatContext';
 import { shouldShowNewChatTitle } from '@/sessions';
@@ -40,20 +53,7 @@ import { getSearchShortcutText } from '@/utils/keyboardShortcuts';
 import type { SearchHighlighter } from '@/utils/searchHighlighter';
 import { formatMessageTimestamp } from '@/utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
-import { PageShell } from '@/components/templates/layout/PageShell';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
-import { Button } from '@/components/atoms/button';
-import { ScrollArea } from '@/components/atoms/scroll-area';
-import { Skeleton } from '@/components/atoms/skeleton';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/atoms/tooltip';
-import { ConfirmationModal } from '@/components/molecules/ui/confirmation-modal';
-import { OverlayActionCard } from '@/components/molecules/interactive/OverlayActionCard';
-import { Card } from '@/components/molecules/ui/card';
 
 function getSessionExtensionNames(extensionData: ExtensionData): string[] {
   try {

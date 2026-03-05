@@ -3,6 +3,10 @@ import { CircleDotDashed, Edit, Eye, Pause, Play, Plus, RefreshCw, Square } from
 import type React from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Button } from '@/components/atoms/button';
+import { TrashIcon } from '@/components/atoms/icons/TrashIcon';
+import { Card } from '@/components/molecules/ui/card';
+import { PageShell } from '@/components/templates/layout/PageShell';
 import type { ScheduledJob } from '@/schedule';
 import {
   createSchedule,
@@ -19,12 +23,8 @@ import { getErrorType, trackScheduleCreated, trackScheduleDeleted } from '@/util
 import { errorMessage } from '@/utils/conversionUtils';
 import { formatToLocalDateWithTimezone } from '@/utils/date';
 import type { ViewOptions } from '@/utils/navigationUtils';
-import { TrashIcon } from '@/components/atoms/icons/TrashIcon';
-import { PageShell } from '@/components/templates/layout/PageShell';
-import { Button } from '@/components/atoms/button';
-import { Card } from '@/components/molecules/ui/card';
 import ScheduleDetailView from './ScheduleDetailView';
-import { ScheduleModal, type NewSchedulePayload } from './ScheduleModal';
+import { type NewSchedulePayload, ScheduleModal } from './ScheduleModal';
 
 interface SchedulesViewProps {
   onClose?: () => void;

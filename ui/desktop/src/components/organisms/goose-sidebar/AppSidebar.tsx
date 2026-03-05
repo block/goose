@@ -24,22 +24,8 @@ import {
 import React, { useEffect, useState } from 'react';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import gooseIcon from '@/images/icon.svg';
-import { deleteSession, listSessions, updateSessionName, type Session } from '@/api';
-import { AppEvents } from '@/constants/events';
-import { DEFAULT_CHAT_TITLE, useChatContext } from '@/contexts/ChatContext';
-import { useConfig } from '@/contexts/ConfigContext';
-import { useNavigation } from '@/hooks/useNavigation';
-import { useProjectPreferences } from '@/hooks/useProjectPreferences';
-import { useSidebarSessionStatus } from '@/hooks/useSidebarSessionStatus';
-import { resumeSession, shouldShowNewChatTitle, startNewSession } from '@/sessions';
-import type { View, ViewOptions } from '@/utils/navigationUtils';
-import { getInitialWorkingDir } from '@/utils/workingDir';
-import { homeDir } from '@/utils/homeDir';
-import { InlineEditText } from '../common/InlineEditText';
+import { deleteSession, listSessions, type Session, updateSessionName } from '@/api';
 import { Gear } from '@/components/atoms/icons';
-import { SessionIndicators } from '../shared/SessionIndicators';
-import { UserAvatarMenu } from '../shared/UserAvatarMenu';
 import {
   Collapsible,
   CollapsibleContent,
@@ -58,6 +44,20 @@ import {
   SidebarSeparator,
   useSidebar,
 } from '@/components/molecules/ui/sidebar';
+import { AppEvents } from '@/constants/events';
+import { DEFAULT_CHAT_TITLE, useChatContext } from '@/contexts/ChatContext';
+import { useConfig } from '@/contexts/ConfigContext';
+import { useNavigation } from '@/hooks/useNavigation';
+import { useProjectPreferences } from '@/hooks/useProjectPreferences';
+import { useSidebarSessionStatus } from '@/hooks/useSidebarSessionStatus';
+import gooseIcon from '@/images/icon.svg';
+import { resumeSession, shouldShowNewChatTitle, startNewSession } from '@/sessions';
+import { homeDir } from '@/utils/homeDir';
+import type { View, ViewOptions } from '@/utils/navigationUtils';
+import { getInitialWorkingDir } from '@/utils/workingDir';
+import { InlineEditText } from '../common/InlineEditText';
+import { SessionIndicators } from '../shared/SessionIndicators';
+import { UserAvatarMenu } from '../shared/UserAvatarMenu';
 
 interface SidebarProps {
   onSelectSession: (sessionId: string) => void;

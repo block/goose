@@ -1,16 +1,16 @@
-import { toast, type ToastOptions } from 'react-toastify';
-import Copy from '@/components/atoms/icons/Copy';
-import {
-  GroupedExtensionLoadingToast,
-  type ExtensionLoadingStatus,
-} from '@/components/organisms/shared/GroupedExtensionLoadingToast';
+import { type ToastOptions, toast } from 'react-toastify';
 import { Button } from '@/components/atoms/button';
+import Copy from '@/components/atoms/icons/Copy';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/atoms/tooltip';
+import {
+  type ExtensionLoadingStatus,
+  GroupedExtensionLoadingToast,
+} from '@/components/organisms/shared/GroupedExtensionLoadingToast';
 import { useNavigation } from '@/hooks/useNavigation';
 import { startNewSession } from '@/sessions';
 import { getInitialWorkingDir } from '@/utils/workingDir';

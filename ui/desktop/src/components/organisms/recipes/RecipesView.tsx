@@ -26,10 +26,22 @@ import {
   setRecipeSlashCommand,
   startAgent,
 } from '@/api';
+import { Button } from '@/components/atoms/button';
+import { Skeleton } from '@/components/atoms/skeleton';
+import { Card } from '@/components/molecules/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/molecules/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/molecules/ui/dropdown-menu';
+import { PageShell } from '@/components/templates/layout/PageShell';
 import { AppEvents } from '@/constants/events';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useNavigation } from '@/hooks/useNavigation';
-import { encodeRecipe, generateDeepLink, stripEmptyExtensions, type Recipe } from '@/recipe';
+import { encodeRecipe, generateDeepLink, type Recipe, stripEmptyExtensions } from '@/recipe';
 import { convertToLocaleDateString, listSavedRecipes } from '@/recipe/recipe_management';
 import { toastError, toastSuccess } from '@/toasts';
 import {
@@ -46,19 +58,7 @@ import { errorMessage } from '@/utils/conversionUtils';
 import { getSearchShortcutText } from '@/utils/keyboardShortcuts';
 import { getInitialWorkingDir } from '@/utils/workingDir';
 import { SearchView } from '../conversation/SearchView';
-import { PageShell } from '@/components/templates/layout/PageShell';
 import { CronPicker } from '../schedule/CronPicker';
-import { Button } from '@/components/atoms/button';
-import { Skeleton } from '@/components/atoms/skeleton';
-import { Card } from '@/components/molecules/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/molecules/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/molecules/ui/dropdown-menu';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 

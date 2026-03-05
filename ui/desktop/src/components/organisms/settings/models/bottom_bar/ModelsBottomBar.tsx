@@ -1,18 +1,18 @@
 import { Bot, Sliders } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { useConfig } from '@/contexts/ConfigContext';
-import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
-import type { View } from '@/utils/navigationUtils';
-import type { Alert } from '../../../alerts';
-import BottomMenuAlertPopover from '@/components/organisms/bottom-menu/BottomMenuAlertPopover';
-import { useCurrentModelInfo } from '../../../chat/BaseChat';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/molecules/ui/dropdown-menu';
+import BottomMenuAlertPopover from '@/components/organisms/bottom-menu/BottomMenuAlertPopover';
+import { useConfig } from '@/contexts/ConfigContext';
+import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
+import type { View } from '@/utils/navigationUtils';
+import type { Alert } from '../../../alerts';
+import { useCurrentModelInfo } from '../../../chat/BaseChat';
 import { getProviderMetadata } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';

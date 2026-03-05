@@ -1,5 +1,10 @@
 import React from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Sidebar, SidebarInset, SidebarProvider } from '@/components/molecules/ui/sidebar';
+import ChatInput from '@/components/organisms/chat/ChatInput';
+import ChatSessionsContainer from '@/components/organisms/chat/ChatSessionsContainer';
+import AppSidebar from '@/components/organisms/goose-sidebar/AppSidebar';
+import ReasoningDetailPanel from '@/components/organisms/messages/ReasoningDetailPanel';
 import { useChatContext } from '@/contexts/ChatContext';
 import { ReasoningDetailProvider } from '@/contexts/ReasoningDetailContext';
 import { UnifiedInputProvider, useUnifiedInput } from '@/contexts/UnifiedInputContext';
@@ -9,11 +14,6 @@ import { ChatState } from '@/types/chatState';
 import type { UserInput } from '@/types/message';
 import type { View, ViewOptions } from '@/utils/navigationUtils';
 import { getInitialWorkingDir } from '@/utils/workingDir';
-import ChatInput from '@/components/organisms/chat/ChatInput';
-import ChatSessionsContainer from '@/components/organisms/chat/ChatSessionsContainer';
-import AppSidebar from '@/components/organisms/goose-sidebar/AppSidebar';
-import ReasoningDetailPanel from '@/components/organisms/messages/ReasoningDetailPanel';
-import { Sidebar, SidebarInset, SidebarProvider } from '@/components/molecules/ui/sidebar';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{

@@ -1,8 +1,15 @@
 import { Puzzle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getSessionExtensions, type ExtensionConfig } from '@/api';
+import { type ExtensionConfig, getSessionExtensions } from '@/api';
+import { Input } from '@/components/atoms/input';
+import { Switch } from '@/components/atoms/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/molecules/ui/dropdown-menu';
 import { AppEvents } from '@/constants/events';
-import { useConfig, type FixedExtensionEntry } from '@/contexts/ConfigContext';
+import { type FixedExtensionEntry, useConfig } from '@/contexts/ConfigContext';
 import {
   getExtensionOverride,
   getExtensionOverrides,
@@ -11,13 +18,6 @@ import {
 import { toastService } from '@/toasts';
 import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
-import { Input } from '@/components/atoms/input';
-import { Switch } from '@/components/atoms/switch';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/molecules/ui/dropdown-menu';
 
 interface BottomMenuExtensionSelectionProps {
   sessionId: string | null;

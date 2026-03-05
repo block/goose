@@ -9,6 +9,13 @@ import React, {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Message } from '@/api';
+import { Goose } from '@/components/atoms/icons';
+import { ScrollArea, type ScrollAreaHandle } from '@/components/atoms/scroll-area';
+// ChatInput is now rendered in AppLayout via UnifiedInputContext
+import { RecipeWarningModal } from '@/components/molecules/ui/recipe-warning-modal';
+import { useSidebar } from '@/components/molecules/ui/sidebar';
+import EnvironmentBadge from '@/components/organisms/goose-sidebar/EnvironmentBadge';
+import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';
 import { AppEvents } from '@/constants/events';
 import { useModelAndProvider } from '@/contexts/ModelAndProviderContext';
 import { useRegisterSession } from '@/contexts/UnifiedInputContext';
@@ -18,7 +25,7 @@ import { useAutoSubmit } from '@/hooks/useAutoSubmit';
 import { useCostTracking } from '@/hooks/useCostTracking';
 import { useFileDrop } from '@/hooks/useFileDrop';
 import { useNavigation } from '@/hooks/useNavigation';
-import { scanRecipe, type Recipe } from '@/recipe';
+import { type Recipe, scanRecipe } from '@/recipe';
 import { toastSuccess } from '@/toasts';
 import type { ChatType } from '@/types/chat';
 import { ChatState } from '@/types/chatState';
@@ -27,17 +34,10 @@ import { cn } from '@/utils';
 import { substituteParameters } from '@/utils/providerUtils';
 import { useToolCount } from '../alerts/useToolCount';
 import { SearchView } from '../conversation/SearchView';
-import EnvironmentBadge from '@/components/organisms/goose-sidebar/EnvironmentBadge';
-import { Goose } from '@/components/atoms/icons';
-import { MainPanelLayout } from '@/components/templates/layout/MainPanelLayout';
 import ParameterInputModal from '../modals/ParameterInputModal';
 import CreateRecipeFromSessionModal from '../recipes/CreateRecipeFromSessionModal';
 import RecipeActivities from '../recipes/RecipeActivities';
 import { RecipeHeader } from '../shared/RecipeHeader';
-import { ScrollArea, type ScrollAreaHandle } from '@/components/atoms/scroll-area';
-// ChatInput is now rendered in AppLayout via UnifiedInputContext
-import { RecipeWarningModal } from '@/components/molecules/ui/recipe-warning-modal';
-import { useSidebar } from '@/components/molecules/ui/sidebar';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import WelcomeState from './WelcomeState';
 

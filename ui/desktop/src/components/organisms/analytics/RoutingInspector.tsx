@@ -1,19 +1,37 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { client } from '@/api/client.gen';
 
-interface ModeScore {
-  agent: string;
-  mode: string;
+interface ModeScoreView {
+  slug: string;
+  name: string;
   score: number;
-  matched_keywords: string[];
+  matchedKeywords: string[];
+}
+
+interface AgentScoreView {
+  agentName: string;
+  enabled: boolean;
+  modes: ModeScoreView[];
+}
+
+interface RoutingDecisionView {
+  agentName: string;
+  modeSlug: string;
+  modeName: string;
+  confidence: number;
+  reasoning: string;
 }
 
 interface InspectResult {
-  chosen_agent: string;
-  chosen_mode: string;
-  confidence: number;
-  reasoning: string;
-  scores: ModeScore[];
+  decision: RoutingDecisionView;
+  allScores: AgentScoreView[];
+}
+
+interface FlatScore {
+  agent: string;
+  mode: string;
+  score: number;
+  matchedKeywords: string[];
 }
 
 export default function RoutingInspector() {
@@ -57,6 +75,20 @@ export default function RoutingInspector() {
     }
   };
 
+  const flatScores: FlatScore[] = useMemo(() => {
+    if (!result) return [];
+    return result.allScores
+      .flatMap((agent) =>
+        agent.modes.map((mode) => ({
+          agent: agent.agentName,
+          mode: mode.name,
+          score: mode.score,
+          matchedKeywords: mode.matchedKeywords,
+        }))
+      )
+      .sort((a, b) => b.score - a.score);
+  }, [result]);
+
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
@@ -92,20 +124,23 @@ export default function RoutingInspector() {
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-text-muted">Agent:</span>{' '}
-                <span className="text-text-default font-medium">{result.chosen_agent}</span>
+                <span className="text-text-default font-medium">{result.decision.agentName}</span>
               </div>
               <div>
                 <span className="text-text-muted">Mode:</span>{' '}
-                <span className="text-text-default font-medium">{result.chosen_mode}</span>
+                <span className="text-text-default font-medium">{result.decision.modeName}</span>
+                <span className="text-text-muted text-xs ml-1">({result.decision.modeSlug})</span>
               </div>
               <div>
                 <span className="text-text-muted">Confidence:</span>{' '}
                 <span className="text-text-default font-medium">
-                  {(result.confidence * 100).toFixed(1)}%
+                  {(result.decision.confidence * 100).toFixed(1)}%
                 </span>
               </div>
             </div>
-            {result.reasoning && <p className="mt-2 text-sm text-text-muted">{result.reasoning}</p>}
+            {result.decision.reasoning && (
+              <p className="mt-2 text-sm text-text-muted">{result.decision.reasoning}</p>
+            )}
           </div>
 
           {/* Scores table */}
@@ -123,36 +158,32 @@ export default function RoutingInspector() {
                 </tr>
               </thead>
               <tbody>
-                {[...result.scores]
-                  .sort((a, b) => b.score - a.score)
-                  .map((s, i) => (
-                    <tr
-                      key={`${s.agent}-${s.mode}-${i}`}
-                      className={`border-b border-border-muted ${
-                        s.agent === result.chosen_agent && s.mode === result.chosen_mode
-                          ? 'bg-background-muted'
-                          : ''
-                      }`}
-                    >
-                      <td className="px-4 py-2 text-text-default">{s.agent}</td>
-                      <td className="px-4 py-2 text-text-default">{s.mode}</td>
-                      <td className="px-4 py-2 text-text-default font-mono">
-                        {s.score.toFixed(3)}
-                      </td>
-                      <td className="px-4 py-2">
-                        <div className="flex flex-wrap gap-1">
-                          {s.matched_keywords.map((kw) => (
-                            <span
-                              key={kw}
-                              className="rounded bg-background-muted px-1.5 py-0.5 text-xs text-text-default"
-                            >
-                              {kw}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                {flatScores.map((s, i) => (
+                  <tr
+                    key={`${s.agent}-${s.mode}-${i}`}
+                    className={`border-b border-border-muted ${
+                      s.agent === result.decision.agentName && s.mode === result.decision.modeName
+                        ? 'bg-background-muted'
+                        : ''
+                    }`}
+                  >
+                    <td className="px-4 py-2 text-text-default">{s.agent}</td>
+                    <td className="px-4 py-2 text-text-default">{s.mode}</td>
+                    <td className="px-4 py-2 text-text-default font-mono">{s.score.toFixed(3)}</td>
+                    <td className="px-4 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {s.matchedKeywords.map((kw) => (
+                          <span
+                            key={kw}
+                            className="rounded bg-background-muted px-1.5 py-0.5 text-xs text-text-default"
+                          >
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

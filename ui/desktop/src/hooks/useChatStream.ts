@@ -86,6 +86,39 @@ export function useChatStream({
     }
   }, [sessionId, state.session, state.messages, state.chatState]);
 
+  // Update session when model changes so BaseChat reflects the new model
+  useEffect(() => {
+    const handleModelChanged = (event: Event) => {
+      const { model, provider } = (event as CustomEvent).detail;
+      const currentSession = stateRef.current.session;
+      if (currentSession) {
+        const updatedModelConfig = currentSession.model_config
+          ? { ...currentSession.model_config, model_name: model }
+          : null;
+        const updatedSession = {
+          ...currentSession,
+          provider_name: provider,
+          model_config: updatedModelConfig,
+        };
+        dispatch({
+          type: 'SET_SESSION',
+          payload: updatedSession,
+        });
+
+        // Also update the cache so navigating away and back shows correct model
+        const cached = resultsCache.get(sessionId);
+        if (cached) {
+          cacheSet(sessionId, { ...cached, session: updatedSession });
+        }
+      }
+    };
+
+    window.addEventListener(AppEvents.MODEL_CHANGED, handleModelChanged);
+    return () => {
+      window.removeEventListener(AppEvents.MODEL_CHANGED, handleModelChanged);
+    };
+  }, [sessionId]);
+
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
       if (namePollingRef.current) {

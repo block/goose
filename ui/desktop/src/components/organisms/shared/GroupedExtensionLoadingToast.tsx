@@ -1,16 +1,16 @@
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigation } from '@/hooks/useNavigation';
-import { startNewSession } from '@/sessions';
-import { formatExtensionErrorMessage } from '@/utils/extensionErrorUtils';
-import { getInitialWorkingDir } from '@/utils/workingDir';
-import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { Button } from '@/components/atoms/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/molecules/ui/collapsible';
+import { useNavigation } from '@/hooks/useNavigation';
+import { startNewSession } from '@/sessions';
+import { formatExtensionErrorMessage } from '@/utils/extensionErrorUtils';
+import { getInitialWorkingDir } from '@/utils/workingDir';
+import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 
 export interface ExtensionLoadingStatus {
   name: string;
