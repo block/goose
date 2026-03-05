@@ -10,9 +10,8 @@ use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";
@@ -41,38 +40,27 @@ pub fn get_telemetry_choice() -> Option<bool> {
     config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
 }
 
-// Cached result of the telemetry consent check so that hot paths
-// (e.g. Sentry traces_sampler) avoid disk I/O on every call.
-static TELEMETRY_CACHE: AtomicBool = AtomicBool::new(false);
-static TELEMETRY_CACHE_TIME: AtomicU64 = AtomicU64::new(0);
-const TELEMETRY_CACHE_TTL_SECS: u64 = 5;
+// In-memory telemetry consent flag. Initialised from config on first
+// access and updated immediately via `set_telemetry_enabled()` when the
+// config changes, so hot paths (Sentry callbacks) never hit disk.
+static TELEMETRY_ENABLED: Lazy<AtomicBool> = Lazy::new(|| {
+    AtomicBool::new(get_telemetry_choice().unwrap_or(false))
+});
 
-/// Check if telemetry is enabled.
-///
-/// Returns false if:
-/// - GOOSE_TELEMETRY_OFF environment variable is set to "1" or "true"
-/// - GOOSE_TELEMETRY_ENABLED config value is set to false
-/// - User has not made a telemetry choice yet (opt-in required)
+/// Check if telemetry is enabled (fast, no disk I/O).
 ///
 /// Returns true only if the user has explicitly opted in.
-///
-/// The result is cached for up to 5 seconds to avoid repeated disk I/O
-/// when called from high-frequency paths like Sentry's traces_sampler.
 pub fn is_telemetry_enabled() -> bool {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let last = TELEMETRY_CACHE_TIME.load(Ordering::Relaxed);
+    TELEMETRY_ENABLED.load(Ordering::Relaxed)
+}
 
-    if now.saturating_sub(last) < TELEMETRY_CACHE_TTL_SECS {
-        return TELEMETRY_CACHE.load(Ordering::Relaxed);
-    }
-
-    let enabled = get_telemetry_choice().unwrap_or(false);
-    TELEMETRY_CACHE.store(enabled, Ordering::Relaxed);
-    TELEMETRY_CACHE_TIME.store(now, Ordering::Relaxed);
-    enabled
+/// Update the in-memory telemetry consent flag.
+///
+/// Call this whenever the `GOOSE_TELEMETRY_ENABLED` config value is
+/// changed so that Sentry callbacks and other hot paths see the new
+/// state immediately.
+pub fn set_telemetry_enabled(enabled: bool) {
+    TELEMETRY_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
 // ============================================================================
