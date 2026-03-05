@@ -20,6 +20,7 @@ import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInt
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
+import { useLocalInferenceAvailable } from '../../../../hooks/useLocalInferenceAvailable';
 
 const THINKING_LEVEL_OPTIONS = [
   { value: 'low', label: 'Low - Better latency, lighter reasoning' },
@@ -106,6 +107,7 @@ export const SwitchModelModal = ({
     currentModel: configModel,
     currentProvider: configProvider,
   } = useModelAndProvider();
+  const { isAvailable: localInferenceAvailable } = useLocalInferenceAvailable();
   // Use session-specific model/provider if available, otherwise fall back to config defaults
   const currentModel = sessionModel ?? configModel;
   const currentProvider = sessionProvider ?? configProvider;
@@ -307,7 +309,9 @@ export const SwitchModelModal = ({
     (async () => {
       try {
         const providersResponse = await getProviders(false);
-        const activeProviders = providersResponse.filter((provider) => provider.is_configured);
+        const activeProviders = providersResponse.filter(
+          (provider) => provider.is_configured && (provider.name !== 'local' || localInferenceAvailable)
+        );
         // Create provider options and add "Use other provider" option
         setProviderOptions([
           ...activeProviders.map(({ metadata, name }) => ({
@@ -380,7 +384,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read]);
+  }, [getProviders, usePredefinedModels, read, localInferenceAvailable]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)

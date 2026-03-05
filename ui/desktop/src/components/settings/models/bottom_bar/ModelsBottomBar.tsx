@@ -18,6 +18,7 @@ import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
 import { ScrollArea } from '../../../ui/scroll-area';
+import { useLocalInferenceAvailable } from '../../../../hooks/useLocalInferenceAvailable';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
@@ -48,6 +49,7 @@ export default function ModelsBottomBar({
 
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
+  const { isAvailable: localInferenceAvailable } = useLocalInferenceAvailable();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('Select Model');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
@@ -188,7 +190,7 @@ export default function ModelsBottomBar({
             <span>Lead/Worker Settings</span>
             <Sliders className="ml-auto h-4 w-4" />
           </DropdownMenuItem>
-          {currentProvider === 'local' && currentModel && (
+          {localInferenceAvailable && currentProvider === 'local' && currentModel && (
             <DropdownMenuItem onClick={() => setIsLocalModelSettingsOpen(true)}>
               <span>Local Model Settings</span>
               <Settings className="ml-auto h-4 w-4" />
