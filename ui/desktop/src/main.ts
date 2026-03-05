@@ -8,8 +8,8 @@ function ensureSentryInitialized() {
   sentryInitialized = true;
   Sentry.init({
     dsn: process.env.SENTRY_DSN || undefined,
-    release: `goose-desktop@${process.env.npm_package_version || 'unknown'}`,
-    environment: process.env.NODE_ENV === 'production' ? 'production' : 'development',
+    release: `goose-desktop@${app.getVersion()}`,
+    environment: app.isPackaged ? 'production' : 'development',
     beforeSend(event) {
       return telemetryEnabled ? event : null;
     },
