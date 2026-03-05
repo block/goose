@@ -98,6 +98,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "qa/review.md",
         "QA Agent Review — evaluate test adequacy and code quality",
     ),
+    (
+        "qa/debug.md",
+        "QA Agent Debug — debug test failures, flaky tests, and environment issues",
+    ),
     // PM Agent — universal modes
     (
         "pm/ask.md",
@@ -131,6 +135,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
     (
         "security/review.md",
         "Security Agent Review — security code review and audit",
+    ),
+    (
+        "security/debug.md",
+        "Security Agent Debug — debug security incidents, auth failures, and exploit paths",
     ),
     // Research Agent — universal modes
     (

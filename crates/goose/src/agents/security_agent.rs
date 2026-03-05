@@ -34,6 +34,7 @@ impl SecurityAgent {
             UniversalMode::Plan,
             UniversalMode::Write,
             UniversalMode::Review,
+            UniversalMode::Debug,
         ];
 
         let modes = mode_list
@@ -56,7 +57,7 @@ impl SecurityAgent {
     }
 
     pub fn modes(&self) -> Vec<&UniversalMode> {
-        let order = ["ask", "plan", "write", "review"];
+        let order = ["ask", "plan", "write", "review", "debug"];
         order.iter().filter_map(|s| self.modes.get(*s)).collect()
     }
 
@@ -122,6 +123,7 @@ mod tests {
         assert!(sec.mode("plan").is_some());
         assert!(sec.mode("write").is_some());
         assert!(sec.mode("review").is_some());
+        assert!(sec.mode("debug").is_some());
         assert!(sec.mode("vulnerability").is_none()); // old slug
         assert!(sec.mode("threat-model").is_none()); // old slug
     }
@@ -130,16 +132,16 @@ mod tests {
     fn test_mode_count_and_order() {
         let sec = SecurityAgent::new();
         let modes = sec.modes();
-        assert_eq!(modes.len(), 4);
+        assert_eq!(modes.len(), 5);
         let slugs: Vec<&str> = modes.iter().map(|m| m.slug()).collect();
-        assert_eq!(slugs, vec!["ask", "plan", "write", "review"]);
+        assert_eq!(slugs, vec!["ask", "plan", "write", "review", "debug"]);
     }
 
     #[test]
     fn test_to_agent_modes() {
         let sec = SecurityAgent::new();
         let agent_modes = sec.to_agent_modes();
-        assert_eq!(agent_modes.len(), 4);
+        assert_eq!(agent_modes.len(), 5);
         for am in &agent_modes {
             assert!(!am.name.is_empty());
             assert!(am.when_to_use.is_some());

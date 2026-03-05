@@ -84,7 +84,7 @@ impl GooseAgent {
             ],
             recommended_extensions: vec!["developer".into(), "memory".into(), "fetch".into()],
             when_to_use:
-                "General questions, exploration, explanation, information retrieval, conversation"
+                "Answer general questions, explore topics, explain concepts, retrieve information, or have a conversation about anything not handled by specialist agents"
                     .into(),
             is_internal: false,
             deprecated: None,
@@ -104,7 +104,7 @@ impl GooseAgent {
                 ToolGroupAccess::Full("memory".into()),
             ],
             recommended_extensions: vec!["developer".into(), "memory".into(), "fetch".into()],
-            when_to_use: "Planning, strategy, breaking down problems, roadmaps, decision-making"
+            when_to_use: "Plan a strategy, break down complex problems, create roadmaps, design approaches, or help with decision-making and prioritization"
                 .into(),
             is_internal: false,
             deprecated: None,
@@ -128,17 +128,17 @@ impl GooseAgent {
             ],
             recommended_extensions: vec!["developer".into(), "memory".into()],
             when_to_use:
-                "Writing documents, creating files, editing configurations, generating content"
+                "Write documents, create or edit files, generate content, modify configurations, or produce written artifacts of any kind"
                     .into(),
             is_internal: false,
             deprecated: None,
         });
 
-        // Review — evaluative analysis, read-only
+        // Review — generic evaluative analysis, read-only
         modes.push(BuiltinMode {
             slug: UniversalMode::Review.slug().to_string(),
             name: UniversalMode::Review.display_name().to_string(),
-            description: "Review and evaluate code, documents, or configurations".into(),
+            description: "Review and evaluate any artifact: code, documents, emails, papers, proposals, plans, or designs".into(),
             template_name: "goose/review.md".into(),
             category: ModeCategory::Session,
             tool_groups: vec![
@@ -148,7 +148,7 @@ impl GooseAgent {
                 ToolGroupAccess::Full("memory".into()),
             ],
             recommended_extensions: vec!["developer".into(), "memory".into()],
-            when_to_use: "Reviewing code, evaluating documents, checking quality, auditing".into(),
+            when_to_use: "Review, evaluate, audit, proofread, or critique code, documents, emails, papers, proposals, plans, or designs for quality, correctness, clarity, and completeness".into(),
             is_internal: false,
             deprecated: None,
         });
@@ -205,7 +205,7 @@ impl GooseAgent {
                 ToolGroupAccess::Full("command".into()),
             ],
             recommended_extensions: vec!["genui".into(), "developer".into()],
-            when_to_use: "User asks to visualize, chart, graph, or show data as a dashboard, overview, or summary with graphics inline in chat".into(),
+            when_to_use: "Create, generate, build chart, graph, visualization, dashboard, interactive data display, metrics summary, graphics inline".into(),
             is_internal: false,
             deprecated: None,
         });

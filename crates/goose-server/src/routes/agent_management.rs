@@ -406,8 +406,8 @@ pub async fn toggle_builtin_agent(
     State(state): State<Arc<AppState>>,
     Path(name): Path<String>,
 ) -> Result<Json<ToggleAgentResponse>, StatusCode> {
-    let valid_names = ["Goose Agent", "Developer Agent"];
-    if !valid_names.contains(&name.as_str()) {
+    let names = state.agent_slot_registry.all_agent_names().await;
+    if !names.contains(&name) {
         return Err(StatusCode::NOT_FOUND);
     }
     let enabled = state.agent_slot_registry.toggle(&name).await;

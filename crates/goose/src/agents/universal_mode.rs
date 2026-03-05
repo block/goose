@@ -85,24 +85,30 @@ impl UniversalMode {
     pub fn when_to_use(&self) -> &'static str {
         match self {
             UniversalMode::Ask => {
-                "questions answers explain what why how search find show describe \
-                 understand explore lookup documentation help"
+                "Answer questions, explain concepts, search information, explore \
+                 codebases, lookup documentation, understand systems, describe \
+                 architecture, show details — read-only exploration without changes"
             }
             UniversalMode::Plan => {
-                "plan design architect propose strategy roadmap approach outline \
-                 structure organize decide evaluate options tradeoffs ADR RFC"
+                "Plan, design, architect, propose strategy, roadmap, approach, outline \
+                 structure, organize, decide, evaluate options, tradeoffs, ADR, RFC — \
+                 strategic reasoning and decision-making"
             }
             UniversalMode::Write => {
-                "write code implement create build add fix update change develop \
-                 configure deploy scaffold generate test setup install"
+                "Write code, implement features, create files, build projects, add \
+                 functionality, fix issues, update configurations, develop software, \
+                 configure systems, deploy infrastructure, scaffold, generate tests, \
+                 setup install — active creation and modification"
             }
             UniversalMode::Review => {
-                "review audit check assess evaluate quality feedback analyze inspect \
-                 critique examine verify validate compliance"
+                "Review code, audit documents, check quality, assess compliance, evaluate \
+                 completeness, feedback, analyze artifacts, inspect, critique, examine, \
+                 verify, validate — evaluative analysis without making changes"
             }
             UniversalMode::Debug => {
-                "debug diagnose troubleshoot fix error bug crash failure broken \
-                 investigate reproduce isolate root cause stack trace log"
+                "Debug errors, diagnose crashes, troubleshoot failures, fix bugs, \
+                 investigate broken behavior, reproduce issues, isolate root cause, \
+                 analyze stack traces, examine logs — diagnostic problem-solving"
             }
         }
     }

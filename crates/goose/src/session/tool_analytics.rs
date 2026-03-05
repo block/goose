@@ -208,9 +208,9 @@ impl<'a> ToolAnalyticsStore<'a> {
         let total_calls: i64 = tool_usage.iter().map(|t| t.call_count).sum();
         let total_errors: i64 = tool_usage.iter().map(|t| t.error_count).sum();
         let success_rate = if total_calls > 0 {
-            ((total_calls - total_errors) as f64 / total_calls as f64) * 100.0
+            (total_calls - total_errors) as f64 / total_calls as f64
         } else {
-            100.0
+            1.0
         };
 
         Ok(ToolAnalytics {
@@ -279,9 +279,9 @@ impl<'a> ToolAnalyticsStore<'a> {
             .map(|(name, count)| {
                 let error_count = error_map.get(&name).copied().unwrap_or(0);
                 let success_rate = if count > 0 {
-                    ((count - error_count) as f64 / count as f64) * 100.0
+                    (count - error_count) as f64 / count as f64
                 } else {
-                    100.0
+                    1.0
                 };
                 let extension = name.split("__").next().unwrap_or("unknown").to_string();
                 ToolUsageStat {
@@ -488,7 +488,7 @@ impl<'a> ToolAnalyticsStore<'a> {
                 tool_count,
                 total_calls,
                 total_errors: 0, // TODO: join with error data
-                success_rate: 100.0,
+                success_rate: 1.0,
             })
             .collect())
     }

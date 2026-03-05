@@ -43,6 +43,7 @@ struct InspectResponse {
 struct RoutingDecisionView {
     agent_name: String,
     mode_slug: String,
+    mode_name: String,
     confidence: f32,
     reasoning: String,
 }
@@ -86,6 +87,7 @@ struct CatalogResponse {
 #[serde(rename_all = "camelCase")]
 struct CatalogAgent {
     name: String,
+    description: String,
     enabled: bool,
     modes: Vec<CatalogMode>,
 }
@@ -95,7 +97,9 @@ struct CatalogAgent {
 struct CatalogMode {
     slug: String,
     name: String,
+    description: String,
     when_to_use: String,
+    tool_groups: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -142,10 +146,19 @@ async fn inspect_routing(
         })
         .collect();
 
+    let mode_name = router
+        .slots()
+        .iter()
+        .find(|s| s.name == decision.agent_name)
+        .and_then(|s| s.modes.iter().find(|m| m.slug == decision.mode_slug))
+        .map(|m| m.name.clone())
+        .unwrap_or_else(|| decision.mode_slug.clone());
+
     Ok(Json(InspectResponse {
         decision: RoutingDecisionView {
             agent_name: decision.agent_name,
             mode_slug: decision.mode_slug,
+            mode_name,
             confidence: decision.confidence,
             reasoning: decision.reasoning,
         },
@@ -180,6 +193,7 @@ async fn catalog(State(_state): State<Arc<AppState>>) -> Json<CatalogResponse> {
         .iter()
         .map(|slot| CatalogAgent {
             name: slot.name.clone(),
+            description: slot.description.clone(),
             enabled: slot.enabled,
             modes: slot
                 .modes
@@ -187,7 +201,19 @@ async fn catalog(State(_state): State<Arc<AppState>>) -> Json<CatalogResponse> {
                 .map(|m| CatalogMode {
                     slug: m.slug.clone(),
                     name: m.name.clone(),
+                    description: m.description.clone(),
                     when_to_use: m.when_to_use.clone().unwrap_or_default(),
+                    tool_groups: m
+                        .tool_groups
+                        .iter()
+                        .map(|tg| match tg {
+                            goose::registry::manifest::ToolGroupAccess::Full(g) => g.clone(),
+                            goose::registry::manifest::ToolGroupAccess::Restricted {
+                                group,
+                                ..
+                            } => format!("{group} (restricted)"),
+                        })
+                        .collect(),
                 })
                 .collect(),
         })
