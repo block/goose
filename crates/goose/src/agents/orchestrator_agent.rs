@@ -378,25 +378,42 @@ impl OrchestratorAgent {
         self.parse_splitting_response(&response)
     }
 
-    /// Build a human-readable catalog of all available agents and their modes.
+    /// Build an XML-structured catalog of all available agents and their modes.
+    ///
+    /// Uses XML tags for clear LLM parsing (Anthropic best practice).
     pub fn build_catalog_text(&self) -> String {
         let mut text = String::new();
 
         for slot in self.intent_router.slots().iter().filter(|s| s.enabled) {
             text.push_str(&format!(
-                "### {} \u{2014} {}\n",
-                slot.name, slot.description
+                "<agent name=\"{}\" default_mode=\"{}\">\n",
+                slot.name, slot.default_mode
             ));
-            text.push_str(&format!("Default mode: {}\n", slot.default_mode));
-            text.push_str("Modes:\n");
+            text.push_str(&format!(
+                "<description>{}</description>\n",
+                slot.description
+            ));
+
+            if !slot.bound_extensions.is_empty() {
+                text.push_str(&format!(
+                    "<extensions>{}</extensions>\n",
+                    slot.bound_extensions.join(", ")
+                ));
+            }
+
+            text.push_str("<modes>\n");
             for mode in &slot.modes {
+                if mode.is_internal {
+                    continue;
+                }
                 let when = mode.when_to_use.as_deref().unwrap_or(&mode.description);
                 text.push_str(&format!(
-                    "  - **{}** ({}): {} | Use when: {}\n",
+                    "<mode slug=\"{}\" name=\"{}\">\n<description>{}</description>\n<use_when>{}</use_when>\n</mode>\n",
                     mode.slug, mode.name, mode.description, when
                 ));
             }
-            text.push('\n');
+            text.push_str("</modes>\n");
+            text.push_str("</agent>\n\n");
         }
         text
     }
@@ -848,10 +865,17 @@ mod tests {
         let orch = make_orchestrator();
         let catalog = orch.build_catalog_text();
 
-        assert!(catalog.contains("Goose Agent"));
-        assert!(catalog.contains("Developer Agent"));
-        assert!(catalog.contains("ask"));
-        assert!(catalog.contains("write"));
+        // XML structure: <agent name="..."> tags
+        assert!(catalog.contains("<agent name=\"Goose Agent\""));
+        assert!(catalog.contains("<agent name=\"Developer Agent\""));
+        assert!(catalog.contains("</agent>"));
+
+        // Mode XML structure
+        assert!(catalog.contains("<mode slug=\"ask\""));
+        assert!(catalog.contains("<use_when>"));
+        assert!(catalog.contains("</mode>"));
+        assert!(catalog.contains("<modes>"));
+        assert!(catalog.contains("</modes>"));
     }
 
     #[test]
