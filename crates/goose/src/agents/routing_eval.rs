@@ -574,6 +574,74 @@ test_cases:
     }
 
     #[test]
+    fn test_agent_level_accuracy_baseline() {
+        let set = load_eval_set(TEST_YAML).unwrap();
+        let router = IntentRouter::new();
+        let results = evaluate(&router, &set);
+        let metrics = compute_metrics(&results);
+        // 3-tier routing baseline (keyword + semantic + default): ~70% agent accuracy.
+        // This guards against regressions to the routing pipeline.
+        assert!(
+            metrics.agent_accuracy >= 0.60,
+            "Agent-level accuracy should be >= 60% (3-tier baseline), got {:.1}%",
+            metrics.agent_accuracy * 100.0
+        );
+    }
+
+    #[test]
+    fn test_pm_routing_baseline() {
+        let set = load_eval_set(TEST_YAML).unwrap();
+        let router = IntentRouter::new();
+        let results = evaluate(&router, &set);
+        let pm: Vec<_> = results
+            .iter()
+            .filter(|r| r.expected_agent == "PM Agent")
+            .collect();
+        let correct = pm.iter().filter(|r| r.agent_correct).count();
+        let acc = correct as f64 / pm.len() as f64;
+        assert!(
+            acc >= 0.50,
+            "PM prompts should route to PM Agent >= 50%, got {:.1}%",
+            acc * 100.0
+        );
+    }
+
+    #[test]
+    fn test_research_routing_baseline() {
+        let set = load_eval_set(TEST_YAML).unwrap();
+        let router = IntentRouter::new();
+        let results = evaluate(&router, &set);
+        let research: Vec<_> = results
+            .iter()
+            .filter(|r| r.expected_agent == "Research Agent")
+            .collect();
+        let correct = research.iter().filter(|r| r.agent_correct).count();
+        let acc = correct as f64 / research.len() as f64;
+        assert!(
+            acc >= 0.30,
+            "Research prompts should route to Research Agent >= 30%, got {:.1}%",
+            acc * 100.0
+        );
+    }
+
+    #[test]
+    fn test_semantic_layer_used() {
+        let set = load_eval_set(TEST_YAML).unwrap();
+        let router = IntentRouter::new();
+        let results = evaluate(&router, &set);
+        let semantic_count = results
+            .iter()
+            .filter(|r| r.reasoning.contains("[semantic]"))
+            .count();
+        // The semantic layer should contribute to at least some routing decisions
+        assert!(
+            semantic_count >= 3,
+            "Semantic layer should route >= 3 cases, got {}",
+            semantic_count
+        );
+    }
+
+    #[test]
     fn test_compute_metrics() {
         let set = load_eval_set(TEST_YAML).unwrap();
         let router = IntentRouter::new();

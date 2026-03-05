@@ -94,7 +94,7 @@ impl IntentRouter {
         let pm_modes = pm.to_agent_modes();
         slots.push(AgentSlot {
             name: "PM Agent".into(),
-            description: "Product manager for requirements, user stories, PRDs, roadmaps, prioritization, and stakeholder communication"
+            description: "Product manager for requirements gathering, user stories, PRDs, product requirements documents, roadmaps, release planning, prioritization frameworks like RICE MoSCoW, feature scoping, stakeholder communication, acceptance criteria, sprint planning, phased rollout strategy, competitive analysis from product perspective"
                 .into(),
             modes: pm_modes,
             default_mode: pm.default_mode().into(),
@@ -121,7 +121,7 @@ impl IntentRouter {
         slots.push(AgentSlot {
             name: "Research Agent".into(),
             description:
-                "Research analyst for investigating topics, comparing technologies, fact-checking, competitive analysis, and documentation synthesis"
+                "Research analyst for investigating topics, literature review, comparing technologies, benchmarking frameworks, fact-checking claims, explaining concepts like borrow checker or WebSocket, summarizing RFCs and technical reports, competitive analysis, state-of-the-art surveys, and documentation synthesis"
                     .into(),
             modes: research_modes,
             default_mode: research.default_mode().into(),
