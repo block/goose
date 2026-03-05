@@ -13,7 +13,9 @@ use axum::{
 };
 use bytes::Bytes;
 use futures::{stream::StreamExt, Stream};
-use goose::agents::orchestrator_agent::{aggregate_results, OrchestratorAgent};
+use goose::agents::orchestrator_agent::{
+    aggregate_results, aggregate_results_with_llm, OrchestratorAgent,
+};
 use goose::agents::{AgentEvent, SessionConfig};
 use goose::conversation::message::{Message, MessageContent, RoutingInfo, TokenState};
 use goose::conversation::Conversation;
@@ -677,10 +679,21 @@ pub async fn reply(
 
                     drop(dispatch_event_logger);
 
-                    // Aggregate outputs from dispatch results
+                    // Aggregate outputs from dispatch results using LLM synthesis
                     let sub_results: Vec<String> =
                         results.iter().map(|r| r.output.clone()).collect();
-                    let aggregated = aggregate_results(&plan.tasks, &sub_results);
+                    let aggregated = match agent.provider().await {
+                        Ok(provider) => {
+                            aggregate_results_with_llm(
+                                provider.as_ref(),
+                                &user_text,
+                                &plan.tasks,
+                                &sub_results,
+                            )
+                            .await
+                        }
+                        Err(_) => aggregate_results(&plan.tasks, &sub_results),
+                    };
                     // Best-effort persistence for orchestration memory (used by KG/observability).
                     // Persistence failures must not fail the user request.
                     match goose::agents::orchestration::memory::persist_orchestration_run(

@@ -169,6 +169,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "orchestrator/splitting.md",
         "Orchestrator splitting prompt — detect and decompose compound requests into sub-tasks",
     ),
+    (
+        "orchestrator/aggregation.md",
+        "Orchestrator aggregation — synthesize compound sub-task results into one response",
+    ),
 ];
 
 /// Information about a template including its content and customization status

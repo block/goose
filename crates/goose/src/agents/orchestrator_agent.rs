@@ -753,6 +753,80 @@ pub fn aggregate_results(tasks: &[SubTask], results: &[String]) -> String {
     output
 }
 
+/// LLM-powered aggregation: synthesizes sub-task results into a coherent unified response.
+///
+/// Uses the `orchestrator/aggregation.md` prompt template to have the LLM merge
+/// multiple specialist outputs into a single user-facing response. Falls back to
+/// [`aggregate_results`] if the LLM call fails.
+pub async fn aggregate_results_with_llm(
+    provider: &dyn crate::providers::base::Provider,
+    user_message: &str,
+    tasks: &[SubTask],
+    results: &[String],
+) -> String {
+    if tasks.len() == 1 {
+        return results.first().cloned().unwrap_or_default();
+    }
+
+    // Build the results block for the prompt
+    let mut results_block = String::new();
+    for (i, (task, result)) in tasks.iter().zip(results.iter()).enumerate() {
+        results_block.push_str(&format!(
+            "<result index=\"{}\" agent=\"{}\" mode=\"{}\">\n<task>{}</task>\n<output>\n{}\n</output>\n</result>\n\n",
+            i + 1,
+            task.routing.agent_name,
+            task.routing.mode_slug,
+            task.sub_task_description,
+            result
+        ));
+    }
+
+    let mut context = std::collections::HashMap::new();
+    context.insert("task_count".to_string(), tasks.len().to_string());
+    context.insert("user_message".to_string(), user_message.to_string());
+    context.insert("results".to_string(), results_block);
+
+    let rendered =
+        match crate::prompt_template::render_template("orchestrator/aggregation.md", &context) {
+            Ok(rendered) => rendered,
+            Err(e) => {
+                tracing::warn!("Failed to render aggregation prompt: {}", e);
+                return aggregate_results(tasks, results);
+            }
+        };
+
+    let messages = vec![crate::conversation::message::Message::user().with_text(&rendered)];
+
+    match provider
+        .complete(
+            "aggregation",
+            "You are a response synthesizer. Merge the specialist outputs below into one coherent answer.",
+            &messages,
+            &[],
+        )
+        .await
+    {
+        Ok((message, _usage)) => {
+            message
+                .content
+                .iter()
+                .filter_map(|c| {
+                    if let crate::conversation::message::MessageContent::Text(t) = c {
+                        Some(t.text.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+        Err(e) => {
+            tracing::warn!("LLM aggregation failed, using simple aggregation: {}", e);
+            aggregate_results(tasks, results)
+        }
+    }
+}
+
 fn topo_sort_tasks(tasks: &[SubTask]) -> Option<Vec<SubTask>> {
     let order = topo_sort_indices(tasks)?;
     let mut with_index: Vec<(usize, &SubTask)> = tasks.iter().enumerate().collect();
