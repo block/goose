@@ -3,7 +3,8 @@ use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
 use rmcp::model::{
     CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
-    ExtensionCapabilities, Extensions, JsonObject, Meta, SamplingMessageContent,
+    ExtensionCapabilities, Extensions, JsonObject, LoggingMessageNotification, Meta,
+    SamplingMessageContent,
 };
 /// MCP client implementation for Goose
 use rmcp::{
@@ -177,16 +178,17 @@ impl ClientHandler for GooseClient {
     async fn on_logging_message(
         &self,
         params: rmcp::model::LoggingMessageNotificationParam,
-        _context: rmcp::service::NotificationContext<rmcp::RoleClient>,
+        context: rmcp::service::NotificationContext<rmcp::RoleClient>,
     ) {
         self.notification_handlers
             .lock()
             .await
             .iter()
             .for_each(|handler| {
-                let _ = handler.try_send(ServerNotification::LoggingMessageNotification(
-                    Notification::new(params.clone()),
-                ));
+                let mut notification = LoggingMessageNotification::new(params.clone());
+                notification.extensions = context.extensions.clone();
+                let _ =
+                    handler.try_send(ServerNotification::LoggingMessageNotification(notification));
             });
     }
 
