@@ -43,9 +43,8 @@ pub fn get_telemetry_choice() -> Option<bool> {
 // In-memory telemetry consent flag. Initialised from config on first
 // access and updated immediately via `set_telemetry_enabled()` when the
 // config changes, so hot paths (Sentry callbacks) never hit disk.
-static TELEMETRY_ENABLED: Lazy<AtomicBool> = Lazy::new(|| {
-    AtomicBool::new(get_telemetry_choice().unwrap_or(false))
-});
+static TELEMETRY_ENABLED: Lazy<AtomicBool> =
+    Lazy::new(|| AtomicBool::new(get_telemetry_choice().unwrap_or(false)));
 
 /// Check if telemetry is enabled (fast, no disk I/O).
 ///
