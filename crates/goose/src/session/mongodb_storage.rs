@@ -358,7 +358,11 @@ impl SessionStorageBackend for MongoDbSessionStorage {
         name: String,
         session_type: SessionType,
     ) -> Result<Session> {
-        let id = self.generate_session_id().await?;
+        // Allow overriding session ID via environment variable (for linking with external systems)
+        let id = match std::env::var("GOOSE_SESSION_ID") {
+            Ok(env_id) if !env_id.is_empty() => env_id,
+            _ => self.generate_session_id().await?,
+        };
         let now = mongodb::bson::DateTime::now();
 
         let doc = doc! {
