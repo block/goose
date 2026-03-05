@@ -16,7 +16,7 @@ use crate::registry::manifest::{AgentMode, ToolGroupAccess};
 const QA_EXTRA_TOOLS: &[&str] = &["memory"];
 
 /// Recommended MCP extensions for the QA Agent.
-const QA_EXTENSIONS: &[&str] = &["developer", "memory"];
+const QA_EXTENSIONS: &[&str] = &["developer", "memory", "genui"];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct QaAgent {

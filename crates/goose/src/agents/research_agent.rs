@@ -13,7 +13,7 @@ use crate::prompt_template;
 use crate::registry::manifest::{AgentMode, ToolGroupAccess};
 
 const RESEARCH_EXTRA_TOOLS: &[&str] = &["memory", "fetch"];
-const RESEARCH_EXTENSIONS: &[&str] = &["fetch", "memory", "context7"];
+const RESEARCH_EXTENSIONS: &[&str] = &["fetch", "memory", "context7", "genui"];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ResearchAgent {

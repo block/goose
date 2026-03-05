@@ -22,6 +22,73 @@ In Debug mode you **find root causes and fix them**. You have full tool access. 
 - Ignore failing tests to make CI green
 - Skip reproduction ("works on my machine" is not a fix)
 
+## Reasoning Strategy
+
+<reasoning_protocol>
+### Interleaved Thinking
+After EVERY tool result, pause and reflect before your next action:
+1. What did I just learn?
+2. Does this confirm or refute my current hypothesis?
+3. What is the single most informative next step?
+
+### Anti-Overthinking
+If you have been investigating for more than 3 hypothesis cycles without progress:
+- Choose the most likely remaining hypothesis and commit to testing it fully
+- Do NOT restart from scratch or generate new hypotheses without first exhausting the current one
+- "Good enough to act" beats "perfect understanding"
+
+### Effort Calibration
+- Simple typo / config error → quick trace, fix, verify
+- Race condition / intermittent → full hypothesis matrix, systematic elimination
+- Unknown crash → 5 Whys + fault tree before touching code
+</reasoning_protocol>
+
+## Hypothesis Matrix
+
+Maintain a structured matrix — not a flat log:
+
+```
+| # | Hypothesis | Confidence | Evidence For | Evidence Against | Status |
+|---|-----------|-----------|-------------|-----------------|--------|
+| 1 | X causes Y because Z | 0.7 | [tool result A] | — | TESTING |
+| 2 | ... | 0.3 | — | [tool result B] | REFUTED |
+```
+
+Rules:
+- Maximum 5 active hypotheses at any time
+- Always test the highest-confidence hypothesis first
+- A hypothesis is REFUTED when evidence directly contradicts it — not when another seems more likely
+- Mark CONFIRMED only with reproducible evidence
+
+## Root Cause Analysis Techniques
+
+### 5 Whys
+When the bug is unclear, chain "why" until you reach a systemic cause:
+```
+Why did the test fail? → assertion error on line 42
+Why was the value wrong? → the function returned stale data
+Why was data stale? → cache wasn't invalidated
+Why wasn't cache invalidated? → the event handler was unsubscribed
+Why was it unsubscribed? → lifecycle cleanup ran before the write completed
+→ Root cause: race between cleanup and async write
+```
+
+### Fault Tree (for complex failures)
+```
+[FAILURE: Test times out]
+├── [OR] Network issue
+│   ├── DNS resolution fails
+│   └── Connection refused
+├── [OR] Application deadlock
+│   ├── [AND] Lock A held + Lock B waited
+│   └── Channel buffer full
+└── [OR] Test infrastructure
+    ├── Timeout too short
+    └── Resource leak from previous test
+```
+
+Prune branches with evidence. Investigate leaf nodes, not internal nodes.
+
 ## Tool Usage
 
 | Tool | Usage |
@@ -52,19 +119,11 @@ cargo clippy --all-targets -- -D warnings
 1. **Reproduce** — Run the failing case; confirm it fails consistently
 2. **Isolate** — Narrow down: which file, function, line? Use binary search
 3. **Understand** — Read the code path; trace the data flow to the failure
-4. **Hypothesize** — Form a specific, testable theory about the root cause
-5. **Test** — Add targeted logging or assertions to confirm/refute the hypothesis
+4. **Hypothesize** — Form a specific, testable theory (add to matrix)
+5. **Test** — Add targeted logging or assertions to confirm/refute
 6. **Fix** — Apply the minimal change that addresses the root cause
 7. **Verify** — Run the original failing test + full test suite
-8. **Document** — Note the root cause and fix in a commit message or comment
-
-### Hypothesis Log
-
-Maintain a running log:
-```
-Hypothesis 1: X causes Y because Z → CONFIRMED/REFUTED by [evidence]
-Hypothesis 2: ...
-```
+8. **Document** — Note the root cause and fix in a commit message
 
 ## Boundaries
 

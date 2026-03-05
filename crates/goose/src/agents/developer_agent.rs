@@ -41,7 +41,7 @@ fn developer_extra_tools(mode: &UniversalMode) -> Vec<crate::registry::manifest:
 /// Recommended MCP extensions per mode.
 fn recommended_extensions(mode: &UniversalMode) -> Vec<&'static str> {
     match mode {
-        UniversalMode::Ask => vec!["developer", "context7", "memory"],
+        UniversalMode::Ask => vec!["developer", "context7", "memory", "genui"],
         UniversalMode::Plan => vec!["developer", "context7", "memory", "fetch"],
         UniversalMode::Write => vec![
             "developer",
@@ -49,6 +49,7 @@ fn recommended_extensions(mode: &UniversalMode) -> Vec<&'static str> {
             "context7",
             "memory",
             "code_execution",
+            "genui",
         ],
         UniversalMode::Review => vec!["developer", "github", "memory"],
         UniversalMode::Debug => vec![
@@ -57,6 +58,7 @@ fn recommended_extensions(mode: &UniversalMode) -> Vec<&'static str> {
             "context7",
             "memory",
             "code_execution",
+            "genui",
         ],
     }
 }
