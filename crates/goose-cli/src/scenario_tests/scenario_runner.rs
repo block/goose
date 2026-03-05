@@ -6,7 +6,6 @@ use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
 use crate::session::CliSession;
 use anyhow::Result;
-use goose::agents::platform_extensions::developer::edit::LocalFs;
 use goose::agents::{Agent, AgentConfig, GoosePlatform};
 use goose::config::permission::PermissionManager;
 use goose::config::GooseMode;
@@ -212,7 +211,6 @@ where
     let agent_config = AgentConfig::new(
         session_manager,
         permission_manager,
-        Arc::new(LocalFs),
         None,
         GooseMode::Auto,
         true,

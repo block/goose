@@ -267,7 +267,6 @@ impl McpClientTrait for AnalyzeClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agents::platform_extensions::developer::edit::LocalFs;
     use crate::session::SessionManager;
     use rmcp::model::RawContent;
     use std::fs;
@@ -277,7 +276,6 @@ mod tests {
     fn ctx() -> PlatformExtensionContext {
         PlatformExtensionContext {
             extension_manager: None,
-            fs: Arc::new(LocalFs),
             session_manager: Arc::new(SessionManager::new(std::env::temp_dir())),
             session: None,
         }

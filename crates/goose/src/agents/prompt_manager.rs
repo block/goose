@@ -258,7 +258,6 @@ mod tests {
     use insta::assert_snapshot;
 
     use super::*;
-    use crate::agents::platform_extensions::developer::edit::LocalFs;
 
     #[test]
     fn test_build_system_prompt_sanitizes_override() {
@@ -412,7 +411,6 @@ mod tests {
             .unwrap();
         let context = PlatformExtensionContext {
             extension_manager: None,
-            fs: Arc::new(LocalFs),
             session_manager,
             session: Some(Arc::new(session)),
         };

@@ -5,20 +5,16 @@
 #[path = "../fixtures/mod.rs"]
 pub mod fixtures;
 use fixtures::{
-    initialize_agent, AssertReadFs, AssertWriteFs, Connection, NoOpFs, OpenAiFixture,
-    PermissionDecision, Session, TestConnectionConfig,
+    initialize_agent, Connection, FsFixture, OpenAiFixture, PermissionDecision, Session,
+    TestConnectionConfig,
 };
 use fs_err as fs;
-use goose::agents::platform_extensions::developer::edit::LocalFs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose_acp::server::GooseAcpAgent;
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_MODEL};
-use sacp::schema::{
-    McpServer, McpServerHttp, ModelId, ReadTextFileResponse, ToolCallStatus, WriteTextFileResponse,
-};
-use std::sync::atomic::{AtomicBool, Ordering};
+use sacp::schema::{McpServer, McpServerHttp, ModelId, ToolCallStatus};
 use std::sync::Arc;
 
 pub async fn run_config_mcp<C: Connection>() {
@@ -63,6 +59,8 @@ pub async fn run_config_mcp<C: Connection>() {
 }
 
 pub async fn run_fs_read_text_file_false<C: Connection>() {
+    fs::write("/tmp/test_acp_read.txt", "test-read-content-12345").unwrap();
+
     let expected_session_id = ExpectedSessionId::default();
     let prompt = "Use the read tool to read /tmp/test_acp_read.txt and output only its contents.";
     let openai = OpenAiFixture::new(
@@ -82,10 +80,6 @@ pub async fn run_fs_read_text_file_false<C: Connection>() {
 
     let config = TestConnectionConfig {
         builtins: vec!["developer".to_string()],
-        fs: Some(AssertReadFs::new(
-            "/tmp/test_acp_read.txt",
-            "test-read-content-12345",
-        )),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
@@ -115,16 +109,10 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
     )
     .await;
 
-    let called = Arc::new(AtomicBool::new(false));
-    let called_clone = called.clone();
+    let fs = FsFixture::new();
     let config = TestConnectionConfig {
         builtins: vec!["developer".to_string()],
-        fs: Some(NoOpFs::new()),
-        read_text_file: Some(Arc::new(move |req| {
-            assert_eq!(req.path.to_str().unwrap(), "/tmp/test_acp_read.txt");
-            called_clone.store(true, Ordering::SeqCst);
-            ReadTextFileResponse::new("test-read-content-12345")
-        })),
+        read_text_file: Some(fs.read_handler("/tmp/test_acp_read.txt", "test-read-content-12345")),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
@@ -133,11 +121,13 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
 
     let output = session.prompt(prompt, PermissionDecision::Cancel).await;
     assert_eq!(output.text, "test-read-content-12345");
-    assert!(called.load(Ordering::SeqCst), "read handler was not called");
+    fs.assert_called();
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
 pub async fn run_fs_write_text_file_false<C: Connection>() {
+    let _ = fs::remove_file("/tmp/test_acp_write.txt");
+
     let expected_session_id = ExpectedSessionId::default();
     let prompt =
         "Use the write tool to write 'test-write-content-67890' to /tmp/test_acp_write.txt";
@@ -158,10 +148,6 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
 
     let config = TestConnectionConfig {
         builtins: vec!["developer".to_string()],
-        fs: Some(AssertWriteFs::new(
-            "/tmp/test_acp_write.txt",
-            "test-write-content-67890",
-        )),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
@@ -170,6 +156,10 @@ pub async fn run_fs_write_text_file_false<C: Connection>() {
 
     let output = session.prompt(prompt, PermissionDecision::AllowOnce).await;
     assert!(!output.text.is_empty());
+    assert_eq!(
+        fs::read_to_string("/tmp/test_acp_write.txt").unwrap(),
+        "test-write-content-67890"
+    );
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -192,17 +182,12 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
     )
     .await;
 
-    let called = Arc::new(AtomicBool::new(false));
-    let called_clone = called.clone();
+    let fs = FsFixture::new();
     let config = TestConnectionConfig {
         builtins: vec!["developer".to_string()],
-        fs: Some(NoOpFs::new()),
-        write_text_file: Some(Arc::new(move |req| {
-            assert_eq!(req.path.to_str().unwrap(), "/tmp/test_acp_write.txt");
-            assert_eq!(req.content, "test-write-content-67890");
-            called_clone.store(true, Ordering::SeqCst);
-            WriteTextFileResponse::new()
-        })),
+        write_text_file: Some(
+            fs.write_handler("/tmp/test_acp_write.txt", "test-write-content-67890"),
+        ),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
@@ -211,10 +196,7 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
 
     let output = session.prompt(prompt, PermissionDecision::AllowOnce).await;
     assert!(!output.text.is_empty());
-    assert!(
-        called.load(Ordering::SeqCst),
-        "write handler was not called"
-    );
+    fs.assert_called();
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
@@ -228,7 +210,6 @@ pub async fn run_initialize_without_provider() {
         GooseAcpAgent::new(
             provider_factory,
             vec![],
-            Arc::new(LocalFs),
             temp_dir.path().to_path_buf(),
             temp_dir.path().to_path_buf(),
             GooseMode::Auto,

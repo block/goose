@@ -58,7 +58,6 @@ impl Connection for ClientToAgentConnection {
             openai.uri(),
             config.provider_factory,
             &config.builtins,
-            config.fs,
             data_root.as_path(),
             config.goose_mode,
         )
@@ -123,7 +122,10 @@ impl Connection for ClientToAgentConnection {
                 let result = base
                     .on_receive_request(
                         async move |req: ReadTextFileRequest, request_cx, _cx| match read_handler {
-                            Some(ref rh) => request_cx.respond(rh(&req)),
+                            Some(ref rh) => match rh(&req) {
+                                Ok(resp) => request_cx.respond(resp),
+                                Err(msg) => request_cx.respond_with_internal_error(msg),
+                            },
                             None => request_cx.respond_with_error(sacp::Error::method_not_found()),
                         },
                         sacp::on_receive_request!(),
@@ -131,7 +133,10 @@ impl Connection for ClientToAgentConnection {
                     .on_receive_request(
                         async move |req: WriteTextFileRequest, request_cx, _cx| match write_handler
                         {
-                            Some(ref wh) => request_cx.respond(wh(&req)),
+                            Some(ref wh) => match wh(&req) {
+                                Ok(resp) => request_cx.respond(resp),
+                                Err(msg) => request_cx.respond_with_internal_error(msg),
+                            },
                             None => request_cx.respond_with_error(sacp::Error::method_not_found()),
                         },
                         sacp::on_receive_request!(),

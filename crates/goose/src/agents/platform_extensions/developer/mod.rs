@@ -30,7 +30,7 @@ pub struct DeveloperClient {
 }
 
 impl DeveloperClient {
-    pub fn new(context: PlatformExtensionContext) -> Result<Self> {
+    pub fn new(_context: PlatformExtensionContext) -> Result<Self> {
         let info = InitializeResult::new(
             ServerCapabilities::builder().enable_tools().build(),
         )
@@ -52,7 +52,7 @@ impl DeveloperClient {
         Ok(Self {
             info,
             shell_tool: Arc::new(ShellTool::new()?),
-            edit_tools: Arc::new(EditTools::new(context.fs)),
+            edit_tools: Arc::new(EditTools::new()),
             tree_tool: Arc::new(TreeTool::new()),
         })
     }
@@ -65,7 +65,7 @@ impl DeveloperClient {
             .clone()
     }
 
-    fn parse_args<T: serde::de::DeserializeOwned>(
+    pub fn parse_args<T: serde::de::DeserializeOwned>(
         arguments: Option<JsonObject>,
     ) -> Result<T, String> {
         let value = arguments
@@ -74,7 +74,7 @@ impl DeveloperClient {
         serde_json::from_value(value).map_err(|e| format!("Failed to parse arguments: {e}"))
     }
 
-    fn get_tools() -> Vec<Tool> {
+    pub(crate) fn get_tools() -> Vec<Tool> {
         vec![
             Tool::new(
                 "read".to_string(),
@@ -167,7 +167,7 @@ impl McpClientTrait for DeveloperClient {
         let working_dir = working_dir.map(Path::new);
         match name {
             "read" => match Self::parse_args::<FileReadParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_read(params, working_dir).await),
+                Ok(params) => Ok(self.edit_tools.file_read_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
@@ -178,14 +178,14 @@ impl McpClientTrait for DeveloperClient {
                 Err(error) => Ok(ShellTool::error_result(&format!("Error: {error}"), None)),
             },
             "write" => match Self::parse_args::<FileWriteParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_write(params, working_dir).await),
+                Ok(params) => Ok(self.edit_tools.file_write_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
                 .with_priority(0.0)])),
             },
             "edit" => match Self::parse_args::<FileEditParams>(arguments) {
-                Ok(params) => Ok(self.edit_tools.file_edit(params, working_dir).await),
+                Ok(params) => Ok(self.edit_tools.file_edit_with_cwd(params, working_dir)),
                 Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
                     "Error: {error}"
                 ))
@@ -231,7 +231,6 @@ mod tests {
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {
         PlatformExtensionContext {
             extension_manager: None,
-            fs: Arc::new(edit::LocalFs),
             session_manager: Arc::new(SessionManager::new(data_dir)),
             session: None,
         }

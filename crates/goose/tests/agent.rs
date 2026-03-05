@@ -14,7 +14,6 @@ mod tests {
         use super::*;
         use async_trait::async_trait;
         use chrono::{DateTime, Utc};
-        use goose::agents::platform_extensions::developer::edit::LocalFs;
         use goose::agents::platform_tools::PLATFORM_MANAGE_SCHEDULE_TOOL_NAME;
         use goose::agents::AgentConfig;
         use goose::config::permission::PermissionManager;
@@ -127,7 +126,6 @@ mod tests {
             let config = AgentConfig::new(
                 session_manager,
                 permission_manager,
-                Arc::new(LocalFs),
                 Some(mock_scheduler),
                 GooseMode::Auto,
                 false,
@@ -170,7 +168,6 @@ mod tests {
             let config = AgentConfig::new(
                 session_manager,
                 permission_manager,
-                Arc::new(LocalFs),
                 Some(mock_scheduler),
                 GooseMode::Auto,
                 false,
@@ -226,7 +223,6 @@ mod tests {
             let config = AgentConfig::new(
                 session_manager,
                 permission_manager,
-                Arc::new(LocalFs),
                 Some(mock_scheduler),
                 GooseMode::Auto,
                 false,
@@ -500,7 +496,6 @@ mod tests {
     mod extension_manager_tests {
         use super::*;
         use goose::agents::extension::ExtensionConfig;
-        use goose::agents::platform_extensions::developer::edit::LocalFs;
         use goose::agents::platform_extensions::{
             MANAGE_EXTENSIONS_TOOL_NAME, SEARCH_AVAILABLE_EXTENSIONS_TOOL_NAME,
         };
@@ -534,7 +529,6 @@ mod tests {
             let config = AgentConfig::new(
                 session_manager.clone(),
                 PermissionManager::instance(),
-                Arc::new(LocalFs),
                 None,
                 GooseMode::Auto,
                 false,

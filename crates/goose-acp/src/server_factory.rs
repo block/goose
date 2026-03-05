@@ -1,5 +1,4 @@
 use anyhow::Result;
-use goose::agents::platform_extensions::developer::edit::LocalFs;
 use goose::providers::provider_registry::ProviderConstructor;
 use std::sync::Arc;
 use tracing::info;
@@ -47,7 +46,6 @@ impl AcpServer {
         let agent = GooseAcpAgent::new(
             provider_factory,
             self.config.builtins.clone(),
-            Arc::new(LocalFs),
             self.config.data_dir.clone(),
             self.config.config_dir.clone(),
             goose_mode,

@@ -3,7 +3,6 @@
 
 use async_trait::async_trait;
 use fs_err as fs;
-use goose::agents::platform_extensions::developer::edit::{Fs, LocalFs};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod};
@@ -21,8 +20,7 @@ use sacp::schema::{
 };
 use std::collections::VecDeque;
 use std::future::Future;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -196,8 +194,7 @@ pub async fn spawn_acp_server_in_process(
     openai_base_url: &str,
     provider_factory: Option<ProviderConstructor>,
     builtins: &[String],
-    fs: Option<Arc<dyn Fs>>,
-    data_root: &Path,
+    data_root: &std::path::Path,
     goose_mode: GooseMode,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
@@ -228,7 +225,6 @@ pub async fn spawn_acp_server_in_process(
         GooseAcpAgent::new(
             provider_factory,
             builtins.to_vec(),
-            fs.unwrap_or_else(|| Arc::new(LocalFs)),
             data_root.to_path_buf(),
             data_root.to_path_buf(),
             goose_mode,
@@ -248,131 +244,75 @@ pub struct TestOutput {
     pub tool_status: Option<ToolCallStatus>,
 }
 
-pub struct AssertReadFs {
-    path: PathBuf,
-    content: String,
-}
-
-#[allow(clippy::new_ret_no_self)]
-impl AssertReadFs {
-    pub fn new(path: &str, content: &str) -> Arc<dyn Fs> {
-        Arc::new(Self {
-            path: PathBuf::from(path),
-            content: content.to_string(),
-        })
-    }
-}
-
-#[async_trait]
-impl Fs for AssertReadFs {
-    async fn read_text_file(
-        &self,
-        path: &Path,
-        _: Option<u32>,
-        _: Option<u32>,
-    ) -> io::Result<String> {
-        if path == self.path {
-            Ok(self.content.clone())
-        } else {
-            Err(io::Error::other(format!(
-                "Expected read of {}, got: {}",
-                self.path.display(),
-                path.display()
-            )))
-        }
-    }
-
-    async fn write_text_file(&self, path: &Path, _content: &str) -> io::Result<()> {
-        Err(io::Error::other(format!(
-            "Unexpected write of {}",
-            path.display()
-        )))
-    }
-}
-
-pub struct AssertWriteFs {
-    path: PathBuf,
-    content: String,
-}
-
-#[allow(clippy::new_ret_no_self)]
-impl AssertWriteFs {
-    pub fn new(path: &str, content: &str) -> Arc<dyn Fs> {
-        Arc::new(Self {
-            path: PathBuf::from(path),
-            content: content.to_string(),
-        })
-    }
-}
-
-#[async_trait]
-impl Fs for AssertWriteFs {
-    async fn read_text_file(
-        &self,
-        path: &Path,
-        _: Option<u32>,
-        _: Option<u32>,
-    ) -> io::Result<String> {
-        Err(io::Error::other(format!(
-            "Unexpected read of {}",
-            path.display()
-        )))
-    }
-
-    async fn write_text_file(&self, path: &Path, content: &str) -> io::Result<()> {
-        if path == self.path && content == self.content {
-            Ok(())
-        } else {
-            Err(io::Error::other(format!(
-                "Expected write of {} with {:?}, got: {} with {:?}",
-                self.path.display(),
-                self.content,
-                path.display(),
-                content
-            )))
-        }
-    }
-}
-
-pub struct NoOpFs;
-
-#[allow(clippy::new_ret_no_self)]
-impl NoOpFs {
-    pub fn new() -> Arc<dyn Fs> {
-        Arc::new(Self)
-    }
-}
-
-#[async_trait]
-impl Fs for NoOpFs {
-    async fn read_text_file(
-        &self,
-        path: &Path,
-        _: Option<u32>,
-        _: Option<u32>,
-    ) -> io::Result<String> {
-        Err(io::Error::other(format!(
-            "Unexpected read of {}",
-            path.display()
-        )))
-    }
-
-    async fn write_text_file(&self, path: &Path, _content: &str) -> io::Result<()> {
-        Err(io::Error::other(format!(
-            "Unexpected write of {}",
-            path.display()
-        )))
-    }
-}
-
-type ReadTextFileHandler = Arc<dyn Fn(&ReadTextFileRequest) -> ReadTextFileResponse + Send + Sync>;
+type ReadTextFileHandler =
+    Arc<dyn Fn(&ReadTextFileRequest) -> Result<ReadTextFileResponse, String> + Send + Sync>;
 type WriteTextFileHandler =
-    Arc<dyn Fn(&WriteTextFileRequest) -> WriteTextFileResponse + Send + Sync>;
+    Arc<dyn Fn(&WriteTextFileRequest) -> Result<WriteTextFileResponse, String> + Send + Sync>;
+
+#[derive(Clone)]
+pub struct FsFixture {
+    calls: Arc<Mutex<Vec<Result<(), String>>>>,
+}
+
+impl FsFixture {
+    pub fn new() -> Self {
+        Self {
+            calls: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn read_handler(&self, expected_path: &str, content: &str) -> ReadTextFileHandler {
+        let calls = self.calls.clone();
+        let expected_path = expected_path.to_string();
+        let content = content.to_string();
+        Arc::new(move |req: &ReadTextFileRequest| {
+            let path = req.path.to_str().unwrap_or("");
+            if path != expected_path {
+                let err = format!("expected path {expected_path}, got {path}");
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            calls.lock().unwrap().push(Ok(()));
+            Ok(ReadTextFileResponse::new(&content))
+        })
+    }
+
+    pub fn write_handler(
+        &self,
+        expected_path: &str,
+        expected_content: &str,
+    ) -> WriteTextFileHandler {
+        let calls = self.calls.clone();
+        let expected_path = expected_path.to_string();
+        let expected_content = expected_content.to_string();
+        Arc::new(move |req: &WriteTextFileRequest| {
+            let path = req.path.to_str().unwrap_or("");
+            if path != expected_path {
+                let err = format!("expected path {expected_path}, got {path}");
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            if req.content != expected_content {
+                let err = format!("expected content {expected_content}, got {}", req.content);
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            calls.lock().unwrap().push(Ok(()));
+            Ok(WriteTextFileResponse::new())
+        })
+    }
+
+    pub fn assert_called(&self) {
+        let calls = self.calls.lock().unwrap();
+        assert!(!calls.is_empty(), "fs handler was never called");
+        let errors: Vec<_> = calls.iter().filter_map(|c| c.as_ref().err()).collect();
+        assert!(errors.is_empty(), "fs handler errors: {errors:?}");
+    }
+}
 
 pub struct TestConnectionConfig {
     pub provider_factory: Option<ProviderConstructor>,
     pub builtins: Vec<String>,
-    pub fs: Option<Arc<dyn Fs>>,
     pub data_root: PathBuf,
     pub goose_mode: GooseMode,
     pub mcp_servers: Vec<McpServer>,
@@ -385,7 +325,6 @@ impl Default for TestConnectionConfig {
         Self {
             provider_factory: None,
             builtins: Vec::new(),
-            fs: None,
             data_root: PathBuf::new(),
             goose_mode: GooseMode::Auto,
             mcp_servers: Vec::new(),
