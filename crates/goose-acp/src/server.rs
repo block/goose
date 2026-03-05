@@ -259,47 +259,23 @@ fn format_tool_name(tool_name: &str) -> String {
     }
 }
 
-async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
-    for builtin in builtins {
-        let config = if let Some(def) = PLATFORM_EXTENSIONS.get(builtin.as_str()) {
-            ExtensionConfig::Platform {
-                name: def.name.into(),
-                description: def.description.into(),
-                display_name: Some(def.display_name.into()),
-                bundled: Some(true),
-                available_tools: vec![],
-            }
-        } else {
-            ExtensionConfig::Builtin {
-                name: builtin.clone(),
-                display_name: None,
-                timeout: None,
-                bundled: Some(true),
-                description: builtin.clone(),
-                available_tools: vec![],
-            }
-        };
-
-        match agent
-            .extension_manager
-            .add_extension(config, None, None, None)
-            .await
-        {
-            Ok(_) => info!(extension = %builtin, "extension loaded"),
-            Err(e) => warn!(extension = %builtin, error = %e, "extension load failed"),
+fn builtin_to_extension_config(name: &str) -> ExtensionConfig {
+    if let Some(def) = PLATFORM_EXTENSIONS.get(name) {
+        ExtensionConfig::Platform {
+            name: def.name.into(),
+            description: def.description.into(),
+            display_name: Some(def.display_name.into()),
+            bundled: Some(true),
+            available_tools: vec![],
         }
-    }
-}
-async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
-    for extension in extensions {
-        let name = extension.name().to_string();
-        match agent
-            .extension_manager
-            .add_extension(extension, None, None, None)
-            .await
-        {
-            Ok(_) => info!(extension = %name, "extension loaded"),
-            Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+    } else {
+        ExtensionConfig::Builtin {
+            name: name.into(),
+            display_name: None,
+            timeout: None,
+            bundled: Some(true),
+            description: name.into(),
+            available_tools: vec![],
         }
     }
 }
@@ -350,7 +326,11 @@ impl GooseAcpAgent {
         })
     }
 
-    async fn create_agent_for_session(&self, builtins: Vec<String>) -> Arc<Agent> {
+    async fn create_agent_for_session(
+        &self,
+        cx: Option<&JrConnectionCx<AgentToClient>>,
+        session_id: Option<&SessionId>,
+    ) -> Arc<Agent> {
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&self.session_manager),
             Arc::clone(&self.permission_manager),
@@ -362,60 +342,59 @@ impl GooseAcpAgent {
         let agent = Arc::new(agent);
 
         let config_path = self.config_dir.join(CONFIG_YAML_NAME);
-        if let Ok(config_file) = Config::new(&config_path, "goose") {
-            let extensions = get_enabled_extensions_with_config(&config_file);
-            add_extensions(&agent, extensions).await;
-        }
-        add_builtins(&agent, builtins).await;
+        let mut extensions = Config::new(&config_path, "goose")
+            .ok()
+            .map(|c| get_enabled_extensions_with_config(&c))
+            .unwrap_or_default();
+        extensions.extend(self.builtins.iter().map(|b| builtin_to_extension_config(b)));
 
-        agent
-    }
-
-    async fn create_session_agent(
-        &self,
-        cx: &JrConnectionCx<AgentToClient>,
-        session_id: &SessionId,
-    ) -> Arc<Agent> {
         let caps = self.client_fs_capabilities.lock().await.clone();
-
-        let should_wrap_developer = self.builtins.iter().any(|b| b == "developer")
-            && (caps.read_text_file || caps.write_text_file);
-
-        let builtins = if should_wrap_developer {
-            self.builtins
-                .iter()
-                .filter(|b| b.as_str() != "developer")
-                .cloned()
-                .collect()
-        } else {
-            self.builtins.clone()
+        let acp_developer = match (cx, session_id) {
+            (Some(cx), Some(sid))
+                if (caps.read_text_file || caps.write_text_file)
+                    && extensions.iter().any(|e| e.name() == "developer") =>
+            {
+                let context = agent.extension_manager.get_context().clone();
+                let client: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
+                    inner: Arc::new(DeveloperClient::new(context).unwrap()),
+                    cx: cx.clone(),
+                    session_id: sid.clone(),
+                    fs_read: caps.read_text_file,
+                    fs_write: caps.write_text_file,
+                });
+                let def = &PLATFORM_EXTENSIONS["developer"];
+                let config = ExtensionConfig::Platform {
+                    name: def.name.into(),
+                    description: def.description.into(),
+                    display_name: Some(def.display_name.into()),
+                    bundled: Some(true),
+                    available_tools: vec![],
+                };
+                Some((client, config))
+            }
+            _ => None,
         };
+        let skip_developer = acp_developer.is_some();
 
-        let agent = self.create_agent_for_session(builtins).await;
+        for ext in extensions {
+            if skip_developer && ext.name() == "developer" {
+                continue;
+            }
+            let name = ext.name().to_string();
+            match agent
+                .extension_manager
+                .add_extension(ext, None, None, None)
+                .await
+            {
+                Ok(_) => info!(extension = %name, "extension loaded"),
+                Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+            }
+        }
 
-        if should_wrap_developer {
-            let context = agent.extension_manager.get_context().clone();
-
-            let acp_tools: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
-                inner: Arc::new(DeveloperClient::new(context).unwrap()),
-                cx: cx.clone(),
-                session_id: session_id.clone(),
-                fs_read: caps.read_text_file,
-                fs_write: caps.write_text_file,
-            });
-
-            let def = &PLATFORM_EXTENSIONS["developer"];
-            let config = ExtensionConfig::Platform {
-                name: def.name.into(),
-                description: def.description.into(),
-                display_name: Some(def.display_name.into()),
-                bundled: Some(true),
-                available_tools: vec![],
-            };
-
+        if let Some((client, config)) = acp_developer {
             agent
                 .extension_manager
-                .add_client("developer".into(), config, acp_tools, None, None)
+                .add_client("developer".into(), config, client, None, None)
                 .await;
         }
 
@@ -776,7 +755,9 @@ impl GooseAcpAgent {
 
         let session_id = SessionId::new(goose_session.id.clone());
 
-        let agent = self.create_session_agent(cx, &session_id).await;
+        let agent = self
+            .create_agent_for_session(Some(cx), Some(&session_id))
+            .await;
 
         let provider = self
             .init_provider(&agent, &goose_session)
@@ -857,7 +838,9 @@ impl GooseAcpAgent {
 
         let acp_session_id = SessionId::new(session_id.clone());
 
-        let agent = self.create_session_agent(cx, &acp_session_id).await;
+        let agent = self
+            .create_agent_for_session(Some(cx), Some(&acp_session_id))
+            .await;
 
         let provider = self
             .init_provider(&agent, &goose_session)

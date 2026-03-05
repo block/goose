@@ -91,7 +91,14 @@ pub async fn run_fs_read_text_file_false<C: Connection>() {
     expected_session_id.assert_matches(&session.session_id().0);
 }
 
+// Also proves developer loaded from config.yaml (not CLI args) gets ACP fs delegation.
 pub async fn run_fs_read_text_file_true<C: Connection>() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config_yaml = format!(
+        "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nextensions:\n  developer:\n    enabled: true\n    type: platform\n    name: developer\n    description: Developer\n    display_name: Developer\n    bundled: true\n    available_tools: []\n"
+    );
+    fs::write(temp_dir.path().join(CONFIG_YAML_NAME), config_yaml).unwrap();
+
     let expected_session_id = ExpectedSessionId::default();
     let prompt = "Use the read tool to read /tmp/test_acp_read.txt and output only its contents.";
     let openai = OpenAiFixture::new(
@@ -111,8 +118,8 @@ pub async fn run_fs_read_text_file_true<C: Connection>() {
 
     let fs = FsFixture::new();
     let config = TestConnectionConfig {
-        builtins: vec!["developer".to_string()],
         read_text_file: Some(fs.read_handler("/tmp/test_acp_read.txt", "test-read-content-12345")),
+        data_root: temp_dir.path().to_path_buf(),
         ..Default::default()
     };
     let mut conn = C::new(config, openai).await;
