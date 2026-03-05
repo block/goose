@@ -4863,6 +4863,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "unicode-width 0.2.2",
+ "url",
  "urlencoding",
  "uuid",
 ]

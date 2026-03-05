@@ -21,6 +21,7 @@ pub async fn run_headless(
     session_id: String,
     initial_prompt: String,
     cwd_analysis: Option<String>,
+    output_format: &str,
 ) -> Result<()> {
     let cancel_token = CancellationToken::new();
 
@@ -33,13 +34,20 @@ pub async fn run_headless(
 
     let full_prompt = prepend_context(&initial_prompt, cwd_analysis.as_deref());
     let user_message = Message::user().with_text(&full_prompt);
-    println!("[user] {initial_prompt}");
+
+    let is_json = output_format == "json";
+    let is_stream_json = output_format == "stream-json";
+
+    if !is_json && !is_stream_json {
+        println!("[user] {initial_prompt}");
+    }
 
     let messages = vec![user_message];
     let mut stream = client.reply(messages, session_id).await?;
 
     let mut in_text_stream = false;
     let mut seen_tool_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut collected_text = String::new();
 
     loop {
         tokio::select! {
@@ -49,13 +57,27 @@ pub async fn run_headless(
             result = stream.next() => {
                 match result {
                     Some(Ok(event)) => {
-                        let done = handle_event(
-                            &event,
-                            &mut in_text_stream,
-                            &mut seen_tool_ids,
-                        );
-                        if done {
-                            break;
+                        if is_json {
+                            collect_text_from_event(&event, &mut collected_text);
+                            if matches!(&event, MessageEvent::Finish { .. } | MessageEvent::Error { .. }) {
+                                break;
+                            }
+                        } else if is_stream_json {
+                            if let Ok(json) = serde_json::to_string(&event) {
+                                println!("{json}");
+                            }
+                            if matches!(&event, MessageEvent::Finish { .. } | MessageEvent::Error { .. }) {
+                                break;
+                            }
+                        } else {
+                            let done = handle_event(
+                                &event,
+                                &mut in_text_stream,
+                                &mut seen_tool_ids,
+                            );
+                            if done {
+                                break;
+                            }
                         }
                     }
                     Some(Err(e)) => {
@@ -68,7 +90,22 @@ pub async fn run_headless(
         }
     }
 
+    if is_json {
+        let output = serde_json::json!({ "response": collected_text.trim() });
+        println!("{}", serde_json::to_string_pretty(&output)?);
+    }
+
     Ok(())
+}
+
+fn collect_text_from_event(event: &MessageEvent, buf: &mut String) {
+    if let MessageEvent::Message { message, .. } = event {
+        for content in &message.content {
+            if let MessageContent::Text(t) = content {
+                buf.push_str(&t.text);
+            }
+        }
+    }
 }
 
 fn handle_event(

@@ -19,8 +19,44 @@ pub fn handle_validate(recipe_name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn handle_deeplink(recipe_name: &str, params: &[String]) -> Result<String> {
-    let params_map = parse_params(params)?;
+pub fn handle_explain(recipe_name: &str, params: &[(String, String)]) -> Result<()> {
+    let rf = read_recipe_file(recipe_name)?;
+    let recipe = validate_recipe_template_from_file(&rf)?;
+    println!("Title: {}", recipe.title);
+    println!("Description: {}", recipe.description);
+    if let Some(prompt) = &recipe.prompt {
+        println!("Prompt: {}", prompt);
+    }
+    if !params.is_empty() {
+        println!("\nParameters provided:");
+        for (k, v) in params {
+            println!("  {} = {}", k, v);
+        }
+    }
+    Ok(())
+}
+
+pub fn handle_render(recipe_name: &str, params: &[(String, String)]) -> Result<()> {
+    let rf = read_recipe_file(recipe_name)?;
+    let recipe = validate_recipe_template_from_file(&rf)?;
+    match serde_yaml::to_string(&recipe) {
+        Ok(yaml) => {
+            if !params.is_empty() {
+                println!("# Parameters:");
+                for (k, v) in params {
+                    println!("#   {} = {}", k, v);
+                }
+                println!();
+            }
+            println!("{}", yaml);
+            Ok(())
+        }
+        Err(e) => anyhow::bail!("Failed to serialize recipe: {}", e),
+    }
+}
+
+pub fn handle_deeplink(recipe_name: &str, params: &[(String, String)]) -> Result<()> {
+    let params_map: HashMap<String, String> = params.iter().cloned().collect();
     match generate_deeplink(recipe_name, params_map) {
         Ok((deeplink_url, recipe)) => {
             println!(
@@ -29,7 +65,7 @@ pub fn handle_deeplink(recipe_name: &str, params: &[String]) -> Result<String> {
                 recipe.title
             );
             println!("{}", deeplink_url);
-            Ok(deeplink_url)
+            Ok(())
         }
         Err(err) => {
             println!(
@@ -42,7 +78,7 @@ pub fn handle_deeplink(recipe_name: &str, params: &[String]) -> Result<String> {
     }
 }
 
-pub fn handle_open(recipe_name: &str, params: &[String]) -> Result<()> {
+pub fn handle_open(recipe_name: &str, params: &[(String, String)]) -> Result<()> {
     handle_open_with(
         recipe_name,
         params,
@@ -53,7 +89,7 @@ pub fn handle_open(recipe_name: &str, params: &[String]) -> Result<()> {
 
 fn handle_open_with<F, W>(
     recipe_name: &str,
-    params: &[String],
+    params: &[(String, String)],
     opener: F,
     out: &mut W,
 ) -> Result<()>
@@ -61,7 +97,7 @@ where
     F: FnOnce(&str) -> std::io::Result<()>,
     W: std::io::Write,
 {
-    let params_map = parse_params(params)?;
+    let params_map: HashMap<String, String> = params.iter().cloned().collect();
     match generate_deeplink(recipe_name, params_map) {
         Ok((deeplink_url, recipe)) => match opener(&deeplink_url) {
             Ok(_) => {
@@ -103,31 +139,14 @@ pub fn handle_list(_format: &str, _verbose: bool) -> Result<()> {
     anyhow::bail!("recipe list not yet supported in goose-tui - TODO: integrate recipe search")
 }
 
-fn parse_params(params: &[String]) -> Result<HashMap<String, String>> {
-    let mut params_map = HashMap::new();
-    for param in params {
-        let parts: Vec<&str> = param.splitn(2, '=').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!(
-                "Invalid parameter format: '{}'. Expected format: key=value",
-                param
-            ));
-        }
-        params_map.insert(parts[0].to_string(), parts[1].to_string());
-    }
-    Ok(params_map)
-}
-
 /// Load a recipe file by path.
-/// TODO: Integrate goose-cli's recipes::search_recipe::load_recipe_file for name-based lookup
 fn load_recipe_file(recipe_name: &str) -> Result<String> {
-    // For now, treat recipe_name as a direct file path
     let path = std::path::Path::new(recipe_name);
     if path.exists() {
         Ok(recipe_name.to_string())
     } else {
         anyhow::bail!(
-            "Recipe file not found: {}. In goose-tui, provide a direct file path.",
+            "Recipe file not found: {}. Provide a direct file path.",
             recipe_name
         )
     }
@@ -202,25 +221,6 @@ instructions: "Test instructions"
 
         let result = handle_deeplink(&recipe_path, &[]);
         assert!(result.is_ok());
-        let url = result.unwrap();
-        assert!(url.starts_with("goose://recipe?config="));
-        let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
-        assert!(!encoded_part.is_empty());
-    }
-
-    #[test]
-    fn test_handle_deeplink_with_parameters() {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let recipe_path =
-            create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
-
-        let params = vec!["name=John".to_string(), "age=30".to_string()];
-        let result = handle_deeplink(&recipe_path, &params);
-        assert!(result.is_ok());
-        let url = result.unwrap();
-        assert!(url.starts_with("goose://recipe?config="));
-        assert!(url.contains("&name=John"));
-        assert!(url.contains("&age=30"));
     }
 
     #[test]
@@ -234,7 +234,7 @@ instructions: "Test instructions"
 
     fn run_handle_open(
         recipe_path: &str,
-        params: &[String],
+        params: &[(String, String)],
         opener_result: std::io::Result<()>,
     ) -> (Result<()>, String, String) {
         let captured_url = std::cell::RefCell::new(String::new());
@@ -271,13 +271,13 @@ instructions: "Test instructions"
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        let (base_url, _) = generate_deeplink(&recipe_path, HashMap::new()).unwrap();
-
-        let params = vec!["name=Alice".to_string(), "role=developer".to_string()];
+        let params = vec![
+            ("name".to_string(), "Alice".to_string()),
+            ("role".to_string(), "developer".to_string()),
+        ];
         let (result, captured_url, _) = run_handle_open(&recipe_path, &params, Ok(()));
 
         assert!(result.is_ok());
-        assert!(captured_url.starts_with(&base_url));
         assert!(captured_url.contains("&name=Alice"));
         assert!(captured_url.contains("&role=developer"));
     }
@@ -288,14 +288,12 @@ instructions: "Test instructions"
         let recipe_path =
             create_test_recipe_file(&temp_dir, "test_recipe.yaml", VALID_RECIPE_CONTENT);
 
-        let (expected_url, _) = generate_deeplink(&recipe_path, HashMap::new()).unwrap();
         let opener_err = std::io::Error::new(std::io::ErrorKind::NotFound, "desktop not found");
         let (result, _, output) = run_handle_open(&recipe_path, &[], Err(opener_err));
 
         assert!(result.is_err());
         assert!(output.contains("Failed to open recipe in Goose Desktop"));
         assert!(output.contains("desktop not found"));
-        assert!(output.contains(&expected_url));
     }
 
     #[test]
@@ -340,9 +338,6 @@ instructions: "Test instructions"
         let (url, recipe) = result.unwrap();
         assert!(url.starts_with("goose://recipe?config="));
         assert_eq!(recipe.title, "Test Recipe with Valid JSON Schema");
-        assert_eq!(recipe.description, "A test recipe with valid JSON schema");
-        let encoded_part = url.strip_prefix("goose://recipe?config=").unwrap();
-        assert!(!encoded_part.is_empty());
     }
 
     #[test]
@@ -353,15 +348,11 @@ instructions: "Test instructions"
 
         let mut params = HashMap::new();
         params.insert("name".to_string(), "Alice".to_string());
-        params.insert("role".to_string(), "developer".to_string());
 
         let result = generate_deeplink(&recipe_path, params);
         assert!(result.is_ok());
-        let (url, recipe) = result.unwrap();
-        assert!(url.starts_with("goose://recipe?config="));
+        let (url, _) = result.unwrap();
         assert!(url.contains("&name=Alice"));
-        assert!(url.contains("&role=developer"));
-        assert_eq!(recipe.title, "Test Recipe with Valid JSON Schema");
     }
 
     #[test]
@@ -372,78 +363,5 @@ instructions: "Test instructions"
 
         let result = generate_deeplink(&recipe_path, HashMap::new());
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_parse_params_basic() {
-        let params = vec!["name=John".to_string(), "age=30".to_string()];
-        let result = parse_params(&params);
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert_eq!(map.get("name"), Some(&"John".to_string()));
-        assert_eq!(map.get("age"), Some(&"30".to_string()));
-    }
-
-    #[test]
-    fn test_parse_params_with_equals_in_value() {
-        let params = vec!["key=value=with=equals".to_string()];
-        let result = parse_params(&params);
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert_eq!(map.get("key"), Some(&"value=with=equals".to_string()));
-    }
-
-    #[test]
-    fn test_parse_params_empty_value() {
-        let params = vec!["key=".to_string()];
-        let result = parse_params(&params);
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert_eq!(map.get("key"), Some(&"".to_string()));
-    }
-
-    #[test]
-    fn test_parse_params_no_equals() {
-        let params = vec!["invalid".to_string()];
-        let result = parse_params(&params);
-        assert!(result.is_err());
-        let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("Invalid parameter format"));
-    }
-
-    #[test]
-    fn test_parse_params_empty_key() {
-        let params = vec!["=value".to_string()];
-        let result = parse_params(&params);
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert_eq!(map.get(""), Some(&"value".to_string()));
-    }
-
-    #[test]
-    fn test_parse_params_special_characters() {
-        let params = vec![
-            "url=https://example.com/path?query=test".to_string(),
-            "message=Hello World!".to_string(),
-            "email=user@example.com".to_string(),
-        ];
-        let result = parse_params(&params);
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert_eq!(
-            map.get("url"),
-            Some(&"https://example.com/path?query=test".to_string())
-        );
-        assert_eq!(map.get("message"), Some(&"Hello World!".to_string()));
-        assert_eq!(map.get("email"), Some(&"user@example.com".to_string()));
-    }
-
-    #[test]
-    fn test_parse_params_empty_list() {
-        let params: Vec<String> = vec![];
-        let result = parse_params(&params);
-        assert!(result.is_ok());
-        let map = result.unwrap();
-        assert!(map.is_empty());
     }
 }

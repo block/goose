@@ -15,11 +15,13 @@ mod utils;
 use anyhow::Result;
 use app::App;
 use clap::{CommandFactory, Parser, Subcommand};
+use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose_client::Client;
 use runner::{run_event_loop, run_recipe_event_loop};
 use services::config::TuiConfig;
 use services::events::EventHandler;
 use state::AppState;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{IsTerminal, Read};
 use std::path::PathBuf;
@@ -39,6 +41,25 @@ pub async fn configure_session_from_global(
     provider_override: Option<&str>,
     model_override: Option<&str>,
 ) -> (String, Option<String>) {
+    configure_session(
+        client,
+        session_id,
+        provider_override,
+        model_override,
+        &[],
+        false,
+    )
+    .await
+}
+
+async fn configure_session(
+    client: &Client,
+    session_id: &str,
+    provider_override: Option<&str>,
+    model_override: Option<&str>,
+    cli_extensions: &[ExtensionConfig],
+    no_profile: bool,
+) -> (String, Option<String>) {
     let global_config = goose::config::Config::global();
     let provider = provider_override
         .map(|s| s.to_string())
@@ -55,9 +76,19 @@ pub async fn configure_session_from_global(
         tracing::error!("Failed to update provider: {e}");
     }
 
-    for ext in goose::config::get_enabled_extensions() {
+    // Load profile extensions unless --no-profile
+    if !no_profile {
+        for ext in goose::config::get_enabled_extensions() {
+            if let Err(e) = client.add_extension(session_id, ext.clone()).await {
+                tracing::error!("Failed to add extension {}: {}", ext.name(), e);
+            }
+        }
+    }
+
+    // Load CLI-specified extensions
+    for ext in cli_extensions {
         if let Err(e) = client.add_extension(session_id, ext.clone()).await {
-            tracing::error!("Failed to add extension {}: {}", ext.name(), e);
+            tracing::error!("Failed to add CLI extension {}: {}", ext.name(), e);
         }
     }
 
@@ -73,6 +104,161 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
         .find('=')
         .ok_or_else(|| format!("invalid KEY=VALUE: no `=` found in `{s}`"))?;
     Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
+}
+
+#[derive(Debug, Clone)]
+struct StreamableHttpOptions {
+    url: String,
+    timeout: u64,
+}
+
+fn parse_streamable_http_extension(input: &str) -> Result<StreamableHttpOptions, String> {
+    let mut input_iter = input.split_whitespace();
+    let mut url = String::new();
+    let mut timeout = goose::config::DEFAULT_EXTENSION_TIMEOUT;
+
+    if let Some(url_str) = input_iter.next() {
+        url.push_str(url_str);
+    }
+
+    for kv_pair in input_iter {
+        if let Some((key, value)) = kv_pair.split_once('=') {
+            if key == "timeout" {
+                if let Ok(seconds) = value.parse::<u64>() {
+                    timeout = seconds;
+                }
+            }
+        }
+    }
+
+    Ok(StreamableHttpOptions { url, timeout })
+}
+
+fn parse_stdio_extension(extension_command: &str) -> anyhow::Result<ExtensionConfig> {
+    let mut parts: Vec<&str> = extension_command.split_whitespace().collect();
+    let mut envs = HashMap::new();
+
+    while let Some(part) = parts.first() {
+        if !part.contains('=') {
+            break;
+        }
+        let env_part = parts.remove(0);
+        let (key, value) = env_part.split_once('=').unwrap();
+        envs.insert(key.to_string(), value.to_string());
+    }
+
+    if parts.is_empty() {
+        return Err(anyhow::anyhow!("No command provided in extension string"));
+    }
+
+    let cmd = parts.remove(0).to_string();
+    let name = std::path::Path::new(&cmd)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("unnamed")
+        .to_string();
+
+    Ok(ExtensionConfig::Stdio {
+        name,
+        cmd,
+        args: parts.iter().map(|s| s.to_string()).collect(),
+        envs: Envs::new(envs),
+        env_keys: Vec::new(),
+        description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+        timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+        bundled: None,
+        available_tools: Vec::new(),
+    })
+}
+
+fn parse_streamable_http_ext_config(url: &str, timeout: u64) -> ExtensionConfig {
+    let name = url::Url::parse(url)
+        .ok()
+        .map(|u| {
+            let mut s = String::new();
+            if let Some(host) = u.host_str() {
+                s.push_str(host);
+            }
+            if let Some(port) = u.port() {
+                s.push('_');
+                s.push_str(&port.to_string());
+            }
+            let path = u.path().trim_matches('/');
+            if !path.is_empty() {
+                s.push('_');
+                s.push_str(path);
+            }
+            s
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unnamed".to_string());
+
+    ExtensionConfig::StreamableHttp {
+        name,
+        uri: url.to_string(),
+        envs: Envs::new(HashMap::new()),
+        env_keys: Vec::new(),
+        headers: HashMap::new(),
+        description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
+        timeout: Some(timeout),
+        bundled: None,
+        available_tools: Vec::new(),
+    }
+}
+
+fn parse_builtin_extensions(builtin_name: &str) -> Vec<ExtensionConfig> {
+    builtin_name
+        .split(',')
+        .map(|name| {
+            let extension_name = name.trim();
+            if PLATFORM_EXTENSIONS.contains_key(extension_name) {
+                ExtensionConfig::Platform {
+                    name: extension_name.to_string(),
+                    description: extension_name.to_string(),
+                    display_name: None,
+                    bundled: None,
+                    available_tools: Vec::new(),
+                }
+            } else {
+                ExtensionConfig::Builtin {
+                    name: extension_name.to_string(),
+                    display_name: None,
+                    timeout: None,
+                    bundled: None,
+                    description: extension_name.to_string(),
+                    available_tools: Vec::new(),
+                }
+            }
+        })
+        .collect()
+}
+
+/// Build ExtensionConfig list from CLI flags
+fn build_cli_extensions(
+    extensions: &[String],
+    streamable_http_extensions: &[StreamableHttpOptions],
+    builtins: &[String],
+) -> Vec<ExtensionConfig> {
+    let mut configs = Vec::new();
+
+    for ext_str in extensions {
+        match parse_stdio_extension(ext_str) {
+            Ok(config) => configs.push(config),
+            Err(e) => {
+                eprintln!("Warning: Invalid --with-extension value '{ext_str}' ({e}); ignoring");
+            }
+        }
+    }
+
+    for opts in streamable_http_extensions {
+        configs.push(parse_streamable_http_ext_config(&opts.url, opts.timeout));
+    }
+
+    for builtin_str in builtins {
+        configs.extend(parse_builtin_extensions(builtin_str));
+    }
+
+    configs
 }
 
 #[derive(Parser)]
@@ -119,6 +305,7 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Commands {
     /// Configure goose settings
     Configure {},
@@ -141,18 +328,32 @@ enum Commands {
 
     /// Execute commands from an instruction file, text, or recipe
     Run {
+        // -- Input source --
         #[arg(
             short,
             long,
             value_name = "FILE",
-            help = "Path to instruction file. Use - for stdin."
+            help = "Path to instruction file. Use - for stdin.",
+            conflicts_with = "text",
+            conflicts_with = "recipe"
         )]
         instructions: Option<String>,
 
-        #[arg(short = 't', long = "text", value_name = "TEXT")]
+        #[arg(
+            short = 't',
+            long = "text",
+            value_name = "TEXT",
+            conflicts_with = "instructions",
+            conflicts_with = "recipe"
+        )]
         text: Option<String>,
 
-        #[arg(long, value_name = "RECIPE")]
+        #[arg(
+            long,
+            value_name = "RECIPE",
+            conflicts_with = "instructions",
+            conflicts_with = "text"
+        )]
         recipe: Option<String>,
 
         #[arg(long, value_name = "TEXT", help = "Additional system prompt")]
@@ -161,17 +362,122 @@ enum Commands {
         #[arg(long, value_name = "KEY=VALUE", action = clap::ArgAction::Append, value_parser = parse_key_val)]
         params: Vec<(String, String)>,
 
-        #[arg(short = 'q', long, help = "Quiet mode")]
-        quiet: bool,
+        #[arg(
+            long = "sub-recipe",
+            value_name = "RECIPE",
+            help = "Sub-recipe name or file path (can be specified multiple times)",
+            action = clap::ArgAction::Append
+        )]
+        sub_recipes: Vec<String>,
 
-        #[arg(long, value_name = "PROVIDER")]
-        provider: Option<String>,
+        #[arg(
+            long = "explain",
+            help = "Show recipe title, description, and parameters"
+        )]
+        explain: bool,
 
-        #[arg(long, value_name = "MODEL")]
-        model: Option<String>,
+        #[arg(
+            long = "render-recipe",
+            help = "Print the rendered recipe instead of running it"
+        )]
+        render_recipe: bool,
+
+        // -- Session identification --
+        #[arg(short = 'n', long, value_name = "NAME", help = "Name for the session")]
+        name: Option<String>,
+
+        #[arg(long = "session-id", alias = "id", value_name = "SESSION_ID")]
+        session_id: Option<String>,
+
+        #[arg(short = 'r', long, help = "Resume from a previous run")]
+        resume: bool,
+
+        // -- Run behavior --
+        #[arg(
+            short = 's',
+            long = "interactive",
+            help = "Continue in interactive mode after processing initial input"
+        )]
+        interactive: bool,
+
+        #[arg(
+            long = "no-session",
+            help = "Run without storing a session",
+            conflicts_with_all = ["resume", "name"]
+        )]
+        no_session: bool,
 
         #[arg(long, help = "Run in headless mode")]
         headless: bool,
+
+        #[arg(short = 'q', long, help = "Quiet mode")]
+        quiet: bool,
+
+        #[arg(
+            long = "output-format",
+            value_name = "FORMAT",
+            help = "Output format (text, json, stream-json)",
+            default_value = "text",
+            value_parser = clap::builder::PossibleValuesParser::new(["text", "json", "stream-json"])
+        )]
+        output_format: String,
+
+        // -- Model/provider --
+        #[arg(long, value_name = "PROVIDER", help = "Override the LLM provider")]
+        provider: Option<String>,
+
+        #[arg(long, value_name = "MODEL", help = "Override the model to use")]
+        model: Option<String>,
+
+        // -- Extension loading --
+        #[arg(
+            long = "with-extension",
+            value_name = "COMMAND",
+            help = "Add stdio extensions (can be specified multiple times)",
+            action = clap::ArgAction::Append
+        )]
+        with_extension: Vec<String>,
+
+        #[arg(
+            long = "with-streamable-http-extension",
+            value_name = "URL",
+            help = "Add streamable HTTP extensions (can be specified multiple times)",
+            action = clap::ArgAction::Append,
+            value_parser = parse_streamable_http_extension
+        )]
+        with_streamable_http_extension: Vec<StreamableHttpOptions>,
+
+        #[arg(
+            long = "with-builtin",
+            value_name = "NAME",
+            help = "Add builtin extensions by name (comma-separated)",
+            value_delimiter = ','
+        )]
+        with_builtin: Vec<String>,
+
+        #[arg(
+            long = "no-profile",
+            help = "Don't load default extensions, only use CLI-specified extensions"
+        )]
+        no_profile: bool,
+
+        // -- Agent config --
+        #[arg(long, help = "Show full tool responses without truncation")]
+        debug: bool,
+
+        #[arg(
+            long = "max-tool-repetitions",
+            value_name = "NUMBER",
+            help = "Limit consecutive identical tool calls"
+        )]
+        max_tool_repetitions: Option<u32>,
+
+        #[arg(
+            long = "max-turns",
+            value_name = "NUMBER",
+            help = "Limit turns without user input"
+        )]
+        max_turns: Option<u32>,
     },
 
     /// Recipe utilities
@@ -265,8 +571,25 @@ enum SessionCommand {
 enum RecipeCommand {
     /// Validate a recipe file
     Validate { recipe_name: String },
+    /// Generate a deeplink for a recipe
+    Deeplink {
+        recipe_name: String,
+        #[arg(long, value_name = "KEY=VALUE", action = clap::ArgAction::Append, value_parser = parse_key_val)]
+        params: Vec<(String, String)>,
+    },
+    /// Open a recipe in Goose Desktop
+    Open {
+        recipe_name: String,
+        #[arg(long, value_name = "KEY=VALUE", action = clap::ArgAction::Append, value_parser = parse_key_val)]
+        params: Vec<(String, String)>,
+    },
     /// List available recipes
-    List,
+    List {
+        #[arg(long, default_value = "table")]
+        format: String,
+        #[arg(short, long)]
+        verbose: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -292,6 +615,10 @@ enum ScheduleCommand {
     },
     /// Run a scheduled job immediately
     RunNow { schedule_id: String },
+    /// [Deprecated] Check status of scheduler services
+    ServicesStatus,
+    /// [Deprecated] Stop scheduler services
+    ServicesStop,
     /// Show cron expression help
     CronHelp,
 }
@@ -449,19 +776,49 @@ fn main() -> Result<()> {
         }
     }
 
-    // Handle `goose run` subcommand — extract inputs, then use TUI infrastructure
-    let (text_input, recipe_path, headless, provider, model) = if let Some(Commands::Run {
+    // Extract run parameters from either `goose run ...` or top-level args
+    let run_params = if let Some(Commands::Run {
         instructions,
         text,
         recipe,
-        system: _system, // TODO: wire system prompt
-        params: _params, // TODO: wire recipe params
+        system,
+        params,
+        sub_recipes,
+        explain,
+        render_recipe,
+        name,
+        session_id,
+        resume,
+        interactive,
+        no_session,
+        headless,
         quiet,
+        output_format,
         provider,
         model,
-        headless,
+        with_extension,
+        with_streamable_http_extension,
+        with_builtin,
+        no_profile,
+        debug,
+        max_tool_repetitions,
+        max_turns,
     }) = cli_args.command
     {
+        // Handle --explain and --render-recipe before starting server
+        if explain || render_recipe {
+            if let Some(recipe_name) = &recipe {
+                if explain {
+                    commands::recipe::handle_explain(recipe_name, &params)?;
+                } else {
+                    commands::recipe::handle_render(recipe_name, &params)?;
+                }
+                return Ok(());
+            } else {
+                anyhow::bail!("--explain and --render-recipe require --recipe");
+            }
+        }
+
         let extracted_text = match (instructions.as_deref(), &text) {
             (Some("-"), _) => {
                 let mut contents = String::new();
@@ -474,9 +831,38 @@ fn main() -> Result<()> {
             (_, Some(t)) => Some(t.clone()),
             (None, None) => None,
         };
+
         let recipe_pb = recipe.map(PathBuf::from);
         let is_headless = headless || quiet || extracted_text.is_some();
-        (extracted_text, recipe_pb, is_headless, provider, model)
+
+        let cli_extensions = build_cli_extensions(
+            &with_extension,
+            &with_streamable_http_extension,
+            &with_builtin,
+        );
+
+        RunParams {
+            session: session_id,
+            name,
+            resume,
+            recipe: recipe_pb,
+            headless: is_headless,
+            cli_mode: false,
+            text_input: extracted_text,
+            provider,
+            model,
+            system_prompt: system,
+            params,
+            sub_recipes,
+            interactive,
+            no_session,
+            output_format,
+            cli_extensions,
+            no_profile,
+            debug,
+            max_tool_repetitions,
+            max_turns,
+        }
     } else {
         // No subcommand — use top-level args
         let stdin_input = read_stdin_if_piped();
@@ -486,31 +872,36 @@ fn main() -> Result<()> {
             (None, Some(text)) => Some(text),
             (None, None) => None,
         };
-        (
+
+        RunParams {
+            session: cli_args.session,
+            name: cli_args.name,
+            resume: cli_args.resume,
+            recipe: cli_args.recipe,
+            headless: cli_args.headless,
+            cli_mode: cli_args.cli,
             text_input,
-            cli_args.recipe,
-            cli_args.headless,
-            cli_args.provider,
-            cli_args.model,
-        )
+            provider: cli_args.provider,
+            model: cli_args.model,
+            system_prompt: None,
+            params: Vec::new(),
+            sub_recipes: Vec::new(),
+            interactive: false,
+            no_session: false,
+            output_format: "text".to_string(),
+            cli_extensions: Vec::new(),
+            no_profile: false,
+            debug: false,
+            max_tool_repetitions: None,
+            max_turns: None,
+        }
     };
 
     let secret_key = Uuid::new_v4().to_string();
     std::env::set_var("GOOSE_SERVER__SECRET_KEY", &secret_key);
     std::env::set_var("GOOSE_PORT", "0");
 
-    tokio::runtime::Runtime::new()?.block_on(run_tui(
-        cli_args.session,
-        cli_args.name,
-        cli_args.resume,
-        recipe_path,
-        headless,
-        cli_args.cli,
-        text_input,
-        secret_key,
-        provider,
-        model,
-    ))
+    tokio::runtime::Runtime::new()?.block_on(run_tui(run_params, secret_key))
 }
 
 // ---------------------------------------------------------------------------
@@ -568,7 +959,15 @@ async fn dispatch_term_command(command: &TermCommand) -> Result<()> {
 fn dispatch_recipe_command(command: &RecipeCommand) -> Result<()> {
     match command {
         RecipeCommand::Validate { recipe_name } => commands::recipe::handle_validate(recipe_name),
-        RecipeCommand::List => commands::recipe::handle_list("text", false),
+        RecipeCommand::Deeplink {
+            recipe_name,
+            params,
+        } => commands::recipe::handle_deeplink(recipe_name, params),
+        RecipeCommand::Open {
+            recipe_name,
+            params,
+        } => commands::recipe::handle_open(recipe_name, params),
+        RecipeCommand::List { format, verbose } => commands::recipe::handle_list(format, *verbose),
     }
 }
 
@@ -594,6 +993,10 @@ async fn dispatch_schedule_command(command: &ScheduleCommand) -> Result<()> {
         ScheduleCommand::RunNow { schedule_id } => {
             commands::schedule::handle_schedule_run_now(schedule_id.clone()).await
         }
+        ScheduleCommand::ServicesStatus => {
+            commands::schedule::handle_schedule_services_status().await
+        }
+        ScheduleCommand::ServicesStop => commands::schedule::handle_schedule_services_stop().await,
         ScheduleCommand::CronHelp => commands::schedule::handle_schedule_cron_help().await,
     }
 }
@@ -836,8 +1239,12 @@ async fn resolve_session_id(
     Ok(None)
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn run_tui(
+/// All parameters extracted from CLI args for the TUI runtime.
+/// Some fields (system_prompt, params, sub_recipes, interactive, no_session, debug,
+/// max_tool_repetitions, max_turns) are parsed but not yet wired through to the
+/// embedded server — they are accepted for CLI compatibility with goose-legacy.
+#[allow(dead_code)]
+struct RunParams {
     session: Option<String>,
     name: Option<String>,
     resume: bool,
@@ -845,10 +1252,22 @@ async fn run_tui(
     headless: bool,
     cli_mode: bool,
     text_input: Option<String>,
-    secret_key: String,
-    provider_override: Option<String>,
-    model_override: Option<String>,
-) -> Result<()> {
+    provider: Option<String>,
+    model: Option<String>,
+    system_prompt: Option<String>,
+    params: Vec<(String, String)>,
+    sub_recipes: Vec<String>,
+    interactive: bool,
+    no_session: bool,
+    output_format: String,
+    cli_extensions: Vec<ExtensionConfig>,
+    no_profile: bool,
+    debug: bool,
+    max_tool_repetitions: Option<u32>,
+    max_turns: Option<u32>,
+}
+
+async fn run_tui(p: RunParams, secret_key: String) -> Result<()> {
     let _guard = setup_tui_logging()?;
     info!("Starting Goose...");
 
@@ -871,30 +1290,43 @@ async fn run_tui(
     let client = Client::new(port, secret_key);
     let cwd = std::env::current_dir()?;
 
-    let resolved_session = resolve_session_id(&client, session, name.clone(), resume).await?;
+    let resolved_session = resolve_session_id(&client, p.session, p.name.clone(), p.resume).await?;
 
-    let prov_ref = provider_override.as_deref();
-    let model_ref = model_override.as_deref();
+    let prov_ref = p.provider.as_deref();
+    let model_ref = p.model.as_deref();
 
-    let result = if let Some(recipe_path) = recipe {
-        run_recipe_mode(client, cwd, recipe_path, headless, prov_ref, model_ref).await
-    } else if let Some(prompt) = text_input {
+    let result = if let Some(recipe_path) = p.recipe {
+        run_recipe_mode(
+            client,
+            cwd,
+            recipe_path,
+            p.headless,
+            prov_ref,
+            model_ref,
+            &p.cli_extensions,
+            p.no_profile,
+        )
+        .await
+    } else if let Some(prompt) = p.text_input {
         run_text_mode(
             client,
             cwd,
             resolved_session,
-            name,
+            p.name,
             prompt,
             prov_ref,
             model_ref,
+            &p.cli_extensions,
+            p.no_profile,
+            &p.output_format,
         )
         .await
-    } else if headless {
+    } else if p.headless {
         anyhow::bail!("--headless requires either --recipe or --text (or piped stdin)")
-    } else if cli_mode {
-        run_cli_mode(client, cwd, resolved_session, name, prov_ref, model_ref).await
+    } else if p.cli_mode {
+        run_cli_mode(client, cwd, resolved_session, p.name, prov_ref, model_ref).await
     } else {
-        run_interactive_mode(client, cwd, resolved_session, name, prov_ref, model_ref).await
+        run_interactive_mode(client, cwd, resolved_session, p.name, prov_ref, model_ref).await
     };
 
     shutdown_token.cancel();
@@ -903,6 +1335,7 @@ async fn run_tui(
     result
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_recipe_mode(
     client: Client,
     cwd: std::path::PathBuf,
@@ -910,6 +1343,8 @@ async fn run_recipe_mode(
     headless: bool,
     provider_override: Option<&str>,
     model_override: Option<&str>,
+    cli_extensions: &[ExtensionConfig],
+    no_profile: bool,
 ) -> Result<()> {
     let config = TuiConfig::load()?;
     let recipe = load_recipe(&recipe_path)?;
@@ -924,11 +1359,13 @@ async fn run_recipe_mode(
         .start_agent_with_recipe(cwd.to_string_lossy().to_string(), recipe)
         .await?;
 
-    configure_session_from_global(
+    configure_session(
         &client,
         &initial_session.id,
         provider_override,
         model_override,
+        cli_extensions,
+        no_profile,
     )
     .await;
 
@@ -941,12 +1378,13 @@ async fn run_recipe_mode(
     let use_headless = headless || !std::io::stdout().is_terminal();
 
     if use_headless {
-        headless::run_headless(client, initial_session.id, prompt, cwd_analysis).await
+        headless::run_headless(client, initial_session.id, prompt, cwd_analysis, "text").await
     } else {
         run_recipe_tui_mode(client, initial_session, prompt, cwd_analysis).await
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_text_mode(
     client: Client,
     cwd: std::path::PathBuf,
@@ -955,6 +1393,9 @@ async fn run_text_mode(
     prompt: String,
     provider_override: Option<&str>,
     model_override: Option<&str>,
+    cli_extensions: &[ExtensionConfig],
+    no_profile: bool,
+    output_format: &str,
 ) -> Result<()> {
     info!("Running with text input");
 
@@ -980,11 +1421,13 @@ async fn run_text_mode(
         (new_session, true)
     };
 
-    configure_session_from_global(
+    configure_session(
         &client,
         &initial_session.id,
         provider_override,
         model_override,
+        cli_extensions,
+        no_profile,
     )
     .await;
 
@@ -999,7 +1442,14 @@ async fn run_text_mode(
         None
     };
 
-    headless::run_headless(client, initial_session.id, prompt, cwd_analysis).await
+    headless::run_headless(
+        client,
+        initial_session.id,
+        prompt,
+        cwd_analysis,
+        output_format,
+    )
+    .await
 }
 
 async fn run_recipe_tui_mode(
