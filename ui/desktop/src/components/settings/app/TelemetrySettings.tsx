@@ -19,14 +19,14 @@ interface TelemetrySettingsProps {
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
   const { read, upsert } = useConfig();
-  const [telemetryEnabled, setTelemetryEnabled] = useState(true);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
   const loadTelemetryStatus = useCallback(async () => {
     try {
       const value = await read(TELEMETRY_CONFIG_KEY, false);
-      setTelemetryEnabled(value === null ? true : Boolean(value));
+      setTelemetryEnabled(value === true);
     } catch (error) {
       console.error('Failed to load telemetry status:', error);
       toastService.error({
