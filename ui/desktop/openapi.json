@@ -5499,7 +5499,7 @@
             "$ref": "#/components/schemas/MessageMetadata"
           },
           "role": {
-            "type": "string"
+            "$ref": "#/components/schemas/RoleSchemaRef"
           }
         }
       },
@@ -7207,6 +7207,9 @@
             "type": "string"
           }
         ]
+      },
+      "RoleSchemaRef": {
+        "$ref": "#/components/schemas/Role"
       },
       "RunNowResponse": {
         "type": "object",

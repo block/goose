@@ -33,6 +33,20 @@ impl utoipa::ToSchema for TextContentSchemaRef {
     }
 }
 
+/// Schema-only proxy for rmcp's Role (which lacks ToSchema in utoipa 5).
+/// Returns a `$ref` to the real "Role" component registered by `derive_utoipa!`.
+struct RoleSchemaRef;
+impl utoipa::PartialSchema for RoleSchemaRef {
+    fn schema() -> RefOr<utoipa::openapi::Schema> {
+        RefOr::Ref(utoipa::openapi::Ref::from_schema_name("Role"))
+    }
+}
+impl utoipa::ToSchema for RoleSchemaRef {
+    fn name() -> std::borrow::Cow<'static, str> {
+        std::borrow::Cow::Borrowed("RoleSchemaRef")
+    }
+}
+
 /// Schema-only proxy for rmcp's ImageContent (which lacks ToSchema in utoipa 5).
 /// Returns a `$ref` to the real "ImageContent" component registered by `derive_utoipa!`.
 /// Uses a distinct name to avoid overwriting the real schema with a self-reference.
@@ -701,7 +715,7 @@ impl MessageMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: Option<String>,
-    #[schema(value_type = String)]
+    #[schema(value_type = RoleSchemaRef)]
     pub role: Role,
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]
