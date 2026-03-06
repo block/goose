@@ -1677,11 +1677,7 @@ print(\"hello, world\")
     #[test_case(
         ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams {
-                meta: None, task: None,
-                name: "read".to_string().into(),
-                arguments: Some(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone()),
-            }),
+            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
         },
         ToolResponse {
@@ -1695,11 +1691,7 @@ print(\"hello, world\")
     #[test_case(
         ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams {
-                meta: None, task: None,
-                name: "read".to_string().into(),
-                arguments: Some(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone()),
-            }),
+            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
         },
         ToolResponse {
@@ -1713,11 +1705,7 @@ print(\"hello, world\")
     #[test_case(
         ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams {
-                meta: None, task: None,
-                name: "write".to_string().into(),
-                arguments: Some(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone()),
-            }),
+            tool_call: Ok(CallToolRequestParams::new("write").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
         },
         ToolResponse {
@@ -1731,11 +1719,7 @@ print(\"hello, world\")
     #[test_case(
         ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams {
-                meta: None, task: None,
-                name: "edit".to_string().into(),
-                arguments: Some(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone()),
-            }),
+            tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
         },
         ToolResponse {
@@ -1749,11 +1733,7 @@ print(\"hello, world\")
     #[test_case(
         ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams {
-                meta: None, task: None,
-                name: "shell".to_string().into(),
-                arguments: Some(serde_json::json!({"command": "ls"}).as_object().unwrap().clone()),
-            }),
+            tool_call: Ok(CallToolRequestParams::new("shell").with_arguments(serde_json::json!({"command": "ls"}).as_object().unwrap().clone())),
             metadata: None, tool_meta: None,
         },
         ToolResponse {
