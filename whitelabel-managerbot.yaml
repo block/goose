@@ -1,0 +1,117 @@
+# =============================================================================
+# Managerbot — white-labeled Goose for Square merchants
+# =============================================================================
+# Build:  WHITELABEL_CONFIG=/path/to/whitelabel-managerbot.yaml npm run make
+# Dev:    WHITELABEL_CONFIG=/path/to/whitelabel-managerbot.yaml just run-ui-whitelabel
+# =============================================================================
+
+branding:
+  appName: "Managerbot"
+  tagline: "Your AI COO for Square"
+
+  greetings:
+    - "Hey! What can I help you with today?"
+    - "Ready to dig into your business data."
+    - "What would you like to know about your store?"
+    - "Let's get things done."
+
+  starterPrompts:
+    - icon: "bar-chart"
+      label: "Sales report"
+      prompt: "Show me my sales for the past week broken down by location"
+    - icon: "users"
+      label: "Customer insights"
+      prompt: "Who are my top customers and what do they typically buy?"
+    - icon: "package"
+      label: "Catalog health"
+      prompt: "Check my catalog for missing descriptions, images, or pricing issues"
+    - icon: "map-pin"
+      label: "Location overview"
+      prompt: "List all my locations with their current business hours"
+
+features:
+  updatesEnabled: false
+  costTrackingEnabled: false
+  announcementsEnabled: false
+  configurationEnabled: false
+  telemetryUiEnabled: false
+
+  navigation:
+    - home
+    - chat
+    - settings
+
+  settingsTabs:
+    - models
+    - chat
+
+  hiddenSettingSections:
+    - external-backend
+    - tunnel
+    - session-sharing
+    - telemetry
+    - update
+    - navigation-customization
+
+  allowedProviders:
+    - custom_kgoose
+
+defaults:
+  provider: "custom_kgoose"
+  model: "kgoose-square"
+  workingDir: "/Users/micn/Development/managerbot2-poc"
+
+  systemPrompt: |
+    You're Managerbot — an AI COO for Square merchants. You help merchants
+    understand their business and manage operations through the Square platform.
+
+    Key rules:
+    - Write operations are staged as mutations for merchant approval — never executed directly.
+    - Communicate with the merchant via task activity (comments, artifacts, elicitations).
+    - Keep comments short (1-2 sentences). Use artifacts for reports and deliverables.
+    - Use elicitations (multiple choice) when you need the merchant to decide something.
+
+  skills:
+    - name: "Catalog Health Check"
+      description: "Analyze product catalog for missing information, duplicates, and data quality issues"
+      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/catalog-health-check"
+
+  tools:
+    - name: "square"
+      description: "Managerbot CLI for Square APIs, task management, and mutations"
+      path: "/Users/micn/Development/managerbot2-poc/cli/square"
+      env:
+        MANAGERBOT_API_KEY: "(set by token exchange)"
+        MANAGERBOT_API_URL: "http://localhost:8793"
+      helpText: |
+        Run `square <resource> help` for detailed usage and examples.
+
+        | Resource | What it does |
+        |----------|--------------|
+        | merchants | Merchant account info |
+        | locations | Business locations (CRUD) |
+        | channels | Sales channels |
+        | customers | Customer profiles (CRUD, search, bulk ops, groups) |
+        | customer-groups | Customer groups |
+        | customer-segments | Customer segments |
+        | customer-custom-attrs | Custom attributes |
+        | catalog | Items, categories, taxes, discounts, images |
+        | reporting | Analytics via Cube API |
+        | managerbot tasks | Task management and activity |
+        | managerbot mutations | Staged mutation management |
+
+processes:
+  - name: "kgoose-proxy"
+    command: "bash"
+    args: ["scripts/run-kgoose-server.sh"]
+    cwd: "/Users/micn/Development/managerbot2-poc"
+    env:
+      PORT: "8080"
+    restartOnCrash: true
+    waitForPort: 8080
+    waitTimeoutMs: 10000
+
+window:
+  width: 1100
+  height: 850
+  minWidth: 500
