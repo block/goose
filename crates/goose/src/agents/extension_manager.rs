@@ -411,6 +411,7 @@ async fn create_streamable_http_client(
             uri,
             timeout,
             headers,
+            name,
             socket_path,
             provider,
             client_name,
@@ -500,14 +501,13 @@ async fn create_streamable_http_client(
     }
 }
 
-/// Connect to a StreamableHttp MCP server via a Unix domain socket.
-/// OAuth retry is intentionally omitted — auth at the socket layer is typically
-/// handled by the sidecar proxy (e.g., Envoy mTLS) rather than HTTP Bearer tokens.
 #[cfg(unix)]
+#[allow(clippy::too_many_arguments)]
 async fn create_unix_socket_http_client(
     uri: &str,
     timeout: Option<u64>,
     headers: &HashMap<String, String>,
+    name: &str,
     socket_path: &str,
     provider: SharedProvider,
     client_name: String,
@@ -526,17 +526,17 @@ async fn create_unix_socket_http_client(
     let mut default_headers = std::collections::HashMap::new();
     default_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
     for (key, value) in headers {
-        let name = HeaderName::try_from(key)
+        let header_name = HeaderName::try_from(key)
             .map_err(|_| ExtensionError::ConfigError(format!("invalid header: {key}")))?;
         let val: HeaderValue = value
             .parse()
             .map_err(|_| ExtensionError::ConfigError(format!("invalid header value: {key}")))?;
-        default_headers.insert(name, val);
+        default_headers.insert(header_name, val);
     }
 
     let unix_client = UnixSocketHttpClient::new(uri, socket_path, default_headers);
     let transport = StreamableHttpClientTransport::with_client(
-        unix_client,
+        unix_client.clone(),
         StreamableHttpClientTransportConfig {
             uri: uri.into(),
             ..Default::default()
@@ -546,16 +546,40 @@ async fn create_unix_socket_http_client(
     let timeout_duration =
         Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
 
-    Ok(Box::new(
-        McpClient::connect(
-            transport,
-            timeout_duration,
-            provider,
-            client_name,
-            capabilities,
-        )
-        .await?,
-    ))
+    let client_res = McpClient::connect(
+        transport,
+        timeout_duration,
+        provider.clone(),
+        client_name.clone(),
+        capabilities.clone(),
+    )
+    .await;
+
+    if extract_auth_error(&client_res).is_some() {
+        let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
+            .await
+            .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
+        let auth_client = AuthClient::new(unix_client, auth_manager);
+        let transport = StreamableHttpClientTransport::with_client(
+            auth_client,
+            StreamableHttpClientTransportConfig {
+                uri: uri.into(),
+                ..Default::default()
+            },
+        );
+        Ok(Box::new(
+            McpClient::connect(
+                transport,
+                timeout_duration,
+                provider,
+                client_name,
+                capabilities,
+            )
+            .await?,
+        ))
+    } else {
+        Ok(Box::new(client_res?))
+    }
 }
 
 impl ExtensionManager {
