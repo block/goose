@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.26.0"
+    "version": "1.27.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -4177,6 +4177,10 @@
           "api_key_env": {
             "type": "string"
           },
+          "base_path": {
+            "type": "string",
+            "nullable": true
+          },
           "base_url": {
             "type": "string"
           },
@@ -5821,6 +5825,10 @@
           },
           "model_name": {
             "type": "string"
+          },
+          "reasoning": {
+            "type": "boolean",
+            "nullable": true
           },
           "request_params": {
             "type": "object",
@@ -8158,6 +8166,10 @@
           },
           "api_url": {
             "type": "string"
+          },
+          "base_path": {
+            "type": "string",
+            "nullable": true
           },
           "catalog_provider_id": {
             "type": "string",

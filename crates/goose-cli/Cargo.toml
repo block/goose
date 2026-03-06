@@ -72,6 +72,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 [features]
 default = ["code-mode"]
 code-mode = ["goose/code-mode", "goose-acp/code-mode"]
+cuda = ["goose/cuda"]
 # disables the update command
 disable-update = []
 

@@ -67,7 +67,7 @@ pub enum ResponseContentBlock {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponseReasoningInfo {
-    pub effort: String,
+    pub effort: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
 }
@@ -473,12 +473,8 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                         ResponseContentBlock::ToolCall { id, name, input } => {
                             content.push(MessageContent::tool_request(
                                 id.clone(),
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: name.clone().into(),
-                                    arguments: Some(object(input.clone())),
-                                }),
+                                Ok(CallToolRequestParams::new(name.clone())
+                                    .with_arguments(object(input.clone()))),
                             ));
                         }
                     }
@@ -499,12 +495,8 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
 
                 content.push(MessageContent::tool_request(
                     id.clone(),
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: name.clone().into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
+                    Ok(CallToolRequestParams::new(name.clone())
+                        .with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -559,12 +551,8 @@ fn process_streaming_output_items(
 
                             content.push(MessageContent::tool_request(
                                 id,
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: name.into(),
-                                    arguments: Some(object(parsed_args)),
-                                }),
+                                Ok(CallToolRequestParams::new(name)
+                                    .with_arguments(object(parsed_args))),
                             ));
                         }
                     }
@@ -584,12 +572,7 @@ fn process_streaming_output_items(
 
                 content.push(MessageContent::tool_request(
                     call_id,
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: name.into(),
-                        arguments: Some(object(parsed_args)),
-                    }),
+                    Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
                 ));
             }
         }
@@ -827,6 +810,7 @@ mod tests {
             toolshim_model: None,
             fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
 
         let messages = vec![
@@ -834,23 +818,15 @@ mod tests {
                 .with_text("I'll create that file.")
                 .with_tool_request(
                     "call_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "shell".into(),
-                        arguments: Some(object!({"command": "echo hello"})),
-                    }),
+                    Ok(CallToolRequestParams::new("shell")
+                        .with_arguments(object!({"command": "echo hello"}))),
                 ),
             Message::assistant()
                 .with_text("Now let me verify.")
                 .with_tool_request(
                     "call_2",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "shell".into(),
-                        arguments: Some(object!({"command": "cat file.txt"})),
-                    }),
+                    Ok(CallToolRequestParams::new("shell")
+                        .with_arguments(object!({"command": "cat file.txt"}))),
                 ),
         ];
 
@@ -870,5 +846,21 @@ mod tests {
             types,
             vec!["assistant", "function_call", "assistant", "function_call"]
         );
+    }
+
+    #[test]
+    fn test_deserialize_reasoning_info_with_null_effort() {
+        let json = r#"{"effort": null}"#;
+        let info: ResponseReasoningInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.effort, None);
+        assert_eq!(info.summary, None);
+    }
+
+    #[test]
+    fn test_deserialize_reasoning_info_with_effort() {
+        let json = r#"{"effort": "high", "summary": "Thought deeply"}"#;
+        let info: ResponseReasoningInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.effort.as_deref(), Some("high"));
+        assert_eq!(info.summary.as_deref(), Some("Thought deeply"));
     }
 }

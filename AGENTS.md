@@ -41,18 +41,17 @@ cd ui/desktop && npm test    # test UI
 ## Structure
 ```
 crates/
-├── goose             # core logic
-├── goose-bench       # benchmarking
-├── goose-cli         # CLI entry
-├── goose-server      # backend (binary: goosed)
-├── goose-mcp         # MCP extensions
-├── goose-test        # test utilities
-├── mcp-client        # MCP client
-├── mcp-core          # MCP shared
-└── mcp-server        # MCP server
+├── goose              # core logic
+├── goose-acp          # Agent Client Protocol
+├── goose-acp-macros   # ACP proc macros
+├── goose-cli          # CLI entry
+├── goose-server       # backend (binary: goosed)
+├── goose-mcp          # MCP extensions
+├── goose-test         # test utilities
+└── goose-test-support # test helpers
 
-temporal-service/     # Go scheduler
-ui/desktop/           # Electron app
+evals/open-model-gym/  # benchmarking / evals
+ui/desktop/            # Electron app
 ```
 
 ## Development Loop

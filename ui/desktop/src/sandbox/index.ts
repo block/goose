@@ -52,7 +52,6 @@ export function buildSandboxProfile(opts: SandboxProfileOptions): string {
     '',
     `;; Protect sandbox config from the sandboxed process`,
     `(deny file-write* (subpath "${h}/.config/goose/sandbox"))`,
-    `(deny file-write* (literal "${h}/.config/goose/config.yaml"))`,
   ];
 
   if (opts.protectSensitiveFiles) {
