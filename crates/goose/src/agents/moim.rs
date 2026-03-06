@@ -120,44 +120,14 @@ mod tests {
             Message::user().with_text("Search for something"),
             Message::assistant()
                 .with_text("I'll search for you")
-                .with_tool_request(
-                    "search_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "search".into(),
-                        arguments: None,
-                    }),
-                ),
-            Message::user().with_tool_response(
-                "search_1",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
-            ),
+                .with_tool_request("search_1", Ok(CallToolRequestParams::new("search"))),
+            Message::user()
+                .with_tool_response("search_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
             Message::assistant()
                 .with_text("I need to search more")
-                .with_tool_request(
-                    "search_2",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "search".into(),
-                        arguments: None,
-                    }),
-                ),
-            Message::user().with_tool_response(
-                "search_2",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
-            ),
+                .with_tool_request("search_2", Ok(CallToolRequestParams::new("search"))),
+            Message::user()
+                .with_tool_response("search_2", Ok(rmcp::model::CallToolResult::success(vec![]))),
         ]);
 
         let result = inject_moim("test-session-id", conv, &em, &working_dir).await;

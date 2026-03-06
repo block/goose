@@ -34,14 +34,29 @@ if [[ -z "$DOWNLOAD_URL" ]]; then
 fi
 echo "Downloading $DOWNLOAD_URL"
 
-# Download and extract (nightly.link double-zips)
-curl -sL -o "$TMPDIR/goose.zip" "$DOWNLOAD_URL"
+# Download artifact — try nightly.link first, fall back to gh CLI
+if ! curl -fSL --connect-timeout 10 -o "$TMPDIR/goose.zip" "$DOWNLOAD_URL" 2>/dev/null; then
+    echo "nightly.link unavailable, falling back to GitHub API..."
+    RUN_ID=$(echo "$DOWNLOAD_URL" | grep -oE 'actions/runs/[0-9]+' | cut -d/ -f3)
+    ARTIFACT_NAME=$(echo "$DOWNLOAD_URL" | sed 's/\.zip$//' | xargs basename)
+    ARTIFACT_ID=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+        --jq ".artifacts[] | select(.name==\"$ARTIFACT_NAME\") | .id")
+    if [[ -z "$ARTIFACT_ID" ]]; then
+        echo "Could not find artifact '$ARTIFACT_NAME' for run $RUN_ID"
+        exit 1
+    fi
+    gh api "repos/$REPO/actions/artifacts/$ARTIFACT_ID/zip" > "$TMPDIR/goose.zip"
+fi
+echo "Done."
+
 unzip -o -q "$TMPDIR/goose.zip" -d "$TMPDIR/extracted"
 
 INNER_ZIP=$(find "$TMPDIR/extracted" -name "*.zip" | head -1)
 if [[ -n "$INNER_ZIP" ]]; then
     unzip -o -q "$INNER_ZIP" -d "$TMPDIR/extracted"
 fi
+
+echo "unzipped"
 
 APP=$(find "$TMPDIR/extracted" -name "*.app" -maxdepth 2 | head -1)
 if [[ -z "$APP" ]]; then

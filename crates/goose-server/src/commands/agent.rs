@@ -40,7 +40,7 @@ pub async fn run() -> Result<()> {
     let secret_key =
         std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
 
-    let app_state = state::AppState::new().await?;
+    let app_state = state::AppState::new(settings.tls).await?;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -55,16 +55,6 @@ pub async fn run() -> Result<()> {
         .layer(cors);
 
     let addr = settings.socket_addr();
-    let tls_setup = self_signed_config().await?;
-
-    let handle = Handle::new();
-    let shutdown_handle = handle.clone();
-    tokio::spawn(async move {
-        shutdown_signal().await;
-        shutdown_handle.graceful_shutdown(None);
-    });
-
-    info!("listening on https://{}", addr);
 
     let tunnel_manager = app_state.tunnel_manager.clone();
     tokio::spawn(async move {
@@ -76,10 +66,31 @@ pub async fn run() -> Result<()> {
         gateway_manager.check_auto_start().await;
     });
 
-    axum_server::bind_rustls(addr, tls_setup.config)
-        .handle(handle)
-        .serve(app.into_make_service())
-        .await?;
+    if settings.tls {
+        let tls_setup = self_signed_config().await?;
+
+        let handle = Handle::new();
+        let shutdown_handle = handle.clone();
+        tokio::spawn(async move {
+            shutdown_signal().await;
+            shutdown_handle.graceful_shutdown(None);
+        });
+
+        info!("listening on https://{}", addr);
+
+        axum_server::bind_rustls(addr, tls_setup.config)
+            .handle(handle)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+
+        info!("listening on http://{}", addr);
+
+        axum::serve(listener, app)
+            .with_graceful_shutdown(async { shutdown_signal().await })
+            .await?;
+    }
 
     if goose::otel::otlp::is_otlp_initialized() {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
