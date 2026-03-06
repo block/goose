@@ -41,6 +41,8 @@ pub struct IntentRouter {
     semantic: SemanticRouter,
     project_default_agent: Option<String>,
     project_default_mode: Option<String>,
+    /// Learned routing corrections from user feedback.
+    routing_feedback: Vec<crate::agents::agent_config::RoutingFeedbackEntry>,
 }
 
 impl Default for IntentRouter {
@@ -136,6 +138,7 @@ impl IntentRouter {
             slots,
             project_default_agent: None,
             project_default_mode: None,
+            routing_feedback: Vec::new(),
         }
     }
 
@@ -176,14 +179,74 @@ impl IntentRouter {
 
         // Override default agent/mode if specified
         if let Some(ref default_agent) = config.default_agent {
-            // Store as a field we can check during routing fallback
             self.project_default_agent = Some(default_agent.clone());
         }
         if let Some(ref default_mode) = config.default_mode {
             self.project_default_mode = Some(default_mode.clone());
         }
 
+        // Load routing feedback corrections
+        self.routing_feedback = config.routing_feedback.clone();
+
         self.refresh_semantic();
+    }
+
+    /// Record a routing correction from user feedback.
+    /// Returns the updated feedback entries for persistence.
+    pub fn record_routing_feedback(
+        &mut self,
+        message: &str,
+        original_agent: &str,
+        original_mode: &str,
+        corrected_agent: &str,
+        corrected_mode: &str,
+    ) -> &[crate::agents::agent_config::RoutingFeedbackEntry] {
+        use crate::agents::agent_config::RoutingFeedbackEntry;
+        self.routing_feedback.push(RoutingFeedbackEntry {
+            message: message.to_string(),
+            original_agent: original_agent.to_string(),
+            original_mode: original_mode.to_string(),
+            corrected_agent: corrected_agent.to_string(),
+            corrected_mode: corrected_mode.to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        });
+        &self.routing_feedback
+    }
+
+    /// Check routing feedback for a matching correction.
+    /// Uses keyword overlap to find similar past corrections.
+    fn check_feedback(
+        &self,
+        message: &str,
+    ) -> Option<&crate::agents::agent_config::RoutingFeedbackEntry> {
+        if self.routing_feedback.is_empty() {
+            return None;
+        }
+
+        let msg_keywords = Self::extract_keywords(message);
+        if msg_keywords.is_empty() {
+            return None;
+        }
+
+        let mut best_match: Option<(f32, &crate::agents::agent_config::RoutingFeedbackEntry)> =
+            None;
+
+        for entry in &self.routing_feedback {
+            let entry_keywords = Self::extract_keywords(&entry.message);
+            if entry_keywords.is_empty() {
+                continue;
+            }
+            let overlap = msg_keywords
+                .iter()
+                .filter(|kw| entry_keywords.iter().any(|ek| Self::words_match(kw, ek)))
+                .count();
+            let score = overlap as f32 / msg_keywords.len().max(entry_keywords.len()) as f32;
+            if score >= 0.5 && (best_match.is_none() || score > best_match.as_ref().unwrap().0) {
+                best_match = Some((score, entry));
+            }
+        }
+
+        best_match.map(|(_, entry)| entry)
     }
 
     pub fn set_enabled(&mut self, agent_name: &str, enabled: bool) {
@@ -245,6 +308,34 @@ impl IntentRouter {
                 "routing.decision"
             );
             return decision;
+        }
+
+        // Layer 0: Check routing feedback (learned corrections from user overrides).
+        // This takes highest priority — if a user previously corrected a similar routing,
+        // we trust that correction.
+        if let Some(feedback) = self.check_feedback(user_message) {
+            let corrected_enabled = enabled_slots
+                .iter()
+                .any(|s| s.name == feedback.corrected_agent);
+            if corrected_enabled {
+                span.record("router.strategy", "feedback");
+                info!(
+                    agent = feedback.corrected_agent.as_str(),
+                    mode = feedback.corrected_mode.as_str(),
+                    original_agent = feedback.original_agent.as_str(),
+                    original_mode = feedback.original_mode.as_str(),
+                    "routing.feedback_override"
+                );
+                return RoutingDecision {
+                    agent_name: feedback.corrected_agent.clone(),
+                    mode_slug: feedback.corrected_mode.clone(),
+                    confidence: 0.95,
+                    reasoning: format!(
+                        "[feedback] User previously corrected '{}' → '{}/{}' for similar message",
+                        feedback.original_agent, feedback.corrected_agent, feedback.corrected_mode
+                    ),
+                };
+            }
         }
 
         // Score each mode against the message, with agent-level description bonus.
@@ -768,6 +859,57 @@ custom_modes:
         assert!(
             dev_slot.modes.iter().any(|m| m.slug == "data-pipeline"),
             "Custom mode should be added to Developer Agent"
+        );
+    }
+
+    #[test]
+    fn test_routing_feedback_overrides_decision() {
+        let mut router = IntentRouter::new();
+
+        // Without feedback, "set up CI/CD pipeline" routes to Developer Agent
+        let decision = router.route("set up CI/CD pipeline and deployment");
+        assert_eq!(decision.agent_name, "Developer Agent");
+
+        // Record feedback: user corrected this to Security Agent
+        router.record_routing_feedback(
+            "set up CI/CD pipeline and deployment",
+            "Developer Agent",
+            "write",
+            "Security Agent",
+            "review",
+        );
+
+        // Now similar message should route to Security Agent via feedback
+        let decision = router.route("configure CI/CD pipeline deployment");
+        assert_eq!(decision.agent_name, "Security Agent");
+        assert_eq!(decision.mode_slug, "review");
+        assert!(
+            decision.reasoning.contains("[feedback]"),
+            "Should use feedback strategy: {}",
+            decision.reasoning
+        );
+        assert!(decision.confidence >= 0.9);
+    }
+
+    #[test]
+    fn test_routing_feedback_does_not_match_unrelated() {
+        let mut router = IntentRouter::new();
+
+        router.record_routing_feedback(
+            "set up CI/CD pipeline",
+            "Developer Agent",
+            "write",
+            "Security Agent",
+            "review",
+        );
+
+        // Completely unrelated message should NOT trigger feedback
+        let decision = router.route("hello, how are you?");
+        assert_ne!(decision.agent_name, "Security Agent");
+        assert!(
+            !decision.reasoning.contains("[feedback]"),
+            "Unrelated message should not use feedback: {}",
+            decision.reasoning
         );
     }
 }
