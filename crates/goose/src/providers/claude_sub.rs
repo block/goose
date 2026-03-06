@@ -69,8 +69,7 @@ const OAUTH_SCOPES: &str = "org:create_api_key user:profile user:inference";
 
 // Claude Code stealth identity
 const CLAUDE_CODE_VERSION: &str = "2.1.62";
-const CLAUDE_CODE_SYSTEM_PREFIX: &str =
-    "You are Claude Code, Anthropic's official CLI for Claude.";
+const CLAUDE_CODE_SYSTEM_PREFIX: &str = "You are Claude Code, Anthropic's official CLI for Claude.";
 
 // Claude Code canonical tool names for remapping
 const CLAUDE_CODE_TOOLS: &[&str] = &[
@@ -285,12 +284,9 @@ p{color:#b7b1b1}
     );
 
     // Wait for the code
-    let code_result = tokio::time::timeout(
-        std::time::Duration::from_secs(OAUTH_TIMEOUT_SECS),
-        rx,
-    )
-    .await
-    .map_err(|_| anyhow!("OAuth flow timed out"))??;
+    let code_result = tokio::time::timeout(std::time::Duration::from_secs(OAUTH_TIMEOUT_SECS), rx)
+        .await
+        .map_err(|_| anyhow!("OAuth flow timed out"))??;
 
     server_handle.abort();
     let code_str = code_result?;
@@ -299,6 +295,15 @@ p{color:#b7b1b1}
     let (code, returned_state) = code_str
         .split_once('#')
         .ok_or_else(|| anyhow!("Invalid code format, expected code#state"))?;
+
+    // Validate state to prevent CSRF
+    if returned_state != state {
+        return Err(anyhow!(
+            "OAuth state mismatch: expected '{}', got '{}'. Possible CSRF attack.",
+            state,
+            returned_state
+        ));
+    }
 
     // Exchange code for tokens
     let client = reqwest::Client::new();
@@ -392,10 +397,7 @@ async fn get_valid_token(cache: &TokenCache) -> Result<TokenData> {
                 return Ok(new_token);
             }
             Err(e) => {
-                tracing::warn!(
-                    "Token refresh failed, will re-authenticate: {}",
-                    e
-                );
+                tracing::warn!("Token refresh failed, will re-authenticate: {}", e);
                 cache.clear();
             }
         }
@@ -421,7 +423,7 @@ fn to_claude_code_name(name: &str) -> String {
     name.to_string()
 }
 
-fn from_claude_code_name<'a>(name: &str, tools: &'a [Tool]) -> String {
+fn from_claude_code_name(name: &str, tools: &[Tool]) -> String {
     let lower = name.to_lowercase();
     for tool in tools {
         if tool.name.to_lowercase() == lower {
