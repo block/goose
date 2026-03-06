@@ -127,6 +127,39 @@ fn extract_scope_from_header(header: &str) -> Option<String> {
     }
 }
 
+/// Applies custom headers to a request builder, rejecting reserved headers
+/// except `MCP-Protocol-Version` (which the worker injects after init).
+fn apply_custom_headers(
+    mut builder: http::request::Builder,
+    custom_headers: HashMap<HeaderName, HeaderValue>,
+) -> Result<http::request::Builder, StreamableHttpError<UnixSocketError>> {
+    const RESERVED: &[&str] = &[
+        "accept",
+        HEADER_SESSION_ID,
+        HEADER_MCP_PROTOCOL_VERSION,
+        HEADER_LAST_EVENT_ID,
+    ];
+    for (name, value) in custom_headers {
+        if RESERVED
+            .iter()
+            .any(|&r| name.as_str().eq_ignore_ascii_case(r))
+        {
+            if name
+                .as_str()
+                .eq_ignore_ascii_case(HEADER_MCP_PROTOCOL_VERSION)
+            {
+                builder = builder.header(name, value);
+                continue;
+            }
+            return Err(StreamableHttpError::ReservedHeaderConflict(
+                name.to_string(),
+            ));
+        }
+        builder = builder.header(name, value);
+    }
+    Ok(builder)
+}
+
 impl StreamableHttpClient for UnixSocketHttpClient {
     type Error = UnixSocketError;
 
@@ -158,23 +191,7 @@ impl StreamableHttpClient for UnixSocketHttpClient {
             builder = builder.header(http::header::AUTHORIZATION, format!("Bearer {auth}"));
         }
 
-        let reserved = [
-            http::header::ACCEPT.as_str(),
-            HEADER_SESSION_ID,
-            HEADER_MCP_PROTOCOL_VERSION,
-            HEADER_LAST_EVENT_ID,
-        ];
-        for (name, value) in custom_headers {
-            if reserved
-                .iter()
-                .any(|&r| name.as_str().eq_ignore_ascii_case(r))
-            {
-                return Err(StreamableHttpError::ReservedHeaderConflict(
-                    name.to_string(),
-                ));
-            }
-            builder = builder.header(name, value);
-        }
+        builder = apply_custom_headers(builder, custom_headers)?;
 
         if let Some(sid) = session_id {
             builder = builder.header(HEADER_SESSION_ID, sid.as_ref());
@@ -215,6 +232,12 @@ impl StreamableHttpClient for UnixSocketHttpClient {
             return Ok(StreamableHttpPostResponse::Accepted);
         }
 
+        if !status.is_success() {
+            return Err(StreamableHttpError::UnexpectedServerResponse(
+                format!("post_message returned {}", status).into(),
+            ));
+        }
+
         let session_id = response
             .headers()
             .get(HEADER_SESSION_ID)
@@ -250,6 +273,7 @@ impl StreamableHttpClient for UnixSocketHttpClient {
         uri: Arc<str>,
         session_id: Arc<str>,
         auth_header: Option<String>,
+        custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<(), StreamableHttpError<Self::Error>> {
         let mut builder = Request::builder()
             .method(Method::DELETE)
@@ -263,6 +287,8 @@ impl StreamableHttpClient for UnixSocketHttpClient {
         if let Some(auth) = auth_header {
             builder = builder.header(http::header::AUTHORIZATION, format!("Bearer {auth}"));
         }
+
+        builder = apply_custom_headers(builder, custom_headers)?;
 
         let request = builder
             .body(Full::new(Bytes::new()))
@@ -292,6 +318,7 @@ impl StreamableHttpClient for UnixSocketHttpClient {
         session_id: Arc<str>,
         last_event_id: Option<String>,
         auth_header: Option<String>,
+        custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<
         BoxStream<'static, Result<sse_stream::Sse, sse_stream::Error>>,
         StreamableHttpError<Self::Error>,
@@ -316,6 +343,8 @@ impl StreamableHttpClient for UnixSocketHttpClient {
         if let Some(auth) = auth_header {
             builder = builder.header(http::header::AUTHORIZATION, format!("Bearer {auth}"));
         }
+
+        builder = apply_custom_headers(builder, custom_headers)?;
 
         let request = builder
             .body(Full::new(Bytes::new()))
