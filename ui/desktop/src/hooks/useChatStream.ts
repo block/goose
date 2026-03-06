@@ -536,6 +536,7 @@ export function useChatStream({
               error: errorMessage(error),
             },
           });
+          window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
         } catch {
           dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
         }
