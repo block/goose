@@ -813,21 +813,13 @@ mod tests {
         for i in 0..3 {
             messages.push(Message::assistant().with_tool_request(
                 format!("old_tool_{}", i),
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "some_tool".into(),
-                    arguments: None,
-                }),
+                Ok(CallToolRequestParams::new("some_tool")),
             ));
             messages.push(Message::user().with_tool_response(
                 format!("old_tool_{}", i),
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![RawContent::text(format!("result {}", i)).no_annotation()],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text(format!("result {}", i)).no_annotation(),
+                ])),
             ));
         }
         messages.push(Message::user().with_text("Now do something else"));
@@ -841,23 +833,12 @@ mod tests {
         // Simulate post-compaction agent loop: LLM makes a new tool call, tool executes
         let new_asst = Message::assistant()
             .with_text("I'll run a new tool")
-            .with_tool_request(
-                "new_tool_1",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "new_tool".into(),
-                    arguments: None,
-                }),
-            );
+            .with_tool_request("new_tool_1", Ok(CallToolRequestParams::new("new_tool")));
         let new_tool_resp = Message::user().with_tool_response(
             "new_tool_1",
-            Ok(rmcp::model::CallToolResult {
-                content: vec![RawContent::text("new result").no_annotation()],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
+            Ok(rmcp::model::CallToolResult::success(vec![
+                RawContent::text("new result").no_annotation(),
+            ])),
         );
         // Rebuild conversation from compacted messages + new tool pair.
         // Can't use Conversation::push() because it merges by ID, and we need

@@ -159,15 +159,7 @@ mod tests {
             Message::user().with_text("Do something"),
             Message::assistant()
                 .with_text("I'll call a tool")
-                .with_tool_request(
-                    "orphan_tool_1",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "some_tool".into(),
-                        arguments: None,
-                    }),
-                ),
+                .with_tool_request("orphan_tool_1", Ok(CallToolRequestParams::new("some_tool"))),
         ]);
 
         // Control: fix_conversation alone correctly removes the orphaned tool request.
@@ -229,12 +221,7 @@ mod tests {
                 .with_text("I'll call a tool")
                 .with_tool_request(
                     "cancelled_tool",
-                    Ok(CallToolRequestParams {
-                        meta: None,
-                        task: None,
-                        name: "some_tool".into(),
-                        arguments: None,
-                    }),
+                    Ok(CallToolRequestParams::new("some_tool")),
                 ),
             // Pre-allocated Message::user() never populated due to cancellation.
             Message::user(),
