@@ -106,6 +106,7 @@ pub async fn oauth_flow(
             client_id,
             token_response,
             granted_scopes: vec![],
+            token_received_at: None,
         })
         .await?;
 

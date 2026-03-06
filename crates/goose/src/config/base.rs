@@ -321,7 +321,7 @@ impl Config {
 
         // Run migrations on the loaded config
         if crate::config::migrations::run_migrations(&mut values) {
-            if let Err(e) = self.save_values(values.clone()) {
+            if let Err(e) = self.save_values(&values) {
                 tracing::warn!("Failed to save migrated config: {}", e);
             }
         }
@@ -352,7 +352,7 @@ impl Config {
         default_config: Mapping,
     ) -> Result<Mapping, ConfigError> {
         // Try to write the default config to disk
-        match self.save_values(default_config.clone()) {
+        match self.save_values(&default_config) {
             Ok(_) => {
                 if default_config.is_empty() {
                     tracing::info!("Created fresh empty config file");
@@ -407,7 +407,7 @@ impl Config {
                         match parse_yaml_content(&backup_content) {
                             Ok(values) => {
                                 // Successfully parsed backup, restore it as the main config
-                                if let Err(e) = self.save_values(values.clone()) {
+                                if let Err(e) = self.save_values(&values) {
                                     tracing::warn!(
                                         "Failed to restore backup as main config: {}",
                                         e
@@ -452,15 +452,6 @@ impl Config {
             paths.push(self.config_path.with_file_name(backup_name));
         }
 
-        // Timestamped backups
-        for i in 1..=5 {
-            if let Some(file_name) = self.config_path.file_name() {
-                let mut backup_name = file_name.to_os_string();
-                backup_name.push(format!(".bak.{}", i));
-                paths.push(self.config_path.with_file_name(backup_name));
-            }
-        }
-
         paths
     }
 
@@ -468,12 +459,12 @@ impl Config {
         load_init_config_from_workspace()
     }
 
-    fn save_values(&self, values: Mapping) -> Result<(), ConfigError> {
+    fn save_values(&self, values: &Mapping) -> Result<(), ConfigError> {
         // Create backup before writing new config
         self.create_backup_if_needed()?;
 
         // Convert to YAML for storage
-        let yaml_value = serde_yaml::to_string(&values)?;
+        let yaml_value = serde_yaml::to_string(values)?;
 
         if let Some(parent) = self.config_path.parent() {
             std::fs::create_dir_all(parent)
@@ -510,7 +501,7 @@ impl Config {
     pub fn initialize_if_empty(&self, values: Mapping) -> Result<(), ConfigError> {
         let _guard = self.guard.lock().unwrap();
         if !self.exists() {
-            self.save_values(values)
+            self.save_values(&values)
         } else {
             Ok(())
         }
@@ -529,9 +520,6 @@ impl Config {
             return Ok(());
         }
 
-        // Rotate existing backups
-        self.rotate_backups()?;
-
         // Create new backup
         if let Some(file_name) = self.config_path.file_name() {
             let mut backup_name = file_name.to_os_string();
@@ -543,40 +531,6 @@ impl Config {
                 // Don't fail the entire operation if backup fails
             } else {
                 tracing::debug!("Created config backup: {:?}", backup_path);
-            }
-        }
-
-        Ok(())
-    }
-
-    // Rotate backup files to keep the most recent ones
-    fn rotate_backups(&self) -> Result<(), ConfigError> {
-        if let Some(file_name) = self.config_path.file_name() {
-            // Move .bak.4 to .bak.5, .bak.3 to .bak.4, etc.
-            for i in (1..5).rev() {
-                let mut current_backup = file_name.to_os_string();
-                current_backup.push(format!(".bak.{}", i));
-                let current_path = self.config_path.with_file_name(&current_backup);
-
-                let mut next_backup = file_name.to_os_string();
-                next_backup.push(format!(".bak.{}", i + 1));
-                let next_path = self.config_path.with_file_name(&next_backup);
-
-                if current_path.exists() {
-                    let _ = std::fs::rename(&current_path, &next_path);
-                }
-            }
-
-            // Move .bak to .bak.1
-            let mut backup_name = file_name.to_os_string();
-            backup_name.push(".bak");
-            let backup_path = self.config_path.with_file_name(&backup_name);
-
-            if backup_path.exists() {
-                let mut backup_1_name = file_name.to_os_string();
-                backup_1_name.push(".bak.1");
-                let backup_1_path = self.config_path.with_file_name(&backup_1_name);
-                let _ = std::fs::rename(&backup_path, &backup_1_path);
             }
         }
 
@@ -743,7 +697,7 @@ impl Config {
         let _guard = self.guard.lock().unwrap();
         let mut values = self.load_raw()?;
         values.insert(serde_yaml::to_value(key)?, serde_yaml::to_value(value)?);
-        self.save_values(values)
+        self.save_values(&values)
     }
 
     /// Delete a configuration value in the config file.
@@ -766,7 +720,7 @@ impl Config {
         let mut values = self.load_raw()?;
         values.shift_remove(key);
 
-        self.save_values(values)
+        self.save_values(&values)
     }
 
     /// Get a secret value.
@@ -1240,7 +1194,7 @@ mod tests {
         let mut handles = vec![];
 
         // Initialize with empty values
-        config.save_values(Default::default())?;
+        config.save_values(&Default::default())?;
 
         // Spawn 3 threads that will try to write simultaneously
         for i in 0..3 {
@@ -1259,7 +1213,7 @@ mod tests {
                 );
 
                 // Write all values
-                config.save_values(values.clone())?;
+                config.save_values(&values)?;
                 Ok(())
             });
             handles.push(handle);
@@ -1488,7 +1442,7 @@ mod tests {
         // Should have backups but not more than our limit
         let existing_backups: Vec<_> = backup_paths.iter().filter(|p| p.exists()).collect();
         assert!(
-            existing_backups.len() <= 6,
+            existing_backups.len() == 1,
             "Should not exceed backup limit"
         ); // .bak + .bak.1 through .bak.5
 

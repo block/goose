@@ -88,7 +88,7 @@
             cargo-edit
             clippy
             gemini-cli # potentially useful during dev/testing
-            go_1_25 # 'just' run-ui (temporal-service)
+            go_1_25 # 'just' run-ui
             just # used in dev/test
             nodejs_24 # 'just' run-ui
             ripgrep

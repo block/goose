@@ -22,7 +22,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
-    ProtocolVersion, ServerCapabilities, ServerNotification, Tool, ToolsCapability,
+    ServerCapabilities, ServerNotification, Tool,
 };
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -517,30 +517,9 @@ impl SummonClient {
             None
         };
 
-        let info = InitializeResult {
-            protocol_version: ProtocolVersion::V_2025_03_26,
-            capabilities: ServerCapabilities {
-                tasks: None,
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                resources: None,
-                prompts: None,
-                completions: None,
-                experimental: None,
-                logging: None,
-                extensions: None,
-            },
-            server_info: Implementation {
-                name: EXTENSION_NAME.to_string(),
-                title: Some("Summon".to_string()),
-                version: "1.0.0".to_string(),
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            instructions,
-        };
+        let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Summon"))
+            .with_instructions(instructions.unwrap_or_default());
 
         Ok(Self {
             info,
@@ -1455,9 +1434,8 @@ impl SummonClient {
 
         let max_turns = self.resolve_max_turns(session);
 
-        let mut task_config =
-            TaskConfig::new(provider, &session.id, &session.working_dir, extensions);
-        task_config.max_turns = Some(max_turns);
+        let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
+            .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1512,6 +1490,7 @@ impl SummonClient {
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
+        // Priority: env var > recipe settings > config.yaml > default
         std::env::var("GOOSE_SUBAGENT_MAX_TURNS")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -1521,6 +1500,11 @@ impl SummonClient {
                     .as_ref()
                     .and_then(|r| r.settings.as_ref())
                     .and_then(|s| s.max_turns)
+            })
+            .or_else(|| {
+                Config::global()
+                    .get_param::<usize>("GOOSE_SUBAGENT_MAX_TURNS")
+                    .ok()
             })
             .unwrap_or(DEFAULT_SUBAGENT_MAX_TURNS)
     }
@@ -2031,17 +2015,12 @@ You review code."#;
             use crate::conversation::message::MessageContent;
             use rmcp::model::CallToolRequestParams;
 
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "developer__shell".to_string().into(),
-                arguments: Some(
-                    serde_json::json!({"command": "ls"})
-                        .as_object()
-                        .unwrap()
-                        .clone(),
-                ),
-            };
+            let tool_call = CallToolRequestParams::new("developer__shell").with_arguments(
+                serde_json::json!({"command": "ls"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            );
             let content = MessageContent::tool_request("req1", Ok(tool_call));
             let notif = create_tool_notification(&content, "20260204_1").unwrap();
 
