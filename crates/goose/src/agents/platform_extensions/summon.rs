@@ -693,14 +693,14 @@ impl SummonClient {
         session_id: &str,
         name: &str,
         working_dir: &Path,
-    ) -> Option<Source> {
+    ) -> Result<Option<Source>, String> {
         let sources = self.get_sources(session_id, working_dir).await;
 
         if let Some(mut source) = sources.iter().find(|s| s.name == name).cloned() {
             if source.kind == SourceKind::Subrecipe && source.content.is_empty() {
                 source.content = self.load_subrecipe_content(session_id, &source.name).await;
             }
-            return Some(source);
+            return Ok(Some(source));
         }
 
         if let Some((skill_name, relative_path)) = name.split_once('/') {
@@ -722,39 +722,29 @@ impl SummonClient {
                                 .map(|p| p.starts_with(&canonical_skill_dir))
                                 .unwrap_or(false);
                             if !safe {
-                                warn!(
-                                    "Refusing to load supporting file outside skill directory: {}",
-                                    file_path.display()
-                                );
-                                return None;
+                                return Err(format!(
+                                    "Refusing to load '{}': file resolves outside the skill directory",
+                                    name
+                                ));
                             }
-                            match std::fs::read_to_string(file_path) {
-                                Ok(content) => {
-                                    return Some(Source {
-                                        name: name.to_string(),
-                                        kind: SourceKind::Skill,
-                                        description: format!("Supporting file for {}", skill_name),
-                                        path: file_path.clone(),
-                                        content,
-                                        supporting_files: vec![],
-                                    });
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        "Failed to read supporting file {}: {}",
-                                        file_path.display(),
-                                        e
-                                    );
-                                    return None;
-                                }
-                            }
+                            return match std::fs::read_to_string(file_path) {
+                                Ok(content) => Ok(Some(Source {
+                                    name: name.to_string(),
+                                    kind: SourceKind::Skill,
+                                    description: format!("Supporting file for {}", skill_name),
+                                    path: file_path.clone(),
+                                    content,
+                                    supporting_files: vec![],
+                                })),
+                                Err(e) => Err(format!("Failed to read '{}': {}", name, e)),
+                            };
                         }
                     }
                 }
             }
         }
 
-        None
+        Ok(None)
     }
 
     async fn load_subrecipe_content(&self, session_id: &str, name: &str) -> String {
@@ -1094,7 +1084,7 @@ impl SummonClient {
         name: &str,
         working_dir: &Path,
     ) -> Result<Vec<Content>, String> {
-        let source = self.resolve_source(session_id, name, working_dir).await;
+        let source = self.resolve_source(session_id, name, working_dir).await?;
 
         match source {
             Some(source) => {
@@ -1326,7 +1316,7 @@ impl SummonClient {
     ) -> Result<Recipe, String> {
         let source = self
             .resolve_source(session_id, source_name, working_dir)
-            .await
+            .await?
             .ok_or_else(|| format!("Source '{}' not found", source_name))?;
 
         let mut recipe = match source.kind {
