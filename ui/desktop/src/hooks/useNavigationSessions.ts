@@ -159,10 +159,16 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   const handleNewChat = useCallback(async () => {
     if (isCreatingSessionRef.current) return;
 
-    const emptyNewSession = sessionsRef.current.find((s) => shouldShowNewChatTitle(s));
+    // Only reuse the current window's own active session if it is empty.
+    // Previously this grabbed the first empty session globally, which caused
+    // multiple windows to claim the same empty session after a restart/upgrade.
+    const currentActiveSession = activeSessionId
+      ? sessionsRef.current.find((s) => s.id === activeSessionId)
+      : undefined;
+    const canReuseActive = currentActiveSession && shouldShowNewChatTitle(currentActiveSession);
 
-    if (emptyNewSession) {
-      resumeSession(emptyNewSession, setView);
+    if (canReuseActive) {
+      resumeSession(currentActiveSession, setView);
     } else {
       isCreatingSessionRef.current = true;
       try {
@@ -176,7 +182,7 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       }
     }
     onNavigate?.();
-  }, [setView, onNavigate, extensionsList]);
+  }, [setView, onNavigate, extensionsList, activeSessionId]);
 
   const handleSessionClick = useCallback(
     (sessionId: string) => {

@@ -62,11 +62,13 @@ async fn create_message(
 
     let text = response.as_concat_text();
 
-    Ok(Json(CreateMessageResult {
-        model: usage.model,
-        stop_reason: Some(CreateMessageResult::STOP_REASON_END_TURN.to_string()),
-        message: SamplingMessage::new(Role::Assistant, SamplingMessageContent::text(&text)),
-    }))
+    Ok(Json(
+        CreateMessageResult::new(
+            SamplingMessage::new(Role::Assistant, SamplingMessageContent::text(&text)),
+            usage.model,
+        )
+        .with_stop_reason(CreateMessageResult::STOP_REASON_END_TURN),
+    ))
 }
 
 fn content_to_message(base: Message, content: &SamplingContent<SamplingMessageContent>) -> Message {

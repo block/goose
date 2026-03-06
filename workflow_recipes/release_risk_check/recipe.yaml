@@ -1,0 +1,116 @@
+version: 1.0.0
+title: "Release Change Risk Check"
+description: "Create a report to access the change in an upcoming release"
+
+instructions: |
+  ## Step 1: Generate the heuristic report
+
+  Run the script to collect PR data and do initial risk scoring:
+
+  {{recipe_dir}}/release_risk_report.py --version {{version}} -o /tmp/release_report.md
+
+  This produces a report with each PR classified as HIGH/MEDIUM/LOW based on file changes, lines of code, and core path analysis.
+
+  ## Step 2: AI review of MEDIUM and HIGH risk PRs
+
+  Take the MEDIUM and HIGH risk PRs from the Step 1 report and feed them to an LLM with the following prompt:
+
+  ---
+
+  You are a release risk assessor for **Goose**, an open-source AI-powered CLI coding agent built in Rust with a React/Electron desktop UI.
+
+  ### Architecture (most sensitive areas first)
+
+  **CRITICAL — changes here can bypass security or cause data loss:**
+  - **Permission system** (`crates/goose/src/permission/`) — controls what the agent is allowed to do. Permission bypass = agent has unrestricted access to user's machine.
+  - **Tool execution pipeline** (`crates/goose/src/agents/tool_execution.rs`, `agent.rs`) — dispatches shell commands, file edits, etc. Bugs here can cause uncontrolled execution.
+  - **Security inspection** (`crates/goose/src/tool_inspection.rs`) — detects prompt injection and destructive operations. Disabling or weakening = injection attacks succeed.
+  - **Server action approval** (`crates/goose-server/src/routes/action_required.rs`) — user approval API. If broken, agent executes without user consent.
+  - **Session database** (`crates/goose/src/session/session_manager.rs`) — stores all conversations in SQLite. Schema changes risk data loss.
+  - **Authentication** (`crates/goose-server/src/auth.rs`) — access control for the HTTP server.
+
+  **HIGH — changes here affect core functionality:**
+  - **Agent loop** (`crates/goose/src/agents/`) — message routing, turn limits, conversation compaction.
+  - **Provider integrations** (`crates/goose/src/providers/`) — LLM API calls, credential handling, cost tracking, response parsing.
+  - **Extension manager** (`crates/goose/src/agents/extension_manager.rs`) — loads MCP extensions, tool discovery. Malicious extensions could be loaded.
+  - **Server routes** (`crates/goose-server/src/routes/`) — HTTP API that the desktop UI and CLI talk to.
+
+  **MEDIUM — changes here affect specific features:**
+  - **CLI commands** (`crates/goose-cli/`) — argument parsing, session management, recipe execution.
+  - **Desktop UI** (`ui/desktop/src/`) — React components, state management, settings.
+  - **Platform extensions** (`crates/goose/src/agents/platform_extensions/`) — built-in tools like shell, file edit.
+
+  ### Risk levels — assign ONE per PR:
+
+  - **HIGH**: Change could cause security bypass, data loss, crashes affecting all users, or break core agent functionality. Examples: modifying permission checks, changing tool execution flow, altering session schema, touching auth logic.
+  - **MEDIUM**: Change could cause issues in specific scenarios but not for all users. Examples: provider-specific bug, UI regression, new feature with limited blast radius, config changes.
+  - **LOW**: Very unlikely to cause issues. Examples: small isolated fix with tests, additive-only new feature in non-core area, UI cosmetic change, test-only changes.
+
+  ### Signals that INCREASE risk:
+  - Modifies existing logic in critical/high areas (vs adding new code)
+  - No testing section in PR description
+  - No approvers or only bot approvers
+  - Large diff touching many files across different subsystems
+  - Reverts or re-applies of previous changes (indicates instability)
+  - Touches error handling or fallback paths (silent failures)
+
+  ### Signals that DECREASE risk:
+  - Has thorough testing section with specific test cases mentioned
+  - Change is purely additive (new files, new feature behind flag)
+  - Only touches test files or snapshots
+  - Small, focused diff in one subsystem
+
+  ### Task
+
+  For each PR below:
+
+  1. **Assess risk** — assign HIGH / MEDIUM / LOW with reasoning
+  2. **Testing confidence** — check if the PR has a testing section. If yes, summarise what was tested in one sentence. If no, say "No testing section".
+  3. **Suggest testing steps** — for PRs you rate HIGH or MEDIUM, provide 2-4 concrete test steps
+
+  Respond in this format for each PR:
+
+  | PR | Heuristic | AI Risk | Reasoning | Concern | Testing |
+  |----|-----------|---------|-----------|---------|---------|
+
+  Where:
+  - **Heuristic** = the score from Step 1 (HIGH or MEDIUM)
+  - **AI Risk** = your assessment (HIGH / MEDIUM / LOW)
+  - **Reasoning** = 1-2 sentences explaining why
+  - **Concern** = specific thing to watch for during release, or "None"
+  - **Testing** = summary of PR's testing section, or "No testing section"
+
+  If your AI Risk differs from the Heuristic, bold it to highlight the disagreement.
+
+  Then, for each PR you rated HIGH or MEDIUM, list suggested testing steps below the table. Use this guide:
+
+  ### PRs to review:
+
+  <PASTE MEDIUM AND HIGH RISK PRS FROM STEP 1 REPORT HERE>
+
+  ---
+
+  ## Step 3: Generate the final report
+
+  Combine the outputs from Step 1 and Step 2 into a final report:
+
+  1. Start with the Step 1 report header (repo, total PRs, risk summary)
+  2. Update the risk summary counts based on AI-revised risk levels
+  3. For each MEDIUM/HIGH PR, append the AI assessment:
+    - `AI assessment: [LEVEL] — reasoning`
+    - `AI concern: concern text`
+    - If AI disagreed with heuristic, note: `(downgraded from HIGH)` or `(upgraded from MEDIUM)`
+  4. LOW risk PRs and skipped PRs remain unchanged from Step 1
+  5. Add a summary section at the top listing the top concerns across all HIGH risk PRs
+
+prompt: follow the instructions to generate the final report
+
+parameters:
+  - key: "version"
+    input_type: string
+    requirement: required
+    description: "release version"
+
+extensions:
+  - type: platform
+    name: developer
