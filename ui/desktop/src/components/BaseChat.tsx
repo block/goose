@@ -42,6 +42,7 @@ import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
+import { AlertTriangle } from 'lucide-react';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
@@ -408,20 +409,6 @@ export default function BaseChat({
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
-          {sessionLoadError && messages.length > 0 && (
-            <div className="bg-[#cc4b03] text-white px-6 py-3 flex items-center justify-between gap-4">
-              <p className="text-sm flex-1">
-                The provider used in this session is no longer available. You can continue this chat
-                using your current provider.
-              </p>
-              <button
-                onClick={clearSessionLoadError}
-                className="px-4 py-2 text-center cursor-pointer text-white border border-white/40 hover:bg-white/10 rounded-lg transition-all duration-150"
-              >
-                Continue with current provider
-              </button>
-            </div>
-          )}
           <ScrollArea
             ref={scrollRef}
             className={`flex-1 bg-background-primary rounded-b-2xl min-h-0 relative ${contentClassName}`}
@@ -484,6 +471,27 @@ export default function BaseChat({
                     : undefined
                 }
               />
+            </div>
+          )}
+
+          {sessionLoadError && messages.length > 0 && (
+            <div className="absolute bottom-16 left-4 right-4 z-30 rounded-lg border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 flex items-start gap-3 backdrop-blur-sm">
+              <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                  Provider unavailable
+                </p>
+                <p className="text-sm text-text-secondary mt-1">
+                  The provider used in this session is no longer available. You can continue this
+                  chat using your current provider.
+                </p>
+              </div>
+              <button
+                onClick={clearSessionLoadError}
+                className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150 shrink-0"
+              >
+                Continue
+              </button>
             </div>
           )}
         </div>
