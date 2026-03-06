@@ -61,9 +61,25 @@ function shouldSetupUpdater(): boolean {
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 
 function getSettings(): Settings {
-  if (fsSync.existsSync(SETTINGS_FILE)) {
-    const data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
-    const stored = JSON.parse(data) as Partial<Settings>;
+  if (!fsSync.existsSync(SETTINGS_FILE)) {
+    return defaultSettings;
+  }
+
+  let data: string;
+  try {
+    data = fsSync.readFileSync(SETTINGS_FILE, 'utf8');
+  } catch (error) {
+    console.error(`[Main] Failed to read settings file at ${SETTINGS_FILE}.`, error);
+    throw error;
+  }
+
+  try {
+    const parsed = JSON.parse(data) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('Settings file must be a JSON object');
+    }
+
+    const stored = parsed as Partial<Settings>;
     // Deep merge to ensure nested objects get their defaults too
     return {
       ...defaultSettings,
@@ -81,14 +97,70 @@ function getSettings(): Settings {
         ...(stored.sessionSharing ?? {}),
       },
     };
+  } catch (error) {
+    console.warn(
+      `[Main] Failed to parse settings file at ${SETTINGS_FILE}. Falling back to defaults.`,
+      error,
+    );
+    return defaultSettings;
   }
-  return defaultSettings;
 }
 
 function updateSettings(modifier: (settings: Settings) => void): void {
   const settings = getSettings();
   modifier(settings);
-  fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+  const tempSettingsFile = `${SETTINGS_FILE}.tmp`;
+  const backupSettingsFile = `${SETTINGS_FILE}.bak`;
+  const payload = JSON.stringify(settings, null, 2);
+
+  fsSync.writeFileSync(tempSettingsFile, payload);
+
+  try {
+    fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    const canReplaceExistingFile =
+      code === 'EEXIST' || code === 'EPERM' || code === 'ENOTEMPTY';
+    const existingSettingsFile = fsSync.existsSync(SETTINGS_FILE);
+    if (!canReplaceExistingFile || !existingSettingsFile) {
+      throw error;
+    }
+
+    // On some platforms, replace-via-rename can fail when destination exists.
+    // Move the old file aside first so we can restore it if replacement fails.
+    if (fsSync.existsSync(backupSettingsFile)) {
+      fsSync.unlinkSync(backupSettingsFile);
+    }
+
+    fsSync.renameSync(SETTINGS_FILE, backupSettingsFile);
+    try {
+      fsSync.renameSync(tempSettingsFile, SETTINGS_FILE);
+    } catch (replaceError) {
+      if (fsSync.existsSync(backupSettingsFile)) {
+        if (fsSync.existsSync(SETTINGS_FILE)) {
+          fsSync.unlinkSync(SETTINGS_FILE);
+        }
+        fsSync.renameSync(backupSettingsFile, SETTINGS_FILE);
+      }
+      throw replaceError;
+    }
+
+    // Best-effort cleanup after replacement is committed.
+    if (fsSync.existsSync(backupSettingsFile)) {
+      try {
+        fsSync.unlinkSync(backupSettingsFile);
+      } catch (cleanupError) {
+        console.warn(
+          `[Main] Failed to delete backup settings file at ${backupSettingsFile}.`,
+          cleanupError,
+        );
+      }
+    }
+  } finally {
+    if (fsSync.existsSync(tempSettingsFile)) {
+      fsSync.unlinkSync(tempSettingsFile);
+    }
+  }
 }
 
 async function configureProxy() {
