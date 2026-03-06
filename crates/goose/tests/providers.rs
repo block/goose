@@ -424,14 +424,8 @@ impl ProviderTester {
         message: &str,
         label: &str,
     ) -> Result<()> {
-        let mode_str = match mode {
-            GooseMode::Approve => "approve",
-            GooseMode::SmartApprove => "smart_approve",
-            GooseMode::Auto => "auto",
-            GooseMode::Chat => "chat",
-        };
         // Guard must live through agent.reply() — providers read GOOSE_MODE at spawn time.
-        let _guard = env_lock::lock_env([("GOOSE_MODE", Some(mode_str))]);
+        let _guard = env_lock::lock_env([("GOOSE_MODE", Some(<&str>::from(mode)))]);
         let provider = if self.is_cli_provider {
             create_with_named_model(
                 &self.name.to_lowercase(),
