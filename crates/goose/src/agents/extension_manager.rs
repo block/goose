@@ -298,14 +298,20 @@ fn extract_auth_error(
             ClientInitializeError::TransportError {
                 error: DynamicTransportError { error, .. },
                 ..
-            } => error
-                .downcast_ref::<StreamableHttpError<reqwest::Error>>()
-                .and_then(|auth_error| match auth_error {
-                    StreamableHttpError::AuthRequired(auth_required_error) => {
-                        Some(auth_required_error)
-                    }
-                    _ => None,
-                }),
+            } => {
+                if let Some(StreamableHttpError::AuthRequired(e)) =
+                    error.downcast_ref::<StreamableHttpError<reqwest::Error>>()
+                {
+                    return Some(e);
+                }
+                #[cfg(unix)]
+                if let Some(StreamableHttpError::AuthRequired(e)) = error
+                    .downcast_ref::<StreamableHttpError<super::unix_socket_http_client::UnixSocketError>>()
+                {
+                    return Some(e);
+                }
+                None
+            }
             _ => None,
         },
     }
@@ -536,7 +542,7 @@ async fn create_unix_socket_http_client(
 
     let unix_client = UnixSocketHttpClient::new(uri, socket_path, default_headers);
     let transport = StreamableHttpClientTransport::with_client(
-        unix_client.clone(),
+        unix_client,
         StreamableHttpClientTransportConfig {
             uri: uri.into(),
             ..Default::default()
@@ -559,7 +565,10 @@ async fn create_unix_socket_http_client(
         let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
             .await
             .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
-        let auth_client = AuthClient::new(unix_client, auth_manager);
+        let mut auth_headers = std::collections::HashMap::new();
+        auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
+        let auth_unix_client = UnixSocketHttpClient::new(uri, socket_path, auth_headers);
+        let auth_client = AuthClient::new(auth_unix_client, auth_manager);
         let transport = StreamableHttpClientTransport::with_client(
             auth_client,
             StreamableHttpClientTransportConfig {
