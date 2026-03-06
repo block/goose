@@ -43,6 +43,29 @@ export interface WhiteLabelExtensionDefault {
   envVars?: Record<string, string>;
 }
 
+export interface WhiteLabelSkill {
+  /** Display name shown to the agent */
+  name: string;
+  /** When to activate this skill */
+  description: string;
+  /** Path to the skill directory containing SKILL.md and supporting files */
+  path: string;
+}
+
+export interface WhiteLabelTool {
+  /** Tool name (used as command name) */
+  name: string;
+  /** What the tool does */
+  description: string;
+  /** Path to the CLI binary */
+  path: string;
+  /** Environment variables the tool needs */
+  env?: Record<string, string>;
+  /** Inline help text to include in the system prompt (e.g. usage docs).
+   *  If omitted, the system will run `<path> --help` at build time. */
+  helpText?: string;
+}
+
 export interface WhiteLabelDefaults {
   provider?: string;
   model?: string;
@@ -50,6 +73,10 @@ export interface WhiteLabelDefaults {
   workingDir?: string;
   systemPrompt?: string;
   goosehints?: string;
+  /** Skill directories — each contains a SKILL.md with frontmatter + instructions */
+  skills?: WhiteLabelSkill[];
+  /** CLI tools to make available to the agent */
+  tools?: WhiteLabelTool[];
 }
 
 export interface WhiteLabelProcess {

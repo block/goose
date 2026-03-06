@@ -8,6 +8,85 @@ import {
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
+import type { WhiteLabelConfig } from './whitelabel/types';
+import { DEFAULT_WHITELABEL_CONFIG } from './whitelabel/defaults';
+
+function getWhiteLabelConfig(): WhiteLabelConfig {
+  try {
+    return __WHITELABEL_CONFIG__;
+  } catch {
+    return DEFAULT_WHITELABEL_CONFIG;
+  }
+}
+
+/**
+ * Build a Recipe from the whitelabel config.
+ * This replaces the default system prompt entirely — the agent becomes
+ * whatever the whitelabel config says it is.
+ *
+ * Returns undefined if no whitelabel customization is configured.
+ */
+function buildWhiteLabelRecipe(): Recipe | undefined {
+  const config = getWhiteLabelConfig();
+  const { defaults } = config;
+
+  // Nothing to do if no system prompt, skills, or tools defined
+  if (!defaults.systemPrompt && !defaults.skills?.length && !defaults.tools?.length) {
+    return undefined;
+  }
+
+  const parts: string[] = [];
+
+  // Base system prompt — the agent persona
+  if (defaults.systemPrompt) {
+    parts.push(defaults.systemPrompt.trim());
+  }
+
+  // Skills
+  if (defaults.skills && defaults.skills.length > 0) {
+    const lines = ['# Skills', ''];
+    for (const skill of defaults.skills) {
+      lines.push(`## ${skill.name}`);
+      lines.push(skill.description);
+      lines.push(`Skill directory: \`${skill.path}\``);
+      lines.push(
+        'Read the SKILL.md in this directory for detailed instructions before starting this type of work.'
+      );
+      lines.push('');
+    }
+    parts.push(lines.join('\n'));
+  }
+
+  // Tools
+  if (defaults.tools && defaults.tools.length > 0) {
+    const lines = ['# Tools', ''];
+    for (const tool of defaults.tools) {
+      lines.push(`## \`${tool.name}\``);
+      lines.push(tool.description);
+      lines.push(`Binary: \`${tool.path}\``);
+      if (tool.env) {
+        const envList = Object.entries(tool.env)
+          .map(([k, v]) => `  - \`${k}\`: ${v || '(required)'}`)
+          .join('\n');
+        lines.push(`Environment variables:\n${envList}`);
+      }
+      if (tool.helpText) {
+        lines.push('');
+        lines.push(tool.helpText);
+      }
+      lines.push('');
+    }
+    parts.push(lines.join('\n'));
+  }
+
+  if (parts.length === 0) return undefined;
+
+  return {
+    title: config.branding.appName,
+    description: config.branding.tagline || config.branding.appName,
+    instructions: parts.join('\n\n'),
+  };
+}
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -56,6 +135,14 @@ export async function createSession(
     body.recipe_id = options.recipeId;
   } else if (options?.recipeDeeplink) {
     body.recipe = await decodeRecipe(options.recipeDeeplink);
+  }
+
+  // If no explicit recipe was provided, inject the whitelabel recipe
+  if (!body.recipe && !body.recipe_id) {
+    const wlRecipe = buildWhiteLabelRecipe();
+    if (wlRecipe) {
+      body.recipe = wlRecipe;
+    }
   }
 
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
