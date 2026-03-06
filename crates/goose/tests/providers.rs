@@ -407,13 +407,31 @@ impl ProviderTester {
         if self.name != "codex" {
             self.test_permission_allow().await?;
             self.test_permission_deny().await?;
+            // Agentic CLI providers handle tools internally, SmartApprove == Approve
+            if !self.is_cli_provider {
+                self.test_smart_approve_llm_detect().await?;
+                self.test_smart_approve_readonly().await?;
+            }
         }
         Ok(())
     }
 
-    async fn run_permission_test(&self, permission: Permission, label: &str) -> Result<()> {
+    async fn run_permission_test(
+        &self,
+        mode: GooseMode,
+        permission: Permission,
+        expect_action_required: bool,
+        message: &str,
+        label: &str,
+    ) -> Result<()> {
+        let mode_str = match mode {
+            GooseMode::Approve => "approve",
+            GooseMode::SmartApprove => "smart_approve",
+            GooseMode::Auto => "auto",
+            GooseMode::Chat => "chat",
+        };
         // Guard must live through agent.reply() — providers read GOOSE_MODE at spawn time.
-        let _guard = env_lock::lock_env([("GOOSE_MODE", Some("approve"))]);
+        let _guard = env_lock::lock_env([("GOOSE_MODE", Some(mode_str))]);
         let provider = if self.is_cli_provider {
             create_with_named_model(
                 &self.name.to_lowercase(),
@@ -433,7 +451,7 @@ impl ProviderTester {
             session_manager.clone(),
             permission_manager,
             None,
-            GooseMode::Approve,
+            mode,
             true,
             GoosePlatform::GooseCli,
         ));
@@ -452,8 +470,7 @@ impl ProviderTester {
             .await
             .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-        let message =
-            Message::user().with_text("Use the get_code tool and output only its result.");
+        let message = Message::user().with_text(message);
         let session_config = SessionConfig {
             id: session.id,
             schedule_id: None,
@@ -486,19 +503,53 @@ impl ProviderTester {
             }
         }
 
-        assert!(saw_action_required);
+        assert_eq!(saw_action_required, expect_action_required);
         println!("=== {}::{} ===", self.name, label);
         Ok(())
     }
 
     async fn test_permission_allow(&self) -> Result<()> {
-        self.run_permission_test(Permission::AllowOnce, "permission_allow")
-            .await
+        self.run_permission_test(
+            GooseMode::Approve,
+            Permission::AllowOnce,
+            true,
+            "Use the get_code tool and output only its result.",
+            "permission_allow",
+        )
+        .await
     }
 
     async fn test_permission_deny(&self) -> Result<()> {
-        self.run_permission_test(Permission::DenyOnce, "permission_deny")
-            .await
+        self.run_permission_test(
+            GooseMode::Approve,
+            Permission::DenyOnce,
+            true,
+            "Use the get_code tool and output only its result.",
+            "permission_deny",
+        )
+        .await
+    }
+
+    async fn test_smart_approve_llm_detect(&self) -> Result<()> {
+        self.run_permission_test(
+            GooseMode::SmartApprove,
+            Permission::AllowOnce,
+            false,
+            "Use the get_image tool and describe what you see in its result.",
+            "smart_approve_llm_detect",
+        )
+        .await
+    }
+
+    async fn test_smart_approve_readonly(&self) -> Result<()> {
+        self.run_permission_test(
+            GooseMode::SmartApprove,
+            Permission::AllowOnce,
+            false,
+            "Use the get_code tool and output only its result.",
+            "smart_approve_readonly",
+        )
+        .await
     }
 }
 

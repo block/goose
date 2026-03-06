@@ -38,6 +38,7 @@ pub trait ToolInspector: Send + Sync {
     /// Inspect tool requests and return results
     async fn inspect(
         &self,
+        session_id: &str,
         tool_requests: &[ToolRequest],
         messages: &[Message],
         goose_mode: GooseMode,
@@ -73,6 +74,7 @@ impl ToolInspectionManager {
     /// Run all inspectors on the tool requests
     pub async fn inspect_tools(
         &self,
+        session_id: &str,
         tool_requests: &[ToolRequest],
         messages: &[Message],
         goose_mode: GooseMode,
@@ -90,7 +92,10 @@ impl ToolInspectionManager {
                 "Running tool inspector"
             );
 
-            match inspector.inspect(tool_requests, messages, goose_mode).await {
+            match inspector
+                .inspect(session_id, tool_requests, messages, goose_mode)
+                .await
+            {
                 Ok(results) => {
                     tracing::debug!(
                         inspector_name = inspector.name(),
@@ -118,49 +123,39 @@ impl ToolInspectionManager {
         self.inspectors.iter().map(|i| i.name()).collect()
     }
 
-    /// Update the permission manager for a specific tool
+    fn get_permission_inspector(&self) -> Option<&PermissionInspector> {
+        self.inspectors
+            .iter()
+            .find(|i| i.name() == "permission")
+            .and_then(|i| i.as_any().downcast_ref::<PermissionInspector>())
+    }
+
+    pub fn apply_tool_annotations(&self, tools: &[rmcp::model::Tool]) {
+        if let Some(inspector) = self.get_permission_inspector() {
+            inspector.apply_tool_annotations(tools);
+        }
+    }
+
     pub async fn update_permission_manager(
         &self,
         tool_name: &str,
         permission_level: crate::config::permission::PermissionLevel,
     ) {
-        for inspector in &self.inspectors {
-            if inspector.name() == "permission" {
-                // Downcast to PermissionInspector to access permission manager
-                if let Some(permission_inspector) =
-                    inspector.as_any().downcast_ref::<PermissionInspector>()
-                {
-                    permission_inspector
-                        .permission_manager
-                        .update_user_permission(tool_name, permission_level);
-                    return;
-                }
-            }
+        if let Some(inspector) = self.get_permission_inspector() {
+            inspector
+                .permission_manager
+                .update_user_permission(tool_name, permission_level);
         }
-        tracing::warn!("Permission inspector not found for permission manager update");
     }
 
-    /// Process inspection results using the permission inspector
-    /// This delegates to the permission inspector's process_inspection_results method
     pub fn process_inspection_results_with_permission_inspector(
         &self,
         remaining_requests: &[ToolRequest],
         inspection_results: &[InspectionResult],
     ) -> Option<PermissionCheckResult> {
-        for inspector in &self.inspectors {
-            if inspector.name() == "permission" {
-                if let Some(permission_inspector) =
-                    inspector.as_any().downcast_ref::<PermissionInspector>()
-                {
-                    return Some(
-                        permission_inspector
-                            .process_inspection_results(remaining_requests, inspection_results),
-                    );
-                }
-            }
-        }
-        tracing::warn!("Permission inspector not found for processing inspection results");
-        None
+        self.get_permission_inspector().map(|inspector| {
+            inspector.process_inspection_results(remaining_requests, inspection_results)
+        })
     }
 }
 

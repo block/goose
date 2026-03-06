@@ -245,7 +245,10 @@ impl Agent {
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
             retry_manager: RetryManager::new(),
-            tool_inspection_manager: Self::create_tool_inspection_manager(permission_manager),
+            tool_inspection_manager: Self::create_tool_inspection_manager(
+                permission_manager,
+                provider.clone(),
+            ),
             container: Mutex::new(None),
         }
     }
@@ -253,6 +256,7 @@ impl Agent {
     /// Create a tool inspection manager with default inspectors
     fn create_tool_inspection_manager(
         permission_manager: Arc<PermissionManager>,
+        provider: SharedProvider,
     ) -> ToolInspectionManager {
         let mut tool_inspection_manager = ToolInspectionManager::new();
 
@@ -261,9 +265,8 @@ impl Agent {
 
         // Add permission inspector (medium-high priority)
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
-            std::collections::HashSet::new(), // readonly tools - will be populated from extension manager
-            std::collections::HashSet::new(), // regular tools - will be populated from extension manager
             permission_manager,
+            provider,
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
@@ -349,6 +352,10 @@ impl Agent {
         let (tools, toolshim_tools, system_prompt) = self
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
+
+        if self.config.goose_mode == GooseMode::SmartApprove {
+            self.tool_inspection_manager.apply_tool_annotations(&tools);
+        }
 
         Ok(ReplyContext {
             conversation,
@@ -1261,6 +1268,7 @@ impl Agent {
                                     // Run all tool inspectors
                                     let inspection_results = self.tool_inspection_manager
                                         .inspect_tools(
+                                            &session_config.id,
                                             &remaining_requests,
                                             conversation.messages(),
                                             goose_mode,

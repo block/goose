@@ -58,6 +58,7 @@ impl ToolInspector for SecurityInspector {
 
     async fn inspect(
         &self,
+        _session_id: &str,
         tool_requests: &[ToolRequest],
         messages: &[Message],
         _goose_mode: GooseMode,
@@ -113,7 +114,7 @@ mod tests {
         }];
 
         let results = inspector
-            .inspect(&tool_requests, &[], GooseMode::Approve)
+            .inspect("test", &tool_requests, &[], GooseMode::Approve)
             .await
             .unwrap();
 

@@ -105,7 +105,7 @@ impl McpFixtureServer {
         }
     }
 
-    #[tool(description = "Get the code")]
+    #[tool(description = "Get the code", annotations(read_only_hint = true))]
     fn get_code(&self) -> Result<CallToolResult, McpError> {
         Ok(CallToolResult::success(vec![Content::text(FAKE_CODE)]))
     }
