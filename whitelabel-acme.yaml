@@ -93,18 +93,6 @@ defaults:
     This is an Acme Corp project. Follow internal standards.
     Use the acme-internal-tools extension for accessing internal APIs.
 
-# Uncomment to start a local tool server alongside the app
-# processes:
-#   - name: "acme-proxy"
-#     command: "node"
-#     args: ["./tools/proxy.js"]
-#     cwd: "."
-#     env:
-#       PROXY_PORT: "8899"
-#     restartOnCrash: true
-#     waitForPort: 8899
-#     waitTimeoutMs: 15000
-
 window:
   width: 1100
   height: 850

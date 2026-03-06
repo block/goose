@@ -35,8 +35,11 @@ function deepMerge(target: any, source: any): any {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function loadWhiteLabelConfig(projectRoot: string): WhiteLabelConfig {
-  // Allow override via env var
-  const configPath = process.env.WHITELABEL_CONFIG || path.join(projectRoot, 'whitelabel.yaml');
+  // Allow override via env var — resolve relative paths from CWD (not projectRoot)
+  const envPath = process.env.WHITELABEL_CONFIG;
+  const configPath = envPath
+    ? path.resolve(process.cwd(), envPath)
+    : path.join(projectRoot, 'whitelabel.yaml');
 
   if (!fs.existsSync(configPath)) {
     console.log('[WhiteLabel] No whitelabel.yaml found, using defaults');
