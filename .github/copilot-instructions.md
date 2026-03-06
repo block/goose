@@ -34,8 +34,8 @@
 - Async/await misuse or blocking operations in async contexts
 - Improper trait implementations
 
-### No Prerelease Docs
-- If the PR contains both code changes to features/functionality AND updates in `/documentation`: Documentation updates must be separated to keep public docs in sync with released versions. Either mark new topics with `unlisted: true` or remove/hide the documentation.
+### No Doc Updates with Code Changes
+- PRs with code changes shouldn't update `/documentation` - docs deploy on merge, code on release. Use `unlisted: true` or remove/hide docs.
 
 ## Project-Specific Context
 

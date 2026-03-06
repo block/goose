@@ -44,6 +44,8 @@ pub struct DeclarativeProviderConfig {
     pub requires_auth: bool,
     #[serde(default)]
     pub catalog_provider_id: Option<String>,
+    #[serde(default)]
+    pub base_path: Option<String>,
 }
 
 fn default_requires_auth() -> bool {
@@ -105,6 +107,7 @@ pub struct CreateCustomProviderParams {
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
     pub catalog_provider_id: Option<String>,
+    pub base_path: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +122,7 @@ pub struct UpdateCustomProviderParams {
     pub headers: Option<HashMap<String, String>>,
     pub requires_auth: bool,
     pub catalog_provider_id: Option<String>,
+    pub base_path: Option<String>,
 }
 
 pub fn create_custom_provider(
@@ -159,6 +163,7 @@ pub fn create_custom_provider(
         supports_streaming: params.supports_streaming,
         requires_auth: params.requires_auth,
         catalog_provider_id: params.catalog_provider_id,
+        base_path: params.base_path,
     };
 
     let custom_providers_dir = custom_providers_dir();
@@ -221,6 +226,7 @@ pub fn update_custom_provider(params: UpdateCustomProviderParams) -> Result<()> 
             supports_streaming: params.supports_streaming,
             requires_auth: params.requires_auth,
             catalog_provider_id: params.catalog_provider_id,
+            base_path: params.base_path,
         };
 
         let file_path = custom_providers_dir().join(format!("{}.json", updated_config.name));

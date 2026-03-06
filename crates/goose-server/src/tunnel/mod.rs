@@ -91,16 +91,17 @@ pub struct TunnelManager {
     restart_tx: Arc<RwLock<Option<mpsc::Sender<()>>>>,
     watchdog_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     lock_file: Arc<std::sync::Mutex<Option<File>>>,
+    scheme: String,
 }
 
 impl Default for TunnelManager {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
 impl TunnelManager {
-    pub fn new() -> Self {
+    pub fn new(tls: bool) -> Self {
         TunnelManager {
             state: Arc::new(RwLock::new(TunnelState::Idle)),
             info: Arc::new(RwLock::new(None)),
@@ -108,6 +109,7 @@ impl TunnelManager {
             restart_tx: Arc::new(RwLock::new(None)),
             watchdog_handle: Arc::new(RwLock::new(None)),
             lock_file: Arc::new(std::sync::Mutex::new(None)),
+            scheme: if tls { "https" } else { "http" }.to_string(),
         }
     }
 
@@ -230,7 +232,7 @@ impl TunnelManager {
             tunnel_secret,
             server_secret,
             agent_id,
-            "https",
+            &self.scheme,
             self.lapstone_handle.clone(),
             restart_tx,
         )
@@ -318,6 +320,7 @@ impl TunnelManager {
             restart_tx: self.restart_tx.clone(),
             watchdog_handle: self.watchdog_handle.clone(),
             lock_file: self.lock_file.clone(),
+            scheme: self.scheme.clone(),
         }
     }
 

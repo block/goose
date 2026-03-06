@@ -277,12 +277,7 @@ mod tests {
     fn test_apply_inspection_results() {
         let tool_request = ToolRequest {
             id: "req_1".to_string(),
-            tool_call: Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: Some(object!({})),
-            }),
+            tool_call: Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({}))),
             metadata: None,
             tool_meta: None,
         };
