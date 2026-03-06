@@ -11,10 +11,10 @@ use std::sync::{Arc, Mutex};
 use super::base::stream_from_single_message;
 use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
 use super::errors::ProviderError;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, ToolResponse};
 use crate::model::ModelConfig;
 use futures::future::BoxFuture;
-use rmcp::model::Tool;
+use rmcp::model::{CallToolResult, Tool};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TestInput {
@@ -83,18 +83,28 @@ impl TestProvider {
         let stable_messages: Vec<_> = messages
             .iter()
             .map(|msg| {
-                let cleaned_content: Vec<_> = msg
-                    .content
-                    .iter()
-                    .map(|c| match c {
-                        MessageContent::ToolRequest(req) => {
-                            let mut req = req.clone();
+                let mut cleaned_content: Vec<_> = msg.content.iter().cloned().collect();
+
+                for content in &mut cleaned_content {
+                    match content {
+                        MessageContent::ToolRequest(ref mut req) => {
                             req.tool_meta = None;
-                            MessageContent::ToolRequest(req)
                         }
-                        other => other.clone(),
-                    })
-                    .collect();
+                        MessageContent::ToolResponse(ToolResponse {
+                            tool_result:
+                                Ok(
+                                    ref mut result @ CallToolResult {
+                                        is_error: Some(false),
+                                        ..
+                                    },
+                                ),
+                            ..
+                        }) => {
+                            result.is_error = None;
+                        }
+                        _ => {}
+                    }
+                }
                 (msg.role.clone(), cleaned_content)
             })
             .collect();
