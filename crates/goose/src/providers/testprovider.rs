@@ -83,7 +83,7 @@ impl TestProvider {
         let stable_messages: Vec<_> = messages
             .iter()
             .map(|msg| {
-                let mut cleaned_content: Vec<_> = msg.content.iter().cloned().collect();
+                let mut cleaned_content: Vec<_> = msg.content.to_vec();
 
                 for content in &mut cleaned_content {
                     match content {
