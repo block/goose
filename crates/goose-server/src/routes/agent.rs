@@ -59,6 +59,57 @@ pub struct GetToolsQuery {
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
+pub struct SessionIdQuery {
+    session_id: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderInfoResponse {
+    provider_name: String,
+    model_name: String,
+    context_limit: usize,
+    total_tokens: Option<i32>,
+    input_tokens: Option<i32>,
+    output_tokens: Option<i32>,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct PlanPromptResponse {
+    prompt: String,
+}
+
+#[derive(Serialize, utoipa::ToSchema)]
+pub struct ExtensionPromptsResponse {
+    pub prompts: HashMap<String, Vec<rmcp::model::Prompt>>,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct GetExtensionPromptRequest {
+    session_id: String,
+    name: String,
+    #[serde(default)]
+    arguments: serde_json::Value,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct ExtendSystemPromptRequest {
+    session_id: String,
+    prompt: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct OverrideSystemPromptRequest {
+    session_id: String,
+    prompt: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
+pub struct PersistExtensionStateRequest {
+    session_id: String,
+}
+
+#[derive(Deserialize, utoipa::ToSchema)]
 pub struct StartAgentRequest {
     working_dir: String,
     #[serde(default)]
@@ -1166,6 +1217,151 @@ async fn import_app(
     ))
 }
 
+async fn get_provider_info(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<SessionIdQuery>,
+) -> Result<Json<ProviderInfoResponse>, ErrorResponse> {
+    let session_id = query.session_id;
+    let agent = state
+        .get_agent_for_route(session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    let provider = agent.provider().await.map_err(|e| ErrorResponse {
+        message: e.to_string(),
+        status: StatusCode::FAILED_DEPENDENCY,
+    })?;
+    let model_config = provider.get_model_config();
+    let model_name = model_config.model_name.clone();
+    let context_limit = model_config.context_limit();
+    let session = state
+        .session_manager()
+        .get_session(&session_id, false)
+        .await
+        .map_err(|err| ErrorResponse {
+            message: format!("Failed to get session: {}", err),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    Ok(Json(ProviderInfoResponse {
+        provider_name: provider.get_name().to_string(),
+        model_name,
+        context_limit,
+        total_tokens: session.total_tokens,
+        input_tokens: session.input_tokens,
+        output_tokens: session.output_tokens,
+    }))
+}
+
+async fn get_plan_prompt(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<SessionIdQuery>,
+) -> Result<Json<PlanPromptResponse>, ErrorResponse> {
+    let session_id = query.session_id;
+    let agent = state
+        .get_agent_for_route(session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    let prompt = agent
+        .get_plan_prompt(&session_id)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: e.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    Ok(Json(PlanPromptResponse { prompt }))
+}
+
+async fn extend_system_prompt(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<ExtendSystemPromptRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state
+        .get_agent_for_route(request.session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    agent.extend_system_prompt(request.prompt).await;
+    Ok(StatusCode::OK)
+}
+
+async fn override_system_prompt(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<OverrideSystemPromptRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state
+        .get_agent_for_route(request.session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    agent.override_system_prompt(request.prompt).await;
+    Ok(StatusCode::OK)
+}
+
+async fn persist_extension_state(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<PersistExtensionStateRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    let agent = state
+        .get_agent_for_route(request.session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    if let Err(e) = agent.persist_extension_state(&request.session_id).await {
+        warn!("Failed to persist extension state: {}", e);
+    }
+    Ok(StatusCode::OK)
+}
+
+async fn list_extension_prompts(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<SessionIdQuery>,
+) -> Result<Json<ExtensionPromptsResponse>, ErrorResponse> {
+    let session_id = query.session_id;
+    let agent = state
+        .get_agent_for_route(session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    let prompts = agent.list_extension_prompts(&session_id).await;
+    Ok(Json(ExtensionPromptsResponse { prompts }))
+}
+
+async fn get_extension_prompt(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<GetExtensionPromptRequest>,
+) -> Result<Json<rmcp::model::GetPromptResult>, ErrorResponse> {
+    let agent = state
+        .get_agent_for_route(request.session_id.clone())
+        .await
+        .map_err(|status| ErrorResponse {
+            message: format!("Failed to get agent: {}", status),
+            status,
+        })?;
+    let result = agent
+        .get_prompt(&request.session_id, &request.name, request.arguments)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: e.to_string(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+    Ok(Json(result))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/agent/start", post(start_agent))
@@ -1173,6 +1369,17 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/restart", post(restart_agent))
         .route("/agent/update_working_dir", post(update_working_dir))
         .route("/agent/tools", get(get_tools))
+        .route("/agent/provider_info", get(get_provider_info))
+        .route("/agent/plan_prompt", get(get_plan_prompt))
+        .route("/agent/extend_system_prompt", post(extend_system_prompt))
+        .route(
+            "/agent/override_system_prompt",
+            post(override_system_prompt),
+        )
+        .route(
+            "/agent/persist_extension_state",
+            post(persist_extension_state),
+        )
         .route("/agent/read_resource", post(read_resource))
         .route("/agent/call_tool", post(call_tool))
         .route("/agent/list_apps", get(list_apps))
@@ -1184,5 +1391,7 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/agent/remove_extension", post(agent_remove_extension))
         .route("/agent/set_container", post(set_container))
         .route("/agent/stop", post(stop_agent))
+        .route("/agent/extension_prompts", get(list_extension_prompts))
+        .route("/agent/get_prompt", post(get_extension_prompt))
         .with_state(state)
 }

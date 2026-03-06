@@ -10,6 +10,8 @@ use axum::{
     Json, Router,
 };
 use goose::agents::ExtensionConfig;
+use goose::conversation::message::Message;
+use goose::conversation::Conversation;
 use goose::recipe::Recipe;
 use goose::session::extension_data::ExtensionState;
 use goose::session::session_manager::SessionInsights;
@@ -487,6 +489,64 @@ async fn get_session_extensions(
     Ok(Json(SessionExtensionsResponse { extensions }))
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct AddMessageRequest {
+    message: Message,
+}
+
+async fn clear_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+) -> Result<StatusCode, ErrorResponse> {
+    let manager = state.session_manager();
+    manager
+        .get_session(&session_id, false)
+        .await
+        .map_err(|_| ErrorResponse {
+            message: format!("Session {} not found", session_id),
+            status: StatusCode::NOT_FOUND,
+        })?;
+
+    manager
+        .replace_conversation(&session_id, &Conversation::default())
+        .await
+        .map_err(|err| ErrorResponse {
+            message: format!("Failed to clear session: {}", err),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    manager
+        .update(&session_id)
+        .total_tokens(Some(0))
+        .input_tokens(Some(0))
+        .output_tokens(Some(0))
+        .apply()
+        .await
+        .map_err(|err| ErrorResponse {
+            message: format!("Failed to reset token counts: {}", err),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    Ok(StatusCode::OK)
+}
+
+async fn add_message_to_session(
+    State(state): State<Arc<AppState>>,
+    Path(session_id): Path<String>,
+    Json(request): Json<AddMessageRequest>,
+) -> Result<StatusCode, ErrorResponse> {
+    state
+        .session_manager()
+        .add_message(&session_id, &request.message)
+        .await
+        .map_err(|err| ErrorResponse {
+            message: format!("Failed to add message: {}", err),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    Ok(StatusCode::OK)
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions", get(list_sessions))
@@ -500,6 +560,11 @@ pub fn routes(state: Arc<AppState>) -> Router {
         )
         .route("/sessions/insights", get(get_session_insights))
         .route("/sessions/{session_id}/name", put(update_session_name))
+        .route("/sessions/{session_id}/clear", post(clear_session))
+        .route(
+            "/sessions/{session_id}/messages",
+            post(add_message_to_session),
+        )
         .route(
             "/sessions/{session_id}/user_recipe_values",
             put(update_session_user_recipe_values),

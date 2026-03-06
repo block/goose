@@ -1,22 +1,18 @@
 use dotenvy::dotenv;
 use goose::conversation::Conversation;
 
+use crate::embedded_server;
 use crate::scenario_tests::message_generator::MessageGenerator;
 use crate::scenario_tests::mock_client::weather_client;
 use crate::scenario_tests::provider_configs::{get_provider_configs, ProviderConfig};
 use crate::session::CliSession;
 use anyhow::Result;
-use goose::agents::{Agent, AgentConfig};
-use goose::config::permission::PermissionManager;
-use goose::config::GooseMode;
 use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
 use goose::session::session_manager::SessionType;
-use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
 pub const SCENARIO_TESTS_DIR: &str = "src/scenario_tests";
@@ -141,9 +137,6 @@ async fn run_provider_scenario_with_validation<F>(
 where
     F: Fn(&ScenarioResult) -> Result<()>,
 {
-    use goose::config::ExtensionConfig;
-    use tokio::sync::Mutex;
-
     goose::agents::moim::SKIP.with(|f| f.set(true));
 
     if let Ok(path) = dotenv() {
@@ -201,38 +194,11 @@ where
 
     let mock_client = weather_client();
 
-    let temp_dir = TempDir::new()?;
-    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-    let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
-    let agent_config = AgentConfig::new(
-        session_manager,
-        permission_manager,
-        None,
-        GooseMode::Auto,
-        true,
-    );
-    let agent = Agent::with_config(agent_config);
-    agent
-        .extension_manager
-        .add_client(
-            "weather_extension".to_string(),
-            ExtensionConfig::Builtin {
-                name: "".to_string(),
-                display_name: None,
-                description: "".to_string(),
-                timeout: None,
-                bundled: None,
-                available_tools: vec![],
-            },
-            Arc::new(Mutex::new(Box::new(mock_client))),
-            None,
-            None,
-        )
-        .await;
+    let embedded = embedded_server::start_embedded_goosed_with_state().await?;
+    let client = embedded.client;
 
-    let session = agent
-        .config
-        .session_manager
+    let session_manager = embedded.state.session_manager();
+    let session = session_manager
         .create_session(
             PathBuf::default(),
             "scenario-runner".to_string(),
@@ -240,15 +206,39 @@ where
         )
         .await?;
 
-    agent
-        .update_provider(
-            provider_arc as Arc<dyn goose::providers::base::Provider>,
-            &session.id,
-        )
-        .await?;
+    {
+        use goose::agents::ExtensionConfig;
+        use tokio::sync::Mutex;
+
+        let agent = embedded.state.get_agent(session.id.clone()).await?;
+        agent
+            .extension_manager
+            .add_client(
+                "weather_extension".to_string(),
+                ExtensionConfig::Builtin {
+                    name: "".to_string(),
+                    display_name: None,
+                    description: "".to_string(),
+                    timeout: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                Arc::new(Mutex::new(Box::new(mock_client))),
+                None,
+                None,
+            )
+            .await;
+
+        agent
+            .update_provider(
+                provider_arc as Arc<dyn goose::providers::base::Provider>,
+                &session.id,
+            )
+            .await?;
+    }
 
     let mut cli_session = CliSession::new(
-        agent,
+        client,
         session.id,
         false,
         None,

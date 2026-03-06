@@ -1,16 +1,18 @@
 use crate::cli::StreamableHttpOptions;
+use crate::embedded_server;
+use crate::goosed_client::GoosedClient;
 
 use super::output;
 use super::CliSession;
 use console::style;
-use goose::agents::{Agent, Container};
+use goose::agents::Container;
 use goose::config::get_enabled_extensions;
 use goose::config::resolve_extensions_for_new_session;
-use goose::config::{get_all_extensions, Config, ExtensionConfig};
+use goose::config::{Config, ExtensionConfig};
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
-use goose::session::{EnabledExtensionsState, ExtensionState};
+use goose::session::{EnabledExtensionsState, ExtensionState, SessionManager};
 use rustyline::EditMode;
 use std::collections::BTreeSet;
 use std::process;
@@ -152,10 +154,9 @@ impl Default for SessionBuilderConfig {
 async fn offer_extension_debugging_help(
     extension_name: &str,
     error_message: &str,
-    provider: Arc<dyn goose::providers::base::Provider>,
+    client: &GoosedClient,
     interactive: bool,
 ) -> Result<(), anyhow::Error> {
-    // Only offer debugging help in interactive mode
     if !interactive {
         return Ok(());
     }
@@ -183,50 +184,19 @@ async fn offer_extension_debugging_help(
         return Ok(());
     }
 
-    println!("{}", style("🔧 Starting debugging session...").cyan());
+    println!("{}", style("Starting debugging session...").cyan());
 
-    // Create a debugging prompt with context about the extension failure
     let debug_prompt = format!(
         "I'm having trouble starting an extension called '{}'. Here's the error I encountered:\n\n{}\n\nCan you help me diagnose what might be wrong and suggest how to fix it? Please consider common issues like:\n- Missing dependencies or tools\n- Configuration problems\n- Network connectivity (for remote extensions)\n- Permission issues\n- Path or environment variable problems",
         extension_name,
         error_message
     );
 
-    // Create a minimal agent for debugging
-    let debug_agent = Agent::new();
-
-    let session = debug_agent
-        .config
-        .session_manager
-        .create_session(
-            std::env::current_dir()?,
-            "CLI Session".to_string(),
-            SessionType::Hidden,
-        )
-        .await?;
-
-    debug_agent.update_provider(provider, &session.id).await?;
-
-    // Add the developer extension if available to help with debugging
-    let extensions = get_all_extensions();
-    for ext_wrapper in extensions {
-        if ext_wrapper.enabled && ext_wrapper.config.name() == "developer" {
-            if let Err(e) = debug_agent
-                .add_extension(ext_wrapper.config, &session.id)
-                .await
-            {
-                // If we can't add developer extension, continue without it
-                eprintln!(
-                    "Note: Could not load developer extension for debugging: {}",
-                    e
-                );
-            }
-            break;
-        }
-    }
+    let working_dir = std::env::current_dir()?.to_string_lossy().to_string();
+    let session = client.start_agent(working_dir, None, None).await?;
 
     let mut debug_session = CliSession::new(
-        debug_agent,
+        client.clone(),
         session.id,
         false,
         None,
@@ -237,19 +207,18 @@ async fn offer_extension_debugging_help(
     )
     .await;
 
-    // Process the debugging request
     println!("{}", style("Analyzing the extension failure...").yellow());
     match debug_session.headless(debug_prompt).await {
         Ok(_) => {
             println!(
                 "{}",
-                style("✅ Debugging session completed. Check the suggestions above.").green()
+                style("Debugging session completed. Check the suggestions above.").green()
             );
         }
         Err(e) => {
             eprintln!(
                 "{}",
-                style(format!("❌ Debugging session failed: {}", e)).red()
+                style(format!("Debugging session failed: {}", e)).red()
             );
         }
     }
@@ -257,21 +226,19 @@ async fn offer_extension_debugging_help(
 }
 
 async fn load_extensions(
-    agent: Agent,
+    client: &GoosedClient,
     extensions_to_load: Vec<(String, ExtensionConfig)>,
-    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
     interactive: bool,
     session_id: &str,
-) -> Arc<Agent> {
+) {
     let mut set = JoinSet::new();
-    let agent_ptr = Arc::new(agent);
 
     let mut waiting_ids: BTreeSet<usize> = (0..extensions_to_load.len()).collect();
     for (id, (_label, extension)) in extensions_to_load.iter().enumerate() {
-        let agent_ptr = agent_ptr.clone();
+        let client_clone = client.clone();
         let cfg = extension.clone();
         let sid = session_id.to_string();
-        set.spawn(async move { (id, agent_ptr.add_extension(cfg, &sid).await) });
+        set.spawn(async move { (id, client_clone.add_extension(cfg, &sid).await) });
     }
 
     let get_message = |waiting_ids: &BTreeSet<usize>| {
@@ -301,7 +268,7 @@ async fn load_extensions(
                 waiting_ids.remove(&id);
                 spinner.set_message(get_message(&waiting_ids));
             }
-            Ok((id, Err(e))) => offer_debug.push((id, e.into())),
+            Ok((id, Err(e))) => offer_debug.push((id, e)),
             Err(e) => tracing::error!("failed to add extension: {}", e),
         }
     }
@@ -322,19 +289,12 @@ async fn load_extensions(
             .yellow()
         );
 
-        if let Err(debug_err) = offer_extension_debugging_help(
-            &label,
-            &err.to_string(),
-            Arc::clone(&provider_for_debug),
-            interactive,
-        )
-        .await
+        if let Err(debug_err) =
+            offer_extension_debugging_help(&label, &err.to_string(), client, interactive).await
         {
             eprintln!("Note: Could not start debugging session: {}", debug_err);
         }
     }
-
-    agent_ptr
 }
 
 struct ResolvedProviderConfig {
@@ -434,16 +394,15 @@ async fn resolve_session_id(
     }
 }
 
-async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interactive: bool) {
-    let session = agent
-        .config
-        .session_manager
-        .get_session(session_id, false)
-        .await
-        .unwrap_or_else(|e| {
-            output::render_error(&format!("Failed to read session metadata: {}", e));
-            process::exit(1);
-        });
+async fn handle_resumed_session_workdir_via_client(
+    client: &GoosedClient,
+    session_id: &str,
+    interactive: bool,
+) {
+    let session = client.get_session(session_id).await.unwrap_or_else(|e| {
+        output::render_error(&format!("Failed to read session metadata: {}", e));
+        process::exit(1);
+    });
 
     let current_workdir = std::env::current_dir().expect("Failed to get current working directory");
     if current_workdir == session.working_dir {
@@ -491,21 +450,18 @@ async fn handle_resumed_session_workdir(agent: &Agent, session_id: &str, interac
 }
 
 async fn resolve_and_load_extensions(
-    agent: Agent,
+    client: &GoosedClient,
     session_config: &SessionBuilderConfig,
     recipe: Option<&Recipe>,
     session_id: &str,
-    provider_for_debug: Arc<dyn goose::providers::base::Provider>,
-) -> Arc<Agent> {
+) {
     for warning in goose::config::get_warnings() {
         eprintln!("{}", style(format!("Warning: {}", warning)).yellow());
     }
 
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
-        agent
-            .config
-            .session_manager
-            .get_session(session_id, false)
+        client
+            .get_session(session_id)
             .await
             .ok()
             .and_then(|s| EnabledExtensionsState::from_extension_data(&s.extension_data))
@@ -530,42 +486,50 @@ async fn resolve_and_load_extensions(
     extensions_to_load.extend(cli_flag_extensions);
 
     load_extensions(
-        agent,
+        client,
         extensions_to_load,
-        provider_for_debug,
         session_config.interactive,
         session_id,
     )
-    .await
+    .await;
 }
 
 async fn configure_session_prompts(
-    session: &CliSession,
+    client: &GoosedClient,
     config: &Config,
     session_config: &SessionBuilderConfig,
     session_id: &str,
 ) {
-    if let Err(e) = session.agent.persist_extension_state(session_id).await {
+    if let Err(e) = client.persist_extension_state(session_id).await {
         tracing::warn!("Failed to save extension state: {}", e);
     }
 
-    session
-        .agent
-        .extend_system_prompt(super::prompt::get_cli_prompt())
-        .await;
+    if let Err(e) = client
+        .extend_system_prompt(session_id, &super::prompt::get_cli_prompt())
+        .await
+    {
+        tracing::warn!("Failed to extend system prompt: {}", e);
+    }
 
     if let Some(ref additional_prompt) = session_config.additional_system_prompt {
-        session
-            .agent
-            .extend_system_prompt(additional_prompt.clone())
-            .await;
+        if let Err(e) = client
+            .extend_system_prompt(session_id, additional_prompt)
+            .await
+        {
+            tracing::warn!("Failed to extend system prompt: {}", e);
+        }
     }
 
     let system_prompt_file: Option<String> = config.get_param("GOOSE_SYSTEM_PROMPT_FILE_PATH").ok();
     if let Some(ref path) = system_prompt_file {
         let override_prompt =
             std::fs::read_to_string(path).expect("Failed to read system prompt file");
-        session.agent.override_system_prompt(override_prompt).await;
+        if let Err(e) = client
+            .override_system_prompt(session_id, &override_prompt)
+            .await
+        {
+            tracing::warn!("Failed to override system prompt: {}", e);
+        }
     }
 }
 
@@ -573,13 +537,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     goose::posthog::set_session_context("cli", session_config.resume);
 
     let config = Config::global();
-    let agent: Agent = Agent::new();
 
-    if session_config.container.is_some() {
-        agent.set_container(session_config.container.clone()).await;
-    }
+    let client = embedded_server::start_embedded_goosed()
+        .await
+        .unwrap_or_else(|e| {
+            output::render_error(&format!("Failed to start embedded goosed: {}", e));
+            process::exit(1);
+        });
 
-    let session_manager = agent.config.session_manager.clone();
+    let session_manager = Arc::new(SessionManager::instance());
 
     let (saved_provider, saved_model_config) = if session_config.resume {
         if let Some(ref session_id) = session_config.session_id {
@@ -599,10 +565,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let recipe = session_config.recipe.as_ref();
 
-    agent
-        .apply_recipe_components(recipe.and_then(|r| r.response.clone()), true)
-        .await;
-
     let new_provider = match create(&resolved.provider_name, resolved.model_config).await {
         Ok(provider) => provider,
         Err(e) => {
@@ -621,18 +583,22 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     if let Some(lead_worker) = new_provider.as_lead_worker() {
         let (lead_model, worker_model) = lead_worker.get_model_info();
         tracing::info!(
-            "🤖 Lead/Worker Mode Enabled: Lead model (first 3 turns): {}, Worker model (turn 4+): {}, Auto-fallback on failures: Enabled",
+            "Lead/Worker Mode Enabled: Lead model (first 3 turns): {}, Worker model (turn 4+): {}, Auto-fallback on failures: Enabled",
             lead_model,
             worker_model
         );
     } else {
-        tracing::info!("🤖 Using model: {}", resolved.model_name);
+        tracing::info!("Using model: {}", resolved.model_name);
     }
 
     let session_id = resolve_session_id(&session_config, &session_manager).await;
 
-    agent
-        .update_provider(new_provider, &session_id)
+    client
+        .update_provider(
+            &resolved.provider_name,
+            Some(resolved.model_name.clone()),
+            &session_id,
+        )
         .await
         .unwrap_or_else(|e| {
             output::render_error(&format!("Failed to initialize agent: {}", e));
@@ -651,18 +617,11 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     }
 
     if session_config.resume {
-        handle_resumed_session_workdir(&agent, &session_id, session_config.interactive).await;
+        handle_resumed_session_workdir_via_client(&client, &session_id, session_config.interactive)
+            .await;
     }
 
-    // Extensions are loaded after session creation because we may change directory when resuming
-    let agent_ptr = resolve_and_load_extensions(
-        agent,
-        &session_config,
-        recipe,
-        &session_id,
-        Arc::clone(&provider_for_display),
-    )
-    .await;
+    resolve_and_load_extensions(&client, &session_config, recipe, &session_id).await;
 
     let edit_mode = config
         .get_param::<String>("EDIT_MODE")
@@ -679,7 +638,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     let debug_mode = session_config.debug || config.get_param("GOOSE_DEBUG").unwrap_or(false);
 
     let session = CliSession::new(
-        Arc::try_unwrap(agent_ptr).unwrap_or_else(|_| panic!("There should be no more references")),
+        client.clone(),
         session_id.clone(),
         debug_mode,
         session_config.scheduled_job_id.clone(),
@@ -690,7 +649,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     )
     .await;
 
-    configure_session_prompts(&session, config, &session_config, &session_id).await;
+    configure_session_prompts(&client, config, &session_config, &session_id).await;
 
     if !session_config.quiet {
         output::display_session_info(

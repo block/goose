@@ -9,6 +9,7 @@ mod prompt;
 mod task_execution_display;
 mod thinking;
 
+use crate::goosed_client::{GoosedClient, MessageEvent};
 use crate::session::task_execution_display::{
     format_task_execution_notification, TASK_EXECUTION_NOTIFICATION_TYPE,
 };
@@ -21,11 +22,9 @@ use tokio_util::task::AbortOnDropHandle;
 pub use self::export::message_to_markdown;
 pub use builder::{build_session, SessionBuilderConfig};
 use console::Color;
-use goose::agents::AgentEvent;
 use goose::agents::SUBAGENT_TOOL_REQUEST_TYPE;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
-use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
 use goose::utils::safe_truncate;
 
@@ -33,7 +32,7 @@ use anyhow::{Context, Result};
 use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
-use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
+use goose::agents::COMPACT_TRIGGERS;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
 use rmcp::model::PromptMessage;
@@ -153,14 +152,15 @@ impl HistoryManager {
     }
 }
 
+#[allow(dead_code)]
 pub struct CliSession {
-    agent: Agent,
+    client: GoosedClient,
     messages: Conversation,
     session_id: String,
     completion_cache: Arc<std::sync::RwLock<CompletionCache>>,
     debug: bool,
     run_mode: RunMode,
-    scheduled_job_id: Option<String>, // ID of the scheduled job that triggered this session
+    scheduled_job_id: Option<String>,
     max_turns: Option<u32>,
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
@@ -231,7 +231,7 @@ pub async fn classify_planner_response(
 impl CliSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        agent: Agent,
+        client: GoosedClient,
         session_id: String,
         debug: bool,
         scheduled_job_id: Option<String>,
@@ -240,16 +240,14 @@ impl CliSession {
         retry_config: Option<RetryConfig>,
         output_format: String,
     ) -> Self {
-        let messages = agent
-            .config
-            .session_manager
-            .get_session(&session_id, true)
+        let messages = client
+            .get_session(&session_id)
             .await
             .map(|session| session.conversation.unwrap_or_default())
-            .unwrap();
+            .unwrap_or_default();
 
         CliSession {
-            agent,
+            client,
             messages,
             session_id,
             completion_cache: Arc::new(std::sync::RwLock::new(CompletionCache::new())),
@@ -345,7 +343,7 @@ impl CliSession {
 
     async fn add_and_persist_extensions(&mut self, configs: Vec<ExtensionConfig>) -> Result<()> {
         for config in configs {
-            self.agent
+            self.client
                 .add_extension(config, &self.session_id)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to start extension: {}", e))?;
@@ -378,16 +376,14 @@ impl CliSession {
         &mut self,
         extension: Option<String>,
     ) -> Result<HashMap<String, Vec<String>>> {
-        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
+        let prompts = self.client.list_extension_prompts(&self.session_id).await?;
 
-        // Early validation if filtering by extension
         if let Some(filter) = &extension {
             if !prompts.contains_key(filter) {
                 return Err(anyhow::anyhow!("Extension '{}' not found", filter));
             }
         }
 
-        // Convert prompts into filtered map of extension names to prompt names
         Ok(prompts
             .into_iter()
             .filter(|(ext, _)| extension.as_ref().is_none_or(|f| f == ext))
@@ -399,9 +395,8 @@ impl CliSession {
     }
 
     pub async fn get_prompt_info(&mut self, name: &str) -> Result<Option<output::PromptInfo>> {
-        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
+        let prompts = self.client.list_extension_prompts(&self.session_id).await?;
 
-        // Find which extension has this prompt
         for (extension, prompt_list) in prompts {
             if let Some(prompt) = prompt_list.iter().find(|p| p.name == name) {
                 return Ok(Some(output::PromptInfo {
@@ -418,8 +413,8 @@ impl CliSession {
 
     pub async fn get_prompt(&mut self, name: &str, arguments: Value) -> Result<Vec<PromptMessage>> {
         Ok(self
-            .agent
-            .get_prompt(&self.session_id, name, arguments)
+            .client
+            .get_extension_prompt(&self.session_id, name, arguments)
             .await?
             .messages)
     }
@@ -600,7 +595,7 @@ impl CliSession {
                     );
                 }
 
-                let _provider = self.agent.provider().await?;
+                let _info = self.client.get_provider_info(&self.session_id).await?;
 
                 output::run_status_hook("thinking");
                 output::show_thinking();
@@ -719,29 +714,8 @@ impl CliSession {
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
-        if let Err(e) = self
-            .agent
-            .config
-            .session_manager
-            .replace_conversation(&self.session_id, &Conversation::default())
-            .await
-        {
+        if let Err(e) = self.client.clear_session(&self.session_id).await {
             output::render_error(&format!("Failed to clear session: {}", e));
-            return Ok(());
-        }
-
-        if let Err(e) = self
-            .agent
-            .config
-            .session_manager
-            .update(&self.session_id)
-            .total_tokens(Some(0))
-            .input_tokens(Some(0))
-            .output_tokens(Some(0))
-            .apply()
-            .await
-        {
-            output::render_error(&format!("Failed to reset token counts: {}", e));
             return Ok(());
         }
 
@@ -758,10 +732,7 @@ impl CliSession {
         println!("{}", console::style("Generating Recipe").green());
 
         output::show_thinking();
-        let recipe = self
-            .agent
-            .create_recipe(&self.session_id, self.messages.clone())
-            .await;
+        let recipe = self.client.create_recipe(&self.session_id).await;
         output::hide_thinking();
 
         match recipe {
@@ -815,7 +786,7 @@ impl CliSession {
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
     ) -> Result<(), anyhow::Error> {
-        let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
+        let plan_prompt = self.client.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
         let (plan_response, _usage) = reasoner
             .complete(
@@ -827,10 +798,16 @@ impl CliSession {
             .await?;
         output::render_message(&plan_response, self.debug);
         output::hide_thinking();
+        let provider_info = self.client.get_provider_info(&self.session_id).await?;
+        let classify_provider = goose::providers::create(
+            &provider_info.provider_name,
+            goose::model::ModelConfig::new(&provider_info.model_name)?,
+        )
+        .await?;
         let planner_response_type = classify_planner_response(
             &self.session_id,
             plan_response.as_concat_text(),
-            self.agent.provider().await?,
+            classify_provider,
         )
         .await?;
 
@@ -909,12 +886,6 @@ impl CliSession {
         let is_json_mode = self.output_format == "json";
         let is_stream_json_mode = self.output_format == "stream-json";
 
-        let session_config = SessionConfig {
-            id: self.session_id.clone(),
-            schedule_id: self.scheduled_job_id.clone(),
-            max_turns: self.max_turns,
-            retry_config: self.retry_config.clone(),
-        };
         let user_message = self
             .messages
             .last()
@@ -929,23 +900,20 @@ impl CliSession {
         let _drop_handle = AbortOnDropHandle::new(handle);
 
         let mut stream = self
-            .agent
-            .reply(
-                user_message.clone(),
-                session_config.clone(),
-                Some(cancel_token.clone()),
-            )
+            .client
+            .reply(user_message.clone(), &self.session_id)
             .await?;
 
         let mut progress_bars = output::McpSpinners::new();
         let cancel_token_clone = cancel_token.clone();
+        let session_id = self.session_id.clone();
 
         use futures::StreamExt;
         loop {
             tokio::select! {
                 result = stream.next() => {
                     match result {
-                        Some(Ok(AgentEvent::Message(message))) => {
+                        Some(Ok(MessageEvent::Message { message, .. })) => {
                             if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
                                 let permission = prompt_tool_confirmation(&security_prompt)?;
 
@@ -965,10 +933,12 @@ impl CliSession {
                                     drop(stream);
                                     break;
                                 }
-                                self.agent.handle_confirmation(id, PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
+                                self.client.confirm_tool_action(
+                                    id,
+                                    PrincipalType::Tool,
                                     permission,
-                                }).await;
+                                    &session_id,
+                                ).await.ok();
                             } else if let Some((elicitation_id, elicitation_message, schema)) = find_elicitation_request(&message) {
                                 output::hide_thinking();
                                 let _ = progress_bars.hide();
@@ -984,9 +954,7 @@ impl CliSession {
                                             ))
                                             .with_visibility(false, true);
                                         self.messages.push(response_message.clone());
-                                        // Elicitation responses return an empty stream - the response
-                                        // unblocks the waiting tool call via ActionRequiredManager
-                                        let _ = self.agent.reply(response_message, session_config.clone(), Some(cancel_token.clone())).await?;
+                                        let _ = self.client.reply(response_message, &session_id).await?;
                                     }
                                     Ok(None) => {
                                         output::render_text("Information request cancelled.", Some(Color::Yellow), true);
@@ -1015,29 +983,31 @@ impl CliSession {
                                 }
                             }
                         }
-                        Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
-                            handle_mcp_notification(
-                                &extension_id,
-                                &notification,
-                                &mut progress_bars,
-                                is_stream_json_mode,
-                                interactive,
-                                is_json_mode,
-                                self.debug,
-                            );
+                        Some(Ok(MessageEvent::Notification { request_id, message: notif_value })) => {
+                            if let Ok(notification) = serde_json::from_value::<ServerNotification>(notif_value) {
+                                handle_mcp_notification(
+                                    &request_id,
+                                    &notification,
+                                    &mut progress_bars,
+                                    is_stream_json_mode,
+                                    interactive,
+                                    is_json_mode,
+                                    self.debug,
+                                );
+                            }
                         }
-                        Some(Ok(AgentEvent::HistoryReplaced(updated_conversation))) => {
-                            self.messages = updated_conversation;
+                        Some(Ok(MessageEvent::UpdateConversation { conversation })) => {
+                            self.messages = conversation;
                         }
-                        Some(Ok(AgentEvent::ModelChange { model, mode })) => {
+                        Some(Ok(MessageEvent::ModelChange { model, mode })) => {
                             if is_stream_json_mode {
                                 emit_stream_event(&StreamEvent::ModelChange { model: model.clone(), mode: mode.clone() });
                             } else if self.debug {
                                 eprintln!("Model changed to {} in {} mode", model, mode);
                             }
                         }
-                        Some(Err(e)) => {
-                            handle_agent_error(&e, is_stream_json_mode);
+                        Some(Ok(MessageEvent::Error { error })) => {
+                            handle_sse_error(&error, is_stream_json_mode);
                             cancel_token_clone.cancel();
                             drop(stream);
                             if let Err(e) = self.handle_interrupted_messages(false).await {
@@ -1049,6 +1019,17 @@ impl CliSession {
                                     We've removed the conversation up to the most recent user message\n\
                                     - depending on the error you may be able to continue",
                                 );
+                            }
+                            break;
+                        }
+                        Some(Ok(MessageEvent::Finish { .. })) => break,
+                        Some(Ok(MessageEvent::Ping)) => {}
+                        Some(Err(e)) => {
+                            handle_sse_error(&e.to_string(), is_stream_json_mode);
+                            cancel_token_clone.cancel();
+                            drop(stream);
+                            if let Err(e) = self.handle_interrupted_messages(false).await {
+                                eprintln!("Error handling interruption: {}", e);
                             }
                             break;
                         }
@@ -1066,13 +1047,7 @@ impl CliSession {
         }
 
         if is_json_mode {
-            let metadata = match self
-                .agent
-                .config
-                .session_manager
-                .get_session(&self.session_id, false)
-                .await
-            {
+            let metadata = match self.client.get_session(&self.session_id).await {
                 Ok(session) => JsonMetadata {
                     total_tokens: session.total_tokens,
                     status: "completed".to_string(),
@@ -1089,10 +1064,8 @@ impl CliSession {
             println!("{}", serde_json::to_string_pretty(&json_output)?);
         } else if is_stream_json_mode {
             let total_tokens = self
-                .agent
-                .config
-                .session_manager
-                .get_session(&self.session_id, false)
+                .client
+                .get_session(&self.session_id)
                 .await
                 .ok()
                 .and_then(|s| s.total_tokens);
@@ -1198,8 +1171,11 @@ impl CliSession {
     /// Update the completion cache with fresh data
     /// This should be called before the interactive session starts
     pub async fn update_completion_cache(&mut self) -> Result<()> {
-        // Get fresh data
-        let prompts = self.agent.list_extension_prompts(&self.session_id).await;
+        let prompts = self
+            .client
+            .list_extension_prompts(&self.session_id)
+            .await
+            .unwrap_or_default();
 
         // Update the cache with write lock
         let mut cache = self.completion_cache.write().unwrap();
@@ -1266,11 +1242,7 @@ impl CliSession {
     }
 
     pub async fn get_session(&self) -> Result<goose::session::Session> {
-        self.agent
-            .config
-            .session_manager
-            .get_session(&self.session_id, false)
-            .await
+        self.client.get_session(&self.session_id).await
     }
 
     // Get the session's total token usage
@@ -1281,18 +1253,13 @@ impl CliSession {
 
     /// Display enhanced context usage with session totals
     pub async fn display_context_usage(&self) -> Result<()> {
-        let provider = self.agent.provider().await?;
-        let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit();
+        let provider_info = self.client.get_provider_info(&self.session_id).await?;
+        let context_limit = provider_info.context_limit;
 
         let config = Config::global();
         let show_cost = config
             .get_param::<bool>("GOOSE_CLI_SHOW_COST")
             .unwrap_or(false);
-
-        let provider_name = config
-            .get_goose_provider()
-            .unwrap_or_else(|_| "unknown".to_string());
 
         match self.get_session().await {
             Ok(metadata) => {
@@ -1304,8 +1271,8 @@ impl CliSession {
                     let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
                     let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
                     output::display_cost_usage(
-                        &provider_name,
-                        &model_config.model_name,
+                        &provider_info.provider_name,
+                        &provider_info.model_name,
                         input_tokens,
                         output_tokens,
                     );
@@ -1372,11 +1339,7 @@ impl CliSession {
                         if num_messages > 1 {
                             for i in 0..(num_messages - 1) {
                                 let msg = &self.messages.messages()[start_len + i];
-                                self.agent
-                                    .config
-                                    .session_manager
-                                    .add_message(&self.session_id, msg)
-                                    .await?;
+                                self.client.add_message(&self.session_id, msg).await?;
                             }
                         }
 
@@ -1780,25 +1743,14 @@ fn log_tool_metrics(message: &Message, messages: &Conversation) {
     }
 }
 
-/// Handle and display an agent error
-fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
-    let error_msg = e.to_string();
-
+fn handle_sse_error(error_msg: &str, is_stream_json_mode: bool) {
     if is_stream_json_mode {
         emit_stream_event(&StreamEvent::Error {
-            error: error_msg.clone(),
+            error: error_msg.to_string(),
         });
     }
 
-    if e.downcast_ref::<goose::providers::errors::ProviderError>()
-        .map(|provider_error| {
-            matches!(
-                provider_error,
-                goose::providers::errors::ProviderError::ContextLengthExceeded(_)
-            )
-        })
-        .unwrap_or(false)
-    {
+    if error_msg.contains("context length") || error_msg.contains("ContextLengthExceeded") {
         if !is_stream_json_mode {
             output::render_text(
                 "Compaction requested. Should have happened in the agent!",

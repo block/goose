@@ -1,5 +1,7 @@
 pub mod cli;
 pub mod commands;
+pub mod embedded_server;
+pub mod goosed_client;
 pub mod logging;
 pub mod project_tracker;
 pub mod recipes;
