@@ -547,17 +547,8 @@ fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
     }
 
     let thinking_level_str = model_config
-        .request_params
-        .as_ref()
-        .and_then(|params| params.get("thinking_level"))
-        .and_then(|v| v.as_str())
+        .get_config_param::<String>("thinking_level", "GEMINI3_THINKING_LEVEL")
         .map(|s| s.to_lowercase())
-        .or_else(|| {
-            crate::config::Config::global()
-                .get_param::<String>("gemini3_thinking_level")
-                .ok()
-                .map(|s| s.to_lowercase())
-        })
         .unwrap_or_else(|| "low".to_string());
 
     let thinking_level = match thinking_level_str.as_str() {
@@ -592,18 +583,11 @@ pub fn create_request(
 
     let thinking_config = get_thinking_config(model_config);
 
-    let generation_config = if model_config.temperature.is_some()
-        || model_config.max_tokens.is_some()
-        || thinking_config.is_some()
-    {
-        Some(GenerationConfig {
-            temperature: model_config.temperature.map(|t| t as f64),
-            max_output_tokens: model_config.max_tokens,
-            thinking_config,
-        })
-    } else {
-        None
-    };
+    let generation_config = Some(GenerationConfig {
+        temperature: model_config.temperature.map(|t| t as f64),
+        max_output_tokens: Some(model_config.max_output_tokens()),
+        thinking_config,
+    });
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {

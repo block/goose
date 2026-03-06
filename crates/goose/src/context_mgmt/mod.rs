@@ -18,6 +18,11 @@ use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
+/// Feature flag to enable/disable tool pair summarization.
+/// Set to `false` to disable summarizing old tool call/response pairs.
+/// TODO: Re-enable once tool summarization stability issues are resolved.
+const ENABLE_TOOL_PAIR_SUMMARIZATION: bool = false;
+
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
@@ -533,8 +538,10 @@ pub fn maybe_summarize_tool_pairs(
     protect_last_n: usize,
 ) -> JoinHandle<Vec<(Message, String)>> {
     tokio::spawn(async move {
-        // Batch size is 20% of cutoff (min 3) so summarization fires in discrete
-        // bursts with room to breathe before the next batch triggers.
+        if !ENABLE_TOOL_PAIR_SUMMARIZATION {
+            return Vec::new();
+        }
+
         let batch_size = (cutoff / 5).max(3);
         let tool_ids = tool_ids_to_summarize(&conversation, cutoff, batch_size, protect_last_n);
         let mut results = Vec::new();
@@ -612,6 +619,7 @@ mod tests {
                     toolshim_model: None,
                     fast_model_config: None,
                     request_params: None,
+                    reasoning: None,
                 },
                 max_tool_responses: None,
             }

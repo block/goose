@@ -2,11 +2,12 @@ use crate::configuration;
 use crate::state;
 use anyhow::Result;
 use axum::middleware;
+use axum_server::Handle;
 use goose_server::auth::check_token;
+use goose_server::tls::self_signed_config;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
-// Graceful shutdown signal
 #[cfg(unix)]
 async fn shutdown_signal() {
     use tokio::signal::unix::{signal, SignalKind};
@@ -26,6 +27,12 @@ async fn shutdown_signal() {
 }
 
 pub async fn run() -> Result<()> {
+    // Install the rustls crypto provider early, before any spawned tasks (tunnel,
+    // gateways, etc.) try to open TLS connections. Both `ring` and `aws-lc-rs`
+    // features are enabled on rustls (via different transitive deps), so rustls
+    // cannot auto-detect a provider — we must pick one explicitly.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     crate::logging::setup_logging(Some("goosed"))?;
 
     let settings = configuration::Settings::new()?;
@@ -47,16 +54,31 @@ pub async fn run() -> Result<()> {
         ))
         .layer(cors);
 
-    let listener = tokio::net::TcpListener::bind(settings.socket_addr()).await?;
-    info!("listening on {}", listener.local_addr()?);
+    let addr = settings.socket_addr();
+    let tls_setup = self_signed_config().await?;
+
+    let handle = Handle::new();
+    let shutdown_handle = handle.clone();
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        shutdown_handle.graceful_shutdown(None);
+    });
+
+    info!("listening on https://{}", addr);
 
     let tunnel_manager = app_state.tunnel_manager.clone();
     tokio::spawn(async move {
         tunnel_manager.check_auto_start().await;
     });
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+    let gateway_manager = app_state.gateway_manager.clone();
+    tokio::spawn(async move {
+        gateway_manager.check_auto_start().await;
+    });
+
+    axum_server::bind_rustls(addr, tls_setup.config)
+        .handle(handle)
+        .serve(app.into_make_service())
         .await?;
 
     if goose::otel::otlp::is_otlp_initialized() {

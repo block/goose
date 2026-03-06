@@ -8,7 +8,8 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = []
+default = ["code-mode"]
+code-mode = ["dep:pctx_code_mode"]
 cuda = ["candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 
 [lints]
@@ -94,20 +95,19 @@ jsonwebtoken = { version = "10.3.0", features = ["aws_lc_rs"] }
 
 blake3 = "1.5"
 fs2 = { workspace = true }
-tokio-stream = { workspace = true }
+tokio-stream = { workspace = true, features = ["io-util"] }
 tempfile = { workspace = true }
 dashmap = "6.1"
 ahash = "0.8"
 tokio-util = { workspace = true, features = ["compat"] }
 unicode-normalization = "0.1"
-goose-mcp = { path = "../goose-mcp" }
 
 # For local Whisper transcription
 candle-core = { version = "0.9", default-features = false }
 candle-nn = { version = "0.9", default-features = false }
 candle-transformers = { version = "0.9", default-features = false }
 byteorder = "1.5.0"
-tokenizers = "0.21.0"
+tokenizers = { version = "0.21.0", default-features = false, features = ["onig"] }
 hf-hub = { version = "0.4.3", default-features = false, features = ["tokio"] }
 symphonia = { version = "0.5", features = ["all"] }
 rubato = "0.16"
@@ -123,10 +123,22 @@ posthog-rs = "0.3.7"
 shellexpand = { workspace = true }
 indexmap = "2.12.0"
 ignore = { workspace = true }
+rayon = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-go = { workspace = true }
+tree-sitter-java = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+tree-sitter-kotlin-ng = { workspace = true }
+tree-sitter-python = { workspace = true }
+tree-sitter-ruby = { workspace = true }
+tree-sitter-rust = { workspace = true }
+tree-sitter-swift = { workspace = true }
+tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
-pctx_code_mode = "^0.2.3"
+pctx_code_mode = { version = "^0.2.3", optional = true }
 unbinder = "0.1.7"
-llama-cpp-2 = { version = "0.1.133", features = ["sampler"] }
+pulldown-cmark = "0.13.0"
+llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler"] }
 encoding_rs = "0.8.35"
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -136,7 +148,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9", default-features = false, features = ["metal"] }
 candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
-llama-cpp-2 = { version = "0.1.133", features = ["sampler", "metal"] }
+llama-cpp-2 = { git = "https://github.com/jh-block/llama-cpp-rs.git", branch = "goose-patches", features = ["sampler", "metal"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
@@ -159,6 +171,10 @@ path = "examples/agent.rs"
 name = "databricks_oauth"
 path = "examples/databricks_oauth.rs"
 
+
+[[bin]]
+name = "analyze_cli"
+path = "src/bin/analyze_cli.rs"
 
 [[bin]]
 name = "build_canonical_models"

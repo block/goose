@@ -112,6 +112,14 @@ fn value_to_markdown(value: &Value, depth: usize, export_full_strings: bool) -> 
     md_string
 }
 
+fn is_shell_tool_name(tool_name: &str) -> bool {
+    matches!(tool_name, "shell")
+}
+
+fn is_developer_file_tool_name(tool_name: &str) -> bool {
+    matches!(tool_name, "write" | "edit")
+}
+
 pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> String {
     let mut md = String::new();
     match &req.tool_call {
@@ -119,6 +127,10 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
             let parts: Vec<_> = call.name.rsplitn(2, "__").collect();
             let (namespace, tool_name_only) = if parts.len() == 2 {
                 (parts[1], parts[0])
+            } else if is_shell_tool_name(call.name.as_ref())
+                || is_developer_file_tool_name(call.name.as_ref())
+            {
+                ("developer", parts[0])
             } else {
                 ("Tool", parts[0])
             };
@@ -130,7 +142,7 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
             md.push_str("**Arguments:**\n");
 
             match call.name.as_ref() {
-                "developer__shell" => {
+                name if is_shell_tool_name(name) => {
                     if let Some(Value::String(command)) =
                         call.arguments.as_ref().and_then(|args| args.get("command"))
                     {
@@ -157,39 +169,25 @@ pub fn tool_request_to_markdown(req: &ToolRequest, export_all_content: bool) -> 
                         ));
                     }
                 }
-                "developer__text_editor" => {
+                name if is_developer_file_tool_name(name) => {
                     if let Some(Value::String(path)) =
                         call.arguments.as_ref().and_then(|args| args.get("path"))
                     {
                         md.push_str(&format!("*   **path**: `{}`\n", path));
                     }
-                    if let Some(Value::String(code_edit)) = call
-                        .arguments
-                        .as_ref()
-                        .and_then(|args| args.get("code_edit"))
-                    {
-                        md.push_str(&format!(
-                            "*   **code_edit**:\n    ```\n{}\n    ```\n",
-                            code_edit
-                        ));
-                    }
 
-                    let other_args: serde_json::Map<String, Value> = call
-                        .arguments
-                        .as_ref()
-                        .map(|obj| {
-                            obj.iter()
-                                .filter(|(k, _)| k.as_str() != "path" && k.as_str() != "code_edit")
-                                .map(|(k, v)| (k.clone(), v.clone()))
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    if !other_args.is_empty() {
-                        md.push_str(&value_to_markdown(
-                            &Value::Object(other_args),
-                            0,
-                            export_all_content,
-                        ));
+                    if let Some(args) = &call.arguments {
+                        let mut other_args = args.clone();
+                        other_args.remove("path");
+                        if !other_args.is_empty() {
+                            md.push_str(&value_to_markdown(
+                                &Value::Object(other_args),
+                                0,
+                                export_all_content,
+                            ));
+                        }
+                    } else {
+                        md.push_str("*No arguments*\n");
                     }
                 }
                 _ => {
@@ -529,7 +527,7 @@ mod tests {
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "ls -la",
                 "working_dir": "/home/user"
@@ -552,14 +550,15 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_request_to_markdown_text_editor() {
+    fn test_tool_request_to_markdown_edit() {
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__text_editor".into(),
+            name: "edit".into(),
             arguments: Some(object!({
                 "path": "/path/to/file.txt",
-                "code_edit": "print('Hello World')"
+                "before": "Hello",
+                "after": "World"
             })),
         };
         let tool_request = ToolRequest {
@@ -570,10 +569,11 @@ mod tests {
         };
 
         let result = tool_request_to_markdown(&tool_request, true);
-        assert!(result.contains("#### Tool Call: `text_editor`"));
+        assert!(result.contains("#### Tool Call: `edit`"));
+        assert!(result.contains("namespace: `developer`"));
         assert!(result.contains("**path**: `/path/to/file.txt`"));
-        assert!(result.contains("**code_edit**:"));
-        assert!(result.contains("print('Hello World')"));
+        assert!(result.contains("**before**"));
+        assert!(result.contains("**after**"));
     }
 
     #[test]
@@ -702,7 +702,7 @@ mod tests {
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "cat main.py"
             })),
@@ -758,7 +758,7 @@ if __name__ == "__main__":
         let git_status_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "git status --porcelain"
             })),
@@ -806,7 +806,7 @@ if __name__ == "__main__":
         let cargo_build_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "cargo build"
             })),
@@ -860,7 +860,7 @@ warning: unused variable `x`
         let curl_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "curl -s https://api.github.com/repos/microsoft/vscode/releases/latest"
             })),
@@ -912,15 +912,14 @@ warning: unused variable `x`
     }
 
     #[test]
-    fn test_text_editor_tool_with_code_creation() {
+    fn test_write_tool_with_code_creation() {
         let editor_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__text_editor".into(),
+            name: "write".into(),
             arguments: Some(object!({
-                "command": "write",
                 "path": "/tmp/fibonacci.js",
-                "file_text": "function fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log(fibonacci(10));"
+                "content": "function fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log(fibonacci(10));"
             })),
         };
         let tool_request = ToolRequest {
@@ -951,10 +950,10 @@ warning: unused variable `x`
         let request_result = tool_request_to_markdown(&tool_request, true);
         let response_result = tool_response_to_markdown(&tool_response, true);
 
-        // Check request formatting - should format code in file_text properly
-        assert!(request_result.contains("#### Tool Call: `text_editor`"));
+        // Check request formatting - should format code in content properly
+        assert!(request_result.contains("#### Tool Call: `write`"));
         assert!(request_result.contains("**path**: `/tmp/fibonacci.js`"));
-        assert!(request_result.contains("**file_text**:"));
+        assert!(request_result.contains("**content**:"));
         assert!(request_result.contains("function fibonacci(n)"));
         assert!(request_result.contains("return fibonacci(n - 1)"));
 
@@ -963,71 +962,11 @@ warning: unused variable `x`
     }
 
     #[test]
-    fn test_text_editor_tool_view_code() {
-        let editor_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "developer__text_editor".into(),
-            arguments: Some(object!({
-                "command": "view",
-                "path": "/src/utils.py"
-            })),
-        };
-        let _tool_request = ToolRequest {
-            id: "editor-view".to_string(),
-            tool_call: Ok(editor_call),
-            metadata: None,
-            tool_meta: None,
-        };
-
-        let python_code = r#"import os
-import json
-from typing import Dict, List, Optional
-
-def load_config(config_path: str) -> Dict:
-    """Load configuration from JSON file."""
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Config file not found: {config_path}")
-    
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
-def process_data(data: List[Dict]) -> List[Dict]:
-    """Process a list of data dictionaries."""
-    return [item for item in data if item.get('active', False)]"#;
-
-        let text_content = TextContent {
-            raw: RawTextContent {
-                text: python_code.to_string(),
-                meta: None,
-            },
-            annotations: None,
-        };
-        let tool_response = ToolResponse {
-            metadata: None,
-            id: "editor-view".to_string(),
-            tool_result: Ok(rmcp::model::CallToolResult {
-                content: vec![Content::text(text_content.raw.text)],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
-        };
-
-        let response_result = tool_response_to_markdown(&tool_response, true);
-
-        // Text content is output as plain text
-        assert!(response_result.contains("import os"));
-        assert!(response_result.contains("def load_config"));
-        assert!(response_result.contains("typing import Dict"));
-    }
-
-    #[test]
     fn test_shell_tool_with_error_output() {
         let error_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "python nonexistent_script.py"
             })),
@@ -1072,7 +1011,7 @@ Command failed with exit code 2"#;
         let script_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "python -c \"import sys; print(f'Python {sys.version}'); [print(f'{i}^2 = {i**2}') for i in range(1, 6)]\""
             })),
@@ -1128,7 +1067,7 @@ Command failed with exit code 2"#;
         let multi_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "cd /tmp && ls -la | head -5 && pwd"
             })),
@@ -1182,7 +1121,7 @@ drwx------   3 user  staff    96 Dec  6 16:20 com.apple.launchd.abc
         let grep_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "rg 'async fn' --type rust -n"
             })),
@@ -1235,7 +1174,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let tool_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "echo '{\"test\": \"json\"}'"
             })),
@@ -1279,7 +1218,7 @@ src/middleware.rs:12:async fn auth_middleware(req: Request, next: Next) -> Resul
         let npm_call = CallToolRequestParams {
             meta: None,
             task: None,
-            name: "developer__shell".into(),
+            name: "shell".into(),
             arguments: Some(object!({
                 "command": "npm install express typescript @types/node --save-dev"
             })),

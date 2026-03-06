@@ -18,6 +18,7 @@
     "@ai-sdk/anthropic": "^3.0.46",
     "ai": "^6.0.62",
     "consola": "^3.4.2",
+    "dedent": "^1.7.1",
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.3",
     "marked": "^17.0.1",

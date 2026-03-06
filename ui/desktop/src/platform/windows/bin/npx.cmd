@@ -1,8 +1,10 @@
 @ECHO OFF
 SETLOCAL EnableDelayedExpansion
 
+if not defined GOOSE_NODE_DIR (
+    SET "GOOSE_NODE_DIR=%LOCALAPPDATA%\Goose\node"
+)
 SET "NODE_VERSION=22.14.0"
-SET "GOOSE_NODE_DIR=%LOCALAPPDATA%\Goose\node"
 
 REM === Check for previously downloaded portable Node.js (matching version) ===
 if exist "%GOOSE_NODE_DIR%\node-v%NODE_VERSION%.installed" (

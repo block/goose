@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { listSessions } from '../api';
+import { getSession, listSessions } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { useConfig } from '../components/ConfigContext';
 import { useNavigation } from './useNavigation';
@@ -65,6 +65,19 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
       fetchSessions();
     }
   }, [fetchOnMount, fetchSessions]);
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    if (recentSessions.some((s) => s.id === activeSessionId)) return;
+
+    getSession({ path: { session_id: activeSessionId }, throwOnError: false }).then((response) => {
+      if (!response.data) return;
+      setRecentSessions((prev) => {
+        if (prev.some((s) => s.id === activeSessionId)) return prev;
+        return [response.data as Session, ...prev].slice(0, MAX_RECENT_SESSIONS);
+      });
+    });
+  }, [activeSessionId, recentSessions]);
 
   useEffect(() => {
     let pollingTimeouts: ReturnType<typeof setTimeout>[] = [];

@@ -20,8 +20,8 @@ path = "src/bin/generate_manpages.rs"
 
 [dependencies]
 clap_mangen = "0.2.31"
-goose = { path = "../goose" }
-goose-acp = { path = "../goose-acp" }
+goose = { path = "../goose", default-features = false }
+goose-acp = { path = "../goose-acp", default-features = false }
 goose-mcp = { path = "../goose-mcp" }
 rmcp = { workspace = true }
 clap = { workspace = true }
@@ -70,6 +70,8 @@ comfy-table = "7.2.2"
 winapi = { version = "0.3", features = ["wincred"] }
 
 [features]
+default = ["code-mode"]
+code-mode = ["goose/code-mode", "goose-acp/code-mode"]
 # disables the update command
 disable-update = []
 
