@@ -173,6 +173,10 @@ static TEMPLATE_REGISTRY: &[(&str, &str)] = &[
         "orchestrator/aggregation.md",
         "Orchestrator aggregation — synthesize compound sub-task results into one response",
     ),
+    (
+        "knowledge_extraction.md",
+        "GraphRAG-lite — extract entities and relations from conversation into knowledge graph",
+    ),
 ];
 
 /// Information about a template including its content and customization status

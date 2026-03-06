@@ -41,6 +41,7 @@ pub mod final_output_tool;
 pub(crate) mod genui_extension;
 pub mod goose_agent;
 pub mod intent_router;
+pub mod knowledge_extraction;
 mod large_response_handler;
 pub mod mcp_client;
 pub mod moim;
