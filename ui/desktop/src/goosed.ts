@@ -6,13 +6,7 @@ import { createServer } from 'net';
 import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client, createClient, createConfig } from './api/client';
-import {
-  buildSandboxSpawn,
-  ensureProxy,
-  stopProxy,
-  isSandboxEnabled,
-  isSandboxAvailable,
-} from './sandbox';
+
 
 export interface Logger {
   info: (...args: unknown[]) => void;
@@ -232,17 +226,10 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     };
   }
 
-  if (isSandboxEnabled() && !isSandboxAvailable()) {
-    throw new Error('GOOSE_SANDBOX=true but sandbox-exec is not available (macOS only)');
-  }
-  const useSandbox = isSandboxEnabled();
-
   const goosedPath = findGoosedBinaryPath({ isPackaged, resourcesPath });
 
   const port = await findAvailablePort();
-  logger.info(
-    `Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}${useSandbox ? ' [SANDBOXED]' : ''}`
-  );
+  logger.info(`Starting goosed from: ${goosedPath} on port ${port} in dir ${workingDir}`);
 
   const baseUrl = `https://127.0.0.1:${port}`;
 
@@ -257,19 +244,8 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     }
   }
 
-  // If sandbox mode, start proxy and wrap with sandbox-exec
-  let spawnCommand = goosedPath;
-  let spawnArgs = ['agent'];
-
-  if (useSandbox) {
-    const proxy = await ensureProxy();
-    const sandboxSpawn = buildSandboxSpawn(goosedPath, ['agent'], proxy.port);
-    spawnCommand = sandboxSpawn.command;
-    spawnArgs = sandboxSpawn.args;
-    // Merge proxy env vars into the process env
-    Object.assign(spawnEnv, sandboxSpawn.env);
-    logger.info(`[sandbox] Spawning via: ${spawnCommand} ${spawnArgs.join(' ')}`);
-  }
+  const spawnCommand = goosedPath;
+  const spawnArgs = ['agent'];
 
   const isWindows = process.platform === 'win32';
   const spawnOptions = {
@@ -368,10 +344,6 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
         }
       } catch (error) {
         logger.error('Error while terminating goosed process:', error);
-      }
-
-      if (useSandbox) {
-        stopProxy().catch((err) => logger.error('Error stopping sandbox proxy:', err));
       }
 
       setTimeout(() => {
