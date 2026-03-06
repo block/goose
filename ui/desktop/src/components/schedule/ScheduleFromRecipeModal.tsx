@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Recipe, generateDeepLink } from '../../recipe';
 import Copy from '../icons/Copy';
 import { Check } from 'lucide-react';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface ScheduleFromRecipeModalProps {
   isOpen: boolean;
@@ -19,8 +20,14 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
   recipe,
   onCreateSchedule,
 }) => {
+  const { t } = useLocalization();
+  const tRef = useRef(t);
   const [copied, setCopied] = useState(false);
   const [deepLink, setDeepLink] = useState('');
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -35,7 +42,7 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
         } catch (error) {
           console.error('Failed to generate deeplink:', error);
           if (!isCancelled) {
-            setDeepLink('Error generating deeplink');
+            setDeepLink(tRef.current('schedules.fromRecipeModal.generateError'));
           }
         }
       }
@@ -77,17 +84,17 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
       <Card className="w-full max-w-md bg-background-primary shadow-xl rounded-lg z-50 flex flex-col">
         <div className="px-6 pt-6 pb-4">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Create Schedule from Recipe
+            {t('schedules.fromRecipeModal.title')}
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-            Create a scheduled task using this recipe configuration.
+            {t('schedules.fromRecipeModal.description')}
           </p>
         </div>
 
         <div className="px-6 py-4 space-y-4">
           <div>
             <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Recipe Details:
+              {t('schedules.fromRecipeModal.recipeDetails')}
             </h3>
             <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
               <p className="text-sm font-medium text-gray-900 dark:text-white">{recipe.title}</p>
@@ -97,7 +104,7 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Recipe Deep Link:
+              {t('schedules.fromRecipeModal.recipeDeepLink')}
             </label>
             <div className="flex items-center">
               <Input type="text" value={deepLink} readOnly className="flex-1 text-xs font-mono" />
@@ -110,7 +117,7 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
               </Button>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              This link contains your recipe configuration and can be used to create a schedule.
+              {t('schedules.fromRecipeModal.deepLinkDescription')}
             </p>
           </div>
         </div>
@@ -122,14 +129,14 @@ export const ScheduleFromRecipeModal: React.FC<ScheduleFromRecipeModalProps> = (
             onClick={handleClose}
             className="flex-1 rounded-xl hover:bg-background-secondary text-text-secondary"
           >
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
           <Button
             type="button"
             onClick={handleCreateSchedule}
             className="flex-1 text-sm text-text-inverse rounded-xl hover:bg-background-inverse transition-colors"
           >
-            Create Schedule
+            {t('schedules.createSchedule')}
           </Button>
         </div>
       </Card>

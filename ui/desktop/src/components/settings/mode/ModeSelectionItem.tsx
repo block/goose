@@ -2,6 +2,7 @@ import { useEffect, useState, forwardRef } from 'react';
 import { Gear } from '../../icons';
 import { ConfigureApproveMode } from './ConfigureApproveMode';
 import PermissionRulesModal from '../permission/PermissionRulesModal';
+import type { TranslationKey } from '../../../i18n';
 
 export interface GooseMode {
   key: string;
@@ -9,26 +10,28 @@ export interface GooseMode {
   description: string;
 }
 
-export const all_goose_modes: GooseMode[] = [
+export const createGooseModes = (
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): GooseMode[] => [
   {
     key: 'auto',
-    label: 'Autonomous',
-    description: 'Full file modification capabilities, edit, create, and delete files freely.',
+    label: t('modes.autonomous.label'),
+    description: t('modes.autonomous.description'),
   },
   {
     key: 'approve',
-    label: 'Manual',
-    description: 'All tools, extensions and file modifications will require human approval',
+    label: t('modes.approve.label'),
+    description: t('modes.approve.description'),
   },
   {
     key: 'smart_approve',
-    label: 'Smart',
-    description: 'Intelligently determine which actions need approval based on risk level ',
+    label: t('modes.smartApprove.label'),
+    description: t('modes.smartApprove.description'),
   },
   {
     key: 'chat',
-    label: 'Chat only',
-    description: 'Engage with the selected provider without using tools or extensions.',
+    label: t('modes.chat.label'),
+    description: t('modes.chat.description'),
   },
 ];
 
@@ -95,14 +98,14 @@ export const ModeSelectionItem = forwardRef<HTMLDivElement, ModeSelectionItemPro
         <div>
           <div>
             {isDialogOpen ? (
-              <ConfigureApproveMode
-                onClose={() => {
-                  setIsDialogOpen(false);
-                }}
-                handleModeChange={handleModeChange}
-                currentMode={currentMode}
-              />
-            ) : null}
+                <ConfigureApproveMode
+                  onClose={() => {
+                    setIsDialogOpen(false);
+                  }}
+                  handleModeChange={handleModeChange}
+                  currentMode={currentMode}
+                />
+              ) : null}
           </div>
         </div>
 

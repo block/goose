@@ -1,4 +1,5 @@
 import { Input } from '../../../ui/input';
+import { useLocalization } from '../../../../contexts/LocalizationContext';
 
 interface ExtensionTimeoutFieldProps {
   timeout: number;
@@ -11,6 +12,7 @@ export default function ExtensionTimeoutField({
   onChange,
   submitAttempted,
 }: ExtensionTimeoutFieldProps) {
+  const { t } = useLocalization();
   const isTimeoutValid = () => {
     // Check if timeout is not undefined, null, or empty string
     if (timeout === undefined || timeout === null) {
@@ -29,7 +31,9 @@ export default function ExtensionTimeoutField({
       {/* Row with Timeout and timeout input side by side */}
       <div className="flex flex-col">
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block text-text-primary">Timeout</label>
+          <label className="text-sm font-medium mb-2 block text-text-primary">
+            {t('extensions.fields.timeout')}
+          </label>
         </div>
 
         <Input
@@ -39,7 +43,9 @@ export default function ExtensionTimeoutField({
           className={`${!submitAttempted || isTimeoutValid() ? 'border-border-primary' : 'border-red-500'} text-text-primary focus:border-border-primary`}
         />
         {submitAttempted && !isTimeoutValid() && (
-          <div className="absolute text-xs text-red-500 mt-1">Timeout </div>
+          <div className="absolute text-xs text-red-500 mt-1">
+            {t('extensions.fields.timeoutRequired')}
+          </div>
         )}
       </div>
     </div>

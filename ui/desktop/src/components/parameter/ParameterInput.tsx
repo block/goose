@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Parameter } from '../../recipe';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface ParameterInputProps {
   parameter: Parameter;
@@ -19,6 +20,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
   isExpanded = true,
   onToggleExpanded,
 }) => {
+  const { t } = useLocalization();
   const { key, description, requirement } = parameter;
   const defaultValue = parameter.default || '';
 
@@ -61,10 +63,12 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
             {isUnused && (
               <div
                 className="flex items-center gap-1"
-                title="This parameter is not used in the instructions or prompt. It will be available for manual input but may not be needed."
+                title={t('recipes.parameterEditor.unusedTitle')}
               >
                 <AlertTriangle className="w-4 h-4 text-orange-500" />
-                <span className="text-xs text-orange-500 font-normal">Unused</span>
+                <span className="text-xs text-orange-500 font-normal">
+                  {t('recipes.parameterEditor.unused')}
+                </span>
               </div>
             )}
           </div>
@@ -78,7 +82,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
               onDelete(key);
             }}
             className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-            title={`Delete parameter: ${key}`}
+            title={t('recipes.parameterEditor.deleteTitle', { key })}
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -91,17 +95,17 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
           <div className="pt-4">
             <div className="mb-4">
               <label className="block text-md text-text-primary mb-2 font-semibold">
-                description
+                {t('recipes.parameterEditor.descriptionLabel')}
               </label>
               <input
                 type="text"
                 value={description || ''}
                 onChange={(e) => onChange(key, { description: e.target.value })}
                 className="w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-border-secondary"
-                placeholder={`E.g., "Enter the name for the new component"`}
+                placeholder={t('recipes.parameterEditor.descriptionPlaceholder')}
               />
               <p className="text-sm text-text-secondary mt-1">
-                This is the message the end-user will see.
+                {t('recipes.parameterEditor.descriptionHint')}
               </p>
             </div>
 
@@ -109,7 +113,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-md text-text-primary mb-2 font-semibold">
-                  Input Type
+                  {t('recipes.parameterEditor.inputTypeLabel')}
                 </label>
                 <select
                   className="w-full p-3 border rounded-lg bg-background-primary text-text-primary"
@@ -118,16 +122,16 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
                     onChange(key, { input_type: e.target.value as Parameter['input_type'] })
                   }
                 >
-                  <option value="string">String</option>
-                  <option value="select">Select</option>
-                  <option value="number">Number</option>
-                  <option value="boolean">Boolean</option>
+                  <option value="string">{t('recipes.parameterEditor.inputTypes.string')}</option>
+                  <option value="select">{t('recipes.parameterEditor.inputTypes.select')}</option>
+                  <option value="number">{t('recipes.parameterEditor.inputTypes.number')}</option>
+                  <option value="boolean">{t('recipes.parameterEditor.inputTypes.boolean')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-md text-text-primary mb-2 font-semibold">
-                  Requirement
+                  {t('recipes.parameterEditor.requirementLabel')}
                 </label>
                 <select
                   className="w-full p-3 border rounded-lg bg-background-primary text-text-primary"
@@ -136,8 +140,12 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
                     onChange(key, { requirement: e.target.value as Parameter['requirement'] })
                   }
                 >
-                  <option value="required">Required</option>
-                  <option value="optional">Optional</option>
+                  <option value="required">
+                    {t('recipes.parameterEditor.requirements.required')}
+                  </option>
+                  <option value="optional">
+                    {t('recipes.parameterEditor.requirements.optional')}
+                  </option>
                 </select>
               </div>
 
@@ -145,14 +153,14 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
               {requirement === 'optional' && (
                 <div>
                   <label className="block text-md text-text-primary mb-2 font-semibold">
-                    Default Value
+                    {t('recipes.parameterEditor.defaultValueLabel')}
                   </label>
                   <input
                     type="text"
                     value={defaultValue}
                     onChange={(e) => onChange(key, { default: e.target.value })}
                     className="w-full p-3 border rounded-lg bg-background-primary text-text-primary"
-                    placeholder="Enter default value"
+                    placeholder={t('recipes.parameterEditor.defaultValuePlaceholder')}
                   />
                 </div>
               )}
@@ -162,7 +170,7 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
             {parameter.input_type === 'select' && (
               <div className="mt-4">
                 <label className="block text-md text-text-primary mb-2 font-semibold">
-                  Options (one per line)
+                  {t('recipes.parameterEditor.optionsLabel')}
                 </label>
                 <textarea
                   value={(parameter.options || []).join('\n')}
@@ -178,11 +186,11 @@ const ParameterInput: React.FC<ParameterInputProps> = ({
                     }
                   }}
                   className="w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-border-secondary"
-                  placeholder="Option 1&#10;Option 2&#10;Option 3"
+                  placeholder={t('recipes.parameterEditor.optionsPlaceholder')}
                   rows={4}
                 />
                 <p className="text-sm text-text-secondary mt-1">
-                  Enter each option on a new line. These will be shown as dropdown choices.
+                  {t('recipes.parameterEditor.optionsHint')}
                 </p>
               </div>
             )}

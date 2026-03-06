@@ -3,11 +3,14 @@ import kebabCase from 'lodash/kebabCase';
 import { Switch } from '../../../ui/switch';
 import { Gear } from '../../../icons';
 import { FixedExtensionEntry } from '../../../ConfigContext';
-import { getSubtitle, getFriendlyTitle } from './ExtensionList';
 import { Card, CardHeader, CardTitle, CardContent, CardAction } from '../../../ui/card';
+import { useLocalization } from '../../../../contexts/LocalizationContext';
 
 interface ExtensionItemProps {
   extension: FixedExtensionEntry;
+  displayTitle: string;
+  subtitleDescription: string | null;
+  subtitleCommand: string | null;
   onToggle: (extension: FixedExtensionEntry) => Promise<boolean | void> | void;
   onConfigure?: (extension: FixedExtensionEntry) => void;
   isStatic?: boolean; // to not allow users to edit configuration
@@ -15,10 +18,14 @@ interface ExtensionItemProps {
 
 export default function ExtensionItem({
   extension,
+  displayTitle,
+  subtitleDescription,
+  subtitleCommand,
   onToggle,
   onConfigure,
   isStatic,
 }: ExtensionItemProps) {
+  const { t } = useLocalization();
   // Add local state to track the visual toggle state
   const [visuallyEnabled, setVisuallyEnabled] = useState(extension.enabled);
   // Track if we're in the process of toggling
@@ -55,12 +62,11 @@ export default function ExtensionItem({
   }, [extension.enabled, isToggling]);
 
   const renderSubtitle = () => {
-    const { description, command } = getSubtitle(extension);
     return (
       <>
-        {description && <span>{description}</span>}
-        {description && command && <br />}
-        {command && <span className="font-mono text-xs">{command}</span>}
+        {subtitleDescription && <span>{subtitleDescription}</span>}
+        {subtitleDescription && subtitleCommand && <br />}
+        {subtitleCommand && <span className="font-mono text-xs">{subtitleCommand}</span>}
       </>
     );
   };
@@ -78,14 +84,14 @@ export default function ExtensionItem({
       className="transition-all duration-200 min-h-[120px] overflow-hidden"
     >
       <CardHeader>
-        <CardTitle>{getFriendlyTitle(extension)}</CardTitle>
+        <CardTitle>{displayTitle}</CardTitle>
 
         <CardAction>
           <div className="flex items-center justify-end gap-2">
             {editable && (
               <button
                 className="text-text-secondary hover:text-text-primary"
-                aria-label={`Configure ${getFriendlyTitle(extension)} Extension`}
+                aria-label={t('extensionsPage.configureExtension', { name: displayTitle })}
                 onClick={() => onConfigure?.(extension)}
               >
                 <Gear className="w-4 h-4" />
@@ -96,7 +102,7 @@ export default function ExtensionItem({
               onCheckedChange={() => handleToggle(extension)}
               disabled={isToggling}
               variant="mono"
-              aria-label={`Toggle ${getFriendlyTitle(extension)} extension On or Off`}
+              aria-label={t('extensionsPage.toggleExtension', { name: displayTitle })}
             />
           </div>
         </CardAction>

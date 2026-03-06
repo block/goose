@@ -8,6 +8,7 @@ import {
   type ModelSettings,
   type SamplingConfig,
 } from '../../../api';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 const DEFAULT_SETTINGS: ModelSettings = {
   context_size: null,
@@ -138,6 +139,7 @@ function SelectField<T extends string>({
 }
 
 export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
+  const { t } = useLocalization();
   const [settings, setSettings] = useState<ModelSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -201,38 +203,45 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
   };
 
   if (loading) {
-    return <div className="py-2 text-xs text-text-muted">Loading settings...</div>;
+    return <div className="py-2 text-xs text-text-muted">{t('localInference.panel.loading')}</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        {saving && <span className="text-xs text-text-muted mr-auto">Saving...</span>}
-        <Button variant="ghost" size="sm" onClick={resetDefaults} title="Reset to defaults">
+        {saving && <span className="text-xs text-text-muted mr-auto">{t('localInference.panel.saving')}</span>}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={resetDefaults}
+          title={t('localInference.panel.resetTitle')}
+        >
           <RotateCcw className="w-3.5 h-3.5 mr-1" />
-          <span className="text-xs">Reset</span>
+          <span className="text-xs">{t('localInference.panel.reset')}</span>
         </Button>
       </div>
 
       {/* Context & Generation */}
       <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">Context & Generation</h5>
+        <h5 className="text-xs font-medium text-text-default">
+          {t('localInference.panel.contextGeneration')}
+        </h5>
         <div className="grid grid-cols-2 gap-3">
           <NumberField
-            label="Context size"
-            description="Max context window (0 = model default)"
+            label={t('localInference.panel.contextSizeLabel')}
+            description={t('localInference.panel.contextSizeDescription')}
             value={settings.context_size}
             onChange={(v) => updateField('context_size', v)}
-            placeholder="Auto"
+            placeholder={t('localInference.panel.auto')}
             min={0}
             allowNull
           />
           <NumberField
-            label="Max output tokens"
-            description="Cap on generated tokens"
+            label={t('localInference.panel.maxOutputTokensLabel')}
+            description={t('localInference.panel.maxOutputTokensDescription')}
             value={settings.max_output_tokens}
             onChange={(v) => updateField('max_output_tokens', v)}
-            placeholder="No limit"
+            placeholder={t('localInference.panel.noLimit')}
             min={1}
             allowNull
           />
@@ -242,12 +251,18 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
       {/* Sampling */}
       <div className="space-y-2">
         <SelectField
-          label="Sampling Strategy"
+          label={t('localInference.panel.samplingStrategy')}
           value={samplingType}
           options={[
-            { value: 'Greedy' as SamplingType, label: 'Greedy' },
-            { value: 'Temperature' as SamplingType, label: 'Temperature' },
-            { value: 'MirostatV2' as SamplingType, label: 'Mirostat v2' },
+            { value: 'Greedy' as SamplingType, label: t('localInference.panel.strategies.greedy') },
+            {
+              value: 'Temperature' as SamplingType,
+              label: t('localInference.panel.strategies.temperature'),
+            },
+            {
+              value: 'MirostatV2' as SamplingType,
+              label: t('localInference.panel.strategies.mirostatV2'),
+            },
           ]}
           onChange={(v) => setSamplingType(v)}
         />
@@ -255,7 +270,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
         {samplingType === 'Temperature' && settings.sampling?.type === 'Temperature' && (
           <div className="grid grid-cols-2 gap-3">
             <NumberField
-              label="Temperature"
+              label={t('localInference.panel.temperatureLabel')}
               value={settings.sampling.temperature}
               onChange={(v) => updateSampling({ temperature: v ?? 0.8 })}
               min={0}
@@ -263,13 +278,13 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
               step={0.05}
             />
             <NumberField
-              label="Top K"
+              label={t('localInference.panel.topKLabel')}
               value={settings.sampling.top_k}
               onChange={(v) => updateSampling({ top_k: v ?? 40 })}
               min={0}
             />
             <NumberField
-              label="Top P"
+              label={t('localInference.panel.topPLabel')}
               value={settings.sampling.top_p}
               onChange={(v) => updateSampling({ top_p: v ?? 0.95 })}
               min={0}
@@ -277,7 +292,7 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
               step={0.01}
             />
             <NumberField
-              label="Min P"
+              label={t('localInference.panel.minPLabel')}
               value={settings.sampling.min_p}
               onChange={(v) => updateSampling({ min_p: v ?? 0.05 })}
               min={0}
@@ -285,10 +300,10 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
               step={0.01}
             />
             <NumberField
-              label="Seed"
+              label={t('localInference.panel.seedLabel')}
               value={settings.sampling.seed}
               onChange={(v) => updateSampling({ seed: v })}
-              placeholder="Random"
+              placeholder={t('localInference.panel.random')}
               min={0}
               allowNull
             />
@@ -298,14 +313,14 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
         {samplingType === 'MirostatV2' && settings.sampling?.type === 'MirostatV2' && (
           <div className="grid grid-cols-2 gap-3">
             <NumberField
-              label="Tau (target entropy)"
+              label={t('localInference.panel.tauLabel')}
               value={settings.sampling.tau}
               onChange={(v) => updateSampling({ tau: v ?? 5.0 })}
               min={0}
               step={0.1}
             />
             <NumberField
-              label="Eta (learning rate)"
+              label={t('localInference.panel.etaLabel')}
               value={settings.sampling.eta}
               onChange={(v) => updateSampling({ eta: v ?? 0.1 })}
               min={0}
@@ -313,10 +328,10 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
               step={0.01}
             />
             <NumberField
-              label="Seed"
+              label={t('localInference.panel.seedLabel')}
               value={settings.sampling.seed}
               onChange={(v) => updateSampling({ seed: v })}
-              placeholder="Random"
+              placeholder={t('localInference.panel.random')}
               min={0}
               allowNull
             />
@@ -326,26 +341,28 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
 
       {/* Repetition Penalty */}
       <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">Repetition Penalty</h5>
+        <h5 className="text-xs font-medium text-text-default">
+          {t('localInference.panel.repetitionPenalty')}
+        </h5>
         <div className="grid grid-cols-2 gap-3">
           <NumberField
-            label="Repeat penalty"
-            description="1.0 = off"
+            label={t('localInference.panel.repeatPenaltyLabel')}
+            description={t('localInference.panel.repeatPenaltyDescription')}
             value={settings.repeat_penalty}
             onChange={(v) => updateField('repeat_penalty', v ?? 1.0)}
             min={0}
             step={0.05}
           />
           <NumberField
-            label="Repeat window"
-            description="Tokens to look back"
+            label={t('localInference.panel.repeatWindowLabel')}
+            description={t('localInference.panel.repeatWindowDescription')}
             value={settings.repeat_last_n}
             onChange={(v) => updateField('repeat_last_n', v ?? 64)}
             min={0}
           />
           <NumberField
-            label="Frequency penalty"
-            description="0.0 = off"
+            label={t('localInference.panel.frequencyPenaltyLabel')}
+            description={t('localInference.panel.frequencyPenaltyDescription')}
             value={settings.frequency_penalty}
             onChange={(v) => updateField('frequency_penalty', v ?? 0.0)}
             min={0}
@@ -353,8 +370,8 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
             step={0.05}
           />
           <NumberField
-            label="Presence penalty"
-            description="0.0 = off"
+            label={t('localInference.panel.presencePenaltyLabel')}
+            description={t('localInference.panel.presencePenaltyDescription')}
             value={settings.presence_penalty}
             onChange={(v) => updateField('presence_penalty', v ?? 0.0)}
             min={0}
@@ -366,45 +383,47 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
 
       {/* Performance */}
       <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">Performance</h5>
+        <h5 className="text-xs font-medium text-text-default">
+          {t('localInference.panel.performance')}
+        </h5>
         <div className="grid grid-cols-2 gap-3">
           <NumberField
-            label="Batch size"
-            description="Prompt processing batch"
+            label={t('localInference.panel.batchSizeLabel')}
+            description={t('localInference.panel.batchSizeDescription')}
             value={settings.n_batch}
             onChange={(v) => updateField('n_batch', v)}
-            placeholder="Auto"
+            placeholder={t('localInference.panel.auto')}
             min={1}
             allowNull
           />
           <NumberField
-            label="GPU layers"
-            description="Layers to offload to GPU"
+            label={t('localInference.panel.gpuLayersLabel')}
+            description={t('localInference.panel.gpuLayersDescription')}
             value={settings.n_gpu_layers}
             onChange={(v) => updateField('n_gpu_layers', v)}
-            placeholder="All"
+            placeholder={t('localInference.panel.all')}
             min={0}
             allowNull
           />
           <NumberField
-            label="Threads"
-            description="CPU threads for generation"
+            label={t('localInference.panel.threadsLabel')}
+            description={t('localInference.panel.threadsDescription')}
             value={settings.n_threads}
             onChange={(v) => updateField('n_threads', v)}
-            placeholder="Auto"
+            placeholder={t('localInference.panel.auto')}
             min={1}
             allowNull
           />
         </div>
         <ToggleField
-          label="Lock model in RAM (mlock)"
-          description="Prevent model from being swapped to disk"
+          label={t('localInference.panel.lockModelLabel')}
+          description={t('localInference.panel.lockModelDescription')}
           value={settings.use_mlock ?? false}
           onChange={(v) => updateField('use_mlock', v)}
         />
         <SelectField
-          label="Flash attention"
-          description="Enable flash attention optimization"
+          label={t('localInference.panel.flashAttentionLabel')}
+          description={t('localInference.panel.flashAttentionDescription')}
           value={
             settings.flash_attention === null || settings.flash_attention === undefined
               ? 'auto'
@@ -413,19 +432,21 @@ export const ModelSettingsPanel = ({ modelId }: { modelId: string }) => {
                 : 'off'
           }
           options={[
-            { value: 'auto', label: 'Auto' },
-            { value: 'on', label: 'On' },
-            { value: 'off', label: 'Off' },
+            { value: 'auto', label: t('localInference.panel.auto') },
+            { value: 'on', label: t('localInference.panel.on') },
+            { value: 'off', label: t('localInference.panel.off') },
           ]}
           onChange={(v) => updateField('flash_attention', v === 'auto' ? null : v === 'on')}
         />
       </div>
       {/* Tool Calling */}
       <div className="space-y-2">
-        <h5 className="text-xs font-medium text-text-default">Tool Calling</h5>
+        <h5 className="text-xs font-medium text-text-default">
+          {t('localInference.panel.toolCalling')}
+        </h5>
         <ToggleField
-          label="Native tool calling"
-          description="Use the model's built-in tool-call format instead of the shell-command emulator. Enable for large models that reliably support tool calling."
+          label={t('localInference.panel.nativeToolCallingLabel')}
+          description={t('localInference.panel.nativeToolCallingDescription')}
           value={settings.native_tool_calling ?? false}
           onChange={(v) => updateField('native_tool_calling', v)}
         />

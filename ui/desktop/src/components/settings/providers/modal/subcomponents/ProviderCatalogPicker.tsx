@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '../../../../ui/button';
 import { Search, ExternalLink, Check } from 'lucide-react';
 import { Input } from '../../../../ui/input';
@@ -9,6 +9,7 @@ import {
   type ProviderCatalogEntry,
   type ProviderTemplate,
 } from '../../../../../api';
+import { useLocalization } from '../../../../../contexts/LocalizationContext';
 
 interface ProviderCatalogPickerProps {
   onSelect: (template: ProviderTemplate) => void;
@@ -21,22 +22,45 @@ export default function ProviderCatalogPicker({
   onCancel,
   embedded,
 }: ProviderCatalogPickerProps) {
+  const { t } = useLocalization();
   const [selectedFormat, setSelectedFormat] = useState<string>('openai');
   const [providers, setProviders] = useState<ProviderCatalogEntry[]>([]);
   const [filteredProviders, setFilteredProviders] = useState<ProviderCatalogEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const tRef = useRef(t);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const formatOptions = [
-    { value: 'openai', label: 'OpenAI Compatible' },
-    { value: 'anthropic', label: 'Anthropic Compatible' },
+    { value: 'openai', label: t('providerCatalog.formats.openai') },
+    { value: 'anthropic', label: t('providerCatalog.formats.anthropic') },
   ];
 
   // Fetch providers when format changes
+  const fetchProviders = useCallback(async (format: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await getProviderCatalog({
+        query: { format },
+        throwOnError: true,
+      });
+      setProviders(data || []);
+      setFilteredProviders(data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tRef.current('providerCatalog.unknownError'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchProviders(selectedFormat);
-  }, [selectedFormat]);
+  }, [selectedFormat, fetchProviders]);
 
   // Filter providers based on search query
   useEffect(() => {
@@ -52,23 +76,6 @@ export default function ProviderCatalogPicker({
     }
   }, [searchQuery, providers]);
 
-  const fetchProviders = async (format: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data } = await getProviderCatalog({
-        query: { format },
-        throwOnError: true,
-      });
-      setProviders(data || []);
-      setFilteredProviders(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleProviderSelect = async (providerId: string) => {
     setLoading(true);
     setError(null);
@@ -81,7 +88,7 @@ export default function ProviderCatalogPicker({
         onSelect(template);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : t('providerCatalog.unknownError'));
     } finally {
       setLoading(false);
     }
@@ -91,15 +98,15 @@ export default function ProviderCatalogPicker({
     <div className="space-y-4">
       {/* Header */}
       <div>
-        <h3 className="text-lg font-semibold text-textStandard mb-2">Choose Provider</h3>
-        <p className="text-sm text-textSubtle">
-          Select an API format and provider. We'll auto-fill the configuration for you.
-        </p>
+        <h3 className="text-lg font-semibold text-textStandard mb-2">{t('providerCatalog.title')}</h3>
+        <p className="text-sm text-textSubtle">{t('providerCatalog.description')}</p>
       </div>
 
       {/* Format Selection */}
       <div>
-        <label className="text-sm font-medium text-textStandard mb-2 block">API Format</label>
+        <label className="text-sm font-medium text-textStandard mb-2 block">
+          {t('providerCatalog.apiFormat')}
+        </label>
         <Select
           options={formatOptions}
           value={formatOptions.find((opt) => opt.value === selectedFormat)}
@@ -118,7 +125,7 @@ export default function ProviderCatalogPicker({
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-textSubtle w-4 h-4" />
         <Input
           type="text"
-          placeholder="Search providers..."
+          placeholder={t('providerCatalog.searchPlaceholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -126,7 +133,7 @@ export default function ProviderCatalogPicker({
       </div>
 
       {/* Loading/Error */}
-      {loading && <div className="text-center py-8 text-textSubtle">Loading providers...</div>}
+      {loading && <div className="text-center py-8 text-textSubtle">{t('providerCatalog.loading')}</div>}
       {error && <div className="text-center py-8 text-red-500">Error: {error}</div>}
 
       {/* Provider List */}
@@ -134,7 +141,9 @@ export default function ProviderCatalogPicker({
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {filteredProviders.length === 0 ? (
             <div className="text-center py-8 text-textSubtle">
-              {searchQuery ? `No providers found for "${searchQuery}"` : 'No providers available'}
+              {searchQuery
+                ? t('providerCatalog.noProvidersFound', { query: searchQuery })
+                : t('providerCatalog.noProvidersAvailable')}
             </div>
           ) : (
             filteredProviders.map((provider) => (
@@ -161,8 +170,9 @@ export default function ProviderCatalogPicker({
                     </div>
                     <div className="text-sm text-textSubtle mt-1 break-all">{provider.api_url}</div>
                     <div className="text-xs text-textSubtle mt-2">
-                      {provider.model_count} models available
-                      {provider.env_var && ` • Requires ${provider.env_var}`}
+                      {t('providerCatalog.modelsAvailable', { count: provider.model_count })}
+                      {provider.env_var &&
+                        ` • ${t('providerCatalog.requiresEnvVar', { envVar: provider.env_var })}`}
                     </div>
                   </div>
                   <Check className="w-5 h-5 text-primary opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
@@ -177,7 +187,7 @@ export default function ProviderCatalogPicker({
       {!embedded && (
         <div className="flex justify-end space-x-2 pt-4">
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
         </div>
       )}

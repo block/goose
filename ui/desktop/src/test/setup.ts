@@ -42,6 +42,41 @@ Object.assign(navigator, {
   },
 });
 
+function createStorageMock() {
+  const store = new Map<string, string>();
+
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.has(key) ? store.get(key)! : null;
+    },
+    key(index: number) {
+      return Array.from(store.keys())[index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, String(value));
+    },
+  };
+}
+
+Object.defineProperty(window, 'localStorage', {
+  writable: true,
+  value: createStorageMock(),
+});
+
+Object.defineProperty(window, 'sessionStorage', {
+  writable: true,
+  value: createStorageMock(),
+});
+
 // Mock settings store for tests
 const mockSettings: Record<string, unknown> = {
   showMenuBarIcon: true,
@@ -67,6 +102,7 @@ const mockSettings: Record<string, unknown> = {
   },
   theme: 'light',
   useSystemTheme: true,
+  uiLanguage: 'en',
   responseStyle: 'concise',
   showPricing: true,
   sessionSharing: {
@@ -86,6 +122,9 @@ Object.defineProperty(window, 'electron', {
       mockSettings[key] = value;
       return Promise.resolve();
     }),
+    broadcastLanguageChange: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
     showMessageBox: vi.fn(() => Promise.resolve({ response: 0 })),
   },
 });

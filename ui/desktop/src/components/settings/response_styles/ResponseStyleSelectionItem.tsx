@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { TranslationKey } from '../../../i18n';
 
 export interface ResponseStyle {
   key: string;
@@ -6,16 +7,18 @@ export interface ResponseStyle {
   description: string;
 }
 
-export const all_response_styles: ResponseStyle[] = [
+export const createResponseStyles = (
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
+): ResponseStyle[] => [
   {
     key: 'detailed',
-    label: 'Detailed',
-    description: 'Tool calls are by default shown open to expose details',
+    label: t('chatSettings.responseStylesOptions.detailed.label'),
+    description: t('chatSettings.responseStylesOptions.detailed.description'),
   },
   {
     key: 'concise',
-    label: 'Concise',
-    description: 'Tool calls are by default closed and only show the tool used',
+    label: t('chatSettings.responseStylesOptions.concise.label'),
+    description: t('chatSettings.responseStylesOptions.concise.description'),
   },
 ];
 

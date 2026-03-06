@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import { FixedExtensionEntry, useConfig } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
 import { Button } from '../../ui/button';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,8 +47,14 @@ interface PermissionRulesModalProps {
 }
 
 export default function PermissionRulesModal({ isOpen, onClose }: PermissionRulesModalProps) {
+  const { t } = useLocalization();
+  const tRef = useRef(t);
   const { getExtensions } = useConfig();
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const fetchExtensions = useCallback(async () => {
     const extensionsList = await getExtensions(true); // Force refresh
@@ -56,7 +63,7 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
     enabledExtensions.push({
       name: 'platform',
       type: 'builtin',
-      description: 'platform',
+      description: tRef.current('permissions.platformDescription'),
       enabled: true,
     });
     // Sort extensions by name to maintain consistent order
@@ -81,8 +88,7 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
     if (isOpen) {
       fetchExtensions();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [fetchExtensions, isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -107,11 +113,10 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
             </div>
             <div>
               <DialogTitle className="text-3xl font-medium text-text-primary">
-                Permission Rules
+                {t('permissions.title')}
               </DialogTitle>
               <p className="text-text-secondary">
-                Configure tool permissions for extensions to control how they interact with your
-                system.
+                {t('permissions.description')}
               </p>
             </div>
           </div>
@@ -121,7 +126,7 @@ export default function PermissionRulesModal({ isOpen, onClose }: PermissionRule
           <div className="space-y-4">
             {/* Extension Rules Section */}
             <RulesSection
-              title="Extension rules"
+              title={t('permissions.extensionRules')}
               rules={
                 <div className="space-y-2">
                   {extensions.map((extension) => (

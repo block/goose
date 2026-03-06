@@ -203,12 +203,12 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
   };
 }
 
-export function getSessionDisplayName(session: Session): string {
+export function getSessionDisplayName(session: Session, newChatLabel = 'New Chat'): string {
   if (session.recipe?.title) {
     return session.recipe.title;
   }
   if (shouldShowNewChatTitle(session)) {
-    return 'New Chat';
+    return newChatLabel;
   }
   return session.name;
 }

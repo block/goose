@@ -5,8 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { AlertCircle } from 'lucide-react';
 import { ExternalGoosedConfig, defaultSettings } from '../../../utils/settings';
 import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export default function ExternalBackendSection() {
+  const { t } = useLocalization();
   const [config, setConfig] = useState<ExternalGoosedConfig>(defaultSettings.externalGoosed);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -27,13 +29,13 @@ export default function ExternalBackendSection() {
     try {
       const parsed = new URL(value);
       if (!WEB_PROTOCOLS.includes(parsed.protocol)) {
-        setUrlError('URL must use http or https protocol');
+        setUrlError(t('externalBackend.invalidProtocol'));
         return false;
       }
       setUrlError(null);
       return true;
     } catch {
-      setUrlError('Invalid URL format');
+      setUrlError(t('externalBackend.invalidUrl'));
       return false;
     }
   };
@@ -73,18 +75,15 @@ export default function ExternalBackendSection() {
     <section id="external-backend" className="space-y-4 pr-4 mt-1">
       <Card className="pb-2">
         <CardHeader className="pb-0">
-          <CardTitle>Goose Server</CardTitle>
-          <CardDescription>
-            By default goose launches a server for you, use this to connect to an external goose
-            server
-          </CardDescription>
+          <CardTitle>{t('externalBackend.title')}</CardTitle>
+          <CardDescription>{t('externalBackend.description')}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-primary text-xs">Use external server</h3>
+              <h3 className="text-text-primary text-xs">{t('externalBackend.enabledTitle')}</h3>
               <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                Connect to a goose server running elsewhere (requires app restart)
+                {t('externalBackend.enabledDescription')}
               </p>
             </div>
             <div className="flex items-center">
@@ -101,7 +100,7 @@ export default function ExternalBackendSection() {
             <>
               <div className="space-y-2">
                 <label htmlFor="external-url" className="text-text-primary text-xs">
-                  Server URL
+                  {t('externalBackend.serverUrl')}
                 </label>
                 <Input
                   id="external-url"
@@ -123,26 +122,25 @@ export default function ExternalBackendSection() {
 
               <div className="space-y-2">
                 <label htmlFor="external-secret" className="text-text-primary text-xs">
-                  Secret Key
+                  {t('externalBackend.secretKey')}
                 </label>
                 <Input
                   id="external-secret"
                   type="password"
-                  placeholder="Enter the server's secret key"
+                  placeholder={t('externalBackend.secretPlaceholder')}
                   value={config.secret}
                   onChange={(e) => updateField('secret', e.target.value)}
                   onBlur={() => saveConfig(config)}
                   disabled={isSaving}
                 />
                 <p className="text-xs text-text-secondary">
-                  The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)
+                  {t('externalBackend.secretDescription')}
                 </p>
               </div>
 
               <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-3">
                 <p className="text-xs text-amber-800 dark:text-amber-200">
-                  <strong>Note:</strong> Changes require restarting Goose to take effect. New chat
-                  windows will connect to the external server.
+                  {t('externalBackend.restartNote')}
                 </p>
               </div>
             </>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 type UpdateStatus =
   | 'idle'
@@ -25,14 +26,20 @@ interface UpdateEventData {
 }
 
 export default function UpdateSection() {
+  const { t } = useLocalization();
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({
     currentVersion: '',
   });
   const [progress, setProgress] = useState<number>(0);
   const [isUsingGitHubFallback, setIsUsingGitHubFallback] = useState<boolean>(false);
+  const tRef = React.useRef(t);
   const progressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProgressRef = React.useRef<number>(0); // Track last progress to prevent backward jumps
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     // Get current version on mount
@@ -119,7 +126,7 @@ export default function UpdateSection() {
           setUpdateStatus('error');
           setUpdateInfo((prev) => ({
             ...prev,
-            error: String(event.data || 'An error occurred'),
+            error: String(event.data || tRef.current('updates.errorFallback')),
           }));
           setTimeout(() => setUpdateStatus('idle'), 5000);
           break;
@@ -155,7 +162,7 @@ export default function UpdateSection() {
       console.error('Error checking for updates:', error);
       setUpdateInfo((prev) => ({
         ...prev,
-        error: errorMessage(error, 'Failed to check for updates'),
+        error: errorMessage(error, t('updates.errorFallback')),
       }));
       setUpdateStatus('error');
       setTimeout(() => setUpdateStatus('idle'), 5000);
@@ -169,20 +176,20 @@ export default function UpdateSection() {
   const getStatusMessage = () => {
     switch (updateStatus) {
       case 'checking':
-        return 'Checking for updates...';
+        return t('updates.checking');
       case 'downloading':
-        return `Downloading update... ${Math.round(progress)}%`;
+        return t('updates.downloadingProgress', { progress: Math.round(progress) });
       case 'ready':
-        return 'Update downloaded and ready to install!';
+        return t('updates.readyToInstall');
       case 'success':
         return updateInfo.isUpdateAvailable === false
-          ? 'You are running the latest version!'
-          : 'Update available!';
+          ? t('updates.latestVersion')
+          : t('updates.updateAvailable');
       case 'error':
-        return updateInfo.error || 'An error occurred';
+        return updateInfo.error || t('updates.errorFallback');
       default:
         if (updateInfo.isUpdateAvailable) {
-          return `Version ${updateInfo.latestVersion} is available`;
+          return t('updates.availableVersion', { version: updateInfo.latestVersion || '' });
         }
         return '';
     }
@@ -209,15 +216,18 @@ export default function UpdateSection() {
       <div className="text-sm text-text-secondary mb-4 flex items-center gap-2">
         <div className="flex flex-col">
           <div className="text-text-primary text-2xl font-mono">
-            {updateInfo.currentVersion || 'Loading...'}
+            {updateInfo.currentVersion || t('updates.loadingVersion')}
           </div>
-          <div className="text-xs text-text-secondary">Current version</div>
+          <div className="text-xs text-text-secondary">{t('updates.currentVersion')}</div>
         </div>
         {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
-          <span className="text-text-secondary"> → {updateInfo.latestVersion} available</span>
+          <span className="text-text-secondary">
+            {' '}
+            → {t('updates.availableVersion', { version: updateInfo.latestVersion })}
+          </span>
         )}
         {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && (
-          <span className="text-text-primary"> (up to date)</span>
+          <span className="text-text-primary"> {t('updates.upToDate')}</span>
         )}
       </div>
 
@@ -229,12 +239,12 @@ export default function UpdateSection() {
             variant="secondary"
             size="sm"
           >
-            Check for Updates
+            {t('updates.checkForUpdates')}
           </Button>
 
           {updateStatus === 'ready' && (
             <Button onClick={installUpdate} variant="default" size="sm">
-              Install & Restart
+              {t('updates.installAndRestart')}
             </Button>
           )}
         </div>
@@ -249,7 +259,7 @@ export default function UpdateSection() {
         {updateStatus === 'downloading' && (
           <div className="w-full mt-2">
             <div className="flex justify-between text-xs text-text-secondary mb-1">
-              <span>Downloading update...</span>
+              <span>{t('updates.downloadingLabel')}</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
@@ -264,15 +274,11 @@ export default function UpdateSection() {
         {/* Update information */}
         {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
           <div className="text-xs text-text-secondary mt-4 space-y-1">
-            <p>Update will be downloaded automatically in the background.</p>
+            <p>{t('updates.backgroundDownloadNotice')}</p>
             {isUsingGitHubFallback ? (
-              <p className="text-xs text-amber-600">
-                After download, you'll need to manually install the update.
-              </p>
+              <p className="text-xs text-amber-600">{t('updates.githubFallbackNotice')}</p>
             ) : (
-              <p className="text-xs text-green-600">
-                The update will be installed automatically when you quit the app.
-              </p>
+              <p className="text-xs text-green-600">{t('updates.autoInstallNotice')}</p>
             )}
           </div>
         )}
@@ -281,21 +287,13 @@ export default function UpdateSection() {
           <div className="text-xs text-text-secondary mt-4 space-y-1">
             {isUsingGitHubFallback ? (
               <>
-                <p className="text-xs text-green-600">
-                  ✓ Update is ready! Click "Install & Restart" for installation instructions.
-                </p>
-                <p className="text-xs text-text-secondary">
-                  Manual installation required for this update method.
-                </p>
+                <p className="text-xs text-green-600">{`✓ ${t('updates.readyGitHubTitle')}`}</p>
+                <p className="text-xs text-text-secondary">{t('updates.readyGitHubDescription')}</p>
               </>
             ) : (
               <>
-                <p className="text-xs text-green-600">
-                  ✓ Update is ready! It will be installed when you quit Goose.
-                </p>
-                <p className="text-xs text-text-secondary">
-                  Or click "Install & Restart" to update now.
-                </p>
+                <p className="text-xs text-green-600">{`✓ ${t('updates.readyAutoTitle')}`}</p>
+                <p className="text-xs text-text-secondary">{t('updates.readyAutoDescription')}</p>
               </>
             )}
           </div>

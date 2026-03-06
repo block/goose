@@ -2,6 +2,7 @@ import React from 'react';
 import { Moon, Sliders, Sun } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface ThemeSelectorProps {
   className?: string;
@@ -15,10 +16,11 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   horizontal = false,
 }) => {
   const { userThemePreference, setUserThemePreference } = useTheme();
+  const { t } = useLocalization();
 
   return (
     <div className={`${!horizontal ? 'px-1 py-2 space-y-2' : ''} ${className}`}>
-      {!hideTitle && <div className="text-xs text-text-primary px-3">Theme</div>}
+      {!hideTitle && <div className="text-xs text-text-primary px-3">{t('theme.label')}</div>}
       <div
         className={`${horizontal ? 'flex' : 'grid grid-cols-3'} gap-1 ${!horizontal ? 'px-3' : ''}`}
       >
@@ -34,7 +36,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           size="sm"
         >
           <Sun className="h-3 w-3" />
-          <span>Light</span>
+          <span>{t('theme.light')}</span>
         </Button>
 
         <Button
@@ -49,7 +51,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           size="sm"
         >
           <Moon className="h-3 w-3" />
-          <span>Dark</span>
+          <span>{t('theme.dark')}</span>
         </Button>
 
         <Button
@@ -64,7 +66,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           size="sm"
         >
           <Sliders className="h-3 w-3" />
-          <span>System</span>
+          <span>{t('theme.system')}</span>
         </Button>
       </div>
     </div>

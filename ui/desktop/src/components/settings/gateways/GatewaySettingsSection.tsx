@@ -5,6 +5,7 @@ import { Input } from '../../ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Loader2, Copy, Check, Square, Trash2, ExternalLink, User } from 'lucide-react';
 import { getApiUrl } from '../../../config';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface PairedUserInfo {
   platform: string;
@@ -41,6 +42,7 @@ async function gatewayFetch(endpoint: string, options: globalThis.RequestInit = 
 }
 
 export default function GatewaySettingsSection() {
+  const { t } = useLocalization();
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,11 +94,11 @@ export default function GatewaySettingsSection() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || 'Failed to unpair user');
+        throw new Error(data.message || t('gateways.failedUnpairUser'));
       }
       await fetchStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to unpair user');
+      setError(err instanceof Error ? err.message : t('gateways.failedUnpairUser'));
     }
   };
 
@@ -114,7 +116,7 @@ export default function GatewaySettingsSection() {
     return (
       <div className="flex items-center gap-2 text-sm text-text-muted py-4">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading...
+        {t('gateways.loading')}
       </div>
     );
   }
@@ -135,14 +137,14 @@ export default function GatewaySettingsSection() {
           doPost(
             '/gateway/start',
             { gateway_type: 'telegram', platform_config: config, max_sessions: 0 },
-            'Failed to start'
+            t('gateways.failedStart')
           )
         }
         onRestart={() =>
-          doPost('/gateway/restart', { gateway_type: 'telegram' }, 'Failed to start')
+          doPost('/gateway/restart', { gateway_type: 'telegram' }, t('gateways.failedStart'))
         }
-        onStop={() => doPost('/gateway/stop', { gateway_type: 'telegram' }, 'Failed to stop')}
-        onRemove={() => doPost('/gateway/remove', { gateway_type: 'telegram' }, 'Failed to remove')}
+        onStop={() => doPost('/gateway/stop', { gateway_type: 'telegram' }, t('gateways.failedStop'))}
+        onRemove={() => doPost('/gateway/remove', { gateway_type: 'telegram' }, t('gateways.failedRemove'))}
         onGenerateCode={async () => {
           setError(null);
           try {
@@ -152,13 +154,13 @@ export default function GatewaySettingsSection() {
             });
             if (!response.ok) {
               const data = await response.json().catch(() => ({}));
-              throw new Error(data.message || 'Failed to generate pairing code');
+              throw new Error(data.message || t('gateways.failedGeneratePairingCode'));
             }
             const data: PairingCodeResponse = await response.json();
             setPairingCode(data);
             setPairingGatewayType('telegram');
           } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to generate pairing code');
+            setError(err instanceof Error ? err.message : t('gateways.failedGeneratePairingCode'));
           }
         }}
         onUnpairUser={handleUnpairUser}
@@ -186,11 +188,12 @@ function PairedUsersList({
   users: PairedUserInfo[];
   onUnpairUser: (platform: string, userId: string) => void;
 }) {
+  const { t } = useLocalization();
   if (users.length === 0) return null;
 
   return (
     <div className="space-y-1 mt-2">
-      <h4 className="text-xs text-text-muted font-medium">Paired Users</h4>
+      <h4 className="text-xs text-text-muted font-medium">{t('gateways.pairedUsers')}</h4>
       {users.map((user) => (
         <div
           key={`${user.platform}-${user.user_id}`}
@@ -231,6 +234,7 @@ function TelegramGatewayCard({
   onGenerateCode: () => void;
   onUnpairUser: (platform: string, userId: string) => void;
 }) {
+  const { t } = useLocalization();
   const [botToken, setBotToken] = useState('');
   const [busy, setBusy] = useState(false);
   const running = status?.running ?? false;
@@ -256,15 +260,15 @@ function TelegramGatewayCard({
       <CardHeader className="pb-0">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            Telegram
+            {t('gateways.telegram.title')}
             {running && (
               <span className="inline-flex items-center text-xs text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-                Running
+                {t('gateways.telegram.running')}
               </span>
             )}
             {!running && configured && (
               <span className="inline-flex items-center text-xs text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded-full">
-                Stopped
+                {t('gateways.telegram.stopped')}
               </span>
             )}
           </CardTitle>
@@ -272,18 +276,18 @@ function TelegramGatewayCard({
             {running && (
               <>
                 <Button variant="outline" size="sm" onClick={onGenerateCode}>
-                  Pair Device
+                  {t('gateways.telegram.pairDevice')}
                 </Button>
                 <Button variant="destructive" size="sm" disabled={busy} onClick={wrap(onStop)}>
                   <Square className="h-3 w-3 mr-1" />
-                  Stop
+                  {t('gateways.telegram.stop')}
                 </Button>
               </>
             )}
             {!running && configured && (
               <>
                 <Button size="sm" disabled={busy} onClick={wrap(onRestart)}>
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t('gateways.telegram.start')}
                 </Button>
                 <Button
                   variant="outline"
@@ -293,7 +297,7 @@ function TelegramGatewayCard({
                   className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
                 >
                   <Trash2 className="h-3 w-3 mr-1" />
-                  Remove
+                  {t('gateways.telegram.remove')}
                 </Button>
               </>
             )}
@@ -305,7 +309,7 @@ function TelegramGatewayCard({
           <>
             <div className="text-xs text-text-muted space-y-1.5 mb-2">
               <p>
-                Open{' '}
+                {t('gateways.telegram.setupBeforeBotFather')}
                 <a
                   href="https://t.me/BotFather"
                   target="_blank"
@@ -314,24 +318,21 @@ function TelegramGatewayCard({
                 >
                   @BotFather
                   <ExternalLink className="h-3 w-3" />
-                </a>{' '}
-                on your phone, send{' '}
-                <code className="bg-background-muted px-1 py-0.5 rounded">/newbot</code>, and follow
-                the prompts to name your bot. BotFather will reply with an API token — paste it
-                below.
+                </a>
+                {t('gateways.telegram.setupAfterBotFather')}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Input
                 type="password"
-                placeholder="Paste bot token here"
+                placeholder={t('gateways.telegram.pasteBotToken')}
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleFirstStart()}
                 className="text-sm"
               />
               <Button size="sm" onClick={handleFirstStart} disabled={busy || !botToken.trim()}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Start'}
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t('gateways.telegram.start')}
               </Button>
             </div>
           </>
@@ -357,6 +358,7 @@ function PairingCodeModal({
   onCopy: (text: string) => void;
   copied: boolean;
 }) {
+  const { t } = useLocalization();
   const [timeRemaining, setTimeRemaining] = useState(0);
 
   useEffect(() => {
@@ -384,7 +386,7 @@ function PairingCodeModal({
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[400px]">
         <DialogHeader>
-          <DialogTitle>Pairing Code</DialogTitle>
+          <DialogTitle>{t('gateways.pairing.title')}</DialogTitle>
         </DialogHeader>
 
         <div className="py-6 space-y-4">
@@ -405,18 +407,22 @@ function PairingCodeModal({
           </div>
 
           <p className="text-center text-sm text-text-muted">
-            Send this code to your <span className="capitalize font-medium">{gatewayType}</span> bot
-            to pair.
+            {t('gateways.pairing.description', {
+              gateway: gatewayType || '',
+            })}
           </p>
 
           <div className="text-center text-xs text-text-muted">
-            Expires in {minutes}:{seconds.toString().padStart(2, '0')}
+            {t('gateways.pairing.expiresIn', {
+              minutes,
+              seconds: seconds.toString().padStart(2, '0'),
+            })}
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Close
+            {t('common.actions.close')}
           </Button>
         </DialogFooter>
       </DialogContent>

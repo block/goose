@@ -4,9 +4,12 @@
  * @vitest-environment jsdom
  */
 import React from 'react';
-import { screen, render, waitFor } from '@testing-library/react';
+import { screen, render as rtlRender, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppInner } from './App';
+import { LocalizationProvider } from './contexts/LocalizationContext';
+
+const render = (ui: React.ReactElement) => rtlRender(<LocalizationProvider>{ui}</LocalizationProvider>);
 
 // Set up globals for jsdom
 Object.defineProperty(window, 'location', {

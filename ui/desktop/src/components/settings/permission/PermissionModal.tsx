@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
 } from '../../ui/dropdown-menu';
 import { useChatContext } from '../../../contexts/ChatContext';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 function getFirstSentence(text: string): string {
   const match = text.match(/^([^.?!]+[.?!])/);
@@ -22,10 +23,11 @@ interface PermissionModalProps {
 }
 
 export default function PermissionModal({ extensionName, onClose }: PermissionModalProps) {
+  const { t } = useLocalization();
   const permissionOptions = [
-    { value: 'always_allow', label: 'Always allow' },
-    { value: 'ask_before', label: 'Ask before' },
-    { value: 'never_allow', label: 'Never allow' },
+    { value: 'always_allow', label: t('permissions.alwaysAllow') },
+    { value: 'ask_before', label: t('permissions.askBefore') },
+    { value: 'never_allow', label: t('permissions.neverAllow') },
   ] as { value: PermissionLevel; label: string }[];
 
   const chatContext = useChatContext();
@@ -158,24 +160,26 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
           ) : loadError === 'no_session' ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <AlertCircle className="h-12 w-12 text-text-secondary mb-4" />
-              <p className="text-text-primary font-medium mb-2">No active session</p>
+              <p className="text-text-primary font-medium mb-2">
+                {t('permissions.noActiveSessionTitle')}
+              </p>
               <p className="text-sm text-text-secondary max-w-sm">
-                Start a chat session first to configure tool permissions for this extension. Tool
-                permissions are loaded from the active session's extensions.
+                {t('permissions.noActiveSessionDescription')}
               </p>
             </div>
           ) : loadError === 'fetch_failed' ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <AlertCircle className="h-12 w-12 text-text-secondary mb-4" />
-              <p className="text-text-primary font-medium mb-2">Failed to load tools</p>
+              <p className="text-text-primary font-medium mb-2">
+                {t('permissions.loadFailedTitle')}
+              </p>
               <p className="text-sm text-text-secondary max-w-sm">
-                Could not load tools for this extension. The extension may not be loaded in the
-                current session.
+                {t('permissions.loadFailedDescription')}
               </p>
             </div>
           ) : tools.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-text-secondary">No tools available for this extension.</p>
+              <p className="text-text-secondary">{t('permissions.noTools')}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -198,7 +202,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                         {permissionOptions.find(
                           (option) =>
                             option.value === (updatedPermissions[tool.name] || tool.permission)
-                        )?.label || 'Ask Before'}
+                        )?.label || t('permissions.askBefore')}
                         <ChevronDownIcon className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -223,11 +227,11 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>
-            {loadError ? 'Close' : 'Cancel'}
+            {loadError ? t('common.actions.close') : t('common.actions.cancel')}
           </Button>
           {!loadError && (
             <Button disabled={!hasChanges} onClick={handleSave}>
-              Save Changes
+              {t('permissions.saveChanges')}
             </Button>
           )}
         </DialogFooter>

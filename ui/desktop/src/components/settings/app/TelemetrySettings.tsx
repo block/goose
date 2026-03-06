@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Switch } from '../../ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { useConfig } from '../../ConfigContext';
@@ -9,6 +9,7 @@ import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
   trackTelemetryPreference,
 } from '../../../utils/analytics';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -18,9 +19,15 @@ interface TelemetrySettingsProps {
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
   const { read, upsert } = useConfig();
+  const { t } = useLocalization();
   const [telemetryEnabled, setTelemetryEnabled] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const tRef = useRef(t);
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const loadTelemetryStatus = useCallback(async () => {
     try {
@@ -29,8 +36,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     } catch (error) {
       console.error('Failed to load telemetry status:', error);
       toastService.error({
-        title: 'Configuration Error',
-        msg: 'Failed to load telemetry settings.',
+        title: tRef.current('telemetry.errors.configurationTitle'),
+        msg: tRef.current('telemetry.errors.loadFailed'),
         traceback: error instanceof Error ? error.stack || '' : '',
       });
     } finally {
@@ -51,8 +58,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     } catch (error) {
       console.error('Failed to update telemetry status:', error);
       toastService.error({
-        title: 'Configuration Error',
-        msg: 'Failed to update telemetry settings.',
+        title: t('telemetry.errors.configurationTitle'),
+        msg: t('telemetry.errors.updateFailed'),
         traceback: error instanceof Error ? error.stack || '' : '',
       });
     }
@@ -67,17 +74,17 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
     return null;
   }
 
-  const title = 'Privacy';
-  const description = 'Control how your data is used';
-  const toggleLabel = 'Anonymous usage data';
-  const toggleDescription = 'Help improve goose by sharing anonymous usage statistics.';
+  const title = t('telemetry.title');
+  const description = t('telemetry.description');
+  const toggleLabel = t('telemetry.toggleLabel');
+  const toggleDescription = t('telemetry.toggleDescription');
 
   const learnMoreLink = (
     <button
       onClick={() => setShowModal(true)}
       className="text-blue-600 dark:text-blue-400 hover:underline"
     >
-      Learn more
+      {t('common.actions.learnMore')}
     </button>
   );
 

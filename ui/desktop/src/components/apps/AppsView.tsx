@@ -6,6 +6,7 @@ import { exportApp, GooseApp, importApp, listApps } from '../../api';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -22,11 +23,17 @@ const GridLayout = ({ children }: { children: React.ReactNode }) => {
 };
 
 export default function AppsView() {
+  const { t } = useLocalization();
+  const tRef = useRef(t);
   const [apps, setApps] = useState<GooseApp[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId;
+
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   // Load cached apps immediately on mount
   useEffect(() => {
@@ -66,7 +73,7 @@ export default function AppsView() {
         console.warn('Failed to refresh apps:', err);
         // Don't set error if we already have cached apps
         if (apps.length === 0) {
-          setError(errorMessage(err, 'Failed to load apps'));
+          setError(errorMessage(err, t('apps.loadFailed')));
         }
       }
     };
@@ -116,14 +123,14 @@ export default function AppsView() {
       // Only show apps from the "apps" extension (vibe coded apps built by Goose)
       setApps(fetchedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
-    } catch (err) {
-      // Only set error if we don't have apps to show
-      if (apps.length === 0) {
-        setError(errorMessage(err, 'Failed to load apps'));
+      } catch (err) {
+        // Only set error if we don't have apps to show
+        if (apps.length === 0) {
+          setError(errorMessage(err, tRef.current('apps.loadFailed')));
+        }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
   }, [sessionId, apps.length]);
 
   const handleLaunchApp = async (app: GooseApp) => {
@@ -155,7 +162,7 @@ export default function AppsView() {
       }
     } catch (err) {
       console.error('Failed to export app:', err);
-      setError(errorMessage(err, 'Failed to export app'));
+      setError(errorMessage(err, t('apps.exportFailed')));
     }
   };
 
@@ -185,7 +192,7 @@ export default function AppsView() {
       setError(null);
     } catch (err) {
       console.error('Failed to import app:', err);
-      setError(errorMessage(err, 'Failed to import app'));
+      setError(errorMessage(err, t('apps.importFailed')));
     }
     event.target.value = '';
   };
@@ -195,8 +202,8 @@ export default function AppsView() {
     return (
       <MainPanelLayout>
         <div className="flex flex-col items-center justify-center h-64 text-center">
-          <p className="text-red-500 mb-4">Error loading apps: {error}</p>
-          <Button onClick={loadApps}>Retry</Button>
+          <p className="text-red-500 mb-4">{t('apps.errorLoading', { error })}</p>
+          <Button onClick={loadApps}>{t('common.actions.retry')}</Button>
         </div>
       </MainPanelLayout>
     );
@@ -215,7 +222,7 @@ export default function AppsView() {
         <div className="bg-background-primary px-8 pb-8 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
-              <h1 className="text-4xl font-light">Apps</h1>
+              <h1 className="text-4xl font-light">{t('apps.title')}</h1>
               <Button
                 variant="outline"
                 size="sm"
@@ -223,14 +230,11 @@ export default function AppsView() {
                 className="flex items-center gap-2"
               >
                 <Upload className="h-4 w-4" />
-                Import App
+                {t('apps.importApp')}
               </Button>
             </div>
             <div className="mb-4">
-              <p className="text-sm text-text-secondary mb-2">
-                Applications from your MCP servers and Apps build by goose itself. You can ask it to
-                create new apps through the chat interface and they will appear here.
-              </p>
+              <p className="text-sm text-text-secondary mb-2">{t('apps.description')}</p>
             </div>
           </div>
         </div>
@@ -238,17 +242,13 @@ export default function AppsView() {
         <div className="flex-1 overflow-y-auto px-8 pb-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <p className="text-text-secondary">Loading apps...</p>
+              <p className="text-text-secondary">{t('apps.loading')}</p>
             </div>
           ) : apps.length === 0 ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
-                <h3 className="text-lg font-medium mb-2">No apps available</h3>
-                <p className="text-sm text-text-secondary">
-                  Open a chat and ask goose for the app you want to have. It can build one for you
-                  and that will appear here. Or if somebody shared an app, you can import it using
-                  the button above.
-                </p>
+                <h3 className="text-lg font-medium mb-2">{t('apps.noAppsTitle')}</h3>
+                <p className="text-sm text-text-secondary">{t('apps.noAppsDescription')}</p>
               </div>
             </div>
           ) : (
@@ -269,7 +269,7 @@ export default function AppsView() {
                       )}
                       {app.mcpServers && app.mcpServers.length > 0 && (
                         <span className="inline-block px-2 py-1 text-xs bg-background-secondary text-text-secondary rounded">
-                          {isCustomApp ? 'Custom app' : app.mcpServers.join(', ')}
+                          {isCustomApp ? t('apps.customApp') : app.mcpServers.join(', ')}
                         </span>
                       )}
                     </div>
@@ -281,7 +281,7 @@ export default function AppsView() {
                         className="flex items-center gap-2 flex-1"
                       >
                         <Play className="h-4 w-4" />
-                        Launch
+                        {t('apps.launch')}
                       </Button>
                       {isCustomApp && (
                         <Button

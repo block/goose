@@ -1,16 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
 import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 export default function StandaloneAppView() {
+  const { t } = useLocalization();
   const [searchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [cachedHtml, setCachedHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tRef = useRef(t);
+  const cachedHtmlRef = useRef<string | null>(null);
 
   const resourceUri = searchParams.get('resourceUri');
   const extensionName = searchParams.get('extensionName');
@@ -18,6 +22,16 @@ export default function StandaloneAppView() {
   const workingDir = searchParams.get('workingDir');
 
   useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
+  useEffect(() => {
+    cachedHtmlRef.current = cachedHtml;
+  }, [cachedHtml]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function loadCachedHtml() {
       if (
         !resourceUri ||
@@ -25,8 +39,10 @@ export default function StandaloneAppView() {
         resourceUri === 'undefined' ||
         extensionName === 'undefined'
       ) {
-        setError('Missing required parameters');
-        setLoading(false);
+        if (!cancelled) {
+          setError(tRef.current('apps.standalone.missingParams'));
+          setLoading(false);
+        }
         return;
       }
 
@@ -40,7 +56,7 @@ export default function StandaloneAppView() {
           (app) => app.uri === resourceUri && app.mcpServers?.includes(extensionName)
         );
 
-        if (cachedApp?.text) {
+        if (!cancelled && cachedApp?.text) {
           setCachedHtml(cachedApp.text);
           setLoading(false);
         }
@@ -49,12 +65,19 @@ export default function StandaloneAppView() {
       }
     }
 
-    loadCachedHtml();
+    void loadCachedHtml();
+
+    return () => {
+      cancelled = true;
+    };
   }, [resourceUri, extensionName]);
 
   useEffect(() => {
+    let cancelled = false;
+    let createdSessionId: string | null = null;
+
     async function initSession() {
-      if (!resourceUri || !extensionName || !workingDir) {
+      if (!resourceUri || !extensionName || !workingDir || sessionId) {
         return;
       }
 
@@ -65,6 +88,7 @@ export default function StandaloneAppView() {
         });
 
         const sid = startResponse.data.id;
+        createdSessionId = sid;
 
         await resumeAgent({
           body: {
@@ -74,19 +98,49 @@ export default function StandaloneAppView() {
           throwOnError: true,
         });
 
+        if (cancelled) {
+          await stopAgent({
+            body: { session_id: sid },
+            throwOnError: false,
+          });
+          return;
+        }
+
+        createdSessionId = null;
         setSessionId(sid);
         setLoading(false);
       } catch (err) {
         console.error('Failed to initialize session:', err);
-        if (!cachedHtml) {
-          setError(errorMessage(err, 'Failed to initialize session'));
+        if (createdSessionId) {
+          stopAgent({
+            body: { session_id: createdSessionId },
+            throwOnError: false,
+          }).catch((stopError: unknown) => {
+            console.warn('Failed to stop agent after initialization failure:', stopError);
+          });
+          createdSessionId = null;
+        }
+        if (!cancelled && !cachedHtmlRef.current) {
+          setError(errorMessage(err, tRef.current('apps.standalone.initializeFailed')));
           setLoading(false);
         }
       }
     }
 
-    initSession();
-  }, [resourceUri, extensionName, workingDir, cachedHtml]);
+    void initSession();
+
+    return () => {
+      cancelled = true;
+      if (createdSessionId) {
+        stopAgent({
+          body: { session_id: createdSessionId },
+          throwOnError: false,
+        }).catch((err: unknown) => {
+          console.warn('Failed to stop agent after init cleanup:', err);
+        });
+      }
+    };
+  }, [resourceUri, extensionName, workingDir, sessionId]);
 
   useEffect(() => {
     if (appName) {
@@ -122,7 +176,7 @@ export default function StandaloneAppView() {
           padding: '24px',
         }}
       >
-        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>Failed to Load App</h2>
+        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>{t('apps.standalone.loadFailedTitle')}</h2>
         <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>{error}</p>
       </div>
     );
@@ -139,7 +193,9 @@ export default function StandaloneAppView() {
           justifyContent: 'center',
         }}
       >
-        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>Initializing app...</p>
+        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>
+          {t('apps.standalone.initializing')}
+        </p>
       </div>
     );
   }
@@ -168,7 +224,9 @@ export default function StandaloneAppView() {
         justifyContent: 'center',
       }}
     >
-      <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>Initializing app...</p>
+      <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>
+        {t('apps.standalone.initializing')}
+      </p>
     </div>
   );
 }

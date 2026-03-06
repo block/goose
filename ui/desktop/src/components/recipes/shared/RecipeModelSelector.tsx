@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Select } from '../../ui/Select';
 import { Input } from '../../ui/input';
 import { useConfig } from '../../ConfigContext';
 import { fetchModelsForProviders } from '../../settings/models/modelInterface';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface RecipeModelSelectorProps {
   selectedProvider?: string;
@@ -17,6 +18,8 @@ export const RecipeModelSelector = ({
   onProviderChange,
   onModelChange,
 }: RecipeModelSelectorProps) => {
+  const { t } = useLocalization();
+  const tRef = useRef(t);
   const { getProviders } = useConfig();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   const [modelOptions, setModelOptions] = useState<
@@ -27,6 +30,10 @@ export const RecipeModelSelector = ({
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
+  useEffect(() => {
     (async () => {
       try {
         setFetchError(null);
@@ -34,7 +41,7 @@ export const RecipeModelSelector = ({
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
 
         setProviderOptions([
-          { value: '', label: 'Use default provider' },
+          { value: '', label: tRef.current('recipes.modelSelector.useDefaultProvider') },
           ...activeProviders.map(({ metadata, name }) => ({
             value: name,
             label: metadata.display_name,
@@ -62,7 +69,7 @@ export const RecipeModelSelector = ({
 
           options.push({
             value: `__custom__:${p.name}`,
-            label: 'Enter a model not listed...',
+            label: tRef.current('recipes.modelSelector.enterModelNotListed'),
             provider: p.name,
           });
 
@@ -74,7 +81,7 @@ export const RecipeModelSelector = ({
         setModelOptions(groupedOptions);
       } catch (error) {
         console.error('Failed to load providers:', error);
-        setFetchError('Failed to fetch models. Please try again later.');
+        setFetchError(tRef.current('recipes.modelSelector.fetchError'));
       } finally {
         setLoadingModels(false);
       }
@@ -131,10 +138,10 @@ export const RecipeModelSelector = ({
       )}
       <div>
         <label className="block text-sm font-medium text-textStandard mb-2">
-          Provider (Optional)
+          {t('recipes.modelSelector.providerLabel')}
         </label>
         <p className="text-xs text-textSubtle mb-2">
-          Leave empty to use the default provider configured in settings
+          {t('recipes.modelSelector.providerHint')}
         </p>
         <Select
           options={providerOptions}
@@ -144,14 +151,16 @@ export const RecipeModelSelector = ({
               : providerOptions.find((opt) => opt.value === '') || null
           }
           onChange={handleProviderChange}
-          placeholder="Select provider"
+          placeholder={t('recipes.modelSelector.selectProvider')}
           isClearable
         />
       </div>
 
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="block text-sm font-medium text-textStandard">Model (Optional)</label>
+          <label className="block text-sm font-medium text-textStandard">
+            {t('recipes.modelSelector.modelLabel')}
+          </label>
           {isCustomModel && (
             <button
               onClick={() => {
@@ -161,17 +170,17 @@ export const RecipeModelSelector = ({
               className="text-xs text-textSubtle hover:underline"
               type="button"
             >
-              Back to model list
+              {t('recipes.modelSelector.backToModelList')}
             </button>
           )}
         </div>
         <p className="text-xs text-textSubtle mb-2">
-          Leave empty to use the default model for the selected provider
+          {t('recipes.modelSelector.modelHint')}
         </p>
         {isCustomModel ? (
           <Input
             type="text"
-            placeholder="Enter custom model name"
+            placeholder={t('recipes.modelSelector.customModelPlaceholder')}
             value={selectedModel || ''}
             onChange={(e) => onModelChange(e.target.value || undefined)}
           />
@@ -180,13 +189,13 @@ export const RecipeModelSelector = ({
             options={loadingModels ? [] : filteredModelOptions}
             value={
               loadingModels
-                ? { value: '', label: 'Loading models…', isDisabled: true }
+                ? { value: '', label: t('recipes.modelSelector.loadingModels'), isDisabled: true }
                 : selectedModel
                   ? { value: selectedModel, label: selectedModel }
                   : null
             }
             onChange={handleModelChange}
-            placeholder="Select a model"
+            placeholder={t('recipes.modelSelector.selectModel')}
             isClearable
             isDisabled={loadingModels}
           />

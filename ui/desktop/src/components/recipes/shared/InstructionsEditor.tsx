@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../../ui/button';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface InstructionsEditorProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export default function InstructionsEditor({
   onChange,
   error,
 }: InstructionsEditorProps) {
+  const { t } = useLocalization();
   const [localValue, setLocalValue] = useState(value);
   useEscapeKey(isOpen, onClose);
 
@@ -74,7 +76,9 @@ Use {{parameter_name}} syntax for any user-provided values.`;
     >
       <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[900px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-text-primary">Instructions Editor</h3>
+          <h3 className="text-lg font-medium text-text-primary">
+            {t('recipes.instructionsEditor.title')}
+          </h3>
           <button
             type="button"
             onClick={handleCancel}
@@ -87,7 +91,9 @@ Use {{parameter_name}} syntax for any user-provided values.`;
         <div className="flex-1 flex flex-col min-h-0">
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-text-primary">Instructions</label>
+              <label className="block text-sm font-medium text-text-primary">
+                {t('recipes.instructionsEditor.label')}
+              </label>
               <Button
                 type="button"
                 onClick={insertExample}
@@ -95,13 +101,11 @@ Use {{parameter_name}} syntax for any user-provided values.`;
                 size="sm"
                 className="text-xs"
               >
-                Insert Example
+                {t('recipes.instructionsEditor.insertExample')}
               </Button>
             </div>
             <p className="text-xs text-text-secondary mb-3">
-              Use{' '}
-              <code className="bg-background-secondary px-1 rounded">{`{{parameter_name}}`}</code>{' '}
-              syntax to define parameters that users can fill in
+              {t('recipes.instructionsEditor.hint', { template: '{{parameter_name}}' })}
             </p>
           </div>
 
@@ -112,7 +116,7 @@ Use {{parameter_name}} syntax for any user-provided values.`;
               className={`w-full h-full min-h-[500px] p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
                 error ? 'border-red-500' : 'border-border-primary'
               }`}
-              placeholder="Detailed instructions for the AI, hidden from the user"
+              placeholder={t('recipes.instructionsEditor.placeholder')}
             />
             {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
           </div>
@@ -120,10 +124,10 @@ Use {{parameter_name}} syntax for any user-provided values.`;
 
         <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-border-primary">
           <Button type="button" onClick={handleCancel} variant="ghost">
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
           <Button type="button" onClick={handleSave} variant="default">
-            Save Instructions
+            {t('recipes.instructionsEditor.save')}
           </Button>
         </div>
       </div>

@@ -11,12 +11,14 @@ import { toastError } from '../../../toasts';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import ResetProviderSection from '../reset_provider/ResetProviderSection';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface ModelsSectionProps {
   setView: (view: View) => void;
 }
 
 export default function ModelsSection({ setView }: ModelsSectionProps) {
+  const { t } = useLocalization();
   const [provider, setProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -104,10 +106,8 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
       </Card>
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="">Reset Provider and Model</CardTitle>
-          <CardDescription>
-            Clear your selected model and provider settings to start fresh
-          </CardDescription>
+          <CardTitle className="">{t('resetProvider.title')}</CardTitle>
+          <CardDescription>{t('resetProvider.description')}</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <ResetProviderSection setView={setView} />

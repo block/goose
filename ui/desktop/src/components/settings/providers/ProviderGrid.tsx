@@ -13,6 +13,7 @@ import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import type { View } from '../../../utils/navigationUtils';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,6 +30,7 @@ const GridLayout = memo(function GridLayout({ children }: { children: React.Reac
 });
 
 const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onClick: () => void }) {
+  const { t } = useLocalization();
   return (
     <CardContainer
       testId="add-custom-provider-card"
@@ -38,8 +40,8 @@ const CustomProviderCard = memo(function CustomProviderCard({ onClick }: { onCli
         <div className="flex flex-col items-center justify-center min-h-[200px]">
           <Plus className="w-8 h-8 text-gray-400 mb-2" />
           <div className="text-sm text-gray-600 dark:text-gray-400 text-center">
-            <div className="font-medium">Add Provider</div>
-            <div className="text-xs text-gray-500 mt-1">From template or manual setup</div>
+            <div className="font-medium">{t('providers.addProvider')}</div>
+            <div className="text-xs text-gray-500 mt-1">{t('providers.addProviderDescription')}</div>
           </div>
         </div>
       }
@@ -62,6 +64,7 @@ function ProviderCards({
   setView?: (view: View) => void;
   onModelSelected?: (model?: string) => void;
 }) {
+  const { t } = useLocalization();
   const [configuringProvider, setConfiguringProvider] = useState<ProviderDetails | null>(null);
   const [showCustomProviderModal, setShowCustomProviderModal] = useState(false);
   const [showSwitchModelModal, setShowSwitchModelModal] = useState(false);
@@ -246,7 +249,11 @@ function ProviderCards({
   };
 
   const editable = editingProvider ? editingProvider.isEditable : true;
-  const title = (editingProvider ? (editable ? 'Edit' : 'Configure') : 'Add') + '  Provider';
+  const title = editingProvider
+    ? editable
+      ? t('providers.editProvider')
+      : t('providers.configureProvider')
+    : t('providers.addProvider');
   return (
     <>
       {providerCards}
@@ -281,7 +288,7 @@ function ProviderCards({
           setView={handleSetView}
           onModelSelected={onModelSelected}
           initialProvider={switchModelProvider}
-          titleOverride="Choose Model"
+          titleOverride={t('providers.chooseModel')}
         />
       )}
     </>

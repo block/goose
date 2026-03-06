@@ -1,9 +1,11 @@
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CreateRecipeFromSessionModal from '../CreateRecipeFromSessionModal';
 import { createRecipe } from '../../../api/sdk.gen';
 import type { CreateRecipeResponse } from '../../../api/types.gen';
+import { LocalizationProvider, useLocalization } from '../../../contexts/LocalizationContext';
 
 vi.mock('../../../api/sdk.gen', () => ({
   createRecipe: vi.fn(),
@@ -26,6 +28,21 @@ vi.mock('../../ConfigContext', () => ({
 }));
 
 const mockCreateRecipe = vi.mocked(createRecipe);
+
+const render = (ui: ReactElement) => rtlRender(<LocalizationProvider>{ui}</LocalizationProvider>);
+
+function LanguageSwitchHarness(props: React.ComponentProps<typeof CreateRecipeFromSessionModal>) {
+  const { setLanguage } = useLocalization();
+
+  return (
+    <>
+      <button data-testid="switch-language" onClick={() => void setLanguage('zh-CN')}>
+        Switch language
+      </button>
+      <CreateRecipeFromSessionModal {...props} />
+    </>
+  );
+}
 
 describe('CreateRecipeFromSessionModal', () => {
   const defaultProps = {
@@ -122,6 +139,67 @@ describe('CreateRecipeFromSessionModal', () => {
       render(<CreateRecipeFromSessionModal {...defaultProps} />);
 
       expect(screen.getByTestId('analysis-spinner')).toBeInTheDocument();
+    });
+
+    it('does not restart analysis when the ui language changes', async () => {
+      type CreateRecipeResult = Awaited<ReturnType<typeof createRecipe>>;
+      let resolveRecipe!: (value: CreateRecipeResult) => void;
+
+      const pendingResponse = new Promise<CreateRecipeResult>((resolve) => {
+        resolveRecipe = resolve;
+      });
+
+      mockCreateRecipe.mockReturnValueOnce(pendingResponse as ReturnType<typeof createRecipe>);
+
+      render(<LanguageSwitchHarness {...defaultProps} />);
+
+      await waitFor(() => {
+        expect(mockCreateRecipe).toHaveBeenCalledTimes(1);
+      });
+
+      await act(async () => {
+        screen.getByTestId('switch-language').click();
+      });
+
+      await waitFor(() => {
+        expect(window.electron.setSetting).toHaveBeenCalledWith('uiLanguage', 'zh-CN');
+      });
+
+      expect(mockCreateRecipe).toHaveBeenCalledTimes(1);
+
+      resolveRecipe({
+        data: {
+          recipe: {
+            title: 'Analyzed Recipe Title',
+            description: 'Analyzed description',
+            instructions: 'Analyzed instructions with {{param1}}',
+            prompt: 'Analyzed prompt',
+            activities: ['activity1', 'activity2'],
+            parameters: [
+              {
+                key: 'param1',
+                description: 'Auto-detected parameter',
+                input_type: 'string',
+                requirement: 'required',
+              },
+            ],
+            response: {
+              json_schema: { type: 'object' },
+            },
+          },
+          error: undefined,
+        },
+        error: undefined,
+        request: new globalThis.Request('http://localhost/test'),
+        response: new globalThis.Response(),
+      });
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('form-state')).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
     });
 
     it('transitions to form state after analysis completes', async () => {

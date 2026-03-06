@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { Recipe } from '../../recipe';
 import { Geese } from '../icons/Geese';
@@ -11,6 +11,7 @@ import { RecipeParameter } from './shared/recipeFormSchema';
 import { toastError } from '../../toasts';
 import { saveRecipe } from '../../recipe/recipe_management';
 import { errorMessage } from '../../utils/conversionUtils';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface CreateRecipeFromSessionModalProps {
   isOpen: boolean;
@@ -25,10 +26,13 @@ export default function CreateRecipeFromSessionModal({
   sessionId,
   onRecipeCreated,
 }: CreateRecipeFromSessionModalProps) {
+  const { t } = useLocalization();
   const [isCreating, setIsCreating] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisStage, setAnalysisStage] = useState<string>('');
   const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const tRef = useRef(t);
+  const hasAnalyzedRef = useRef(false);
 
   // Initialize form with empty values for new recipe
   const form = useForm({
@@ -51,77 +55,114 @@ export default function CreateRecipeFromSessionModal({
   // Track form validity with state to make it reactive
   const [isFormValid, setIsFormValid] = useState(false);
 
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
+
+  useEffect(() => {
+    hasAnalyzedRef.current = hasAnalyzed;
+  }, [hasAnalyzed]);
+
   // Analyze messages and prefill form when modal opens
   useEffect(() => {
-    if (isOpen && sessionId && !hasAnalyzed) {
-      setIsAnalyzing(true);
-
-      // Create a sequence of analysis stages for better UX
-      const stages = [
-        'Reading your conversation...',
-        'Identifying key patterns...',
-        'Extracting main topics...',
-        'Generating recipe structure...',
-        'Finalizing details...',
-      ];
-
-      let currentStageIndex = 0;
-      setAnalysisStage(stages[0]);
-
-      // Update stage every 800ms
-      const stageInterval = setInterval(() => {
-        currentStageIndex = (currentStageIndex + 1) % stages.length;
-        setAnalysisStage(stages[currentStageIndex]);
-      }, 800);
-
-      // Call the backend to analyze messages and create a recipe
-      createRecipe({
-        body: { session_id: sessionId },
-        throwOnError: true,
-      })
-        .then((response) => {
-          clearInterval(stageInterval);
-          setAnalysisStage('Complete!');
-
-          if (response.data?.recipe) {
-            const recipe = response.data.recipe;
-
-            // Prefill the form with the analyzed recipe information
-            form.setFieldValue('title', recipe.title || '');
-            form.setFieldValue('description', recipe.description || '');
-            form.setFieldValue('instructions', recipe.instructions || '');
-            form.setFieldValue('activities', recipe.activities || []);
-            form.setFieldValue('parameters', recipe.parameters || []);
-
-            if (recipe.response?.json_schema) {
-              form.setFieldValue(
-                'jsonSchema',
-                JSON.stringify(recipe.response.json_schema, null, 2)
-              );
-            }
-          } else {
-            console.error('No recipe in response:', response);
-          }
-          setHasAnalyzed(true);
-        })
-        .catch((error) => {
-          console.error('Failed to analyze messages:', error);
-          setAnalysisStage('Analysis failed');
-        })
-        .finally(() => {
-          clearInterval(stageInterval);
-          setHasAnalyzed(true);
-          setTimeout(() => {
-            setIsAnalyzing(false);
-            setAnalysisStage('');
-          }, 500); // Brief delay to show completion
-        });
+    if (!isOpen || !sessionId || hasAnalyzedRef.current) {
+      return;
     }
-  }, [isOpen, sessionId, hasAnalyzed, form]);
+
+    let cancelled = false;
+    let stageTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    setIsAnalyzing(true);
+
+    // Create a sequence of analysis stages for better UX
+    const stages = [
+      tRef.current('recipes.createFromSession.stages.readingConversation'),
+      tRef.current('recipes.createFromSession.stages.identifyingPatterns'),
+      tRef.current('recipes.createFromSession.stages.extractingTopics'),
+      tRef.current('recipes.createFromSession.stages.generatingStructure'),
+      tRef.current('recipes.createFromSession.stages.finalizing'),
+    ];
+
+    let currentStageIndex = 0;
+    setAnalysisStage(stages[0]);
+
+    // Update stage every 800ms
+    const stageInterval = setInterval(() => {
+      currentStageIndex = (currentStageIndex + 1) % stages.length;
+      setAnalysisStage(stages[currentStageIndex]);
+    }, 800);
+
+    // Call the backend to analyze messages and create a recipe
+    createRecipe({
+      body: { session_id: sessionId },
+      throwOnError: true,
+    })
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+
+        clearInterval(stageInterval);
+        setAnalysisStage(tRef.current('recipes.createFromSession.complete'));
+
+        if (response.data?.recipe) {
+          const recipe = response.data.recipe;
+
+          // Prefill the form with the analyzed recipe information
+          form.setFieldValue('title', recipe.title || '');
+          form.setFieldValue('description', recipe.description || '');
+          form.setFieldValue('instructions', recipe.instructions || '');
+          form.setFieldValue('activities', recipe.activities || []);
+          form.setFieldValue('parameters', recipe.parameters || []);
+
+          if (recipe.response?.json_schema) {
+            form.setFieldValue(
+              'jsonSchema',
+              JSON.stringify(recipe.response.json_schema, null, 2)
+            );
+          }
+        } else {
+          console.error('No recipe in response:', response);
+        }
+        setHasAnalyzed(true);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.error('Failed to analyze messages:', error);
+        setAnalysisStage(tRef.current('recipes.createFromSession.analysisFailed'));
+      })
+      .finally(() => {
+        clearInterval(stageInterval);
+        if (cancelled) {
+          return;
+        }
+
+        setHasAnalyzed(true);
+        stageTimeout = setTimeout(() => {
+          if (cancelled) {
+            return;
+          }
+          setIsAnalyzing(false);
+          setAnalysisStage('');
+        }, 500); // Brief delay to show completion
+      });
+
+    return () => {
+      cancelled = true;
+      clearInterval(stageInterval);
+      if (stageTimeout) {
+        clearTimeout(stageTimeout);
+      }
+    };
+  }, [isOpen, sessionId, form]);
 
   // Reset analysis state when modal closes
   useEffect(() => {
     if (!isOpen) {
+      hasAnalyzedRef.current = false;
       setHasAnalyzed(false);
       setIsAnalyzing(false);
       setAnalysisStage('');
@@ -193,11 +234,8 @@ export default function CreateRecipeFromSessionModal({
     } catch (error) {
       console.error('Failed to create recipe:', error);
       toastError({
-        title: 'Failed to create recipe',
-        msg: errorMessage(
-          error,
-          'An unexpected error occurred while creating the recipe. Please try again.'
-        ),
+        title: t('recipes.createFromSession.createFailedTitle'),
+        msg: errorMessage(error, t('recipes.createFromSession.createFailedMessage')),
       });
     } finally {
       setIsCreating(false);
@@ -222,9 +260,11 @@ export default function CreateRecipeFromSessionModal({
               <Geese className="w-6 h-6 text-iconProminent" />
             </div>
             <div>
-              <h1 className="text-xl font-medium text-text-primary">Create Recipe from Session</h1>
+              <h1 className="text-xl font-medium text-text-primary">
+                {t('recipes.createFromSession.title')}
+              </h1>
               <p className="text-text-secondary text-sm">
-                Create a reusable recipe based on your current conversation.
+                {t('recipes.createFromSession.description')}
               </p>
             </div>
           </div>
@@ -255,7 +295,7 @@ export default function CreateRecipeFromSessionModal({
                   className="text-lg font-medium text-text-primary"
                   data-testid="analyzing-title"
                 >
-                  Analyzing your conversation
+                  {t('recipes.createFromSession.analyzingTitle')}
                 </div>
               </div>
               <div
@@ -266,7 +306,7 @@ export default function CreateRecipeFromSessionModal({
               </div>
               <div className="flex items-center space-x-2 text-text-secondary">
                 <Geese className="w-5 h-5 animate-pulse" />
-                <span className="text-sm">Extracting insights from your chat</span>
+                <span className="text-sm">{t('recipes.createFromSession.extractingInsights')}</span>
               </div>
             </div>
           ) : (
@@ -287,7 +327,7 @@ export default function CreateRecipeFromSessionModal({
             className="px-4 py-2 text-text-secondary rounded-lg hover:bg-background-secondary transition-colors"
             data-testid="cancel-button"
           >
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
 
           <div className="flex gap-3">
@@ -303,7 +343,9 @@ export default function CreateRecipeFromSessionModal({
                   data-testid="create-recipe-button"
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  {isCreating ? 'Creating...' : 'Create Recipe'}
+                  {isCreating
+                    ? t('recipes.createFromSession.creating')
+                    : t('recipes.createFromSession.create')}
                 </Button>
                 <Button
                   onClick={() => {
@@ -314,7 +356,9 @@ export default function CreateRecipeFromSessionModal({
                   data-testid="create-and-run-recipe-button"
                 >
                   <Play className="w-4 h-4 mr-2" />
-                  {isCreating ? 'Creating...' : 'Create & Run Recipe'}
+                  {isCreating
+                    ? t('recipes.createFromSession.creating')
+                    : t('recipes.createFromSession.createAndRun')}
                 </Button>
               </>
             )}

@@ -14,6 +14,7 @@ import {
 
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
 import { ExtensionConfig } from '../../../api/types.gen';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface ExtensionSectionProps {
   deepLinkConfig?: ExtensionConfig;
@@ -36,6 +37,7 @@ export default function ExtensionsSection({
   onModalClose,
   searchTerm = '',
 }: ExtensionSectionProps) {
+  const { t } = useLocalization();
   const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -198,7 +200,7 @@ export default function ExtensionsSection({
               onClick={() => setIsAddModalOpen(true)}
             >
               <Plus className="h-4 w-4" />
-              Add custom extension
+              {t('extensions.addCustomExtension')}
             </Button>
             <Button
               className="flex items-center gap-2 justify-center"
@@ -206,7 +208,7 @@ export default function ExtensionsSection({
               onClick={() => window.open('https://block.github.io/goose/v1/extensions/', '_blank')}
             >
               <GPSIcon size={12} />
-              Browse extensions
+              {t('extensions.browseExtensions')}
             </Button>
           </div>
         )}
@@ -214,12 +216,12 @@ export default function ExtensionsSection({
         {/* Modal for updating an existing extension */}
         {isModalOpen && selectedExtension && (
           <ExtensionModal
-            title="Update Extension"
+            title={t('extensions.updateExtension')}
             initialData={extensionToFormData(selectedExtension)}
             onClose={handleModalClose}
             onSubmit={handleUpdateExtension}
             onDelete={handleDeleteExtension}
-            submitLabel="Save Changes"
+            submitLabel={t('common.actions.saveChanges')}
             modalType={'edit'}
           />
         )}
@@ -227,11 +229,11 @@ export default function ExtensionsSection({
         {/* Modal for adding a new extension */}
         {isAddModalOpen && (
           <ExtensionModal
-            title="Add custom extension"
+            title={t('extensions.addCustomExtension')}
             initialData={getDefaultFormData()}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
-            submitLabel="Add Extension"
+            submitLabel={t('extensions.addExtension')}
             modalType={'add'}
           />
         )}
@@ -239,14 +241,14 @@ export default function ExtensionsSection({
         {/* Modal for adding extension from deeplink*/}
         {deepLinkConfigStateVar && showEnvVarsStateVar && (
           <ExtensionModal
-            title="Add custom extension"
+            title={t('extensions.addCustomExtension')}
             initialData={extensionToFormData({
               ...deepLinkConfig,
               enabled: true,
             } as FixedExtensionEntry)}
             onClose={handleModalClose}
             onSubmit={handleAddExtension}
-            submitLabel="Add Extension"
+            submitLabel={t('extensions.addExtension')}
             modalType={'add'}
           />
         )}

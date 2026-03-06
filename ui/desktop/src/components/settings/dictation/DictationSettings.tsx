@@ -15,8 +15,10 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '../../ui/dropdown-menu';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export const DictationSettings = () => {
+  const { t } = useLocalization();
   const [provider, setProvider] = useState<DictationProvider | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<Record<string, DictationProviderStatus>>(
     {}
@@ -101,8 +103,18 @@ export const DictationSettings = () => {
   };
 
   const getProviderLabel = (p: DictationProvider | null): string => {
-    if (!p) return 'Disabled';
-    return p.charAt(0).toUpperCase() + p.slice(1);
+    if (!p) return t('dictation.disabled');
+
+    switch (p) {
+      case 'openai':
+        return 'OpenAI';
+      case 'elevenlabs':
+        return 'ElevenLabs';
+      case 'local':
+        return t('dictation.localOffline');
+      default:
+        return p.charAt(0).toUpperCase() + p.slice(1);
+    }
   };
 
   const visibleProviders = (Object.keys(providerStatuses) as DictationProvider[]).filter(
@@ -113,9 +125,9 @@ export const DictationSettings = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between py-2 px-2 hover:bg-background-secondary rounded-lg transition-all">
         <div>
-          <h3 className="text-text-primary">Voice Dictation Provider</h3>
+          <h3 className="text-text-primary">{t('dictation.providerTitle')}</h3>
           <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-            Choose how voice is converted to text
+            {t('dictation.providerDescription')}
           </p>
         </div>
         <DropdownMenu onOpenChange={(open) => open && refreshStatuses()}>
@@ -128,12 +140,14 @@ export const DictationSettings = () => {
               value={provider ?? 'disabled'}
               onValueChange={handleProviderChange}
             >
-              <DropdownMenuRadioItem value="disabled">Disabled</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="disabled">{t('dictation.disabled')}</DropdownMenuRadioItem>
               {visibleProviders.map((p) => (
                 <DropdownMenuRadioItem key={p} value={p}>
                   {getProviderLabel(p)}
                   {!providerStatuses[p]?.configured && (
-                    <span className="text-xs ml-1 text-text-secondary">(not configured)</span>
+                    <span className="text-xs ml-1 text-text-secondary">
+                      ({t('dictation.notConfigured')})
+                    </span>
                   )}
                 </DropdownMenuRadioItem>
               ))}
@@ -152,22 +166,27 @@ export const DictationSettings = () => {
             <div className="py-2 px-2 bg-background-secondary rounded-lg">
               {!providerStatuses[provider].configured ? (
                 <p className="text-xs text-text-secondary">
-                  Configure the API key in <b>{providerStatuses[provider].settings_path}</b>
+                  {t('dictation.configureApiKeyIn', {
+                    path: providerStatuses[provider].settings_path ?? '',
+                  })}
                 </p>
               ) : (
                 <p className="text-xs text-green-600">
-                  ✓ Configured in {providerStatuses[provider].settings_path}
+                  ✓{' '}
+                  {t('dictation.configuredIn', {
+                    path: providerStatuses[provider].settings_path ?? '',
+                  })}
                 </p>
               )}
             </div>
           ) : (
             <div className="py-2 px-2 bg-background-secondary rounded-lg">
               <div className="mb-2">
-                <h4 className="text-text-primary text-sm">API Key</h4>
+                <h4 className="text-text-primary text-sm">{t('dictation.apiKeyTitle')}</h4>
                 <p className="text-xs text-text-secondary mt-[2px]">
-                  Required for transcription
+                  {t('dictation.apiKeyDescription')}
                   {providerStatuses[provider]?.configured && (
-                    <span className="text-green-600 ml-2">(Configured)</span>
+                    <span className="text-green-600 ml-2">({t('dictation.configured')})</span>
                   )}
                 </p>
               </div>
@@ -175,11 +194,13 @@ export const DictationSettings = () => {
               {!isEditingKey ? (
                 <div className="flex gap-2 flex-wrap">
                   <Button variant="outline" size="sm" onClick={() => setIsEditingKey(true)}>
-                    {providerStatuses[provider]?.configured ? 'Update API Key' : 'Add API Key'}
+                    {providerStatuses[provider]?.configured
+                      ? t('dictation.updateApiKey')
+                      : t('dictation.addApiKey')}
                   </Button>
                   {providerStatuses[provider]?.configured && (
                     <Button variant="destructive" size="sm" onClick={handleRemoveKey}>
-                      Remove API Key
+                      {t('dictation.removeApiKey')}
                     </Button>
                   )}
                 </div>
@@ -189,16 +210,16 @@ export const DictationSettings = () => {
                     type="password"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter your API key"
+                    placeholder={t('dictation.enterApiKey')}
                     className="max-w-md"
                     autoFocus
                   />
                   <div className="flex gap-2">
                     <Button size="sm" onClick={handleSaveKey}>
-                      Save
+                      {t('common.actions.save')}
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleCancelEdit}>
-                      Cancel
+                      {t('common.actions.cancel')}
                     </Button>
                   </div>
                 </div>

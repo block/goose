@@ -5,10 +5,11 @@ import { Switch } from '../../ui/switch';
 import { Button } from '../../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export default function SessionSharingSection() {
+  const { t } = useLocalization();
   const envBaseUrlShare = window.appConfig.get('GOOSE_BASE_URL_SHARE');
-  console.log('envBaseUrlShare', envBaseUrlShare);
 
   // If env is set, force sharing enabled and set the baseUrl accordingly.
   const [sessionSharingConfig, setSessionSharingConfig] = useState({
@@ -81,7 +82,7 @@ export default function SessionSharingSection() {
       const updated = { ...sessionSharingConfig, baseUrl: newBaseUrl };
       await window.electron.setSetting('sessionSharing', updated);
     } else {
-      setUrlError('Invalid URL format. Please enter a valid URL (e.g. https://example.com/api).');
+      setUrlError(t('sessionSharing.invalidUrl'));
     }
   };
 
@@ -90,7 +91,7 @@ export default function SessionSharingSection() {
     const baseUrl = sessionSharingConfig.baseUrl;
     if (!baseUrl) return;
 
-    setTestResult({ status: 'testing', message: 'Testing connection...' });
+    setTestResult({ status: 'testing', message: t('sessionSharing.testingStatus') });
 
     try {
       // Create an AbortController for timeout
@@ -112,29 +113,28 @@ export default function SessionSharingSection() {
       if (response.status < 500) {
         setTestResult({
           status: 'success',
-          message: 'Connection successful!',
+          message: t('sessionSharing.success'),
         });
       } else {
         setTestResult({
           status: 'error',
-          message: `Server error: HTTP ${response.status}. The server may not be configured correctly.`,
+          message: t('sessionSharing.serverError', { status: response.status }),
         });
       }
     } catch (error) {
       console.error('Connection test failed:', error);
-      let errorMessage = 'Connection failed. ';
+      let errorMessage = t('sessionSharing.connectionFailedPrefix');
 
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        errorMessage +=
-          'Unable to reach the server. Please check the URL and your network connection.';
+        errorMessage += t('sessionSharing.unreachable');
       } else if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          errorMessage += 'Connection timed out. The server may be slow or unreachable.';
+          errorMessage += t('sessionSharing.timeout');
         } else {
           errorMessage += error.message;
         }
       } else {
-        errorMessage += 'Unknown error occurred.';
+        errorMessage += t('sessionSharing.unknownError');
       }
 
       setTestResult({
@@ -148,11 +148,11 @@ export default function SessionSharingSection() {
     <section id="session-sharing" className="space-y-4 pr-4 mt-1">
       <Card className="pb-2">
         <CardHeader className="pb-0">
-          <CardTitle>Session Sharing</CardTitle>
+          <CardTitle>{t('sessionSharing.title')}</CardTitle>
           <CardDescription>
             {(envBaseUrlShare as string)
-              ? 'Session sharing is configured but fully opt-in — your sessions are only shared when you explicitly click the share button.'
-              : 'You can enable session sharing to share your sessions with others.'}
+              ? t('sessionSharing.descriptionManaged')
+              : t('sessionSharing.descriptionDefault')}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 py-2">
@@ -161,8 +161,8 @@ export default function SessionSharingSection() {
             <div className="flex items-center gap-3">
               <label className="text-sm cursor-pointer">
                 {(envBaseUrlShare as string)
-                  ? 'Session sharing has already been configured'
-                  : 'Enable session sharing'}
+                  ? t('sessionSharing.configured')
+                  : t('sessionSharing.enable')}
               </label>
 
               {envBaseUrlShare ? (
@@ -182,7 +182,7 @@ export default function SessionSharingSection() {
               <div className="space-y-2 relative">
                 <div className="flex items-center space-x-2">
                   <label htmlFor="session-sharing-url" className="text-sm text-text-primary">
-                    Base URL
+                    {t('sessionSharing.baseUrl')}
                   </label>
                   {isUrlConfigured && <Check className="w-5 h-5 text-green-500" />}
                 </div>
@@ -210,10 +210,10 @@ export default function SessionSharingSection() {
                       {testResult.status === 'testing' ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          Testing...
+                          {t('sessionSharing.testing')}
                         </>
                       ) : (
-                        'Test Connection'
+                        t('sessionSharing.testConnection')
                       )}
                     </Button>
 
