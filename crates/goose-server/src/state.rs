@@ -110,7 +110,9 @@ impl AppState {
 
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {
         let mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
-        self.agent_manager.get_or_create_agent(session_id, mode).await
+        self.agent_manager
+            .get_or_create_agent(session_id, mode)
+            .await
     }
 
     pub async fn get_agent_for_route(
