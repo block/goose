@@ -17,6 +17,8 @@ import { NavigationStyleSelector } from './NavigationStyleSelector';
 import { NavigationPositionSelector } from './NavigationPositionSelector';
 import { NavigationCustomizationSettings } from './NavigationCustomizationSettings';
 import { NavigationProvider, useNavigationContextSafe } from '../../Layout/NavigationContext';
+import { useLocalization } from '../../../contexts/LocalizationContext';
+import LanguageSelector from './LanguageSelector';
 
 interface AppSettingsSectionProps {
   scrollToSection?: string;
@@ -26,6 +28,7 @@ const NavigationSettingsContent: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const navContext = useNavigationContextSafe();
   const isOverlayMode = navContext?.navigationMode === 'overlay';
+  const { t } = useLocalization();
 
   return (
     <Card className="rounded-lg">
@@ -35,8 +38,8 @@ const NavigationSettingsContent: React.FC = () => {
           className="w-full flex items-center justify-between text-left"
         >
           <div>
-            <CardTitle className="mb-1">Navigation</CardTitle>
-            <CardDescription>Customize navigation layout and behavior</CardDescription>
+            <CardTitle className="mb-1">{t('appSettings.navigation.title')}</CardTitle>
+            <CardDescription>{t('appSettings.navigation.description')}</CardDescription>
           </div>
           {isExpanded ? (
             <ChevronUp className="w-5 h-5 text-text-secondary" />
@@ -48,23 +51,31 @@ const NavigationSettingsContent: React.FC = () => {
       {isExpanded && (
         <CardContent className="pt-4 px-4 space-y-6">
           <div>
-            <h3 className="text-sm font-medium text-text-primary mb-3">Mode</h3>
+            <h3 className="text-sm font-medium text-text-primary mb-3">
+              {t('appSettings.navigation.mode')}
+            </h3>
             <NavigationModeSelector />
           </div>
           {!isOverlayMode && (
             <div>
-              <h3 className="text-sm font-medium text-text-primary mb-3">Style</h3>
+              <h3 className="text-sm font-medium text-text-primary mb-3">
+                {t('appSettings.navigation.style')}
+              </h3>
               <NavigationStyleSelector />
             </div>
           )}
           {!isOverlayMode && (
             <div>
-              <h3 className="text-sm font-medium text-text-primary mb-3">Position</h3>
+              <h3 className="text-sm font-medium text-text-primary mb-3">
+                {t('appSettings.navigation.position')}
+              </h3>
               <NavigationPositionSelector />
             </div>
           )}
           <div>
-            <h3 className="text-sm font-medium text-text-primary mb-3">Customize Items</h3>
+            <h3 className="text-sm font-medium text-text-primary mb-3">
+              {t('appSettings.navigation.customizeItems')}
+            </h3>
             <NavigationCustomizationSettings />
           </div>
         </CardContent>
@@ -91,6 +102,7 @@ const NavigationSettingsCard: React.FC = () => {
 };
 
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
+  const { t } = useLocalization();
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
   const [wakelockEnabled, setWakelockEnabled] = useState(true);
@@ -213,20 +225,22 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
     <div className="space-y-4 pr-4 pb-8 mt-1">
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="">Appearance</CardTitle>
-          <CardDescription>Configure how goose appears on your system</CardDescription>
+          <CardTitle className="">{t('appSettings.appearance.title')}</CardTitle>
+          <CardDescription>{t('appSettings.appearance.description')}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-primary text-xs">Notifications</h3>
+              <h3 className="text-text-primary text-xs">
+                {t('appSettings.appearance.notificationsTitle')}
+              </h3>
               <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                Notifications are managed by your OS{' - '}
+                {t('appSettings.appearance.notificationsDescription')} {' - '}
                 <span
                   className="underline hover:cursor-pointer"
                   onClick={() => setShowNotificationModal(true)}
                 >
-                  Configuration guide
+                  {t('appSettings.appearance.notificationsGuide')}
                 </span>
               </p>
             </div>
@@ -244,16 +258,18 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
                 }}
               >
                 <Settings />
-                Open Settings
+                {t('common.actions.openSettings')}
               </Button>
             </div>
           </div>
 
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-primary text-xs">Menu bar icon</h3>
+              <h3 className="text-text-primary text-xs">
+                {t('appSettings.appearance.menuBarIconTitle')}
+              </h3>
               <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                Show goose in the menu bar
+                {t('appSettings.appearance.menuBarIconDescription')}
               </p>
             </div>
             <div className="flex items-center">
@@ -268,9 +284,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {isMacOS && (
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-text-primary text-xs">Dock icon</h3>
+                <h3 className="text-text-primary text-xs">
+                  {t('appSettings.appearance.dockIconTitle')}
+                </h3>
                 <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                  Show goose in the dock
+                  {t('appSettings.appearance.dockIconDescription')}
                 </p>
               </div>
               <div className="flex items-center">
@@ -287,9 +305,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {/* Prevent Sleep */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-primary text-xs">Prevent Sleep</h3>
+              <h3 className="text-text-primary text-xs">
+                {t('appSettings.appearance.preventSleepTitle')}
+              </h3>
               <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                Keep your computer awake while goose is running a task (screen can still lock)
+                {t('appSettings.appearance.preventSleepDescription')}
               </p>
             </div>
             <div className="flex items-center">
@@ -305,9 +325,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           {COST_TRACKING_ENABLED && (
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-text-primary">Cost Tracking</h3>
+                <h3 className="text-text-primary">
+                  {t('appSettings.appearance.costTrackingTitle')}
+                </h3>
                 <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                  Show model pricing and usage costs
+                  {t('appSettings.appearance.costTrackingDescription')}
                 </p>
               </div>
               <div className="flex items-center">
@@ -324,8 +346,18 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Theme</CardTitle>
-          <CardDescription>Customize the look and feel of goose</CardDescription>
+          <CardTitle className="mb-1">{t('language.title')}</CardTitle>
+          <CardDescription>{t('language.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 px-4">
+          <LanguageSelector className="w-auto" />
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle className="mb-1">{t('appSettings.theme.title')}</CardTitle>
+          <CardDescription>{t('appSettings.theme.description')}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4">
           <ThemeSelector className="w-auto" hideTitle horizontal />
@@ -339,10 +371,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="mb-1">Help & feedback</CardTitle>
-          <CardDescription>
-            Help us improve goose by reporting issues or requesting new features
-          </CardDescription>
+          <CardTitle className="mb-1">{t('appSettings.help.title')}</CardTitle>
+          <CardDescription>{t('appSettings.help.description')}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4">
           <div className="flex space-x-4">
@@ -356,7 +386,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               variant="secondary"
               size="sm"
             >
-              Report a Bug
+              {t('appSettings.help.reportBug')}
             </Button>
             <Button
               onClick={() => {
@@ -368,7 +398,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
               variant="secondary"
               size="sm"
             >
-              Request a Feature
+              {t('appSettings.help.requestFeature')}
             </Button>
           </div>
         </CardContent>
@@ -378,7 +408,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       {!shouldShowUpdates && (
         <Card className="rounded-lg">
           <CardHeader className="pb-0">
-            <CardTitle className="mb-1">Version</CardTitle>
+            <CardTitle className="mb-1">{t('appSettings.version.title')}</CardTitle>
           </CardHeader>
           <CardContent className="pt-4 px-4">
             <div className="flex items-center gap-3">
@@ -388,7 +418,9 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
                 className="h-8 w-auto"
               />
               <span className="text-2xl font-mono text-black dark:text-white">
-                {String(window.appConfig.get('GOOSE_VERSION') || 'Development')}
+                {String(
+                  window.appConfig.get('GOOSE_VERSION') || t('appSettings.version.development')
+                )}
               </span>
             </div>
           </CardContent>
@@ -400,10 +432,8 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         <div ref={updateSectionRef}>
           <Card className="rounded-lg">
             <CardHeader className="pb-0">
-              <CardTitle className="mb-1">Updates</CardTitle>
-              <CardDescription>
-                Check for and install updates to keep goose running at its best
-              </CardDescription>
+              <CardTitle className="mb-1">{t('appSettings.updates.title')}</CardTitle>
+              <CardDescription>{t('appSettings.updates.description')}</CardDescription>
             </CardHeader>
             <CardContent className="px-4">
               <UpdateSection />
@@ -421,7 +451,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings className="text-iconStandard" size={24} />
-              How to Enable Notifications
+              {t('appSettings.notificationsDialog.title')}
             </DialogTitle>
           </DialogHeader>
 
@@ -429,22 +459,22 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
             {/* OS-specific instructions */}
             {isMacOS ? (
               <div className="space-y-4">
-                <p>To enable notifications on macOS:</p>
+                <p>{t('appSettings.notificationsDialog.macIntro')}</p>
                 <ol className="list-decimal pl-5 space-y-2">
-                  <li>Open System Preferences</li>
-                  <li>Click on Notifications</li>
-                  <li>Find and select goose in the application list</li>
-                  <li>Enable notifications and adjust settings as desired</li>
+                  <li>{t('appSettings.notificationsDialog.macStep1')}</li>
+                  <li>{t('appSettings.notificationsDialog.macStep2')}</li>
+                  <li>{t('appSettings.notificationsDialog.macStep3')}</li>
+                  <li>{t('appSettings.notificationsDialog.macStep4')}</li>
                 </ol>
               </div>
             ) : (
               <div className="space-y-4">
-                <p>To enable notifications on Windows:</p>
+                <p>{t('appSettings.notificationsDialog.windowsIntro')}</p>
                 <ol className="list-decimal pl-5 space-y-2">
-                  <li>Open Settings</li>
-                  <li>Go to System &gt; Notifications</li>
-                  <li>Find and select goose in the application list</li>
-                  <li>Toggle notifications on and adjust settings as desired</li>
+                  <li>{t('appSettings.notificationsDialog.windowsStep1')}</li>
+                  <li>{t('appSettings.notificationsDialog.windowsStep2')}</li>
+                  <li>{t('appSettings.notificationsDialog.windowsStep3')}</li>
+                  <li>{t('appSettings.notificationsDialog.windowsStep4')}</li>
                 </ol>
               </div>
             )}
@@ -452,7 +482,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNotificationModal(false)}>
-              Close
+              {t('common.actions.close')}
             </Button>
           </DialogFooter>
         </DialogContent>

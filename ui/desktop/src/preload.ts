@@ -152,6 +152,7 @@ type ElectronAPI = {
     theme: string;
     tokensUpdated?: boolean;
   }) => void;
+  broadcastLanguageChange: (languageData: { language: Settings['uiLanguage'] }) => void;
   openExternal: (url: string) => Promise<void>;
   // Update-related functions
   getVersion: () => string;
@@ -281,6 +282,9 @@ const electronAPI: ElectronAPI = {
     tokensUpdated?: boolean;
   }) => {
     ipcRenderer.send('broadcast-theme-change', themeData);
+  },
+  broadcastLanguageChange: (languageData: { language: Settings['uiLanguage'] }) => {
+    ipcRenderer.send('broadcast-language-change', languageData);
   },
   openExternal: (url: string): Promise<void> => {
     return ipcRenderer.invoke('open-external', url);

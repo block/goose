@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '../../ui/button';
 import { KeyboardShortcuts } from '../../../utils/settings';
-import { getShortcutLabel, formatShortcut } from './KeyboardShortcutsSection';
+import { formatShortcut } from './KeyboardShortcutsSection';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface ShortcutRecorderProps {
   value: string;
@@ -9,6 +10,7 @@ interface ShortcutRecorderProps {
   onCancel: () => void;
   allShortcuts?: KeyboardShortcuts;
   currentKey?: keyof KeyboardShortcuts;
+  resolveShortcutLabel: (key: string) => string;
 }
 
 export function ShortcutRecorder({
@@ -17,7 +19,9 @@ export function ShortcutRecorder({
   onCancel,
   allShortcuts,
   currentKey,
+  resolveShortcutLabel,
 }: ShortcutRecorderProps) {
+  const { t } = useLocalization();
   const [recording, setRecording] = useState(true);
   const [capturedShortcut, setCapturedShortcut] = useState(value);
   const [displayShortcut, setDisplayShortcut] = useState('');
@@ -151,7 +155,9 @@ export function ShortcutRecorder({
           `}
         >
           {recording ? (
-            <span className="text-text-secondary animate-pulse">Press shortcut...</span>
+            <span className="text-text-secondary animate-pulse">
+              {t('keyboardShortcuts.recorder.pressShortcut')}
+            </span>
           ) : displayShortcut ? (
             <span className={conflict ? 'text-yellow-600' : 'text-text-primary'}>
               {displayShortcut}
@@ -161,7 +167,9 @@ export function ShortcutRecorder({
               {formatShortcut(capturedShortcut)}
             </span>
           ) : (
-            <span className="text-text-secondary">Click to record...</span>
+            <span className="text-text-secondary">
+              {t('keyboardShortcuts.recorder.clickToRecord')}
+            </span>
           )}
         </div>
         <Button
@@ -171,18 +179,19 @@ export function ShortcutRecorder({
           disabled={!capturedShortcut}
           className="text-xs"
         >
-          Save
+          {t('common.actions.save')}
         </Button>
         <Button variant="secondary" size="sm" onClick={handleCancel} className="text-xs">
-          Cancel
+          {t('common.actions.cancel')}
         </Button>
       </div>
       {conflict && (
         <div className="text-xs text-yellow-600 flex items-center gap-1">
           <span>⚠️</span>
           <span>
-            This shortcut is already used by <strong>{getShortcutLabel(conflict)}</strong>. Saving
-            will reassign it to this action.
+            {t('keyboardShortcuts.recorder.conflictMessage', {
+              label: resolveShortcutLabel(conflict),
+            })}
           </span>
         </div>
       )}

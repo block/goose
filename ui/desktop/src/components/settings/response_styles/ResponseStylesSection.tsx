@@ -1,8 +1,11 @@
 import { AppEvents } from '../../../constants/events';
 import { useEffect, useState } from 'react';
-import { all_response_styles, ResponseStyleSelectionItem } from './ResponseStyleSelectionItem';
+import { createResponseStyles, ResponseStyleSelectionItem } from './ResponseStyleSelectionItem';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export const ResponseStylesSection = () => {
+  const { t } = useLocalization();
+  const allResponseStyles = createResponseStyles(t);
   const [currentStyle, setCurrentStyle] = useState('concise');
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export const ResponseStylesSection = () => {
 
   return (
     <div className="space-y-1">
-      {all_response_styles.map((style) => (
+      {allResponseStyles.map((style) => (
         <ResponseStyleSelectionItem
           key={style.key}
           style={style}

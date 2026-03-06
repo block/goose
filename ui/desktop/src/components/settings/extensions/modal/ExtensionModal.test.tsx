@@ -1,8 +1,12 @@
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ExtensionModal from './ExtensionModal';
 import { ExtensionFormData } from '../utils';
+import { LocalizationProvider } from '../../../../contexts/LocalizationContext';
+
+const render = (ui: ReactElement) => rtlRender(<LocalizationProvider>{ui}</LocalizationProvider>);
 
 describe('ExtensionModal', () => {
   it('does not show unsaved changes dialog when closing without modifications', async () => {

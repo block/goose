@@ -17,6 +17,7 @@ import { activateExtensionDefault } from '../settings/extensions';
 import { useConfig } from '../ConfigContext';
 import { SearchView } from '../conversation/SearchView';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 export type ExtensionsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -30,6 +31,7 @@ export default function ExtensionsView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: ExtensionsViewOptions;
 }) {
+  const { t } = useLocalization();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
@@ -98,16 +100,13 @@ export default function ExtensionsView({
         <div className="bg-background-primary px-8 pb-4 pt-16">
           <div className="flex flex-col page-transition">
             <div className="flex justify-between items-center mb-1">
-              <h1 className="text-4xl font-light">Extensions</h1>
+              <h1 className="text-4xl font-light">{t('extensionsPage.title')}</h1>
             </div>
             <p className="text-sm text-text-secondary mb-2">
-              These extensions use the Model Context Protocol (MCP). They can expand Goose's
-              capabilities using three main components: Prompts, Resources, and Tools.{' '}
-              {getSearchShortcutText()} to search.
+              {t('extensionsPage.description', { shortcut: getSearchShortcutText() })}
             </p>
             <p className="text-sm text-text-secondary mb-6">
-              Extensions enabled here are used as the default for new chats. You can also toggle
-              active extensions during chat.
+              {t('extensionsPage.defaultsDescription')}
             </p>
 
             {/* Action Buttons */}
@@ -118,7 +117,7 @@ export default function ExtensionsView({
                 onClick={() => setIsAddModalOpen(true)}
               >
                 <Plus className="h-4 w-4" />
-                Add custom extension
+                {t('extensions.addCustomExtension')}
               </Button>
               <Button
                 className="flex items-center gap-2 justify-center"
@@ -128,14 +127,17 @@ export default function ExtensionsView({
                 }
               >
                 <GPSIcon size={12} />
-                Browse extensions
+                {t('extensions.browseExtensions')}
               </Button>
             </div>
           </div>
         </div>
 
         <div className="px-8 pb-16">
-          <SearchView onSearch={(term) => setSearchTerm(term)} placeholder="Search extensions...">
+          <SearchView
+            onSearch={(term) => setSearchTerm(term)}
+            placeholder={t('extensionsPage.searchPlaceholder')}
+          >
             <ExtensionsSection
               key={refreshKey}
               deepLinkConfig={viewOptions.deepLinkConfig}
@@ -156,11 +158,11 @@ export default function ExtensionsView({
       {/* Modal for adding a new extension */}
       {isAddModalOpen && (
         <ExtensionModal
-          title="Add custom extension"
+          title={t('extensions.addCustomExtension')}
           initialData={getDefaultFormData()}
           onClose={handleModalClose}
           onSubmit={handleAddExtension}
-          submitLabel="Add Extension"
+          submitLabel={t('extensions.addExtension')}
           modalType={'add'}
         />
       )}

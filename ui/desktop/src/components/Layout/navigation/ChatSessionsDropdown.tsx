@@ -10,6 +10,7 @@ import { cn } from '../../../utils';
 import { getSessionDisplayName, truncateMessage } from '../../../hooks/useNavigationSessions';
 import type { Session } from '../../../api';
 import type { SessionStatus } from './types';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface ChatSessionsDropdownProps {
   sessions: Session[];
@@ -34,6 +35,8 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
   onSessionClick,
   onShowAll,
 }) => {
+  const { t } = useLocalization();
+
   return (
     <DropdownMenuContent
       className="w-64 p-1 bg-background-primary border-border-secondary rounded-lg shadow-lg"
@@ -47,7 +50,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
         className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer"
       >
         <Plus className="w-4 h-4 flex-shrink-0" />
-        <span>New Chat</span>
+        <span>{t('chat.newChat')}</span>
       </DropdownMenuItem>
 
       {sessions.length > 0 && <DropdownMenuSeparator className="my-1" />}
@@ -77,7 +80,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
               <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-secondary" />
             )}
             <span className="truncate flex-1">
-              {truncateMessage(getSessionDisplayName(session), 30)}
+              {truncateMessage(getSessionDisplayName(session, t('chat.newChat')), 30)}
             </span>
             <SessionIndicators
               isStreaming={isStreaming}
@@ -96,7 +99,7 @@ export const ChatSessionsDropdown: React.FC<ChatSessionsDropdownProps> = ({
             className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer text-text-secondary"
           >
             <History className="w-4 h-4 flex-shrink-0" />
-            <span>Show All</span>
+            <span>{t('chat.showAll')}</span>
           </DropdownMenuItem>
         </>
       )}

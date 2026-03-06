@@ -12,6 +12,7 @@ import {
 import { toastService } from '../toasts';
 import { Ollama } from './icons';
 import { errorMessage } from '../utils/conversionUtils';
+import { useLocalization } from '../contexts/LocalizationContext';
 
 interface OllamaSetupProps {
   onSuccess: () => void;
@@ -19,6 +20,7 @@ interface OllamaSetupProps {
 }
 
 export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
+  const { t } = useLocalization();
   //const { addExtension, getExtensions, upsert } = useConfig();
   const { upsert } = useConfig();
   const [isChecking, setIsChecking] = useState(true);
@@ -69,8 +71,8 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         setModelStatus(modelAvailable ? 'available' : 'not-available');
 
         toastService.success({
-          title: 'Ollama Detected!',
-          msg: 'Ollama is now running. You can connect to it.',
+          title: t('ollamaSetup.detectedToastTitle'),
+          msg: t('ollamaSetup.detectedToastMessage'),
         });
       },
       3000 // Check every 3 seconds
@@ -79,7 +81,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
 
   const handleDownloadModel = async () => {
     setModelStatus('downloading');
-    setDownloadProgress({ status: 'Starting download...' });
+    setDownloadProgress({ status: t('localModelSetup.startingDownload') });
 
     const success = await pullOllamaModel(getPreferredModel(), (progress) => {
       setDownloadProgress(progress);
@@ -88,14 +90,14 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
     if (success) {
       setModelStatus('available');
       toastService.success({
-        title: 'Model Downloaded!',
-        msg: `Successfully downloaded ${getPreferredModel()}`,
+        title: t('ollamaSetup.modelDownloadedTitle'),
+        msg: t('ollamaSetup.modelDownloadedMessage', { model: getPreferredModel() }),
       });
     } else {
       setModelStatus('not-available');
       toastService.error({
-        title: 'Download Failed',
-        msg: `Failed to download ${getPreferredModel()}. Please try again.`,
+        title: t('ollamaSetup.downloadFailedTitle'),
+        msg: t('ollamaSetup.downloadFailedMessage', { model: getPreferredModel() }),
         traceback: '',
       });
     }
@@ -111,16 +113,16 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       await upsert('OLLAMA_HOST', 'localhost', false);
 
       toastService.success({
-        title: 'Success!',
-        msg: `Connected to Ollama with ${getPreferredModel()} model.`,
+        title: t('ollamaSetup.successTitle'),
+        msg: t('ollamaSetup.successMessage', { model: getPreferredModel() }),
       });
 
       onSuccess();
     } catch (error) {
       console.error('Failed to connect to Ollama:', error);
       toastService.error({
-        title: 'Connection Failed',
-        msg: `Failed to connect to Ollama: ${errorMessage(error)}`,
+        title: t('ollamaSetup.connectionFailedTitle'),
+        msg: t('ollamaSetup.connectionFailedMessage', { error: errorMessage(error) }),
         traceback: error instanceof Error ? error.stack || '' : '',
       });
       setIsConnecting(false);
@@ -133,7 +135,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2"></div>
         </div>
-        <p className="text-center text-text-secondary">Checking for Ollama...</p>
+        <p className="text-center text-text-secondary">{t('ollamaSetup.checking')}</p>
       </div>
     );
   }
@@ -143,17 +145,15 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
       {/* Header with icon above heading - left aligned like onboarding cards */}
       <div className="text-left">
         <Ollama className="w-6 h-6 mb-3 text-text-primary" />
-        <h3 className="text-lg font-semibold text-text-primary mb-2">Ollama Setup</h3>
-        <p className="text-text-secondary">
-          Ollama lets you run AI models for free, private and locally on your computer.
-        </p>
+        <h3 className="text-lg font-semibold text-text-primary mb-2">{t('ollamaSetup.title')}</h3>
+        <p className="text-text-secondary">{t('ollamaSetup.description')}</p>
       </div>
 
       {ollamaDetected ? (
         <div className="space-y-4">
           <div className="flex items-start mb-16">
             <span className="inline-block px-2 py-1 text-xs font-medium bg-green-600 text-white rounded-full">
-              Ollama is detected and running
+              {t('ollamaSetup.detectedAndRunning')}
             </span>
           </div>
 
@@ -165,10 +165,10 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
             <div className="space-y-4">
               <div className="flex items-start mb-16">
                 <p className="text-text-warning text-sm">
-                  The {getPreferredModel()} model is not installed
+                  {t('ollamaSetup.modelNotInstalled', { model: getPreferredModel() })}
                 </p>
                 <p className="text-text-secondary text-xs mt-1">
-                  This model is recommended for the best experience with Goose
+                  {t('ollamaSetup.recommendedForBestExperience')}
                 </p>
               </div>
               <button
@@ -176,13 +176,15 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
                 disabled={false}
                 className="w-full px-6 py-3 bg-background-secondary text-text-primary rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
               >
-                Download {getPreferredModel()} (~11GB)
+                {t('ollamaSetup.downloadModel', { model: getPreferredModel() })}
               </button>
             </div>
           ) : modelStatus === 'downloading' ? (
             <div className="space-y-4">
               <div className="bg-background-info/10 border border-border-info rounded-lg p-4">
-                <p className="text-text-info text-sm">Downloading {getPreferredModel()}...</p>
+                <p className="text-text-info text-sm">
+                  {t('ollamaSetup.downloadingModel', { model: getPreferredModel() })}
+                </p>
                 {downloadProgress && (
                   <>
                     <p className="text-text-secondary text-xs mt-2">{downloadProgress.status}</p>
@@ -211,7 +213,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               disabled={isConnecting}
               className="w-full px-6 py-3 bg-background-secondary text-text-primary rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
             >
-              {isConnecting ? 'Connecting...' : 'Use Goose with Ollama'}
+              {isConnecting ? t('ollamaSetup.connecting') : t('ollamaSetup.useWithOllama')}
             </button>
           )}
         </div>
@@ -219,7 +221,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         <div className="space-y-4">
           <div className="flex items-start mb-16">
             <span className="inline-block px-2 py-1 text-xs font-medium bg-orange-600 text-white rounded-full">
-              Ollama is not detected on your system
+              {t('ollamaSetup.notDetected')}
             </span>
           </div>
 
@@ -228,9 +230,9 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               <div className="flex items-center justify-center py-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2"></div>
               </div>
-              <p className="text-text-secondary text-sm">Waiting for Ollama to start...</p>
+              <p className="text-text-secondary text-sm">{t('ollamaSetup.waitingToStart')}</p>
               <p className="text-text-secondary text-xs">
-                Once Ollama is installed and running, we'll automatically detect it.
+                {t('ollamaSetup.autoDetectAfterInstall')}
               </p>
             </div>
           ) : (
@@ -241,7 +243,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
               onClick={handleInstallClick}
               className="block w-full px-6 py-3 bg-background-secondary text-text-primary rounded-lg transition-colors font-medium text-center"
             >
-              Install Ollama
+              {t('ollamaSetup.installOllama')}
             </a>
           )}
         </div>
@@ -251,7 +253,7 @@ export function OllamaSetup({ onSuccess, onCancel }: OllamaSetupProps) {
         onClick={onCancel}
         className="w-full px-6 py-3 bg-transparent text-text-secondary rounded-lg hover:bg-background-secondary transition-colors"
       >
-        Cancel
+        {t('common.actions.cancel')}
       </button>
     </div>
   );

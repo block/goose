@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../../ui/button';
 import { useEscapeKey } from '../../../hooks/useEscapeKey';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface JsonSchemaEditorProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export default function JsonSchemaEditor({
   onChange,
   error,
 }: JsonSchemaEditorProps) {
+  const { t } = useLocalization();
   const [localValue, setLocalValue] = useState(value);
   const [localError, setLocalError] = useState('');
 
@@ -35,7 +37,7 @@ export default function JsonSchemaEditor({
         JSON.parse(localValue.trim());
         setLocalError('');
       } catch {
-        setLocalError('Invalid JSON format');
+        setLocalError(t('recipes.jsonSchemaEditor.invalidJson'));
         return;
       }
     }
@@ -94,7 +96,9 @@ export default function JsonSchemaEditor({
     >
       <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[800px] max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-medium text-text-primary">JSON Schema Editor</h3>
+          <h3 className="text-lg font-medium text-text-primary">
+            {t('recipes.jsonSchemaEditor.title')}
+          </h3>
           <button
             type="button"
             onClick={handleCancel}
@@ -108,7 +112,7 @@ export default function JsonSchemaEditor({
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-text-primary">
-                Response JSON Schema
+                {t('recipes.jsonSchemaEditor.label')}
               </label>
               <Button
                 type="button"
@@ -117,11 +121,11 @@ export default function JsonSchemaEditor({
                 size="sm"
                 className="text-xs"
               >
-                Insert Example
+                {t('recipes.jsonSchemaEditor.insertExample')}
               </Button>
             </div>
             <p className="text-xs text-text-secondary mb-3">
-              Define the expected structure of the AI's response using JSON Schema format
+              {t('recipes.jsonSchemaEditor.description')}
             </p>
           </div>
 
@@ -154,10 +158,10 @@ export default function JsonSchemaEditor({
 
         <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-border-primary">
           <Button type="button" onClick={handleCancel} variant="ghost">
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
           <Button type="button" onClick={handleSave} variant="default">
-            Save Schema
+            {t('recipes.jsonSchemaEditor.save')}
           </Button>
         </div>
       </div>

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Switch } from '../../ui/switch';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export const SpellcheckToggle = () => {
+  const { t } = useLocalization();
   const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
@@ -20,9 +22,9 @@ export const SpellcheckToggle = () => {
   return (
     <div className="flex items-center justify-between py-2 px-2 hover:bg-background-secondary rounded-lg transition-all">
       <div>
-        <h3 className="text-text-primary">Enable Spellcheck</h3>
+        <h3 className="text-text-primary">{t('spellcheck.title')}</h3>
         <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-          Check spelling in the chat input. Requires restart to take effect.
+          {t('spellcheck.description')}
         </p>
       </div>
       <div className="flex items-center">

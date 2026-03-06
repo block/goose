@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Input } from '../../ui/input';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface ConversationLimitsDropdownProps {
   maxTurns: number;
@@ -11,6 +12,7 @@ export const ConversationLimitsDropdown = ({
   maxTurns,
   onMaxTurnsChange,
 }: ConversationLimitsDropdownProps) => {
+  const { t } = useLocalization();
   const [isExpanded, setIsExpanded] = useState(false);
 
   const toggleExpanded = () => {
@@ -23,7 +25,7 @@ export const ConversationLimitsDropdown = ({
         onClick={toggleExpanded}
         className="w-full flex items-center justify-between py-2 px-2 hover:bg-background-secondary rounded-lg transition-all group"
       >
-        <h3 className="text-text-primary">Conversation Limits</h3>
+        <h3 className="text-text-primary">{t('modes.conversationLimitsTitle')}</h3>
 
         <ChevronDown
           className={`w-4 h-4 text-text-secondary transition-transform duration-200 ease-in-out ${
@@ -40,9 +42,9 @@ export const ConversationLimitsDropdown = ({
         <div className="space-y-3 pb-2">
           <div className="flex items-center justify-between py-2 px-2 bg-background-secondary rounded-lg transform transition-all duration-200 ease-in-out">
             <div>
-              <h4 className="text-text-primary text-sm">Max Turns</h4>
+              <h4 className="text-text-primary text-sm">{t('modes.maxTurnsLabel')}</h4>
               <p className="text-xs text-text-secondary mt-[2px]">
-                Maximum agent turns before Goose asks for user input
+                {t('modes.maxTurnsDescription')}
               </p>
             </div>
             <Input

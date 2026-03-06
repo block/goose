@@ -15,8 +15,10 @@ import {
 } from '../../api';
 import { resumeSession } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 export function SessionInsights() {
+  const { formatDate, formatNumber, t } = useLocalization();
   const [insights, setInsights] = useState<ApiSessionInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
@@ -35,7 +37,7 @@ export function SessionInsights() {
         setError(null);
       } catch (error) {
         console.error('Failed to load insights:', error);
-        setError(errorMessage(error, 'Failed to load insights'));
+        setError(errorMessage(error, t('sessions.insights.loadFailed')));
         setInsights({
           totalSessions: 0,
           totalTokens: 0,
@@ -60,7 +62,7 @@ export function SessionInsights() {
       setInsights((currentInsights) => {
         if (!currentInsights) {
           console.warn('Loading timeout reached, showing fallback content');
-          setError('Failed to load insights');
+          setError(t('sessions.insights.loadFailed'));
           setIsLoading(false);
           return {
             totalSessions: 0,
@@ -84,7 +86,7 @@ export function SessionInsights() {
         window.clearTimeout(loadingTimeout);
       }
     };
-  }, []);
+  }, [t]);
 
   const handleSessionClick = async (session: Session) => {
     try {
@@ -104,16 +106,11 @@ export function SessionInsights() {
 
   // Format date to show only the date part (without time)
   const formatDateOnly = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date
-      .toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
-      .replace(/\//g, '/');
+    return formatDate(dateStr, { month: '2-digit', day: '2-digit', year: 'numeric' });
   };
 
   const formatTokens = (tokens: number | undefined): string => {
-    return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 }).format(
-      tokens || 0
-    );
+    return formatNumber(tokens || 0, { notation: 'compact', maximumFractionDigits: 2 });
   };
 
   // Render skeleton loader while data is loading
@@ -138,7 +135,9 @@ export function SessionInsights() {
             <CardContent className="flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <Skeleton className="h-10 w-16 mb-1" />
-                <span className="text-xs text-text-secondary">Total sessions</span>
+                <span className="text-xs text-text-secondary">
+                  {t('sessions.insights.totalSessions')}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -148,7 +147,9 @@ export function SessionInsights() {
             <CardContent className="flex flex-col justify-end h-full p-0">
               <div className="flex flex-col justify-end">
                 <Skeleton className="h-10 w-24 mb-1" />
-                <span className="text-xs text-text-secondary">Total tokens</span>
+                <span className="text-xs text-text-secondary">
+                  {t('sessions.insights.totalTokens')}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -160,7 +161,7 @@ export function SessionInsights() {
             <CardContent className="p-0">
               <div className="flex justify-between items-center mb-4">
                 <CardDescription className="mb-0">
-                  <span className="text-lg text-text-primary">Recent chats</span>
+                  <span className="text-lg text-text-primary">{t('sessions.insights.recentChats')}</span>
                 </CardDescription>
                 <Button
                   variant="ghost"
@@ -168,7 +169,7 @@ export function SessionInsights() {
                   className="text-xs text-text-secondary flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-primary"
                   onClick={navigateToSessionHistory}
                 >
-                  See all
+                  {t('sessions.insights.seeAll')}
                 </Button>
               </div>
               <div className="space-y-3 min-h-[96px] max-h-[140px] overflow-hidden">
@@ -230,7 +231,7 @@ export function SessionInsights() {
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-orange-400 rounded-full flex-shrink-0"></div>
               <span className="text-xs text-orange-700 dark:text-orange-300">
-                Failed to load insights
+                {t('sessions.insights.loadFailed')}
               </span>
             </div>
           </div>
@@ -245,7 +246,9 @@ export function SessionInsights() {
                 <p className="text-4xl font-mono font-light flex items-end">
                   {Math.max(insights?.totalSessions ?? 0, 0)}
                 </p>
-                <span className="text-xs text-text-secondary">Total sessions</span>
+                <span className="text-xs text-text-secondary">
+                  {t('sessions.insights.totalSessions')}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -271,7 +274,9 @@ export function SessionInsights() {
                 <p className="text-4xl font-mono font-light flex items-end">
                   {formatTokens(insights?.totalTokens)}
                 </p>
-                <span className="text-xs text-text-secondary">Total tokens</span>
+                <span className="text-xs text-text-secondary">
+                  {t('sessions.insights.totalTokens')}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -284,7 +289,7 @@ export function SessionInsights() {
             <CardContent className="page-transition p-0">
               <div className="flex justify-between items-center mb-4">
                 <CardDescription className="mb-0">
-                  <span className="text-lg text-text-primary">Recent chats</span>
+                  <span className="text-lg text-text-primary">{t('sessions.insights.recentChats')}</span>
                 </CardDescription>
                 <Button
                   variant="ghost"
@@ -292,7 +297,7 @@ export function SessionInsights() {
                   className="text-xs text-text-secondary flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-primary"
                   onClick={navigateToSessionHistory}
                 >
-                  See all
+                  {t('sessions.insights.seeAll')}
                 </Button>
               </div>
               <div className="space-y-1 min-h-[96px] max-h-[140px] overflow-hidden transition-all duration-300 ease-in-out">
@@ -346,7 +351,7 @@ export function SessionInsights() {
                   ))
                 ) : (
                   <div className="text-text-secondary text-sm py-2">
-                    No recent chat sessions found.
+                    {t('sessions.insights.noRecentSessions')}
                   </div>
                 )}
               </div>

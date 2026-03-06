@@ -2,8 +2,8 @@ function isMac(): boolean {
   return window.electron?.platform === 'darwin';
 }
 
-export function getNavigationShortcutText(): string {
-  return isMac() ? '⌘↑/⌘↓ to navigate messages' : 'Ctrl+↑/Ctrl+↓ to navigate messages';
+export function getNavigationShortcutKeys(): string {
+  return isMac() ? '⌘↑/⌘↓' : 'Ctrl+↑/Ctrl+↓';
 }
 
 export function getSearchShortcutText(): string {

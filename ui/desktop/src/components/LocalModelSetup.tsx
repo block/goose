@@ -11,6 +11,7 @@ import {
 import { toastService } from '../toasts';
 import { trackOnboardingSetupFailed } from '../utils/analytics';
 import { Goose } from './icons';
+import { useLocalization } from '../contexts/LocalizationContext';
 
 interface LocalModelSetupProps {
   onSuccess: () => void;
@@ -32,6 +33,7 @@ const formatSize = (bytes: number): string => {
 type SetupPhase = 'loading' | 'select' | 'downloading' | 'error';
 
 export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
+  const { t } = useLocalization();
   const { upsert } = useConfig();
   const [phase, setPhase] = useState<SetupPhase>('loading');
   const [models, setModels] = useState<LocalModelResponse[]>([]);
@@ -67,21 +69,21 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         }
       } catch (error) {
         console.error('Failed to load local models:', error);
-        setErrorMessage('Failed to load available models. Please try again.');
+        setErrorMessage(t('localModelSetup.loadAvailableModelsFailed'));
         setPhase('error');
         return;
       }
       setPhase('select');
     };
     load();
-  }, []);
+  }, [t]);
 
   const finishSetup = async (modelId: string) => {
     await upsert('GOOSE_PROVIDER', 'local', false);
     await upsert('GOOSE_MODEL', modelId, false);
     toastService.success({
-      title: 'Local Model Ready',
-      msg: `Running entirely on your machine with ${modelId}.`,
+      title: t('localModelSetup.localModelReadyTitle'),
+      msg: t('localModelSetup.localModelReadyMessage', { model: modelId }),
     });
     onSuccess();
   };
@@ -93,7 +95,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
 
     const model = models.find((m) => m.id === modelId);
     if (!model) {
-      setErrorMessage('Model not found');
+      setErrorMessage(t('localModelSetup.modelNotFound'));
       setPhase('error');
       return;
     }
@@ -102,7 +104,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
       await downloadHfModel({ body: { spec: model.id } });
     } catch (error) {
       console.error('Failed to start download:', error);
-      setErrorMessage('Failed to start download. Please try again.');
+      setErrorMessage(t('localModelSetup.startDownloadFailed'));
       trackOnboardingSetupFailed('local', 'download_start_failed');
       setPhase('error');
       return;
@@ -118,7 +120,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             await finishSetup(modelId);
           } else if (response.data.status === 'failed') {
             cleanup();
-            setErrorMessage(response.data.error || 'Download failed.');
+            setErrorMessage(response.data.error || t('localModelSetup.downloadFailed'));
             trackOnboardingSetupFailed('local', response.data.error || 'download_failed');
             setPhase('error');
           } else if (response.data.status === 'cancelled') {
@@ -128,7 +130,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         }
       } catch {
         cleanup();
-        setErrorMessage('Lost connection to download. Please try again.');
+        setErrorMessage(t('localModelSetup.lostConnection'));
         trackOnboardingSetupFailed('local', 'progress_poll_failed');
         setPhase('error');
       }
@@ -169,7 +171,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-text-muted mb-4"></div>
-        <p className="text-text-muted text-sm">Checking available models...</p>
+        <p className="text-text-muted text-sm">{t('localModelSetup.checkingAvailableModels')}</p>
       </div>
     );
   }
@@ -181,11 +183,8 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         <div className="origin-bottom-left goose-icon-animation">
           <Goose className="size-6 sm:size-8" />
         </div>
-        <h1 className="text-2xl sm:text-4xl font-light">Run Locally</h1>
-        <p className="text-text-muted text-base sm:text-lg">
-          Download a model to run Goose entirely on your machine — no API keys, no accounts,
-          completely free and private.
-        </p>
+        <h1 className="text-2xl sm:text-4xl font-light">{t('localModelSetup.title')}</h1>
+        <p className="text-text-muted text-base sm:text-lg">{t('localModelSetup.description')}</p>
       </div>
 
       {/* Error state */}
@@ -201,13 +200,13 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             }}
             className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium hover:bg-background-muted/80"
           >
-            Try Again
+            {t('common.actions.retry')}
           </button>
           <button
             onClick={onCancel}
             className="w-full px-6 py-3 bg-transparent text-text-muted rounded-lg hover:bg-background-muted transition-colors"
           >
-            Back
+            {t('common.actions.back')}
           </button>
         </div>
       )}
@@ -227,7 +226,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             >
               <div className="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 z-10">
                 <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full">
-                  Best for your machine
+                  {t('localModelSetup.bestForYourMachine')}
                 </span>
               </div>
               <div className="flex items-start gap-3">
@@ -244,7 +243,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                     </span>
                     {recommended.status.state === 'Downloaded' && (
                       <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
-                        Ready
+                        {t('localModelSetup.ready')}
                       </span>
                     )}
                   </div>
@@ -263,7 +262,9 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                 onClick={() => setShowAllModels(!showAllModels)}
                 className="text-sm text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1"
               >
-                {showAllModels ? 'Hide other sizes' : `Show ${otherModels.length} other sizes`}
+                {showAllModels
+                  ? t('localModelSetup.hideOtherSizes')
+                  : t('localModelSetup.showOtherSizes', { count: otherModels.length })}
                 <svg
                   className={`w-3.5 h-3.5 transition-transform ${showAllModels ? 'rotate-180' : ''}`}
                   fill="none"
@@ -308,7 +309,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                             </span>
                             {model.status.state === 'Downloaded' && (
                               <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
-                                Ready
+                                {t('localModelSetup.ready')}
                               </span>
                             )}
                           </div>
@@ -328,17 +329,20 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             className="w-full px-6 py-3 bg-background-muted text-text-default rounded-lg transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-background-muted/80"
           >
             {selectedModel?.status.state === 'Downloaded'
-              ? `Use ${selectedModel.id}`
+              ? t('localModelSetup.useModel', { model: selectedModel.id })
               : selectedModel
-                ? `Download ${selectedModel.id} (${formatSize(selectedModel.size_bytes)})`
-                : 'Select a model'}
+                ? t('localModelSetup.downloadModelWithSize', {
+                    model: selectedModel.id,
+                    size: formatSize(selectedModel.size_bytes),
+                  })
+                : t('localModelSetup.selectModel')}
           </button>
 
           <button
             onClick={onCancel}
             className="w-full px-6 py-3 bg-transparent text-text-muted rounded-lg hover:bg-background-muted transition-colors"
           >
-            Back
+            {t('common.actions.back')}
           </button>
         </div>
       )}
@@ -348,7 +352,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
         <div className="space-y-6">
           <div className="border border-border-subtle rounded-xl p-5 sm:p-6 bg-background-default">
             <p className="font-medium text-text-default text-sm sm:text-base mb-4">
-              Downloading {selectedModel.id}
+              {t('localModelSetup.downloadingModel', { model: selectedModel.id })}
             </p>
 
             {downloadProgress ? (
@@ -364,8 +368,10 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                 {/* Stats row */}
                 <div className="flex justify-between text-xs text-text-muted">
                   <span>
-                    {formatBytes(downloadProgress.bytes_downloaded)} of{' '}
-                    {formatBytes(downloadProgress.total_bytes)}
+                    {t('localModelSetup.bytesOf', {
+                      downloaded: formatBytes(downloadProgress.bytes_downloaded),
+                      total: formatBytes(downloadProgress.total_bytes),
+                    })}
                   </span>
                   <span>{downloadProgress.progress_percent.toFixed(0)}%</span>
                 </div>
@@ -378,11 +384,12 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
                   )}
                   {downloadProgress.eta_seconds != null && downloadProgress.eta_seconds > 0 && (
                     <span>
-                      ~
-                      {downloadProgress.eta_seconds < 60
-                        ? `${Math.round(downloadProgress.eta_seconds)}s`
-                        : `${Math.round(downloadProgress.eta_seconds / 60)}m`}{' '}
-                      remaining
+                      {t('localModelSetup.remaining', {
+                        time:
+                          downloadProgress.eta_seconds < 60
+                            ? `${Math.round(downloadProgress.eta_seconds)}s`
+                            : `${Math.round(downloadProgress.eta_seconds / 60)}m`,
+                      })}
                     </span>
                   )}
                 </div>
@@ -390,7 +397,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             ) : (
               <div className="flex items-center gap-3">
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-text-muted"></div>
-                <span className="text-sm text-text-muted">Starting download...</span>
+                <span className="text-sm text-text-muted">{t('localModelSetup.startingDownload')}</span>
               </div>
             )}
           </div>
@@ -399,7 +406,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
             onClick={handleCancel}
             className="w-full px-6 py-3 bg-transparent text-text-muted rounded-lg hover:bg-background-muted transition-colors border border-border-subtle"
           >
-            Cancel Download
+            {t('localModelSetup.cancelDownload')}
           </button>
         </div>
       )}

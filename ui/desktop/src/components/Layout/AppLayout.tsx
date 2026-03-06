@@ -10,6 +10,7 @@ import { Navigation } from './NavigationPanel';
 import { NAV_DIMENSIONS, Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { UserInput } from '../../types/message';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface AppLayoutContentProps {
   activeSessions: Array<{
@@ -22,6 +23,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
   const location = useLocation();
   const safeIsMacOS = (window?.electron?.platform || 'darwin') === 'darwin';
   const chatContext = useChatContext();
+  const { t } = useLocalization();
   const isOnPairRoute = location.pathname === '/pair';
 
   const {
@@ -123,7 +125,7 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           className="no-drag hover:!bg-background-tertiary"
           variant="ghost"
           size="xs"
-          title={isNavExpanded ? 'Close navigation' : 'Open navigation'}
+          title={isNavExpanded ? t('nav.close') : t('nav.open')}
         >
           <Menu className="w-5 h-5" />
         </Button>

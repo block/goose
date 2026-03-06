@@ -20,18 +20,7 @@ import Model, { getProviderMetadata, fetchModelsForProviders } from '../modelInt
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
 import { ProviderType } from '../../../../api';
 import { trackModelChanged } from '../../../../utils/analytics';
-
-const THINKING_LEVEL_OPTIONS = [
-  { value: 'low', label: 'Low - Better latency, lighter reasoning' },
-  { value: 'high', label: 'High - Deeper reasoning, higher latency' },
-];
-
-const CLAUDE_THINKING_EFFORT_OPTIONS = [
-  { value: 'low', label: 'Low - Minimal thinking, fastest responses' },
-  { value: 'medium', label: 'Medium - Moderate thinking' },
-  { value: 'high', label: 'High - Deep reasoning (default)' },
-  { value: 'max', label: 'Max - No constraints on thinking depth' },
-];
+import { useLocalization } from '../../../../contexts/LocalizationContext';
 
 function isClaudeModel(name: string | null | undefined): boolean {
   return !!name && name.toLowerCase().startsWith('claude-');
@@ -96,6 +85,7 @@ export const SwitchModelModal = ({
   initialProvider,
   titleOverride,
 }: SwitchModelModalProps) => {
+  const { t } = useLocalization();
   const { getProviders, read, upsert } = useConfig();
   const { changeModel, currentModel, currentProvider } = useModelAndProvider();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
@@ -125,6 +115,18 @@ export const SwitchModelModal = ({
   const [claudeThinkingType, setClaudeThinkingType] = useState<string>('disabled');
   const [claudeThinkingEffort, setClaudeThinkingEffort] = useState<string>('high');
   const [claudeThinkingBudget, setClaudeThinkingBudget] = useState<string>('16000');
+
+  const thinkingLevelOptions = [
+    { value: 'low', label: t('switchModel.thinkingLevels.low') },
+    { value: 'high', label: t('switchModel.thinkingLevels.high') },
+  ];
+
+  const claudeThinkingEffortOptions = [
+    { value: 'low', label: t('switchModel.claudeThinkingEffort.low') },
+    { value: 'medium', label: t('switchModel.claudeThinkingEffort.medium') },
+    { value: 'high', label: t('switchModel.claudeThinkingEffort.high') },
+    { value: 'max', label: t('switchModel.claudeThinkingEffort.max') },
+  ];
 
   const modelName = usePredefinedModels ? selectedPredefinedModel?.name : model;
   const isGemini3Model = modelName?.toLowerCase().startsWith('gemini-3') ?? false;
@@ -168,17 +170,17 @@ export const SwitchModelModal = ({
 
     if (usePredefinedModels) {
       if (!selectedPredefinedModel) {
-        errors.model = 'Please select a model';
+        errors.model = t('switchModel.validation.selectModel');
         formIsValid = false;
       }
     } else {
       if (!provider) {
-        errors.provider = 'Please select a provider';
+        errors.provider = t('switchModel.validation.selectProvider');
         formIsValid = false;
       }
 
       if (!model) {
-        errors.model = 'Please select or enter a model';
+        errors.model = t('switchModel.validation.selectOrEnterModel');
         formIsValid = false;
       }
     }
@@ -186,7 +188,7 @@ export const SwitchModelModal = ({
     setValidationErrors(errors);
     setIsValid(formIsValid);
     return formIsValid;
-  }, [model, provider, usePredefinedModels, selectedPredefinedModel]);
+  }, [model, provider, t, usePredefinedModels, selectedPredefinedModel]);
 
   const handleClose = () => {
     onClose();
@@ -291,7 +293,7 @@ export const SwitchModelModal = ({
           })),
           {
             value: 'configure_providers',
-            label: 'Use other provider',
+            label: t('switchModel.useOtherProvider'),
           },
         ]);
 
@@ -332,7 +334,7 @@ export const SwitchModelModal = ({
           if (p.provider_type !== 'Custom') {
             options.push({
               value: 'custom',
-              label: 'Enter a model not listed...',
+              label: t('switchModel.enterModelNotListed'),
               provider: p.name,
               providerType: p.provider_type,
             });
@@ -355,7 +357,7 @@ export const SwitchModelModal = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, usePredefinedModels, read]);
+  }, [getProviders, usePredefinedModels, read, t]);
 
   const filteredModelOptions = provider
     ? modelOptions.filter((group) => group.options[0]?.provider === provider)
@@ -434,7 +436,7 @@ export const SwitchModelModal = ({
           options: [
             {
               value: trimmedInput,
-              label: `Use: "${trimmedInput}"`,
+              label: t('switchModel.useTypedModel', { value: trimmedInput }),
               provider: provider,
             },
           ],
@@ -446,16 +448,16 @@ export const SwitchModelModal = ({
 
   const claudeThinkingTypeOptions = [
     ...(modelSupportsAdaptive
-      ? [{ value: 'adaptive', label: 'Adaptive - Claude decides when and how much to think' }]
+      ? [{ value: 'adaptive', label: t('switchModel.claudeThinkingType.adaptive') }]
       : []),
-    { value: 'enabled', label: 'Enabled - Fixed token budget for thinking' },
-    { value: 'disabled', label: 'Disabled - No extended thinking' },
+    { value: 'enabled', label: t('switchModel.claudeThinkingType.enabled') },
+    { value: 'disabled', label: t('switchModel.claudeThinkingType.disabled') },
   ];
 
   const claudeThinkingControls = showClaudeThinking && (
     <div className="mt-2 flex flex-col gap-3">
       <div>
-        <label className="text-sm text-textSubtle mb-1 block">Extended Thinking</label>
+        <label className="text-sm text-textSubtle mb-1 block">{t('switchModel.extendedThinking')}</label>
         <Select
           options={claudeThinkingTypeOptions}
           value={claudeThinkingTypeOptions.find((o) => o.value === claudeThinkingType)}
@@ -463,26 +465,28 @@ export const SwitchModelModal = ({
             const option = newValue as { value: string; label: string } | null;
             setClaudeThinkingType(option?.value || 'disabled');
           }}
-          placeholder="Select thinking mode"
+          placeholder={t('switchModel.selectThinkingMode')}
         />
       </div>
       {claudeThinkingType === 'adaptive' && (
         <div>
-          <label className="text-sm text-textSubtle mb-1 block">Thinking Effort</label>
+          <label className="text-sm text-textSubtle mb-1 block">{t('switchModel.thinkingEffort')}</label>
           <Select
-            options={CLAUDE_THINKING_EFFORT_OPTIONS}
-            value={CLAUDE_THINKING_EFFORT_OPTIONS.find((o) => o.value === claudeThinkingEffort)}
+            options={claudeThinkingEffortOptions}
+            value={claudeThinkingEffortOptions.find((o) => o.value === claudeThinkingEffort)}
             onChange={(newValue: unknown) => {
               const option = newValue as { value: string; label: string } | null;
               setClaudeThinkingEffort(option?.value || 'high');
             }}
-            placeholder="Select effort level"
+            placeholder={t('switchModel.selectEffortLevel')}
           />
         </div>
       )}
       {claudeThinkingType === 'enabled' && (
         <div>
-          <label className="text-sm text-textSubtle mb-1 block">Thinking Budget (tokens)</label>
+          <label className="text-sm text-textSubtle mb-1 block">
+            {t('switchModel.thinkingBudgetTokens')}
+          </label>
           <Input
             className="border-2 px-4 py-2"
             type="number"
@@ -501,18 +505,16 @@ export const SwitchModelModal = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot size={24} className="text-text-primary" />
-            {titleOverride || 'Switch models'}
+            {titleOverride || t('switchModel.title')}
           </DialogTitle>
-          <DialogDescription>
-            Select a provider and model to use for your conversations.
-          </DialogDescription>
+          <DialogDescription>{t('switchModel.description')}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-4">
           {usePredefinedModels ? (
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-text-primary">Choose a model:</label>
+                <label className="text-sm font-medium text-text-primary">{t('switchModel.chooseModel')}</label>
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -533,7 +535,7 @@ export const SwitchModelModal = ({
                           </span>
                           {model.alias?.includes('recommended') && (
                             <span className="text-xs bg-background-secondary text-text-primary px-2 py-1 rounded-full border border-border-primary ml-2">
-                              Recommended
+                              {t('switchModel.recommended')}
                             </span>
                           )}
                         </div>
@@ -572,17 +574,17 @@ export const SwitchModelModal = ({
               {isGemini3Model && (
                 <div className="mt-2">
                   <label className="text-sm text-textSubtle mb-1 block">
-                    Thinking Level
-                    <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
+                    {t('switchModel.thinkingLevel')}
+                    <span className="text-xs text-textMuted ml-2">{t('switchModel.geminiOnly')}</span>
                   </label>
                   <Select
-                    options={THINKING_LEVEL_OPTIONS}
-                    value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}
+                    options={thinkingLevelOptions}
+                    value={thinkingLevelOptions.find((o) => o.value === thinkingLevel)}
                     onChange={(newValue: unknown) => {
                       const option = newValue as { value: string; label: string } | null;
                       setThinkingLevel(option?.value || 'low');
                     }}
-                    placeholder="Select thinking level"
+                    placeholder={t('switchModel.selectThinkingLevel')}
                   />
                 </div>
               )}
@@ -609,7 +611,7 @@ export const SwitchModelModal = ({
                       setUserClearedModel(false);
                     }
                   }}
-                  placeholder="Provider, type to search"
+                  placeholder={t('switchModel.providerPlaceholder')}
                   isClearable
                 />
                 {attemptedSubmit && validationErrors.provider && (
@@ -628,11 +630,10 @@ export const SwitchModelModal = ({
                       <div className="flex flex-col gap-3">
                         <div>
                           <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                            Local models need to be downloaded first
+                            {t('switchModel.localModelsTitle')}
                           </h3>
                           <div className="mt-1 text-sm text-blue-700 dark:text-blue-300">
-                            To use local inference, you need to download a model to your computer
-                            first. Go to Settings → Models to manage local models.
+                            {t('switchModel.localModelsDescription')}
                           </div>
                         </div>
                         <Button
@@ -644,7 +645,7 @@ export const SwitchModelModal = ({
                           }}
                           className="self-start border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40"
                         >
-                          Go to Settings
+                          {t('switchModel.goToSettings')}
                         </Button>
                       </div>
                     </div>
@@ -654,13 +655,13 @@ export const SwitchModelModal = ({
                       <div className="flex items-start">
                         <div className="flex-1">
                           <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                            Could not contact provider
+                            {t('switchModel.providerUnavailableTitle')}
                           </h3>
                           <div className="mt-1 text-sm text-red-700 dark:text-red-300">
                             {providerErrors[provider]}
                           </div>
                           <div className="mt-2 text-xs text-red-600 dark:text-red-400">
-                            Check your provider configuration in Settings → Providers
+                            {t('switchModel.providerUnavailableHint')}
                           </div>
                         </div>
                       </div>
@@ -679,12 +680,12 @@ export const SwitchModelModal = ({
                         onInputChange={handleInputChange}
                         value={
                           loadingModels
-                            ? { value: '', label: 'Loading models…', isDisabled: true }
+                            ? { value: '', label: t('switchModel.loadingModels'), isDisabled: true }
                             : model
                               ? { value: model, label: model }
                               : null
                         }
-                        placeholder="Select a model, type to search"
+                        placeholder={t('switchModel.modelPlaceholder')}
                         isClearable
                         isDisabled={loadingModels}
                       />
@@ -703,17 +704,17 @@ export const SwitchModelModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
-                        <label className="text-sm text-text-secondary">Custom model name</label>
+                        <label className="text-sm text-text-secondary">{t('switchModel.customModelName')}</label>
                         <button
                           onClick={() => setIsCustomModel(false)}
                           className="text-sm text-text-secondary"
                         >
-                          Back to model list
+                          {t('switchModel.backToModelList')}
                         </button>
                       </div>
                       <Input
                         className="border-2 px-4 py-5"
-                        placeholder="Type model name here"
+                        placeholder={t('switchModel.typeModelName')}
                         onChange={(event) => setModel(event.target.value)}
                         value={model}
                       />
@@ -726,17 +727,17 @@ export const SwitchModelModal = ({
                   {isGemini3Model && (
                     <div className="mt-2">
                       <label className="text-sm text-textSubtle mb-1 block">
-                        Thinking Level
-                        <span className="text-xs text-textMuted ml-2">(Gemini 3 models only)</span>
+                        {t('switchModel.thinkingLevel')}
+                        <span className="text-xs text-textMuted ml-2">{t('switchModel.geminiOnly')}</span>
                       </label>
                       <Select
-                        options={THINKING_LEVEL_OPTIONS}
-                        value={THINKING_LEVEL_OPTIONS.find((o) => o.value === thinkingLevel)}
+                        options={thinkingLevelOptions}
+                        value={thinkingLevelOptions.find((o) => o.value === thinkingLevel)}
                         onChange={(newValue: unknown) => {
                           const option = newValue as { value: string; label: string } | null;
                           setThinkingLevel(option?.value || 'low');
                         }}
-                        placeholder="Select thinking level"
+                        placeholder={t('switchModel.selectThinkingLevel')}
                       />
                     </div>
                   )}
@@ -756,14 +757,14 @@ export const SwitchModelModal = ({
             className="inline-flex items-center text-text-secondary hover:text-text-primary text-sm mr-auto"
           >
             <ExternalLink size={14} className="mr-1" />
-            Quick start guide
+            {t('switchModel.quickStartGuide')}
           </a>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleClose} type="button">
-              Cancel
+              {t('common.actions.cancel')}
             </Button>
             <Button onClick={handleSubmit} disabled={!isValid}>
-              Select model
+              {t('switchModel.selectModelAction')}
             </Button>
           </div>
         </DialogFooter>

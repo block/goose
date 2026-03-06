@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
 import { useNavigationSessions } from '../../hooks/useNavigationSessions';
-import { getNavItemById, type NavItem } from '../../hooks/useNavigationItems';
+import { useNavigationItems, type NavItem } from '../../hooks/useNavigationItems';
 import { AppEvents } from '../../constants/events';
 import { CondensedRenderer } from './CondensedRenderer';
 import { ExpandedRenderer } from './ExpandedRenderer';
@@ -26,19 +26,20 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const location = useLocation();
   const { extensionsList } = useConfig();
+  const navItems = useNavigationItems();
 
   const appsExtensionEnabled = !!extensionsList?.find((ext) => ext.name === 'apps')?.enabled;
 
   const visibleItems = useMemo(() => {
     return preferences.itemOrder
       .filter((id) => preferences.enabledItems.includes(id))
-      .map((id) => getNavItemById(id))
+      .map((id) => navItems.find((item) => item.id === id))
       .filter((item): item is NavItem => item !== undefined)
       .filter((item) => {
         if (item.path === '/apps') return appsExtensionEnabled;
         return true;
       });
-  }, [preferences.itemOrder, preferences.enabledItems, appsExtensionEnabled]);
+  }, [preferences.itemOrder, preferences.enabledItems, appsExtensionEnabled, navItems]);
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 

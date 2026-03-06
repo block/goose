@@ -5,6 +5,7 @@ import { useForm } from '@tanstack/react-form';
 
 import { RecipeFormFields, extractTemplateVariables } from '../RecipeFormFields';
 import { type RecipeFormData } from '../recipeFormSchema';
+import { LocalizationProvider } from '../../../../contexts/LocalizationContext';
 
 vi.mock('../../../ConfigContext', () => ({
   useConfig: () => ({
@@ -54,7 +55,11 @@ describe('RecipeFormFields', () => {
   } & Omit<Parameters<typeof RecipeFormFields>[0], 'form'>) => {
     const form = useTestForm(initialValues);
 
-    return <RecipeFormFields form={form} {...props} />;
+    return (
+      <LocalizationProvider>
+        <RecipeFormFields form={form} {...props} />
+      </LocalizationProvider>
+    );
   };
 
   beforeEach(() => {
@@ -209,7 +214,7 @@ describe('RecipeFormFields', () => {
       expect(screen.getByText('Parameters')).toBeInTheDocument();
       expect(
         screen.getByText(
-          'Parameters will be automatically detected from {{parameter_name}} syntax in instructions/prompt/activities or you can manually add them below.'
+          'Parameters will be automatically detected from {{parameter_name}} syntax in instructions, prompt, or activities. You can also add them manually below.'
         )
       ).toBeInTheDocument();
     });
@@ -262,7 +267,7 @@ describe('RecipeFormFields', () => {
 
       // Check that activity input exists
       const messageInput = screen.getByPlaceholderText(
-        'Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)'
+        'Enter a user-facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)'
       );
       expect(messageInput).toBeInTheDocument();
 
@@ -295,7 +300,11 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -332,7 +341,7 @@ describe('RecipeFormFields', () => {
       expect(instructionsInput).toHaveValue('Process {{name}} and {{type}} for {{user}}');
       expect(
         screen.getByText(
-          'Parameters will be automatically detected from {{parameter_name}} syntax in instructions/prompt/activities or you can manually add them below.'
+          'Parameters will be automatically detected from {{parameter_name}} syntax in instructions, prompt, or activities. You can also add them manually below.'
         )
       ).toBeInTheDocument();
 
@@ -391,7 +400,11 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -561,7 +574,11 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -637,7 +654,11 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -904,7 +925,11 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -935,7 +960,11 @@ describe('RecipeFormFields', () => {
           },
         });
 
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -958,7 +987,11 @@ describe('RecipeFormFields', () => {
 
       const TestComponent = () => {
         const form = useTestForm(initialValues);
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -989,7 +1022,11 @@ describe('RecipeFormFields', () => {
 
       const TestComponent = () => {
         const form = useTestForm(initialValues);
-        return <RecipeFormFields form={form} />;
+        return (
+          <LocalizationProvider>
+            <RecipeFormFields form={form} />
+          </LocalizationProvider>
+        );
       };
 
       render(<TestComponent />);
@@ -997,7 +1034,7 @@ describe('RecipeFormFields', () => {
       await expandAdvancedSection(user);
 
       expect(screen.getByText('Extensions (Optional)')).toBeInTheDocument();
-      expect(screen.getByText('1 extension selected')).toBeInTheDocument();
+      expect(screen.getByText('1 selected')).toBeInTheDocument();
     });
   });
 });

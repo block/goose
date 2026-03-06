@@ -13,6 +13,7 @@ import { RecipeFormData } from './shared/recipeFormSchema';
 import { toastSuccess, toastError } from '../../toasts';
 import { saveRecipe } from '../../recipe/recipe_management';
 import { errorMessage } from '../../utils/conversionUtils';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface CreateEditRecipeModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export default function CreateEditRecipeModal({
   isCreateMode = false,
   recipeId,
 }: CreateEditRecipeModalProps) {
+  const { t } = useLocalization();
   const getInitialValues = React.useCallback((): RecipeFormData => {
     if (recipe) {
       return {
@@ -93,6 +95,7 @@ export default function CreateEditRecipeModal({
   }, [form]);
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [deeplinkError, setDeeplinkError] = useState(false);
 
   // Reset form when recipe changes
   useEffect(() => {
@@ -223,20 +226,24 @@ export default function CreateEditRecipeModal({
         (!instructions.trim() && !(prompt || '').trim())
       ) {
         setDeeplink('');
+        setDeeplinkError(false);
         return;
       }
 
       setIsGeneratingDeeplink(true);
+      setDeeplinkError(false);
       try {
         const currentRecipe = getCurrentRecipe();
         const link = await generateDeepLink(currentRecipe);
         if (!isCancelled) {
           setDeeplink(link);
+          setDeeplinkError(false);
         }
       } catch (error) {
         console.error('Failed to generate deeplink:', error);
         if (!isCancelled) {
-          setDeeplink('Error generating deeplink');
+          setDeeplink('');
+          setDeeplinkError(true);
         }
       } finally {
         if (!isCancelled) {
@@ -265,7 +272,7 @@ export default function CreateEditRecipeModal({
   ]);
 
   const handleCopy = () => {
-    if (!deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink') {
+    if (!deeplink || isGeneratingDeeplink || deeplinkError) {
       return;
     }
 
@@ -283,8 +290,8 @@ export default function CreateEditRecipeModal({
   const handleSaveRecipeClick = async () => {
     if (!validateForm()) {
       toastError({
-        title: 'Validation Failed',
-        msg: 'Please fill in all required fields and ensure JSON schema is valid.',
+        title: t('recipes.editor.validationFailedTitle'),
+        msg: t('recipes.editor.validationFailedMessage'),
       });
       return;
     }
@@ -299,14 +306,16 @@ export default function CreateEditRecipeModal({
 
       toastSuccess({
         title: (recipe.title || '').trim(),
-        msg: 'Recipe saved successfully',
+        msg: t('recipes.editor.saveSucceededMessage'),
       });
     } catch (error) {
       console.error('Failed to save recipe:', error);
 
       toastError({
-        title: 'Save Failed',
-        msg: `Failed to save recipe: ${errorMessage(error, 'Unknown error')}`,
+        title: t('recipes.editor.saveFailedTitle'),
+        msg: t('recipes.editor.saveFailedMessage', {
+          error: errorMessage(error, t('recipes.editor.unknownError')),
+        }),
         traceback: errorMessage(error),
       });
     } finally {
@@ -317,8 +326,8 @@ export default function CreateEditRecipeModal({
   const handleSaveAndRunRecipeClick = async () => {
     if (!validateForm()) {
       toastError({
-        title: 'Validation Failed',
-        msg: 'Please fill in all required fields and ensure JSON schema is valid.',
+        title: t('recipes.editor.validationFailedTitle'),
+        msg: t('recipes.editor.validationFailedMessage'),
       });
       return;
     }
@@ -336,14 +345,16 @@ export default function CreateEditRecipeModal({
 
       toastSuccess({
         title: recipe.title,
-        msg: 'Recipe saved and launched successfully',
+        msg: t('recipes.editor.saveAndRunSucceededMessage'),
       });
     } catch (error) {
       console.error('Failed to save and run recipe:', error);
 
       toastError({
-        title: 'Save and Run Failed',
-        msg: `Failed to save and run recipe: ${errorMessage(error, 'Unknown error')}`,
+        title: t('recipes.editor.saveAndRunFailedTitle'),
+        msg: t('recipes.editor.saveAndRunFailedMessage', {
+          error: errorMessage(error, t('recipes.editor.unknownError')),
+        }),
         traceback: errorMessage(error),
       });
     } finally {
@@ -364,19 +375,19 @@ export default function CreateEditRecipeModal({
             </div>
             <div>
               <h1 className="text-xl font-medium text-text-primary">
-                {isCreateMode ? 'Create Recipe' : 'View/edit recipe'}
+                {isCreateMode ? t('recipes.editor.createTitle') : t('recipes.editor.editTitle')}
               </h1>
               <p className="text-text-secondary text-sm">
                 {isCreateMode
-                  ? 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.'
-                  : "You can edit the recipe below to change the agent's behavior in a new session."}{' '}
+                  ? t('recipes.editor.createDescription')
+                  : t('recipes.editor.editDescription')}{' '}
                 <a
                   href="https://block.github.io/goose/docs/guides/recipes/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600 hover:underline"
                 >
-                  Learn more
+                  {t('common.actions.learnMore')}
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </p>
@@ -401,15 +412,13 @@ export default function CreateEditRecipeModal({
             <div className="w-full p-4 bg-background-secondary rounded-lg mt-6">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm text-text-secondary">
-                  Copy this link to share with friends or paste directly in Chrome to open
+                  {t('recipes.editor.shareLinkHint')}
                 </div>
                 <Button
                   onClick={handleCopy}
                   variant="ghost"
                   size="sm"
-                  disabled={
-                    !deeplink || isGeneratingDeeplink || deeplink === 'Error generating deeplink'
-                  }
+                  disabled={!deeplink || isGeneratingDeeplink || deeplinkError}
                   className="ml-4 p-2 hover:bg-background-primary rounded-lg transition-colors flex items-center disabled:opacity-50 disabled:hover:bg-transparent"
                 >
                   {copied ? (
@@ -418,7 +427,7 @@ export default function CreateEditRecipeModal({
                     <Copy className="w-4 h-4 text-iconSubtle" />
                   )}
                   <span className="ml-1 text-sm text-text-secondary">
-                    {copied ? 'Copied!' : 'Copy'}
+                    {copied ? t('recipes.editor.copied') : t('recipes.editor.copy')}
                   </span>
                 </Button>
               </div>
@@ -427,8 +436,10 @@ export default function CreateEditRecipeModal({
                 className="text-sm truncate font-mono cursor-pointer text-text-primary"
               >
                 {isGeneratingDeeplink
-                  ? 'Generating deeplink...'
-                  : deeplink || 'Click to generate deeplink'}
+                  ? t('recipes.editor.generatingDeeplink')
+                  : deeplinkError
+                    ? t('recipes.editor.deeplinkGenerationFailed')
+                    : deeplink || t('recipes.editor.clickToGenerateDeeplink')}
               </div>
             </div>
           )}
@@ -441,7 +452,7 @@ export default function CreateEditRecipeModal({
             variant="ghost"
             className="px-4 py-2 text-text-secondary rounded-lg hover:bg-background-secondary transition-colors"
           >
-            Close
+            {t('common.actions.close')}
           </Button>
 
           <div className="flex gap-3">
@@ -453,7 +464,7 @@ export default function CreateEditRecipeModal({
               className="inline-flex items-center justify-center gap-2 px-4 py-2"
             >
               <Save className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save Recipe'}
+              {isSaving ? t('recipes.editor.saving') : t('recipes.editor.saveRecipe')}
             </Button>
             <Button
               onClick={handleSaveAndRunRecipeClick}
@@ -463,7 +474,7 @@ export default function CreateEditRecipeModal({
               className="inline-flex items-center justify-center gap-2 px-4 py-2"
             >
               <Play className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save & Run Recipe'}
+              {isSaving ? t('recipes.editor.saving') : t('recipes.editor.saveAndRunRecipe')}
             </Button>
           </div>
         </div>

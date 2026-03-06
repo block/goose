@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Parameter } from '../recipe';
 import { Button } from './ui/button';
 import { getInitialWorkingDir } from '../utils/workingDir';
+import { useLocalization } from '../contexts/LocalizationContext';
 
 interface ParameterInputModalProps {
   parameters: Parameter[];
@@ -16,6 +17,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   onClose,
   initialValues,
 }) => {
+  const { t } = useLocalization();
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showCancelOptions, setShowCancelOptions] = useState(false);
@@ -48,7 +50,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     requiredParams.forEach((param) => {
       const value = inputValues[param.key]?.trim();
       if (!value) {
-        errors[param.key] = `${param.description || param.key} is required`;
+        errors[param.key] = t('parameterInput.required', {
+          field: param.description || param.key,
+        });
       }
     });
 
@@ -91,8 +95,10 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
       {showCancelOptions ? (
         // Cancel options modal
         <div className="bg-background-primary border border-border-primary rounded-xl p-8 shadow-2xl w-full max-w-md">
-          <h2 className="text-xl font-bold text-text-primary mb-4">Cancel Recipe Setup</h2>
-          <p className="text-text-primary mb-6">What would you like to do?</p>
+          <h2 className="text-xl font-bold text-text-primary mb-4">
+            {t('parameterInput.cancelSetupTitle')}
+          </h2>
+          <p className="text-text-primary mb-6">{t('parameterInput.cancelSetupMessage')}</p>
           <div className="flex flex-col gap-3">
             <Button
               onClick={() => handleCancelOption('back-to-form')}
@@ -100,7 +106,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
               size="lg"
               className="w-full rounded-full"
             >
-              Back to Parameter Form
+              {t('parameterInput.backToForm')}
             </Button>
             <Button
               onClick={() => handleCancelOption('new-chat')}
@@ -108,7 +114,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
               size="lg"
               className="w-full rounded-full"
             >
-              Start New Chat (No Recipe)
+              {t('parameterInput.startNewChatNoRecipe')}
             </Button>
           </div>
         </div>
@@ -116,7 +122,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
         // Main parameter form
         <div className="bg-background-primary border border-border-primary rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
           <div className="p-8 pb-4 flex-shrink-0">
-            <h2 className="text-xl font-bold text-text-primary mb-6">Recipe Parameters</h2>
+            <h2 className="text-xl font-bold text-text-primary mb-6">
+              {t('parameterInput.title')}
+            </h2>
           </div>
           <div className="flex-1 overflow-y-auto px-8">
             <form onSubmit={handleSubmit} className="space-y-4 mb-4">
@@ -140,7 +148,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                           : 'border-border-primary focus:ring-border-secondary'
                       }`}
                     >
-                      <option value="">Select an option...</option>
+                      <option value="">{t('parameterInput.selectAnOption')}</option>
                       {param.options.map((option) => (
                         <option key={option} value={option}>
                           {option}
@@ -157,9 +165,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                           : 'border-border-primary focus:ring-border-secondary'
                       }`}
                     >
-                      <option value="">Select...</option>
-                      <option value="true">True</option>
-                      <option value="false">False</option>
+                      <option value="">{t('parameterInput.select')}</option>
+                      <option value="true">{t('parameterInput.true')}</option>
+                      <option value="false">{t('parameterInput.false')}</option>
                     </select>
                   ) : (
                     <input
@@ -171,7 +179,12 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                           ? 'border-red-500 focus:ring-red-500'
                           : 'border-border-primary focus:ring-border-secondary'
                       }`}
-                      placeholder={param.default || `Enter value for ${param.key}...`}
+                      placeholder={
+                        param.default ||
+                        t('parameterInput.enterValue', {
+                          key: param.key,
+                        })
+                      }
                     />
                   )}
 
@@ -191,7 +204,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                 size="default"
                 className="rounded-full"
               >
-                Cancel
+                {t('parameterInput.cancel')}
               </Button>
               <Button
                 type="button"
@@ -200,7 +213,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                 size="default"
                 className="rounded-full"
               >
-                Start Recipe
+                {t('parameterInput.startRecipe')}
               </Button>
             </div>
           </div>

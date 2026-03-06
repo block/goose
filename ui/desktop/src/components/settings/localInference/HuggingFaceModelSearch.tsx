@@ -8,6 +8,7 @@ import {
   type HfModelInfo,
   type HfQuantVariant,
 } from '../../../api';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return 'unknown';
@@ -33,6 +34,7 @@ interface Props {
 }
 
 export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
+  const { t } = useLocalization();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HfModelInfo[]>([]);
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
@@ -91,22 +93,24 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
         });
 
         if (validResults.length === 0) {
-          setError('No GGUF models found for this query.');
+          setError(t('localInference.search.noResults'));
         }
       } else {
         console.error('Search response:', response);
         const errMsg = response.error
-          ? `Search error: ${JSON.stringify(response.error)}`
-          : 'Search returned no data.';
+          ? t('localInference.search.searchError', {
+              error: JSON.stringify(response.error),
+            })
+          : t('localInference.search.searchReturnedNoData');
         setError(errMsg);
       }
     } catch (e) {
       console.error('Search failed:', e);
-      setError('Search failed. Please try again.');
+      setError(t('localInference.search.searchFailed'));
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [t]);
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
@@ -198,14 +202,16 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
   return (
     <div className="space-y-4">
       <div>
-        <h4 className="text-sm font-medium text-text-default mb-2">Search HuggingFace</h4>
+        <h4 className="text-sm font-medium text-text-default mb-2">
+          {t('localInference.search.title')}
+        </h4>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Search for GGUF models..."
+            placeholder={t('localInference.search.placeholder')}
             className="w-full pl-9 pr-4 py-2 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
           />
           {searching && (
@@ -254,7 +260,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                     {loadingFiles.has(model.repo_id) && (
                       <div className="flex items-center gap-2 py-2 text-xs text-text-muted">
                         <Loader2 className="w-3 h-3 animate-spin" />
-                        Loading variants...
+                        {t('localInference.search.loadingVariants')}
                       </div>
                     )}
                     {variants.map((variant, idx) => {
@@ -282,7 +288,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                               {isRecommended && (
                                 <span className="inline-flex items-center gap-1 text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">
                                   <Star className="w-3 h-3" />
-                                  Recommended
+                                  {t('localInference.recommended')}
                                 </span>
                               )}
                             </div>
@@ -301,7 +307,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
                             ) : (
                               <>
                                 <Download className="w-3 h-3 mr-1" />
-                                Download
+                                {t('localInference.download')}
                               </>
                             )}
                           </Button>
@@ -317,9 +323,11 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
       )}
 
       <div>
-        <h4 className="text-sm font-medium text-text-default mb-2">Direct Download</h4>
+        <h4 className="text-sm font-medium text-text-default mb-2">
+          {t('localInference.search.directDownload')}
+        </h4>
         <p className="text-xs text-text-muted mb-2">
-          Specify a model directly:{' '}
+          {t('localInference.search.directDescription')}{' '}
           <code className="bg-background-subtle px-1 rounded">user/repo:quantization</code>
         </p>
         <div className="flex gap-2">
@@ -327,7 +335,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
             type="text"
             value={directSpec}
             onChange={(e) => setDirectSpec(e.target.value)}
-            placeholder="bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M"
+            placeholder={t('localInference.search.directPlaceholder')}
             className="flex-1 px-3 py-2 text-sm border border-border-subtle rounded-lg bg-background-default text-text-default placeholder:text-text-muted focus:outline-none focus:border-accent-primary"
             onKeyDown={(e) => {
               if (e.key === 'Enter') startDirectDownload();
@@ -344,7 +352,7 @@ export const HuggingFaceModelSearch = ({ onDownloadStarted }: Props) => {
             ) : (
               <>
                 <Download className="w-4 h-4 mr-1" />
-                Download
+                {t('localInference.download')}
               </>
             )}
           </Button>

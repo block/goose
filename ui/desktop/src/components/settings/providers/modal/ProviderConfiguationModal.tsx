@@ -20,6 +20,7 @@ import { AlertTriangle, LogIn } from 'lucide-react';
 import { ProviderDetails, removeCustomProvider, configureProviderOauth } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
+import { useLocalization } from '../../../../contexts/LocalizationContext';
 
 interface ProviderConfigurationModalProps {
   provider: ProviderDetails;
@@ -32,6 +33,7 @@ export default function ProviderConfigurationModal({
   onClose,
   onConfigured,
 }: ProviderConfigurationModalProps) {
+  const { t } = useLocalization();
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const { upsert, remove } = useConfig();
   const { getCurrentModelAndProvider } = useModelAndProvider();
@@ -51,16 +53,16 @@ export default function ProviderConfigurationModal({
 
   const isConfigured = provider.is_configured;
   const headerText = showDeleteConfirmation
-    ? `Delete configuration for ${provider.metadata.display_name}`
-    : `Configure ${provider.metadata.display_name}`;
+    ? t('providerModal.deleteConfigurationFor', { name: provider.metadata.display_name })
+    : t('providerModal.configureProvider', { name: provider.metadata.display_name });
 
   const descriptionText = showDeleteConfirmation
     ? isActiveProvider
-      ? `You cannot delete this provider while it's currently in use. Please switch to a different model first.`
-      : 'This will permanently delete the current provider configuration.'
+      ? t('providerModal.deleteActiveDescription')
+      : t('providerModal.deleteDescription')
     : isOAuthProvider
-      ? `Sign in with your ${provider.metadata.display_name} account to use this provider`
-      : `Add your API key(s) for this provider to integrate into goose`;
+      ? t('providerModal.oauthDescription', { name: provider.metadata.display_name })
+      : t('providerModal.apiDescription');
 
   const handleOAuthLogin = async () => {
     setIsOAuthLoading(true);
@@ -75,7 +77,7 @@ export default function ProviderConfigurationModal({
         onClose();
       }
     } catch (err) {
-      setError(`OAuth login failed: ${errorMessage(err)}`);
+      setError(t('providerModal.oauthLoginFailed', { error: errorMessage(err) }));
     } finally {
       setIsOAuthLoading(false);
     }
@@ -95,7 +97,7 @@ export default function ProviderConfigurationModal({
         !configValues[parameter.name]?.value &&
         !configValues[parameter.name]?.serverValue
       ) {
-        errors[parameter.name] = `${parameter.name} is required`;
+        errors[parameter.name] = t('providerModal.fieldRequired', { field: parameter.name });
       }
     });
 
@@ -185,15 +187,15 @@ export default function ProviderConfigurationModal({
     <>
       <Dialog open={!!error} onOpenChange={(open) => !open && setError(null)}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogTitle className="flex items-center gap-2">Error</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">{t('providerModal.errorTitle')}</DialogTitle>
           <DialogDescription className="text-inherit text-base">
-            There was an error checking this provider configuration.
+            {t('providerModal.errorDescription')}
           </DialogDescription>
           <pre className="ml-2">{error}</pre>
-          <div>Check your configuration again to use this provider.</div>
+          <div>{t('providerModal.errorHint')}</div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setError(null)}>
-              Go Back
+              {t('providerModal.goBack')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -222,11 +224,13 @@ export default function ProviderConfigurationModal({
                   >
                     <LogIn size={20} />
                     {isOAuthLoading
-                      ? 'Signing in...'
-                      : `Sign in with ${provider.metadata.display_name}`}
+                      ? t('providerModal.signingIn')
+                      : t('providerModal.signInWithProvider', {
+                          name: provider.metadata.display_name,
+                        })}
                   </Button>
                   <p className="text-sm text-text-secondary text-center">
-                    A browser window will open for you to complete the login.
+                    {t('providerModal.browserWindowHint')}
                   </p>
                 </div>
               ) : (
@@ -251,11 +255,11 @@ export default function ProviderConfigurationModal({
             {isOAuthProvider && !showDeleteConfirmation ? (
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleCancel}>
-                  Cancel
+                  {t('common.actions.cancel')}
                 </Button>
                 {isConfigured && (
                   <Button variant="destructive" onClick={handleDelete}>
-                    Remove Configuration
+                    {t('providerModal.removeConfiguration')}
                   </Button>
                 )}
               </div>

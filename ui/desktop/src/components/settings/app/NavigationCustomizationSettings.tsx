@@ -6,16 +6,7 @@ import {
   DEFAULT_ENABLED_ITEMS,
 } from '../../Layout/NavigationContext';
 import { cn } from '../../../utils';
-
-const ITEM_LABELS: Record<string, string> = {
-  home: 'Home',
-  chat: 'Chat',
-  recipes: 'Recipes',
-  apps: 'Apps',
-  scheduler: 'Scheduler',
-  extensions: 'Extensions',
-  settings: 'Settings',
-};
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface NavigationCustomizationSettingsProps {
   className?: string;
@@ -25,6 +16,7 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
   className,
 }) => {
   const { preferences, updatePreferences } = useNavigationContext();
+  const { t } = useLocalization();
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
 
@@ -90,13 +82,13 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
       <div className="space-y-3">
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-text-secondary">
-            Drag to reorder, click the eye icon to show/hide items
+            {t('navigationCustomization.instructions')}
           </p>
           <button
             onClick={resetToDefaults}
             className="text-xs text-text-secondary hover:text-text-primary transition-colors"
           >
-            Reset to defaults
+            {t('navigationCustomization.resetToDefaults')}
           </button>
         </div>
 
@@ -104,7 +96,16 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
           const isEnabled = preferences.enabledItems.includes(itemId);
           const isDragging = draggedItem === itemId;
           const isDragOver = dragOverItem === itemId;
-          const label = ITEM_LABELS[itemId] || itemId;
+          const label =
+            {
+              home: t('nav.home'),
+              chat: t('nav.chat'),
+              recipes: t('nav.recipes'),
+              apps: t('nav.apps'),
+              scheduler: t('nav.scheduler'),
+              extensions: t('nav.extensions'),
+              settings: t('nav.settings'),
+            }[itemId] || itemId;
 
           return (
             <div
@@ -128,7 +129,11 @@ export const NavigationCustomizationSettings: React.FC<NavigationCustomizationSe
               <button
                 onClick={() => toggleItemEnabled(itemId)}
                 className="p-1 rounded hover:bg-background-tertiary transition-colors flex-shrink-0"
-                title={isEnabled ? 'Hide item' : 'Show item'}
+                title={
+                  isEnabled
+                    ? t('navigationCustomization.hideItem')
+                    : t('navigationCustomization.showItem')
+                }
               >
                 {isEnabled ? (
                   <Eye className="w-4 h-4 text-text-primary" />

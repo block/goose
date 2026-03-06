@@ -3,6 +3,7 @@ import { AlertTriangle, Download, Github } from 'lucide-react';
 import { Button } from './button';
 import { toastError } from '../../toasts';
 import { diagnostics, systemInfo } from '../../api';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface DiagnosticsModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
   onClose,
   sessionId,
 }) => {
+  const { t } = useLocalization();
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFilingBug, setIsFilingBug] = useState(false);
 
@@ -40,8 +42,8 @@ export const DiagnosticsModal: React.FC<DiagnosticsModalProps> = ({
       onClose();
     } catch {
       toastError({
-        title: 'Diagnostics Error',
-        msg: 'Failed to download diagnostics',
+        title: t('diagnostics.diagnosticsErrorTitle'),
+        msg: t('diagnostics.diagnosticsDownloadFailed'),
       });
     } finally {
       setIsDownloading(false);
@@ -119,8 +121,8 @@ Add any other context about the problem here.
       onClose();
     } catch {
       toastError({
-        title: 'Error',
-        msg: 'Failed to get system information',
+        title: t('diagnostics.systemInfoErrorTitle'),
+        msg: t('diagnostics.systemInfoErrorMessage'),
       });
     } finally {
       setIsFilingBug(false);
@@ -135,25 +137,20 @@ Add any other context about the problem here.
         <div className="flex items-start gap-3 mb-4">
           <AlertTriangle className="text-orange-500 flex-shrink-0 mt-1" size={20} />
           <div>
-            <h3 className="text-lg font-semibold text-text-primary mb-2">Report a Problem</h3>
+            <h3 className="text-lg font-semibold text-text-primary mb-2">{t('diagnostics.title')}</h3>
             <p className="text-sm text-text-secondary mb-3">
-              You can download a diagnostics zip file to share with the team, or file a bug directly
-              on GitHub with your system details pre-filled. A diagnostics report contains the
-              following:
+              {t('diagnostics.description')}
             </p>
             <ul className="text-sm text-text-secondary list-disc list-inside space-y-1 mb-3">
-              <li>Basic system info</li>
-              <li>Your current session messages</li>
-              <li>Recent log files</li>
-              <li>Configuration settings</li>
+              <li>{t('diagnostics.basicSystemInfo')}</li>
+              <li>{t('diagnostics.currentSessionMessages')}</li>
+              <li>{t('diagnostics.recentLogFiles')}</li>
+              <li>{t('diagnostics.configurationSettings')}</li>
             </ul>
             <p className="text-sm text-text-secondary">
-              <strong>Warning:</strong> If your session contains sensitive information, do not share
-              the diagnostics file publicly.
+              <strong>{t('diagnostics.warningLabel')}</strong> {t('diagnostics.warningMessage')}
             </p>
-            <p className="text-sm text-text-secondary">
-              If you file a bug, consider attaching the diagnostics report to it.
-            </p>
+            <p className="text-sm text-text-secondary">{t('diagnostics.attachHint')}</p>
           </div>
         </div>
         <div className="flex gap-2 justify-end">
@@ -163,7 +160,7 @@ Add any other context about the problem here.
             size="sm"
             disabled={isDownloading || isFilingBug}
           >
-            Cancel
+            {t('common.actions.cancel')}
           </Button>
           <Button
             onClick={handleDownload}
@@ -172,7 +169,7 @@ Add any other context about the problem here.
             disabled={isDownloading || isFilingBug}
           >
             <Download size={16} className="mr-1" />
-            {isDownloading ? 'Downloading...' : 'Download'}
+            {isDownloading ? t('diagnostics.downloading') : t('diagnostics.download')}
           </Button>
           <Button
             onClick={handleFileGitHubIssue}
@@ -182,7 +179,7 @@ Add any other context about the problem here.
             className="bg-slate-600 text-white hover:bg-slate-700"
           >
             <Github size={16} className="mr-1" />
-            {isFilingBug ? 'Opening...' : 'File Bug on GitHub'}
+            {isFilingBug ? t('diagnostics.opening') : t('diagnostics.fileBugOnGithub')}
           </Button>
         </div>
       </div>
