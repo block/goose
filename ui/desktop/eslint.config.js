@@ -104,6 +104,10 @@ module.exports = [
         MediaStream: 'readonly',
         Blob: 'readonly',
         FormData: 'readonly',
+        // Build-time injected globals
+        __WHITELABEL_CONFIG__: 'readonly',
+        MAIN_WINDOW_VITE_DEV_SERVER_URL: 'readonly',
+        MAIN_WINDOW_VITE_NAME: 'readonly',
       },
     },
     plugins: {

@@ -49,8 +49,21 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
+import type { WhiteLabelConfig } from './whitelabel/types';
+import { DEFAULT_WHITELABEL_CONFIG } from './whitelabel/defaults';
+
+function getWhiteLabelConfig(): WhiteLabelConfig {
+  try {
+    return __WHITELABEL_CONFIG__;
+  } catch {
+    return DEFAULT_WHITELABEL_CONFIG;
+  }
+}
+
+const whiteLabelConfig = getWhiteLabelConfig();
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { startWhiteLabelProcesses, stopAllWhiteLabelProcesses } from './whitelabel/processManager';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -386,7 +399,7 @@ app.on('open-url', async (_event, url) => {
 app.on('will-finish-launching', () => {
   if (process.platform === 'darwin') {
     app.setAboutPanelOptions({
-      applicationName: 'Goose',
+      applicationName: whiteLabelConfig.branding.appName,
       applicationVersion: app.getVersion(),
     });
   }
@@ -575,8 +588,8 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 940,
-    defaultHeight: 800,
+    defaultWidth: whiteLabelConfig.window.width,
+    defaultHeight: whiteLabelConfig.window.height,
   });
 
   const mainWindow = new BrowserWindow({
@@ -588,8 +601,8 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 450,
-    resizable: true,
+    minWidth: whiteLabelConfig.window.minWidth,
+    resizable: whiteLabelConfig.window.resizable !== false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
@@ -1731,6 +1744,12 @@ async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
+  // Start any sidecar processes defined in white-label config
+  if (whiteLabelConfig.processes && whiteLabelConfig.processes.length > 0) {
+    const resourcesPath = app.isPackaged ? process.resourcesPath : process.cwd();
+    await startWhiteLabelProcesses(whiteLabelConfig.processes, resourcesPath);
+  }
+
   registerUpdateIpcHandlers();
 
   // Handle microphone permission requests
@@ -2478,6 +2497,8 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  stopAllWhiteLabelProcesses();
+
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
       powerSaveBlocker.stop(blockerId);
