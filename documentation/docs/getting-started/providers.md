@@ -34,6 +34,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/ai-models) | Access to AI models from OpenAI, Anthropic, Google, and other providers through GitHub's Copilot infrastructure. **GitHub account with Copilot access required.** | No manual key. Uses [device flow authentication](#github-copilot-authentication) for both CLI and Desktop. |
 | [Groq](https://groq.com/)                                                   | High-performance inference hardware and tools for LLMs.                                                                                                                                                                   | `GROQ_API_KEY`                                                                                                                                                                      |
 | [LiteLLM](https://docs.litellm.ai/docs/) | LiteLLM proxy supporting multiple models with automatic prompt caching and unified API access. | `LITELLM_HOST`, `LITELLM_BASE_PATH` (optional), `LITELLM_API_KEY` (optional), `LITELLM_CUSTOM_HEADERS` (optional), `LITELLM_TIMEOUT` (optional) |
+| [LM Studio](https://lmstudio.ai/)                                          | Run local models with LM Studio's OpenAI-compatible server. **Because this provider runs locally, you must first [download a model](#local-llms).**                                                           | None required. Connects to local server at `localhost:1234` by default.                                                                                                             |
 | [Mistral AI](https://mistral.ai/)                                           | Provides access to Mistral models including general-purpose models, specialized coding models (Codestral), and multimodal models (Pixtral).                                                                   | `MISTRAL_API_KEY`                                                                                                 |
 | [Ollama](https://ollama.com/)                                               | Local model runner supporting Qwen, Llama, DeepSeek, and other open-source models. **Because this provider runs locally, you must first [download and run a model](#local-llms).**  | `OLLAMA_HOST`                                                                                                                                                                       |
 | [OpenAI](https://platform.openai.com/api-keys)                              | Provides gpt-4o, o1, and other advanced language models. Also supports OpenAI-compatible endpoints (e.g., self-hosted LLaMA, vLLM, KServe). **o1-mini and o1-preview are not supported because goose uses tool calling.** | `OPENAI_API_KEY`, `OPENAI_HOST` (optional), `OPENAI_ORGANIZATION` (optional), `OPENAI_PROJECT` (optional), `OPENAI_CUSTOM_HEADERS` (optional)                                       |
@@ -372,7 +373,7 @@ Custom providers must use OpenAI, Anthropic, or Ollama compatible API formats. T
        - **API URL**: The base URL of the API endpoint
        - **Authentication**:
          - **API Key**: The API key, which is accessed using a custom environment variable and stored in the keychain (or `secrets.yaml` if the keyring is disabled or cannot be accessed)
-            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, LM Studio, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
+            - For providers that don't require authorization (e.g., local models like Ollama, vLLM, or internal APIs), uncheck the **"This provider requires an API key"** checkbox
        - **Available Models**: Comma-separated list of available model names
        - **Streaming Support**: Whether the API supports streaming responses (click to toggle)
     7. Click `Create Provider`
@@ -1032,6 +1033,55 @@ Here are some local providers we support:
         
       </TabItem>
     </Tabs>
+  </TabItem>
+  <TabItem value="lmstudio" label="LM Studio">
+    [LM Studio](https://lmstudio.ai/) lets you run open-source models locally with an OpenAI-compatible API server.
+
+    1. Download and install LM Studio.
+    2. Open LM Studio and download a model that supports tool calling (e.g., Qwen, Llama, or Mistral variants).
+    3. Start the local server in LM Studio. The server runs on `http://localhost:1234` by default
+
+    4. Configure goose to use LM Studio:
+
+    <Tabs groupId="interface">
+      <TabItem value="ui" label="goose Desktop" default>
+        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+        2. Click the `Settings` button on the sidebar.
+        3. Click the `Models` tab.
+        4. Click `Configure providers`.
+        5. Choose `LM Studio` from the provider list and click `Configure`.
+        6. Click `Submit` (no API key is needed).
+        7. Select the model you have loaded in LM Studio.
+      </TabItem>
+      <TabItem value="cli" label="goose CLI">
+        1. Run:
+        ```sh
+        goose configure
+        ```
+        2. Select `Configure Providers` from the menu.
+        3. Choose `LM Studio` as the provider.
+        4. Enter the model name that matches the model loaded in LM Studio.
+
+        ```
+        ┌   goose-configure
+        │
+        ◇  What would you like to configure?
+        │  Configure Providers
+        │
+        ◇  Which model provider should we use?
+        │  LM Studio
+        │
+        ◇  Enter a model from that provider:
+        │  qwen2.5-7b-instruct
+        │
+        └  Configuration saved successfully
+        ```
+      </TabItem>
+    </Tabs>
+
+    :::tip Model Name
+    Make sure the model name you enter in goose matches the model identifier shown in LM Studio's server panel.
+    :::
   </TabItem>
   <TabItem value="docker" label="Docker Model Runner" default>
     1. [Get Docker](https://docs.docker.com/get-started/get-docker/)
