@@ -37,11 +37,5 @@ pub fn manage_schedule_tool() -> Tool {
                 "session_id": {"type": "string", "description": "Session identifier for session_content action"}
             }
         }),
-    ).annotate(ToolAnnotations {
-        title: Some("Manage scheduled recipes".to_string()),
-        read_only_hint: Some(false),
-        destructive_hint: Some(true), // Can kill jobs
-        idempotent_hint: Some(false),
-        open_world_hint: Some(false),
-    })
+    ).annotate(ToolAnnotations::with_title("Manage scheduled recipes".to_string()).read_only(false).destructive(true).idempotent(false).open_world(false))
 }
