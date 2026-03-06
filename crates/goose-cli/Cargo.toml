@@ -80,3 +80,9 @@ disable-update = []
 tempfile = { workspace = true }
 test-case = { workspace = true }
 tokio = { workspace = true }
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winapi",
+]
