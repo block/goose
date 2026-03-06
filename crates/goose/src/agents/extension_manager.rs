@@ -540,6 +540,12 @@ async fn create_unix_socket_http_client(
         default_headers.insert(header_name, val);
     }
 
+    let retry_headers = {
+        let mut h = default_headers.clone();
+        h.remove(&http::header::AUTHORIZATION);
+        h
+    };
+
     let unix_client = UnixSocketHttpClient::new(uri, socket_path, default_headers);
     let transport = StreamableHttpClientTransport::with_client(
         unix_client,
@@ -565,9 +571,7 @@ async fn create_unix_socket_http_client(
         let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
             .await
             .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
-        let mut auth_headers = std::collections::HashMap::new();
-        auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
-        let auth_unix_client = UnixSocketHttpClient::new(uri, socket_path, auth_headers);
+        let auth_unix_client = UnixSocketHttpClient::new(uri, socket_path, retry_headers);
         let auth_client = AuthClient::new(auth_unix_client, auth_manager);
         let transport = StreamableHttpClientTransport::with_client(
             auth_client,
