@@ -825,4 +825,121 @@ mod tests {
         let result = tool_id_to_summarize(&updated_conversation, 3);
         assert!(result.is_none(), "Nothing left to summarize");
     }
+
+    // Control test: after compaction + appending new tool calls, fix_conversation
+    // produces zero issues. Proves compaction output is structurally clean and
+    // compatible with the fix pipeline when new tool pairs are added.
+    #[tokio::test]
+    async fn test_compaction_output_with_new_tool_pair_is_valid() {
+        let response_message = Message::assistant().with_text("<mock summary>");
+        let provider = MockProvider::new(response_message, 1000);
+
+        // Pre-compaction conversation: user text, 3 tool pairs, user text at end
+        let mut messages = vec![Message::user().with_text("Help me with a task")];
+        for i in 0..3 {
+            messages.push(Message::assistant().with_tool_request(
+                format!("old_tool_{}", i),
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "some_tool".into(),
+                    arguments: None,
+                }),
+            ));
+            messages.push(Message::user().with_tool_response(
+                format!("old_tool_{}", i),
+                Ok(rmcp::model::CallToolResult {
+                    content: vec![RawContent::text(format!("result {}", i)).no_annotation()],
+                    structured_content: None,
+                    is_error: Some(false),
+                    meta: None,
+                }),
+            ));
+        }
+        messages.push(Message::user().with_text("Now do something else"));
+
+        let conversation = Conversation::new_unvalidated(messages);
+        let (compacted, _usage) =
+            compact_messages(&provider, "test-session-id", &conversation, false)
+                .await
+                .unwrap();
+
+        // Simulate post-compaction agent loop: LLM makes a new tool call, tool executes
+        let new_asst = Message::assistant()
+            .with_text("I'll run a new tool")
+            .with_tool_request(
+                "new_tool_1",
+                Ok(CallToolRequestParams {
+                    meta: None,
+                    task: None,
+                    name: "new_tool".into(),
+                    arguments: None,
+                }),
+            );
+        let new_tool_resp = Message::user().with_tool_response(
+            "new_tool_1",
+            Ok(rmcp::model::CallToolResult {
+                content: vec![RawContent::text("new result").no_annotation()],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+        );
+        // Rebuild conversation from compacted messages + new tool pair.
+        // Can't use Conversation::push() because it merges by ID, and we need
+        // the messages to be separate entries.
+        let mut all_msgs = compacted.messages().clone();
+        all_msgs.push(new_asst);
+        all_msgs.push(new_tool_resp);
+        let compacted = Conversation::new_unvalidated(all_msgs);
+
+        // fix_conversation should produce zero issues — the conversation is valid
+        let (fixed, issues) = crate::conversation::fix_conversation(compacted.clone());
+
+        assert!(
+            issues.is_empty(),
+            "Compacted conversation + new tool pair should have no issues, but found: {:?}",
+            issues
+        );
+
+        // The new tool pair should be intact in the visible messages
+        let visible = fixed.agent_visible_messages();
+        let has_new_tool_request = visible.iter().any(|m| {
+            m.content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolRequest(tr) if tr.id == "new_tool_1"))
+        });
+        let has_new_tool_response = visible.iter().any(|m| {
+            m.content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolResponse(tr) if tr.id == "new_tool_1"))
+        });
+        assert!(
+            has_new_tool_request,
+            "New tool request should be in visible messages"
+        );
+        assert!(
+            has_new_tool_response,
+            "New tool response should be in visible messages"
+        );
+
+        // The old tool pairs should still exist as non-visible messages
+        let all_msgs = fixed.messages();
+        let non_visible_tool_count = all_msgs
+            .iter()
+            .filter(|m| {
+                !m.metadata.agent_visible
+                    && m.content.iter().any(|c| {
+                        matches!(
+                            c,
+                            MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+                        )
+                    })
+            })
+            .count();
+        assert!(
+            non_visible_tool_count > 0,
+            "Old tool pairs should be preserved as non-visible messages"
+        );
+    }
 }
