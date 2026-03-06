@@ -76,10 +76,6 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
         goose session 
         ```
 
-        If you want to interact with goose in a web-based chat interface, start a session with the [`web`](/docs/guides/goose-cli-commands#web) command:
-        ```sh
-        goose web --open
-        ```
     </TabItem>
 </Tabs>
 
