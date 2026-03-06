@@ -8574,7 +8574,7 @@
       "cache_write": 6.25
     },
     "limit": {
-      "context": 1000000,
+      "context": 200000,
       "output": 128000
     }
   },
@@ -9033,7 +9033,7 @@
       "cache_write": 6.25
     },
     "limit": {
-      "context": 1000000,
+      "context": 200000,
       "output": 128000
     }
   },
@@ -9231,7 +9231,7 @@
       "cache_write": 6.25
     },
     "limit": {
-      "context": 1000000,
+      "context": 200000,
       "output": 128000
     }
   },
@@ -10558,7 +10558,7 @@
       "cache_write": 6.25
     },
     "limit": {
-      "context": 1000000,
+      "context": 200000,
       "output": 128000
     }
   },
@@ -20086,6 +20086,38 @@
     }
   },
   {
+    "id": "cloudflare-ai-gateway/openai/gpt-5.4",
+    "name": "GPT-5.4",
+    "family": "gpt",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-05",
+    "last_updated": "2026-03-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.5,
+      "output": 15.0,
+      "cache_read": 0.25
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
     "id": "cloudflare-ai-gateway/openai/o1",
     "name": "o1",
     "family": "o",
@@ -26388,6 +26420,66 @@
     },
     "limit": {
       "context": 272000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "github-copilot/gpt-5.3-codex",
+    "name": "GPT-5.3-Codex",
+    "family": "gpt-codex",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-02-24",
+    "last_updated": "2026-02-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "github-copilot/gpt-5.4",
+    "name": "GPT-5.4",
+    "family": "gpt",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-05",
+    "last_updated": "2026-03-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 400000,
       "output": 128000
     }
   },
@@ -55300,6 +55392,67 @@
     }
   },
   {
+    "id": "openai/gpt-5.4",
+    "name": "GPT-5.4",
+    "family": "gpt",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-05",
+    "last_updated": "2026-03-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.5,
+      "output": 15.0,
+      "cache_read": 0.25
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "openai/gpt-5.4-pro",
+    "name": "GPT-5.4 Pro",
+    "family": "gpt-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-05",
+    "last_updated": "2026-03-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 30.0,
+      "output": 180.0
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
     "id": "openai/o1",
     "name": "o1",
     "family": "o",
@@ -56643,6 +56796,36 @@
     }
   },
   {
+    "id": "opencode/gpt-5.3-codex-spark",
+    "name": "GPT-5.3 Codex Spark",
+    "family": "gpt-codex-spark",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-02-12",
+    "last_updated": "2026-02-12",
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
+    },
+    "limit": {
+      "context": 128000,
+      "output": 128000
+    }
+  },
+  {
     "id": "opencode/gpt-5.4",
     "name": "GPT-5.4",
     "family": "gpt",
@@ -56668,6 +56851,38 @@
       "input": 2.5,
       "output": 15.0,
       "cache_read": 0.25
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "opencode/gpt-5.4-pro",
+    "name": "GPT-5.4 Pro",
+    "family": "gpt-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-05",
+    "last_updated": "2026-03-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 30.0,
+      "output": 180.0,
+      "cache_read": 30.0
     },
     "limit": {
       "context": 1050000,
@@ -60551,6 +60766,102 @@
     },
     "limit": {
       "context": 400000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "openrouter/openai/gpt-5.3-codex",
+    "name": "GPT-5.3-Codex",
+    "family": "gpt-codex",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-02-24",
+    "last_updated": "2026-02-24",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 1.75,
+      "output": 14.0,
+      "cache_read": 0.175
+    },
+    "limit": {
+      "context": 400000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "openrouter/openai/gpt-5.4",
+    "name": "GPT-5.4",
+    "family": "gpt",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-05",
+    "last_updated": "2026-03-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.5,
+      "output": 15.0,
+      "cache_read": 0.25
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "openrouter/openai/gpt-5.4-pro",
+    "name": "GPT-5.4 Pro",
+    "family": "gpt-pro",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-03-05",
+    "last_updated": "2026-03-05",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 30.0,
+      "output": 180.0,
+      "cache_read": 30.0
+    },
+    "limit": {
+      "context": 1050000,
       "output": 128000
     }
   },
