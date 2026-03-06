@@ -39,6 +39,8 @@ pub struct AgentSlot {
 pub struct IntentRouter {
     slots: Vec<AgentSlot>,
     semantic: SemanticRouter,
+    project_default_agent: Option<String>,
+    project_default_mode: Option<String>,
 }
 
 impl Default for IntentRouter {
@@ -132,6 +134,8 @@ impl IntentRouter {
         Self {
             semantic: Self::build_semantic(&slots),
             slots,
+            project_default_agent: None,
+            project_default_mode: None,
         }
     }
 
@@ -159,6 +163,27 @@ impl IntentRouter {
     /// Rebuild the semantic router after slot changes.
     fn refresh_semantic(&mut self) {
         self.semantic = Self::build_semantic(&self.slots);
+    }
+
+    /// Apply per-project agent config overrides from `.goose/agents.yaml`.
+    /// This modifies agent slots (enable/disable, descriptions, extensions, custom modes)
+    /// and rebuilds the semantic router.
+    pub fn apply_project_config(
+        &mut self,
+        config: &crate::agents::agent_config::ProjectAgentConfig,
+    ) {
+        crate::agents::agent_config::apply_project_config(config, &mut self.slots);
+
+        // Override default agent/mode if specified
+        if let Some(ref default_agent) = config.default_agent {
+            // Store as a field we can check during routing fallback
+            self.project_default_agent = Some(default_agent.clone());
+        }
+        if let Some(ref default_mode) = config.default_mode {
+            self.project_default_mode = Some(default_mode.clone());
+        }
+
+        self.refresh_semantic();
     }
 
     pub fn set_enabled(&mut self, agent_name: &str, enabled: bool) {
@@ -340,8 +365,28 @@ impl IntentRouter {
             }
         }
 
-        // Layer 3: Fall back to default agent
+        // Layer 3: Fall back to project default or first enabled agent
         span.record("router.strategy", "default");
+
+        // Use project-configured default agent if set and enabled
+        if let Some(ref project_agent) = self.project_default_agent {
+            if let Some(slot) = enabled_slots.iter().find(|s| &s.name == project_agent) {
+                let mode = self
+                    .project_default_mode
+                    .as_deref()
+                    .unwrap_or(&slot.default_mode);
+                return RoutingDecision {
+                    agent_name: slot.name.clone(),
+                    mode_slug: mode.to_string(),
+                    confidence: 0.5,
+                    reasoning: format!(
+                        "[project-default] keyword={:.2}, semantic=none; using project default",
+                        keyword_score
+                    ),
+                };
+            }
+        }
+
         let default_slot = enabled_slots.first().unwrap();
         RoutingDecision {
             agent_name: default_slot.name.clone(),
@@ -654,6 +699,75 @@ mod tests {
             decision.reasoning.contains("[default]") || decision.reasoning.contains("[keyword]"),
             "Greetings should not match via semantic layer: {}",
             decision.reasoning
+        );
+    }
+
+    #[test]
+    fn test_apply_project_config_disables_agent() {
+        use crate::agents::agent_config::ProjectAgentConfig;
+        let mut router = IntentRouter::new();
+        let config: ProjectAgentConfig = serde_yaml::from_str(
+            r#"
+agents:
+  "Developer Agent":
+    enabled: false
+"#,
+        )
+        .unwrap();
+        router.apply_project_config(&config);
+        let decision = router.route("implement a REST API endpoint");
+        assert_ne!(
+            decision.agent_name, "Developer Agent",
+            "Disabled agent should not be routed to"
+        );
+    }
+
+    #[test]
+    fn test_apply_project_config_default_agent() {
+        use crate::agents::agent_config::ProjectAgentConfig;
+        let mut router = IntentRouter::new();
+        let config: ProjectAgentConfig = serde_yaml::from_str(
+            r#"
+default_agent: "Developer Agent"
+default_mode: "write"
+"#,
+        )
+        .unwrap();
+        router.apply_project_config(&config);
+        // Generic greeting should fall back to project default (Developer Agent/write)
+        let decision = router.route("hey there");
+        assert_eq!(decision.agent_name, "Developer Agent");
+        assert_eq!(decision.mode_slug, "write");
+        assert!(decision.reasoning.contains("[project-default]"));
+    }
+
+    #[test]
+    fn test_apply_project_config_custom_mode() {
+        use crate::agents::agent_config::ProjectAgentConfig;
+        let mut router = IntentRouter::new();
+        let config: ProjectAgentConfig = serde_yaml::from_str(
+            r#"
+custom_modes:
+  - slug: "data-pipeline"
+    name: "Data Pipeline"
+    description: "Build ETL data pipelines and transformations"
+    when_to_use: "ETL data pipeline transformation orchestration airflow"
+    agents: ["Developer Agent"]
+    extensions: ["developer"]
+    tool_groups: ["read", "edit"]
+"#,
+        )
+        .unwrap();
+        router.apply_project_config(&config);
+        // Verify custom mode was added
+        let dev_slot = router
+            .slots()
+            .iter()
+            .find(|s| s.name == "Developer Agent")
+            .unwrap();
+        assert!(
+            dev_slot.modes.iter().any(|m| m.slug == "data-pipeline"),
+            "Custom mode should be added to Developer Agent"
         );
     }
 }
