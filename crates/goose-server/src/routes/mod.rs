@@ -4,6 +4,7 @@ pub mod acp_ide;
 pub mod action_required;
 pub mod agent;
 pub mod agent_card;
+pub mod agent_config;
 pub mod agent_management;
 pub mod analytics;
 pub mod auth_config;
@@ -87,6 +88,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(runs::routes(state.clone()))
         .merge(acp_ide::routes(state.clone()))
         .merge(analytics::routes(state.clone()))
+        .merge(agent_config::agent_config_routes().with_state(state.clone()))
         .merge(observatory::routes(state.clone()))
         .merge(auth_routes)
         .merge(extension_routes::routes(state.clone()))
