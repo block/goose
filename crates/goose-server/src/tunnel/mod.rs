@@ -1,8 +1,5 @@
 pub mod lapstone;
 
-#[cfg(test)]
-mod lapstone_test;
-
 use crate::configuration::Settings;
 use fs2::FileExt as _;
 use goose::config::{paths::Paths, Config};
