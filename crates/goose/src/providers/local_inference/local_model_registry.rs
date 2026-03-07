@@ -132,6 +132,13 @@ pub struct LocalModelEntry {
     pub settings: ModelSettings,
     #[serde(default)]
     pub size_bytes: u64,
+    /// Quality rank from quantization (1-28, higher is better quality)
+    #[serde(default = "default_quality_rank")]
+    pub quality_rank: u8,
+}
+
+fn default_quality_rank() -> u8 {
+    19 // Q4_K_M default
 }
 
 impl LocalModelEntry {

@@ -34,7 +34,7 @@ pub(super) fn estimate_max_context_for_memory(
     model: &LlamaModel,
     runtime: &InferenceRuntime,
 ) -> Option<usize> {
-    let available = super::available_inference_memory_bytes(runtime);
+    let available = super::recommender::available_inference_memory_bytes(runtime);
     if available == 0 {
         return None;
     }
