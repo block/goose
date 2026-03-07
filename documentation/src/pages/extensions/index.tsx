@@ -6,12 +6,27 @@ import { motion } from "framer-motion";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import { Wand2 } from "lucide-react";
+import { translate } from "@docusaurus/Translate";
 
 export default function HomePage() {
   const [servers, setServers] = useState<MCPServer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const searchResultsSummary = searchQuery
+    ? servers.length === 1
+      ? translate({
+          id: "extensions.search.resultsSingular",
+          message: '{count} result for "{searchQuery}"',
+          values: { count: servers.length, searchQuery },
+        })
+      : translate({
+          id: "extensions.search.resultsPlural",
+          message: '{count} results for "{searchQuery}"',
+          values: { count: servers.length, searchQuery },
+        })
+    : "";
 
   // Combined effect for initial load and search
   useEffect(() => {
@@ -30,7 +45,13 @@ export default function HomePage() {
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Unknown error";
-        setError(`Failed to load servers: ${errorMessage}`);
+        setError(
+          translate({
+            id: "extensions.error.loadServers",
+            message: "Failed to load servers: {errorMessage}",
+            values: { errorMessage },
+          })
+        );
         console.error("Error loading servers:", err);
       } finally {
         setIsLoading(false);
@@ -47,10 +68,13 @@ export default function HomePage() {
       <div className="container mx-auto px-4 p-24">
         <div className="pb-16">
           <h1 className="text-[64px] font-medium text-textProminent">
-            Browse Extensions
+            {translate({ id: "extensions.title", message: "Browse Extensions" })}
           </h1>
           <p className="text-textProminent">
-            Your central directory for discovering and installing extensions.
+            {translate({
+              id: "extensions.subtitle",
+              message: "Your central directory for discovering and installing extensions.",
+            })}
           </p>
         </div>
 
@@ -58,7 +82,10 @@ export default function HomePage() {
           <div className="search-container flex-1">
             <input
               className="bg-bgApp font-light text-textProminent placeholder-textPlaceholder w-full px-3 py-3 text-[40px] leading-[52px] border-b border-borderSubtle focus:outline-none focus:ring-purple-500 focus:border-borderProminent caret-[#FF4F00] pl-0"
-              placeholder="Search for extensions"
+              placeholder={translate({
+                id: "extensions.search.placeholder",
+                message: "Search for extensions",
+              })}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -71,22 +98,24 @@ export default function HomePage() {
 
         <section className="">
           <div className={`${searchQuery ? "pb-2" : "pb-8"}`}>
-            <p className="text-gray-600">
-              {searchQuery
-                ? `${servers.length} result${
-                    servers.length > 1 ? "s" : ""
-                  } for "${searchQuery}"`
-                : ""}
-            </p>
+            <p className="text-gray-600">{searchResultsSummary}</p>
           </div>
 
           {isLoading ? (
-            <div className="py-8 text-xl text-gray-600">Loading servers...</div>
+            <div className="py-8 text-xl text-gray-600">
+              {translate({ id: "extensions.loading", message: "Loading servers..." })}
+            </div>
           ) : servers.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               {searchQuery
-                ? "No servers found matching your search."
-                : "No servers available."}
+                ? translate({
+                    id: "extensions.empty.search",
+                    message: "No servers found matching your search.",
+                  })
+                : translate({
+                    id: "extensions.empty.default",
+                    message: "No servers available.",
+                  })}
             </div>
           ) : (
             <div>
@@ -94,7 +123,7 @@ export default function HomePage() {
               {servers.filter(server => server.is_builtin).length > 0 && (
                 <div className="mb-12">
                   <h2 className="text-2xl font-semibold text-textProminent mb-6">
-                    Built-in Extensions
+                    {translate({ id: "extensions.builtin", message: "Built-in Extensions" })}
                   </h2>
                   <div className="cards-grid">
                     {servers
@@ -121,7 +150,7 @@ export default function HomePage() {
               {servers.filter(server => !server.is_builtin).length > 0 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-textProminent mb-6">
-                    Community Extensions
+                    {translate({ id: "extensions.community", message: "Community Extensions" })}
                   </h2>
                   <div className="cards-grid">
                     {servers

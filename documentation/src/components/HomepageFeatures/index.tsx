@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import clsx from "clsx";
 import Heading from "@theme/Heading";
+import { translate } from "@docusaurus/Translate";
 import styles from "./styles.module.css";
 
 type FeatureItem = {
@@ -18,44 +19,39 @@ type FeatureQuote = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: "Open Source",
+    title: translate({ id: "homepage.features.openSource.title", message: "Open Source" }),
     Svg: require("@site/static/img/lock-unlocked-fill.svg").default,
-    description: (
-      <>
-        Built with transparency and collaboration in mind, goose empowers
-        developers to contribute, customize, and innovate freely.
-      </>
-    ),
+    description: translate({
+      id: "homepage.features.openSource.description",
+      message:
+        "Built with transparency and collaboration in mind, goose empowers developers to contribute, customize, and innovate freely.",
+    }),
   },
   {
-    title: "Runs Locally",
+    title: translate({ id: "homepage.features.runsLocally.title", message: "Runs Locally" }),
     Svg: require("@site/static/img/category-moving.svg").default,
-    description: (
-      <>
-        Goose runs locally to execute tasks efficiently, keeping control in your
-        hands.
-      </>
-    ),
+    description: translate({
+      id: "homepage.features.runsLocally.description",
+      message: "goose runs locally to execute tasks efficiently, keeping control in your hands.",
+    }),
   },
   {
-    title: "Extensible",
+    title: translate({ id: "homepage.features.extensible.title", message: "Extensible" }),
     Svg: require("@site/static/img/category-ETF.svg").default,
-    description: (
-      <>
-        Customize goose with your preferred LLM and enhance its capabilities by connecting it to any
-        external MCP server or API.
-      </>
-    ),
+    description: translate({
+      id: "homepage.features.extensible.description",
+      message:
+        "Customize goose with your preferred LLM and enhance its capabilities by connecting it to any external MCP server or API.",
+    }),
   },
   {
-    title: "Autonomous",
+    title: translate({ id: "homepage.features.autonomous.title", message: "Autonomous" }),
     Svg: require("@site/static/img/pay-in-four.svg").default,
-    description: (
-      <>
-        Goose independently handles complex tasks, from debugging to deployment,
-        freeing you to focus on what matters most.
-      </>
-    ),
+    description: translate({
+      id: "homepage.features.autonomous.description",
+      message:
+        "goose independently handles complex tasks, from debugging to deployment, freeing you to focus on what matters most.",
+    }),
   },
 ];
 
@@ -176,7 +172,9 @@ export default function HomepageFeatures(): ReactNode {
 
           {/* Testimonials Section */}
           <div style={{ display: "flex", flexDirection: "column", marginTop: "60px" }}>
-            <h3 style={{ textAlign: "center", marginBottom: "40px" }}>Loved by engineers</h3>
+            <h3 style={{ textAlign: "center", marginBottom: "40px" }}>
+              {translate({ id: "homepage.features.lovedByEngineers", message: "Loved by engineers" })}
+            </h3>
             <div style={{ display: "flex", flexWrap: "wrap" }}>
               {FeatureQuotes.map((props, idx) => (
                 <Quote key={idx} {...props} />

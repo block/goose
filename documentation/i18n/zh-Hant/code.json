@@ -1,0 +1,71 @@
+{
+  "homepage.installButton": {
+    "message": "安裝 goose"
+  },
+  "homepage.videoTitle": {
+    "message": "和 goose 一起 vibe coding"
+  },
+  "homepage.layoutDescription": {
+    "message": "你的開源 AI agent，自動化工程任務"
+  },
+  "homepage.features.openSource.title": {
+    "message": "開源"
+  },
+  "homepage.features.openSource.description": {
+    "message": "goose 以透明與協作為核心打造，讓開發者能自由貢獻、客製與創新。"
+  },
+  "homepage.features.runsLocally.title": {
+    "message": "本機執行"
+  },
+  "homepage.features.runsLocally.description": {
+    "message": "goose 在本機高效執行任務，控制權始終在你手中。"
+  },
+  "homepage.features.extensible.title": {
+    "message": "可擴展"
+  },
+  "homepage.features.extensible.description": {
+    "message": "你可搭配偏好的 LLM，並透過任意 MCP Server 或 API 擴展 goose 能力。"
+  },
+  "homepage.features.autonomous.title": {
+    "message": "自主執行"
+  },
+  "homepage.features.autonomous.description": {
+    "message": "goose 可獨立處理從除錯到部署的複雜任務，讓你專注在最重要的事。"
+  },
+  "homepage.features.lovedByEngineers": {
+    "message": "工程師喜愛"
+  },
+  "extensions.error.loadServers": {
+    "message": "載入伺服器失敗：{errorMessage}"
+  },
+  "extensions.title": {
+    "message": "瀏覽擴展"
+  },
+  "extensions.subtitle": {
+    "message": "探索與安裝擴展的集中目錄。"
+  },
+  "extensions.search.placeholder": {
+    "message": "搜尋擴展"
+  },
+  "extensions.search.resultsSingular": {
+    "message": "{count} 筆結果，符合「{searchQuery}」"
+  },
+  "extensions.search.resultsPlural": {
+    "message": "{count} 筆結果，符合「{searchQuery}」"
+  },
+  "extensions.loading": {
+    "message": "正在載入伺服器..."
+  },
+  "extensions.empty.search": {
+    "message": "找不到符合搜尋條件的伺服器。"
+  },
+  "extensions.empty.default": {
+    "message": "目前沒有可用伺服器。"
+  },
+  "extensions.builtin": {
+    "message": "內建擴展"
+  },
+  "extensions.community": {
+    "message": "社群擴展"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "homepage.installButton": {
+    "message": "安装 goose"
+  },
+  "homepage.videoTitle": {
+    "message": "和 goose 一起 vibe coding"
+  },
+  "homepage.layoutDescription": {
+    "message": "你的开源 AI agent，自动化工程任务"
+  },
+  "homepage.features.openSource.title": {
+    "message": "开源"
+  },
+  "homepage.features.openSource.description": {
+    "message": "goose 以透明协作为核心构建，支持开发者自由贡献、定制与创新。"
+  },
+  "homepage.features.runsLocally.title": {
+    "message": "本地运行"
+  },
+  "homepage.features.runsLocally.description": {
+    "message": "goose 在本机高效执行任务，控制权始终在你手中。"
+  },
+  "homepage.features.extensible.title": {
+    "message": "可扩展"
+  },
+  "homepage.features.extensible.description": {
+    "message": "你可以搭配偏好的 LLM，并通过任意 MCP Server 或 API 扩展 goose 能力。"
+  },
+  "homepage.features.autonomous.title": {
+    "message": "自主执行"
+  },
+  "homepage.features.autonomous.description": {
+    "message": "goose 可独立处理从调试到部署的复杂任务，让你专注真正重要的事情。"
+  },
+  "homepage.features.lovedByEngineers": {
+    "message": "工程师喜爱"
+  },
+  "extensions.error.loadServers": {
+    "message": "加载服务器失败：{errorMessage}"
+  },
+  "extensions.title": {
+    "message": "浏览扩展"
+  },
+  "extensions.subtitle": {
+    "message": "发现与安装扩展的集中目录。"
+  },
+  "extensions.search.placeholder": {
+    "message": "搜索扩展"
+  },
+  "extensions.search.resultsSingular": {
+    "message": "{count} 条结果，匹配“{searchQuery}”"
+  },
+  "extensions.search.resultsPlural": {
+    "message": "{count} 条结果，匹配“{searchQuery}”"
+  },
+  "extensions.loading": {
+    "message": "正在加载服务器..."
+  },
+  "extensions.empty.search": {
+    "message": "没有找到匹配的服务器。"
+  },
+  "extensions.empty.default": {
+    "message": "暂无可用服务器。"
+  },
+  "extensions.builtin": {
+    "message": "内置扩展"
+  },
+  "extensions.community": {
+    "message": "社区扩展"
+  }
+}

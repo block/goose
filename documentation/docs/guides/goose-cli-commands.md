@@ -503,7 +503,7 @@ goose recipe help
 ---
 
 #### schedule
-Automate recipes by running them on a [schedule](/docs/guides/recipes/session-recipes.md#schedule-recipe).
+Automate recipes by running them on a [schedule](/docs/guides/recipes/session-recipes#schedule-recipe).
 
 **Commands:**
 - `add <OPTIONS>`: Create a new scheduled job. Copies the current version of the recipe to `~/.local/share/goose/scheduled_recipes`
@@ -647,7 +647,7 @@ While the web interface provides most core features, be aware of these limitatio
 ### Terminal Integration
 
 #### @goose / @g
-Ask goose questions directly from your shell prompt, with command history included in the context. These aliases are created when you set up [terminal integration](/docs/guides/terminal-integration.md).
+Ask goose questions directly from your shell prompt, with command history included in the context. These aliases are created when you set up [terminal integration](/docs/guides/terminal-integration).
 
 **Examples:**
 ```bash

@@ -10,7 +10,7 @@ When working with the goose CLI, you can pass files and instructions to the `goo
 
 The `goose run` command starts a new session, begins executing using any arguments provided and exits the session automatically once the task is complete. 
 
-There are multiple ways to run tasks with goose; check out the [list of options](/docs/guides/goose-cli-commands.md#run-options).
+There are multiple ways to run tasks with goose; check out the [list of options](/docs/guides/goose-cli-commands#run-options).
 
 ### Text in the command
 ```bash
@@ -98,7 +98,7 @@ You can also run commands without creating or storing a session file by using th
 goose run --no-session -t "your command here"
 ```
 ### Set Provider and Model
-You can run goose sessions with a specific provider and model, which overrides the provider and model settings in your [environment variables](/docs/guides/environment-variables.md).
+You can run goose sessions with a specific provider and model, which overrides the provider and model settings in your [environment variables](/docs/guides/environment-variables).
 
 ```bash
 goose run --provider anthropic --model claude-4-sonnet -t "initial prompt"

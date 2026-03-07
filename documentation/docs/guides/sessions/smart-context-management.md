@@ -28,7 +28,7 @@ This layered approach lets goose handle token and context limits gracefully.
 goose automatically compacts (summarizes) older parts of your conversation when approaching token limits, allowing you to maintain long-running sessions without manual intervention. 
 Auto-compaction is triggered by default when you reach 80% of the token limit in goose Desktop and the goose CLI.
 
-Control the auto-compaction behavior with the `GOOSE_AUTO_COMPACT_THRESHOLD` [environment variable](/docs/guides/environment-variables.md#session-management). 
+Control the auto-compaction behavior with the `GOOSE_AUTO_COMPACT_THRESHOLD` [environment variable](/docs/guides/environment-variables#session-management).
 Disable this feature by setting the value to `0.0`.
 
 ```
@@ -383,7 +383,7 @@ Pricing data is regularly fetched from the OpenRouter API and cached locally. Th
 These costs are estimates only, and not connected to your actual provider bill. The cost shown is an approximation based on token counts and public pricing data.
 </TabItem>
     <TabItem value="cli" label="goose CLI">
-    Show estimated cost in the goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables.md#session-management) or including it in the [configuration file](/docs/guides/config-files.md).
+    Show estimated cost in the goose CLI by setting the `GOOSE_CLI_SHOW_COST` [environment variable](/docs/guides/environment-variables#session-management) or including it in the [configuration file](/docs/guides/config-files).
 
   ```
   # Set environment variable

@@ -253,7 +253,7 @@ Speak to goose directly instead of typing your prompts.
         
         The first time you use voice dictation, goose will request access to your microphone. While recording, you'll see `Listening` and `Transcribing` status indicators. goose transcribes your speech during natural pauses and adds the text to the chat box. 
 
-        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers.md). For example, using OpenAI as the voice dictation provider requires that you have an OpenAI model configured in goose, even if using another LLM provider for chat.
+        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers). For example, using OpenAI as the voice dictation provider requires that you have an OpenAI model configured in goose, even if using another LLM provider for chat.
 
        #### Important Notes
         * You can record up to 50MB of audio
