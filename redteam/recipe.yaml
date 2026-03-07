@@ -13,7 +13,7 @@ instructions: |
   - capture_traffic: Capture packets using tshark.
   - simple_port_scan: A lightweight port scanner.
   - metasploit_command: Execute msfconsole commands.
-  - check_burp: Verify Burp Suite installation.
+  - check_burpsuite: Verify Burp Suite installation.
 
   You also have access to the standard 'developer' tools (shell, file operations).
 
