@@ -97,16 +97,16 @@ export function getTextAndImageContent(message: Message): {
   return { textContent, imagePaths };
 }
 
-export function getReasoningContent(message: Message): string | null {
-  const reasoningContents = message.content
-    .filter((content) => content.type === 'reasoning')
+export function getThinkingContent(message: Message): string | null {
+  const thinkingContents = message.content
+    .filter((content) => content.type === 'thinking')
     .map((content) => {
-      if ('text' in content) return content.text;
+      if ('thinking' in content) return content.thinking;
       return '';
     })
     .filter((text) => text.length > 0);
 
-  return reasoningContents.length > 0 ? reasoningContents.join('') : null;
+  return thinkingContents.length > 0 ? thinkingContents.join('') : null;
 }
 
 export function getToolRequests(message: Message): (ToolRequest & { type: 'toolRequest' })[] {

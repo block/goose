@@ -1428,7 +1428,7 @@ impl Agent {
 
                                 // Collect reasoning content to attach to tool request messages
                                 let reasoning_content: Vec<MessageContent> = response.content.iter()
-                                    .filter(|c| matches!(c, MessageContent::Reasoning(_)))
+                                    .filter(|c| matches!(c, MessageContent::Thinking(_)))
                                     .cloned()
                                     .collect();
 
