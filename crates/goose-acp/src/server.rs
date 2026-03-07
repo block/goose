@@ -1,7 +1,10 @@
 use crate::custom_requests::*;
+use crate::fs::AcpTools;
 use anyhow::Result;
 use fs_err as fs;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
+use goose::agents::mcp_client::McpClientTrait;
+use goose::agents::platform_extensions::developer::DeveloperClient;
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::base::CONFIG_YAML_NAME;
@@ -23,10 +26,10 @@ use rmcp::model::{CallToolResult, RawContent, ResourceContents, Role};
 use sacp::schema::{
     AgentCapabilities, AuthMethod, AuthenticateRequest, AuthenticateResponse, BlobResourceContents,
     CancelNotification, Content, ContentBlock, ContentChunk, EmbeddedResource,
-    EmbeddedResourceResource, ImageContent, InitializeRequest, InitializeResponse,
-    ListSessionsResponse, LoadSessionRequest, LoadSessionResponse, McpCapabilities, McpServer,
-    ModelId, ModelInfo, NewSessionRequest, NewSessionResponse, PermissionOption,
-    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
+    EmbeddedResourceResource, FileSystemCapability, ImageContent, InitializeRequest,
+    InitializeResponse, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
+    McpCapabilities, McpServer, ModelId, ModelInfo, NewSessionRequest, NewSessionResponse,
+    PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
     RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
     SessionId, SessionInfo, SessionListCapabilities, SessionModelState, SessionNotification,
     SessionUpdate, SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent,
@@ -54,12 +57,13 @@ struct GooseAcpSession {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     provider_factory: ProviderConstructor,
+    builtins: Vec<String>,
+    client_fs_capabilities: Mutex<FileSystemCapability>,
     config_dir: std::path::PathBuf,
     session_manager: Arc<SessionManager>,
     permission_manager: Arc<PermissionManager>,
     goose_mode: goose::config::GooseMode,
     disable_session_naming: bool,
-    builtins: Vec<String>,
 }
 
 fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConfig, String> {
@@ -95,6 +99,13 @@ fn mcp_server_to_extension_config(mcp_server: McpServer) -> Result<ExtensionConf
     }
 }
 
+fn get_requested_line(arguments: Option<&rmcp::model::JsonObject>) -> Option<u32> {
+    arguments
+        .and_then(|args| args.get("line"))
+        .and_then(|v| v.as_u64())
+        .map(|l| l as u32)
+}
+
 fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
     let mut loc = ToolCallLocation::new(path);
     if let Some(l) = line {
@@ -104,7 +115,7 @@ fn create_tool_location(path: &str, line: Option<u32>) -> ToolCallLocation {
 }
 
 fn is_developer_file_tool(tool_name: &str) -> bool {
-    matches!(tool_name, "write" | "edit")
+    matches!(tool_name, "read" | "write" | "edit")
 }
 
 fn extract_tool_locations(
@@ -126,6 +137,12 @@ fn extract_tool_locations(
             .and_then(|p| p.as_str());
 
         if let Some(path_str) = path_str {
+            if matches!(tool_name, "read") {
+                let line = get_requested_line(tool_call.arguments.as_ref());
+                locations.push(create_tool_location(path_str, line));
+                return locations;
+            }
+
             if matches!(tool_name, "write" | "edit") {
                 locations.push(create_tool_location(path_str, Some(1)));
                 return locations;
@@ -242,47 +259,23 @@ fn format_tool_name(tool_name: &str) -> String {
     }
 }
 
-async fn add_builtins(agent: &Agent, builtins: Vec<String>) {
-    for builtin in builtins {
-        let config = if PLATFORM_EXTENSIONS.contains_key(builtin.as_str()) {
-            ExtensionConfig::Platform {
-                name: builtin.clone(),
-                description: builtin.clone(),
-                display_name: None,
-                bundled: None,
-                available_tools: Vec::new(),
-            }
-        } else {
-            ExtensionConfig::Builtin {
-                name: builtin.clone(),
-                display_name: None,
-                timeout: None,
-                bundled: None,
-                description: builtin.clone(),
-                available_tools: Vec::new(),
-            }
-        };
-
-        match agent
-            .extension_manager
-            .add_extension(config, None, None, None)
-            .await
-        {
-            Ok(_) => info!(extension = %builtin, "extension loaded"),
-            Err(e) => warn!(extension = %builtin, error = %e, "extension load failed"),
+fn builtin_to_extension_config(name: &str) -> ExtensionConfig {
+    if let Some(def) = PLATFORM_EXTENSIONS.get(name) {
+        ExtensionConfig::Platform {
+            name: def.name.into(),
+            description: def.description.into(),
+            display_name: Some(def.display_name.into()),
+            bundled: Some(true),
+            available_tools: vec![],
         }
-    }
-}
-async fn add_extensions(agent: &Agent, extensions: Vec<ExtensionConfig>) {
-    for extension in extensions {
-        let name = extension.name().to_string();
-        match agent
-            .extension_manager
-            .add_extension(extension, None, None, None)
-            .await
-        {
-            Ok(_) => info!(extension = %name, "extension loaded"),
-            Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+    } else {
+        ExtensionConfig::Builtin {
+            name: name.into(),
+            display_name: None,
+            timeout: None,
+            bundled: Some(true),
+            description: name.into(),
+            available_tools: vec![],
         }
     }
 }
@@ -323,16 +316,21 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             provider_factory,
+            builtins,
+            client_fs_capabilities: Mutex::new(FileSystemCapability::new()),
             config_dir,
             session_manager,
             permission_manager,
             goose_mode,
             disable_session_naming,
-            builtins,
         })
     }
 
-    async fn create_agent_for_session(&self) -> Arc<Agent> {
+    async fn create_agent_for_session(
+        &self,
+        cx: Option<&JrConnectionCx<AgentToClient>>,
+        session_id: Option<&SessionId>,
+    ) -> Result<Arc<Agent>> {
         let agent = Agent::with_config(AgentConfig::new(
             Arc::clone(&self.session_manager),
             Arc::clone(&self.permission_manager),
@@ -344,13 +342,72 @@ impl GooseAcpAgent {
         let agent = Arc::new(agent);
 
         let config_path = self.config_dir.join(CONFIG_YAML_NAME);
-        if let Ok(config_file) = Config::new(&config_path, "goose") {
-            let extensions = get_enabled_extensions_with_config(&config_file);
-            add_extensions(&agent, extensions).await;
-        }
-        add_builtins(&agent, self.builtins.clone()).await;
+        let mut extensions = Config::new(&config_path, "goose")
+            .ok()
+            .map(|c| get_enabled_extensions_with_config(&c))
+            .unwrap_or_default();
+        extensions.extend(self.builtins.iter().map(|b| builtin_to_extension_config(b)));
 
-        agent
+        let caps = self.client_fs_capabilities.lock().await.clone();
+        let acp_developer = match (cx, session_id) {
+            (Some(cx), Some(sid))
+                if (caps.read_text_file || caps.write_text_file)
+                    && extensions.iter().any(|e| e.name() == "developer") =>
+            {
+                let context = agent.extension_manager.get_context().clone();
+                let client: Arc<dyn McpClientTrait> = Arc::new(AcpTools {
+                    inner: Arc::new(DeveloperClient::new(context)?),
+                    cx: cx.clone(),
+                    session_id: sid.clone(),
+                    fs_read: caps.read_text_file,
+                    fs_write: caps.write_text_file,
+                });
+                let dev_ext = extensions.iter().find(|e| e.name() == "developer");
+                let available_tools = dev_ext
+                    .and_then(|e| match e {
+                        ExtensionConfig::Platform {
+                            available_tools, ..
+                        } => Some(available_tools.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
+                let def = &PLATFORM_EXTENSIONS["developer"];
+                let config = ExtensionConfig::Platform {
+                    name: def.name.into(),
+                    description: def.description.into(),
+                    display_name: Some(def.display_name.into()),
+                    bundled: Some(true),
+                    available_tools,
+                };
+                Some((client, config))
+            }
+            _ => None,
+        };
+        let skip_developer = acp_developer.is_some();
+
+        for ext in extensions {
+            if skip_developer && ext.name() == "developer" {
+                continue;
+            }
+            let name = ext.name().to_string();
+            match agent
+                .extension_manager
+                .add_extension(ext, None, None, None)
+                .await
+            {
+                Ok(_) => info!(extension = %name, "extension loaded"),
+                Err(e) => warn!(extension = %name, error = %e, "extension load failed"),
+            }
+        }
+
+        if let Some((client, config)) = acp_developer {
+            agent
+                .extension_manager
+                .add_client("developer".into(), config, client, None, None)
+                .await;
+        }
+
+        Ok(agent)
     }
 
     pub async fn has_session(&self, session_id: &str) -> bool {
@@ -663,6 +720,8 @@ impl GooseAcpAgent {
     ) -> Result<InitializeResponse, sacp::Error> {
         debug!(?args, "initialize request");
 
+        *self.client_fs_capabilities.lock().await = args.client_capabilities.fs.clone();
+
         let capabilities = AgentCapabilities::new()
             .load_session(true)
             .session_capabilities(SessionCapabilities::new().list(SessionListCapabilities::new()))
@@ -686,6 +745,7 @@ impl GooseAcpAgent {
 
     async fn on_new_session(
         &self,
+        cx: &JrConnectionCx<AgentToClient>,
         args: NewSessionRequest,
     ) -> Result<NewSessionResponse, sacp::Error> {
         debug!(?args, "new session request");
@@ -702,7 +762,15 @@ impl GooseAcpAgent {
                 sacp::Error::internal_error().data(format!("Failed to create session: {}", e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let session_id = SessionId::new(goose_session.id.clone());
+
+        let agent = self
+            .create_agent_for_session(Some(cx), Some(&session_id))
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
+            })?;
+
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -764,8 +832,8 @@ impl GooseAcpAgent {
 
     async fn on_load_session(
         &self,
-        args: LoadSessionRequest,
         cx: &JrConnectionCx<AgentToClient>,
+        args: LoadSessionRequest,
     ) -> Result<LoadSessionResponse, sacp::Error> {
         debug!(?args, "load session request");
 
@@ -780,7 +848,15 @@ impl GooseAcpAgent {
                     .data(format!("Failed to load session {}: {}", session_id, e))
             })?;
 
-        let agent = self.create_agent_for_session().await;
+        let acp_session_id = SessionId::new(session_id.clone());
+
+        let agent = self
+            .create_agent_for_session(Some(cx), Some(&acp_session_id))
+            .await
+            .map_err(|e| {
+                sacp::Error::internal_error().data(format!("Failed to create agent: {}", e))
+            })?;
+
         let provider = self
             .init_provider(&agent, &goose_session)
             .await
@@ -873,8 +949,8 @@ impl GooseAcpAgent {
 
     async fn on_prompt(
         &self,
-        args: PromptRequest,
         cx: &JrConnectionCx<AgentToClient>,
+        args: PromptRequest,
     ) -> Result<PromptResponse, sacp::Error> {
         let session_id = args.session_id.0.to_string();
         let cancel_token = CancellationToken::new();
@@ -1235,13 +1311,13 @@ impl JrMessageHandler for GooseAcpHandler {
                 .await
                 .if_request(
                     |req: NewSessionRequest, req_cx: JrRequestCx<NewSessionResponse>| async {
-                        req_cx.respond(agent.on_new_session(req).await?)
+                        req_cx.respond(agent.on_new_session(&cx, req).await?)
                     },
                 )
                 .await
                 .if_request(
                     |req: LoadSessionRequest, req_cx: JrRequestCx<LoadSessionResponse>| async {
-                        req_cx.respond(agent.on_load_session(req, &cx).await?)
+                        req_cx.respond(agent.on_load_session(&cx, req).await?)
                     },
                 )
                 .await
@@ -1250,7 +1326,7 @@ impl JrMessageHandler for GooseAcpHandler {
                         let agent = agent.clone();
                         let cx_clone = cx.clone();
                         cx.spawn(async move {
-                            match agent.on_prompt(req, &cx_clone).await {
+                            match agent.on_prompt(&cx_clone, req).await {
                                 Ok(response) => {
                                     req_cx.respond(response)?;
                                 }
@@ -1356,11 +1432,15 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose::conversation::message::{ToolRequest, ToolResponse};
+    use goose::providers::errors::ProviderError;
+    use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
     use sacp::schema::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use test_case::test_case;
 
@@ -1506,8 +1586,6 @@ print(\"hello, world\")
         assert_eq!(outcome_to_confirmation(&input), expected);
     }
 
-    use goose::providers::errors::ProviderError;
-
     struct MockModelProvider {
         models: Result<Vec<String>, ProviderError>,
     }
@@ -1573,5 +1651,106 @@ print(\"hello, world\")
     ) -> SessionModelState {
         let provider = MockModelProvider { models };
         build_model_state(&provider, current_model).await
+    }
+
+    fn json_object(pairs: Vec<(&str, serde_json::Value)>) -> rmcp::model::JsonObject {
+        pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect()
+    }
+
+    #[test_case(None => None ; "none arguments")]
+    #[test_case(Some(json_object(vec![])) => None ; "missing line key")]
+    #[test_case(Some(json_object(vec![("line", serde_json::json!(5))])) => Some(5) ; "line present")]
+    #[test_case(Some(json_object(vec![("line", serde_json::json!("not_a_number"))])) => None ; "line not a number")]
+    fn test_get_requested_line(arguments: Option<rmcp::model::JsonObject>) -> Option<u32> {
+        get_requested_line(arguments.as_ref())
+    }
+
+    #[test_case("read", true ; "read is developer file tool")]
+    #[test_case("write", true ; "write is developer file tool")]
+    #[test_case("edit", true ; "edit is developer file tool")]
+    #[test_case("shell", false ; "shell is not developer file tool")]
+    #[test_case("analyze", false ; "analyze is not developer file tool")]
+    fn test_is_developer_file_tool(tool_name: &str, expected: bool) {
+        assert_eq!(is_developer_file_tool(tool_name), expected);
+    }
+
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "line": 5}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(5))]
+        ; "read returns requested line"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("read").with_arguments(serde_json::json!({"path": "/tmp/f.txt"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), None)]
+        ; "read without line"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("write").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "content": "hi"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+        ; "write returns line 1"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("edit").with_arguments(serde_json::json!({"path": "/tmp/f.txt", "before": "a", "after": "b"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => vec![(PathBuf::from("/tmp/f.txt"), Some(1))]
+        ; "edit returns line 1"
+    )]
+    #[test_case(
+        ToolRequest {
+            id: "req_1".to_string(),
+            tool_call: Ok(CallToolRequestParams::new("shell").with_arguments(serde_json::json!({"command": "ls"}).as_object().unwrap().clone())),
+            metadata: None, tool_meta: None,
+        },
+        ToolResponse {
+            id: "req_1".to_string(),
+            tool_result: Ok(CallToolResult::success(vec![RmcpContent::text("")])),
+            metadata: None,
+        }
+        => Vec::<(PathBuf, Option<u32>)>::new()
+        ; "non file tool returns empty"
+    )]
+    fn test_extract_tool_locations(
+        request: ToolRequest,
+        response: ToolResponse,
+    ) -> Vec<(PathBuf, Option<u32>)> {
+        extract_tool_locations(&request, &response)
+            .into_iter()
+            .map(|loc| (loc.path, loc.line))
+            .collect()
     }
 }

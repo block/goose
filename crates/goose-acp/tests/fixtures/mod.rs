@@ -13,12 +13,13 @@ use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
 use sacp::schema::{
-    McpServer, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
-    RequestPermissionResponse, SelectedPermissionOutcome, SessionModelState, ToolCallStatus,
+    McpServer, PermissionOptionKind, ReadTextFileRequest, ReadTextFileResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    SelectedPermissionOutcome, SessionModelState, ToolCallStatus, WriteTextFileRequest,
+    WriteTextFileResponse,
 };
 use std::collections::VecDeque;
 use std::future::Future;
-use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
@@ -191,10 +192,10 @@ pub async fn serve_agent_in_process(
 #[allow(dead_code)]
 pub async fn spawn_acp_server_in_process(
     openai_base_url: &str,
-    builtins: &[String],
-    data_root: &Path,
-    goose_mode: GooseMode,
     provider_factory: Option<ProviderConstructor>,
+    builtins: &[String],
+    data_root: &std::path::Path,
+    goose_mode: GooseMode,
 ) -> (DuplexTransport, JoinHandle<()>, Arc<PermissionManager>) {
     fs::create_dir_all(data_root).unwrap();
     let config_path = data_root.join(goose::config::base::CONFIG_YAML_NAME);
@@ -243,22 +244,92 @@ pub struct TestOutput {
     pub tool_status: Option<ToolCallStatus>,
 }
 
+type ReadTextFileHandler =
+    Arc<dyn Fn(&ReadTextFileRequest) -> Result<ReadTextFileResponse, String> + Send + Sync>;
+type WriteTextFileHandler =
+    Arc<dyn Fn(&WriteTextFileRequest) -> Result<WriteTextFileResponse, String> + Send + Sync>;
+
+#[derive(Clone)]
+pub struct FsFixture {
+    calls: Arc<Mutex<Vec<Result<(), String>>>>,
+}
+
+impl FsFixture {
+    pub fn new() -> Self {
+        Self {
+            calls: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn read_handler(&self, expected_path: &str, content: &str) -> ReadTextFileHandler {
+        let calls = self.calls.clone();
+        let expected_path = expected_path.to_string();
+        let content = content.to_string();
+        Arc::new(move |req: &ReadTextFileRequest| {
+            let path = req.path.to_str().unwrap_or("");
+            if path != expected_path {
+                let err = format!("expected path {expected_path}, got {path}");
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            calls.lock().unwrap().push(Ok(()));
+            Ok(ReadTextFileResponse::new(&content))
+        })
+    }
+
+    pub fn write_handler(
+        &self,
+        expected_path: &str,
+        expected_content: &str,
+    ) -> WriteTextFileHandler {
+        let calls = self.calls.clone();
+        let expected_path = expected_path.to_string();
+        let expected_content = expected_content.to_string();
+        Arc::new(move |req: &WriteTextFileRequest| {
+            let path = req.path.to_str().unwrap_or("");
+            if path != expected_path {
+                let err = format!("expected path {expected_path}, got {path}");
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            if req.content != expected_content {
+                let err = format!("expected content {expected_content}, got {}", req.content);
+                calls.lock().unwrap().push(Err(err.clone()));
+                return Err(err);
+            }
+            calls.lock().unwrap().push(Ok(()));
+            Ok(WriteTextFileResponse::new())
+        })
+    }
+
+    pub fn assert_called(&self) {
+        let calls = self.calls.lock().unwrap();
+        assert!(!calls.is_empty(), "fs handler was never called");
+        let errors: Vec<_> = calls.iter().filter_map(|c| c.as_ref().err()).collect();
+        assert!(errors.is_empty(), "fs handler errors: {errors:?}");
+    }
+}
+
 pub struct TestConnectionConfig {
-    pub mcp_servers: Vec<McpServer>,
-    pub builtins: Vec<String>,
-    pub goose_mode: GooseMode,
-    pub data_root: PathBuf,
     pub provider_factory: Option<ProviderConstructor>,
+    pub builtins: Vec<String>,
+    pub data_root: PathBuf,
+    pub goose_mode: GooseMode,
+    pub mcp_servers: Vec<McpServer>,
+    pub read_text_file: Option<ReadTextFileHandler>,
+    pub write_text_file: Option<WriteTextFileHandler>,
 }
 
 impl Default for TestConnectionConfig {
     fn default() -> Self {
         Self {
-            mcp_servers: Vec::new(),
-            builtins: Vec::new(),
-            goose_mode: GooseMode::Auto,
-            data_root: PathBuf::new(),
             provider_factory: None,
+            builtins: Vec::new(),
+            data_root: PathBuf::new(),
+            goose_mode: GooseMode::Auto,
+            mcp_servers: Vec::new(),
+            read_text_file: None,
+            write_text_file: None,
         }
     }
 }
