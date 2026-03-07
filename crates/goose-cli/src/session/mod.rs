@@ -39,6 +39,7 @@ use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
+use strum::VariantNames;
 
 use goose::config::paths::Paths;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
@@ -717,14 +718,14 @@ impl CliSession {
             Ok(mode) => mode,
             Err(_) => {
                 output::render_error(&format!(
-                    "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
-                    mode
+                    "Invalid mode '{mode}'. Mode must be one of: {}",
+                    GooseMode::VARIANTS.join(", ")
                 ));
                 return Ok(());
             }
         };
         config.set_goose_mode(mode)?;
-        output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
+        output::goose_mode_message(&format!("Goose mode set to '{mode}'"));
         Ok(())
     }
 
