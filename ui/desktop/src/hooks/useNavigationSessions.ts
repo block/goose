@@ -138,6 +138,43 @@ export function useNavigationSessions(options: UseNavigationSessionsOptions = {}
     };
   }, []);
 
+  useEffect(() => {
+    const handleSessionDeleted = (event: Event) => {
+      const { sessionId } = (event as CustomEvent<{ sessionId?: string }>).detail || {};
+      if (!sessionId) return;
+
+      setRecentSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      sessionsRef.current = sessionsRef.current.filter((session) => session.id !== sessionId);
+
+      if (lastSessionIdRef.current === sessionId) {
+        lastSessionIdRef.current = null;
+      }
+
+      void fetchSessions();
+    };
+
+    const handleSessionRenamed = (event: Event) => {
+      const { sessionId, newName } =
+        (event as CustomEvent<{ sessionId?: string; newName?: string }>).detail || {};
+      if (!sessionId || !newName) return;
+
+      setRecentSessions((prev) =>
+        prev.map((session) => (session.id === sessionId ? { ...session, name: newName } : session))
+      );
+      sessionsRef.current = sessionsRef.current.map((session) =>
+        session.id === sessionId ? { ...session, name: newName } : session
+      );
+    };
+
+    window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+    window.addEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
+
+    return () => {
+      window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
+      window.removeEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
+    };
+  }, [fetchSessions]);
+
   const handleNavClick = useCallback(
     (path: string) => {
       if (path === '/pair') {
