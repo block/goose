@@ -32,12 +32,15 @@ use super::inference_engine::{
     create_and_prefill_context, generation_loop, validate_and_compute_context, GenerationContext,
     TokenAction,
 };
-use super::{finalize_usage, StreamSender, CODE_EXECUTION_TOOL, SHELL_TOOL};
+use super::{finalize_usage, StreamSender};
+
+pub const SHELL_TOOL: &str = "developer__shell";
+pub const CODE_EXECUTION_TOOL: &str = "code_execution__execute";
 
 const HOLD_BACK_CODE_MODE: usize = " ```execute\n".len();
 const HOLD_BACK_SHELL_ONLY: usize = "\n$".len();
 
-pub(super) fn load_tiny_model_prompt() -> String {
+pub fn load_tiny_model_prompt() -> String {
     use std::env;
 
     let os = if cfg!(target_os = "macos") {
@@ -69,7 +72,7 @@ pub(super) fn load_tiny_model_prompt() -> String {
     })
 }
 
-pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled: bool) -> String {
+pub fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled: bool) -> String {
     let mut tool_desc = String::new();
 
     if code_mode_enabled {
@@ -137,7 +140,7 @@ pub(super) fn build_emulator_tool_description(tools: &[Tool], code_mode_enabled:
     tool_desc
 }
 
-enum EmulatorAction {
+pub enum EmulatorAction {
     Text(String),
     ShellCommand(String),
     ExecuteCode(String),
@@ -149,14 +152,14 @@ enum ParserState {
     InExecuteBlock,
 }
 
-struct StreamingEmulatorParser {
+pub struct StreamingEmulatorParser {
     buffer: String,
     state: ParserState,
     code_mode_enabled: bool,
 }
 
 impl StreamingEmulatorParser {
-    fn new(code_mode_enabled: bool) -> Self {
+    pub fn new(code_mode_enabled: bool) -> Self {
         Self {
             buffer: String::new(),
             state: ParserState::Normal,
@@ -164,7 +167,7 @@ impl StreamingEmulatorParser {
         }
     }
 
-    fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
+    pub fn process_chunk(&mut self, chunk: &str) -> Vec<EmulatorAction> {
         self.buffer.push_str(chunk);
         let mut results = Vec::new();
 
@@ -262,7 +265,7 @@ impl StreamingEmulatorParser {
         results
     }
 
-    fn flush(&mut self) -> Vec<EmulatorAction> {
+    pub fn flush(&mut self) -> Vec<EmulatorAction> {
         let mut results = Vec::new();
 
         if !self.buffer.is_empty() {
@@ -296,18 +299,17 @@ impl StreamingEmulatorParser {
     }
 }
 
-fn send_emulator_action(
-    action: &EmulatorAction,
-    message_id: &str,
-    tx: &StreamSender,
-) -> Result<bool, ()> {
+/// Convert an emulator action into a `(Message, is_tool_call)` pair.
+///
+/// Used by both the in-process local inference path (which feeds the message
+/// into a channel) and the HTTP-based mesh provider (which yields it from an
+/// async stream).
+pub fn action_to_message(action: &EmulatorAction, message_id: &str) -> (Message, bool) {
     match action {
         EmulatorAction::Text(text) => {
             let mut message = Message::assistant().with_text(text);
             message.id = Some(message_id.to_string());
-            tx.blocking_send(Ok((Some(message), None)))
-                .map_err(|_| ())?;
-            Ok(false)
+            (message, false)
         }
         EmulatorAction::ShellCommand(command) => {
             let tool_id = Uuid::new_v4().to_string();
@@ -320,9 +322,7 @@ fn send_emulator_action(
                 .content
                 .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
             message.id = Some(message_id.to_string());
-            tx.blocking_send(Ok((Some(message), None)))
-                .map_err(|_| ())?;
-            Ok(true)
+            (message, true)
         }
         EmulatorAction::ExecuteCode(code) => {
             let tool_id = Uuid::new_v4().to_string();
@@ -340,11 +340,20 @@ fn send_emulator_action(
                 .content
                 .push(MessageContent::tool_request(tool_id, Ok(tool_call)));
             message.id = Some(message_id.to_string());
-            tx.blocking_send(Ok((Some(message), None)))
-                .map_err(|_| ())?;
-            Ok(true)
+            (message, true)
         }
     }
+}
+
+fn send_emulator_action(
+    action: &EmulatorAction,
+    message_id: &str,
+    tx: &StreamSender,
+) -> Result<bool, ()> {
+    let (message, is_tool) = action_to_message(action, message_id);
+    tx.blocking_send(Ok((Some(message), None)))
+        .map_err(|_| ())?;
+    Ok(is_tool)
 }
 
 pub(super) fn generate_with_emulated_tools(

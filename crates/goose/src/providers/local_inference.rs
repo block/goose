@@ -1,5 +1,5 @@
 pub mod hf_models;
-mod inference_emulated_tools;
+pub mod inference_emulated_tools;
 mod inference_engine;
 mod inference_native_tools;
 pub mod local_model_registry;
@@ -38,8 +38,7 @@ use std::sync::{Arc, Mutex as StdMutex, Weak};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-const SHELL_TOOL: &str = "developer__shell";
-const CODE_EXECUTION_TOOL: &str = "code_execution__execute";
+use inference_emulated_tools::CODE_EXECUTION_TOOL;
 
 type ModelSlot = Arc<Mutex<Option<LoadedModel>>>;
 
