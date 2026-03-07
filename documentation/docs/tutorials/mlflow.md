@@ -74,4 +74,4 @@ Open the MLflow UI at `http://localhost:5000` and navigate to the **Traces** tab
 
 - [MLflow Tracing documentation](https://mlflow.org/docs/latest/genai/tracing/)
 - [MLflow OpenTelemetry integration](https://mlflow.org/docs/latest/genai/tracing/app-instrumentation/opentelemetry.html)
-- [MLflow Goose integration guide](https://mlflow.org/docs/latest/genai/tracing/integrations/listing/goose.html)
+- [MLflow goose integration guide](https://mlflow.org/docs/latest/genai/tracing/integrations/listing/goose.html)
