@@ -1,0 +1,155 @@
+<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/LNmPi6YCocI" /> 
+
+This tutorial covers how to add the [Context7 MCP Server](https://github.com/upstash/context7) as a goose extension to pull up-to-date, version-specific code and docs so goose can vibe code with real context, not hallucinated or outdated answers.
+
+:::tip TLDR
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40upstash%2Fcontext7-mcp&id=context7&name=Context7&description=Context7%20MCP%20server%20for%20up-to-date%20code%20and%20docs)
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+  **Command**
+  ```sh
+  npx -y @upstash/context7-mcp
+  ```
+  </TabItem>
+</Tabs>
+:::
+
+## Configuration
+
+:::info
+Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run this command, as it uses `npx`.
+:::
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+    <GooseDesktopInstaller
+      extensionId="context7"
+      extensionName="Context7"
+      description="Context7 MCP server for up-to-date code and docs"
+      command="npx"
+      args={["-y", "@upstash/context7-mcp"]}
+      cliCommand="npx -y @upstash/context7-mcp"
+      timeout={300}
+    />
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    <CLIExtensionInstructions
+      name="Context7"
+      description="Context7 MCP server for up-to-date code and docs"
+      command="npx -y @upstash/context7-mcp"
+    />
+  </TabItem>
+</Tabs>
+
+## Example Usage
+
+In this example, goose uses Context7 to pull real-time docs, compare tools, and scaffold a modern app using only the latest, official implementation patterns.
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+   1. Open a new session in goose Desktop
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+
+  1. Open a terminal and start a new goose session:
+
+  ```sh
+  goose session
+  ```
+
+  </TabItem>
+</Tabs>
+
+### goose Prompt
+
+I need help building a modern web application. Could you:
+
+1. Use Context7 to analyze and compare:
+
+- Next.js App Router vs Pages Router
+- Prisma vs other ORMs
+- Different authentication approaches
+- State management solutions
+
+2. For each technology chosen:
+
+- Show the latest official implementation patterns
+- Provide type definitions and interfaces
+- Share relevant code snippets from documentation
+- Explain best practices and common pitfalls
+
+3. Help implement:
+
+- Project structure following official guidelines
+- Database schema and type safety
+- Authentication flow with proper security
+- API routes with error handling
+- Performance optimizations
+
+Please reference specific documentation sections and explain why certain approaches are recommended over others.
+
+### goose Output
+
+:::note Desktop
+
+1. Technology Analysis
+Next.js App Router vs Pages Router
+First, let's get the latest Next.js documentation:
+
+-------- Resolve-library-id -------
+
+Let's get detailed documentation about Next.js, focusing on routing:
+
+------ Get-library-docs ---------
+
+Let me analyze the Next.js documentation and break down the key differences between the App Router and Pages Router:
+
+------ code structure comparison -----
+
+Let's get information about Prisma and other ORMs:
+
+------- Resolve-library-id ---------- 
+
+Let's get Prisma's documentation:
+
+------ Get-library-docs ----------
+
+Key Decisions and Best Practices:
+
+1. App Router vs Pages Router:
+
+Chose App Router for:
+Server Components by default (better performance)
+Built-in data fetching with streaming
+Simpler API routes with Route Handlers
+Better TypeScript integration
+
+2. Prisma as ORM:
+
+Benefits:
+Type-safe database queries
+Auto-generated client
+Schema migrations
+Rich query API
+Using Prisma Accelerate for better performance
+
+3. Authentication:
+
+NextAuth.js for:
+Built-in security features
+Multiple authentication providers
+Session management
+JWT handling
+
+4. Performance Optimizations:
+
+Server Components for reduced JavaScript
+Route Handlers for API endpoints
+Prisma Accelerate for database performance
+Type safety across the stack
+
+Would you like me to explain any part in more detail or help you implement specific features?
+
+:::
