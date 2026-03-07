@@ -135,6 +135,7 @@ impl AgentConfig {
 pub struct Agent {
     pub(super) provider: SharedProvider,
     pub config: AgentConfig,
+    pub(super) current_goose_mode: Mutex<GooseMode>,
 
     pub extension_manager: Arc<ExtensionManager>,
     pub(super) final_output_tool: Arc<Mutex<Option<FinalOutputTool>>>,
@@ -229,6 +230,7 @@ impl Agent {
         let permission_manager = Arc::clone(&config.permission_manager);
         Self {
             provider: provider.clone(),
+            current_goose_mode: Mutex::new(config.goose_mode),
             config,
             extension_manager: Arc::new(ExtensionManager::new(
                 provider.clone(),
@@ -273,6 +275,10 @@ impl Agent {
         tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(None)));
 
         tool_inspection_manager
+    }
+
+    pub async fn update_goose_mode(&self, mode: GooseMode) {
+        *self.current_goose_mode.lock().await = mode;
     }
 
     /// Reset the retry attempts counter to 0
@@ -362,7 +368,7 @@ impl Agent {
             tools,
             toolshim_tools,
             system_prompt,
-            goose_mode: self.config.goose_mode,
+            goose_mode: *self.current_goose_mode.lock().await,
             tool_call_cut_off: Config::global()
                 .get_param::<usize>("GOOSE_TOOL_CALL_CUTOFF")
                 .unwrap_or(10),

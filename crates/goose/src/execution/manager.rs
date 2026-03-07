@@ -74,15 +74,18 @@ impl AgentManager {
         *self.default_provider.write().await = Some(provider);
     }
 
-    pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
+    pub async fn get_or_create_agent(
+        &self,
+        session_id: String,
+        mode: GooseMode,
+    ) -> Result<Arc<Agent>> {
         {
             let mut sessions = self.sessions.write().await;
             if let Some(existing) = sessions.get(&session_id) {
+                existing.update_goose_mode(mode).await;
                 return Ok(Arc::clone(existing));
             }
         }
-
-        let mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
         let permission_manager = PermissionManager::instance();
         let config = AgentConfig::new(
             Arc::clone(&self.session_manager),
@@ -123,6 +126,7 @@ impl AgentManager {
 
         let mut sessions = self.sessions.write().await;
         if let Some(existing) = sessions.get(&session_id) {
+            existing.update_goose_mode(mode).await;
             Ok(Arc::clone(existing))
         } else {
             sessions.put(session_id, agent.clone());
@@ -153,6 +157,7 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    use crate::config::GooseMode;
     use crate::execution::SessionExecutionMode;
     use crate::session::SessionManager;
 
@@ -194,15 +199,24 @@ mod tests {
         let session1 = uuid::Uuid::new_v4().to_string();
         let session2 = uuid::Uuid::new_v4().to_string();
 
-        let agent1 = manager.get_or_create_agent(session1.clone()).await.unwrap();
+        let agent1 = manager
+            .get_or_create_agent(session1.clone(), GooseMode::Auto)
+            .await
+            .unwrap();
 
-        let agent2 = manager.get_or_create_agent(session2.clone()).await.unwrap();
+        let agent2 = manager
+            .get_or_create_agent(session2.clone(), GooseMode::Auto)
+            .await
+            .unwrap();
 
         // Different sessions should have different agents
         assert!(!Arc::ptr_eq(&agent1, &agent2));
 
         // Getting the same session should return the same agent
-        let agent1_again = manager.get_or_create_agent(session1).await.unwrap();
+        let agent1_again = manager
+            .get_or_create_agent(session1, GooseMode::Auto)
+            .await
+            .unwrap();
 
         assert!(Arc::ptr_eq(&agent1, &agent1_again));
     }
@@ -215,12 +229,18 @@ mod tests {
         let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
 
         for session in &sessions {
-            manager.get_or_create_agent(session.clone()).await.unwrap();
+            manager
+                .get_or_create_agent(session.clone(), GooseMode::Auto)
+                .await
+                .unwrap();
         }
 
         // Create a new session after cleanup
         let new_session = "new-session".to_string();
-        let _new_agent = manager.get_or_create_agent(new_session).await.unwrap();
+        let _new_agent = manager
+            .get_or_create_agent(new_session, GooseMode::Auto)
+            .await
+            .unwrap();
 
         assert_eq!(manager.session_count().await, 100);
     }
@@ -231,7 +251,10 @@ mod tests {
         let manager = create_test_manager(&temp_dir).await;
         let session = String::from("remove-test");
 
-        manager.get_or_create_agent(session.clone()).await.unwrap();
+        manager
+            .get_or_create_agent(session.clone(), GooseMode::Auto)
+            .await
+            .unwrap();
         assert!(manager.has_session(&session).await);
 
         manager.remove_session(&session).await.unwrap();
@@ -251,7 +274,9 @@ mod tests {
             let mgr = Arc::clone(&manager);
             let sess = session.clone();
             handles.push(tokio::spawn(async move {
-                mgr.get_or_create_agent(sess).await.unwrap()
+                mgr.get_or_create_agent(sess, GooseMode::Auto)
+                    .await
+                    .unwrap()
             }));
         }
 
@@ -282,7 +307,10 @@ mod tests {
             let sess = session_id.clone();
             let mgr_clone = Arc::clone(&manager);
             handles.push(tokio::spawn(async move {
-                mgr_clone.get_or_create_agent(sess).await.unwrap()
+                mgr_clone
+                    .get_or_create_agent(sess, GooseMode::Auto)
+                    .await
+                    .unwrap()
             }));
         }
 
@@ -319,7 +347,10 @@ mod tests {
         manager.set_default_provider(Arc::new(test_provider)).await;
 
         let session = String::from("provider-test");
-        let _agent = manager.get_or_create_agent(session.clone()).await.unwrap();
+        let _agent = manager
+            .get_or_create_agent(session.clone(), GooseMode::Auto)
+            .await
+            .unwrap();
 
         assert!(manager.has_session(&session).await);
     }
@@ -334,22 +365,24 @@ mod tests {
         let sessions: Vec<_> = (0..100).map(|i| format!("session-{}", i)).collect();
 
         for session in &sessions {
-            manager.get_or_create_agent(session.clone()).await.unwrap();
-            // Small delay to ensure different timestamps
+            manager
+                .get_or_create_agent(session.clone(), GooseMode::Auto)
+                .await
+                .unwrap();
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
 
         // Access the first session again to update its last_used
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         manager
-            .get_or_create_agent(sessions[0].clone())
+            .get_or_create_agent(sessions[0].clone(), GooseMode::Auto)
             .await
             .unwrap();
 
         // Now create a 101st session - should evict session2 (least recently used)
         let session101 = String::from("session-101");
         manager
-            .get_or_create_agent(session101.clone())
+            .get_or_create_agent(session101.clone(), GooseMode::Auto)
             .await
             .unwrap();
 
