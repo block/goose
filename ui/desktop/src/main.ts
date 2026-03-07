@@ -567,7 +567,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   const goosedResult = await startGoosed({
     serverSecret,
-    dir: dir || os.homedir(),
+    dir: dir || whiteLabelConfig.defaults.workingDir || os.homedir(),
     env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
     externalGoosed: settings.externalGoosed,
     isPackaged: app.isPackaged,
@@ -604,6 +604,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     height: mainWindowState.height,
     minWidth: whiteLabelConfig.window.minWidth,
     resizable: whiteLabelConfig.window.resizable !== false,
+    alwaysOnTop: whiteLabelConfig.window.alwaysOnTop ?? false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
@@ -692,7 +693,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   // Auto-configure provider/model/extensions from whitelabel config
   try {
-    await initWhiteLabelProvider(goosedClient, whiteLabelConfig);
+    await initWhiteLabelProvider(goosedClient, whiteLabelConfig, workingDir);
   } catch (err) {
     log.warn('[whitelabel] Init failed:', err);
   }

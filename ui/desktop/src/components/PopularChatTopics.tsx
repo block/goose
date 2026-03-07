@@ -1,5 +1,18 @@
 import React from 'react';
-import { FolderTree, MessageSquare, Code } from 'lucide-react';
+import {
+  FolderTree,
+  MessageSquare,
+  Code,
+  BookOpen,
+  Terminal,
+  Zap,
+  Search,
+  FileText,
+  LayoutDashboard,
+  CalendarCheck,
+  type LucideIcon,
+} from 'lucide-react';
+import { useWhiteLabel } from '../whitelabel/WhiteLabelContext';
 
 interface PopularChatTopicsProps {
   append: (text: string) => void;
@@ -12,7 +25,20 @@ interface ChatTopic {
   prompt: string;
 }
 
-const POPULAR_TOPICS: ChatTopic[] = [
+const ICON_MAP: Record<string, LucideIcon> = {
+  'folder-tree': FolderTree,
+  'message-square': MessageSquare,
+  code: Code,
+  'book-open': BookOpen,
+  terminal: Terminal,
+  zap: Zap,
+  search: Search,
+  'file-text': FileText,
+  'layout-dashboard': LayoutDashboard,
+  'calendar-check': CalendarCheck,
+};
+
+const DEFAULT_TOPICS: ChatTopic[] = [
   {
     id: 'organize-photos',
     icon: <FolderTree className="w-5 h-5" />,
@@ -36,7 +62,27 @@ const POPULAR_TOPICS: ChatTopic[] = [
   },
 ];
 
+function useTopics(): ChatTopic[] {
+  const { branding } = useWhiteLabel();
+
+  if (!branding.starterPrompts || branding.starterPrompts.length === 0) {
+    return DEFAULT_TOPICS;
+  }
+
+  return branding.starterPrompts.map((sp, i) => {
+    const IconComponent = ICON_MAP[sp.icon] ?? Code;
+    return {
+      id: `starter-${i}`,
+      icon: <IconComponent className="w-5 h-5" />,
+      description: sp.label,
+      prompt: sp.prompt,
+    };
+  });
+}
+
 export default function PopularChatTopics({ append }: PopularChatTopicsProps) {
+  const topics = useTopics();
+
   const handleTopicClick = (prompt: string) => {
     append(prompt);
   };
@@ -45,7 +91,7 @@ export default function PopularChatTopics({ append }: PopularChatTopicsProps) {
     <div className="absolute bottom-0 left-0 p-6 max-w-md">
       <h3 className="text-text-secondary text-sm mb-1">Popular chat topics</h3>
       <div className="space-y-1">
-        {POPULAR_TOPICS.map((topic) => (
+        {topics.map((topic) => (
           <div
             key={topic.id}
             className="flex items-center justify-between py-1.5 hover:bg-background-secondary rounded-md cursor-pointer transition-colors"

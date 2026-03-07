@@ -11,7 +11,7 @@ export function Greeting({
   className = 'mt-1 text-4xl font-light animate-in fade-in duration-300',
   forceRefresh = false,
 }: GreetingProps) {
-  const { getRandomGreeting } = useWhiteLabel();
+  const { getRandomGreeting, branding } = useWhiteLabel();
 
   const greeting = useState(() => ({
     message: getRandomGreeting(),
@@ -20,8 +20,15 @@ export function Greeting({
   const messageRef = useTextAnimator({ text: greeting.message });
 
   return (
-    <h1 className={className} key={forceRefresh ? Date.now() : undefined}>
-      <span ref={messageRef}>{greeting.message}</span>
-    </h1>
+    <div key={forceRefresh ? Date.now() : undefined}>
+      <h1 className={className}>
+        <span ref={messageRef}>{greeting.message}</span>
+      </h1>
+      {branding.tagline && (
+        <p className="mt-1 text-sm text-text-secondary animate-in fade-in duration-500">
+          {branding.tagline}
+        </p>
+      )}
+    </div>
   );
 }
