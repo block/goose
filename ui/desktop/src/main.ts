@@ -1,3 +1,31 @@
+import * as Sentry from '@sentry/electron/main';
+
+let sentryInitialized = false;
+let telemetryEnabled = false;
+
+function ensureSentryInitialized() {
+  if (sentryInitialized) return;
+  sentryInitialized = true;
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN || undefined,
+    release: `goose-desktop@${app.getVersion()}`,
+    environment: app.isPackaged ? 'production' : 'development',
+    beforeSend(event) {
+      return telemetryEnabled ? event : null;
+    },
+    beforeSendTransaction(transaction) {
+      return telemetryEnabled ? transaction : null;
+    },
+  });
+}
+
+export function enableSentryTelemetry(enabled: boolean) {
+  telemetryEnabled = enabled;
+  if (enabled) {
+    ensureSentryInitialized();
+  }
+}
+
 import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
@@ -48,7 +76,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
-import { GooseApp } from './api';
+import { GooseApp, readConfig } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 
@@ -677,6 +705,17 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   }
 
   // Let windowStateKeeper manage the window
+  // Enable Sentry if the user has opted in to telemetry
+  try {
+    const telemetryResponse = await readConfig({
+      body: { key: 'GOOSE_TELEMETRY_ENABLED', is_secret: false },
+      client: goosedClient,
+    });
+    enableSentryTelemetry(telemetryResponse.data === true);
+  } catch {
+    // Telemetry stays disabled if we can't read the config
+  }
+
   mainWindowState.manage(mainWindow);
 
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
@@ -1324,6 +1363,10 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
     return null;
   }
   return client.getConfig().baseUrl || null;
+});
+
+ipcMain.on('set-sentry-telemetry', (_event, enabled: boolean) => {
+  enableSentryTelemetry(enabled === true);
 });
 
 // Handle menu bar icon visibility

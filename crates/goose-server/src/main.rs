@@ -43,6 +43,39 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Always initialize Sentry when a DSN is present, but gate event
+    // delivery on the live telemetry consent flag so that opting in
+    // mid-session takes effect immediately without restarting goosed.
+    let _sentry_guard = option_env!("SENTRY_DSN").map(|dsn| {
+        sentry::init((
+            dsn,
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                traces_sample_rate: 1.0,
+                environment: Some(
+                    std::env::var("GOOSE_ENVIRONMENT")
+                        .unwrap_or_else(|_| "development".into())
+                        .into(),
+                ),
+                before_send: Some(std::sync::Arc::new(|event| {
+                    if goose::posthog::is_telemetry_enabled() {
+                        Some(event)
+                    } else {
+                        None
+                    }
+                })),
+                traces_sampler: Some(std::sync::Arc::new(|_ctx| {
+                    if goose::posthog::is_telemetry_enabled() {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                })),
+                ..Default::default()
+            },
+        ))
+    });
+
     let cli = Cli::parse();
 
     match cli.command {

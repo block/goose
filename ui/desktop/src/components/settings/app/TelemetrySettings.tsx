@@ -9,6 +9,7 @@ import {
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
   trackTelemetryPreference,
 } from '../../../utils/analytics';
+import { setSentryTelemetryEnabled } from '../../../utils/sentryTelemetry';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -18,14 +19,14 @@ interface TelemetrySettingsProps {
 
 export default function TelemetrySettings({ isWelcome = false }: TelemetrySettingsProps) {
   const { read, upsert } = useConfig();
-  const [telemetryEnabled, setTelemetryEnabled] = useState(true);
+  const [telemetryEnabled, setTelemetryEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
 
   const loadTelemetryStatus = useCallback(async () => {
     try {
       const value = await read(TELEMETRY_CONFIG_KEY, false);
-      setTelemetryEnabled(value === null ? true : Boolean(value));
+      setTelemetryEnabled(value === true);
     } catch (error) {
       console.error('Failed to load telemetry status:', error);
       toastService.error({
@@ -47,6 +48,8 @@ export default function TelemetrySettings({ isWelcome = false }: TelemetrySettin
       await upsert(TELEMETRY_CONFIG_KEY, checked, false);
       setTelemetryEnabled(checked);
       setAnalyticsTelemetryEnabled(checked);
+      setSentryTelemetryEnabled(checked);
+      window.electron.setSentryTelemetryEnabled(checked);
       trackTelemetryPreference(checked, isWelcome ? 'onboarding' : 'settings');
     } catch (error) {
       console.error('Failed to update telemetry status:', error);

@@ -30,6 +30,8 @@ on:
     secrets:
       OSX_CODESIGN_ROLE:
         required: false
+      SENTRY_DSN:
+        required: false
 
 name: Reusable workflow to bundle desktop app
 
@@ -112,6 +114,8 @@ jobs:
 
       # Build the project
       - name: Build goosed
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: source ./bin/activate-hermit && cargo build --release -p goose-server
 
       # Post-build cleanup to free space
@@ -150,6 +154,8 @@ jobs:
         run: df -h
 
       - name: Build App
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           source ../../bin/activate-hermit
           attempt=0

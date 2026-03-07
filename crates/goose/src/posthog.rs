@@ -40,16 +40,28 @@ pub fn get_telemetry_choice() -> Option<bool> {
     config.get_param::<bool>(TELEMETRY_ENABLED_KEY).ok()
 }
 
-/// Check if telemetry is enabled.
-///
-/// Returns false if:
-/// - GOOSE_TELEMETRY_OFF environment variable is set to "1" or "true"
-/// - GOOSE_TELEMETRY_ENABLED config value is set to false
-/// - User has not made a telemetry choice yet (opt-in required)
+// In-memory telemetry consent flag. Initialised from config on first
+// access and updated immediately via `set_telemetry_enabled()` when the
+// config changes, so hot paths (Sentry callbacks) never hit disk.
+static TELEMETRY_ENABLED: Lazy<AtomicBool> =
+    Lazy::new(|| AtomicBool::new(get_telemetry_choice().unwrap_or(false)));
+
+/// Check if telemetry is enabled (fast, no disk I/O).
 ///
 /// Returns true only if the user has explicitly opted in.
 pub fn is_telemetry_enabled() -> bool {
-    get_telemetry_choice().unwrap_or(false)
+    TELEMETRY_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Update the in-memory telemetry consent flag.
+///
+/// Call this whenever the `GOOSE_TELEMETRY_ENABLED` config value is
+/// changed so that Sentry callbacks and other hot paths see the new
+/// state immediately.
+pub fn set_telemetry_enabled(enabled: bool) {
+    // GOOSE_TELEMETRY_OFF is a hard kill switch; never allow re-enabling.
+    let effective = enabled && !TELEMETRY_DISABLED_BY_ENV.load(Ordering::Relaxed);
+    TELEMETRY_ENABLED.store(effective, Ordering::Relaxed);
 }
 
 // ============================================================================

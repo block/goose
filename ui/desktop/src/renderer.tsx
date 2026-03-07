@@ -7,6 +7,7 @@ import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
 import { applyThemeTokens } from './theme/theme-tokens';
+import { setSentryTelemetryEnabled } from './utils/sentryTelemetry';
 
 // Apply theme tokens to :root before first paint.
 applyThemeTokens();
@@ -39,8 +40,10 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
       const telemetryResponse = await readConfig({
         body: { key: TELEMETRY_CONFIG_KEY, is_secret: false },
       });
-      const isTelemetryEnabled = telemetryResponse.data !== false;
+      const isTelemetryEnabled = telemetryResponse.data === true;
       setTelemetryEnabled(isTelemetryEnabled);
+      setSentryTelemetryEnabled(isTelemetryEnabled);
+      window.electron.setSentryTelemetryEnabled(isTelemetryEnabled);
     } catch (error) {
       console.warn('[Analytics] Failed to initialize analytics:', error);
     }
