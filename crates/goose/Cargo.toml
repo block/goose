@@ -8,9 +8,10 @@ repository.workspace = true
 description.workspace = true
 
 [features]
-default = ["code-mode"]
+default = ["code-mode", "local-inference"]
 code-mode = ["dep:pctx_code_mode"]
-cuda = ["candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
+cuda = ["candle-core/cuda", "candle-nn/cuda", "llama-cpp-2?/cuda"]
+local-inference = ["dep:llama-cpp-2"]
 
 [lints]
 workspace = true
@@ -138,7 +139,7 @@ which = { workspace = true }
 pctx_code_mode = { version = "^0.2.3", optional = true }
 unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
-llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler"], optional = true }
 encoding_rs = "0.8.35"
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -148,7 +149,7 @@ winapi = { version = "0.3", features = ["wincred"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9", default-features = false, features = ["metal"] }
 candle-nn = { version = "0.9", default-features = false, features = ["metal"] }
-llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"] }
+llama-cpp-2 = { version = "0.1.137", features = ["sampler", "metal"], optional = true }
 
 [dev-dependencies]
 serial_test = { workspace = true }

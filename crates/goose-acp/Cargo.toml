@@ -16,8 +16,9 @@ name = "generate-acp-schema"
 path = "src/bin/generate_acp_schema.rs"
 
 [features]
-default = ["code-mode"]
+default = ["code-mode", "local-inference"]
 code-mode = ["goose/code-mode"]
+local-inference = ["goose/local-inference"]
 
 [lints]
 workspace = true

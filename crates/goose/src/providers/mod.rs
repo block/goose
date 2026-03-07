@@ -25,6 +25,7 @@ pub mod google;
 mod init;
 pub mod lead_worker;
 pub mod litellm;
+#[cfg(feature = "local-inference")]
 pub mod local_inference;
 pub mod oauth;
 pub mod ollama;
