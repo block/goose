@@ -83,3 +83,7 @@ tree-sitter-typescript = "0.23"
 
 [patch.crates-io]
 v8 = { path = "vendor/v8" }
+
+[profile.release]
+codegen-units = 1
+lto = true

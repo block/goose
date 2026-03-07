@@ -31,21 +31,21 @@ use serde_yaml;
 use std::{collections::HashMap, sync::Arc};
 use utoipa::ToSchema;
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct ExtensionResponse {
     pub extensions: Vec<ExtensionEntry>,
     #[serde(default)]
     pub warnings: Vec<String>,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct ExtensionQuery {
     pub name: String,
     pub config: ExtensionConfig,
     pub enabled: bool,
 }
 
-#[derive(Deserialize, ToSchema)]
+#[derive(Deserialize, Serialize, ToSchema)]
 pub struct UpsertConfigQuery {
     pub key: String,
     pub value: Value,
@@ -58,12 +58,12 @@ pub struct ConfigKeyQuery {
     pub is_secret: bool,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct ConfigResponse {
     pub config: HashMap<String, Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 pub struct ProviderDetails {
     pub name: String,
     pub metadata: ProviderMetadata,

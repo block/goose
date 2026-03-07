@@ -1,12 +1,3 @@
-mod commands;
-mod configuration;
-mod error;
-mod logging;
-mod openapi;
-mod routes;
-mod state;
-mod tunnel;
-
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -15,6 +6,8 @@ use goose_mcp::{
     mcp_server_runner::{serve, McpCommand},
     AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer,
 };
+use goose_server::{commands, logging};
+use std::str::FromStr;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -30,8 +23,8 @@ enum Commands {
     Agent,
     /// Run the MCP server
     Mcp {
-        #[arg(value_parser = clap::value_parser!(McpCommand))]
-        server: McpCommand,
+        /// Name of the MCP server type
+        name: String,
     },
     /// Validate a bundled-extensions JSON file
     #[command(name = "validate-extensions")]
@@ -45,12 +38,14 @@ enum Commands {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
+    match &cli.command {
         Commands::Agent => {
             commands::agent::run().await?;
         }
-        Commands::Mcp { server } => {
-            logging::setup_logging(Some(&format!("mcp-{}", server.name())))?;
+        Commands::Mcp { name } => {
+            logging::setup_logging(Some(&format!("mcp-{name}")))?;
+            let server = McpCommand::from_str(name)
+                .map_err(|e| anyhow::anyhow!("Invalid MCP server: {}", e))?;
             match server {
                 McpCommand::AutoVisualiser => serve(AutoVisualiserRouter::new()).await?,
                 McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
@@ -59,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Commands::ValidateExtensions { path } => {
-            match validate_extensions::validate_bundled_extensions(&path) {
+            match validate_extensions::validate_bundled_extensions(path) {
                 Ok(msg) => println!("{msg}"),
                 Err(e) => {
                     eprintln!("{e}");

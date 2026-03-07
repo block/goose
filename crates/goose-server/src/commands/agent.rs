@@ -1,10 +1,12 @@
+use crate::auth::check_token;
 use crate::configuration;
 use crate::state;
+use crate::tls::self_signed_config;
 use anyhow::Result;
 use axum::middleware;
+use axum::Router;
 use axum_server::Handle;
-use goose_server::auth::check_token;
-use goose_server::tls::self_signed_config;
+use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
 
@@ -24,6 +26,33 @@ async fn shutdown_signal() {
 #[cfg(not(unix))]
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
+}
+
+/// Build the server app and listener without starting it.
+/// Used by the TUI to embed the server in-process.
+pub async fn build_app() -> Result<(Router, TcpListener)> {
+    let settings = configuration::Settings::new()?;
+
+    let secret_key =
+        std::env::var("GOOSE_SERVER__SECRET_KEY").unwrap_or_else(|_| "test".to_string());
+
+    let app_state = state::AppState::new().await?;
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let app = crate::routes::configure(app_state, secret_key.clone())
+        .layer(middleware::from_fn_with_state(
+            secret_key.clone(),
+            check_token,
+        ))
+        .layer(cors);
+
+    let listener = TcpListener::bind(settings.socket_addr()).await?;
+
+    Ok((app, listener))
 }
 
 pub async fn run() -> Result<()> {
