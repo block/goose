@@ -10,11 +10,11 @@
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::errors::ProviderError;
 use super::local_inference::inference_emulated_tools::{
     action_to_message, build_emulator_tool_description, load_tiny_model_prompt,
     StreamingEmulatorParser, CODE_EXECUTION_TOOL,
 };
-use super::errors::ProviderError;
 use super::openai_compatible::handle_status_openai_compat;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
@@ -24,10 +24,10 @@ use anyhow::Result;
 use async_stream::try_stream;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use tokio_stream::StreamExt;
 use rmcp::model::{Role, Tool};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 use uuid::Uuid;
@@ -72,7 +72,12 @@ impl MeshProvider {
     ) -> Result<Self> {
         let url = url::Url::parse(&config.base_url)?;
         let host = if let Some(port) = url.port() {
-            format!("{}://{}:{}", url.scheme(), url.host_str().unwrap_or(""), port)
+            format!(
+                "{}://{}:{}",
+                url.scheme(),
+                url.host_str().unwrap_or(""),
+                port
+            )
         } else {
             format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
         };
@@ -313,7 +318,11 @@ impl Provider for MeshProvider {
             .and_then(|d| d.as_array())
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(|s| s.to_string()))
+                    .filter_map(|m| {
+                        m.get("id")
+                            .and_then(|id| id.as_str())
+                            .map(|s| s.to_string())
+                    })
                     .collect()
             })
             .unwrap_or_default();
