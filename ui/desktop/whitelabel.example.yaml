@@ -1,0 +1,111 @@
+# =============================================================================
+# Example: "Acme Assistant" — a white-labeled Goose for Acme Corp
+# =============================================================================
+# Build with:  WHITELABEL_CONFIG=whitelabel.example.yaml npm run make
+# =============================================================================
+
+branding:
+  appName: "Acme Assistant"
+  tagline: "AI-powered development, the Acme way"
+
+  # Custom logo files (place in your brand directory)
+  # logo: "./brand/acme-logo.svg"
+  # logoSmall: "./brand/acme-logo-small.svg"
+  # trayIcon: "./brand/acme-tray.png"
+
+  greetings:
+    - "Welcome to Acme! What can I help you build?"
+    - "Ready to ship some code?"
+    - "What's the next feature?"
+    - "Let's get productive."
+
+  starterPrompts:
+    - icon: "code"
+      label: "Code review"
+      prompt: "Review the current git diff and suggest improvements"
+    - icon: "folder-tree"
+      label: "Project setup"
+      prompt: "Set up a new project following our Acme standards"
+    - icon: "message-square"
+      label: "Write tests"
+      prompt: "Generate unit tests for the current file"
+
+features:
+  updatesEnabled: false        # Acme manages updates internally
+  costTrackingEnabled: true
+  announcementsEnabled: false  # No upstream announcements
+  configurationEnabled: false  # Lock down config editing
+  telemetryUiEnabled: false    # Hide telemetry settings
+
+  # Simplified navigation — no recipes, schedules, or apps
+  navigation:
+    - home
+    - chat
+    - extensions
+    - settings
+
+  # Only show relevant settings tabs
+  settingsTabs:
+    - models
+    - chat
+    - keyboard
+    - app
+
+  # Hide sections that aren't relevant
+  hiddenSettingSections:
+    - external-backend
+    - tunnel
+    - session-sharing
+    - telemetry
+    - update
+    - navigation-customization
+
+  # Lock to approved providers only
+  allowedProviders:
+    - anthropic
+    - openai
+
+defaults:
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+
+  # Pre-install the team's custom MCP extensions
+  extensions:
+    - name: "acme-internal-tools"
+      type: "sse"
+      uri: "https://mcp.internal.acme.com/sse"
+      enabled: true
+      envVars:
+        ACME_TOKEN: ""
+
+    - name: "code-standards"
+      type: "stdio"
+      cmd: "npx"
+      args: ["-y", "@acme/code-standards-mcp"]
+      enabled: true
+
+  systemPrompt: |
+    You are Acme Assistant, an AI coding companion for Acme Corp engineers.
+    Follow Acme's coding standards. Prefer TypeScript. Always write tests.
+    Reference internal docs at https://docs.internal.acme.com when relevant.
+
+  goosehints: |
+    This is an Acme Corp project. Follow internal standards.
+    Use the acme-internal-tools extension for accessing internal APIs.
+
+# Uncomment to start a local tool server alongside the app
+# processes:
+#   - name: "acme-proxy"
+#     command: "node"
+#     args: ["./tools/proxy.js"]
+#     cwd: "."
+#     env:
+#       PROXY_PORT: "8899"
+#     restartOnCrash: true
+#     waitForPort: 8899
+#     waitTimeoutMs: 15000
+
+window:
+  width: 1100
+  height: 850
+  minWidth: 500

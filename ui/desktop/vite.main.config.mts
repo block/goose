@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { whiteLabelPlugin } from './src/whitelabel/vite-plugin';
 
 // https://vitejs.dev/config
 export default defineConfig({
@@ -7,4 +8,5 @@ export default defineConfig({
     'process.env.GITHUB_REPO': JSON.stringify(process.env.GITHUB_REPO || 'goose'),
     'process.env.GOOSE_BUNDLE_NAME': JSON.stringify(process.env.GOOSE_BUNDLE_NAME || 'Goose'),
   },
+  plugins: [whiteLabelPlugin(__dirname)],
 });

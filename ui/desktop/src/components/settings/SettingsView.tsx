@@ -19,6 +19,7 @@ import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
 import LocalInferenceSection from './localInference/LocalInferenceSection';
 import { CONFIGURATION_ENABLED } from '../../updates';
 import { trackSettingsTabViewed } from '../../utils/analytics';
+import { useWhiteLabel } from '../../whitelabel/WhiteLabelContext';
 
 export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
@@ -35,7 +36,9 @@ export default function SettingsView({
   setView: (view: View, viewOptions?: ViewOptions) => void;
   viewOptions: SettingsViewOptions;
 }) {
-  const [activeTab, setActiveTab] = useState('models');
+  const { isSettingsTabEnabled, isSectionHidden, features } = useWhiteLabel();
+  const firstAvailableTab = features.settingsTabs[0] || 'models';
+  const [activeTab, setActiveTab] = useState(firstAvailableTab);
   const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const hasTrackedInitialTab = useRef(false);
 
@@ -121,54 +124,72 @@ export default function SettingsView({
             >
               <div className="px-1">
                 <TabsList className="w-full mb-2 justify-start overflow-x-auto flex-nowrap">
-                  <TabsTrigger
-                    value="models"
-                    className="flex gap-2"
-                    data-testid="settings-models-tab"
-                  >
-                    <Bot className="h-4 w-4" />
-                    Models
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="local-inference"
-                    className="flex gap-2"
-                    data-testid="settings-local-inference-tab"
-                  >
-                    <HardDrive className="h-4 w-4" />
-                    Local Inference
-                  </TabsTrigger>
-                  <TabsTrigger value="chat" className="flex gap-2" data-testid="settings-chat-tab">
-                    <MessageSquare className="h-4 w-4" />
-                    Chat
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="sharing"
-                    className="flex gap-2"
-                    data-testid="settings-sharing-tab"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Session
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="prompts"
-                    className="flex gap-2"
-                    data-testid="settings-prompts-tab"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Prompts
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="keyboard"
-                    className="flex gap-2"
-                    data-testid="settings-keyboard-tab"
-                  >
-                    <Keyboard className="h-4 w-4" />
-                    Keyboard
-                  </TabsTrigger>
-                  <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
-                    <Monitor className="h-4 w-4" />
-                    App
-                  </TabsTrigger>
+                  {isSettingsTabEnabled('models') && (
+                    <TabsTrigger
+                      value="models"
+                      className="flex gap-2"
+                      data-testid="settings-models-tab"
+                    >
+                      <Bot className="h-4 w-4" />
+                      Models
+                    </TabsTrigger>
+                  )}
+                  {isSettingsTabEnabled('local-inference') && (
+                    <TabsTrigger
+                      value="local-inference"
+                      className="flex gap-2"
+                      data-testid="settings-local-inference-tab"
+                    >
+                      <HardDrive className="h-4 w-4" />
+                      Local Inference
+                    </TabsTrigger>
+                  )}
+                  {isSettingsTabEnabled('chat') && (
+                    <TabsTrigger
+                      value="chat"
+                      className="flex gap-2"
+                      data-testid="settings-chat-tab"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      Chat
+                    </TabsTrigger>
+                  )}
+                  {isSettingsTabEnabled('sharing') && (
+                    <TabsTrigger
+                      value="sharing"
+                      className="flex gap-2"
+                      data-testid="settings-sharing-tab"
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Session
+                    </TabsTrigger>
+                  )}
+                  {isSettingsTabEnabled('prompts') && (
+                    <TabsTrigger
+                      value="prompts"
+                      className="flex gap-2"
+                      data-testid="settings-prompts-tab"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Prompts
+                    </TabsTrigger>
+                  )}
+                  {isSettingsTabEnabled('keyboard') && (
+                    <TabsTrigger
+                      value="keyboard"
+                      className="flex gap-2"
+                      data-testid="settings-keyboard-tab"
+                    >
+                      <Keyboard className="h-4 w-4" />
+                      Keyboard
+                    </TabsTrigger>
+                  )}
+                  {isSettingsTabEnabled('app') && (
+                    <TabsTrigger value="app" className="flex gap-2" data-testid="settings-app-tab">
+                      <Monitor className="h-4 w-4" />
+                      App
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </div>
 
@@ -199,12 +220,12 @@ export default function SettingsView({
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
                   <div className="space-y-8 pb-8">
-                    <SessionSharingSection />
-                    <ExternalBackendSection />
-                    {!tunnelDisabled && (
+                    {!isSectionHidden('session-sharing') && <SessionSharingSection />}
+                    {!isSectionHidden('external-backend') && <ExternalBackendSection />}
+                    {!tunnelDisabled && !isSectionHidden('tunnel') && (
                       <div className="space-y-4">
                         <TunnelSection />
-                        <GatewaySettingsSection />
+                        {!isSectionHidden('gateway') && <GatewaySettingsSection />}
                       </div>
                     )}
                   </div>

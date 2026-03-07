@@ -140,6 +140,12 @@ run-ui-only:
     @echo "Running UI..."
     cd ui/desktop && npm ci && npm run start-gui
 
+# Run UI with a white-label config file (path relative to repo root)
+run-ui-whitelabel config:
+    @just release-binary
+    @echo "Running white-labeled UI with config: {{config}}"
+    cd ui/desktop && npm ci && WHITELABEL_CONFIG="../../{{config}}" npm run start-gui
+
 debug-ui *alpha:
     @echo "🚀 Starting goose frontend in external backend mode{{ if alpha == "alpha" { " with alpha features enabled" } else { "" } }}"
     cd ui/desktop && \

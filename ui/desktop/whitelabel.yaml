@@ -1,0 +1,151 @@
+# =============================================================================
+# Goose White-Label Configuration
+# =============================================================================
+# This file controls the entire branding, feature set, and behavior of the
+# desktop app. When built, these values are baked into the binary.
+#
+# To create a white-labeled build:
+#   1. Copy this file and modify it
+#   2. Set WHITELABEL_CONFIG=path/to/your/config.yaml
+#   3. Build normally: npm run make
+#
+# Any field left unset uses the Goose defaults.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Branding
+# ---------------------------------------------------------------------------
+branding:
+  # App name shown in title bar, menus, about dialog, etc.
+  appName: "Goose"
+
+  # Tagline shown on welcome/loading screens (optional)
+  # tagline: "Your AI-powered assistant"
+
+  # Logo image paths (relative to ui/desktop/ or absolute)
+  # If not set, the default Goose logo SVG component is used.
+  # logo: "./brand/logo.svg"
+  # logoSmall: "./brand/logo-small.svg"
+  # trayIcon: "./brand/tray-icon.png"
+
+  # Greeting messages shown on the home screen. If empty, defaults are used.
+  greetings:
+    - "What would you like to work on?"
+    - "Ready to build something amazing?"
+    - "What shall we create today?"
+    - "What's on your mind?"
+
+  # Starter prompts shown as quick-action cards on the home screen
+  # starterPrompts:
+  #   - icon: "folder-tree"
+  #     label: "Organize files"
+  #     prompt: "Help me organize my project files"
+  #   - icon: "code"
+  #     label: "Write code"
+  #     prompt: "Help me write a Python script"
+
+# ---------------------------------------------------------------------------
+# Features — toggle major feature areas on/off
+# ---------------------------------------------------------------------------
+features:
+  # Top-level feature toggles
+  updatesEnabled: true
+  costTrackingEnabled: true
+  announcementsEnabled: false
+  configurationEnabled: true
+  telemetryUiEnabled: true
+
+  # Navigation items to show (order matters). Comment out to hide.
+  navigation:
+    - home
+    - chat
+    - recipes
+    - apps
+    - scheduler
+    - extensions
+    - settings
+
+  # Settings tabs to show. Comment out to hide specific tabs.
+  settingsTabs:
+    - models
+    - local-inference
+    - chat
+    - sharing
+    - prompts
+    - keyboard
+    - app
+
+  # Hide specific setting sections within tabs
+  # hiddenSettingSections:
+  #   - "external-backend"
+  #   - "tunnel"
+  #   - "session-sharing"
+  #   - "telemetry"
+  #   - "update"
+  #   - "navigation-customization"
+  #   - "theme"
+
+  # Restrict to specific providers only (empty = all providers available)
+  # allowedProviders:
+  #   - "openai"
+  #   - "anthropic"
+
+  # Restrict dictation to specific providers (null = all allowed)
+  # dictationAllowedProviders:
+  #   - "openai"
+
+# ---------------------------------------------------------------------------
+# Defaults — pre-seeded values for first launch
+# ---------------------------------------------------------------------------
+defaults:
+  # Default provider and model (sets GOOSE_DEFAULT_PROVIDER / GOOSE_DEFAULT_MODEL)
+  # provider: "anthropic"
+  # model: "claude-sonnet-4-20250514"
+
+  # Pre-configured extensions to install on first launch
+  # extensions:
+  #   - name: "my-custom-tool"
+  #     type: "sse"
+  #     uri: "https://my-tool-server.example.com/sse"
+  #     enabled: true
+  #     envVars:
+  #       API_KEY: ""
+  #   - name: "internal-kb"
+  #     type: "stdio"
+  #     cmd: "npx"
+  #     args: ["-y", "@company/kb-mcp-server"]
+  #     enabled: true
+
+  # Working directory to start in (if not set, uses OS home)
+  # workingDir: "~/Projects"
+
+  # Default system prompt override
+  # systemPrompt: "You are a helpful coding assistant for Acme Corp."
+
+  # Default goosehints content (written to .goosehints if not present)
+  # goosehints: |
+  #   Always follow our coding standards at https://internal.acme.com/standards
+
+# ---------------------------------------------------------------------------
+# Processes — external processes to manage alongside the app
+# ---------------------------------------------------------------------------
+# processes:
+#   - name: "my-sidecar"
+#     command: "node"
+#     args: ["./sidecar/server.js"]
+#     cwd: "."                    # relative to app resources
+#     env:
+#       PORT: "9999"
+#     restartOnCrash: true
+#     waitForPort: 9999           # app waits for this port before proceeding
+#     waitTimeoutMs: 10000
+
+# ---------------------------------------------------------------------------
+# Window — default window appearance
+# ---------------------------------------------------------------------------
+window:
+  width: 940
+  height: 800
+  minWidth: 450
+  # alwaysOnTop: false
+  # resizable: true
