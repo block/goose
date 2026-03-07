@@ -165,12 +165,17 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
       <>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
+            <div
+              data-testid="bottom-menu-cost-trigger"
+              className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary"
+            >
               <CoinIcon className="mr-1" size={16} />
               <span className="text-xs font-mono">0.0000</span>
             </div>
           </TooltipTrigger>
-          <TooltipContent>{getUnavailableTooltip()}</TooltipContent>
+          <TooltipContent data-testid="bottom-menu-cost-tooltip">
+            {getUnavailableTooltip()}
+          </TooltipContent>
         </Tooltip>
         <div className="w-px h-4 bg-border-primary mx-2" />
       </>
@@ -219,12 +224,17 @@ export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }:
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary">
+          <div
+            data-testid="bottom-menu-cost-trigger"
+            className="flex items-center justify-center h-full transition-colors cursor-default translate-y-[1px] text-text-primary/70 hover:text-text-primary"
+          >
             <CoinIcon className="mr-1" size={16} />
             <span className="text-xs font-mono">{formatCost(totalCost)}</span>
           </div>
         </TooltipTrigger>
-        <TooltipContent>{getTooltipContent()}</TooltipContent>
+        <TooltipContent data-testid="bottom-menu-cost-tooltip">
+          {getTooltipContent()}
+        </TooltipContent>
       </Tooltip>
       <div className="w-px h-4 bg-border-primary mx-2" />
     </>

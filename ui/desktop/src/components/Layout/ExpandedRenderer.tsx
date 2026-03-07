@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { ChatSessionsDropdown } from './navigation';
+import { ChatSessionsDropdown, getSidebarButtonTestId } from './navigation';
 import type { NavigationRendererProps } from './navigation/types';
 
 export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
@@ -147,6 +147,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
             const isDragging = drag.draggedItem === item.id;
             const isDragOver = drag.dragOverItem === item.id;
             const isChatItem = item.id === 'chat';
+            const navButtonTestId = getSidebarButtonTestId(item.id);
 
             if (isChatItem) {
               return (
@@ -172,6 +173,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                     <div className="relative">
                       <DropdownMenuTrigger asChild>
                         <motion.div
+                          data-testid={navButtonTestId}
                           className={cn(
                             'w-full relative flex flex-col rounded-lg',
                             'transition-colors duration-200 aspect-square cursor-pointer',
@@ -247,6 +249,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                   )}
                 >
                   <button
+                    data-testid={navButtonTestId}
                     onClick={() => onNavClick(item.path)}
                     className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left"
                   >

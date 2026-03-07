@@ -4,19 +4,18 @@ const config: PlaywrightTestConfig = {
   testDir: './tests/e2e',
   timeout: 60000,
   expect: {
-    timeout: 30000
+    timeout: 10000
   },
-  fullyParallel: false,
-  workers: 1,
+  fullyParallel: true,
+  workers: 3,
   reporter: [
-    ['html'],
+    ['html', { open: 'never' }],
     ['list']
   ],
   use: {
-    actionTimeout: 30000,
+    actionTimeout: 10000,
     navigationTimeout: 30000,
-    trace: 'on-first-retry',
-    video: 'retain-on-failure',
+    video: 'on',
     screenshot: 'only-on-failure'
   },
   outputDir: 'test-results',
