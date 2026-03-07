@@ -35,6 +35,9 @@ use uuid::Uuid;
 const MESH_PROVIDER_NAME: &str = "mesh";
 const MESH_DEFAULT_MODEL: &str = "GLM-4.7-Flash-Q4_K_M";
 const MESH_DEFAULT_HOST: &str = "http://localhost:9337";
+const MESH_DEFAULT_PORT: u16 = 9337;
+const MESH_INSTALL_DIR: &str = ".mesh-llm";
+const MESH_DOWNLOAD_URL: &str = "https://github.com/michaelneale/decentralized-inference/releases/latest/download/mesh-llm-aarch64-apple-darwin.tar.gz";
 
 pub struct MeshProvider {
     api_client: ApiClient,
@@ -125,7 +128,18 @@ impl ProviderDef for MeshProvider {
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(async move { Self::from_env(model) })
+        Box::pin(async move {
+            let host = std::env::var("MESH_HOST")
+                .or_else(|_| std::env::var("OPENAI_HOST"))
+                .unwrap_or_else(|_| MESH_DEFAULT_HOST.to_string());
+
+            // If using default localhost, ensure mesh-llm is running
+            if host == MESH_DEFAULT_HOST {
+                ensure_mesh_running(MESH_DEFAULT_PORT).await?;
+            }
+
+            Self::from_env(model)
+        })
     }
 }
 
@@ -327,5 +341,229 @@ impl Provider for MeshProvider {
             .unwrap_or_default();
 
         Ok(models)
+    }
+}
+
+// ── Mesh lifecycle: find / download / start ──
+
+/// Check if mesh-llm is listening and ready to serve inference.
+/// Just checking /v1/models isn't enough — the model may still be loading.
+async fn is_mesh_running(port: u16) -> bool {
+    let client = reqwest::Client::new();
+    let timeout = std::time::Duration::from_secs(5);
+
+    // First: does /v1/models respond with at least one model?
+    let models_ok = client
+        .get(format!("http://localhost:{}/v1/models", port))
+        .timeout(timeout)
+        .send()
+        .await
+        .and_then(|r| Ok(r.status().is_success()))
+        .unwrap_or(false);
+
+    if !models_ok {
+        return false;
+    }
+
+    // Second: can we actually complete a request? (catches 503 "election in progress")
+    let resp = client
+        .post(format!("http://localhost:{}/v1/chat/completions", port))
+        .timeout(timeout)
+        .json(&serde_json::json!({
+            "messages": [{"role": "user", "content": "hi"}],
+            "max_tokens": 1
+        }))
+        .send()
+        .await;
+
+    match resp {
+        Ok(r) => r.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+/// Find the mesh-llm binary on PATH or in ~/.mesh-llm/.
+fn find_mesh_binary() -> Option<std::path::PathBuf> {
+    // Check PATH
+    if let Ok(output) = std::process::Command::new("which")
+        .arg("mesh-llm")
+        .output()
+    {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(std::path::PathBuf::from(path));
+            }
+        }
+    }
+
+    // Check ~/.mesh-llm/
+    let install_dir = dirs::home_dir()?.join(MESH_INSTALL_DIR);
+    let binary = install_dir.join("mesh-llm");
+    if binary.exists() {
+        return Some(binary);
+    }
+
+    None
+}
+
+/// Download the mesh-llm release bundle to ~/.mesh-llm/.
+async fn download_mesh_binary() -> Result<std::path::PathBuf> {
+    let install_dir = dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?
+        .join(MESH_INSTALL_DIR);
+    std::fs::create_dir_all(&install_dir)?;
+
+    tracing::info!("Downloading mesh-llm from {}", MESH_DOWNLOAD_URL);
+
+    // Download and extract
+    let output = tokio::process::Command::new("sh")
+        .arg("-c")
+        .arg(format!(
+            "curl -fsSL '{}' | tar xz --strip-components=1 -C '{}'",
+            MESH_DOWNLOAD_URL,
+            install_dir.display()
+        ))
+        .output()
+        .await?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Failed to download mesh-llm: {}", stderr);
+    }
+
+    let binary = install_dir.join("mesh-llm");
+    if !binary.exists() {
+        anyhow::bail!(
+            "mesh-llm binary not found after download at {}",
+            binary.display()
+        );
+    }
+
+    // macOS: ad-hoc codesign + clear quarantine to avoid Gatekeeper
+    #[cfg(target_os = "macos")]
+    {
+        for name in ["mesh-llm", "rpc-server", "llama-server"] {
+            let bin = install_dir.join(name);
+            if bin.exists() {
+                let _ = tokio::process::Command::new("codesign")
+                    .args(["-s", "-", &bin.to_string_lossy()])
+                    .output()
+                    .await;
+                let _ = tokio::process::Command::new("xattr")
+                    .args(["-cr", &bin.to_string_lossy()])
+                    .output()
+                    .await;
+            }
+        }
+    }
+
+    tracing::info!("mesh-llm installed to {}", install_dir.display());
+    Ok(binary)
+}
+
+/// Start mesh-llm as a detached background process.
+async fn start_mesh(binary: &std::path::Path, port: u16, model: &str) -> Result<()> {
+    let log_path = dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("/tmp"))
+        .join(MESH_INSTALL_DIR)
+        .join("mesh-llm.log");
+
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let args = [
+        binary.to_string_lossy().to_string(),
+        "--auto".to_string(),
+        "--model".to_string(),
+        model.to_string(),
+        "--port".to_string(),
+        port.to_string(),
+    ];
+
+    tracing::info!("Starting mesh-llm: {}", args.join(" "));
+
+    // Write a tiny launcher script that backgrounds the process.
+    // This ensures mesh-llm survives even if Goose exits.
+    let launcher = log_path.with_file_name("mesh-launcher.sh");
+    let script = format!(
+        "#!/bin/sh\n{} >> '{}' 2>&1 &\n",
+        args.iter()
+            .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
+            .collect::<Vec<_>>()
+            .join(" "),
+        log_path.display()
+    );
+    std::fs::write(&launcher, &script)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755))?;
+    }
+
+    let status = std::process::Command::new(&launcher)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()?;
+
+    if !status.success() {
+        anyhow::bail!("Failed to start mesh-llm via launcher script");
+    }
+
+    tracing::info!("mesh-llm started, log: {}", log_path.display());
+    Ok(())
+}
+
+/// Ensure mesh-llm is running: find/download binary, start if needed, wait for ready.
+async fn ensure_mesh_running(port: u16) -> Result<()> {
+    if is_mesh_running(port).await {
+        tracing::info!("mesh-llm already running on port {}", port);
+        return Ok(());
+    }
+
+    let binary = match find_mesh_binary() {
+        Some(bin) => {
+            tracing::info!("Found mesh-llm at {}", bin.display());
+            bin
+        }
+        None => {
+            tracing::info!("mesh-llm not found, downloading...");
+            download_mesh_binary().await?
+        }
+    };
+
+    let model = std::env::var("GOOSE_MODEL").unwrap_or_else(|_| MESH_DEFAULT_MODEL.to_string());
+    start_mesh(&binary, port, &model).await?;
+
+    // Wait for the API to become ready (model download + llama-server startup)
+    let timeout = std::time::Duration::from_secs(300);
+    let start = std::time::Instant::now();
+
+    loop {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+        if is_mesh_running(port).await {
+            tracing::info!("mesh-llm ready on port {}", port);
+            return Ok(());
+        }
+
+        if start.elapsed() > timeout {
+            anyhow::bail!(
+                "mesh-llm failed to start within {}s. Check log: ~/.mesh-llm/mesh-llm.log",
+                timeout.as_secs()
+            );
+        }
+
+        // Log progress every 30s
+        let elapsed = start.elapsed().as_secs();
+        if elapsed > 0 && elapsed % 30 == 0 {
+            tracing::info!(
+                "Waiting for mesh-llm... {}s elapsed (may be downloading a model)",
+                elapsed
+            );
+        }
     }
 }
