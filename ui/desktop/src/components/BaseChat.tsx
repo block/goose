@@ -42,6 +42,7 @@ import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
+import { AlertTriangle } from 'lucide-react';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
@@ -92,6 +93,7 @@ export default function BaseChat({
     messages,
     chatState,
     setChatState,
+    clearSessionLoadError,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -347,7 +349,7 @@ export default function BaseChat({
 
   const initialPrompt = recipePrompt;
 
-  if (sessionLoadError) {
+  if (sessionLoadError && messages.length === 0) {
     return (
       <div className="h-full flex flex-col min-h-0">
         <MainPanelLayout
@@ -471,40 +473,65 @@ export default function BaseChat({
               />
             </div>
           )}
+
+          {sessionLoadError && messages.length > 0 && (
+            <div className="absolute bottom-16 left-4 right-4 z-30 rounded-lg border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 flex items-start gap-3 backdrop-blur-sm">
+              <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                  Provider unavailable
+                </p>
+                <p className="text-sm text-text-secondary mt-1">
+                  The provider used in this session is no longer available. You can continue this
+                  chat using your current provider.
+                </p>
+              </div>
+              <button
+                onClick={clearSessionLoadError}
+                className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150 shrink-0"
+              >
+                Continue
+              </button>
+            </div>
+          )}
         </div>
 
-        <div
-          className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
-        >
-          <ChatInput
-            inputRef={chatInputRef}
-            sessionId={sessionId}
-            handleSubmit={chatInputSubmit}
-            chatState={chatState}
-            setChatState={setChatState}
-            onStop={stopStreaming}
-            commandHistory={commandHistory}
-            initialValue={initialPrompt}
-            setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
-            accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
-            }
-            accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
-            }
-            droppedFiles={droppedFiles}
-            onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
-            messages={messages}
-            disableAnimation={disableAnimation}
-            sessionCosts={sessionCosts}
-            recipe={recipe}
-            recipeAccepted={!hasNotAcceptedRecipe}
-            initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
-            {...customChatInputProps}
-          />
-        </div>
+        {!sessionLoadError && (
+          <div
+            className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
+          >
+            <ChatInput
+              inputRef={chatInputRef}
+              sessionId={sessionId}
+              handleSubmit={chatInputSubmit}
+              chatState={chatState}
+              setChatState={setChatState}
+              onStop={stopStreaming}
+              commandHistory={commandHistory}
+              initialValue={initialPrompt}
+              setView={setView}
+              totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+              accumulatedInputTokens={
+                tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+              }
+              accumulatedOutputTokens={
+                tokenState?.accumulatedOutputTokens ??
+                session?.accumulated_output_tokens ??
+                undefined
+              }
+              droppedFiles={droppedFiles}
+              onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
+              messages={messages}
+              disableAnimation={disableAnimation}
+              sessionCosts={sessionCosts}
+              recipe={recipe}
+              recipeAccepted={!hasNotAcceptedRecipe}
+              initialPrompt={initialPrompt}
+              toolCount={toolCount || 0}
+              {...customChatInputProps}
+            />
+          </div>
+        )}
       </MainPanelLayout>
 
       {recipe && (
