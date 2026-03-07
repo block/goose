@@ -41,6 +41,38 @@ function waitForPort(port: number, timeoutMs: number): Promise<void> {
   });
 }
 
+/**
+ * Call a URL and set the JSON response (string→string map) as process.env vars.
+ * Used to inject credentials from a sidecar's auth flow into the agent's environment.
+ */
+async function fetchAndSetEnv(url: string, timeoutMs: number): Promise<void> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      signal: controller.signal,
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${body}`);
+    }
+
+    const envVars: Record<string, string> = await resp.json();
+
+    for (const [key, value] of Object.entries(envVars)) {
+      if (typeof value === 'string') {
+        process.env[key] = value;
+        log.info(`[WhiteLabel] Set env: ${key}=${value.substring(0, 10)}...`);
+      }
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function startProcess(managed: ManagedProcess, resourcesPath: string): void {
   const { config } = managed;
   const cwd = config.cwd ? path.resolve(resourcesPath, config.cwd) : resourcesPath;
@@ -88,6 +120,7 @@ export async function startWhiteLabelProcesses(
 
     startProcess(managed, resourcesPath);
 
+    // Wait for the process to be ready on its port
     if (config.waitForPort) {
       const timeout = config.waitTimeoutMs || 10000;
       try {
@@ -95,6 +128,19 @@ export async function startWhiteLabelProcesses(
         log.info(`[WhiteLabel] Process ${config.name} is ready on port ${config.waitForPort}`);
       } catch (err) {
         log.error(`[WhiteLabel] Process ${config.name} failed to become ready: ${err}`);
+        continue; // skip envFromUrl if port never came up
+      }
+    }
+
+    // Fetch env vars from the process's bootstrap endpoint
+    if (config.envFromUrl) {
+      const envTimeout = config.envFromUrlTimeoutMs || 120000;
+      try {
+        log.info(`[WhiteLabel] Fetching env from ${config.envFromUrl}...`);
+        await fetchAndSetEnv(config.envFromUrl, envTimeout);
+        log.info(`[WhiteLabel] Process ${config.name} bootstrap complete`);
+      } catch (err) {
+        log.error(`[WhiteLabel] Process ${config.name} envFromUrl failed: ${err}`);
       }
     }
   }

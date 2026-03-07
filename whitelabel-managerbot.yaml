@@ -54,62 +54,106 @@ features:
     - navigation-customization
 
   allowedProviders:
-    - custom_kgoose
+    - anthropic
+    # - custom_kgoose  # uncomment when service auth is available
 
 defaults:
-  provider: "custom_kgoose"
-  model: "kgoose-square"
-  workingDir: "/Users/micn/Development/managerbot2-poc"
+  provider: "anthropic"
+  model: "claude-sonnet-4-20250514"
+
+  # # kgoose provider — uncomment when service auth works
+  # providerDefinition:
+  #   id: "custom_kgoose"
+  #   displayName: "kgoose (Square AI)"
+  #   engine: "openai"
+  #   apiUrl: "http://localhost:8080"
+  #   models:
+  #     - "kgoose-square"
+  #   requiresAuth: false
+  #   supportsStreaming: false
+
+  extensions:
+    - name: developer
+      type: builtin
+      enabled: true
+    - name: computercontroller
+      type: builtin
+      enabled: false
+    - name: chatrecall
+      type: builtin
+      enabled: false
+    - name: todo
+      type: platform
+      enabled: false
+    - name: apps
+      type: platform
+      enabled: false
 
   systemPrompt: |
-    You're Managerbot — an AI COO for Square merchants. You help merchants
+    You are Managerbot — an AI COO for Square merchants. You help merchants
     understand their business and manage operations through the Square platform.
 
-    Key rules:
-    - Write operations are staged as mutations for merchant approval — never executed directly.
-    - Communicate with the merchant via task activity (comments, artifacts, elicitations).
-    - Keep comments short (1-2 sentences). Use artifacts for reports and deliverables.
-    - Use elicitations (multiple choice) when you need the merchant to decide something.
+    ## How to use the square CLI
+
+    The `square` binary is available on PATH.
+    Run `square <resource> help` for detailed usage on any resource.
+
+    Available resources:
+      square merchants list|get          — Merchant account info
+      square locations list|get|create|update  — Business locations
+      square channels list|get           — Sales channels
+      square customers list|get|create|update|delete|search  — Customer profiles
+      square customer-groups list|get|create|update|delete   — Customer groups
+      square customer-segments list|get  — Customer segments
+      square customer-custom-attrs ...   — Custom attributes
+      square catalog list|get|search|upsert|delete  — Items, categories, taxes, images
+      square reporting meta|query        — Analytics via Cube API
+      square managerbot tasks list|get|create|update|activity  — Task management
+      square managerbot mutations list|get  — Staged mutation management
+
+    ## Key rules
+
+    - **Reads pass through** — list, get, search commands return live data from Square.
+    - **Writes are staged** — create, update, delete commands return a staged mutation (status: pending).
+      The merchant must approve mutations before they execute. Do NOT tell the merchant the write succeeded.
+      Tell them what you proposed and that it needs their approval.
+    - Always start by understanding the merchant's data: `square merchants get me`, `square locations list`.
+    - Use `square reporting meta` to discover available analytics before querying.
+    - Keep responses concise. Show data in tables or lists when appropriate.
 
   skills:
     - name: "Catalog Health Check"
-      description: "Analyze product catalog for missing information, duplicates, and data quality issues"
+      description: "Run a diagnostic audit of a merchant's product catalog to find missing fields, duplicates, and data quality problems."
       path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/catalog-health-check"
+    - name: "Catalog Optimization"
+      description: "Generate prioritized, sales-weighted recommendations to improve catalog images, pricing strategy, and category organization."
+      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/catalog-optimization"
+    - name: "Data Analysis"
+      description: "Analyze merchant data, generate charts, and deliver reports."
+      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/data-analysis"
+    - name: "Email Campaign"
+      description: "Create and review Square Email Marketing campaigns with catalog research, brand-voice alignment, and inline preview."
+      path: "/Users/micn/Development/managerbot2-poc/sandbox/skills/email-campaign"
 
   tools:
     - name: "square"
-      description: "Managerbot CLI for Square APIs, task management, and mutations"
-      path: "/Users/micn/Development/managerbot2-poc/cli/square"
-      env:
-        MANAGERBOT_API_KEY: "(set by token exchange)"
-        MANAGERBOT_API_URL: "http://localhost:8793"
-      helpText: |
-        Run `square <resource> help` for detailed usage and examples.
-
-        | Resource | What it does |
-        |----------|--------------|
-        | merchants | Merchant account info |
-        | locations | Business locations (CRUD) |
-        | channels | Sales channels |
-        | customers | Customer profiles (CRUD, search, bulk ops, groups) |
-        | customer-groups | Customer groups |
-        | customer-segments | Customer segments |
-        | customer-custom-attrs | Custom attributes |
-        | catalog | Items, categories, taxes, discounts, images |
-        | reporting | Analytics via Cube API |
-        | managerbot tasks | Task management and activity |
-        | managerbot mutations | Staged mutation management |
+      description: "Square merchant CLI — interact with Square APIs through the Managerbot server"
+      path: "/Users/micn/Development/managerbot2-poc/bin/square"
 
 processes:
-  - name: "kgoose-proxy"
+  - name: "managerbot-server"
     command: "bash"
-    args: ["scripts/run-kgoose-server.sh"]
+    args: ["scripts/run-server.sh"]
     cwd: "/Users/micn/Development/managerbot2-poc"
     env:
-      PORT: "8080"
+      SQUARE_BASE_URL: "https://connect.squareupstaging.com"
+      MANAGERGOOSE_CLIENT_ID: "sq0ids-2nnfRUeYdZC1R7LHWjC38Q"
+      MANAGERGOOSE_CLIENT_SECRET: "sq0css-Z7LoqlmaL_tq68b0VXLlm5bNpI2g0tgTHhAq1AN4I0U"
     restartOnCrash: true
     waitForPort: 8080
-    waitTimeoutMs: 10000
+    waitTimeoutMs: 20000
+    envFromUrl: "http://localhost:8080/agent/bootstrap"
+    envFromUrlTimeoutMs: 120000
 
 window:
   width: 1100

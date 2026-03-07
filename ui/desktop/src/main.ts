@@ -64,6 +64,7 @@ const whiteLabelConfig = getWhiteLabelConfig();
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { startWhiteLabelProcesses, stopAllWhiteLabelProcesses } from './whitelabel/processManager';
+import { initWhiteLabelProvider } from './whitelabel/initProvider';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -687,6 +688,13 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       });
     }
     app.quit();
+  }
+
+  // Auto-configure provider/model/extensions from whitelabel config
+  try {
+    await initWhiteLabelProvider(goosedClient, whiteLabelConfig);
+  } catch (err) {
+    log.warn('[whitelabel] Init failed:', err);
   }
 
   // Let windowStateKeeper manage the window

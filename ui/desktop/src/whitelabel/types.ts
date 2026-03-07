@@ -66,9 +66,34 @@ export interface WhiteLabelTool {
   helpText?: string;
 }
 
+/** Inline custom provider definition — registered automatically on first launch */
+export interface WhiteLabelProvider {
+  /** Provider ID (e.g. "custom_kgoose"). Must start with "custom_" */
+  id: string;
+  /** Display name in settings UI */
+  displayName: string;
+  /** Engine type: "openai", "anthropic", etc. */
+  engine: string;
+  /** Base URL for the API */
+  apiUrl: string;
+  /** Model names this provider supports */
+  models: string[];
+  /** Whether the provider requires an API key */
+  requiresAuth?: boolean;
+  /** Whether the provider supports streaming */
+  supportsStreaming?: boolean;
+  /** Custom headers to send with requests */
+  headers?: Record<string, string>;
+  /** Base path override (e.g. "/v1") */
+  basePath?: string;
+}
+
 export interface WhiteLabelDefaults {
+  /** Provider ID to use (must match providerDefinition.id if defined) */
   provider?: string;
   model?: string;
+  /** Full provider definition — auto-registered on startup */
+  providerDefinition?: WhiteLabelProvider;
   extensions?: WhiteLabelExtensionDefault[];
   workingDir?: string;
   systemPrompt?: string;
@@ -88,6 +113,13 @@ export interface WhiteLabelProcess {
   restartOnCrash?: boolean;
   waitForPort?: number;
   waitTimeoutMs?: number;
+  /** URL to call (POST) after the process is ready. The JSON response
+   *  is a string→string map of environment variables to set on
+   *  process.env so the agent's shell commands can use them. */
+  envFromUrl?: string;
+  /** Timeout in ms for the envFromUrl call (default: 120000 — 2 minutes,
+   *  to allow time for interactive auth flows like OAuth). */
+  envFromUrlTimeoutMs?: number;
 }
 
 export interface WhiteLabelWindow {
