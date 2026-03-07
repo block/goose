@@ -14,8 +14,7 @@ import { useCurrentModelInfo } from '../../../BaseChat';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
-import { Alert } from '../../../alerts';
-import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
+
 import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
 import { ScrollArea } from '../../../ui/scroll-area';
 
@@ -23,14 +22,12 @@ interface ModelsBottomBarProps {
   sessionId: string | null;
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
-  alerts: Alert[];
 }
 
 export default function ModelsBottomBar({
   sessionId,
   dropdownRef,
   setView,
-  alerts,
 }: ModelsBottomBarProps) {
   const { currentModel, currentProvider } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
@@ -141,7 +138,6 @@ export default function ModelsBottomBar({
 
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
-      <BottomMenuAlertPopover alerts={alerts} />
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center hover:cursor-pointer max-w-[180px] md:max-w-[200px] lg:max-w-[380px] min-w-0 text-text-primary/70 hover:text-text-primary transition-colors">
           <div className="flex items-center truncate max-w-[130px] md:max-w-[200px] lg:max-w-[360px] min-w-0">
