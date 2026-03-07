@@ -51,6 +51,7 @@ import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { buildCSP } from './utils/csp';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -1745,51 +1746,14 @@ async function appMain() {
     }
   });
 
-  const buildConnectSrc = (): string => {
-    const sources = [
-      "'self'",
-      'http://127.0.0.1:*',
-      'https://127.0.0.1:*',
-      'http://localhost:*',
-      'https://localhost:*',
-      'https://api.github.com',
-      'https://github.com',
-      'https://objects.githubusercontent.com',
-    ];
-
-    const settings = getSettings();
-    if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
-      try {
-        const externalUrl = new URL(settings.externalGoosed.url);
-        sources.push(externalUrl.origin);
-      } catch {
-        console.warn('Invalid external goosed URL in settings, skipping CSP entry');
-      }
-    }
-
-    return sources.join(' ');
-  };
-
-  // Add CSP headers to all sessions
+  // Add CSP headers to all sessions — recomputed on every response so that
+  // changes to externalGoosed settings take effect without restarting the app.
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const currentSettings = getSettings();
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy':
-          "default-src 'self';" +
-          "style-src 'self' 'unsafe-inline';" +
-          "script-src 'self' 'unsafe-inline';" +
-          "img-src 'self' data: https:;" +
-          `connect-src ${buildConnectSrc()};` +
-          "object-src 'none';" +
-          "frame-src 'self' https: http:;" +
-          "font-src 'self' data: https:;" +
-          "media-src 'self' mediastream:;" +
-          "form-action 'none';" +
-          "base-uri 'self';" +
-          "manifest-src 'self';" +
-          "worker-src 'self';" +
-          'upgrade-insecure-requests;',
+        'Content-Security-Policy': buildCSP(currentSettings.externalGoosed),
       },
     });
   });
