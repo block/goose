@@ -244,10 +244,9 @@ impl Provider for MeshProvider {
                 };
 
                 let line = line.trim();
-                if !line.starts_with("data: ") {
+                let Some(data) = line.strip_prefix("data: ") else {
                     continue;
-                }
-                let data = &line["data: ".len()..];
+                };
                 if data == "[DONE]" {
                     break;
                 }
