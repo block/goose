@@ -38,7 +38,7 @@ jobs:
 
           # Update version in package.json
           cd ui/desktop
-          npm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
+          pnpm version ${{ inputs.version }} --no-git-tag-version --allow-same-version
 
       - name: Debug workflow info
         env:
@@ -120,21 +120,21 @@ jobs:
           chmod +x ui/desktop/src/bin/goosed
           ls -la ui/desktop/src/bin/
 
-      - name: Cache npm dependencies
+      - name: Cache pnpm dependencies
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
           path: |
             ui/desktop/node_modules
             .hermit/node/cache
-          key: linux-npm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/package-lock.json') }}
+          key: linux-pnpm-cache-v1-${{ runner.os }}-${{ hashFiles('ui/desktop/pnpm-lock.yaml') }}
           restore-keys: |
-            linux-npm-cache-v1-${{ runner.os }}-
+            linux-pnpm-cache-v1-${{ runner.os }}-
 
-      - name: Install npm dependencies
+      - name: Install pnpm dependencies
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          npm ci
+          pnpm install --frozen-lockfile
           # Verify installation
           ls -la node_modules/.bin/ | head -5
 
@@ -145,7 +145,7 @@ jobs:
           echo "Building Linux packages (.deb, .rpm, and .flatpak)..."
 
           # Build all configured packages
-          npm run make -- --platform=linux --arch=x64
+          pnpm run make -- --platform=linux --arch=x64
 
           echo "Build completed. Checking output..."
           ls -la out/
