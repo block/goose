@@ -427,10 +427,15 @@ export default function ExtensionModal({
           <DialogFooter className="pt-2">
             {showDeleteConfirmation ? (
               <>
-                <Button variant="outline" onClick={() => setShowDeleteConfirmation(false)}>
+                <Button
+                  data-testid="extension-delete-cancel-btn"
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirmation(false)}
+                >
                   Cancel
                 </Button>
                 <Button
+                  data-testid="extension-confirm-removal-btn"
                   onClick={() => {
                     if (onDelete) {
                       onDelete(formData.name);
@@ -447,6 +452,7 @@ export default function ExtensionModal({
               <>
                 {modalType === 'edit' && onDelete && (
                   <Button
+                    data-testid="extension-remove-btn"
                     onClick={() => setShowDeleteConfirmation(true)}
                     variant="outline"
                     className="text-red-500 hover:text-red-600"
@@ -455,7 +461,7 @@ export default function ExtensionModal({
                     Remove extension
                   </Button>
                 )}
-                <Button variant="outline" onClick={handleClose}>
+                <Button data-testid="extension-cancel-btn" variant="outline" onClick={handleClose}>
                   Cancel
                 </Button>
                 <Button

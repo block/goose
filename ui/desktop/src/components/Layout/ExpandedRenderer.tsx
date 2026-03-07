@@ -172,6 +172,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                     <div className="relative">
                       <DropdownMenuTrigger asChild>
                         <motion.div
+                          data-testid={`nav-${item.id}`}
                           className={cn(
                             'w-full relative flex flex-col rounded-lg',
                             'transition-colors duration-200 aspect-square cursor-pointer',
@@ -247,6 +248,7 @@ export const ExpandedRenderer: React.FC<NavigationRendererProps> = ({
                   )}
                 >
                   <button
+                    data-testid={`nav-${item.id}`}
                     onClick={() => onNavClick(item.path)}
                     className="flex-1 flex flex-col items-start justify-between p-5 no-drag text-left"
                   >

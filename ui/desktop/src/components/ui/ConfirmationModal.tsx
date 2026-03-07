@@ -46,6 +46,7 @@ export function ConfirmationModal({
 
         <DialogFooter className="pt-2 shrink-0">
           <Button
+            data-testid="confirmation-cancel-btn"
             variant="outline"
             onClick={onCancel}
             disabled={isSubmitting}
@@ -54,6 +55,7 @@ export function ConfirmationModal({
             {cancelLabel}
           </Button>
           <Button
+            data-testid="confirmation-confirm-btn"
             variant={confirmVariant}
             onClick={onConfirm}
             disabled={isSubmitting}

@@ -28,6 +28,7 @@ export default function ExtensionInfoFields({
           <label className="text-sm font-medium mb-2 block text-text-primary">Extension Name</label>
           <div className="relative">
             <Input
+              data-testid="extension-name-input"
               value={name}
               onChange={(e) => onChange('name', e.target.value)}
               placeholder="Enter extension name..."
@@ -74,6 +75,7 @@ export default function ExtensionInfoFields({
         <label className="text-sm font-medium mb-2 block text-text-primary">Description</label>
         <div className="relative">
           <Input
+            data-testid="extension-description-input"
             value={description}
             onChange={(e) => onChange('description', e.target.value)}
             placeholder="Optional description..."

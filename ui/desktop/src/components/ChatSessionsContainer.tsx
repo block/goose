@@ -46,6 +46,7 @@ export default function ChatSessionsContainer({
             key={session.sessionId}
             className={`absolute inset-0 ${isVisible ? 'block' : 'hidden'}`}
             data-session-id={session.sessionId}
+            data-session-active={isVisible ? 'true' : 'false'}
           >
             <BaseChat
               setChat={setChat}

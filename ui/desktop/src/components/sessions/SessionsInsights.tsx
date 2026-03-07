@@ -324,6 +324,7 @@ export function SessionInsights() {
                   recentSessions.map((session, index) => (
                     <div
                       key={session.id}
+                      data-testid={`recent-chat-${session.id}`}
                       className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-secondary cursor-pointer transition-colors"
                       onClick={() => handleSessionClick(session)}
                       role="button"

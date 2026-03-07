@@ -59,6 +59,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
             {/* New Chat button as first item */}
             {onNewChat && (
               <div
+                data-testid="nav-start-new-chat"
                 onClick={onNewChat}
                 className={cn(
                   'w-full text-left py-1.5 px-2 text-xs rounded-md',
@@ -83,6 +84,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
               return (
                 <div
                   key={session.id}
+                  data-testid={`sidebar-session-${session.id}`}
                   onClick={() => {
                     if (!isEditing) {
                       clearUnread(session.id);
@@ -125,6 +127,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
             {/* Show All button at bottom */}
             {onShowAll && sessions.length > 0 && (
               <div
+                data-testid="nav-show-all-sessions"
                 onClick={onShowAll}
                 className={cn(
                   'w-full text-left py-1.5 px-2 text-xs rounded-md',
