@@ -141,6 +141,15 @@ pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }
 encoding_rs = "0.8.35"
 
+# Unix domain socket HTTP transport for StreamableHttp extensions
+[target.'cfg(unix)'.dependencies]
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+sse-stream = "0.2"
+bytes = { workspace = true }
+http = { workspace = true }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3", features = ["wincred"] }
 

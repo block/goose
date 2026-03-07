@@ -298,14 +298,20 @@ fn extract_auth_error(
             ClientInitializeError::TransportError {
                 error: DynamicTransportError { error, .. },
                 ..
-            } => error
-                .downcast_ref::<StreamableHttpError<reqwest::Error>>()
-                .and_then(|auth_error| match auth_error {
-                    StreamableHttpError::AuthRequired(auth_required_error) => {
-                        Some(auth_required_error)
-                    }
-                    _ => None,
-                }),
+            } => {
+                if let Some(StreamableHttpError::AuthRequired(e)) =
+                    error.downcast_ref::<StreamableHttpError<reqwest::Error>>()
+                {
+                    return Some(e);
+                }
+                #[cfg(unix)]
+                if let Some(StreamableHttpError::AuthRequired(e)) = error
+                    .downcast_ref::<StreamableHttpError<super::unix_socket_http_client::UnixSocketError>>()
+                {
+                    return Some(e);
+                }
+                None
+            }
             _ => None,
         },
     }
@@ -394,6 +400,7 @@ pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>
 const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
     reqwest::header::HeaderValue::from_static(concat!("goose/", env!("CARGO_PKG_VERSION")));
 
+#[allow(clippy::too_many_arguments)]
 async fn create_streamable_http_client(
     uri: &str,
     timeout: Option<u64>,
@@ -402,7 +409,30 @@ async fn create_streamable_http_client(
     provider: SharedProvider,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    socket: Option<&str>,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
+    #[cfg(unix)]
+    if let Some(socket_path) = socket {
+        return create_unix_socket_http_client(
+            uri,
+            timeout,
+            headers,
+            name,
+            socket_path,
+            provider,
+            client_name,
+            capabilities,
+        )
+        .await;
+    }
+
+    #[cfg(not(unix))]
+    if socket.is_some() {
+        return Err(ExtensionError::ConfigError(
+            "Unix domain socket transport is not supported on this platform".to_string(),
+        ));
+    }
+
     let mut default_headers = HeaderMap::new();
 
     default_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -455,6 +485,94 @@ async fn create_streamable_http_client(
                 ExtensionError::ConfigError("could not construct http client".to_string())
             })?;
         let auth_client = AuthClient::new(auth_http_client, auth_manager);
+        let transport = StreamableHttpClientTransport::with_client(
+            auth_client,
+            StreamableHttpClientTransportConfig {
+                uri: uri.into(),
+                ..Default::default()
+            },
+        );
+        Ok(Box::new(
+            McpClient::connect(
+                transport,
+                timeout_duration,
+                provider,
+                client_name,
+                capabilities,
+            )
+            .await?,
+        ))
+    } else {
+        Ok(Box::new(client_res?))
+    }
+}
+
+#[cfg(unix)]
+#[allow(clippy::too_many_arguments)]
+async fn create_unix_socket_http_client(
+    uri: &str,
+    timeout: Option<u64>,
+    headers: &HashMap<String, String>,
+    name: &str,
+    socket_path: &str,
+    provider: SharedProvider,
+    client_name: String,
+    capabilities: GooseMcpClientCapabilities,
+) -> ExtensionResult<Box<dyn McpClientTrait>> {
+    use super::unix_socket_http_client::UnixSocketHttpClient;
+    use http::header::HeaderValue;
+
+    #[cfg(not(target_os = "linux"))]
+    if socket_path.starts_with('@') {
+        return Err(ExtensionError::ConfigError(
+            "Abstract Unix sockets (@-prefixed) are only supported on Linux".to_string(),
+        ));
+    }
+
+    let mut default_headers = std::collections::HashMap::new();
+    default_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
+    for (key, value) in headers {
+        let header_name = HeaderName::try_from(key)
+            .map_err(|_| ExtensionError::ConfigError(format!("invalid header: {key}")))?;
+        let val: HeaderValue = value
+            .parse()
+            .map_err(|_| ExtensionError::ConfigError(format!("invalid header value: {key}")))?;
+        default_headers.insert(header_name, val);
+    }
+
+    let retry_headers = {
+        let mut h = default_headers.clone();
+        h.remove(&http::header::AUTHORIZATION);
+        h
+    };
+
+    let unix_client = UnixSocketHttpClient::new(uri, socket_path, default_headers);
+    let transport = StreamableHttpClientTransport::with_client(
+        unix_client,
+        StreamableHttpClientTransportConfig {
+            uri: uri.into(),
+            ..Default::default()
+        },
+    );
+
+    let timeout_duration =
+        Duration::from_secs(timeout.unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT));
+
+    let client_res = McpClient::connect(
+        transport,
+        timeout_duration,
+        provider.clone(),
+        client_name.clone(),
+        capabilities.clone(),
+    )
+    .await;
+
+    if extract_auth_error(&client_res).is_some() {
+        let auth_manager = oauth_flow(&uri.to_string(), &name.to_string())
+            .await
+            .map_err(|_| ExtensionError::SetupError("auth error".to_string()))?;
+        let auth_unix_client = UnixSocketHttpClient::new(uri, socket_path, retry_headers);
+        let auth_client = AuthClient::new(auth_unix_client, auth_manager);
         let transport = StreamableHttpClientTransport::with_client(
             auth_client,
             StreamableHttpClientTransportConfig {
@@ -563,6 +681,7 @@ impl ExtensionManager {
                 name,
                 envs,
                 env_keys,
+                socket,
                 ..
             } => {
                 let config = Config::global();
@@ -583,6 +702,7 @@ impl ExtensionManager {
                     self.provider.clone(),
                     self.client_name.clone(),
                     capability,
+                    socket.as_deref(),
                 )
                 .await?
             }

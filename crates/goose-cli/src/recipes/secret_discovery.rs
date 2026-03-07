@@ -150,6 +150,7 @@ mod tests {
                     bundled: None,
                     available_tools: Vec::new(),
                     headers: HashMap::new(),
+                    socket: None,
                 },
                 ExtensionConfig::Stdio {
                     name: "slack-mcp".to_string(),
@@ -246,6 +247,7 @@ mod tests {
                     bundled: None,
                     available_tools: Vec::new(),
                     headers: HashMap::new(),
+                    socket: None,
                 },
                 ExtensionConfig::Stdio {
                     name: "service-b".to_string(),
@@ -305,6 +307,7 @@ mod tests {
                 bundled: None,
                 available_tools: Vec::new(),
                 headers: HashMap::new(),
+                socket: None,
             }]),
             sub_recipes: Some(vec![SubRecipe {
                 name: "child-recipe".to_string(),
