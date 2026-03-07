@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Switch } from '../../ui/switch';
 import { useConfig } from '../../ConfigContext';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface SecurityConfig {
   SECURITY_PROMPT_ENABLED?: boolean;
@@ -96,6 +97,7 @@ const ClassifierEndpointInputs = ({
 };
 
 export const SecurityToggle = () => {
+  const { t } = useLocalization();
   const { config, upsert } = useConfig();
 
   const modelMapping = useMemo(() => {
@@ -217,9 +219,9 @@ export const SecurityToggle = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between py-2 px-2 hover:bg-background-secondary rounded-lg transition-all">
         <div>
-          <h3 className="text-text-primary">Enable Prompt Injection Detection</h3>
+          <h3 className="text-text-primary">{t('security.title')}</h3>
           <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-            Detect and prevent potential prompt injection attacks
+            {t('security.description')}
           </p>
         </div>
         <div className="flex items-center">
@@ -238,10 +240,10 @@ export const SecurityToggle = () => {
             <label
               className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
             >
-              Detection Threshold
+              {t('security.detectionThreshold')}
             </label>
             <p className="text-xs text-text-secondary mb-2">
-              Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)
+              {t('security.detectionThresholdDescription')}
             </p>
             <input
               type="number"
@@ -278,10 +280,10 @@ export const SecurityToggle = () => {
                 <h4
                   className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
                 >
-                  Enable Command Injection ML Detection
+                  {t('security.commandInjectionTitle')}
                 </h4>
                 <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                  Use ML models to detect malicious shell commands
+                  {t('security.commandInjectionDescription')}
                 </p>
               </div>
               <div className="flex items-center">
@@ -298,7 +300,7 @@ export const SecurityToggle = () => {
               enabled &&
               effectiveCommandClassifierEnabled && (
                 <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-                  ✓ Command classifier active (auto-configured from environment)
+                  ✓ {t('security.commandClassifierActive')}
                 </div>
               )
             ) : (
@@ -320,7 +322,10 @@ export const SecurityToggle = () => {
                     disabled={!enabled || !effectiveCommandClassifierEnabled}
                     endpointPlaceholder="https://example.com/classify"
                     tokenPlaceholder="token..."
-                    endpointDescription="Enter the full URL for your command injection classification service"
+                    endpointLabel={t('security.classificationEndpoint')}
+                    endpointDescription={t('security.commandEndpointDescription')}
+                    tokenLabel={t('security.apiTokenOptional')}
+                    tokenDescription={t('security.apiTokenDescription')}
                   />
                 </div>
               </div>
@@ -334,10 +339,10 @@ export const SecurityToggle = () => {
                 <h4
                   className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
                 >
-                  Enable Prompt Injection ML Detection
+                  {t('security.promptInjectionMlTitle')}
                 </h4>
                 <p className="text-xs text-text-secondary max-w-md mt-[2px]">
-                  Use ML models to detect potential prompt injection in your chat
+                  {t('security.promptInjectionMlDescription')}
                 </p>
               </div>
               <div className="flex items-center">
@@ -363,10 +368,10 @@ export const SecurityToggle = () => {
                       <label
                         className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-primary' : 'text-text-secondary'}`}
                       >
-                        Detection Model
+                        {t('security.detectionModel')}
                       </label>
                       <p className="text-xs text-text-secondary mb-2">
-                        Select which ML model to use for prompt injection detection
+                        {t('security.detectionModelDescription')}
                       </p>
                       <select
                         value={effectiveModel}
@@ -397,8 +402,10 @@ export const SecurityToggle = () => {
                     disabled={!enabled || !mlEnabled}
                     endpointPlaceholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
                     tokenPlaceholder="hf_..."
-                    endpointDescription="Enter the full URL for your ML classification service (including model identifier)"
-                    tokenDescription="Authentication token for the ML service (e.g., HuggingFace token)"
+                    endpointLabel={t('security.classificationEndpoint')}
+                    endpointDescription={t('security.mlEndpointDescription')}
+                    tokenLabel={t('security.apiTokenOptional')}
+                    tokenDescription={t('security.mlTokenDescription')}
                   />
                 )}
               </div>

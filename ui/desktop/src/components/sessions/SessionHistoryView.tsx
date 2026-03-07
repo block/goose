@@ -33,6 +33,7 @@ import BackButton from '../ui/BackButton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { Message, Session } from '../../api';
 import { useNavigation } from '../../hooks/useNavigation';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 const isUserMessage = (message: Message): boolean => {
   if (message.role === 'assistant') {
@@ -81,6 +82,7 @@ const SessionMessages: React.FC<{
   error: string | null;
   onRetry: () => void;
 }> = ({ messages, isLoading, error, onRetry }) => {
+  const { t } = useLocalization();
   const filteredMessages = filterMessagesForDisplay(messages);
 
   return (
@@ -96,15 +98,15 @@ const SessionMessages: React.FC<{
               <div className="text-red-500 mb-4">
                 <AlertCircle size={32} />
               </div>
-              <p className="text-md mb-2">Error Loading Session Details</p>
+              <p className="text-md mb-2">{t('sessions.history.errorTitle')}</p>
               <p className="text-sm text-center mb-4">{error}</p>
               <Button onClick={onRetry} variant="default">
-                Try Again
+                {t('common.actions.retry')}
               </Button>
             </div>
           ) : filteredMessages?.length > 0 ? (
             <div className="max-w-4xl mx-auto w-full">
-              <SearchView placeholder="Search history...">
+              <SearchView placeholder={t('sessions.searchPlaceholder')}>
                 <ProgressiveMessageList
                   messages={filteredMessages}
                   chat={{
@@ -122,8 +124,8 @@ const SessionMessages: React.FC<{
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-text-secondary">
               <MessageSquareText className="w-12 h-12 mb-4" />
-              <p className="text-lg mb-2">No messages found</p>
-              <p className="text-sm">This session doesn't contain any messages</p>
+              <p className="text-lg mb-2">{t('sessions.history.noMessages')}</p>
+              <p className="text-sm">{t('sessions.history.noMessagesDescription')}</p>
             </div>
           )}
         </div>
@@ -140,6 +142,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
   onRetry,
   showActionButtons = true,
 }) => {
+  const { t } = useLocalization();
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareLink, setShareLink] = useState<string>('');
   const [isSharing, setIsSharing] = useState(false);
@@ -171,7 +174,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
         config.baseUrl,
         session.working_dir,
         messages,
-        session.name || 'Shared Session',
+        session.name || t('sessions.sharedSession'),
         session.total_tokens || 0
       );
 
@@ -180,7 +183,11 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       setIsShareModalOpen(true);
     } catch (error) {
       console.error('Error sharing session:', error);
-      toast.error(`Failed to share session: ${errorMessage(error, 'Unknown error')}`);
+      toast.error(
+        t('sessions.history.shareFailed', {
+          error: errorMessage(error, t('common.labels.unknown')),
+        })
+      );
     } finally {
       setIsSharing(false);
     }
@@ -195,7 +202,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
       })
       .catch((err) => {
         console.error('Failed to copy link:', err);
-        toast.error('Failed to copy link to clipboard');
+        toast.error(t('sessions.history.copyLinkFailed'));
       });
   };
 
@@ -221,28 +228,25 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
             {isSharing ? (
               <>
                 <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
-                Sharing...
+                {t('common.labels.loading')}
               </>
             ) : (
               <>
                 <Share2 className="w-4 h-4" />
-                Share
+                {t('sessions.history.share')}
               </>
             )}
           </Button>
         </TooltipTrigger>
         {!canShare ? (
           <TooltipContent>
-            <p>
-              To enable session sharing, go to <b>Settings</b> {'>'} <b>Session</b> {'>'}{' '}
-              <b>Session Sharing</b>.
-            </p>
+            <p>{t('sessions.history.shareDisabledHint')}</p>
           </TooltipContent>
         ) : null}
       </Tooltip>
       <Button onClick={handleResumeSession} size="sm" variant="outline">
         <Sparkles className="w-4 h-4" />
-        Resume
+        {t('sessions.history.resume')}
       </Button>
     </>
   ) : null;
@@ -285,7 +289,7 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
               ) : (
                 <div className="flex items-center text-text-secondary text-sm">
                   <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />
-                  <span>Loading session details...</span>
+                  <span>{t('sessions.history.loadingDetails')}</span>
                 </div>
               )}
             </div>
@@ -305,10 +309,10 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
           <DialogHeader>
             <DialogTitle className="flex justify-center items-center gap-2">
               <Share2 className="w-6 h-6 text-text-primary" />
-              Share Session (beta)
+              {t('sessions.history.shareBeta')}
             </DialogTitle>
             <DialogDescription>
-              Share this session link to give others a read only view of your goose chat.
+              {t('sessions.history.shareDescription')}
             </DialogDescription>
           </DialogHeader>
 
@@ -325,14 +329,14 @@ const SessionHistoryView: React.FC<SessionHistoryViewProps> = ({
                 disabled={isCopied}
               >
                 {isCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                <span className="sr-only">Copy</span>
+                <span className="sr-only">{t('common.actions.copy')}</span>
               </Button>
             </div>
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsShareModalOpen(false)}>
-              Cancel
+              {t('common.actions.cancel')}
             </Button>
           </DialogFooter>
         </DialogContent>

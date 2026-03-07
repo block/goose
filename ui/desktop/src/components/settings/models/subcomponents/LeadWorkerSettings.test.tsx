@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { LeadWorkerSettings } from './LeadWorkerSettings';
+import { LocalizationProvider } from '../../../../contexts/LocalizationContext';
 
 // Mock predefined models utils to force provider-based options (no predefined list)
 vi.mock('../predefinedModelsUtils', () => ({
@@ -34,6 +35,9 @@ describe('LeadWorkerSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
+  const renderWithLocalization = (ui: React.ReactNode) =>
+    render(<LocalizationProvider>{ui}</LocalizationProvider>);
 
   const setupHappyPathMocks = () => {
     // reads
@@ -87,7 +91,7 @@ describe('LeadWorkerSettings', () => {
     setupHappyPathMocks();
 
     const onClose = vi.fn();
-    render(<LeadWorkerSettings isOpen={true} onClose={onClose} />);
+    renderWithLocalization(<LeadWorkerSettings isOpen={true} onClose={onClose} />);
 
     // Wait for modal content (not loading)
     await waitFor(() => {
@@ -127,7 +131,7 @@ describe('LeadWorkerSettings', () => {
     setupHappyPathMocks();
 
     const onClose = vi.fn();
-    render(<LeadWorkerSettings isOpen={true} onClose={onClose} />);
+    renderWithLocalization(<LeadWorkerSettings isOpen={true} onClose={onClose} />);
 
     await waitFor(() => {
       expect(screen.getByText('Lead/Worker Mode')).toBeInTheDocument();

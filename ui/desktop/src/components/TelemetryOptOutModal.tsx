@@ -6,6 +6,7 @@ import { TELEMETRY_UI_ENABLED } from '../updates';
 import { toastService } from '../toasts';
 import { useConfig } from './ConfigContext';
 import { trackTelemetryPreference } from '../utils/analytics';
+import { useLocalization } from '../contexts/LocalizationContext';
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
@@ -15,6 +16,7 @@ type TelemetryOptOutModalProps =
 
 export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
   const { read, upsert } = useConfig();
+  const { t } = useLocalization();
   const isControlled = props.controlled;
   const controlledIsOpen = isControlled ? props.isOpen : undefined;
   const onClose = isControlled ? props.onClose : undefined;
@@ -41,15 +43,15 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
       } catch (error) {
         console.error('Failed to check telemetry config:', error);
         toastService.error({
-          title: 'Configuration Error',
-          msg: 'Failed to check telemetry configuration.',
+          title: t('telemetry.errors.configurationTitle'),
+          msg: t('telemetry.errors.checkFailed'),
           traceback: error instanceof Error ? error.stack || '' : '',
         });
       }
     };
 
     checkTelemetryChoice();
-  }, [isControlled, read]);
+  }, [isControlled, read, t]);
 
   const handleChoice = async (enabled: boolean) => {
     setIsLoading(true);
@@ -88,7 +90,7 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
             disabled={isLoading}
             className="w-full h-[44px] rounded-lg"
           >
-            Yes, share anonymous usage data
+            {t('telemetry.modal.shareButton')}
           </Button>
           <Button
             variant="ghost"
@@ -96,7 +98,7 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
             disabled={isLoading}
             className="w-full h-[44px] rounded-lg text-text-secondary hover:text-text-primary"
           >
-            No thanks
+            {t('telemetry.modal.declineButton')}
           </Button>
         </div>
       }
@@ -106,25 +108,23 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
           <Goose className="size-10 text-text-primary" />
         </div>
         <h2 className="text-2xl font-regular dark:text-white text-gray-900 text-center mb-3">
-          Help improve goose
+          {t('telemetry.modal.title')}
         </h2>
         <p className="text-text-primary text-sm mb-3">
-          Would you like to help improve goose by sharing anonymous usage data? This helps us
-          understand how goose is used and identify areas for improvement.
+          {t('telemetry.modal.body')}
         </p>
         <div className="text-text-secondary text-xs space-y-1">
-          <p className="font-medium text-text-primary">What we collect:</p>
+          <p className="font-medium text-text-primary">{t('telemetry.modal.collectTitle')}</p>
           <ul className="list-disc list-inside space-y-0.5 ml-1">
-            <li>Operating system, version, and architecture</li>
-            <li>goose version and install method</li>
-            <li>Provider and model used</li>
-            <li>Extensions and tool usage counts (names only)</li>
-            <li>Session metrics (duration, interaction count, token usage)</li>
-            <li>Error types (e.g., "rate_limit", "auth" - no details)</li>
+            <li>{t('telemetry.modal.operatingSystem')}</li>
+            <li>{t('telemetry.modal.gooseVersion')}</li>
+            <li>{t('telemetry.modal.providerAndModel')}</li>
+            <li>{t('telemetry.modal.extensionsUsage')}</li>
+            <li>{t('telemetry.modal.sessionMetrics')}</li>
+            <li>{t('telemetry.modal.errorTypes')}</li>
           </ul>
           <p className="mt-3 text-text-secondary">
-            We never collect your conversations, code, tool arguments, error messages, or any
-            personal data. You can change this setting anytime in Settings → App.
+            {t('telemetry.modal.privacyNotice')}
           </p>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 export default function RecipeActivityEditor({
   activities = [],
@@ -10,6 +11,7 @@ export default function RecipeActivityEditor({
   setActivities: (prev: string[]) => void;
   onBlur?: () => void;
 }) {
+  const { t } = useLocalization();
   const [newActivity, setNewActivity] = useState('');
   const [messageContent, setMessageContent] = useState('');
 
@@ -61,20 +63,19 @@ export default function RecipeActivityEditor({
   return (
     <div>
       <label htmlFor="activities" className="block text-md text-text-primary mb-2 font-bold">
-        Activities
+        {t('recipes.activityEditor.title')}
       </label>
       <p className="text-sm text-text-secondary space-y-2 pb-4">
-        The top-line prompts and activity buttons that will display in the recipe chat window.
+        {t('recipes.activityEditor.description')}
       </p>
 
       {/* Message Field */}
       <div>
         <label htmlFor="message" className="block text-sm font-medium text-text-primary mb-2">
-          Message
+          {t('recipes.activityEditor.messageLabel')}
         </label>
         <p className="text-xs text-text-secondary mb-2">
-          A formatted message that will appear at the top of the recipe. Supports markdown
-          formatting.
+          {t('recipes.activityEditor.messageDescription')}
         </p>
         <textarea
           id="message"
@@ -82,7 +83,7 @@ export default function RecipeActivityEditor({
           onChange={(e) => handleMessageChange(e.target.value)}
           onBlur={onBlur}
           className="w-full px-4 py-3 border rounded-lg bg-background-primary text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-border-secondary resize-vertical"
-          placeholder="Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)"
+          placeholder={t('recipes.activityEditor.messagePlaceholder')}
           rows={3}
           autoCorrect="off"
           autoCapitalize="off"
@@ -94,11 +95,10 @@ export default function RecipeActivityEditor({
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text-primary mb-2">
-            Activity Buttons
+            {t('recipes.activityEditor.buttonsLabel')}
           </label>
           <p className="text-xs text-text-secondary mb-3">
-            Clickable buttons that will appear below the message to help users interact with your
-            recipe.
+            {t('recipes.activityEditor.buttonsDescription')}
           </p>
         </div>
 
@@ -132,7 +132,7 @@ export default function RecipeActivityEditor({
             onKeyPress={(e) => e.key === 'Enter' && handleAddActivity()}
             onBlur={onBlur}
             className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            placeholder="Add new activity..."
+            placeholder={t('recipes.activityEditor.addPlaceholder')}
           />
           <button
             type="button"
@@ -140,7 +140,7 @@ export default function RecipeActivityEditor({
             disabled={!newActivity.trim()}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Add activity
+            {t('recipes.activityEditor.add')}
           </button>
         </div>
       </div>

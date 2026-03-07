@@ -18,8 +18,10 @@ import {
   DialogTrigger,
 } from '../../ui/dialog';
 import { errorMessage } from '../../../utils/conversionUtils';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export default function ConfigSettings() {
+  const { t } = useLocalization();
   const { config, upsert } = useConfig();
   const typedConfig = config as ConfigData;
   const [configValues, setConfigValues] = useState<ConfigData>({});
@@ -27,6 +29,23 @@ export default function ConfigSettings() {
   const [saving, setSaving] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [originalKeyOrder, setOriginalKeyOrder] = useState<string[]>([]);
+
+  const getLocalizedUiName = (key: string) => {
+    switch (key) {
+      case 'GOOSE_PROVIDER':
+        return t('configEditor.labels.gooseProvider');
+      case 'GOOSE_MODEL':
+        return t('configEditor.labels.gooseModel');
+      case 'GOOSE_MODE':
+        return t('configEditor.labels.gooseMode');
+      case 'GOOSE_TELEMETRY_ENABLED':
+        return t('configEditor.labels.gooseTelemetryEnabled');
+      case 'CHATGPT_CODEX_CONFIGURED':
+        return t('configEditor.labels.chatgptCodexConfigured');
+      default:
+        return getUiNames(key);
+    }
+  };
 
   useEffect(() => {
     setConfigValues(typedConfig);
@@ -70,8 +89,8 @@ export default function ConfigSettings() {
     try {
       await upsert(key, configValues[key], false);
       toastSuccess({
-        title: 'Configuration Updated',
-        msg: `Successfully saved "${getUiNames(key)}"`,
+        title: t('configEditor.saveSuccessTitle'),
+        msg: t('configEditor.saveSuccessMessage', { name: getLocalizedUiName(key) }),
       });
 
       // Remove this key from modified keys since it's now saved
@@ -83,8 +102,8 @@ export default function ConfigSettings() {
     } catch (error) {
       console.error('Failed to save config:', error);
       toastError({
-        title: 'Save Failed',
-        msg: `Failed to save "${getUiNames(key)}"`,
+        title: t('configEditor.saveFailedTitle'),
+        msg: t('configEditor.saveFailedMessage', { name: getLocalizedUiName(key) }),
         traceback: errorMessage(error),
       });
     } finally {
@@ -96,8 +115,8 @@ export default function ConfigSettings() {
     setConfigValues(typedConfig);
     setModifiedKeys(new Set());
     toastSuccess({
-      title: 'Configuration Reset',
-      msg: 'All changes have been reverted',
+      title: t('configEditor.resetTitle'),
+      msg: t('configEditor.resetMessage'),
     });
   };
 
@@ -141,11 +160,12 @@ export default function ConfigSettings() {
       <CardHeader className="pb-0">
         <CardTitle className="flex items-center gap-2">
           <FileText className="text-iconStandard" size={20} />
-          Configuration
+          {t('configEditor.title')}
         </CardTitle>
         <CardDescription>
-          Edit your goose configuration settings
-          {currentProvider && ` (current settings for ${currentProvider})`}
+          {currentProvider
+            ? t('configEditor.descriptionWithProvider', { provider: currentProvider })
+            : t('configEditor.description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-4 px-4">
@@ -153,30 +173,31 @@ export default function ConfigSettings() {
           <DialogTrigger asChild>
             <Button className="flex items-center gap-2" variant="secondary" size="sm">
               <Settings className="h-4 w-4" />
-              Edit Configuration
+              {t('configEditor.button')}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[80vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <FileText className="text-iconStandard" size={20} />
-                Configuration Editor
+                {t('configEditor.modalTitle')}
               </DialogTitle>
               <DialogDescription>
-                Edit your goose configuration settings
-                {currentProvider && ` (current settings for ${currentProvider})`}
+                {currentProvider
+                  ? t('configEditor.descriptionWithProvider', { provider: currentProvider })
+                  : t('configEditor.description')}
               </DialogDescription>
             </DialogHeader>
 
             <div className="flex-1 max-h-[60vh] overflow-auto pr-4">
               <div className="space-y-4">
                 {configEntries.length === 0 ? (
-                  <p className="text-text-secondary">No configuration settings found.</p>
+                  <p className="text-text-secondary">{t('configEditor.noSettingsFound')}</p>
                 ) : (
                   configEntries.map(([key, _value]) => (
                     <div key={key} className="grid grid-cols-[200px_1fr_auto] gap-3 items-center">
                       <label className="text-sm font-medium text-text-primary" title={key}>
-                        {getUiNames(key)}
+                        {getLocalizedUiName(key)}
                       </label>
                       <Input
                         value={String(configValues[key] || '')}
@@ -185,7 +206,7 @@ export default function ConfigSettings() {
                           'text-text-primary border-border-primary hover:border-border-primary transition-colors',
                           modifiedKeys.has(key) && 'border-blue-500 focus:ring-blue-500/20'
                         )}
-                        placeholder={`Enter ${getUiNames(key)}`}
+                        placeholder={t('configEditor.enterValue', { name: getLocalizedUiName(key) })}
                       />
                       <Button
                         onClick={() => handleSave(key)}
@@ -195,7 +216,7 @@ export default function ConfigSettings() {
                         className="min-w-[60px]"
                       >
                         {saving === key ? (
-                          <span className="text-xs">Saving...</span>
+                          <span className="text-xs">{t('configEditor.saving')}</span>
                         ) : (
                           <Save className="h-4 w-4" />
                         )}
@@ -210,11 +231,11 @@ export default function ConfigSettings() {
               {modifiedKeys.size > 0 && (
                 <Button onClick={handleReset} variant="outline">
                   <RotateCcw className="h-4 w-4 mr-2" />
-                  Reset Changes
+                  {t('configEditor.resetChanges')}
                 </Button>
               )}
               <Button onClick={() => setIsModalOpen(false)} variant="default">
-                Done
+                {t('configEditor.done')}
               </Button>
             </DialogFooter>
           </DialogContent>

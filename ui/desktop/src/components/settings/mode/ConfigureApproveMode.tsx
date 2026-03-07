@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { GooseMode, ModeSelectionItem } from './ModeSelectionItem';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface ConfigureApproveModeProps {
   onClose: () => void;
@@ -14,16 +15,17 @@ export function ConfigureApproveMode({
   handleModeChange,
   currentMode,
 }: ConfigureApproveModeProps) {
+  const { t } = useLocalization();
   const approveModes: GooseMode[] = [
     {
       key: 'approve',
-      label: 'Manual approval',
-      description: 'All tools, extensions and file modifications will require human approval',
+      label: t('modes.manualApproval.label'),
+      description: t('modes.manualApproval.description'),
     },
     {
       key: 'smart_approve',
-      label: 'Smart approval',
-      description: 'Intelligently determine which actions need approval based on risk level ',
+      label: t('modes.smartApproval.label'),
+      description: t('modes.smartApproval.description'),
     },
   ];
 
@@ -54,13 +56,14 @@ export function ConfigureApproveMode({
         <div className="px-4 pb-0 space-y-6">
           {/* Header */}
           <div className="flex">
-            <h2 className="text-2xl font-regular text-text-primary">Configure approve mode</h2>
+            <h2 className="text-2xl font-regular text-text-primary">
+              {t('modes.configureTitle')}
+            </h2>
           </div>
 
           <div className="mt-[24px]">
             <p className="text-sm text-text-secondary mb-6">
-              Approve requests can either be given to all tool requests or determine which actions
-              may need integration
+              {t('modes.configureDescription')}
             </p>
             <div className="space-y-4">
               {approveModes.map((mode) => (
@@ -87,7 +90,7 @@ export function ConfigureApproveMode({
               onClick={handleModeSubmit}
               className="w-full h-[60px] rounded-none border-t border-border-primary hover:bg-background-secondary text-text-primary dark:border-gray-600 text-base font-regular"
             >
-              {isSubmitting ? 'Saving...' : 'Save'}
+              {isSubmitting ? t('modes.saving') : t('common.actions.save')}
             </Button>
             <Button
               type="button"
@@ -96,7 +99,7 @@ export function ConfigureApproveMode({
               onClick={onClose}
               className="w-full h-[60px] rounded-none border-t border-border-primary text-text-secondary hover:bg-background-secondary dark:border-gray-600 text-base font-regular"
             >
-              Cancel
+              {t('common.actions.cancel')}
             </Button>
           </div>
         </div>

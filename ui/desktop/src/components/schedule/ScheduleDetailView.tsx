@@ -18,11 +18,12 @@ import SessionHistoryView from '../sessions/SessionHistoryView';
 import { ScheduleModal, NewSchedulePayload } from './ScheduleModal';
 import { toastError, toastSuccess } from '../../toasts';
 import { Loader2, Pause, Play, Edit, Square, Eye } from 'lucide-react';
-import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { getSession, Session } from '../../api';
 import { trackScheduleRunNow, getErrorType } from '../../utils/analytics';
 import { errorMessage } from '../../utils/conversionUtils';
+import { useLocalization } from '../../contexts/LocalizationContext';
+import { formatCronDescription } from '../../utils/cron';
 
 interface ScheduleSessionMeta {
   id: string;
@@ -45,6 +46,7 @@ interface ScheduleDetailViewProps {
 }
 
 const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onNavigateBack }) => {
+  const { language, t } = useLocalization();
   const [sessions, setSessions] = useState<ScheduleSessionMeta[]>([]);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
@@ -106,9 +108,15 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       const newSessionId = await runScheduleNow(scheduleId);
       trackScheduleRunNow(true);
       if (newSessionId === 'CANCELLED') {
-        toastSuccess({ title: 'Job Cancelled', msg: 'The job was cancelled while starting up.' });
+        toastSuccess({
+          title: t('schedules.detail.runCancelledTitle'),
+          msg: t('schedules.detail.runCancelledMessage'),
+        });
       } else {
-        toastSuccess({ title: 'Schedule Triggered', msg: `New session: ${newSessionId}` });
+        toastSuccess({
+          title: t('schedules.detail.runTriggeredTitle'),
+          msg: t('schedules.detail.runTriggeredMessage', { id: newSessionId }),
+        });
       }
       await fetchSessions(scheduleId);
       await fetchSchedule(scheduleId);
@@ -116,7 +124,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       const errorMsg = errorMessage(err, 'Failed to trigger schedule');
       trackScheduleRunNow(false, getErrorType(err));
       toastError({
-        title: 'Run Schedule Error',
+        title: t('schedules.detail.runErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -130,16 +138,22 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     try {
       if (scheduleDetails.paused) {
         await unpauseSchedule(scheduleId);
-        toastSuccess({ title: 'Schedule Unpaused', msg: `Unpaused "${scheduleId}"` });
+        toastSuccess({
+          title: t('schedules.unpausedTitle'),
+          msg: t('schedules.unpausedMessage', { id: scheduleId }),
+        });
       } else {
         await pauseSchedule(scheduleId);
-        toastSuccess({ title: 'Schedule Paused', msg: `Paused "${scheduleId}"` });
+        toastSuccess({
+          title: t('schedules.pausedTitle'),
+          msg: t('schedules.pausedMessage', { id: scheduleId }),
+        });
       }
       await fetchSchedule(scheduleId);
     } catch (err) {
       const errorMsg = errorMessage(err, 'Operation failed');
       toastError({
-        title: 'Pause/Unpause Error',
+        title: t('schedules.detail.toggleErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -152,12 +166,12 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setIsActionLoading(true);
     try {
       const result = await killRunningJob(scheduleId);
-      toastSuccess({ title: 'Job Killed', msg: result.message });
+      toastSuccess({ title: t('schedules.killTitle'), msg: result.message });
       await fetchSchedule(scheduleId);
     } catch (err) {
       const errorMsg = errorMessage(err, 'Failed to kill job');
       toastError({
-        title: 'Kill Job Error',
+        title: t('schedules.killErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -173,18 +187,18 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
       if (result.sessionId) {
         const duration = result.runningDurationSeconds
           ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`
-          : 'Unknown';
+          : t('schedules.unknownDuration');
         toastSuccess({
-          title: 'Job Inspection',
-          msg: `Session: ${result.sessionId}\nRunning for: ${duration}`,
+          title: t('schedules.inspectTitle'),
+          msg: t('schedules.inspectMessage', { sessionId: result.sessionId, duration }),
         });
       } else {
-        toastSuccess({ title: 'Job Inspection', msg: 'No detailed information available' });
+        toastSuccess({ title: t('schedules.inspectTitle'), msg: t('schedules.inspectNoDetails') });
       }
     } catch (err) {
       const errorMsg = errorMessage(err, 'Failed to inspect job');
       toastError({
-        title: 'Inspect Job Error',
+        title: t('schedules.inspectErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -197,13 +211,16 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     setIsActionLoading(true);
     try {
       await updateSchedule(scheduleId, payload as string);
-      toastSuccess({ title: 'Schedule Updated', msg: `Updated "${scheduleId}"` });
+      toastSuccess({
+        title: t('schedules.updatedTitle'),
+        msg: t('schedules.updatedMessage', { id: scheduleId }),
+      });
       await fetchSchedule(scheduleId);
       setIsModalOpen(false);
     } catch (err) {
       const errorMsg = errorMessage(err, 'Failed to update schedule');
       toastError({
-        title: 'Update Schedule Error',
+        title: t('schedules.detail.updateErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -223,7 +240,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     } catch (err) {
       const msg = errorMessage(err, 'Failed to load session');
       setSessionError(msg);
-      toastError({ title: 'Failed to load session', msg });
+      toastError({ title: t('schedules.detail.loadSessionErrorTitle'), msg });
     } finally {
       setIsLoadingSession(false);
     }
@@ -246,9 +263,11 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-white dark:bg-gray-900 text-text-primary p-8">
         <BackButton onClick={onNavigateBack} />
-        <h1 className="text-2xl font-medium text-text-primary mt-4">Schedule Not Found</h1>
+        <h1 className="text-2xl font-medium text-text-primary mt-4">
+          {t('schedules.detail.notFoundTitle')}
+        </h1>
         <p className="text-text-secondary mt-2">
-          No schedule ID provided. Return to schedules list.
+          {t('schedules.detail.notFoundDescription')}
         </p>
       </div>
     );
@@ -257,7 +276,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
   const readableCron = scheduleDetails
     ? (() => {
         try {
-          return cronstrue.toString(scheduleDetails.cron);
+          return formatCronDescription(scheduleDetails.cron, language);
         } catch {
           return scheduleDetails.cron;
         }
@@ -268,22 +287,26 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
     <div className="h-screen w-full flex flex-col bg-background-primary text-text-primary">
       <div className="px-8 pt-6 pb-4 border-b border-border-primary flex-shrink-0">
         <BackButton onClick={onNavigateBack} />
-        <h1 className="text-4xl font-light mt-1 mb-1 pt-8">Schedule Details</h1>
-        <p className="text-sm text-text-secondary mb-1">Viewing Schedule ID: {scheduleId}</p>
+        <h1 className="text-4xl font-light mt-1 mb-1 pt-8">{t('schedules.detail.title')}</h1>
+        <p className="text-sm text-text-secondary mb-1">
+          {t('schedules.detail.subtitle', { id: scheduleId })}
+        </p>
       </div>
 
       <ScrollArea className="flex-grow">
         <div className="p-8 space-y-6">
           <section>
-            <h2 className="text-xl font-semibold text-text-primary mb-3">Schedule Information</h2>
+            <h2 className="text-xl font-semibold text-text-primary mb-3">
+              {t('schedules.detail.infoTitle')}
+            </h2>
             {isLoadingSchedule && (
               <div className="flex items-center text-text-secondary">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading schedule...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('schedules.detail.loadingSchedule')}
               </div>
             )}
             {scheduleError && (
-              <p className="text-text-danger text-sm p-3 bg-background-danger border border-border-danger rounded-md">
-                Error: {scheduleError}
+              <p className="text-sm p-3 rounded-md border bg-red-50 border-red-200 text-red-700 dark:bg-red-950/20 dark:border-red-800 dark:text-red-300">
+                {t('common.labels.error')}: {scheduleError}
               </p>
             )}
             {scheduleDetails && (
@@ -297,39 +320,42 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                       {scheduleDetails.currently_running && (
                         <div className="text-sm text-green-500 dark:text-green-400 font-semibold flex items-center">
                           <span className="inline-block w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full mr-1 animate-pulse"></span>
-                          Currently Running
+                          {t('schedules.detail.currentlyRunning')}
                         </div>
                       )}
                       {scheduleDetails.paused && (
                         <div className="text-sm text-orange-500 dark:text-orange-400 font-semibold flex items-center">
                           <Pause className="w-3 h-3 mr-1" />
-                          Paused
+                          {t('schedules.paused')}
                         </div>
                       )}
                     </div>
                   </div>
                   <p className="text-sm text-text-primary">
-                    <span className="font-semibold">Schedule:</span> {readableCron}
+                    <span className="font-semibold">{t('schedules.detail.scheduleLabel')}</span>{' '}
+                    {readableCron}
                   </p>
                   <p className="text-sm text-text-primary">
-                    <span className="font-semibold">Cron Expression:</span> {scheduleDetails.cron}
+                    <span className="font-semibold">{t('schedules.detail.cronExpression')}</span>{' '}
+                    {scheduleDetails.cron}
                   </p>
                   <p className="text-sm text-text-primary">
-                    <span className="font-semibold">Recipe Source:</span> {scheduleDetails.source}
+                    <span className="font-semibold">{t('schedules.detail.recipeSource')}</span>{' '}
+                    {scheduleDetails.source}
                   </p>
                   <p className="text-sm text-text-primary">
-                    <span className="font-semibold">Last Run:</span>{' '}
+                    <span className="font-semibold">{t('schedules.detail.lastRun')}</span>{' '}
                     {formatToLocalDateWithTimezone(scheduleDetails.last_run)}
                   </p>
                   {scheduleDetails.currently_running && scheduleDetails.current_session_id && (
                     <p className="text-sm text-text-primary">
-                      <span className="font-semibold">Current Session:</span>{' '}
+                      <span className="font-semibold">{t('schedules.detail.currentSession')}</span>{' '}
                       {scheduleDetails.current_session_id}
                     </p>
                   )}
                   {scheduleDetails.currently_running && scheduleDetails.process_start_time && (
                     <p className="text-sm text-text-primary">
-                      <span className="font-semibold">Process Started:</span>{' '}
+                      <span className="font-semibold">{t('schedules.detail.processStarted')}</span>{' '}
                       {formatToLocalDateWithTimezone(scheduleDetails.process_start_time)}
                     </p>
                   )}
@@ -339,14 +365,16 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-text-primary mb-3">Actions</h2>
+            <h2 className="text-xl font-semibold text-text-primary mb-3">
+              {t('schedules.detail.actionsTitle')}
+            </h2>
             <div className="flex flex-col md:flex-row gap-2">
               <Button
                 onClick={handleRunNow}
                 disabled={isActionLoading || scheduleDetails?.currently_running}
                 className="w-full md:w-auto"
               >
-                Run Schedule Now
+                {t('schedules.detail.runNow')}
               </Button>
 
               {scheduleDetails && !scheduleDetails.currently_running && (
@@ -358,7 +386,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     disabled={isActionLoading}
                   >
                     <Edit className="w-4 h-4" />
-                    Edit Schedule
+                    {t('schedules.detail.editSchedule')}
                   </Button>
                   <Button
                     onClick={handlePauseToggle}
@@ -373,12 +401,12 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     {scheduleDetails.paused ? (
                       <>
                         <Play className="w-4 h-4" />
-                        Unpause Schedule
+                        {t('schedules.detail.unpauseSchedule')}
                       </>
                     ) : (
                       <>
                         <Pause className="w-4 h-4" />
-                        Pause Schedule
+                        {t('schedules.detail.pauseSchedule')}
                       </>
                     )}
                   </Button>
@@ -394,7 +422,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     disabled={isActionLoading}
                   >
                     <Eye className="w-4 h-4" />
-                    Inspect Running Job
+                    {t('schedules.detail.inspectRunningJob')}
                   </Button>
                   <Button
                     onClick={handleKill}
@@ -403,7 +431,7 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                     disabled={isActionLoading}
                   >
                     <Square className="w-4 h-4" />
-                    Kill Running Job
+                    {t('schedules.detail.killRunningJob')}
                   </Button>
                 </>
               )}
@@ -411,29 +439,30 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
 
             {scheduleDetails?.currently_running && (
               <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                Cannot trigger or modify a schedule while it's already running.
+                {t('schedules.detail.runningWarning')}
               </p>
             )}
 
             {scheduleDetails?.paused && (
               <p className="text-sm text-orange-600 dark:text-orange-400 mt-2">
-                This schedule is paused and will not run automatically. Use "Run Schedule Now" to
-                trigger it manually or unpause to resume automatic execution.
+                {t('schedules.detail.pausedWarning')}
               </p>
             )}
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-text-primary mb-4">Recent Sessions</h2>
-            {isLoadingSessions && <p className="text-text-secondary">Loading sessions...</p>}
+            <h2 className="text-xl font-semibold text-text-primary mb-4">
+              {t('schedules.detail.recentSessions')}
+            </h2>
+            {isLoadingSessions && <p className="text-text-secondary">{t('schedules.detail.loadingSessions')}</p>}
             {sessionsError && (
-              <p className="text-text-danger text-sm p-3 bg-background-danger border border-border-danger rounded-md">
-                Error: {sessionsError}
+              <p className="text-sm p-3 rounded-md border bg-red-50 border-red-200 text-red-700 dark:bg-red-950/20 dark:border-red-800 dark:text-red-300">
+                {t('common.labels.error')}: {sessionsError}
               </p>
             )}
             {!isLoadingSessions && sessions.length === 0 && (
               <p className="text-text-secondary text-center py-4">
-                No sessions found for this schedule.
+                {t('schedules.detail.noSessions')}
               </p>
             )}
 
@@ -449,15 +478,17 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                       className="text-sm font-semibold text-text-primary truncate"
                       title={session.name || session.id}
                     >
-                      {session.name || `Session ID: ${session.id}`}
+                      {session.name || t('schedules.detail.sessionIdLabel', { id: session.id })}
                     </h3>
                     <p className="text-xs text-text-secondary mt-1">
-                      Created:{' '}
-                      {session.createdAt ? formatToLocalDateWithTimezone(session.createdAt) : 'N/A'}
+                      {t('schedules.detail.createdLabel')}{' '}
+                      {session.createdAt
+                        ? formatToLocalDateWithTimezone(session.createdAt)
+                        : t('common.labels.notAvailable')}
                     </p>
                     {session.messageCount !== undefined && (
                       <p className="text-xs text-text-secondary mt-1">
-                        Messages: {session.messageCount}
+                        {t('schedules.detail.messagesLabel')} {session.messageCount}
                       </p>
                     )}
                     {session.workingDir && (
@@ -465,17 +496,17 @@ const ScheduleDetailView: React.FC<ScheduleDetailViewProps> = ({ scheduleId, onN
                         className="text-xs text-text-secondary mt-1 truncate"
                         title={session.workingDir}
                       >
-                        Dir: {session.workingDir}
+                        {t('schedules.detail.dirLabel')} {session.workingDir}
                       </p>
                     )}
                     {session.accumulatedTotalTokens !== undefined &&
                       session.accumulatedTotalTokens !== null && (
                         <p className="text-xs text-text-secondary mt-1">
-                          Tokens: {session.accumulatedTotalTokens}
+                          {t('schedules.detail.tokensLabel')} {session.accumulatedTotalTokens}
                         </p>
                       )}
                     <p className="text-xs text-text-secondary mt-1">
-                      ID: <span className="font-mono">{session.id}</span>
+                      {t('schedules.detail.idLabel')} <span className="font-mono">{session.id}</span>
                     </p>
                   </Card>
                 ))}

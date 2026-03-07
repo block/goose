@@ -5,6 +5,7 @@ import { cn } from '../../utils';
 import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { ChatSessionsDropdown, SessionsList } from './navigation';
 import type { NavigationRendererProps } from './navigation/types';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
   isOverlayMode,
@@ -27,6 +28,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
   navFocusRef,
 }) => {
   const [chatPopoverOpen, setChatPopoverOpen] = useState(false);
+  const { t } = useLocalization();
 
   const isVertical = navigationPosition === 'left' || navigationPosition === 'right';
   const isTopPosition = navigationPosition === 'top';
@@ -176,7 +178,7 @@ export const CondensedRenderer: React.FC<NavigationRendererProps> = ({
                                 'bg-background-tertiary hover:bg-background-inverse hover:text-text-inverse',
                                 'flex items-center justify-center'
                               )}
-                              title="New Chat"
+                              title={t('chat.newChat')}
                             >
                               <Plus className="w-4 h-4" />
                             </motion.button>

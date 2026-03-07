@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Button } from '../../ui/button';
 import { FolderKey } from 'lucide-react';
 import { GoosehintsModal } from './GoosehintsModal';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export const GoosehintsSection = () => {
+  const { t } = useLocalization();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const directory = window.appConfig?.get('GOOSE_WORKING_DIR') as string;
 
@@ -11,9 +13,9 @@ export const GoosehintsSection = () => {
     <>
       <div className="flex items-center justify-between px-2 py-2">
         <div className="flex-1">
-          <h3 className="text-text-primary">Project Hints (.goosehints)</h3>
+          <h3 className="text-text-primary">{t('gooseHints.title')}</h3>
           <p className="text-xs text-text-secondary mt-[2px]">
-            Configure your project's .goosehints file to provide additional context to Goose
+            {t('gooseHints.description')}
           </p>
         </div>
         <Button
@@ -23,7 +25,7 @@ export const GoosehintsSection = () => {
           className="flex items-center gap-2"
         >
           <FolderKey size={16} />
-          Configure
+          {t('gooseHints.configure')}
         </Button>
       </div>
       {isModalOpen && (

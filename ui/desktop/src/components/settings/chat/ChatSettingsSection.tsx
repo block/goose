@@ -5,14 +5,17 @@ import { ResponseStylesSection } from '../response_styles/ResponseStylesSection'
 import { GoosehintsSection } from './GoosehintsSection';
 import { SpellcheckToggle } from './SpellcheckToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 export default function ChatSettingsSection() {
+  const { t } = useLocalization();
+
   return (
     <div className="space-y-4 pr-4 pb-8 mt-1">
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="">Mode</CardTitle>
-          <CardDescription>Configure how Goose interacts with tools and extensions</CardDescription>
+          <CardTitle>{t('chatSettings.modeTitle')}</CardTitle>
+          <CardDescription>{t('chatSettings.modeDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <ModeSection />
@@ -34,8 +37,8 @@ export default function ChatSettingsSection() {
 
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
-          <CardTitle className="">Response Styles</CardTitle>
-          <CardDescription>Choose how Goose should format and style its responses</CardDescription>
+          <CardTitle>{t('chatSettings.responseStylesTitle')}</CardTitle>
+          <CardDescription>{t('chatSettings.responseStylesDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <ResponseStylesSection />

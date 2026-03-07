@@ -2,12 +2,14 @@ import { Button } from '../../ui/button';
 import { RefreshCw } from 'lucide-react';
 import { useConfig } from '../../ConfigContext';
 import { View, ViewOptions } from '../../../utils/navigationUtils';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface ResetProviderSectionProps {
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }
 
 export default function ResetProviderSection(_props: ResetProviderSectionProps) {
+  const { t } = useLocalization();
   const { remove } = useConfig();
 
   const handleResetProvider = async () => {
@@ -30,12 +32,9 @@ export default function ResetProviderSection(_props: ResetProviderSectionProps) 
         className="flex items-center justify-center gap-2"
       >
         <RefreshCw className="h-4 w-4" />
-        Reset Provider and Model
+        {t('resetProvider.button')}
       </Button>
-      <p className="text-xs text-text-secondary mt-2">
-        This will clear your selected model and provider settings. If no defaults are available,
-        you'll be taken to the welcome screen to set them up again.
-      </p>
+      <p className="text-xs text-text-secondary mt-2">{t('resetProvider.helper')}</p>
     </div>
   );
 }

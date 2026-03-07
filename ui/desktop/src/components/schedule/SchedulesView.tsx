@@ -19,12 +19,13 @@ import { Plus, RefreshCw, Pause, Play, Edit, Square, Eye, CircleDotDashed } from
 import { NewSchedulePayload, ScheduleModal } from './ScheduleModal';
 import ScheduleDetailView from './ScheduleDetailView';
 import { toastError, toastSuccess } from '../../toasts';
-import cronstrue from 'cronstrue';
 import { formatToLocalDateWithTimezone } from '../../utils/date';
 import { errorMessage } from '../../utils/conversionUtils';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { ViewOptions } from '../../utils/navigationUtils';
 import { trackScheduleCreated, trackScheduleDeleted, getErrorType } from '../../utils/analytics';
+import { useLocalization } from '../../contexts/LocalizationContext';
+import { formatCronDescription } from '../../utils/cron';
 
 interface SchedulesViewProps {
   onClose?: () => void;
@@ -51,9 +52,10 @@ const ScheduleCard: React.FC<{
   onDelete,
   actionInProgress,
 }) => {
+  const { language, t } = useLocalization();
   let readableCron: string;
   try {
-    readableCron = cronstrue.toString(job.cron);
+    readableCron = formatCronDescription(job.cron, language);
   } catch {
     readableCron = job.cron;
   }
@@ -74,13 +76,13 @@ const ScheduleCard: React.FC<{
             {job.currently_running && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
-                Running
+                {t('schedules.running')}
               </span>
             )}
             {job.paused && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
                 <Pause className="w-3 h-3 mr-1" />
-                Paused
+                {t('schedules.paused')}
               </span>
             )}
           </div>
@@ -88,7 +90,7 @@ const ScheduleCard: React.FC<{
             {readableCron}
           </p>
           <div className="flex items-center text-xs text-text-secondary">
-            <span>Last run: {formattedLastRun}</span>
+            <span>{t('schedules.lastRun', { value: formattedLastRun })}</span>
           </div>
         </div>
 
@@ -106,7 +108,7 @@ const ScheduleCard: React.FC<{
                 className="h-8"
               >
                 <Edit className="w-4 h-4 mr-1" />
-                Edit
+                {t('schedules.edit')}
               </Button>
               <Button
                 onClick={(e) => {
@@ -125,12 +127,12 @@ const ScheduleCard: React.FC<{
                 {job.paused ? (
                   <>
                     <Play className="w-4 h-4 mr-1" />
-                    Resume
+                    {t('schedules.resume')}
                   </>
                 ) : (
                   <>
                     <Pause className="w-4 h-4 mr-1" />
-                    Pause
+                    {t('schedules.pause')}
                   </>
                 )}
               </Button>
@@ -149,7 +151,7 @@ const ScheduleCard: React.FC<{
                 className="h-8"
               >
                 <Eye className="w-4 h-4 mr-1" />
-                Inspect
+                {t('schedules.inspect')}
               </Button>
               <Button
                 onClick={(e) => {
@@ -162,7 +164,7 @@ const ScheduleCard: React.FC<{
                 className="h-8"
               >
                 <Square className="w-4 h-4 mr-1" />
-                Kill
+                {t('schedules.kill')}
               </Button>
             </>
           )}
@@ -185,6 +187,7 @@ const ScheduleCard: React.FC<{
 };
 
 const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
+  const { t } = useLocalization();
   const location = useLocation();
   const [schedules, setSchedules] = useState<ScheduledJob[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -253,8 +256,8 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       if (editingSchedule) {
         await updateSchedule(editingSchedule.id, payload as string);
         toastSuccess({
-          title: 'Schedule Updated',
-          msg: `Successfully updated schedule "${editingSchedule.id}"`,
+          title: t('schedules.updatedTitle'),
+          msg: t('schedules.updatedMessage', { id: editingSchedule.id }),
         });
       } else {
         const newPayload = payload as NewSchedulePayload;
@@ -280,7 +283,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   };
 
   const handleDeleteSchedule = async (id: string) => {
-    if (!window.confirm(`Are you sure you want to delete schedule "${id}"?`)) return;
+    if (!window.confirm(t('schedules.deleteConfirm', { id }))) return;
 
     setActionsInProgress((prev) => new Set(prev).add(id));
     if (viewingScheduleId === id) setViewingScheduleId(null);
@@ -311,8 +314,8 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     try {
       await pauseSchedule(id);
       toastSuccess({
-        title: 'Schedule Paused',
-        msg: `Successfully paused schedule "${id}"`,
+        title: t('schedules.pausedTitle'),
+        msg: t('schedules.pausedMessage', { id }),
       });
       await fetchSchedules();
     } catch (error) {
@@ -320,7 +323,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       const errorMsg = errorMessage(error, `Unknown error pausing "${id}".`);
       setApiError(errorMsg);
       toastError({
-        title: 'Pause Schedule Error',
+        title: t('schedules.pauseErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -339,8 +342,8 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     try {
       await unpauseSchedule(id);
       toastSuccess({
-        title: 'Schedule Unpaused',
-        msg: `Successfully unpaused schedule "${id}"`,
+        title: t('schedules.unpausedTitle'),
+        msg: t('schedules.unpausedMessage', { id }),
       });
       await fetchSchedules();
     } catch (error) {
@@ -348,7 +351,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       const errorMsg = errorMessage(error, `Unknown error unpausing "${id}".`);
       setApiError(errorMsg);
       toastError({
-        title: 'Unpause Schedule Error',
+        title: t('schedules.unpauseErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -367,7 +370,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     try {
       const result = await killRunningJob(id);
       toastSuccess({
-        title: 'Job Killed',
+        title: t('schedules.killTitle'),
         msg: result.message,
       });
       await fetchSchedules();
@@ -376,7 +379,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       const errorMsg = errorMessage(error, `Unknown error killing job "${id}".`);
       setApiError(errorMsg);
       toastError({
-        title: 'Kill Job Error',
+        title: t('schedules.killErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -397,15 +400,15 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       if (result.sessionId) {
         const duration = result.runningDurationSeconds
           ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`
-          : 'Unknown';
+          : t('schedules.unknownDuration');
         toastSuccess({
-          title: 'Job Inspection',
-          msg: `Session: ${result.sessionId}\nRunning for: ${duration}`,
+          title: t('schedules.inspectTitle'),
+          msg: t('schedules.inspectMessage', { sessionId: result.sessionId, duration }),
         });
       } else {
         toastSuccess({
-          title: 'Job Inspection',
-          msg: 'No detailed information available for this job',
+          title: t('schedules.inspectTitle'),
+          msg: t('schedules.inspectNoDetails'),
         });
       }
     } catch (error) {
@@ -413,7 +416,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
       const errorMsg = errorMessage(error, `Unknown error inspecting job "${id}".`);
       setApiError(errorMsg);
       toastError({
-        title: 'Inspect Job Error',
+        title: t('schedules.inspectErrorTitle'),
         msg: errorMsg,
       });
     } finally {
@@ -445,7 +448,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
           <div className="bg-background-primary px-8 pb-8 pt-16">
             <div className="flex flex-col page-transition">
               <div className="flex justify-between items-center mb-1">
-                <h1 className="text-4xl font-light">Scheduler</h1>
+                <h1 className="text-4xl font-light">{t('schedules.title')}</h1>
                 <div className="flex gap-2">
                   <Button
                     onClick={handleRefresh}
@@ -455,7 +458,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                     className="flex items-center gap-2"
                   >
                     <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                    {isRefreshing ? t('schedules.refreshing') : t('common.actions.refresh')}
                   </Button>
                   <Button
                     onClick={() => {
@@ -466,12 +469,12 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                     className="flex items-center gap-2"
                   >
                     <Plus className="h-4 w-4" />
-                    Create Schedule
+                    {t('schedules.createSchedule')}
                   </Button>
                 </div>
               </div>
               <p className="text-sm text-text-secondary mb-1">
-                Create and manage scheduled tasks to run recipes automatically at specified times.
+                {t('schedules.description')}
               </p>
             </div>
           </div>
@@ -480,8 +483,10 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
             <ScrollArea className="h-full">
               <div className="h-full relative">
                 {apiError && (
-                  <div className="mb-4 p-4 bg-background-danger border border-border-danger rounded-md">
-                    <p className="text-text-danger text-sm">Error: {apiError}</p>
+                  <div className="mb-4 p-4 rounded-md border bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800">
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {t('common.labels.error')}: {apiError}
+                    </p>
                   </div>
                 )}
 
@@ -495,7 +500,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
                   <div className="flex flex-col pt-4 pb-12">
                     <CircleDotDashed className="h-5 w-5 text-text-secondary mb-3.5" />
                     <p className="text-base text-text-secondary font-light mb-2">
-                      No schedules yet
+                      {t('schedules.noSchedules')}
                     </p>
                   </div>
                 )}

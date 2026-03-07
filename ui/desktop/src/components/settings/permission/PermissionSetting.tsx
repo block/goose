@@ -5,6 +5,7 @@ import { FixedExtensionEntry, useConfig } from '../../ConfigContext';
 import { ChevronRight } from 'lucide-react';
 import PermissionModal from './PermissionModal';
 import { Button } from '../../ui/button';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 function RuleItem({ title, description }: { title: string; description: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,6 +44,7 @@ function RulesSection({ title, rules }: { title: string; rules: React.ReactNode 
 }
 
 export default function PermissionSettingsView({ onClose }: { onClose: () => void }) {
+  const { t } = useLocalization();
   const { getExtensions } = useConfig();
   const [extensions, setExtensions] = useState<FixedExtensionEntry[]>([]);
 
@@ -54,7 +56,7 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
     enabledExtensions.push({
       name: 'platform',
       type: 'builtin',
-      description: 'platform',
+      description: t('permissions.platformDescription'),
       enabled: true,
     });
     // Sort extensions by name to maintain consistent order
@@ -73,12 +75,11 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
       return a.name.localeCompare(b.name);
     });
     setExtensions(sortedExtensions);
-  }, [getExtensions]);
+  }, [getExtensions, t]);
 
   useEffect(() => {
     fetchExtensions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchExtensions]);
 
   return (
     <div className="bg-background-primary h-screen w-full animate-[fadein_200ms_ease-in_forwards]">
@@ -102,11 +103,10 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
                 <circle cx="7.5" cy="15.5" r="5.5" />
               </svg>
             </div>
-            <h1 className="text-3xl font-medium text-text-primary mt-4">Permission Rules</h1>
-            <p className="text-text-secondary">
-              Hidden instructions that will be passed to the provider to help direct and add context
-              to your responses.
-            </p>
+            <h1 className="text-3xl font-medium text-text-primary mt-4">
+              {t('permissions.title')}
+            </h1>
+            <p className="text-text-secondary">{t('permissions.description')}</p>
           </div>
 
           {/* Content Area */}
@@ -114,7 +114,7 @@ export default function PermissionSettingsView({ onClose }: { onClose: () => voi
             <div className="space-y-8 px-8">
               {/* Extension Rules Section */}
               <RulesSection
-                title="Extension rules"
+                title={t('permissions.extensionRules')}
                 rules={
                   <>
                     {extensions.map((extension) => (

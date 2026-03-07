@@ -38,10 +38,11 @@ import {
   trackCreateRecipeOpened,
   trackEditRecipeOpened,
 } from '../utils/analytics';
-import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
+import { getNavigationShortcutKeys } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
+import { useLocalization } from '../contexts/LocalizationContext';
 
 interface PastedImage {
   id: string;
@@ -118,6 +119,7 @@ export default function ChatInput({
   onWorkingDirChange,
   inputRef,
 }: ChatInputProps) {
+  const { t } = useLocalization();
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
   const [isFocused, setIsFocused] = useState(false);
@@ -293,7 +295,7 @@ export default function ChatInput({
       const errorType = 'DictationError';
       trackVoiceDictation('error', undefined, errorType);
       toastError({
-        title: 'Dictation Error',
+        title: t('chat.composer.dictationErrorTitle'),
         msg: message,
       });
     },
@@ -431,7 +433,7 @@ export default function ChatInput({
     if ((totalTokens && totalTokens > 0) || (isTokenLimitLoaded && tokenLimit)) {
       addAlert({
         type: AlertType.Info,
-        message: 'Context window',
+        message: t('chat.composer.contextWindow'),
         progress: {
           current: totalTokens || 0,
           total: tokenLimit,
@@ -450,9 +452,12 @@ export default function ChatInput({
     if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
       addAlert({
         type: AlertType.Warning,
-        message: `Too many tools can degrade performance.\nTool count: ${toolCount} (recommend: ${TOOLS_MAX_SUGGESTED})`,
+        message: t('chat.composer.tooManyToolsWarning', {
+          toolCount,
+          recommended: TOOLS_MAX_SUGGESTED,
+        }),
         action: {
-          text: 'View extensions',
+          text: t('chat.composer.viewExtensions'),
           onClick: () => setView('extensions'),
         },
         autoShow: false, // Don't auto-show tool count warnings
@@ -460,7 +465,7 @@ export default function ChatInput({
     }
     // We intentionally omit setView as it shouldn't trigger a re-render of alerts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts, t]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {
@@ -642,7 +647,11 @@ export default function ChatInput({
           id: `error-${Date.now()}`,
           dataUrl: '',
           isLoading: false,
-          error: `Cannot paste ${imageFiles.length} image(s). Maximum ${MAX_IMAGES_PER_MESSAGE} images per message allowed. Currently have ${pastedImages.length}.`,
+          error: t('chat.composer.pasteLimitError', {
+            count: imageFiles.length,
+            max: MAX_IMAGES_PER_MESSAGE,
+            current: pastedImages.length,
+          }),
         },
       ]);
 
@@ -687,9 +696,9 @@ export default function ChatInput({
       reader.onerror = () => {
         console.error('Failed to read image file:', file.name);
         setPastedImages((prev) =>
-          prev.map((img) =>
-            img.id === imageId
-              ? { ...img, error: 'Failed to read image file.', isLoading: false }
+            prev.map((img) =>
+              img.id === imageId
+              ? { ...img, error: t('chat.composer.readImageError'), isLoading: false }
               : img
           )
         );
@@ -1031,7 +1040,7 @@ export default function ChatInput({
         setPastedImages((prev) =>
           prev.map((img) =>
             img.id === uniqueId
-              ? { ...img, isLoading: false, error: 'Failed to read image file' }
+              ? { ...img, isLoading: false, error: t('chat.composer.readImageError') }
               : img
           )
         );
@@ -1090,13 +1099,13 @@ export default function ChatInput({
     chatState === ChatState.RestartingAgent;
 
   const getSubmitButtonTooltip = (): string => {
-    if (isAnyImageLoading) return 'Waiting for images to save...';
-    if (isAnyDroppedFileLoading) return 'Processing dropped files...';
-    if (isRecording) return 'Recording...';
-    if (isTranscribing) return 'Transcribing...';
-    if (chatState === ChatState.RestartingAgent) return 'Restarting session...';
-    if (!hasSubmittableContent) return 'Type a message to send';
-    return 'Send';
+    if (isAnyImageLoading) return t('chat.composer.waitingForImages');
+    if (isAnyDroppedFileLoading) return t('chat.composer.processingDroppedFiles');
+    if (isRecording) return `${t('chat.composer.recordingState')}...`;
+    if (isTranscribing) return `${t('chat.composer.transcribingState')}...`;
+    if (chatState === ChatState.RestartingAgent) return t('chat.composer.restartingSession');
+    if (!hasSubmittableContent) return t('chat.composer.typeMessageToSend');
+    return t('common.actions.send');
   };
 
   // Queue management functions - no storage persistence, only in-memory
@@ -1201,7 +1210,13 @@ export default function ChatInput({
             data-testid="chat-input"
             autoFocus
             id="dynamic-textarea"
-            placeholder={isRecording ? '' : getNavigationShortcutText()}
+            placeholder={
+              isRecording
+                ? ''
+                : t('chat.composer.navigationHint', {
+                    shortcut: getNavigationShortcutKeys(),
+                  })
+            }
             value={displayValue}
             onChange={handleChange}
             onCompositionStart={handleCompositionStart}
@@ -1246,22 +1261,13 @@ export default function ChatInput({
                     </TooltipTrigger>
                     <TooltipContent>
                       {dictationProvider === 'openai' ? (
-                        <p>
-                          OpenAI API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Models.</b>
-                        </p>
+                        <p>{t('chat.composer.dictationOpenAiMissing')}</p>
                       ) : dictationProvider === 'elevenlabs' ? (
-                        <p>
-                          ElevenLabs API key is not configured. Set it up in <b>Settings</b> {'>'}{' '}
-                          <b>Chat</b> {'>'} <b>Voice Dictation.</b>
-                        </p>
+                        <p>{t('chat.composer.dictationElevenLabsMissing')}</p>
                       ) : dictationProvider === 'local' ? (
-                        <p>
-                          Local Whisper model not found. Download a model in{' '}
-                          <b>Settings &gt; Dictation &gt; Local (Offline)</b>
-                        </p>
+                        <p>{t('chat.composer.dictationLocalMissing')}</p>
                       ) : (
-                        <p>Dictation provider is not properly configured.</p>
+                        <p>{t('chat.composer.dictationMisconfigured')}</p>
                       )}
                     </TooltipContent>
                   </Tooltip>
@@ -1296,8 +1302,8 @@ export default function ChatInput({
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>
-                        Voice dictation
-                        {isRecording ? '' : ' • Say "submit" to send'}
+                        {t('chat.composer.voiceDictation')}
+                        {isRecording ? '' : ` • ${t('chat.composer.saySubmitToSend')}`}
                       </p>
                     </TooltipContent>
                   </Tooltip>
@@ -1334,7 +1340,7 @@ export default function ChatInput({
                       }`}
                     >
                       <Send className="w-4 h-4" />
-                      <span className="text-sm">Send</span>
+                      <span className="text-sm">{t('common.actions.send')}</span>
                     </Button>
                   </span>
                 </TooltipTrigger>
@@ -1351,14 +1357,14 @@ export default function ChatInput({
                   {isRecording && (
                     <span className="flex items-center gap-1 text-text-secondary">
                       <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                      Listening
+                      {t('chat.composer.listening')}
                     </span>
                   )}
                   {isRecording && isTranscribing && <span className="text-text-secondary">•</span>}
                   {isTranscribing && (
                     <span className="flex items-center gap-1 text-blue-500">
                       <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                      Transcribing
+                      {t('chat.composer.transcribing')}
                     </span>
                   )}
                 </span>
@@ -1377,7 +1383,7 @@ export default function ChatInput({
               {img.dataUrl && (
                 <img
                   src={img.dataUrl}
-                  alt={`Pasted image ${img.id}`}
+                  alt={t('chat.composer.pastedImageAlt', { id: img.id })}
                   className={`w-full h-full object-cover rounded border ${img.error ? 'border-red-500' : 'border-border-primary'}`}
                 />
               )}
@@ -1399,7 +1405,7 @@ export default function ChatInput({
                   shape="round"
                   onClick={() => handleRemovePastedImage(img.id)}
                   className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                  aria-label="Remove image"
+                  aria-label={t('chat.composer.removeImage')}
                   variant="outline"
                   size="xs"
                 >
@@ -1445,7 +1451,9 @@ export default function ChatInput({
                     <p className="text-sm text-text-primary truncate" title={file.name}>
                       {file.name}
                     </p>
-                    <p className="text-xs text-text-secondary">{file.type || 'Unknown type'}</p>
+                    <p className="text-xs text-text-secondary">
+                      {file.type || t('chat.composer.unknownFileType')}
+                    </p>
                   </div>
                 </div>
               )}
@@ -1455,7 +1463,7 @@ export default function ChatInput({
                   shape="round"
                   onClick={() => handleRemoveDroppedFile(file.id)}
                   className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity z-10"
-                  aria-label="Remove file"
+                  aria-label={t('chat.composer.removeFile')}
                   variant="outline"
                   size="xs"
                 >
@@ -1496,7 +1504,7 @@ export default function ChatInput({
               <Attach className="w-4 h-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Attach file</TooltipContent>
+          <TooltipContent>{t('chat.composer.attachFile')}</TooltipContent>
         </Tooltip>
         <div className="w-px h-4 bg-border-primary mx-2" />
         {/* Model selector, mode selector, alerts, summarize button */}
@@ -1551,7 +1559,7 @@ export default function ChatInput({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {recipe ? 'View/Edit Recipe' : 'Create Recipe from Session'}
+                    {recipe ? t('recipes.editor.editTitle') : t('recipes.createRecipe')}
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -1573,7 +1581,7 @@ export default function ChatInput({
                   <Bug className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Generate diagnostics bundle</TooltipContent>
+              <TooltipContent>{t('chat.composer.generateDiagnosticsBundle')}</TooltipContent>
             </Tooltip>
           )}
         </div>

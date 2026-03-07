@@ -25,9 +25,12 @@ import {
   trackUpdateDownloadCompleted,
   trackUpdateInstallInitiated,
 } from './analytics';
+import { createTranslator, defaultUiLanguage } from '../i18n';
+import type { UiLanguage } from './settings';
 
 let updateAvailable = false;
 let trayRef: Tray | null = null;
+let trayLanguage: UiLanguage = defaultUiLanguage;
 let isUsingGitHubFallback = false;
 let githubUpdateInfo: {
   latestVersion?: string;
@@ -45,6 +48,15 @@ let lastReportedProgress = 0;
 
 // Track if IPC handlers have been registered
 let ipcUpdateHandlersRegistered = false;
+
+function getTranslator() {
+  return createTranslator(trayLanguage);
+}
+
+export function setTrayLanguage(language: UiLanguage) {
+  trayLanguage = language;
+  updateTrayIcon(updateAvailable);
+}
 
 // Register IPC handlers (only once)
 export function registerUpdateIpcHandlers() {
@@ -276,12 +288,19 @@ export function registerUpdateIpcHandlers() {
         }
 
         // Improved dialog with clearer instructions
+        const t = getTranslator();
         const dialogResult = (await dialog.showMessageBox({
           type: 'info',
-          title: 'Update Ready to Install',
-          message: `Version ${githubUpdateInfo.latestVersion} is ready to install.`,
-          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new Goose.app\n2. Quit Goose (this app will close)\n3. Drag the new Goose.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch Goose.`,
-          buttons: ['Open Folder & Quit', 'Open Folder Only', 'Cancel'],
+          title: t('nativeMenus.dialogs.updateReadyToInstall.title'),
+          message: t('nativeMenus.dialogs.updateReadyToInstall.message', {
+            version: githubUpdateInfo.latestVersion || t('common.labels.unknown'),
+          }),
+          detail: t('nativeMenus.dialogs.updateReadyToInstall.detail'),
+          buttons: [
+            t('common.actions.openFolderAndQuit'),
+            t('common.actions.openFolderOnly'),
+            t('common.actions.cancel'),
+          ],
           defaultId: 0,
           cancelId: 2,
         })) as unknown as { response: number };
@@ -637,9 +656,10 @@ export function setupAutoUpdater(tray?: Tray) {
     sendStatusToWindow('update-downloaded', info);
 
     // Show native notification
+    const t = getTranslator();
     const notification = new Notification({
-      title: 'Update Ready',
-      body: `Version ${info.version} will be installed when you quit Goose. Click to install now.`,
+      title: t('nativeMenus.notifications.updateReadyTitle'),
+      body: t('nativeMenus.notifications.updateReadyBody', { version: info.version }),
     });
     notification.show();
 
@@ -715,6 +735,7 @@ async function githubAutoDownload(
 
 function updateTrayIcon(hasUpdate: boolean) {
   if (!trayRef) return;
+  const t = getTranslator();
 
   if (process.env.GOOSE_VERSION) {
     hasUpdate = false;
@@ -730,7 +751,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplateUpdate.png');
     }
-    trayRef.setToolTip('Goose - Update Available');
+    trayRef.setToolTip(t('nativeMenus.tray.updateAvailableTooltip'));
   } else {
     // Use normal icon
     if (isDev) {
@@ -738,7 +759,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
     }
-    trayRef.setToolTip('Goose');
+    trayRef.setToolTip(t('nativeMenus.tray.appName'));
   }
 
   const icon = nativeImage.createFromPath(iconPath);
@@ -767,20 +788,21 @@ function openUpdateSettings() {
 // Export function to update tray menu
 export function updateTrayMenu(hasUpdate: boolean) {
   if (!trayRef) return;
+  const t = getTranslator();
 
   const menuItems: MenuItemConstructorOptions[] = [];
 
   // Add update menu item if update is available
   if (hasUpdate) {
     menuItems.push({
-      label: 'Update Available...',
+      label: t('nativeMenus.tray.updateAvailable'),
       click: openUpdateSettings,
     });
   }
 
   menuItems.push(
     {
-      label: 'Show Window',
+      label: t('common.actions.showWindow'),
       click: async () => {
         const windows = BrowserWindow.getAllWindows();
         if (windows.length === 0) {
@@ -819,7 +841,7 @@ export function updateTrayMenu(hasUpdate: boolean) {
       },
     },
     { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() }
+    { label: t('common.actions.quit'), click: () => app.quit() }
   );
 
   const contextMenu = Menu.buildFromTemplate(menuItems);
@@ -831,6 +853,10 @@ export function setTrayRef(tray: Tray) {
   trayRef = tray;
   // Update icon based on current update status
   updateTrayIcon(updateAvailable);
+}
+
+export function clearTrayRef() {
+  trayRef = null;
 }
 
 export function getUpdateAvailable(): boolean {

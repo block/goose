@@ -1,8 +1,12 @@
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-library/react';
 import { OllamaSetup } from './OllamaSetup';
 import * as ollamaDetection from '../utils/ollamaDetection';
 import { toastService } from '../toasts';
+import { LocalizationProvider } from '../contexts/LocalizationContext';
+
+const render = (ui: ReactElement) => rtlRender(<LocalizationProvider>{ui}</LocalizationProvider>);
 
 // Mock dependencies
 vi.mock('../utils/ollamaDetection');

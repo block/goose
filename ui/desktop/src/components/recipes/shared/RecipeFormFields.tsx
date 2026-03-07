@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/co
 import { RecipeFormApi, RecipeFormData } from './recipeFormSchema';
 import { RecipeModelSelector } from './RecipeModelSelector';
 import { RecipeExtensionSelector } from './RecipeExtensionSelector';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 // Type for field API to avoid linting issues - use any to bypass complex type constraints
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,6 +59,7 @@ export function RecipeFormFields({
   onPromptChange,
   onJsonSchemaChange,
 }: RecipeFormFieldsProps) {
+  const { t } = useLocalization();
   const [showJsonSchemaEditor, setShowJsonSchemaEditor] = useState(false);
   const [showInstructionsEditor, setShowInstructionsEditor] = useState(false);
   const [newParameterName, setNewParameterName] = useState('');
@@ -86,12 +88,12 @@ export function RecipeFormFields({
 
       return allVars.map((key: string) => ({
         key,
-        description: `Enter value for ${key}`,
+        description: t('recipes.form.parameterDescriptionDefault', { key }),
         requirement: 'required' as const,
         input_type: 'string' as const,
       }));
     },
-    []
+    [t]
   );
 
   // Function to update parameters based on current field values
@@ -172,7 +174,7 @@ export function RecipeFormFields({
               htmlFor="recipe-title"
               className="block text-sm font-medium text-text-primary mb-2"
             >
-              Title <span className="text-red-500">*</span>
+              {t('recipes.form.titleLabel')} <span className="text-red-500">*</span>
             </label>
             <input
               id="recipe-title"
@@ -186,7 +188,7 @@ export function RecipeFormFields({
               className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-primary'
               }`}
-              placeholder="Recipe title"
+              placeholder={t('recipes.form.titlePlaceholder')}
               data-testid="title-input"
             />
             {field.state.meta.errors.length > 0 && (
@@ -204,7 +206,7 @@ export function RecipeFormFields({
               htmlFor="recipe-description"
               className="block text-sm font-medium text-text-primary mb-2"
             >
-              Description <span className="text-red-500">*</span>
+              {t('recipes.form.descriptionLabel')} <span className="text-red-500">*</span>
             </label>
             <input
               id="recipe-description"
@@ -218,7 +220,7 @@ export function RecipeFormFields({
               className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-primary'
               }`}
-              placeholder="Brief description of what this recipe does"
+              placeholder={t('recipes.form.descriptionPlaceholder')}
               data-testid="description-input"
             />
             {field.state.meta.errors.length > 0 && (
@@ -237,7 +239,7 @@ export function RecipeFormFields({
                 htmlFor="recipe-instructions"
                 className="block text-sm font-medium text-text-primary"
               >
-                Instructions <span className="text-red-500">*</span>
+                {t('recipes.form.instructionsLabel')} <span className="text-red-500">*</span>
               </label>
               <Button
                 type="button"
@@ -246,7 +248,7 @@ export function RecipeFormFields({
                 size="sm"
                 className="text-xs"
               >
-                Open Editor
+                {t('recipes.form.openEditor')}
               </Button>
             </div>
             <textarea
@@ -263,13 +265,12 @@ export function RecipeFormFields({
               className={`w-full p-3 border rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm ${
                 field.state.meta.errors.length > 0 ? 'border-red-500' : 'border-border-primary'
               }`}
-              placeholder="Detailed instructions for the AI, hidden from the user"
+              placeholder={t('recipes.form.instructionsPlaceholder')}
               rows={8}
               data-testid="instructions-input"
             />
             <p className="text-xs text-text-secondary mt-1">
-              Use {`{{parameter_name}}`} to define parameters that can be filled in when running the
-              recipe.
+              {t('recipes.form.instructionsHint', { template: '{{parameter_name}}' })}
             </p>
             {field.state.meta.errors.length > 0 && (
               <p className="text-red-500 text-sm mt-1">{field.state.meta.errors[0]}</p>
@@ -299,10 +300,10 @@ export function RecipeFormFields({
               htmlFor="recipe-prompt"
               className="block text-sm font-medium text-text-primary mb-2"
             >
-              Initial Prompt
+              {t('recipes.form.promptLabel')}
             </label>
             <p className="text-xs text-text-secondary mt-2 mb-2">
-              (Optional - Instructions or Prompt are required)
+              {t('recipes.form.promptHint')}
             </p>
             <textarea
               id="recipe-prompt"
@@ -316,7 +317,7 @@ export function RecipeFormFields({
                 updateParametersFromFields();
               }}
               className="w-full p-3 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Pre-filled prompt when the recipe starts"
+              placeholder={t('recipes.form.promptPlaceholder')}
               rows={3}
               data-testid="prompt-input"
             />
@@ -332,9 +333,11 @@ export function RecipeFormFields({
               advancedOpen ? 'rotate-0' : '-rotate-90'
             }`}
           />
-          <span className="text-sm font-medium text-textStandard">Advanced Options</span>
+          <span className="text-sm font-medium text-textStandard">
+            {t('recipes.form.advancedOptions')}
+          </span>
           <span className="text-xs text-textSubtle">
-            Activities, parameters, model, extensions, response schema
+            {t('recipes.form.advancedSummary')}
           </span>
         </CollapsibleTrigger>
 
@@ -359,7 +362,9 @@ export function RecipeFormFields({
                 if (newParameterName.trim()) {
                   const newParam: Parameter = {
                     key: newParameterName.trim(),
-                    description: `Enter value for ${newParameterName.trim()}`,
+                    description: t('recipes.form.parameterDescriptionDefault', {
+                      key: newParameterName.trim(),
+                    }),
                     input_type: 'string',
                     requirement: 'required',
                   };
@@ -409,11 +414,12 @@ export function RecipeFormFields({
               return (
                 <div>
                   <label className="block text-md text-text-primary mb-2 font-bold">
-                    Parameters
+                    {t('recipes.form.parametersLabel')}
                   </label>
                   <p className="text-text-secondary text-sm space-y-2 pb-4">
-                    Parameters will be automatically detected from {`{{parameter_name}}`} syntax in
-                    instructions/prompt/activities or you can manually add them below.
+                    {t('recipes.form.parametersDescription', {
+                      template: '{{parameter_name}}',
+                    })}
                   </p>
 
                   {/* Add Parameter Input - Always Visible */}
@@ -423,7 +429,7 @@ export function RecipeFormFields({
                       value={newParameterName}
                       onChange={(e) => setNewParameterName(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      placeholder="Enter parameter name..."
+                      placeholder={t('recipes.form.parameterNamePlaceholder')}
                       className="flex-1 px-3 py-2 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     />
                     <button
@@ -432,7 +438,7 @@ export function RecipeFormFields({
                       disabled={!newParameterName.trim()}
                       className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
-                      Add parameter
+                      {t('recipes.form.addParameter')}
                     </button>
                   </div>
 
@@ -503,10 +509,10 @@ export function RecipeFormFields({
             {(field: FormFieldApi<string | undefined>) => (
               <div>
                 <label className="block text-md text-text-primary mb-2 font-bold">
-                  Response JSON Schema
+                  {t('recipes.form.responseSchemaLabel')}
                 </label>
                 <p className="text-text-secondary text-sm space-y-2 pb-4">
-                  Define the expected structure of the AI's response using JSON Schema format
+                  {t('recipes.form.responseSchemaDescription')}
                 </p>
                 <div className="flex items-center justify-between mb-2">
                   <Button
@@ -516,7 +522,7 @@ export function RecipeFormFields({
                     size="sm"
                     className="text-xs"
                   >
-                    Open Editor
+                    {t('recipes.form.openEditor')}
                   </Button>
                 </div>
 

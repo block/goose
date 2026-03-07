@@ -8,6 +8,7 @@ import { getSessionDisplayName } from '../../../hooks/useNavigationSessions';
 import { updateSessionName } from '../../../api';
 import type { Session } from '../../../api';
 import type { SessionStatus } from './types';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 interface SessionsListProps {
   sessions: Session[];
@@ -33,6 +34,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
   onShowAll,
 }) => {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const { t } = useLocalization();
 
   const handleSaveSessionName = useCallback(
     async (sessionId: string, newName: string) => {
@@ -68,7 +70,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
               >
                 <div className="w-4 flex-shrink-0" />
                 <Plus className="w-4 h-4 flex-shrink-0 text-text-secondary" />
-                <span className="text-text-primary">Start New Chat</span>
+                <span className="text-text-primary">{t('chat.startNewChat')}</span>
               </div>
             )}
 
@@ -103,9 +105,9 @@ export const SessionsList: React.FC<SessionsListProps> = ({
                     <MessageSquare className="w-4 h-4 flex-shrink-0 text-text-secondary" />
                   )}
                   <InlineEditText
-                    value={getSessionDisplayName(session)}
+                    value={getSessionDisplayName(session, t('chat.newChat'))}
                     onSave={(newName) => handleSaveSessionName(session.id, newName)}
-                    placeholder="Untitled session"
+                    placeholder={t('chat.untitledSession')}
                     disabled={isStreaming}
                     singleClickEdit={false}
                     className="truncate text-text-primary flex-1 !px-0 !py-0 hover:bg-transparent"
@@ -134,7 +136,7 @@ export const SessionsList: React.FC<SessionsListProps> = ({
               >
                 <div className="w-4 flex-shrink-0" />
                 <History className="w-4 h-4 flex-shrink-0" />
-                <span>Show All</span>
+                <span>{t('chat.showAll')}</span>
               </div>
             )}
           </div>

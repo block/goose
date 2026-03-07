@@ -17,6 +17,7 @@ import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
 import { upsertConfig } from '../../../../api';
 import { ConfirmationModal } from '../../../ui/ConfirmationModal';
+import { useLocalization } from '../../../../contexts/LocalizationContext';
 
 interface ExtensionModalProps {
   title: string;
@@ -37,6 +38,7 @@ export default function ExtensionModal({
   submitLabel,
   modalType,
 }: ExtensionModalProps) {
+  const { t } = useLocalization();
   const [formData, setFormData] = useState<ExtensionFormData>(initialData);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -317,7 +319,9 @@ export default function ExtensionModal({
   };
 
   // Update title based on current state
-  const modalTitle = showDeleteConfirmation ? `Delete Extension "${formData.name}"` : title;
+  const modalTitle = showDeleteConfirmation
+    ? t('extensions.deleteExtensionTitle', { name: formData.name })
+    : title;
 
   return (
     <>
@@ -330,16 +334,14 @@ export default function ExtensionModal({
             </DialogTitle>
             {showDeleteConfirmation && (
               <DialogDescription>
-                This will permanently remove this extension and all of its settings.
+                {t('extensions.deleteExtensionDescription')}
               </DialogDescription>
             )}
           </DialogHeader>
 
           {showDeleteConfirmation ? (
             <div className="py-4">
-              <p className="text-text-primary">
-                This will permanently remove this extension and all of its settings.
-              </p>
+              <p className="text-text-primary">{t('extensions.deleteExtensionDescription')}</p>
             </div>
           ) : (
             <div className="py-4 space-y-6">
@@ -349,7 +351,7 @@ export default function ExtensionModal({
                     <Info className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="text-sm font-medium text-text-primary mb-1">
-                        Installation Notes
+                        {t('extensions.installationNotes')}
                       </h4>
                       <p className="text-sm text-text-secondary">{formData.installation_notes}</p>
                     </div>
@@ -428,7 +430,7 @@ export default function ExtensionModal({
             {showDeleteConfirmation ? (
               <>
                 <Button variant="outline" onClick={() => setShowDeleteConfirmation(false)}>
-                  Cancel
+                  {t('common.actions.cancel')}
                 </Button>
                 <Button
                   onClick={() => {
@@ -440,7 +442,7 @@ export default function ExtensionModal({
                   variant="destructive"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Confirm removal
+                  {t('common.actions.confirmRemoval')}
                 </Button>
               </>
             ) : (
@@ -452,11 +454,11 @@ export default function ExtensionModal({
                     className="text-red-500 hover:text-red-600"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Remove extension
+                    {t('extensions.removeExtension')}
                   </Button>
                 )}
                 <Button variant="outline" onClick={handleClose}>
-                  Cancel
+                  {t('common.actions.cancel')}
                 </Button>
                 <Button
                   data-testid="extension-submit-btn"
@@ -475,9 +477,9 @@ export default function ExtensionModal({
       {showCloseConfirmation && (
         <ConfirmationModal
           isOpen={showCloseConfirmation}
-          title="Unsaved Changes"
-          message="You have unsaved changes to the extension configuration. Are you sure you want to close without saving?"
-          confirmLabel="Close Without Saving"
+          title={t('extensions.unsavedChangesTitle')}
+          message={t('extensions.unsavedChangesMessage')}
+          confirmLabel={t('common.actions.closeWithoutSaving')}
           onConfirm={handleConfirmClose}
           onCancel={handleCancelClose}
         />

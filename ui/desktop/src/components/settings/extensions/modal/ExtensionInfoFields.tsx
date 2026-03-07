@@ -1,5 +1,6 @@
 import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
+import { useLocalization } from '../../../../contexts/LocalizationContext';
 
 interface ExtensionInfoFieldsProps {
   name: string;
@@ -16,6 +17,7 @@ export default function ExtensionInfoFields({
   onChange,
   submitAttempted,
 }: ExtensionInfoFieldsProps) {
+  const { t } = useLocalization();
   const isNameValid = () => {
     return name.trim() !== '';
   };
@@ -25,23 +27,29 @@ export default function ExtensionInfoFields({
       {/* Top row with Name and Type side by side */}
       <div className="flex justify-between gap-4">
         <div className="flex-1">
-          <label className="text-sm font-medium mb-2 block text-text-primary">Extension Name</label>
+          <label className="text-sm font-medium mb-2 block text-text-primary">
+            {t('extensions.fields.extensionName')}
+          </label>
           <div className="relative">
             <Input
               value={name}
               onChange={(e) => onChange('name', e.target.value)}
-              placeholder="Enter extension name..."
+              placeholder={t('extensions.fields.namePlaceholder')}
               className={`${!submitAttempted || isNameValid() ? 'border-border-primary' : 'border-red-500'} text-text-primary focus:border-border-primary`}
             />
             {submitAttempted && !isNameValid() && (
-              <div className="absolute text-xs text-red-500 mt-1">Name is required</div>
+              <div className="absolute text-xs text-red-500 mt-1">
+                {t('extensions.fields.nameRequired')}
+              </div>
             )}
           </div>
         </div>
 
         {/* Type Dropdown */}
         <div className="w-[200px]">
-          <label className="text-sm font-medium mb-2 block text-text-primary">Type</label>
+          <label className="text-sm font-medium mb-2 block text-text-primary">
+            {t('extensions.fields.type')}
+          </label>
           <Select
             value={{
               value: type,
@@ -51,7 +59,7 @@ export default function ExtensionInfoFields({
                   : type === 'streamable_http'
                     ? 'HTTP'
                     : type === 'sse'
-                      ? 'SSE (unsupported)'
+                      ? t('extensions.fields.unsupportedSse')
                       : type.toUpperCase(),
             }}
             onChange={(newValue: unknown) => {
@@ -61,8 +69,8 @@ export default function ExtensionInfoFields({
               }
             }}
             options={[
-              { value: 'stdio', label: 'Standard IO (STDIO)' },
-              { value: 'streamable_http', label: 'Streamable HTTP' },
+              { value: 'stdio', label: t('extensions.fields.standardIo') },
+              { value: 'streamable_http', label: t('extensions.fields.streamableHttp') },
             ]}
             isSearchable={false}
           />
@@ -71,12 +79,14 @@ export default function ExtensionInfoFields({
 
       {/* Bottom row with Description spanning full width */}
       <div className="w-full">
-        <label className="text-sm font-medium mb-2 block text-text-primary">Description</label>
+        <label className="text-sm font-medium mb-2 block text-text-primary">
+          {t('extensions.fields.description')}
+        </label>
         <div className="relative">
           <Input
             value={description}
             onChange={(e) => onChange('description', e.target.value)}
-            placeholder="Optional description..."
+            placeholder={t('extensions.fields.descriptionPlaceholder')}
             className={`text-text-primary focus:border-border-primary`}
           />
         </div>

@@ -4,8 +4,10 @@ import McpAppRenderer from '../McpApps/McpAppRenderer';
 import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 export default function StandaloneAppView() {
+  const { t } = useLocalization();
   const [searchParams] = useSearchParams();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [cachedHtml, setCachedHtml] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export default function StandaloneAppView() {
         resourceUri === 'undefined' ||
         extensionName === 'undefined'
       ) {
-        setError('Missing required parameters');
+        setError(t('apps.standalone.missingParams'));
         setLoading(false);
         return;
       }
@@ -50,7 +52,7 @@ export default function StandaloneAppView() {
     }
 
     loadCachedHtml();
-  }, [resourceUri, extensionName]);
+  }, [resourceUri, extensionName, t]);
 
   useEffect(() => {
     async function initSession() {
@@ -79,14 +81,14 @@ export default function StandaloneAppView() {
       } catch (err) {
         console.error('Failed to initialize session:', err);
         if (!cachedHtml) {
-          setError(errorMessage(err, 'Failed to initialize session'));
+          setError(errorMessage(err, t('apps.standalone.initializeFailed')));
           setLoading(false);
         }
       }
     }
 
     initSession();
-  }, [resourceUri, extensionName, workingDir, cachedHtml]);
+  }, [resourceUri, extensionName, workingDir, cachedHtml, t]);
 
   useEffect(() => {
     if (appName) {
@@ -122,7 +124,7 @@ export default function StandaloneAppView() {
           padding: '24px',
         }}
       >
-        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>Failed to Load App</h2>
+        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>{t('apps.standalone.loadFailedTitle')}</h2>
         <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>{error}</p>
       </div>
     );
@@ -139,7 +141,9 @@ export default function StandaloneAppView() {
           justifyContent: 'center',
         }}
       >
-        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>Initializing app...</p>
+        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>
+          {t('apps.standalone.initializing')}
+        </p>
       </div>
     );
   }
@@ -168,7 +172,9 @@ export default function StandaloneAppView() {
         justifyContent: 'center',
       }}
     >
-      <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>Initializing app...</p>
+      <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>
+        {t('apps.standalone.initializing')}
+      </p>
     </div>
   );
 }

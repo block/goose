@@ -67,6 +67,7 @@ const mockSettings: Record<string, unknown> = {
   },
   theme: 'light',
   useSystemTheme: true,
+  uiLanguage: 'en',
   responseStyle: 'concise',
   showPricing: true,
   sessionSharing: {
@@ -86,6 +87,9 @@ Object.defineProperty(window, 'electron', {
       mockSettings[key] = value;
       return Promise.resolve();
     }),
+    broadcastLanguageChange: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
     showMessageBox: vi.fn(() => Promise.resolve({ response: 0 })),
   },
 });

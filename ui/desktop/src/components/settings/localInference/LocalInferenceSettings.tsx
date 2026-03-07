@@ -15,6 +15,7 @@ import {
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
+import { useLocalization } from '../../../contexts/LocalizationContext';
 
 const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes}B`;
@@ -24,6 +25,7 @@ const formatBytes = (bytes: number): string => {
 };
 
 export const LocalInferenceSettings = () => {
+  const { t } = useLocalization();
   const [models, setModels] = useState<LocalModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
   const [showAllFeatured, setShowAllFeatured] = useState(false);
@@ -140,7 +142,7 @@ export const LocalInferenceSettings = () => {
   };
 
   const handleDeleteModel = async (modelId: string) => {
-    if (!window.confirm('Delete this model? You can re-download it later.')) return;
+    if (!window.confirm(t('localInference.deleteConfirm'))) return;
     try {
       await deleteLocalModel({ path: { model_id: modelId } });
       await loadModels();
@@ -168,17 +170,18 @@ export const LocalInferenceSettings = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-text-default font-medium">Local Inference Models</h3>
+        <h3 className="text-text-default font-medium">{t('localInference.title')}</h3>
         <p className="text-xs text-text-muted max-w-2xl mt-1">
-          Download and manage local LLM models for inference without API keys. Search HuggingFace
-          for any GGUF model or use the featured picks below.
+          {t('localInference.description')}
         </p>
       </div>
 
       {/* Active Downloads */}
       {downloads.size > 0 && (
         <div ref={downloadSectionRef}>
-          <h4 className="text-sm font-medium text-text-default mb-2">Downloading</h4>
+          <h4 className="text-sm font-medium text-text-default mb-2">
+            {t('localInference.downloading')}
+          </h4>
           <div className="space-y-2">
             {Array.from(downloads.entries()).map(([modelId, progress]) => {
               if (progress.status === 'completed') return null;
@@ -222,7 +225,7 @@ export const LocalInferenceSettings = () => {
                               {progress.eta_seconds < 60
                                 ? `${Math.round(progress.eta_seconds)}s`
                                 : `${Math.round(progress.eta_seconds / 60)}m`}{' '}
-                              remaining
+                              {t('localInference.remaining')}
                             </span>
                           )}
                           {progress.speed_bps != null && progress.speed_bps > 0 && (
@@ -234,7 +237,7 @@ export const LocalInferenceSettings = () => {
                   )}
                   {progress.status === 'failed' && (
                     <p className="text-xs text-destructive">
-                      {progress.error || 'Download failed'}
+                      {progress.error || t('localInference.downloadFailed')}
                     </p>
                   )}
                 </div>
@@ -247,7 +250,9 @@ export const LocalInferenceSettings = () => {
       {/* Downloaded Models */}
       {downloadedModels.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-text-default mb-2">Downloaded Models</h4>
+          <h4 className="text-sm font-medium text-text-default mb-2">
+            {t('localInference.downloadedModels')}
+          </h4>
           <div className="space-y-2">
             {downloadedModels.map((model) => {
               const isSelected = selectedModelId === model.id;
@@ -274,7 +279,7 @@ export const LocalInferenceSettings = () => {
                       </span>
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
-                          Recommended
+                          {t('localInference.recommended')}
                         </span>
                       )}
                     </div>
@@ -283,7 +288,7 @@ export const LocalInferenceSettings = () => {
                         variant="ghost"
                         size="sm"
                         onClick={() => setSettingsOpenFor(model.id)}
-                        title="Model settings"
+                        title={t('localInference.modelSettings')}
                       >
                         <Settings2 className="w-4 h-4" />
                       </Button>
@@ -307,7 +312,9 @@ export const LocalInferenceSettings = () => {
       {/* Featured Models (not yet downloaded) */}
       {displayedFeatured.length > 0 && (
         <div>
-          <h4 className="text-sm font-medium text-text-default mb-2">Featured Models</h4>
+          <h4 className="text-sm font-medium text-text-default mb-2">
+            {t('localInference.featuredModels')}
+          </h4>
           <div className="space-y-2">
             {displayedFeatured.map((model) => (
               <div
@@ -323,7 +330,7 @@ export const LocalInferenceSettings = () => {
                       </span>
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
-                          Recommended
+                          {t('localInference.recommended')}
                         </span>
                       )}
                     </div>
@@ -334,7 +341,7 @@ export const LocalInferenceSettings = () => {
                     onClick={() => startFeaturedDownload(model.id)}
                   >
                     <Download className="w-4 h-4 mr-1" />
-                    Download
+                    {t('localInference.download')}
                   </Button>
                 </div>
               </div>
@@ -351,12 +358,14 @@ export const LocalInferenceSettings = () => {
               {showAllFeatured ? (
                 <>
                   <ChevronUp className="w-4 h-4 mr-1" />
-                  Show recommended only
+                  {t('localInference.showRecommendedOnly')}
                 </>
               ) : (
                 <>
                   <ChevronDown className="w-4 h-4 mr-1" />
-                  Show all featured ({notDownloadedModels.length - displayedFeatured.length} more)
+                  {t('localInference.showAllFeatured', {
+                    count: notDownloadedModels.length - displayedFeatured.length,
+                  })}
                 </>
               )}
             </Button>
@@ -370,7 +379,9 @@ export const LocalInferenceSettings = () => {
       </div>
 
       {models.length === 0 && (
-        <div className="text-center py-6 text-text-muted text-sm">No models available</div>
+        <div className="text-center py-6 text-text-muted text-sm">
+          {t('localInference.noModelsAvailable')}
+        </div>
       )}
 
       <Dialog
@@ -381,7 +392,7 @@ export const LocalInferenceSettings = () => {
       >
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Model Settings</DialogTitle>
+            <DialogTitle>{t('localInference.dialogTitle')}</DialogTitle>
             <p className="text-sm text-text-muted">{settingsOpenFor || ''}</p>
           </DialogHeader>
           {settingsOpenFor && <ModelSettingsPanel modelId={settingsOpenFor} />}

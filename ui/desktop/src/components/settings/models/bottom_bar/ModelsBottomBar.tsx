@@ -18,6 +18,7 @@ import { Alert } from '../../../alerts';
 import BottomMenuAlertPopover from '../../../bottom_menu/BottomMenuAlertPopover';
 import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
 import { ScrollArea } from '../../../ui/scroll-area';
+import { useLocalization } from '../../../../contexts/LocalizationContext';
 
 interface ModelsBottomBarProps {
   sessionId: string | null;
@@ -32,11 +33,12 @@ export default function ModelsBottomBar({
   setView,
   alerts,
 }: ModelsBottomBarProps) {
+  const { t } = useLocalization();
   const { currentModel, currentProvider } = useModelAndProvider();
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
-  const [displayModelName, setDisplayModelName] = useState<string>('Select Model');
+  const [displayModelName, setDisplayModelName] = useState<string>('');
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLeadWorkerModalOpen, setIsLeadWorkerModalOpen] = useState(false);
   const [isLocalModelSettingsOpen, setIsLocalModelSettingsOpen] = useState(false);
@@ -104,7 +106,7 @@ export default function ModelsBottomBar({
   const displayModel =
     isLeadWorkerActive && currentModelInfo?.model
       ? currentModelInfo.model
-      : currentModel || providerDefaultModel || displayModelName;
+      : currentModel || providerDefaultModel || displayModelName || t('switchModel.selectModelAction');
 
   useEffect(() => {
     if (!currentProvider) return;
@@ -155,22 +157,22 @@ export default function ModelsBottomBar({
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
-          <h6 className="text-xs text-text-primary mt-2 ml-2">Current model</h6>
+          <h6 className="text-xs text-text-primary mt-2 ml-2">{t('switchModel.currentModel')}</h6>
           <p className="flex items-center justify-between text-sm mx-2 pb-2 border-b mb-2">
-            {displayModelName}
+            {displayModelName || t('switchModel.selectModelAction')}
             {displayProvider && ` — ${displayProvider}`}
           </p>
           <DropdownMenuItem onClick={() => setIsAddModelModalOpen(true)}>
-            <span>Change Model</span>
+            <span>{t('switchModel.changeModel')}</span>
             <Sliders className="ml-auto h-4 w-4 rotate-90" />
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setIsLeadWorkerModalOpen(true)}>
-            <span>Lead/Worker Settings</span>
+            <span>{t('switchModel.leadWorkerSettings')}</span>
             <Sliders className="ml-auto h-4 w-4" />
           </DropdownMenuItem>
           {currentProvider === 'local' && currentModel && (
             <DropdownMenuItem onClick={() => setIsLocalModelSettingsOpen(true)}>
-              <span>Local Model Settings</span>
+              <span>{t('switchModel.localModelSettings')}</span>
               <Settings className="ml-auto h-4 w-4" />
             </DropdownMenuItem>
           )}
@@ -194,7 +196,9 @@ export default function ModelsBottomBar({
           <div className="bg-background-default rounded-lg shadow-lg w-[480px] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
               <h3 className="text-sm font-medium text-text-default">
-                Local Model Settings — {getModelDisplayName(currentModel)}
+                {t('switchModel.localModelSettingsTitle', {
+                  name: getModelDisplayName(currentModel),
+                })}
               </h3>
               <button
                 onClick={() => setIsLocalModelSettingsOpen(false)}

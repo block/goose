@@ -1,9 +1,11 @@
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CreateRecipeFromSessionModal from '../CreateRecipeFromSessionModal';
 import { createRecipe } from '../../../api/sdk.gen';
 import type { CreateRecipeResponse } from '../../../api/types.gen';
+import { LocalizationProvider } from '../../../contexts/LocalizationContext';
 
 vi.mock('../../../api/sdk.gen', () => ({
   createRecipe: vi.fn(),
@@ -26,6 +28,8 @@ vi.mock('../../ConfigContext', () => ({
 }));
 
 const mockCreateRecipe = vi.mocked(createRecipe);
+
+const render = (ui: ReactElement) => rtlRender(<LocalizationProvider>{ui}</LocalizationProvider>);
 
 describe('CreateRecipeFromSessionModal', () => {
   const defaultProps = {

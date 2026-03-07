@@ -14,6 +14,7 @@ import {
 } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { Message } from '../../api';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 /**
  * Get tool responses map from messages
@@ -59,6 +60,8 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
   error,
   onRetry,
 }) => {
+  const { t } = useLocalization();
+
   return (
     <ScrollArea className="h-full w-full">
       <div className="p-4">
@@ -73,10 +76,10 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                 <div className="text-red-500 mb-4">
                   <AlertCircle size={32} />
                 </div>
-                <p className="text-md mb-2">Error Loading Session Details</p>
+                <p className="text-md mb-2">{t('sessions.history.errorTitle')}</p>
                 <p className="text-sm text-center mb-4">{error}</p>
                 <Button onClick={onRetry} variant="default">
-                  Try Again
+                  {t('common.actions.retry')}
                 </Button>
               </div>
             ) : messages?.length > 0 ? (
@@ -113,7 +116,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                     >
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-medium text-text-primary">
-                          {message.role === 'user' ? 'You' : 'Goose'}
+                          {message.role === 'user' ? t('sessions.history.you') : 'Goose'}
                         </span>
                         <span className="text-xs text-text-secondary">
                           {formatMessageTimestamp(message.created)}
@@ -125,7 +128,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                         {reasoningContent && (
                           <details className="mb-2">
                             <summary className="cursor-pointer text-xs text-textSubtle select-none">
-                              Show reasoning
+                              {t('sessions.history.showReasoning')}
                             </summary>
                             <div className="mt-2 text-sm">
                               <MarkdownContent content={reasoningContent} />
@@ -176,8 +179,8 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-text-secondary">
                 <MessageSquare className="w-12 h-12 mb-4" />
-                <p className="text-lg mb-2">No messages found</p>
-                <p className="text-sm">This session doesn't contain any messages</p>
+                <p className="text-lg mb-2">{t('sessions.history.noMessages')}</p>
+                <p className="text-sm">{t('sessions.history.noMessagesDescription')}</p>
               </div>
             )}
           </div>

@@ -1,4 +1,4 @@
-import type { OpenDialogOptions, OpenDialogReturnValue } from 'electron';
+import type { MenuItemConstructorOptions, OpenDialogOptions, OpenDialogReturnValue } from 'electron';
 import {
   app,
   App,
@@ -33,15 +33,17 @@ import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
-import type { Settings, SettingKey } from './utils/settings';
+import type { Settings, SettingKey, UiLanguage } from './utils/settings';
 import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
 import * as yaml from 'yaml';
 import windowStateKeeper from 'electron-window-state';
 import {
+  clearTrayRef,
   getUpdateAvailable,
   registerUpdateIpcHandlers,
   setTrayRef,
+  setTrayLanguage,
   setupAutoUpdater,
   updateTrayMenu,
 } from './utils/autoUpdater';
@@ -51,6 +53,7 @@ import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { createTranslator, defaultUiLanguage, isUiLanguage } from './i18n';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -89,6 +92,15 @@ function updateSettings(modifier: (settings: Settings) => void): void {
   const settings = getSettings();
   modifier(settings);
   fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+}
+
+function getCurrentUiLanguage(): UiLanguage {
+  const storedLanguage = getSettings().uiLanguage;
+  return isUiLanguage(storedLanguage) ? storedLanguage : defaultUiLanguage;
+}
+
+function getTranslatorForUiLanguage(language: UiLanguage = getCurrentUiLanguage()) {
+  return createTranslator(language);
 }
 
 async function configureProxy() {
@@ -643,14 +655,20 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   const serverReady = await checkServerStatus(goosedClient, errorLog);
   if (!serverReady) {
     const isUsingExternalBackend = settings.externalGoosed?.enabled;
+    const t = getTranslatorForUiLanguage();
 
     if (isUsingExternalBackend) {
       const response = dialog.showMessageBoxSync({
         type: 'error',
-        title: 'External Backend Unreachable',
-        message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
-        detail: 'The external goosed server may not be running.',
-        buttons: ['Disable External Backend & Retry', 'Quit'],
+        title: t('nativeMenus.dialogs.externalBackendUnreachable.title'),
+        message: t('nativeMenus.dialogs.externalBackendUnreachable.message', {
+          url: settings.externalGoosed?.url || t('common.labels.unknown'),
+        }),
+        detail: t('nativeMenus.dialogs.externalBackendUnreachable.detail'),
+        buttons: [
+          t('nativeMenus.dialogs.externalBackendUnreachable.disableAndRetry'),
+          t('common.actions.quit'),
+        ],
         defaultId: 0,
         cancelId: 1,
       });
@@ -667,10 +685,10 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     } else {
       dialog.showMessageBoxSync({
         type: 'error',
-        title: 'Goose Failed to Start',
-        message: 'The backend server failed to start.',
+        title: t('nativeMenus.dialogs.gooseFailedToStart.title'),
+        message: t('nativeMenus.dialogs.gooseFailedToStart.message'),
         detail: errorLog.join('\n'),
-        buttons: ['OK'],
+        buttons: [t('common.actions.ok')],
       });
     }
     app.quit();
@@ -681,6 +699,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   mainWindow.webContents.session.setSpellCheckerLanguages(['en-US', 'en-GB']);
   mainWindow.webContents.on('context-menu', (_event, params) => {
+    const t = getTranslatorForUiLanguage();
     const menu = new Menu();
     const hasSpellingSuggestions = params.dictionarySuggestions.length > 0 || params.misspelledWord;
 
@@ -697,7 +716,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       if (params.misspelledWord) {
         menu.append(
           new MenuItem({
-            label: 'Add to dictionary',
+            label: t('nativeMenus.contextMenu.addToDictionary'),
             click: () =>
               mainWindow.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord),
           })
@@ -711,14 +730,14 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     if (params.selectionText) {
       menu.append(
         new MenuItem({
-          label: 'Cut',
+          label: t('nativeMenus.contextMenu.cut'),
           accelerator: 'CmdOrCtrl+X',
           role: 'cut',
         })
       );
       menu.append(
         new MenuItem({
-          label: 'Copy',
+          label: t('nativeMenus.contextMenu.copy'),
           accelerator: 'CmdOrCtrl+C',
           role: 'copy',
         })
@@ -729,7 +748,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     if (params.isEditable) {
       menu.append(
         new MenuItem({
-          label: 'Paste',
+          label: t('nativeMenus.contextMenu.paste'),
           accelerator: 'CmdOrCtrl+V',
           role: 'paste',
         })
@@ -957,6 +976,7 @@ const destroyTray = () => {
     tray.destroy();
     tray = null;
   }
+  clearTrayRef();
 };
 
 const disableTray = () => {
@@ -987,7 +1007,7 @@ const createTray = () => {
   try {
     tray = new Tray(iconPath);
     setTrayRef(tray);
-    updateTrayMenu(getUpdateAvailable());
+    setTrayLanguage(getCurrentUiLanguage());
 
     if (process.platform === 'win32') {
       tray.on('click', showWindow);
@@ -1043,6 +1063,288 @@ const buildRecentFilesMenu = () => {
     },
   }));
 };
+
+function buildDockMenu(language: UiLanguage): Menu {
+  const t = getTranslatorForUiLanguage(language);
+  return Menu.buildFromTemplate([
+    {
+      label: t('nativeMenus.dock.newWindow'),
+      click: () => {
+        createNewWindow(app);
+      },
+    },
+  ]);
+}
+
+function buildApplicationMenu(language: UiLanguage): Menu {
+  const t = getTranslatorForUiLanguage(language);
+  const settings = getSettings();
+  const shortcuts = getKeyboardShortcuts(settings);
+  const recentFilesSubmenu = buildRecentFilesMenu();
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+
+  const fileSubmenu: MenuItemConstructorOptions[] = [];
+  if (shortcuts.newChat) {
+    fileSubmenu.push({
+      label: t('nativeMenus.menu.file.newChat'),
+      accelerator: shortcuts.newChat,
+      click() {
+        const activeWindow = BrowserWindow.getFocusedWindow();
+        if (activeWindow) {
+          activeWindow.webContents.send('new-chat');
+        }
+      },
+    });
+  }
+
+  if (shortcuts.newChatWindow) {
+    fileSubmenu.push({
+      label: t('nativeMenus.menu.file.newChatWindow'),
+      accelerator: shortcuts.newChatWindow,
+      click() {
+        ipcMain.emit('create-chat-window');
+      },
+    });
+  }
+
+  if (shortcuts.openDirectory) {
+    fileSubmenu.push({
+      label: t('nativeMenus.menu.file.openDirectory'),
+      accelerator: shortcuts.openDirectory,
+      click: () => openDirectoryDialog(),
+    });
+  }
+
+  if (recentFilesSubmenu.length > 0) {
+    fileSubmenu.push({
+      label: t('nativeMenus.menu.file.recentDirectories'),
+      submenu: recentFilesSubmenu,
+    });
+  }
+
+  if (fileSubmenu.length > 0) {
+    fileSubmenu.push({ type: 'separator' });
+  }
+
+  if (shortcuts.focusWindow) {
+    fileSubmenu.push({
+      label: t('nativeMenus.menu.file.focusWindow'),
+      accelerator: shortcuts.focusWindow,
+      click() {
+        focusWindow();
+      },
+    });
+  }
+
+  if (shortcuts.quickLauncher) {
+    fileSubmenu.push({
+      label: t('nativeMenus.menu.file.quickLauncher'),
+      accelerator: shortcuts.quickLauncher,
+      click() {
+        createLauncher();
+      },
+    });
+  }
+
+  const editSubmenu: MenuItemConstructorOptions[] = [
+    { role: 'undo' },
+    { role: 'redo' },
+    { type: 'separator' },
+    { label: t('nativeMenus.contextMenu.cut'), role: 'cut' },
+    { label: t('nativeMenus.contextMenu.copy'), role: 'copy' },
+    { label: t('nativeMenus.contextMenu.paste'), role: 'paste' },
+    { type: 'separator' },
+    {
+      label: t('nativeMenus.menu.edit.find'),
+      submenu: [
+        {
+          label: t('nativeMenus.menu.edit.findEllipsis'),
+          accelerator: shortcuts.find || undefined,
+          click() {
+            const activeWindow = BrowserWindow.getFocusedWindow();
+            if (activeWindow) {
+              activeWindow.webContents.send('find-command');
+            }
+          },
+        },
+        {
+          label: t('nativeMenus.menu.edit.findNext'),
+          accelerator: shortcuts.findNext || undefined,
+          click() {
+            const activeWindow = BrowserWindow.getFocusedWindow();
+            if (activeWindow) {
+              activeWindow.webContents.send('find-next');
+            }
+          },
+        },
+        {
+          label: t('nativeMenus.menu.edit.findPrevious'),
+          accelerator: shortcuts.findPrevious || undefined,
+          click() {
+            const activeWindow = BrowserWindow.getFocusedWindow();
+            if (activeWindow) {
+              activeWindow.webContents.send('find-previous');
+            }
+          },
+        },
+        {
+          label: t('nativeMenus.menu.edit.useSelectionForFind'),
+          accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
+          click() {
+            const activeWindow = BrowserWindow.getFocusedWindow();
+            if (activeWindow) {
+              activeWindow.webContents.send('use-selection-find');
+            }
+          },
+          visible: process.platform === 'darwin',
+        },
+      ],
+    },
+    { type: 'separator' },
+    { role: 'selectAll' },
+  ];
+
+  const viewSubmenu: MenuItemConstructorOptions[] = [];
+  if (!app.isPackaged) {
+    viewSubmenu.push({ role: 'reload' }, { role: 'forceReload' }, { role: 'toggleDevTools' });
+    viewSubmenu.push({ type: 'separator' });
+  }
+  viewSubmenu.push(
+    { role: 'resetZoom' },
+    { role: 'zoomIn' },
+    { role: 'zoomOut' },
+    { type: 'separator' },
+    { role: 'togglefullscreen' }
+  );
+  if (shortcuts.toggleNavigation) {
+    viewSubmenu.push({ type: 'separator' });
+    viewSubmenu.push({
+      label: t('nativeMenus.menu.view.toggleNavigation'),
+      accelerator: shortcuts.toggleNavigation,
+      click() {
+        const activeWindow = BrowserWindow.getFocusedWindow();
+        if (activeWindow) {
+          activeWindow.webContents.send('toggle-navigation');
+        }
+      },
+    });
+  }
+
+  const windowSubmenu: MenuItemConstructorOptions[] = [
+    { role: 'minimize' },
+    { role: 'zoom' },
+  ];
+  if (process.platform === 'darwin') {
+    windowSubmenu.push({ role: 'front' });
+  } else {
+    windowSubmenu.push({ role: 'close' });
+  }
+  if (shortcuts.alwaysOnTop) {
+    windowSubmenu.push({ type: 'separator' });
+    windowSubmenu.push({
+      label: t('nativeMenus.menu.window.alwaysOnTop'),
+      type: 'checkbox',
+      checked: focusedWindow?.isAlwaysOnTop() ?? false,
+      accelerator: shortcuts.alwaysOnTop,
+      click(menuItem) {
+        const activeWindow = BrowserWindow.getFocusedWindow();
+        if (activeWindow) {
+          if (process.platform === 'darwin') {
+            activeWindow.setAlwaysOnTop(menuItem.checked, 'floating');
+          } else {
+            activeWindow.setAlwaysOnTop(menuItem.checked);
+          }
+        }
+      },
+    });
+  }
+
+  const menuTemplate: MenuItemConstructorOptions[] = [];
+
+  if (process.platform === 'darwin') {
+    const appSubmenu: MenuItemConstructorOptions[] = [
+      { role: 'about', label: t('nativeMenus.menu.help.aboutGoose') },
+      { type: 'separator' },
+    ];
+
+    if (shortcuts.settings) {
+      appSubmenu.push({
+        label: t('nativeMenus.menu.app.settings'),
+        accelerator: shortcuts.settings,
+        click() {
+          const activeWindow = BrowserWindow.getFocusedWindow();
+          if (activeWindow) {
+            activeWindow.webContents.send('set-view', 'settings');
+          }
+        },
+      });
+      appSubmenu.push({ type: 'separator' });
+    }
+
+    appSubmenu.push(
+      { role: 'services' },
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+      { type: 'separator' },
+      { role: 'quit', label: t('common.actions.quit') }
+    );
+
+    menuTemplate.push({
+      label: formatAppName(app.getName()),
+      submenu: appSubmenu,
+    });
+  }
+
+  menuTemplate.push(
+    {
+      label: t('nativeMenus.menu.file.label'),
+      submenu: fileSubmenu,
+    },
+    {
+      label: t('nativeMenus.menu.edit.label'),
+      submenu: editSubmenu,
+    },
+    {
+      label: t('nativeMenus.menu.view.label'),
+      submenu: viewSubmenu,
+    },
+    {
+      label: t('nativeMenus.menu.window.label'),
+      submenu: windowSubmenu,
+    }
+  );
+
+  const helpSubmenu: MenuItemConstructorOptions[] = [
+    {
+      label: t('nativeMenus.menu.help.aboutGoose'),
+      submenu: [
+        {
+          label: `${t('common.labels.version')} ${version || app.getVersion()}`,
+          enabled: false,
+        },
+      ],
+    },
+  ];
+  menuTemplate.push({
+    label: t('nativeMenus.menu.help.label'),
+    submenu: helpSubmenu,
+  });
+
+  return Menu.buildFromTemplate(menuTemplate);
+}
+
+function rebuildNativeMenus(language: UiLanguage = getCurrentUiLanguage()) {
+  setTrayLanguage(language);
+
+  if (process.platform === 'darwin') {
+    app.dock?.setMenu(buildDockMenu(language));
+  }
+
+  Menu.setApplicationMenu(buildApplicationMenu(language));
+  updateTrayMenu(getUpdateAvailable());
+}
 
 const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
   // Get the current working directory from the focused window
@@ -1266,6 +1568,7 @@ ipcMain.handle('directory-chooser', async () => {
 ipcMain.handle('add-recent-dir', (_event, dir: string) => {
   if (dir) {
     addRecentDir(dir);
+    rebuildNativeMenus();
   }
 });
 
@@ -1285,6 +1588,7 @@ const validSettingKeys: Set<string> = new Set([
   'keyboardShortcuts',
   'theme',
   'useSystemTheme',
+  'uiLanguage',
   'responseStyle',
   'showPricing',
   'sessionSharing',
@@ -1306,6 +1610,11 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   // Re-register shortcuts if keyboard shortcuts changed
   if (key === 'keyboardShortcuts') {
     registerGlobalShortcuts();
+    rebuildNativeMenus();
+  }
+
+  if (key === 'uiLanguage' && isUiLanguage(value)) {
+    rebuildNativeMenus(value);
   }
 });
 
@@ -1839,280 +2148,7 @@ async function appMain() {
     }
   }, 2000);
 
-  if (process.platform === 'darwin') {
-    const dockMenu = Menu.buildFromTemplate([
-      {
-        label: 'New Window',
-        click: () => {
-          createNewWindow(app);
-        },
-      },
-    ]);
-    app.dock?.setMenu(dockMenu);
-  }
-
-  const menu = Menu.getApplicationMenu();
-
-  const shortcuts = getKeyboardShortcuts(settings);
-
-  const appMenu = menu?.items.find((item) => item.label === 'Goose');
-  if (appMenu?.submenu) {
-    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-    if (shortcuts.settings) {
-      appMenu.submenu.insert(
-        1,
-        new MenuItem({
-          label: 'Settings',
-          accelerator: shortcuts.settings,
-          click() {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) focusedWindow.webContents.send('set-view', 'settings');
-          },
-        })
-      );
-    }
-    appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
-  }
-
-  const editMenu = menu?.items.find((item) => item.label === 'Edit');
-  if (editMenu?.submenu) {
-    const selectAllIndex = editMenu.submenu.items.findIndex((item) => item.label === 'Select All');
-
-    const findSubmenu = Menu.buildFromTemplate([
-      {
-        label: 'Find…',
-        accelerator: shortcuts.find || undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('find-command');
-        },
-      },
-      {
-        label: 'Find Next',
-        accelerator: shortcuts.findNext || undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('find-next');
-        },
-      },
-      {
-        label: 'Find Previous',
-        accelerator: shortcuts.findPrevious || undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('find-previous');
-        },
-      },
-      {
-        label: 'Use Selection for Find',
-        accelerator: process.platform === 'darwin' ? 'Command+E' : undefined,
-        click() {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) focusedWindow.webContents.send('use-selection-find');
-        },
-        visible: process.platform === 'darwin', // Only show on Mac
-      },
-    ]);
-
-    editMenu.submenu.insert(
-      selectAllIndex + 1,
-      new MenuItem({
-        label: 'Find',
-        submenu: findSubmenu,
-      })
-    );
-  }
-
-  const fileMenu = menu?.items.find((item) => item.label === 'File');
-
-  if (fileMenu?.submenu) {
-    // Use a counter to track the actual insertion index
-    let menuIndex = 0;
-
-    if (shortcuts.newChat) {
-      fileMenu.submenu.insert(
-        menuIndex++,
-        new MenuItem({
-          label: 'New Chat',
-          accelerator: shortcuts.newChat,
-          click() {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) focusedWindow.webContents.send('new-chat');
-          },
-        })
-      );
-    }
-
-    if (shortcuts.newChatWindow) {
-      fileMenu.submenu.insert(
-        menuIndex++,
-        new MenuItem({
-          label: 'New Chat Window',
-          accelerator: shortcuts.newChatWindow,
-          click() {
-            ipcMain.emit('create-chat-window');
-          },
-        })
-      );
-    }
-
-    if (shortcuts.openDirectory) {
-      fileMenu.submenu.insert(
-        menuIndex++,
-        new MenuItem({
-          label: 'Open Directory...',
-          accelerator: shortcuts.openDirectory,
-          click: () => openDirectoryDialog(),
-        })
-      );
-    }
-
-    const recentFilesSubmenu = buildRecentFilesMenu();
-    if (recentFilesSubmenu.length > 0) {
-      fileMenu.submenu.insert(
-        menuIndex++,
-        new MenuItem({
-          label: 'Recent Directories',
-          submenu: recentFilesSubmenu,
-        })
-      );
-    }
-
-    fileMenu.submenu.insert(menuIndex++, new MenuItem({ type: 'separator' }));
-
-    if (shortcuts.focusWindow) {
-      fileMenu.submenu.append(
-        new MenuItem({
-          label: 'Focus Goose Window',
-          accelerator: shortcuts.focusWindow,
-          click() {
-            focusWindow();
-          },
-        })
-      );
-    }
-
-    if (shortcuts.quickLauncher) {
-      fileMenu.submenu.append(
-        new MenuItem({
-          label: 'Quick Launcher',
-          accelerator: shortcuts.quickLauncher,
-          click() {
-            createLauncher();
-          },
-        })
-      );
-    }
-  }
-
-  if (menu) {
-    let windowMenu = menu.items.find((item) => item.label === 'Window');
-
-    if (!windowMenu) {
-      windowMenu = new MenuItem({
-        label: 'Window',
-        submenu: Menu.buildFromTemplate([]),
-      });
-
-      const helpMenuIndex = menu.items.findIndex((item) => item.label === 'Help');
-      if (helpMenuIndex >= 0) {
-        menu.items.splice(helpMenuIndex, 0, windowMenu);
-      } else {
-        menu.items.push(windowMenu);
-      }
-    }
-
-    if (windowMenu.submenu) {
-      if (shortcuts.alwaysOnTop) {
-        windowMenu.submenu.append(
-          new MenuItem({
-            label: 'Always on Top',
-            type: 'checkbox',
-            accelerator: shortcuts.alwaysOnTop,
-            click(menuItem) {
-              const focusedWindow = BrowserWindow.getFocusedWindow();
-              if (focusedWindow) {
-                const isAlwaysOnTop = menuItem.checked;
-
-                if (process.platform === 'darwin') {
-                  focusedWindow.setAlwaysOnTop(isAlwaysOnTop, 'floating');
-                } else {
-                  focusedWindow.setAlwaysOnTop(isAlwaysOnTop);
-                }
-
-                console.log(
-                  `[Main] Set always-on-top to ${isAlwaysOnTop} for window ${focusedWindow.id}`
-                );
-              }
-            },
-          })
-        );
-      }
-    }
-
-    const viewMenu = menu.items.find((item) => item.label === 'View');
-    if (viewMenu?.submenu && shortcuts.toggleNavigation) {
-      viewMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      viewMenu.submenu.append(
-        new MenuItem({
-          label: 'Toggle Navigation',
-          accelerator: shortcuts.toggleNavigation,
-          click() {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) {
-              focusedWindow.webContents.send('toggle-navigation');
-            }
-          },
-        })
-      );
-    }
-  }
-
-  // on macOS, the topbar is hidden
-  if (menu && process.platform !== 'darwin') {
-    let helpMenu = menu.items.find((item) => item.label === 'Help');
-
-    // If Help menu doesn't exist, create it and add it to the menu
-    if (!helpMenu) {
-      helpMenu = new MenuItem({
-        label: 'Help',
-        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu
-      });
-      // Find a reasonable place to insert the Help menu, usually near the end
-      const insertIndex = menu.items.length > 0 ? menu.items.length - 1 : 0;
-      menu.items.splice(insertIndex, 0, helpMenu);
-    }
-
-    // Ensure the Help menu has a submenu before appending
-    if (helpMenu.submenu) {
-      // Add a separator before the About item if the submenu is not empty
-      if (helpMenu.submenu.items.length > 0) {
-        helpMenu.submenu.append(new MenuItem({ type: 'separator' }));
-      }
-
-      // Create the About Goose menu item with a submenu
-      const aboutGooseMenuItem = new MenuItem({
-        label: 'About Goose',
-        submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
-      });
-
-      // Add the Version menu item (display only) to the About Goose submenu
-      if (aboutGooseMenuItem.submenu) {
-        aboutGooseMenuItem.submenu.append(
-          new MenuItem({
-            label: `Version ${version || app.getVersion()}`,
-            enabled: false,
-          })
-        );
-      }
-
-      helpMenu.submenu.append(aboutGooseMenuItem);
-    }
-  }
-
-  if (menu) {
-    Menu.setApplicationMenu(menu);
-  }
+  rebuildNativeMenus();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -2245,6 +2281,22 @@ async function appMain() {
     allWindows.forEach((window) => {
       if (window.id !== senderWindow?.id) {
         window.webContents.send('theme-changed', themeData);
+      }
+    });
+  });
+
+  ipcMain.on('broadcast-language-change', (event, languageData) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender);
+    const allWindows = BrowserWindow.getAllWindows();
+    const language = (languageData as { language?: unknown } | undefined)?.language;
+
+    if (isUiLanguage(language)) {
+      rebuildNativeMenus(language);
+    }
+
+    allWindows.forEach((window) => {
+      if (window.id !== senderWindow?.id) {
+        window.webContents.send('language-changed', languageData);
       }
     });
   });
