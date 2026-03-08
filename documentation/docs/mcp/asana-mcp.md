@@ -14,7 +14,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the [Asana MCP Server](https://github.com/roychri/mcp-server-asana) as a goose extension to enable task automation, project tracking, and team collaboration.
 
-:::tip Quick Install
+:::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40roychri%2Fmcp-server-asana&id=asana&name=Asana&description=enable%20task%20automation%2C%20project%20tracking%2C%20and%20team%20collaboration&env=ASANA_ACCESS_TOKEN%3DAsana%20Access%20Token)
@@ -75,6 +75,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 </Tabs>
 
 ## Example Usage
+
+:::info LLM
+OpenAI's GPT-4o was used for this task. There's an [open bug](https://github.com/block/goose/issues/1804) for Amazon Bedrock models.
+:::
 
 ### goose Prompt
 

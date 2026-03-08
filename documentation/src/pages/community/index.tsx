@@ -32,7 +32,7 @@ function UpcomingEventsSection() {
   return (
     <section className="w-full flex flex-col items-center gap-8 my-8">
       <div className="text-center">
-        <Heading as="h1">📆 Upcoming Events</Heading>
+        <Heading as="h1">Upcoming Events</Heading>
         <p>Join us for livestreams, workshops, and discussions about goose and open source projects.</p>
       </div>
       
@@ -45,11 +45,8 @@ function UpcomingEventsSection() {
       
       {/* Call to Action */}
       <p className="italic text-textStandard">
-        Have ideas for future events? Reach out to the team on <Link href="https://discord.gg/goose-oss">Discord</Link>. 
-        You may also add this calendar to yours via{' '}
-        <Link href="https://calendar.google.com/calendar/embed?src=c_b2b8367dac536ebf757b2745fcc5fbff2099f6c574bc13f83d16423db2dd5535%40group.calendar.google.com&ctz=America%2FNew_York">
-          this link
-        </Link>.
+        Want to join us on a livestream or have ideas for future events? 
+        Reach out to the team on <Link href="https://discord.gg/goose-oss">Discord</Link>.
       </p>
     </section>
   );
@@ -57,49 +54,133 @@ function UpcomingEventsSection() {
 
 function CommunityAllStarsSection() {
   const [activeMonth, setActiveMonth] = React.useState(communityConfig.defaultMonth);
+  const [showScrollIndicator, setShowScrollIndicator] = React.useState(true);
   
   const currentData = communityDataMap[activeMonth];
 
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
+    setShowScrollIndicator(!isAtBottom);
+  };
+
   return (
     <section className="w-full flex flex-col items-center gap-8 my-8">
-      {/* Header with Month Dropdown */}
-      <div className="w-full flex flex-col items-center gap-4">
-        <div className="text-center w-full">
-          <Heading as="h1">🏆 Community All-Stars</Heading>
-          <p>Every month, we take a moment and celebrate the open source community. Here are the top contributors and community champions!</p>
-        </div>
-        
-        {/* Month Dropdown */}
-        <div className="flex items-center gap-2">
-          <label htmlFor="month-select" className="text-sm font-medium whitespace-nowrap">
-            📅 Select Month:
-          </label>
-          <select 
-            id="month-select"
-            className="button button--secondary"
-            value={activeMonth}
-            onChange={(e) => setActiveMonth(e.target.value)}
-            style={{
-              padding: '0.5rem 1rem',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              minWidth: '150px'
-            }}
+      <div className="text-center">
+        <Heading as="h1">Community All Stars</Heading>
+        <p>Every month, we take a moment and celebrate the open source community. Here are the top contributors and community champions!</p>
+      </div>
+      
+      {/* Month Tabs */}
+      <div className="flex justify-center gap-2 flex-wrap">
+        {communityConfig.availableMonths.map((month) => (
+          <button 
+            key={month.id}
+            className="button button--primary"
+            onClick={() => setActiveMonth(month.id)}
+            style={activeMonth === month.id ? {
+              border: '3px solid var(--ifm-color-primary-dark)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+            } : {}}
           >
-            {communityConfig.availableMonths.map((month) => (
-              <option key={month.id} value={month.id}>
-                {month.display}
-              </option>
-            ))}
-          </select>
-        </div>
+            {activeMonth === month.id ? '📅 ' : ''}{month.display}
+          </button>
+        ))}
       </div>
 
-      {/* Community All-Stars Cards */}
+      {/* Community Stars */}
+      <div className="text-center">
+        <Heading as="h3">⭐ Community Stars</Heading>
+        <p className="text-sm text-textStandard">
+          Top 5 Contributors from the open source community!
+        </p>
+      </div>
+      
       <div className="flex flex-wrap justify-center gap-4 w-full px-4">
         {currentData.communityStars.map((contributor, index) => (
           <StarsCard key={index} contributor={contributor} />
         ))}
+      </div>
+      
+      {/* Team Stars - only show if there are team stars */}
+      {currentData.teamStars.length > 0 && (
+        <>
+          <div className="text-center">
+            <Heading as="h3">⭐ Team Stars</Heading>
+            <p className="text-sm text-textStandard">
+              Top 5 Contributors from all Block teams!
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap justify-center gap-4 w-full px-4">
+            {currentData.teamStars.map((contributor, index) => (
+              <StarsCard key={index} contributor={{...contributor, totalCount: currentData.teamStars.length}} />
+            ))}
+          </div>
+        </>
+      )}
+      
+      {/* Monthly Leaderboard */}
+      <div className="text-center">
+        <Heading as="h3">🏆 Monthly Leaderboard</Heading>
+        <p className="text-sm text-textStandard">
+          Rankings of all goose contributors getting loose this month!
+        </p>
+      </div>
+      
+      <div className="card w-full max-w-xl p-5 relative">
+        <div 
+          className="flex flex-col gap-2 text-sm max-h-[550px] overflow-y-auto pr-2"
+          onScroll={handleScroll}
+        >
+          {currentData.leaderboard.map((contributor, index) => {
+            const isTopContributor = index < 3; // Top 3 contributors
+
+            const bgColor = index === 0 ? 'bg-yellow-400' :
+              index === 1 ? 'bg-gray-300' :
+              index === 2 ? 'bg-yellow-600' : null;
+            
+            return (
+              <div 
+                key={index}
+                className={`flex items-center p-3 rounded-lg font-medium cursor-pointer transition-all duration-200 hover:-translate-y-0.5 ${
+                  isTopContributor 
+                    ? `${bgColor} font-bold shadow-md hover:shadow-lg` 
+                    : 'bg-bgSubtle border border-borderStandard hover:bg-bgApp hover:shadow-md'
+                }`}
+              >
+                {contributor.medal && (
+                  <span className="mr-3 text-lg">
+                    {contributor.medal}
+                  </span>
+                )}
+                <span className={`mr-3 min-w-[30px] ${isTopContributor ? 'text-base text-black' : 'text-sm'}`}>
+                  {contributor.rank}.
+                </span>
+                {contributor.handle !== 'TBD' ? (
+                  <Link 
+                    href={`https://github.com/${contributor.handle}`} 
+                    className={`${isTopContributor ? 'text-black text-base' : 'text-inherit text-sm'}`}
+                  >
+                    @{contributor.handle}
+                  </Link>
+                ) : (
+                  <span className="text-textSubtle italic">
+                    @TBD
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Simple scroll indicator - only show when not at bottom */}
+        {showScrollIndicator && (
+          <div className="absolute bottom-5 inset-x-0 flex justify-center">
+            <span className="w-fit text-xs bg-bgProminent p-2 rounded-full font-medium pointer-events-none flex items-center gap-1.5">
+              Scroll for more ↓
+            </span>
+          </div>
+        )}
       </div>
       
       <div className="text-center">
@@ -143,7 +224,7 @@ function CommunityAllStarsSection() {
 
 function CommunityContentSpotlightSection() {
   const [contentFilter, setContentFilter] = React.useState('all');
-  const [currentPage, setCurrentPage] = React.useState(0);
+  const [showScrollIndicator, setShowScrollIndicator] = React.useState(true);
   
   const filteredSubmissions = React.useMemo(() => {
     if (contentFilter === 'all') return communityContentData.submissions;
@@ -155,108 +236,114 @@ function CommunityContentSpotlightSection() {
     return communityContentData.submissions.filter(content => content.type === contentFilter);
   }, [contentFilter]);
 
-  // Reset to first page when filter changes
-  React.useEffect(() => {
-    setCurrentPage(0);
-  }, [contentFilter]);
-
-  const filterOptions = [
-    { id: 'all', label: 'All Content' },
-    { id: 'hacktoberfest', label: 'Hacktoberfest 2025' },
-    { id: 'blog', label: '📝 Blog Posts' },
-    { id: 'video', label: '🎥 Videos' }
-  ];
-
-  const itemsPerPage = 3;
-  const totalPages = Math.ceil(filteredSubmissions.length / itemsPerPage);
-  const currentItems = filteredSubmissions.slice(
-    currentPage * itemsPerPage, 
-    (currentPage + 1) * itemsPerPage
-  );
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = (e.target as HTMLDivElement);
+    const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
+    setShowScrollIndicator(!isAtBottom);
+  };
 
   return (
     <section className="w-full flex flex-col items-center gap-8 my-8">
-      {/* Header with Filter Dropdown */}
-      <div className="w-full flex flex-col items-center gap-4">
-        <div className="text-center w-full">
-          <Heading as="h1">{communityContentData.title}</Heading>
-          <p>{communityContentData.description}</p>
-        </div>
-        
-        {/* Filter Dropdown */}
-        <div className="flex items-center gap-2">
-          <label htmlFor="content-filter-select" className="text-sm font-medium whitespace-nowrap">
-            🔍 Filter:
-          </label>
-          <select 
-            id="content-filter-select"
-            className="button button--secondary"
-            value={contentFilter}
-            onChange={(e) => setContentFilter(e.target.value)}
-            style={{
-              padding: '0.5rem 1rem',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              minWidth: '180px'
-            }}
-          >
-            {filterOptions.map((filter) => (
-              <option key={filter.id} value={filter.id}>
-                {filter.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="text-center">
+        <Heading as="h1">{communityContentData.title}</Heading>
+        <p>{communityContentData.description}</p>
       </div>
       
-      {/* Content Grid - Single Row with Pagination */}
-      <div className="w-full max-w-6xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {currentItems.map((content) => (
-            <ContentCard key={content.url} content={content} />
-          ))}
+      {/* Filter Tabs */}
+      <div className="flex justify-center gap-2 flex-wrap">
+        {[
+          { id: 'all', label: 'All Content' },
+          { id: 'hacktoberfest', label: '🎃 Hacktoberfest 2025' },
+          { id: 'blog', label: '📝 Blog Posts' },
+          { id: 'video', label: '🎥 Videos' }
+        ].map((filter) => (
+          <button 
+            key={filter.id}
+            className="button button--secondary"
+            onClick={() => setContentFilter(filter.id)}
+            style={contentFilter === filter.id ? {
+              backgroundColor: 'var(--ifm-color-primary)',
+              color: 'white',
+              border: '2px solid var(--ifm-color-primary-dark)'
+            } : {}}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+      
+      {/* Content Grid */}
+      <div className="w-full max-w-6xl relative">
+        <div 
+          className="max-h-[800px] overflow-y-auto pr-2"
+          onScroll={handleScroll}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Persistent Hacktoberfest CTA Card */}
+            <HacktoberfestCTACard />
+            
+            {filteredSubmissions.map((content) => (
+              <ContentCard key={content.url} content={content} />
+            ))}
+          </div>
+          
+          {filteredSubmissions.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-textSubtle">No content found for this filter.</p>
+            </div>
+          )}
         </div>
         
-        {filteredSubmissions.length === 0 && (
-          <div className="text-center py-8">
-            <p className="text-textSubtle">No content found for this filter.</p>
-          </div>
-        )}
-        
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-4 mt-6">
-            <button
-              className="button button--secondary"
-              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-              disabled={currentPage === 0}
-              style={{
-                opacity: currentPage === 0 ? 0.5 : 1,
-                cursor: currentPage === 0 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              ← Previous
-            </button>
-            
-            <span className="text-sm text-textSubtle">
-              Page {currentPage + 1} of {totalPages}
+        {/* Simple scroll indicator - only show when not at bottom */}
+        {showScrollIndicator && (
+          <div className="absolute bottom-5 inset-x-0 flex justify-center">
+            <span className="w-fit text-xs bg-bgProminent p-2 rounded-full font-medium pointer-events-none flex items-center gap-1.5">
+              Scroll for more ↓
             </span>
-            
-            <button
-              className="button button--secondary"
-              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-              disabled={currentPage === totalPages - 1}
-              style={{
-                opacity: currentPage === totalPages - 1 ? 0.5 : 1,
-                cursor: currentPage === totalPages - 1 ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Next →
-            </button>
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+function HacktoberfestCTACard(): ReactNode {
+  return (
+    <div className="card h-full transition-all duration-200 hover:shadow-lg hover:-translate-y-1 bg-gradient-to-br from-orange-100 to-purple-100 border-2 border-orange-300">
+      {/* Thumbnail placeholder */}
+      <div className="card__image relative">
+        <div className="w-full h-48 bg-gradient-to-br from-orange-200 to-purple-200 flex items-center justify-center">
+          <span className="text-6xl">🎃</span>
+        </div>
+        <div className="absolute top-2 left-2 bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+          🎃 Hacktoberfest
+        </div>
+      </div>
+      
+      {/* Content */}
+      <div className="card__body">
+        {/* CTA Button as Title */}
+        <div className="mb-3">
+          <Link 
+            href={communityContentData.submissionUrl}
+            className="button button--primary button--block button--lg"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            🚀 Submit Your Content!
+          </Link>
+        </div>
+        
+        {/* Description */}
+        <div className="text-sm text-textSubtle mb-2">
+          <p>Share your goose blog posts or videos with the community.</p>
+        </div>
+        
+        <p className="text-xs text-textSubtle text-center">
+          Must be hosted on your own website
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -376,9 +463,9 @@ export default function Community(): ReactNode {
       description="Join the goose community - connect with developers, contribute to the project, and help shape the future of AI-powered development tools."
     >
       <main className="container">
-        <UpcomingEventsSection />
         <CommunityAllStarsSection />
         <CommunityContentSpotlightSection />
+        <UpcomingEventsSection />
       </main>
     </Layout>
   );

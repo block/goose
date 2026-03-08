@@ -402,23 +402,6 @@ While core configurations are shared between interfaces, extensions have flexibi
     </TabItem>
 </Tabs>
 
-## Pin a goose version in CI/CD
-In CI/CD (and other automated, non-interactive environments), pin a specific version with `GOOSE_VERSION` to make installs reproducible and avoid 404s when downloading the goose CLI binary assets if the `stable` release tag doesn’t include them.
-
-See [CI/CD Environments](/docs/tutorials/cicd) for a complete example and usage details.
-
-## Generate manpages for Linux distributions
-
-If you're packaging goose for a Linux distribution or creating a custom build, you can generate Unix manpages from the CLI command definitions:
-
-```bash
-just generate-manpages
-```
-
-This creates ROFF-formatted manpages in `target/man/` (e.g., `goose.1`, `goose-session.1`) that can be installed to `/usr/share/man/man1/` to provide offline documentation via the `man` command.
-
-Manpage generation requires the goose source repository and is intended for distribution packagers preparing packages for Fedora, Debian, and other Linux distributions. See the [generate_manpages.rs source](https://github.com/block/goose/blob/main/crates/goose-cli/src/bin/generate_manpages.rs) for implementation details.
-
 ## Additional Resources
 
 You can also configure Extensions to extend goose's functionality, including adding new ones or toggling them on and off. For detailed instructions, visit the [Using Extensions Guide][using-extensions].

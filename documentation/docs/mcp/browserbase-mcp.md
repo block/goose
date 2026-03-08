@@ -10,7 +10,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the Browserbase MCP Server as a goose extension for browser automation, enabling programmatic control over navigation, page interactions, and content capture.
 
-:::tip Quick Install
+:::tip TLDR
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -73,6 +73,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 ## Example Usage
 
 Let's use the Browserbase extension to gather information about trending MCP-related repositories on GitHub.
+
+:::info LLM
+Claude 4 Sonnet was used for this task.
+:::
 
 ### goose Prompt
 

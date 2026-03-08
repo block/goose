@@ -29,7 +29,7 @@ Press `Cmd+Option+Shift+G` (macOS) or `Ctrl+Alt+Shift+G` (Windows/Linux) and sen
 ### Turn off unnecessary extensions or tool
 Turning on too many extensions can degrade performance. Enable only essential [extensions and tools](/docs/guides/managing-tools/tool-permissions) to improve tool selection accuracy, save context window space, and stay within provider tool limits.
 
-:::tip Code Mode for Many Extensions
+:::tip Code Execution for Many Extensions
 Consider enabling [Code Mode](/docs/guides/managing-tools/code-mode), an alternative approach to tool calling that discovers tools on demand.
 :::
 
@@ -50,9 +50,6 @@ You can turn a successful session into a reusable "[recipe](/docs/guides/recipes
 
 ### Embrace an experimental mindset
 You don’t need to get it right the first time. Iterating on prompts and tools is part of the workflow.
-
-### Customize the sidebar
-goose Desktop lets you [customize the sidebar](/docs/guides/desktop-navigation) to match how you like to work. Adjust its position, appearance, and which items are visible.
 
 ### Keep goose updated
 Regularly [update](/docs/guides/updating-goose) goose to benefit from the latest features, bug fixes, and performance improvements.

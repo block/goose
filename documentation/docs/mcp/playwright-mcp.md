@@ -13,7 +13,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the Playwright MCP Server as a goose extension, to enable cross-browser testing and web automation across Chromium and Webkit.
 
-:::tip Quick Install
+:::tip TLDR
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
@@ -59,6 +59,10 @@ Let's use goose with the Playwright extension to create a cross-browser testing 
 1. Test a web application across multiple browsers
 2. Generate maintainable test code
 3. Capture screenshots for visual comparison
+
+:::info LLM
+Anthropic's Claude 4 Sonnet was used for this task.
+:::
 
 ### goose Prompt
 ```

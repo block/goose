@@ -45,10 +45,6 @@ Configure goose settings - providers, extensions, etc.
 goose configure
 ```
 
-:::tip Type to Filter
-When selecting from menus in `goose configure`, start typing to filter options in real-time. This works for lists of providers, extensions, and tools.
-:::
-
 ---
 
 #### info [options]
@@ -593,6 +589,57 @@ goose projects
 
 ---
 
+### Interface
+
+#### web
+Start a new session in goose Web, a lightweight web-based interface launched via the CLI that mirrors the desktop app's chat experience.
+
+goose Web is particularly useful when:
+- You want to access goose with a graphical interface without installing the desktop app
+- You need to use goose from different devices, including mobile
+- You're working in an environment where installing desktop apps isn't practical
+
+:::warning
+Don't expose the web interface to the internet without proper security measures.
+:::
+
+**Options:**
+- **`-p, --port <PORT>`**: Port number to run the web server on. Default is `3000`
+- **`--host <HOST>`**: Host to bind the web server to. Default is `127.0.0.1`
+- **`--open`**: Automatically open the browser when the server starts
+- **`--auth-token <TOKEN>`**: Require a password to access the web interface
+
+**Usage:**
+```bash
+# Start web interface at `http://127.0.0.1:3000` and open the browser
+goose web --open
+
+# Start web interface at `http://127.0.0.1:8080` 
+goose web --port 8080
+
+# Start web interface accessible from local network at `http://192.168.1.7:8080`
+goose web --host 192.168.1.7 --port 8080
+
+# Start web interface with authentication required
+goose web --auth-token <TOKEN>
+```
+
+:::info
+Use `Ctrl+C` to stop the server.
+:::
+
+**Limitations:**
+
+While the web interface provides most core features, be aware of these limitations:
+- Some file system operations may require additional confirmation
+- Extension management must be done through the CLI
+- Certain tool interactions might need extra setup
+- Configuration changes require a server restart
+
+
+
+---
+
 ### Terminal Integration
 
 #### @goose / @g
@@ -666,14 +713,6 @@ The `/t` command controls the syntax highlighting theme for markdown content in 
 - The default theme is `dark`
 - The theme setting is saved to the [configuration file](/docs/guides/config-files) as `GOOSE_CLI_THEME` and persists between sessions
 - The saved configuration can be overridden for the session using the `GOOSE_CLI_THEME` [environment variable](/docs/guides/environment-variables#session-management)
-
-**Custom Syntax Highlighting:**
-
-You can customize the underlying syntax highlighting theme used for code blocks by setting:
-- `GOOSE_CLI_LIGHT_THEME` - Theme used when in light mode (default: "GitHub")
-- `GOOSE_CLI_DARK_THEME` - Theme used when in dark mode (default: "zenburn")
-
-These accept any [bat theme name](https://github.com/sharkdp/bat#adding-new-themes). Popular options include "Dracula", "Nord", "Solarized (light)", "Solarized (dark)", "OneHalfDark", and "Monokai Extended". Run `bat --list-themes` to see all available themes.
 
 :::info
 Syntax highlighting styles only affect the font, not the overall terminal interface. The `light` and `dark` themes have subtle differences in font color and weight.
