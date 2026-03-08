@@ -291,6 +291,35 @@ Produces a `.dmg`/`.exe`/`.AppImage` where:
 
 ---
 
+## Known Bugs / Weird Behavior
+
+### Agent restart loses all non-persisted prompt state
+
+`restart_agent_internal` (in `crates/goose-server/src/routes/agent.rs`) does this:
+
+1. Deletes the existing agent entirely (`agent_manager.remove_session`)
+2. Creates a brand new agent
+3. Restores provider, extensions, and recipe from the **Session** object
+
+Anything set via `override_system_prompt()` or `extend_system_prompt()` that
+wasn't driven by session-persisted data is silently lost. The recipe prompt
+survives because `Session.recipe` is persisted. The system_prompt override
+does not — it's only in-memory on the Agent's PromptManager.
+
+This affects:
+- **Whitelabel system prompt**: sent on start/resume, lost on restart. The agent
+  reverts to default "you are goose" identity after an extension failure restart.
+- **Any future `extend_system_prompt` callers** with non-persisted keys.
+
+**Fix**: either persist `system_prompt` on the Session (like recipe is), or make
+the restart endpoint accept `system_prompt` so the UI can re-send it. The former
+is cleaner — the system prompt is part of the session's identity, not a transient
+override. This would mean adding a `system_prompt_override: Option<String>` field
+to Session, SessionUpdateBuilder, and the storage layer.
+
+This isn't just a whitelabel problem — it's a general server architecture issue
+where the Agent is treated as disposable but carries non-persisted state.
+
 ## Open Questions
 
 1. **Runtime switching** — one build per brand is sufficient, or same binary needs to serve multiple configs?
