@@ -31,6 +31,14 @@ impl ErrorResponse {
         }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            status: StatusCode::CONFLICT,
+        }
+    }
+
     pub(crate) fn not_found(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
