@@ -13,8 +13,6 @@ pub mod autovisualiser;
 pub mod computercontroller;
 pub mod mcp_server_runner;
 mod memory;
-#[cfg(target_os = "macos")]
-pub mod peekaboo;
 pub mod subprocess;
 pub mod tutorial;
 
