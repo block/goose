@@ -1,3 +1,4 @@
+pub mod a2a_compat;
 pub mod action_required_manager;
 pub mod agents;
 pub mod builtin_extension;
