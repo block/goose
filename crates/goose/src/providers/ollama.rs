@@ -306,6 +306,13 @@ fn with_line_timeout(
     let timeout = Duration::from_secs(timeout_secs);
     Box::pin(try_stream! {
         let mut stream = stream;
+
+        // Allow time-to-first-token to be governed by the request timeout.
+        // Only enforce per-chunk timeout after first SSE line arrives.
+        match stream.next().await {
+            Some(first_item) => yield first_item?,
+            None => return,
+        }
         loop {
             match tokio::time::timeout(timeout, stream.next()).await {
                 Ok(Some(item)) => yield item?,
