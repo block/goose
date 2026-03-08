@@ -114,6 +114,8 @@ type ElectronAPI = {
   fetchMetadata: (url: string) => Promise<string>;
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
+  checkMesh: (port?: number) => Promise<{ running: boolean; models: string[] }>;
+  startMesh: (port?: number) => Promise<{ started: boolean; error?: string; pid?: number }>;
   selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
@@ -201,6 +203,8 @@ const electronAPI: ElectronAPI = {
   fetchMetadata: (url: string) => ipcRenderer.invoke('fetch-metadata', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
+  checkMesh: (port?: number) => ipcRenderer.invoke('check-mesh', port),
+  startMesh: (port?: number) => ipcRenderer.invoke('start-mesh', port),
   selectFileOrDirectory: (defaultPath?: string) =>
     ipcRenderer.invoke('select-file-or-directory', defaultPath),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),

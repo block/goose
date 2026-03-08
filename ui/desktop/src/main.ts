@@ -1529,6 +1529,65 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
+ipcMain.handle('start-mesh', async (_event, port: number = 9337) => {
+  const { execFile } = await import('child_process');
+  const path = await import('path');
+  const fs = await import('fs');
+  const os = await import('os');
+
+  // Find binary
+  const candidates = [
+    '/usr/local/bin/mesh-llm',
+    path.default.join(os.default.homedir(), '.mesh-llm', 'mesh-llm'),
+  ];
+  const binary = candidates.find((p) => fs.default.existsSync(p));
+  if (!binary) {
+    return { started: false, error: 'mesh-llm not found. Install from https://github.com/michaelneale/decentralized-inference' };
+  }
+
+  // Start detached
+  const logPath = path.default.join(os.default.homedir(), '.mesh-llm', 'mesh-llm.log');
+  const logDir = path.default.dirname(logPath);
+  if (!fs.default.existsSync(logDir)) {
+    fs.default.mkdirSync(logDir, { recursive: true });
+  }
+
+  const out = fs.default.openSync(logPath, 'a');
+  const child = require('child_process').spawn(
+    binary,
+    ['--auto', '--port', String(port)],
+    { detached: true, stdio: ['ignore', out, out] }
+  );
+  child.unref();
+
+  return { started: true, pid: child.pid };
+});
+
+ipcMain.handle('check-mesh', async (_event, port: number = 9337) => {
+  try {
+    const http = await import('http');
+    return new Promise((resolve) => {
+      const req = http.default.get(`http://localhost:${port}/v1/models`, { timeout: 3000 }, (res) => {
+        let body = '';
+        res.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+        res.on('end', () => {
+          try {
+            const data = JSON.parse(body);
+            const models = (data.data || []).map((m: { id: string }) => m.id);
+            resolve({ running: true, models });
+          } catch {
+            resolve({ running: false, models: [] });
+          }
+        });
+      });
+      req.on('error', () => resolve({ running: false, models: [] }));
+      req.on('timeout', () => { req.destroy(); resolve({ running: false, models: [] }); });
+    });
+  } catch {
+    return { running: false, models: [] };
+  }
+});
+
 ipcMain.handle('check-ollama', async () => {
   try {
     return new Promise((resolve) => {
