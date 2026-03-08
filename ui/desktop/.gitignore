@@ -11,3 +11,6 @@ src/bin/goose-npm/
 src/bin/temporal.db
 # Signing credentials
 .env.signing
+
+# Whitelabel bundled assets (build artifact)
+src/whitelabel-resources/

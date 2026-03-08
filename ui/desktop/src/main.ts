@@ -618,6 +618,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           ...appConfig,
           GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
+          GOOSE_RESOURCES_PATH: app.isPackaged ? process.resourcesPath : process.cwd(),
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,

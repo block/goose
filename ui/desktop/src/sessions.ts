@@ -10,6 +10,7 @@ import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
 import type { WhiteLabelConfig } from './whitelabel/types';
 import { DEFAULT_WHITELABEL_CONFIG } from './whitelabel/defaults';
+import { RESOURCES_PREFIX } from './whitelabel/constants';
 
 function getWhiteLabelConfig(): WhiteLabelConfig {
   try {
@@ -17,6 +18,12 @@ function getWhiteLabelConfig(): WhiteLabelConfig {
   } catch {
     return DEFAULT_WHITELABEL_CONFIG;
   }
+}
+
+function resolveResourcePath(p: string): string {
+  if (!p.startsWith(RESOURCES_PREFIX)) return p;
+  const resourcesPath = (window.appConfig?.get('GOOSE_RESOURCES_PATH') as string) || '';
+  return p.replace(RESOURCES_PREFIX, resourcesPath + '/whitelabel-resources');
 }
 
 /**
@@ -48,7 +55,7 @@ function buildWhiteLabelRecipe(): Recipe | undefined {
     for (const skill of defaults.skills) {
       lines.push(`## ${skill.name}`);
       lines.push(skill.description);
-      lines.push(`Skill directory: \`${skill.path}\``);
+      lines.push(`Skill directory: \`${resolveResourcePath(skill.path)}\``);
       lines.push(
         'Read the SKILL.md in this directory for detailed instructions before starting this type of work.'
       );
@@ -63,7 +70,7 @@ function buildWhiteLabelRecipe(): Recipe | undefined {
     for (const tool of defaults.tools) {
       lines.push(`## \`${tool.name}\``);
       lines.push(tool.description);
-      lines.push(`Binary: \`${tool.path}\``);
+      lines.push(`Binary: \`${resolveResourcePath(tool.path)}\``);
       if (tool.env) {
         const envList = Object.entries(tool.env)
           .map(([k, v]) => `  - \`${k}\`: ${v || '(required)'}`)

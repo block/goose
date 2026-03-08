@@ -1,10 +1,16 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
+const fs = require('fs');
+
+const extraResource = ['src/bin', 'src/images', 'src/sandbox'];
+if (fs.existsSync(resolve(__dirname, 'src/whitelabel-resources'))) {
+  extraResource.push('src/whitelabel-resources');
+}
 
 let cfg = {
   asar: true,
-  extraResource: ['src/bin', 'src/images', 'src/sandbox'],
+  extraResource,
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
