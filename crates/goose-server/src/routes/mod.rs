@@ -1,3 +1,4 @@
+pub mod acp_discovery;
 pub mod action_required;
 pub mod agent;
 pub mod config_management;
@@ -44,5 +45,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(gateway::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
-        .merge(sampling::routes(state))
+        .merge(sampling::routes(state.clone()))
+        .merge(acp_discovery::routes(state))
 }

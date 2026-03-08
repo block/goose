@@ -1,3 +1,4 @@
+pub mod acp_compat;
 pub mod action_required_manager;
 pub mod agents;
 pub mod builtin_extension;
