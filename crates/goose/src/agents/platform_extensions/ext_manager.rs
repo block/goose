@@ -1,6 +1,7 @@
 use crate::agents::extension::PlatformExtensionContext;
 use crate::agents::mcp_client::{Error, McpClientTrait};
-use crate::config::get_extension_by_name;
+use crate::config::extensions::name_to_key;
+use crate::config::{get_extension_by_name, set_extension_enabled};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
@@ -165,6 +166,7 @@ impl ExtensionManagerClient {
                 .remove_extension(&extension_name)
                 .await
                 .map(|_| {
+                    set_extension_enabled(&name_to_key(&extension_name), false);
                     vec![Content::text(format!(
                         "The extension '{}' has been disabled successfully",
                         extension_name
@@ -191,6 +193,7 @@ impl ExtensionManagerClient {
             .add_extension(config, None, None, None)
             .await
             .map(|_| {
+                set_extension_enabled(&name_to_key(&extension_name), true);
                 vec![Content::text(format!(
                     "The extension '{}' has been installed successfully",
                     extension_name
