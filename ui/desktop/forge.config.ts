@@ -3,7 +3,7 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
 const fs = require('fs');
 
-const extraResource = ['src/bin', 'src/images', 'src/sandbox'];
+const extraResource = ['src/bin', 'src/images'];
 if (fs.existsSync(resolve(__dirname, 'src/whitelabel-resources'))) {
   extraResource.push('src/whitelabel-resources');
 }

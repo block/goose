@@ -1,11 +1,14 @@
 {
-  "name": "goose-acp-types",
+  "name": "@block/goose-acp",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "build": "tsc",
     "generate": "tsx generate-schema.ts",
     "lint": "tsc --noEmit",
     "format": "prettier --write src/"
