@@ -1,7 +1,7 @@
 //! Security scheme types mapped from a2a.proto.
 //!
 //! SecurityScheme is represented as a tagged enum. Individual scheme variants
-//! are fully typed. SecurityRequirement uses HashMap<String, Vec<String>>.
+//! are fully typed. SecurityRequirement is defined in agent_card.rs.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -111,9 +111,6 @@ pub struct DeviceCodeOAuthFlow {
     pub token_url: String,
     pub scopes: HashMap<String, String>,
 }
-
-/// Security requirement: maps scheme name to required scopes (proto `SecurityRequirement`).
-pub type SecurityRequirement = HashMap<String, Vec<String>>;
 
 #[cfg(test)]
 mod tests {

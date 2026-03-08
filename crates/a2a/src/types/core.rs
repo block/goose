@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for TaskState {
             "TASK_STATE_REJECTED" => Ok(Self::Rejected),
             "TASK_STATE_AUTH_REQUIRED" => Ok(Self::AuthRequired),
             // Legacy lowercase (JS SDK compat)
-            "unspecified" => Ok(Self::Unspecified),
+            "unspecified" | "unknown" => Ok(Self::Unspecified),
             "submitted" => Ok(Self::Submitted),
             "working" => Ok(Self::Working),
             "completed" => Ok(Self::Completed),
@@ -154,7 +154,7 @@ impl<'de> Deserialize<'de> for Role {
             "ROLE_USER" => Ok(Self::User),
             "ROLE_AGENT" => Ok(Self::Agent),
             // Legacy lowercase (JS SDK compat)
-            "unspecified" => Ok(Self::Unspecified),
+            "unspecified" | "unknown" => Ok(Self::Unspecified),
             "user" => Ok(Self::User),
             "agent" => Ok(Self::Agent),
             _ => Err(de::Error::unknown_variant(
