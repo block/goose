@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "a2a"
-version = "1.27.2"
+version = "1.27.0"
 dependencies = [
  "anyhow",
  "async-trait",
