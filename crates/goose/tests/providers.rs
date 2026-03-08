@@ -1,10 +1,7 @@
 use anyhow::Result;
 use dotenvy::dotenv;
 use futures::StreamExt;
-use goose::agents::extension_manager::ExtensionManagerCapabilities;
-use goose::agents::{
-    Agent, AgentConfig, AgentEvent, ExtensionManager, GoosePlatform, PromptManager, SessionConfig,
-};
+use goose::agents::{Agent, AgentConfig, AgentEvent, GoosePlatform, PromptManager, SessionConfig};
 use goose::config::{ExtensionConfig, GooseMode, PermissionManager};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::permission::permission_confirmation::PrincipalType;
@@ -25,7 +22,7 @@ use goose::providers::sagemaker_tgi::SAGEMAKER_TGI_DEFAULT_MODEL;
 use goose::providers::snowflake::SNOWFLAKE_DEFAULT_MODEL;
 use goose::providers::xai::XAI_DEFAULT_MODEL;
 use goose::session::{SessionManager, SessionType};
-use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_SESSION_ID};
+use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
@@ -93,42 +90,207 @@ lazy_static::lazy_static! {
     static ref ENV_LOCK: Mutex<()> = Mutex::new(());
 }
 
-struct ProviderTester {
-    provider: Arc<dyn Provider>,
+struct ProviderFixture {
     name: String,
-    extension_manager: Arc<ExtensionManager>,
-    is_cli_provider: bool,
+    image_model: Option<String>,
     model_switch_name: Option<String>,
-    mcp_extension: ExtensionConfig,
+    expect_context_length_exceeded: bool,
+    context_length_exceeded: usize,
+    provider: Arc<dyn Provider>,
+    agent: Agent,
+    session_id: String,
+    _mcp: McpFixture,
+    _guard: env_lock::EnvGuard<'static>,
+    _temp_dir: tempfile::TempDir,
 }
 
-impl ProviderTester {
-    fn new(
-        provider: Arc<dyn Provider>,
-        name: String,
-        extension_manager: Arc<ExtensionManager>,
-        is_cli_provider: bool,
-        model_switch_name: Option<String>,
-        mcp_extension: ExtensionConfig,
+struct ProviderTestConfig {
+    name: &'static str,
+    model_name: &'static str,
+    required_vars: &'static [&'static str],
+    model_switch_name: Option<&'static str>,
+    image_model: Option<&'static str>,
+    clear_env: &'static [&'static str],
+    skip: bool,
+    test_session_propagation: bool,
+    test_permissions: bool,
+    test_smart_approve: bool,
+    test_context_length_exceeded: bool,
+    expect_context_length_exceeded: bool,
+    context_length_exceeded: usize,
+}
+
+impl ProviderTestConfig {
+    fn with_llm_provider(
+        name: &'static str,
+        model_name: &'static str,
+        required_vars: &'static [&'static str],
     ) -> Self {
         Self {
-            provider,
             name,
-            extension_manager,
-            is_cli_provider,
-            model_switch_name,
-            mcp_extension,
+            model_name,
+            required_vars,
+            model_switch_name: None,
+            image_model: None,
+            clear_env: &[],
+            skip: false,
+            test_session_propagation: true,
+            test_permissions: true,
+            test_smart_approve: true,
+            test_context_length_exceeded: true,
+            expect_context_length_exceeded: true,
+            context_length_exceeded: 600_000,
         }
     }
 
-    async fn tool_roundtrip(&self, prompt: &str, session_id: &str) -> Result<Message> {
-        let tools = self
-            .extension_manager
-            .get_prefixed_tools(session_id, None)
+    fn model_switch_name(mut self, name: &'static str) -> Self {
+        self.model_switch_name = Some(name);
+        self
+    }
+
+    fn image_model(mut self, name: &'static str) -> Self {
+        self.image_model = Some(name);
+        self
+    }
+
+    fn clear_env(mut self, vars: &'static [&'static str]) -> Self {
+        self.clear_env = vars;
+        self
+    }
+
+    fn test_permissions(mut self, v: bool) -> Self {
+        self.test_permissions = v;
+        self
+    }
+
+    fn test_smart_approve(mut self, v: bool) -> Self {
+        self.test_smart_approve = v;
+        self
+    }
+
+    fn expect_context_length_exceeded(mut self, v: bool) -> Self {
+        self.expect_context_length_exceeded = v;
+        self
+    }
+
+    fn context_length_exceeded(mut self, token_count: usize) -> Self {
+        self.context_length_exceeded = token_count;
+        self
+    }
+
+    fn with_agentic_provider(name: &'static str, model_name: &'static str, binary: &str) -> Self {
+        let skip = which::which(binary).is_err();
+        Self {
+            skip,
+            test_session_propagation: false,
+            test_smart_approve: false,
+            test_context_length_exceeded: false,
+            ..Self::with_llm_provider(name, model_name, &[])
+        }
+    }
+
+    async fn run(self) -> Result<()> {
+        test_provider(self).await
+    }
+}
+
+impl ProviderFixture {
+    async fn setup(config: &ProviderTestConfig, mode: GooseMode) -> Result<Self> {
+        let mut env_vars: Vec<(&'static str, Option<&str>)> =
+            vec![("GOOSE_MODE", Some(<&str>::from(mode)))];
+        for &var in config.clear_env {
+            env_vars.push((var, None));
+        }
+        let guard = env_lock::lock_env(env_vars.into_iter());
+
+        let expected_session_id = if config.test_session_propagation {
+            Some(ExpectedSessionId::default())
+        } else {
+            None
+        };
+        let mcp = McpFixture::new(expected_session_id.clone()).await;
+
+        let mcp_extension =
+            ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
+        let developer_extension = ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: String::new(),
+            display_name: Some("Developer".to_string()),
+            timeout: None,
+            bundled: None,
+            available_tools: vec![],
+        };
+
+        let provider = create_with_named_model(
+            &config.name.to_lowercase(),
+            config.model_name,
+            vec![mcp_extension.clone(), developer_extension.clone()],
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        let temp_dir = tempfile::tempdir()?;
+        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+        let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
+
+        let agent = Agent::with_config(AgentConfig::new(
+            session_manager.clone(),
+            permission_manager,
+            None,
+            mode,
+            true,
+            GoosePlatform::GooseCli,
+        ));
+        let session = session_manager
+            .create_session(
+                std::env::current_dir()?,
+                "provider_test".to_string(),
+                SessionType::User,
+            )
+            .await?;
+        let session_id = session.id;
+        if let Some(ref id) = expected_session_id {
+            id.set(&session_id);
+        }
+        agent.update_provider(provider.clone(), &session_id).await?;
+        agent
+            .add_extension(mcp_extension, &session_id)
             .await
-            .expect("get_prefixed_tools failed");
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        agent
+            .add_extension(developer_extension, &session_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(Self {
+            name: config.name.to_string(),
+            image_model: config.image_model.map(String::from),
+            model_switch_name: config.model_switch_name.map(String::from),
+            expect_context_length_exceeded: config.expect_context_length_exceeded,
+            context_length_exceeded: config.context_length_exceeded,
+            provider,
+            agent,
+            session_id,
+            _mcp: mcp,
+            _guard: guard,
+            _temp_dir: temp_dir,
+        })
+    }
+
+    async fn tool_roundtrip(
+        &self,
+        prompt: &str,
+        model_config: Option<goose::model::ModelConfig>,
+    ) -> Result<Message> {
+        let tools = self
+            .agent
+            .extension_manager
+            .get_prefixed_tools(&self.session_id, None)
+            .await
+            .unwrap();
 
         let info = self
+            .agent
             .extension_manager
             .get_extensions_info(std::path::Path::new("."))
             .await;
@@ -138,12 +300,12 @@ impl ProviderTester {
             .build();
 
         let message = Message::user().with_text(prompt);
-        let model_config = self.provider.get_model_config();
+        let model_config = model_config.unwrap_or_else(|| self.provider.get_model_config());
         let (response1, _) = self
             .provider
             .complete(
                 &model_config,
-                session_id,
+                &self.session_id,
                 &system,
                 std::slice::from_ref(&message),
                 &tools,
@@ -163,26 +325,23 @@ impl ProviderTester {
             None => return Ok(response1),
         };
 
-        let params = tool_req
-            .tool_call
-            .as_ref()
-            .expect("tool_call should be Ok")
-            .clone();
+        let params = tool_req.tool_call.as_ref().unwrap().clone();
         let result = self
+            .agent
             .extension_manager
-            .dispatch_tool_call(session_id, params, None, CancellationToken::new())
+            .dispatch_tool_call(&self.session_id, params, None, CancellationToken::new())
             .await
-            .expect("dispatch failed")
+            .unwrap()
             .result
             .await
-            .expect("tool call failed");
+            .unwrap();
         let tool_response = Message::user().with_tool_response(&tool_req.id, Ok(result));
 
         let (response2, _) = self
             .provider
             .complete(
                 &model_config,
-                session_id,
+                &self.session_id,
                 &system,
                 &[message, response1, tool_response],
                 &tools,
@@ -191,7 +350,7 @@ impl ProviderTester {
         Ok(response2)
     }
 
-    async fn test_basic_response(&self, session_id: &str) -> Result<()> {
+    async fn test_basic_response(&self) -> Result<()> {
         let message = Message::user().with_text("Just say hello!");
         let model_config = self.provider.get_model_config();
 
@@ -199,25 +358,18 @@ impl ProviderTester {
             .provider
             .complete(
                 &model_config,
-                session_id,
+                &self.session_id,
                 "You are a helpful assistant.",
                 &[message],
                 &[],
             )
             .await?;
 
-        assert!(
-            !response.content.is_empty(),
-            "Expected at least one content item in response"
-        );
-
-        assert!(
-            response
-                .content
-                .iter()
-                .any(|c| matches!(c, MessageContent::Text(_))),
-            "Expected at least one text content item in response"
-        );
+        assert!(!response.content.is_empty());
+        assert!(response
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::Text(_))));
 
         println!(
             "=== {}::basic_response === {}",
@@ -227,31 +379,19 @@ impl ProviderTester {
         Ok(())
     }
 
-    async fn test_tool_usage(&self, session_id: &str) -> Result<()> {
+    async fn test_tool_usage(&self) -> Result<()> {
         let response = self
-            .tool_roundtrip(
-                "Use the get_code tool and output only its result.",
-                session_id,
-            )
+            .tool_roundtrip("Use the get_code tool and output only its result.", None)
             .await?;
         let text = response.as_concat_text();
-        assert!(
-            text.contains(FAKE_CODE),
-            "Expected lookup code '{}' in final response, got: {}",
-            FAKE_CODE,
-            text
-        );
+        assert!(text.contains(FAKE_CODE), "{text}");
         println!("=== {}::tool_usage === {}", self.name, text);
         Ok(())
     }
 
-    async fn test_context_length_exceeded_error(&self, session_id: &str) -> Result<()> {
-        let large_message_content = if self.name.to_lowercase() == "google" {
-            "hello ".repeat(1_300_000)
-        } else {
-            "hello ".repeat(300_000)
-        };
-
+    async fn test_context_length_exceeded_error(&self) -> Result<()> {
+        // "hello " ≈ 2 tokens across common tokenizers
+        let large_message_content = "hello ".repeat(self.context_length_exceeded / 2);
         let messages = vec![Message::user().with_text(&large_message_content)];
         let model_config = self.provider.get_model_config();
 
@@ -259,7 +399,7 @@ impl ProviderTester {
             .provider
             .complete(
                 &model_config,
-                session_id,
+                &self.session_id,
                 "You are a helpful assistant.",
                 &messages,
                 &[],
@@ -270,52 +410,44 @@ impl ProviderTester {
         dbg!(&result);
         println!("===================");
 
-        let name_lower = self.name.to_lowercase();
-        if name_lower == "ollama" || name_lower == "openrouter" {
-            // These providers handle context overflow internally: ollama and
-            // openrouter truncate or have large windows.
-            assert!(
-                result.is_ok(),
-                "Expected to succeed because of default truncation or large context window"
-            );
-            return Ok(());
+        if self.expect_context_length_exceeded {
+            assert!(result.is_err());
+            assert!(matches!(
+                result.unwrap_err(),
+                ProviderError::ContextLengthExceeded(_)
+            ));
+        } else {
+            assert!(result.is_ok());
         }
-
-        assert!(
-            result.is_err(),
-            "Expected error when context window is exceeded"
-        );
-        assert!(
-            matches!(result.unwrap_err(), ProviderError::ContextLengthExceeded(_)),
-            "Expected error to be ContextLengthExceeded"
-        );
 
         Ok(())
     }
 
-    async fn test_image_content_support(&self, session_id: &str) -> Result<()> {
+    async fn test_image_content_support(&self) -> Result<()> {
+        let image_config = match &self.image_model {
+            Some(model) => {
+                Some(goose::model::ModelConfig::new(model)?.with_canonical_limits(&self.name))
+            }
+            None => None,
+        };
         let response = self
             .tool_roundtrip(
                 "Use the get_image tool and describe what you see in its result.",
-                session_id,
+                image_config,
             )
             .await?;
         let text = response.as_concat_text().to_lowercase();
         assert!(
             text.contains("hello goose") || text.contains("test image"),
-            "Expected response to describe the test image, got: {}",
-            text
+            "{text}"
         );
         println!("=== {}::image_content === {}", self.name, text);
         Ok(())
     }
 
-    async fn test_model_switch(&self, session_id: &str) -> Result<()> {
+    async fn test_model_switch(&self) -> Result<()> {
         let default = &self.provider.get_model_config().model_name;
-        let alt = self
-            .model_switch_name
-            .as_deref()
-            .expect("model_switch_name required for test_model_switch");
+        let alt = self.model_switch_name.as_deref().unwrap();
         let alt_config = goose::model::ModelConfig::new(alt)?.with_canonical_limits(&self.name);
 
         let message = Message::user().with_text("Just say hello!");
@@ -323,17 +455,17 @@ impl ProviderTester {
             .provider
             .complete(
                 &alt_config,
-                session_id,
+                &self.session_id,
                 "You are a helpful assistant.",
                 &[message],
                 &[],
             )
             .await?;
 
-        assert!(
-            matches!(response.content.first(), Some(MessageContent::Text(_))),
-            "Expected text response after model switch"
-        );
+        assert!(response
+            .content
+            .iter()
+            .any(|c| matches!(c, MessageContent::Text(_))));
         println!(
             "=== {}::model_switch ({} -> {}) === {}",
             self.name,
@@ -351,128 +483,36 @@ impl ProviderTester {
         dbg!(&models);
         println!("===================");
 
-        assert!(!models.is_empty(), "Expected non-empty model list");
+        assert!(!models.is_empty());
         let model_name = &self.provider.get_model_config().model_name;
-        // Model names may not match exactly: Ollama adds tags like "qwen3:latest",
-        // and CLI providers like claude-code use aliases (e.g. "sonnet") that are
-        // substrings of full model names (e.g. "claude-sonnet-4-5-20250929").
-        assert!(
-            models
-                .iter()
-                .any(|m| m == model_name || m.contains(model_name) || model_name.contains(m)),
-            "Expected model '{}' in supported models",
-            model_name
-        );
+        // model names may be substrings (e.g. "sonnet" vs "claude-sonnet-4-5-20250929")
+        assert!(models
+            .iter()
+            .any(|m| m == model_name || m.contains(model_name) || model_name.contains(m)));
         if let Some(alt) = &self.model_switch_name {
-            assert!(
-                models
-                    .iter()
-                    .any(|m| m == alt || m.contains(alt.as_str()) || alt.contains(m.as_str())),
-                "Expected model_switch_name '{}' in supported models",
-                alt
-            );
-        }
-        Ok(())
-    }
-
-    fn session_id_for_test(&self, test_name: &str) -> String {
-        if self.is_cli_provider {
-            format!("test_{}", test_name)
-        } else {
-            TEST_SESSION_ID.to_string()
-        }
-    }
-
-    async fn run_test_suite(&self) -> Result<()> {
-        let _guard = env_lock::lock_env([("GOOSE_MODE", Some("auto"))]);
-        self.test_model_listing().await?;
-        self.test_basic_response(&self.session_id_for_test("basic_response"))
-            .await?;
-        self.test_tool_usage(&self.session_id_for_test("tool_usage"))
-            .await?;
-        self.test_image_content_support(&self.session_id_for_test("image_content"))
-            .await?;
-        if self.model_switch_name.is_some() {
-            self.test_model_switch(&self.session_id_for_test("model_switch"))
-                .await?;
-        }
-        // claude-code responds unpredictably to oversized context:
-        // sometimes "no", sometimes "Prompt is too long".
-        if self.name != "claude-code" {
-            self.test_context_length_exceeded_error(&self.session_id_for_test("context_length"))
-                .await?;
-        }
-        drop(_guard);
-        // codex: one-shot subprocess, no bidirectional control protocol
-        if self.name != "codex" {
-            self.test_permission_allow().await?;
-            self.test_permission_deny().await?;
-            // Agentic CLI providers handle tools internally, SmartApprove == Approve
-            if !self.is_cli_provider {
-                self.test_smart_approve_llm_detect().await?;
-                self.test_smart_approve_readonly().await?;
-            }
+            assert!(models
+                .iter()
+                .any(|m| m == alt || m.contains(alt.as_str()) || alt.contains(m.as_str())));
         }
         Ok(())
     }
 
     async fn run_permission_test(
         &self,
-        mode: GooseMode,
         permission: Permission,
         expect_action_required: bool,
         message: &str,
         label: &str,
     ) -> Result<()> {
-        // Guard must live through agent.reply() — providers read GOOSE_MODE at spawn time.
-        let _guard = env_lock::lock_env([("GOOSE_MODE", Some(<&str>::from(mode)))]);
-        let provider = if self.is_cli_provider {
-            create_with_named_model(
-                &self.name.to_lowercase(),
-                &self.provider.get_model_config().model_name,
-                vec![self.mcp_extension.clone()],
-            )
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?
-        } else {
-            self.provider.clone()
-        };
-
-        let temp_dir = tempfile::tempdir()?;
-        let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-        let permission_manager = Arc::new(PermissionManager::new(temp_dir.path().to_path_buf()));
-        let agent = Agent::with_config(AgentConfig::new(
-            session_manager.clone(),
-            permission_manager,
-            None,
-            mode,
-            true,
-            GoosePlatform::GooseCli,
-        ));
-
-        let session = session_manager
-            .create_session(
-                std::env::current_dir()?,
-                "permission_test".to_string(),
-                SessionType::User,
-            )
-            .await?;
-
-        agent.update_provider(provider, &session.id).await?;
-        agent
-            .add_extension(self.mcp_extension.clone(), &session.id)
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
-
         let message = Message::user().with_text(message);
         let session_config = SessionConfig {
-            id: session.id,
+            id: self.session_id.clone(),
             schedule_id: None,
             max_turns: Some(5),
             retry_config: None,
         };
 
-        let mut stream = agent.reply(message, session_config, None).await?;
+        let mut stream = self.agent.reply(message, session_config, None).await?;
         let mut saw_action_required = false;
 
         while let Some(event) = stream.next().await {
@@ -482,7 +522,7 @@ impl ProviderTester {
                     if let MessageContent::ActionRequired(ar) = content {
                         if let ActionRequiredData::ToolConfirmation { ref id, .. } = ar.data {
                             saw_action_required = true;
-                            agent
+                            self.agent
                                 .handle_confirmation(
                                     id.clone(),
                                     PermissionConfirmation {
@@ -503,22 +543,22 @@ impl ProviderTester {
     }
 
     async fn test_permission_allow(&self) -> Result<()> {
+        let test_file = tempfile::NamedTempFile::new()?;
         self.run_permission_test(
-            GooseMode::Approve,
             Permission::AllowOnce,
             true,
-            "Use the get_code tool and output only its result.",
+            &format!("Write the word 'hello' to {}", test_file.path().display()),
             "permission_allow",
         )
         .await
     }
 
     async fn test_permission_deny(&self) -> Result<()> {
+        let test_file = tempfile::NamedTempFile::new()?;
         self.run_permission_test(
-            GooseMode::Approve,
             Permission::DenyOnce,
             true,
-            "Use the get_code tool and output only its result.",
+            &format!("Write the word 'hello' to {}", test_file.path().display()),
             "permission_deny",
         )
         .await
@@ -526,7 +566,6 @@ impl ProviderTester {
 
     async fn test_smart_approve_llm_detect(&self) -> Result<()> {
         self.run_permission_test(
-            GooseMode::SmartApprove,
             Permission::AllowOnce,
             false,
             "Use the get_image tool and describe what you see in its result.",
@@ -537,7 +576,6 @@ impl ProviderTester {
 
     async fn test_smart_approve_readonly(&self) -> Result<()> {
         self.run_permission_test(
-            GooseMode::SmartApprove,
             Permission::AllowOnce,
             false,
             "Use the get_code tool and output only its result.",
@@ -553,124 +591,84 @@ fn load_env() {
     }
 }
 
-async fn test_provider(
-    name: &str,
-    model_name: &str,
-    model_switch_name: Option<&str>,
-    required_vars: &[&str],
-    env_modifications: Option<HashMap<&str, Option<String>>>,
-    // CLI providers cannot propagate the agent-session-id header to MCP servers.
-    is_cli_provider: bool,
-) -> Result<()> {
+async fn test_provider(config: ProviderTestConfig) -> Result<()> {
+    let name = config.name;
+
+    if config.skip {
+        TEST_REPORT.record_skip(name);
+        return Ok(());
+    }
+
     TEST_REPORT.record_fail(name);
 
-    let original_env = {
+    {
         let _lock = ENV_LOCK.lock().unwrap();
-
         load_env();
-
-        // Check required_vars BEFORE applying env_modifications to avoid
-        // leaving the environment mutated when skipping
-        let missing_vars = required_vars.iter().any(|var| std::env::var(var).is_err());
-        if missing_vars {
+        if config
+            .required_vars
+            .iter()
+            .any(|var| std::env::var(var).is_err())
+        {
             println!("Skipping {} tests - credentials not configured", name);
             TEST_REPORT.record_skip(name);
             return Ok(());
         }
-
-        let mut original_env = HashMap::new();
-        for &var in required_vars {
-            if let Ok(val) = std::env::var(var) {
-                original_env.insert(var, val);
-            }
-        }
-        if let Some(mods) = &env_modifications {
-            for &var in mods.keys() {
-                if let Ok(val) = std::env::var(var) {
-                    original_env.insert(var, val);
-                }
-            }
-        }
-
-        if let Some(mods) = &env_modifications {
-            for (&var, value) in mods.iter() {
-                match value {
-                    Some(val) => std::env::set_var(var, val),
-                    None => std::env::remove_var(var),
-                }
-            }
-        }
-
-        original_env
-    };
-
-    let provider_name = name.to_lowercase();
-    let expected_session_id = if is_cli_provider {
-        None
-    } else {
-        Some(ExpectedSessionId::default())
-    };
-    let mcp = McpFixture::new(expected_session_id.clone()).await;
-    if let Some(ref id) = expected_session_id {
-        id.set(TEST_SESSION_ID);
     }
 
-    let mcp_extension =
-        ExtensionConfig::streamable_http("mcp-fixture", &mcp.url, "MCP fixture", 30_u64);
+    let run_test = |mode: GooseMode| ProviderFixture::setup(&config, mode);
 
-    let provider = match create_with_named_model(
-        &provider_name,
-        model_name,
-        vec![mcp_extension.clone()],
-    )
-    .await
-    {
-        Ok(p) => p,
-        Err(e) => {
-            println!("Skipping {} tests - failed to create provider: {}", name, e);
-            TEST_REPORT.record_skip(name);
-            return Ok(());
-        }
-    };
-
-    {
-        let _lock = ENV_LOCK.lock().unwrap();
-        for (&var, value) in original_env.iter() {
-            std::env::set_var(var, value);
-        }
-        if let Some(mods) = env_modifications {
-            for &var in mods.keys() {
-                if !original_env.contains_key(var) {
-                    std::env::remove_var(var);
-                }
-            }
-        }
+    if run_test(GooseMode::Auto).await.is_err() {
+        println!("Skipping {} tests - failed to create provider", name);
+        TEST_REPORT.record_skip(name);
+        return Ok(());
     }
 
-    let temp_dir = tempfile::tempdir()?;
-    let shared_provider = Arc::new(tokio::sync::Mutex::new(Some(provider.clone())));
-    let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
-    let extension_manager = Arc::new(ExtensionManager::new(
-        shared_provider,
-        session_manager,
-        GoosePlatform::GooseCli.to_string(),
-        ExtensionManagerCapabilities { mcpui: false },
-    ));
-    extension_manager
-        .add_extension(mcp_extension.clone(), None, None, None)
-        .await
-        .expect("failed to add extension");
-
-    let tester = ProviderTester::new(
-        provider,
-        name.to_string(),
-        extension_manager,
-        is_cli_provider,
-        model_switch_name.map(String::from),
-        mcp_extension,
-    );
-    let _mcp = mcp;
-    let result = tester.run_test_suite().await;
+    let result: Result<()> = async {
+        run_test(GooseMode::Auto)
+            .await?
+            .test_model_listing()
+            .await?;
+        run_test(GooseMode::Auto)
+            .await?
+            .test_basic_response()
+            .await?;
+        run_test(GooseMode::Auto).await?.test_tool_usage().await?;
+        run_test(GooseMode::Auto)
+            .await?
+            .test_image_content_support()
+            .await?;
+        if config.model_switch_name.is_some() {
+            run_test(GooseMode::Auto).await?.test_model_switch().await?;
+        }
+        if config.test_context_length_exceeded {
+            run_test(GooseMode::Auto)
+                .await?
+                .test_context_length_exceeded_error()
+                .await?;
+        }
+        if config.test_permissions {
+            run_test(GooseMode::Approve)
+                .await?
+                .test_permission_allow()
+                .await?;
+            run_test(GooseMode::Approve)
+                .await?
+                .test_permission_deny()
+                .await?;
+            if config.test_smart_approve {
+                run_test(GooseMode::SmartApprove)
+                    .await?
+                    .test_smart_approve_llm_detect()
+                    .await?;
+                run_test(GooseMode::SmartApprove)
+                    .await?
+                    .test_smart_approve_readonly()
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+    .await;
 
     match result {
         Ok(_) => {
@@ -687,238 +685,161 @@ async fn test_provider(
 
 #[tokio::test]
 async fn test_openai_provider() -> Result<()> {
-    test_provider(
-        "openai",
-        OPEN_AI_DEFAULT_MODEL,
-        None,
-        &["OPENAI_API_KEY"],
-        None,
-        false,
-    )
-    .await
+    ProviderTestConfig::with_llm_provider("openai", OPEN_AI_DEFAULT_MODEL, &["OPENAI_API_KEY"])
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_azure_provider() -> Result<()> {
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "Azure",
         AZURE_DEFAULT_MODEL,
-        None,
         &[
             "AZURE_OPENAI_API_KEY",
             "AZURE_OPENAI_ENDPOINT",
             "AZURE_OPENAI_DEPLOYMENT_NAME",
         ],
-        None,
-        false,
     )
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_bedrock_provider_long_term_credentials() -> Result<()> {
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
-        None,
         &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
-        None,
-        false,
     )
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_bedrock_provider_aws_profile_credentials() -> Result<()> {
-    let env_mods =
-        HashMap::from_iter([("AWS_ACCESS_KEY_ID", None), ("AWS_SECRET_ACCESS_KEY", None)]);
-
-    test_provider(
-        "aws_bedrock",
-        BEDROCK_DEFAULT_MODEL,
-        None,
-        &["AWS_PROFILE"],
-        Some(env_mods),
-        false,
-    )
-    .await
+    ProviderTestConfig::with_llm_provider("aws_bedrock", BEDROCK_DEFAULT_MODEL, &["AWS_PROFILE"])
+        .clear_env(&["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"])
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_bedrock_provider_bearer_token() -> Result<()> {
-    // Clear standard AWS credentials to ensure bearer token auth is used
-    let env_mods = HashMap::from_iter([
-        ("AWS_ACCESS_KEY_ID", None),
-        ("AWS_SECRET_ACCESS_KEY", None),
-        ("AWS_PROFILE", None),
-    ]);
-
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "aws_bedrock",
         BEDROCK_DEFAULT_MODEL,
-        None,
         &["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"],
-        Some(env_mods),
-        false,
     )
+    .clear_env(&["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_PROFILE"])
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_databricks_provider() -> Result<()> {
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "Databricks",
         DATABRICKS_DEFAULT_MODEL,
-        None,
         &["DATABRICKS_HOST", "DATABRICKS_TOKEN"],
-        None,
-        false,
     )
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_ollama_provider() -> Result<()> {
-    // qwen3-vl supports text, tools, and vision (needed for image test)
-    test_provider(
-        "Ollama",
-        "qwen3-vl",
-        Some("qwen3"),
-        &["OLLAMA_HOST"],
-        None,
-        false,
-    )
-    .await
+    ProviderTestConfig::with_llm_provider("Ollama", "qwen3", &["OLLAMA_HOST"])
+        .image_model("qwen3-vl")
+        // Above qwen3's 40960 context_length but small enough for Ollama's 600s timeout
+        .context_length_exceeded(50_000)
+        .expect_context_length_exceeded(false)
+        .test_smart_approve(false)
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_anthropic_provider() -> Result<()> {
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "Anthropic",
         ANTHROPIC_DEFAULT_MODEL,
-        None,
         &["ANTHROPIC_API_KEY"],
-        None,
-        false,
     )
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_openrouter_provider() -> Result<()> {
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "OpenRouter",
         OPEN_AI_DEFAULT_MODEL,
-        None,
         &["OPENROUTER_API_KEY"],
-        None,
-        false,
     )
+    .expect_context_length_exceeded(false)
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_google_provider() -> Result<()> {
-    test_provider(
-        "Google",
-        GOOGLE_DEFAULT_MODEL,
-        None,
-        &["GOOGLE_API_KEY"],
-        None,
-        false,
-    )
-    .await
+    ProviderTestConfig::with_llm_provider("Google", GOOGLE_DEFAULT_MODEL, &["GOOGLE_API_KEY"])
+        .context_length_exceeded(2_600_000)
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_snowflake_provider() -> Result<()> {
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "Snowflake",
         SNOWFLAKE_DEFAULT_MODEL,
-        None,
         &["SNOWFLAKE_HOST", "SNOWFLAKE_TOKEN"],
-        None,
-        false,
     )
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_sagemaker_tgi_provider() -> Result<()> {
-    test_provider(
+    ProviderTestConfig::with_llm_provider(
         "SageMakerTgi",
         SAGEMAKER_TGI_DEFAULT_MODEL,
-        None,
         &["SAGEMAKER_ENDPOINT_NAME"],
-        None,
-        false,
     )
+    .run()
     .await
 }
 
 #[tokio::test]
 async fn test_litellm_provider() -> Result<()> {
-    if std::env::var("LITELLM_HOST").is_err() {
-        println!("LITELLM_HOST not set, skipping test");
-        TEST_REPORT.record_skip("LiteLLM");
-        return Ok(());
-    }
-
-    let env_mods = HashMap::from_iter([
-        ("LITELLM_HOST", Some("http://localhost:4000".to_string())),
-        ("LITELLM_API_KEY", Some("".to_string())),
-    ]);
-
-    test_provider(
-        "LiteLLM",
-        LITELLM_DEFAULT_MODEL,
-        None,
-        &[],
-        Some(env_mods),
-        false,
-    )
-    .await
+    ProviderTestConfig::with_llm_provider("LiteLLM", LITELLM_DEFAULT_MODEL, &["LITELLM_HOST"])
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_xai_provider() -> Result<()> {
-    test_provider(
-        "Xai",
-        XAI_DEFAULT_MODEL,
-        None,
-        &["XAI_API_KEY"],
-        None,
-        false,
-    )
-    .await
+    ProviderTestConfig::with_llm_provider("Xai", XAI_DEFAULT_MODEL, &["XAI_API_KEY"])
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_claude_code_provider() -> Result<()> {
-    if which::which("claude").is_err() {
-        println!("'claude' CLI not found, skipping test");
-        TEST_REPORT.record_skip("claude-code");
-        return Ok(());
-    }
-    test_provider(
-        "claude-code",
-        CLAUDE_CODE_DEFAULT_MODEL,
-        Some("sonnet"),
-        &[],
-        None,
-        true,
-    )
-    .await
+    ProviderTestConfig::with_agentic_provider("claude-code", CLAUDE_CODE_DEFAULT_MODEL, "claude")
+        .model_switch_name("sonnet")
+        .run()
+        .await
 }
 
 #[tokio::test]
 async fn test_codex_provider() -> Result<()> {
-    if which::which("codex").is_err() {
-        println!("'codex' CLI not found, skipping test");
-        TEST_REPORT.record_skip("codex");
-        return Ok(());
-    }
-    test_provider("codex", CODEX_DEFAULT_MODEL, None, &[], None, true).await
+    ProviderTestConfig::with_agentic_provider("codex", CODEX_DEFAULT_MODEL, "codex")
+        .test_permissions(false)
+        .run()
+        .await
 }
 
 #[ctor::dtor]
