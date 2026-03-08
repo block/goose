@@ -293,13 +293,41 @@ impl Provider for OllamaProvider {
 }
 
 /// Per-chunk timeout for Ollama streaming responses.
-/// If no new data arrives within this duration, the stream is considered stalled.
+/// If no new raw SSE data arrives within this duration, the connection is considered dead.
 const OLLAMA_CHUNK_TIMEOUT_SECS: u64 = 30;
+
+/// Wraps a line stream with a per-item timeout at the raw SSE level.
+/// This detects dead connections without false-positive stalls during long
+/// tool-call generations where response_to_streaming_message_ollama buffers.
+fn with_line_timeout(
+    stream: impl futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
+    timeout_secs: u64,
+) -> std::pin::Pin<Box<dyn futures::Stream<Item = anyhow::Result<String>> + Send>> {
+    let timeout = Duration::from_secs(timeout_secs);
+    Box::pin(try_stream! {
+        let mut stream = stream;
+        loop {
+            match tokio::time::timeout(timeout, stream.next()).await {
+                Ok(Some(item)) => yield item?,
+                Ok(None) => break,
+                Err(_) => {
+                    Err::<(), anyhow::Error>(anyhow::anyhow!(
+                        "Ollama stream stalled: no data received for {}s. \
+                         This may indicate the model is overwhelmed by the request payload. \
+                         Try a smaller model or reduce the number of tools.",
+                        timeout_secs
+                    ))?;
+                }
+            }
+        }
+    })
+}
 
 /// Ollama-specific streaming handler with XML tool call fallback.
 /// Uses the Ollama format module which buffers text when XML tool calls are detected,
 /// preventing duplicate content from being emitted to the UI.
-/// Includes a per-chunk timeout to detect stalled Ollama connections.
+/// Timeout is applied at the raw SSE line level via with_line_timeout so that
+/// buffering inside response_to_streaming_message_ollama does not cause false stalls.
 fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStream, ProviderError> {
     let stream = response.bytes_stream().map_err(std::io::Error::other);
 
@@ -308,29 +336,16 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
         let framed = FramedRead::new(stream_reader, LinesCodec::new())
             .map_err(Error::from);
 
-        let message_stream = response_to_streaming_message_ollama(framed);
+        let timed_lines = with_line_timeout(framed, OLLAMA_CHUNK_TIMEOUT_SECS);
+        let message_stream = response_to_streaming_message_ollama(timed_lines);
         pin!(message_stream);
 
-        let chunk_timeout = Duration::from_secs(OLLAMA_CHUNK_TIMEOUT_SECS);
-        loop {
-            match tokio::time::timeout(chunk_timeout, message_stream.next()).await {
-                Ok(Some(message)) => {
-                    let (message, usage) = message.map_err(|e|
-                        ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-                    )?;
-                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-                    yield (message, usage);
-                }
-                Ok(None) => break,
-                Err(_) => {
-                    Err(ProviderError::RequestFailed(
-                        format!("Ollama stream stalled: no data received for {}s. \
-                            This may indicate the model is overwhelmed by the request payload. \
-                            Try a smaller model or reduce the number of tools.",
-                            OLLAMA_CHUNK_TIMEOUT_SECS)
-                    ))?;
-                }
-            }
+        while let Some(message) = message_stream.next().await {
+            let (message, usage) = message.map_err(|e|
+                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+            )?;
+            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+            yield (message, usage);
         }
     }))
 }
