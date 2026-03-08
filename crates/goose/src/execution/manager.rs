@@ -84,10 +84,12 @@ impl AgentManager {
     }
 
     pub async fn get_or_create_agent(&self, session_id: String) -> Result<Arc<Agent>> {
-        let mode = self.default_mode;
         {
             let mut sessions = self.sessions.write().await;
             if let Some(existing) = sessions.get(&session_id) {
+                let mode = Config::global()
+                    .get_goose_mode()
+                    .unwrap_or(self.default_mode);
                 existing.update_goose_mode(mode).await;
                 return Ok(Arc::clone(existing));
             }
@@ -97,7 +99,7 @@ impl AgentManager {
             Arc::clone(&self.session_manager),
             permission_manager,
             Some(Arc::clone(&self.scheduler)),
-            mode,
+            self.default_mode,
             Config::global()
                 .get_goose_disable_session_naming()
                 .unwrap_or(false),
@@ -132,6 +134,9 @@ impl AgentManager {
 
         let mut sessions = self.sessions.write().await;
         if let Some(existing) = sessions.get(&session_id) {
+            let mode = Config::global()
+                .get_goose_mode()
+                .unwrap_or(self.default_mode);
             existing.update_goose_mode(mode).await;
             Ok(Arc::clone(existing))
         } else {
