@@ -121,6 +121,7 @@ extensions:
     name: "extension_name"    # Internal name
     timeout: 300              # Operation timeout in seconds
     type: "builtin"/"stdio"   # Extension type
+    available_tools: []       # Filter to specific tools (empty = all)
     
     # Additional settings for stdio extensions:
     cmd: "command"            # Command to execute
@@ -129,6 +130,10 @@ extensions:
     env_keys: []              # Required environment variables
     envs: {}                  # Environment values
 ```
+
+### Tool Filtering
+
+Use the `available_tools` field to limit which tools are loaded from an extension. List the tool names you want — only those will be available to goose. Leave it empty (the default) to load all tools. This can help reduce token overhead in sessions where you only need a subset of an extension's capabilities.
 
 ## Search Path Configuration
 
