@@ -119,6 +119,78 @@ pub struct GetExtensionsResponse {
     pub warnings: Vec<String>,
 }
 
+/// List extension prompts for a session.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ListPromptsRequest {
+    pub session_id: String,
+}
+
+/// A single prompt entry with name, description, and arguments.
+#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
+pub struct PromptEntry {
+    pub name: String,
+    pub description: Option<String>,
+    pub arguments: Option<Vec<serde_json::Value>>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ListPromptsResponse {
+    /// Map of extension name -> list of prompts.
+    pub prompts: std::collections::HashMap<String, Vec<PromptEntry>>,
+}
+
+/// Get detailed info for a single prompt by name.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct GetPromptInfoRequest {
+    pub session_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct GetPromptInfoResponse {
+    pub found: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<PromptEntry>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension: Option<String>,
+}
+
+/// Get provider info (name, model, context limit, token usage) for a session.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ProviderInfoRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ProviderInfoResponse {
+    pub provider_name: String,
+    pub model_name: String,
+    pub context_limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<i32>,
+}
+
+/// Get the plan prompt string for a session.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PlanPromptRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct PlanPromptResponse {
+    pub plan_prompt: String,
+}
+
+/// Clear a session's conversation and reset token counts.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ClearSessionRequest {
+    pub session_id: String,
+}
+
 /// Empty success response for operations that return no data.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct EmptyResponse {}

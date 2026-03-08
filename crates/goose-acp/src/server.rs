@@ -1184,6 +1184,142 @@ impl GooseAcpAgent {
         })
     }
 
+    #[custom_method("config/prompts")]
+    async fn on_list_prompts(
+        &self,
+        req: ListPromptsRequest,
+    ) -> Result<ListPromptsResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let prompts = agent.list_extension_prompts(&req.session_id).await;
+        let converted: std::collections::HashMap<String, Vec<PromptEntry>> = prompts
+            .into_iter()
+            .map(|(ext, prompt_list)| {
+                let entries = prompt_list
+                    .into_iter()
+                    .map(|p| PromptEntry {
+                        name: p.name,
+                        description: p.description,
+                        arguments: p.arguments.map(|args| {
+                            args.into_iter()
+                                .filter_map(|a| serde_json::to_value(&a).ok())
+                                .collect()
+                        }),
+                    })
+                    .collect();
+                (ext, entries)
+            })
+            .collect();
+        Ok(ListPromptsResponse { prompts: converted })
+    }
+
+    #[custom_method("config/prompt_info")]
+    async fn on_get_prompt_info(
+        &self,
+        req: GetPromptInfoRequest,
+    ) -> Result<GetPromptInfoResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let prompts = agent.list_extension_prompts(&req.session_id).await;
+        for (extension, prompt_list) in prompts {
+            if let Some(prompt) = prompt_list.iter().find(|p| p.name == req.name) {
+                return Ok(GetPromptInfoResponse {
+                    found: true,
+                    prompt: Some(PromptEntry {
+                        name: prompt.name.clone(),
+                        description: prompt.description.clone(),
+                        arguments: prompt.arguments.clone().map(|args| {
+                            args.into_iter()
+                                .filter_map(|a| serde_json::to_value(&a).ok())
+                                .collect()
+                        }),
+                    }),
+                    extension: Some(extension),
+                });
+            }
+        }
+        Ok(GetPromptInfoResponse {
+            found: false,
+            prompt: None,
+            extension: None,
+        })
+    }
+
+    #[custom_method("agent/provider_info")]
+    async fn on_provider_info(
+        &self,
+        req: ProviderInfoRequest,
+    ) -> Result<ProviderInfoResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let provider = agent.provider().await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("provider not available: {e}"))
+        })?;
+        let model_config = provider.get_model_config();
+        let context_limit = model_config.context_limit();
+        let provider_name = provider.get_name().to_string();
+        let model_name = model_config.model_name.clone();
+
+        let session = self
+            .session_manager
+            .get_session(&req.session_id, false)
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        Ok(ProviderInfoResponse {
+            provider_name,
+            model_name,
+            context_limit,
+            total_tokens: session.total_tokens,
+            input_tokens: session.input_tokens,
+            output_tokens: session.output_tokens,
+        })
+    }
+
+    #[custom_method("agent/plan_prompt")]
+    async fn on_plan_prompt(
+        &self,
+        req: PlanPromptRequest,
+    ) -> Result<PlanPromptResponse, sacp::Error> {
+        let agent = self.get_agent_for_session(&req.session_id).await?;
+        let plan_prompt = agent.get_plan_prompt(&req.session_id).await.map_err(|e| {
+            sacp::Error::internal_error().data(format!("failed to get plan prompt: {e}"))
+        })?;
+        Ok(PlanPromptResponse { plan_prompt })
+    }
+
+    #[custom_method("session/clear")]
+    async fn on_clear_session(
+        &self,
+        req: ClearSessionRequest,
+    ) -> Result<EmptyResponse, sacp::Error> {
+        if !self.sessions.lock().await.contains_key(&req.session_id) {
+            return Err(sacp::Error::invalid_params()
+                .data(format!("no active session: {}", req.session_id)));
+        }
+
+        self.session_manager
+            .replace_conversation(
+                &req.session_id,
+                &goose::conversation::Conversation::default(),
+            )
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        self.session_manager
+            .update(&req.session_id)
+            .total_tokens(Some(0))
+            .input_tokens(Some(0))
+            .output_tokens(Some(0))
+            .apply()
+            .await
+            .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        let mut sessions = self.sessions.lock().await;
+        if let Some(session) = sessions.get_mut(&req.session_id) {
+            session.messages.clear();
+        }
+
+        Ok(EmptyResponse {})
+    }
+
     async fn get_agent_for_session(&self, session_id: &str) -> Result<Arc<Agent>, sacp::Error> {
         self.sessions
             .lock()
