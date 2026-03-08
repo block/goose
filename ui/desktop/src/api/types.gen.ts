@@ -4,6 +4,15 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AccuracyTrendPoint = {
+    agentAccuracy: number;
+    date: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    runId: string;
+    versionTag: string;
+};
+
 export type ActionRequired = {
     data: ActionRequiredData;
 };
@@ -25,9 +34,42 @@ export type ActionRequiredData = {
     user_data: unknown;
 };
 
+export type ActiveExtensionStat = {
+    extension: string;
+    session_count: number;
+};
+
 export type AddExtensionRequest = {
     config: ExtensionConfig;
     session_id: string;
+};
+
+export type AgentDelta = {
+    agent: string;
+    baselineAccuracy: number;
+    baselineCases: number;
+    candidateAccuracy: number;
+    candidateCases: number;
+    delta: number;
+};
+
+/**
+ * Agent performance metrics extracted from session data
+ */
+export type AgentPerformanceMetrics = {
+    active_extensions: Array<ActiveExtensionStat>;
+    avg_messages_per_session: number;
+    avg_tokens_per_session: number;
+    avg_tools_per_session: number;
+    session_duration_stats: DurationStats;
+    sessions_by_provider: Array<ProviderSessionStat>;
+};
+
+export type AgentResult = {
+    accuracy: number;
+    agent: string;
+    fail: number;
+    pass: number;
 };
 
 export type Annotations = {
@@ -128,9 +170,28 @@ export type ConfirmToolActionRequest = {
     sessionId: string;
 };
 
+export type ConfusionMatrix = {
+    labels: Array<string>;
+    matrix: Array<Array<number>>;
+};
+
 export type Content = RawTextContent | RawImageContent | RawEmbeddedResource | RawAudioContent | RawResource;
 
 export type Conversation = Array<Message>;
+
+export type CorrelationInsight = {
+    gooseVersionDelta: string;
+    summary: string;
+    versionChanged: boolean;
+    versionTagDelta: string;
+};
+
+export type CreateDatasetRequest = {
+    cases: Array<CreateTestCaseRequest>;
+    description?: string;
+    name: string;
+    tags?: Array<string>;
+};
 
 export type CreateRecipeRequest = {
     author?: AuthorRequest | null;
@@ -146,6 +207,13 @@ export type CreateScheduleRequest = {
     cron: string;
     id: string;
     recipe: Recipe;
+};
+
+export type CreateTestCaseRequest = {
+    expectedAgent: string;
+    expectedMode: string;
+    input: string;
+    tags?: Array<string>;
 };
 
 /**
@@ -169,6 +237,25 @@ export type CspMetadata = {
      * Domains allowed for resource loading (scripts, styles, images, fonts, media)
      */
     resourceDomains?: Array<string> | null;
+};
+
+export type DailyQuality = {
+    avg_duration_secs: number;
+    avg_messages: number;
+    date: string;
+    error_rate: number;
+    retry_rate: number;
+    sessions: number;
+};
+
+/**
+ * Daily tool activity
+ */
+export type DailyToolActivity = {
+    date: string;
+    tool_calls: number;
+    tool_errors: number;
+    unique_tools: number;
 };
 
 export type DeclarativeProviderConfig = {
@@ -280,6 +367,12 @@ export type DownloadProgress = {
 
 export type DownloadStatus = 'downloading' | 'completed' | 'failed' | 'cancelled';
 
+export type DurationStats = {
+    avg_seconds: number;
+    median_seconds: number;
+    p90_seconds: number;
+};
+
 export type EmbeddedResource = {
     _meta?: {
         [key: string]: unknown;
@@ -304,6 +397,103 @@ export type Envs = {
 
 export type ErrorResponse = {
     message: string;
+};
+
+/**
+ * Eval case result for API requests
+ */
+export type EvalCaseResult = {
+    actualAgent: string;
+    actualMode?: string | null;
+    confidence?: number;
+    correctAgent: boolean;
+    correctMode?: boolean;
+    expectedAgent: string;
+    expectedMode?: string | null;
+    input: string;
+    tags?: Array<string>;
+};
+
+export type EvalDataset = {
+    cases: Array<EvalTestCase>;
+    createdAt: string;
+    description: string;
+    id: string;
+    name: string;
+    tags: Array<string>;
+    updatedAt: string;
+};
+
+export type EvalDatasetSummary = {
+    caseCount: number;
+    createdAt: string;
+    description: string;
+    id: string;
+    lastRunAccuracy?: number | null;
+    lastRunAt?: string | null;
+    name: string;
+    tags: Array<string>;
+    updatedAt: string;
+};
+
+export type EvalOverview = {
+    accuracyDelta: number;
+    accuracyTrend: Array<AccuracyTrendPoint>;
+    agentAccuracy: number;
+    agentAccuracyDelta: number;
+    lastRunAt?: string | null;
+    lastRunStatus: string;
+    modeAccuracy: number;
+    modeAccuracyDelta: number;
+    overallAccuracy: number;
+    perAgentAccuracy: Array<AgentResult>;
+    regressions: Array<RegressionAlert>;
+    totalRuns: number;
+    totalTestCases: number;
+};
+
+export type EvalRunDetail = {
+    agentAccuracy: number;
+    agentCorrect: number;
+    confusionMatrix: ConfusionMatrix;
+    correct: number;
+    datasetId: string;
+    datasetName: string;
+    durationMs: number;
+    failures: Array<FailureDetail>;
+    gooseVersion: string;
+    id: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    perAgent: Array<AgentResult>;
+    startedAt: string;
+    status: string;
+    totalCases: number;
+    versionTag: string;
+};
+
+export type EvalRunSummary = {
+    agentAccuracy: number;
+    correct: number;
+    datasetId: string;
+    datasetName: string;
+    durationMs: number;
+    gooseVersion: string;
+    id: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    startedAt: string;
+    status: string;
+    totalCases: number;
+    versionTag: string;
+};
+
+export type EvalTestCase = {
+    expectedAgent: string;
+    expectedMode: string;
+    id: string;
+    input: string;
+    tags: Array<string>;
 };
 
 /**
@@ -433,6 +623,33 @@ export type ExtensionResponse = {
     warnings?: Array<string>;
 };
 
+/**
+ * Per-extension usage statistics
+ */
+export type ExtensionUsageStat = {
+    extension: string;
+    success_rate: number;
+    tool_count: number;
+    total_calls: number;
+    total_errors: number;
+};
+
+export type FailureDetail = {
+    actualAgent: string;
+    actualMode: string;
+    confidence: number;
+    expectedAgent: string;
+    expectedMode: string;
+    input: string;
+    tags: Array<string>;
+};
+
+export type FixedCase = {
+    agent: string;
+    input: string;
+    mode: string;
+};
+
 export type ForkRequest = {
     copy: boolean;
     timestamp?: number | null;
@@ -488,6 +705,12 @@ export type HfQuantVariant = {
     quality_rank: number;
     quantization: string;
     size_bytes: number;
+};
+
+export type HotTool = {
+    calls_1h: number;
+    errors_1h: number;
+    tool_name: string;
 };
 
 export type Icon = {
@@ -548,6 +771,56 @@ export type ListRecipeResponse = {
 
 export type ListSchedulesResponse = {
     jobs: Array<ScheduledJob>;
+};
+
+/**
+ * Live monitoring metrics — recent activity snapshot
+ */
+export type LiveMetrics = {
+    /**
+     * Active sessions in the last hour
+     */
+    active_sessions_1h: number;
+    /**
+     * Active sessions in the last 24 hours
+     */
+    active_sessions_24h: number;
+    /**
+     * Per-minute activity for the last 60 minutes
+     */
+    activity_timeline: Array<MinuteActivity>;
+    /**
+     * Most active tools in the last hour
+     */
+    hot_tools: Array<HotTool>;
+    /**
+     * Messages processed in the last hour
+     */
+    messages_1h: number;
+    /**
+     * Recent errors (last 10)
+     */
+    recent_errors: Array<RecentError>;
+    /**
+     * Success rate in the last hour (0.0-1.0)
+     */
+    success_rate_1h: number;
+    /**
+     * Tool calls in the last hour
+     */
+    tool_calls_1h: number;
+    /**
+     * Tool calls in the last 24 hours
+     */
+    tool_calls_24h: number;
+    /**
+     * Tool errors in the last hour
+     */
+    tool_errors_1h: number;
+    /**
+     * Tool errors in the last 24 hours
+     */
+    tool_errors_24h: number;
 };
 
 export type LoadedProvider = {
@@ -676,6 +949,12 @@ export type MessageMetadata = {
      * Whether the message should be visible to the user in the UI
      */
     userVisible: boolean;
+};
+
+export type MinuteActivity = {
+    messages: number;
+    minute: string;
+    tool_calls: number;
 };
 
 export type ModelCapabilities = {
@@ -895,6 +1174,23 @@ export type ProviderMetadata = {
     name: string;
 };
 
+export type ProviderQuality = {
+    avg_duration_secs: number;
+    avg_messages: number;
+    avg_tokens: number;
+    error_rate: number;
+    provider: string;
+    retry_rate: number;
+    sessions: number;
+};
+
+export type ProviderSessionStat = {
+    avg_messages: number;
+    avg_tokens: number;
+    provider: string;
+    session_count: number;
+};
+
 export type ProviderTemplate = {
     api_url: string;
     doc_url: string;
@@ -971,6 +1267,12 @@ export type ReasoningContent = {
     text: string;
 };
 
+export type RecentError = {
+    session_id: string;
+    timestamp: string;
+    tool_name: string;
+};
+
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
@@ -1021,6 +1323,14 @@ export type RedactedThinkingContent = {
     data: string;
 };
 
+export type RegressionAlert = {
+    delta: number;
+    description: string;
+    runId: string;
+    severity: string;
+    versionTag: string;
+};
+
 export type RemoveExtensionRequest = {
     name: string;
     session_id: string;
@@ -1056,6 +1366,23 @@ export type ResourceMetadata = {
 
 export type Response = {
     json_schema?: unknown;
+};
+
+/**
+ * Response quality proxy metrics derived from session/message patterns
+ */
+export type ResponseQualityMetrics = {
+    avg_messages_per_session: number;
+    avg_session_duration_secs: number;
+    avg_tokens_per_session: number;
+    avg_tool_errors_per_session: number;
+    avg_user_messages_per_session: number;
+    completion_rate: number;
+    daily_quality: Array<DailyQuality>;
+    quality_by_provider: Array<ProviderQuality>;
+    retry_rate: number;
+    sessions_with_errors: number;
+    total_sessions: number;
 };
 
 export type RestartAgentRequest = {
@@ -1103,6 +1430,37 @@ export type RetryConfig = {
 };
 
 export type Role = string;
+
+export type RunComparison = {
+    agentDelta: number;
+    baseline: RunComparisonSide;
+    candidate: RunComparisonSide;
+    correlation: CorrelationInsight;
+    fixedCases: Array<FixedCase>;
+    modeDelta: number;
+    newFailures: Array<FailureDetail>;
+    overallDelta: number;
+    perAgentDelta: Array<AgentDelta>;
+};
+
+export type RunComparisonSide = {
+    agentAccuracy: number;
+    correct: number;
+    datasetName: string;
+    gooseVersion: string;
+    modeAccuracy: number;
+    overallAccuracy: number;
+    runId: string;
+    startedAt: string;
+    totalCases: number;
+    versionTag: string;
+};
+
+export type RunEvalRequest = {
+    datasetId: string;
+    sessionId?: string | null;
+    versionTag?: string;
+};
 
 export type RunNowResponse = {
     session_id: string;
@@ -1218,6 +1576,19 @@ export type SessionListResponse = {
     sessions: Array<Session>;
 };
 
+/**
+ * Tool summary for a specific session
+ */
+export type SessionToolSummary = {
+    created_at: string;
+    most_used_tool: string;
+    session_id: string;
+    session_name: string;
+    tool_calls: number;
+    tool_errors: number;
+    unique_tools: number;
+};
+
 export type SessionType = 'user' | 'scheduled' | 'sub_agent' | 'hidden' | 'terminal' | 'gateway';
 
 export type SessionsQuery = {
@@ -1266,6 +1637,12 @@ export type StartAgentRequest = {
 
 export type StopAgentRequest = {
     session_id: string;
+};
+
+export type StoreRunRequest = {
+    durationMs?: number;
+    evalRequest: RunEvalRequest;
+    results: Array<EvalCaseResult>;
 };
 
 export type SubRecipe = {
@@ -1373,6 +1750,19 @@ export type Tool = {
     title?: string;
 };
 
+/**
+ * Analytics for tool usage extracted from stored messages
+ */
+export type ToolAnalytics = {
+    daily_tool_activity: Array<DailyToolActivity>;
+    extension_usage: Array<ExtensionUsageStat>;
+    session_tool_summary: Array<SessionToolSummary>;
+    success_rate: number;
+    tool_usage: Array<ToolUsageStat>;
+    total_tool_calls: number;
+    total_tool_errors: number;
+};
+
 export type ToolAnnotations = {
     destructiveHint?: boolean;
     idempotentHint?: boolean;
@@ -1430,6 +1820,29 @@ export type ToolResponse = {
     toolResult: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * Per-tool usage statistics
+ */
+export type ToolUsageStat = {
+    call_count: number;
+    error_count: number;
+    extension: string;
+    success_rate: number;
+    tool_name: string;
+};
+
+export type TopicAgentDistribution = {
+    agent: string;
+    count: number;
+};
+
+export type TopicAnalytics = {
+    accuracy: number;
+    agentDistribution: Array<TopicAgentDistribution>;
+    caseCount: number;
+    topic: string;
 };
 
 export type TranscribeRequest = {
@@ -1542,6 +1955,14 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * Version info for correlation tracking
+ */
+export type VersionInfo = {
+    active_extensions: Array<string>;
+    goose_version: string;
 };
 
 export type WhisperModelResponse = {
@@ -2076,6 +2497,204 @@ export type UpdateWorkingDirErrors = {
 export type UpdateWorkingDirResponses = {
     /**
      * Working directory updated and agent restarted successfully
+     */
+    200: unknown;
+};
+
+export type CompareRunsData = {
+    body?: never;
+    path?: never;
+    query: {
+        baseline: string;
+        candidate: string;
+    };
+    url: '/analytics/compare';
+};
+
+export type CompareRunsResponses = {
+    /**
+     * Compare two runs
+     */
+    200: unknown;
+};
+
+export type ListDatasetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/analytics/datasets';
+};
+
+export type ListDatasetsResponses = {
+    /**
+     * List eval datasets
+     */
+    200: unknown;
+};
+
+export type CreateDatasetData = {
+    body: CreateDatasetRequest;
+    path?: never;
+    query?: never;
+    url: '/analytics/datasets';
+};
+
+export type CreateDatasetResponses = {
+    /**
+     * Create dataset
+     */
+    200: unknown;
+};
+
+export type DeleteDatasetData = {
+    body?: never;
+    path: {
+        /**
+         * Dataset ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/datasets/{id}';
+};
+
+export type DeleteDatasetResponses = {
+    /**
+     * Dataset deleted
+     */
+    204: void;
+};
+
+export type DeleteDatasetResponse = DeleteDatasetResponses[keyof DeleteDatasetResponses];
+
+export type GetDatasetData = {
+    body?: never;
+    path: {
+        /**
+         * Dataset ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/datasets/{id}';
+};
+
+export type GetDatasetResponses = {
+    /**
+     * Get dataset
+     */
+    200: unknown;
+};
+
+export type UpdateDatasetData = {
+    body: CreateDatasetRequest;
+    path: {
+        /**
+         * Dataset ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/datasets/{id}';
+};
+
+export type UpdateDatasetResponses = {
+    /**
+     * Update dataset
+     */
+    200: unknown;
+};
+
+export type GetOverviewData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/analytics/overview';
+};
+
+export type GetOverviewResponses = {
+    /**
+     * Eval overview
+     */
+    200: unknown;
+};
+
+export type ListRunsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        dataset_id?: string | null;
+        limit?: number;
+    };
+    url: '/analytics/runs';
+};
+
+export type ListRunsResponses = {
+    /**
+     * List eval runs
+     */
+    200: unknown;
+};
+
+export type StoreRunData = {
+    body: StoreRunRequest;
+    path?: never;
+    query?: never;
+    url: '/analytics/runs';
+};
+
+export type StoreRunResponses = {
+    /**
+     * Store eval run results
+     */
+    200: unknown;
+};
+
+export type GetRunData = {
+    body?: never;
+    path: {
+        /**
+         * Run ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/analytics/runs/{id}';
+};
+
+export type GetRunResponses = {
+    /**
+     * Get run detail
+     */
+    200: unknown;
+};
+
+export type GetToolAnalyticsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        days?: number;
+    };
+    url: '/analytics/tools';
+};
+
+export type GetToolAnalyticsResponses = {
+    /**
+     * Tool usage analytics
+     */
+    200: unknown;
+};
+
+export type GetTopicsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/analytics/topics';
+};
+
+export type GetTopicsResponses = {
+    /**
+     * Topic analytics
      */
     200: unknown;
 };

@@ -1,5 +1,6 @@
 pub mod action_required;
 pub mod agent;
+pub mod analytics;
 pub mod config_management;
 pub mod dictation;
 pub mod errors;
@@ -44,5 +45,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(gateway::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
-        .merge(sampling::routes(state))
+        .merge(sampling::routes(state.clone()))
+        .merge(analytics::routes(state))
 }

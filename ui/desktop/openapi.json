@@ -698,6 +698,277 @@
         }
       }
     },
+    "/analytics/compare": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "compare_runs",
+        "parameters": [
+          {
+            "name": "baseline",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "candidate",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Compare two runs"
+          }
+        }
+      }
+    },
+    "/analytics/datasets": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "list_datasets",
+        "responses": {
+          "200": {
+            "description": "List eval datasets"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "create_dataset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDatasetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Create dataset"
+          }
+        }
+      }
+    },
+    "/analytics/datasets/{id}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "get_dataset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dataset ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get dataset"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "update_dataset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dataset ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDatasetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Update dataset"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "delete_dataset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Dataset ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Dataset deleted"
+          }
+        }
+      }
+    },
+    "/analytics/overview": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "get_overview",
+        "responses": {
+          "200": {
+            "description": "Eval overview"
+          }
+        }
+      }
+    },
+    "/analytics/runs": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "list_runs",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List eval runs"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "store_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Store eval run results"
+          }
+        }
+      }
+    },
+    "/analytics/runs/{id}": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Run ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Get run detail"
+          }
+        }
+      }
+    },
+    "/analytics/tools": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "get_tool_analytics",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tool usage analytics"
+          }
+        }
+      }
+    },
+    "/analytics/topics": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "operationId": "get_topics",
+        "responses": {
+          "200": {
+            "description": "Topic analytics"
+          }
+        }
+      }
+    },
     "/config": {
       "get": {
         "tags": [
@@ -3699,6 +3970,41 @@
   },
   "components": {
     "schemas": {
+      "AccuracyTrendPoint": {
+        "type": "object",
+        "required": [
+          "runId",
+          "date",
+          "versionTag",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
       "ActionRequired": {
         "type": "object",
         "required": [
@@ -3791,6 +4097,22 @@
           "propertyName": "actionType"
         }
       },
+      "ActiveExtensionStat": {
+        "type": "object",
+        "required": [
+          "extension",
+          "session_count"
+        ],
+        "properties": {
+          "extension": {
+            "type": "string"
+          },
+          "session_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "AddExtensionRequest": {
         "type": "object",
         "required": [
@@ -3803,6 +4125,109 @@
           },
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "AgentDelta": {
+        "type": "object",
+        "required": [
+          "agent",
+          "baselineAccuracy",
+          "candidateAccuracy",
+          "delta",
+          "baselineCases",
+          "candidateCases"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "baselineAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "baselineCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "candidateAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "candidateCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "delta": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "AgentPerformanceMetrics": {
+        "type": "object",
+        "description": "Agent performance metrics extracted from session data",
+        "required": [
+          "sessions_by_provider",
+          "avg_messages_per_session",
+          "avg_tools_per_session",
+          "avg_tokens_per_session",
+          "session_duration_stats",
+          "active_extensions"
+        ],
+        "properties": {
+          "active_extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActiveExtensionStat"
+            }
+          },
+          "avg_messages_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tools_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "session_duration_stats": {
+            "$ref": "#/components/schemas/DurationStats"
+          },
+          "sessions_by_provider": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSessionStat"
+            }
+          }
+        }
+      },
+      "AgentResult": {
+        "type": "object",
+        "required": [
+          "agent",
+          "pass",
+          "fail",
+          "accuracy"
+        ],
+        "properties": {
+          "accuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agent": {
+            "type": "string"
+          },
+          "fail": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "pass": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -4026,6 +4451,31 @@
           }
         }
       },
+      "ConfusionMatrix": {
+        "type": "object",
+        "required": [
+          "labels",
+          "matrix"
+        ],
+        "properties": {
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "matrix": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              }
+            }
+          }
+        }
+      },
       "Content": {
         "oneOf": [
           {
@@ -4069,6 +4519,56 @@
         "type": "array",
         "items": {
           "$ref": "#/components/schemas/Message"
+        }
+      },
+      "CorrelationInsight": {
+        "type": "object",
+        "required": [
+          "versionChanged",
+          "gooseVersionDelta",
+          "versionTagDelta",
+          "summary"
+        ],
+        "properties": {
+          "gooseVersionDelta": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "versionChanged": {
+            "type": "boolean"
+          },
+          "versionTagDelta": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateDatasetRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "cases"
+        ],
+        "properties": {
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateTestCaseRequest"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       },
       "CreateRecipeRequest": {
@@ -4126,6 +4626,31 @@
           }
         }
       },
+      "CreateTestCaseRequest": {
+        "type": "object",
+        "required": [
+          "input",
+          "expectedAgent",
+          "expectedMode"
+        ],
+        "properties": {
+          "expectedAgent": {
+            "type": "string"
+          },
+          "expectedMode": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "CspMetadata": {
         "type": "object",
         "description": "Content Security Policy metadata for MCP Apps\nSpecifies allowed domains for network connections and resource loading",
@@ -4161,6 +4686,69 @@
             },
             "description": "Domains allowed for resource loading (scripts, styles, images, fonts, media)",
             "nullable": true
+          }
+        }
+      },
+      "DailyQuality": {
+        "type": "object",
+        "required": [
+          "date",
+          "sessions",
+          "avg_duration_secs",
+          "avg_messages",
+          "retry_rate",
+          "error_rate"
+        ],
+        "properties": {
+          "avg_duration_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_messages": {
+            "type": "number",
+            "format": "double"
+          },
+          "date": {
+            "type": "string"
+          },
+          "error_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "retry_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "DailyToolActivity": {
+        "type": "object",
+        "description": "Daily tool activity",
+        "required": [
+          "date",
+          "tool_calls",
+          "tool_errors",
+          "unique_tools"
+        ],
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tool_errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unique_tools": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -4413,6 +5001,28 @@
           "cancelled"
         ]
       },
+      "DurationStats": {
+        "type": "object",
+        "required": [
+          "avg_seconds",
+          "median_seconds",
+          "p90_seconds"
+        ],
+        "properties": {
+          "avg_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "median_seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "p90_seconds": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "EmbeddedResource": {
         "type": "object",
         "required": [
@@ -4475,6 +5085,407 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "EvalCaseResult": {
+        "type": "object",
+        "description": "Eval case result for API requests",
+        "required": [
+          "input",
+          "expectedAgent",
+          "actualAgent",
+          "correctAgent"
+        ],
+        "properties": {
+          "actualAgent": {
+            "type": "string"
+          },
+          "actualMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double"
+          },
+          "correctAgent": {
+            "type": "boolean"
+          },
+          "correctMode": {
+            "type": "boolean"
+          },
+          "expectedAgent": {
+            "type": "string"
+          },
+          "expectedMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "input": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "EvalDataset": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "cases",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "cases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvalTestCase"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvalDatasetSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "caseCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "caseCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lastRunAccuracy": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvalOverview": {
+        "type": "object",
+        "required": [
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "totalTestCases",
+          "totalRuns",
+          "lastRunStatus",
+          "accuracyDelta",
+          "agentAccuracyDelta",
+          "modeAccuracyDelta",
+          "accuracyTrend",
+          "perAgentAccuracy",
+          "regressions"
+        ],
+        "properties": {
+          "accuracyDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "accuracyTrend": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccuracyTrendPoint"
+            }
+          },
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agentAccuracyDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "lastRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunStatus": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "modeAccuracyDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "perAgentAccuracy": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentResult"
+            }
+          },
+          "regressions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegressionAlert"
+            }
+          },
+          "totalRuns": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalTestCases": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "EvalRunDetail": {
+        "type": "object",
+        "required": [
+          "id",
+          "datasetId",
+          "datasetName",
+          "versionTag",
+          "gooseVersion",
+          "startedAt",
+          "durationMs",
+          "totalCases",
+          "correct",
+          "agentCorrect",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "status",
+          "perAgent",
+          "failures",
+          "confusionMatrix"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agentCorrect": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "confusionMatrix": {
+            "$ref": "#/components/schemas/ConfusionMatrix"
+          },
+          "correct": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "datasetId": {
+            "type": "string"
+          },
+          "datasetName": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FailureDetail"
+            }
+          },
+          "gooseVersion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "perAgent": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentResult"
+            }
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
+      "EvalRunSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "datasetId",
+          "datasetName",
+          "versionTag",
+          "gooseVersion",
+          "startedAt",
+          "durationMs",
+          "totalCases",
+          "correct",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "status"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "correct": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "datasetId": {
+            "type": "string"
+          },
+          "datasetName": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "gooseVersion": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
+      "EvalTestCase": {
+        "type": "object",
+        "required": [
+          "id",
+          "input",
+          "expectedAgent",
+          "expectedMode",
+          "tags"
+        ],
+        "properties": {
+          "expectedAgent": {
+            "type": "string"
+          },
+          "expectedMode": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -4892,6 +5903,96 @@
           }
         }
       },
+      "ExtensionUsageStat": {
+        "type": "object",
+        "description": "Per-extension usage statistics",
+        "required": [
+          "extension",
+          "tool_count",
+          "total_calls",
+          "total_errors",
+          "success_rate"
+        ],
+        "properties": {
+          "extension": {
+            "type": "string"
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_errors": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "FailureDetail": {
+        "type": "object",
+        "required": [
+          "input",
+          "expectedAgent",
+          "expectedMode",
+          "actualAgent",
+          "actualMode",
+          "confidence",
+          "tags"
+        ],
+        "properties": {
+          "actualAgent": {
+            "type": "string"
+          },
+          "actualMode": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "float"
+          },
+          "expectedAgent": {
+            "type": "string"
+          },
+          "expectedMode": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "FixedCase": {
+        "type": "object",
+        "required": [
+          "input",
+          "agent",
+          "mode"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          }
+        }
+      },
       "ForkRequest": {
         "type": "object",
         "required": [
@@ -5077,6 +6178,27 @@
           }
         }
       },
+      "HotTool": {
+        "type": "object",
+        "required": [
+          "tool_name",
+          "calls_1h",
+          "errors_1h"
+        ],
+        "properties": {
+          "calls_1h": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errors_1h": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        }
+      },
       "Icon": {
         "type": "object",
         "required": [
@@ -5244,6 +6366,86 @@
             "items": {
               "$ref": "#/components/schemas/ScheduledJob"
             }
+          }
+        }
+      },
+      "LiveMetrics": {
+        "type": "object",
+        "description": "Live monitoring metrics — recent activity snapshot",
+        "required": [
+          "active_sessions_1h",
+          "active_sessions_24h",
+          "tool_calls_1h",
+          "tool_errors_1h",
+          "tool_calls_24h",
+          "tool_errors_24h",
+          "success_rate_1h",
+          "messages_1h",
+          "hot_tools",
+          "recent_errors",
+          "activity_timeline"
+        ],
+        "properties": {
+          "active_sessions_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Active sessions in the last hour"
+          },
+          "active_sessions_24h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Active sessions in the last 24 hours"
+          },
+          "activity_timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MinuteActivity"
+            },
+            "description": "Per-minute activity for the last 60 minutes"
+          },
+          "hot_tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotTool"
+            },
+            "description": "Most active tools in the last hour"
+          },
+          "messages_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Messages processed in the last hour"
+          },
+          "recent_errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecentError"
+            },
+            "description": "Recent errors (last 10)"
+          },
+          "success_rate_1h": {
+            "type": "number",
+            "format": "double",
+            "description": "Success rate in the last hour (0.0-1.0)"
+          },
+          "tool_calls_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool calls in the last hour"
+          },
+          "tool_calls_24h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool calls in the last 24 hours"
+          },
+          "tool_errors_1h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool errors in the last hour"
+          },
+          "tool_errors_24h": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Tool errors in the last 24 hours"
           }
         }
       },
@@ -5780,6 +6982,27 @@
           "userVisible": {
             "type": "boolean",
             "description": "Whether the message should be visible to the user in the UI"
+          }
+        }
+      },
+      "MinuteActivity": {
+        "type": "object",
+        "required": [
+          "minute",
+          "tool_calls",
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minute": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -6362,6 +7585,73 @@
           }
         }
       },
+      "ProviderQuality": {
+        "type": "object",
+        "required": [
+          "provider",
+          "sessions",
+          "avg_duration_secs",
+          "avg_messages",
+          "avg_tokens",
+          "retry_rate",
+          "error_rate"
+        ],
+        "properties": {
+          "avg_duration_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_messages": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "error_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "retry_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "sessions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "ProviderSessionStat": {
+        "type": "object",
+        "required": [
+          "provider",
+          "session_count",
+          "avg_tokens",
+          "avg_messages"
+        ],
+        "properties": {
+          "avg_messages": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "session_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ProviderTemplate": {
         "type": "object",
         "required": [
@@ -6583,6 +7873,25 @@
           }
         }
       },
+      "RecentError": {
+        "type": "object",
+        "required": [
+          "tool_name",
+          "session_id",
+          "timestamp"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        }
+      },
       "Recipe": {
         "type": "object",
         "required": [
@@ -6786,6 +8095,34 @@
           }
         }
       },
+      "RegressionAlert": {
+        "type": "object",
+        "required": [
+          "description",
+          "severity",
+          "runId",
+          "versionTag",
+          "delta"
+        ],
+        "properties": {
+          "delta": {
+            "type": "number",
+            "format": "double"
+          },
+          "description": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
       "RemoveExtensionRequest": {
         "type": "object",
         "required": [
@@ -6887,6 +8224,73 @@
         "properties": {
           "json_schema": {
             "nullable": true
+          }
+        }
+      },
+      "ResponseQualityMetrics": {
+        "type": "object",
+        "description": "Response quality proxy metrics derived from session/message patterns",
+        "required": [
+          "total_sessions",
+          "avg_session_duration_secs",
+          "avg_messages_per_session",
+          "avg_user_messages_per_session",
+          "retry_rate",
+          "avg_tool_errors_per_session",
+          "avg_tokens_per_session",
+          "completion_rate",
+          "sessions_with_errors",
+          "daily_quality",
+          "quality_by_provider"
+        ],
+        "properties": {
+          "avg_messages_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_session_duration_secs": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tokens_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_tool_errors_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "avg_user_messages_per_session": {
+            "type": "number",
+            "format": "double"
+          },
+          "completion_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "daily_quality": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyQuality"
+            }
+          },
+          "quality_by_provider": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderQuality"
+            }
+          },
+          "retry_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "sessions_with_errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_sessions": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -6999,6 +8403,132 @@
             "type": "string"
           }
         ]
+      },
+      "RunComparison": {
+        "type": "object",
+        "required": [
+          "baseline",
+          "candidate",
+          "overallDelta",
+          "agentDelta",
+          "modeDelta",
+          "newFailures",
+          "fixedCases",
+          "perAgentDelta",
+          "correlation"
+        ],
+        "properties": {
+          "agentDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/RunComparisonSide"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/RunComparisonSide"
+          },
+          "correlation": {
+            "$ref": "#/components/schemas/CorrelationInsight"
+          },
+          "fixedCases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FixedCase"
+            }
+          },
+          "modeDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "newFailures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FailureDetail"
+            }
+          },
+          "overallDelta": {
+            "type": "number",
+            "format": "double"
+          },
+          "perAgentDelta": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentDelta"
+            }
+          }
+        }
+      },
+      "RunComparisonSide": {
+        "type": "object",
+        "required": [
+          "runId",
+          "versionTag",
+          "gooseVersion",
+          "datasetName",
+          "startedAt",
+          "overallAccuracy",
+          "agentAccuracy",
+          "modeAccuracy",
+          "totalCases",
+          "correct"
+        ],
+        "properties": {
+          "agentAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "correct": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "datasetName": {
+            "type": "string"
+          },
+          "gooseVersion": {
+            "type": "string"
+          },
+          "modeAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "overallAccuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalCases": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
+      },
+      "RunEvalRequest": {
+        "type": "object",
+        "required": [
+          "datasetId"
+        ],
+        "properties": {
+          "datasetId": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "versionTag": {
+            "type": "string"
+          }
+        }
       },
       "RunNowResponse": {
         "type": "object",
@@ -7436,6 +8966,45 @@
           }
         }
       },
+      "SessionToolSummary": {
+        "type": "object",
+        "description": "Tool summary for a specific session",
+        "required": [
+          "session_id",
+          "session_name",
+          "tool_calls",
+          "tool_errors",
+          "unique_tools",
+          "most_used_tool",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "most_used_tool": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "session_name": {
+            "type": "string"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tool_errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "unique_tools": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "SessionType": {
         "type": "string",
         "enum": [
@@ -7602,6 +9171,28 @@
         "properties": {
           "session_id": {
             "type": "string"
+          }
+        }
+      },
+      "StoreRunRequest": {
+        "type": "object",
+        "required": [
+          "evalRequest",
+          "results"
+        ],
+        "properties": {
+          "durationMs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "evalRequest": {
+            "$ref": "#/components/schemas/RunEvalRequest"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvalCaseResult"
+            }
           }
         }
       },
@@ -7915,6 +9506,57 @@
           }
         }
       },
+      "ToolAnalytics": {
+        "type": "object",
+        "description": "Analytics for tool usage extracted from stored messages",
+        "required": [
+          "total_tool_calls",
+          "total_tool_errors",
+          "success_rate",
+          "tool_usage",
+          "daily_tool_activity",
+          "extension_usage",
+          "session_tool_summary"
+        ],
+        "properties": {
+          "daily_tool_activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DailyToolActivity"
+            }
+          },
+          "extension_usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionUsageStat"
+            }
+          },
+          "session_tool_summary": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionToolSummary"
+            }
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool_usage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolUsageStat"
+            }
+          },
+          "total_tool_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_tool_errors": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ToolAnnotations": {
         "type": "object",
         "properties": {
@@ -8055,6 +9697,81 @@
           },
           "toolResult": {
             "type": "object"
+          }
+        }
+      },
+      "ToolUsageStat": {
+        "type": "object",
+        "description": "Per-tool usage statistics",
+        "required": [
+          "tool_name",
+          "extension",
+          "call_count",
+          "error_count",
+          "success_rate"
+        ],
+        "properties": {
+          "call_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "error_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "success_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        }
+      },
+      "TopicAgentDistribution": {
+        "type": "object",
+        "required": [
+          "agent",
+          "count"
+        ],
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "TopicAnalytics": {
+        "type": "object",
+        "required": [
+          "topic",
+          "caseCount",
+          "accuracy",
+          "agentDistribution"
+        ],
+        "properties": {
+          "accuracy": {
+            "type": "number",
+            "format": "double"
+          },
+          "agentDistribution": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TopicAgentDistribution"
+            }
+          },
+          "caseCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "topic": {
+            "type": "string"
           }
         }
       },
@@ -8335,6 +10052,25 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "VersionInfo": {
+        "type": "object",
+        "description": "Version info for correlation tracking",
+        "required": [
+          "goose_version",
+          "active_extensions"
+        ],
+        "properties": {
+          "active_extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "goose_version": {
+            "type": "string"
           }
         }
       },

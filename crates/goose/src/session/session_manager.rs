@@ -510,7 +510,7 @@ impl SessionStorage {
         }
     }
 
-    async fn pool(&self) -> Result<&Pool<Sqlite>> {
+    pub async fn pool(&self) -> Result<&Pool<Sqlite>> {
         self.initialized
             .get_or_try_init(|| async {
                 let schema_exists = sqlx::query_scalar::<_, bool>(
