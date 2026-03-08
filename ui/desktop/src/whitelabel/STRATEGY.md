@@ -22,7 +22,7 @@ The whitelabel system is more complete than a first glance suggests. Here's the 
 | **Provider registration** | `initProvider.ts` registers custom `providerDefinition` with goosed on startup |
 | **Provider/model defaults** | `initProvider.ts` sets `GOOSE_PROVIDER` / `GOOSE_MODEL` via config API |
 | **Extension defaults** | `initProvider.ts` reconciles extensions — adds missing, sets enabled state, disables extras |
-| **System prompt** | `sessions.ts` builds a whitelabel `Recipe` injected into every new session |
+| **System prompt** | `sessions.ts` builds a whitelabel `Recipe` injected into every new session — **but this is wrong, see below** |
 | **Skills** | `sessions.ts` appends skill instructions to the recipe system prompt |
 | **Tools** | `sessions.ts` appends tool instructions to the recipe system prompt |
 | **Process management** | `processManager.ts` full lifecycle — spawn, stdout/stderr logging, restart-on-crash, port wait, `envFromUrl` for credential injection |
@@ -31,18 +31,15 @@ That's a substantial amount of working infrastructure. Provider setup, extension
 
 ### Defined but not wired
 
-| Gap | What exists | What's missing |
-|---|---|---|
-| **Logo** | `branding.logo`, `logoSmall`, `trayIcon` fields in config | Every logo renders hardcoded `<Goose />` SVG (~8 component sites). No asset loading. `main.ts` icon is `path.join(__dirname, '../images/icon.icns')`. |
-| **Tagline** | `branding.tagline` field | Only used as fallback in `sessions.ts`. Not displayed in any UI. |
-| **Starter prompts** | `branding.starterPrompts` type + field | Zero consumers. `PopularChatTopics.tsx` has its own hardcoded `POPULAR_TOPICS` array. |
-| **General provider restriction** | `features.allowedProviders` + `isProviderAllowed()` in context | Zero consumers outside context. The provider picker doesn't filter. (Dictation one *does* work.) |
-| **Extension envVars** | `envVars` field on `WhiteLabelExtensionDefault` | `initProvider.ts` doesn't use it when building extension configs. |
-| **Default goosehints** | `defaults.goosehints` field | Nothing reads it or writes a `.goosehints` file. |
-| **Default workingDir** | `defaults.workingDir` field | `goosed.ts` defaults to `os.homedir()`. Config field is ignored. |
-| **Window alwaysOnTop** | `window.alwaysOnTop` field | `main.ts` doesn't pass it to `BrowserWindow`. |
-
-These are all small — each is a single-site wiring fix.
+| Gap | What exists | What's missing | Status |
+|---|---|---|---|
+| **Logo** | `branding.logo`, `logoSmall`, `trayIcon` fields in config | Every logo renders hardcoded `<Goose />` SVG (~8 component sites). No asset loading. `main.ts` icon is hardcoded. | TODO |
+| **Tagline** | `branding.tagline` field | — | ✅ Fixed |
+| **Starter prompts** | `branding.starterPrompts` type + field | — | ✅ Fixed |
+| **General provider restriction** | `features.allowedProviders` + `isProviderAllowed()` | — | ✅ Fixed |
+| **Extension envVars** | `envVars` on `WhiteLabelExtensionDefault` | — | ✅ Fixed |
+| **Default workingDir** | `defaults.workingDir` field | — | ✅ Fixed |
+| **Window alwaysOnTop** | `window.alwaysOnTop` field | — | ✅ Fixed |
 
 ### Completely absent
 
@@ -56,19 +53,104 @@ These are all small — each is a single-site wiring fix.
 
 ---
 
+## System Prompt: The Recipe Hack Needs to Go
+
+The whitelabel system prompt is currently funneled through a fake `Recipe` object
+(`sessions.ts` → `buildWhiteLabelRecipe()`). This is wrong for several reasons:
+
+1. **It doesn't override identity.** The server applies recipe instructions via
+   `agent.extend_system_prompt("recipe", ...)` which *appends* to the base prompt.
+   The agent still sees "You are a general-purpose AI agent called goose" from
+   `system.md`, then extension instructions like "Use the developer extension to
+   build software", and only *then* the whitelabel prompt saying "you are Managerbot."
+   The identity fights itself.
+
+2. **Extension instructions can't be reframed.** A whitelabel build might enable
+   the developer extension for its tools (shell, edit, write, tree) but not want the
+   agent to think it's a developer. Extension instructions are baked into the
+   extension's `InitializeResult.with_instructions()` and rendered by `system.md`
+   before any recipe extras. There's no way to override them.
+
+3. **It's a recipe when it isn't one.** Recipes are user-created reusable task
+   templates. The whitelabel system prompt is the base identity of the app. Conflating
+   them means the whitelabel prompt competes with actual user recipes.
+
+### What to do
+
+The agent already supports `override_system_prompt()` which **replaces** `system.md`
+entirely. The override is a Tera template with access to the same context — `extensions`,
+`current_date_time`, etc. The CLI uses this via `GOOSE_SYSTEM_PROMPT_FILE_PATH`.
+
+**Server change (Rust):**
+- Add `system_prompt: Option<String>` to `StartAgentRequest`
+- When set, call `agent.override_system_prompt(system_prompt)` instead of (or before)
+  recipe handling
+- This replaces "You are goose" with the whitelabel identity while still rendering
+  extension tool info through the template context
+
+**UI change:**
+- `sessions.ts` sends `system_prompt` directly in the `startAgent` request body
+  instead of wrapping it in a fake recipe
+- Remove `buildWhiteLabelRecipe()` — the system prompt, skills, and tools go as
+  `system_prompt` not `recipe.instructions`
+- Actual user recipes still work through the existing `recipe` / `recipe_id` fields
+
+**Extension instruction control:**
+With a system prompt override template, the whitelabel config controls *how* extension
+instructions render. The default `system.md` template does:
+```
+{% for extension in extensions %}
+## {{extension.name}}
+{{extension.instructions}}
+{% endfor %}
+```
+A whitelabel override template could:
+- Render extension instructions differently (reframe, filter, omit)
+- Replace the identity paragraph entirely
+- Still include `{% for extension in extensions %}` to get tool usage info without
+  the "you are a developer" framing
+
+For example, Managerbot's system prompt template could be:
+```
+You are Managerbot — an AI COO for Square merchants.
+
+# Available Tools
+{% for extension in extensions %}
+## {{extension.name}}
+{% if extension.instructions %}{{extension.instructions}}{% endif %}
+{% endfor %}
+```
+
+This gives the extension tools but under Managerbot's identity, not "goose the developer."
+
+---
+
 ## The Work
 
-### 1. Connect the disconnected wires
+### 0. Fix system prompt delivery (server + UI)
 
-Each of these is a few lines in one file.
+**Server (`crates/goose-server/src/routes/agent.rs`):**
+- Add `system_prompt: Option<String>` to `StartAgentRequest`
+- In `start_agent`, if `system_prompt` is set, call `agent.override_system_prompt()`
+- Generate openapi after
 
-- **Starter prompts**: `PopularChatTopics.tsx` — read `branding.starterPrompts` from `useWhiteLabel()`, fall back to current hardcoded list.
-- **Provider filtering**: find the provider picker component, add `isProviderAllowed()` filter.
-- **Extension envVars**: `initProvider.ts` — when building SSE/stdio configs, include `envVars` from the whitelabel default.
-- **goosehints**: `initProvider.ts` or session creation — if `defaults.goosehints` is set and no `.goosehints` file exists in working dir, write it.
-- **workingDir**: `goosed.ts` — if `defaults.workingDir` is set, use it instead of `os.homedir()`.
-- **alwaysOnTop**: `main.ts` — pass `whiteLabelConfig.window.alwaysOnTop` to `BrowserWindow`.
-- **Tagline**: decide where it should show (home screen? loading screen?) and put it there.
+**UI (`ui/desktop/src/sessions.ts`):**
+- Send `defaults.systemPrompt` as `system_prompt` in the `startAgent` body
+- Skills and tools instructions become part of the system prompt template string
+  (same content, just sent as `system_prompt` not `recipe.instructions`)
+- Remove `buildWhiteLabelRecipe()`
+
+### 1. Connect the disconnected wires ✅ DONE
+
+All fixed in this branch:
+
+- ✅ **Starter prompts**: `PopularChatTopics.tsx` reads `branding.starterPrompts` from context
+- ✅ **Provider filtering**: `ProviderGrid.tsx` filters via `isProviderAllowed()`
+- ✅ **Extension envVars**: `initProvider.ts` passes `envVars` as `envs` on stdio configs
+- ✅ **SSE extensions**: `initProvider.ts` handles `type: 'sse'` with `uri`
+- ✅ **workingDir**: goosed startup uses `defaults.workingDir` as fallback
+- ✅ **alwaysOnTop**: `BrowserWindow` reads `window.alwaysOnTop` from config
+- ✅ **Tagline**: `Greeting.tsx` renders `branding.tagline` as subtitle
 
 ### 2. Home screen composition
 
