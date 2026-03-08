@@ -2,9 +2,9 @@ mod common_tests;
 use common_tests::fixtures::run_test;
 use common_tests::fixtures::server::ClientToAgentConnection;
 use common_tests::{
-    run_config_mcp, run_initialize_without_provider, run_load_model, run_model_list, run_model_set,
-    run_permission_persistence, run_prompt_basic, run_prompt_codemode, run_prompt_image,
-    run_prompt_mcp,
+    run_config_mcp, run_initialize_doesnt_hit_provider, run_load_model, run_model_list,
+    run_model_set, run_permission_persistence, run_prompt_basic, run_prompt_codemode,
+    run_prompt_image, run_prompt_mcp,
 };
 
 #[test]
@@ -13,8 +13,8 @@ fn test_config_mcp() {
 }
 
 #[test]
-fn test_initialize_without_provider() {
-    run_test(async { run_initialize_without_provider().await });
+fn test_initialize_doesnt_hit_provider() {
+    run_test(async { run_initialize_doesnt_hit_provider::<ClientToAgentConnection>().await });
 }
 
 #[test]

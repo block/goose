@@ -5,7 +5,7 @@ use super::{
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    ContentBlock, InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest,
+    AuthMethod, ContentBlock, InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest,
     PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionModelState,
     SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallStatus,
 };
@@ -22,6 +22,7 @@ pub struct ClientToAgentConnection {
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
     permission_manager: Arc<PermissionManager>,
+    auth_methods: Vec<AuthMethod>,
     _openai: super::OpenAiFixture,
     _temp_dir: Option<tempfile::TempDir>,
 }
@@ -67,7 +68,7 @@ impl Connection for ClientToAgentConnection {
         let notify = Arc::new(Notify::new());
         let permission = Arc::new(Mutex::new(PermissionDecision::Cancel));
 
-        let cx = {
+        let (cx, auth_methods) = {
             let updates_clone = updates.clone();
             let notify_clone = notify.clone();
             let permission_clone = permission.clone();
@@ -75,6 +76,8 @@ impl Connection for ClientToAgentConnection {
             let cx_holder: Arc<Mutex<Option<JrConnectionCx<ClientToAgent>>>> =
                 Arc::new(Mutex::new(None));
             let cx_holder_clone = cx_holder.clone();
+            let auth_holder: Arc<Mutex<Vec<AuthMethod>>> = Arc::new(Mutex::new(Vec::new()));
+            let auth_holder_clone = auth_holder.clone();
 
             let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
 
@@ -112,12 +115,15 @@ impl Connection for ClientToAgentConnection {
                     .unwrap()
                     .run_until({
                         let cx_holder = cx_holder_clone;
+                        let auth_holder = auth_holder_clone;
                         move |cx: JrConnectionCx<ClientToAgent>| async move {
-                            cx.send_request(InitializeRequest::new(ProtocolVersion::LATEST))
+                            let resp = cx
+                                .send_request(InitializeRequest::new(ProtocolVersion::LATEST))
                                 .block_task()
                                 .await
                                 .unwrap();
 
+                            *auth_holder.lock().unwrap() = resp.auth_methods;
                             *cx_holder.lock().unwrap() = Some(cx.clone());
                             let _ = ready_tx.send(());
 
@@ -133,7 +139,8 @@ impl Connection for ClientToAgentConnection {
 
             ready_rx.await.unwrap();
             let cx = cx_holder.lock().unwrap().take().unwrap();
-            cx
+            let auth = std::mem::take(&mut *auth_holder.lock().unwrap());
+            (cx, auth)
         };
 
         Self {
@@ -143,6 +150,7 @@ impl Connection for ClientToAgentConnection {
             permission,
             notify,
             permission_manager,
+            auth_methods,
             _openai: openai,
             _temp_dir: temp_dir,
         }
@@ -188,6 +196,10 @@ impl Connection for ClientToAgentConnection {
             notify: self.notify.clone(),
         };
         (session, response.models)
+    }
+
+    fn auth_methods(&self) -> &[AuthMethod] {
+        &self.auth_methods
     }
 
     fn reset_openai(&self) {
