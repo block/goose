@@ -9,7 +9,6 @@ on:
 jobs:
   update-leaderboard:
     runs-on: ubuntu-latest
-    if: github.repository == 'block/goose'
     permissions:
       contents: read
       pull-requests: read
