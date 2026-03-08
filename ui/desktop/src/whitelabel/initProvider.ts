@@ -9,8 +9,6 @@
  * Idempotent — safe to call on every launch.
  */
 
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import type { Client } from '../api/client';
 import {
   getCustomProvider,
@@ -31,8 +29,7 @@ function extractConfig(entry: ExtensionEntry): ExtensionConfig {
 
 export async function initWhiteLabelProvider(
   client: Client,
-  config: WhiteLabelConfig,
-  workingDir?: string
+  config: WhiteLabelConfig
 ): Promise<void> {
   const { defaults } = config;
 
@@ -54,19 +51,6 @@ export async function initWhiteLabelProvider(
   // 4. Configure extensions
   if (defaults.extensions && defaults.extensions.length > 0) {
     await configureExtensions(client, defaults.extensions);
-  }
-
-  // 5. Write .goosehints if configured and not already present
-  if (defaults.goosehints && workingDir) {
-    const hintsPath = path.join(workingDir, '.goosehints');
-    if (!fs.existsSync(hintsPath)) {
-      try {
-        fs.writeFileSync(hintsPath, defaults.goosehints, 'utf-8');
-        log.info(`[whitelabel] Wrote .goosehints to ${hintsPath}`);
-      } catch (err) {
-        log.warn(`[whitelabel] Failed to write .goosehints:`, err);
-      }
-    }
   }
 }
 

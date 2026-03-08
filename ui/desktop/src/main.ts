@@ -694,7 +694,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   // Auto-configure provider/model/extensions from whitelabel config
   try {
-    await initWhiteLabelProvider(goosedClient, whiteLabelConfig, workingDir);
+    await initWhiteLabelProvider(goosedClient, whiteLabelConfig);
   } catch (err) {
     log.warn('[whitelabel] Init failed:', err);
   }
