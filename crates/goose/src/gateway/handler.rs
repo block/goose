@@ -269,12 +269,9 @@ impl GatewayHandler {
             let _ = self.agent_manager.remove_session(session_id).await;
         }
 
-        let mode = crate::config::Config::global()
-            .get_goose_mode()
-            .unwrap_or(crate::config::GooseMode::Auto);
         let agent = self
             .agent_manager
-            .get_or_create_agent(session_id.to_string(), mode)
+            .get_or_create_agent(session_id.to_string())
             .await?;
 
         // Re-read the session after sync so restore picks up the new values.

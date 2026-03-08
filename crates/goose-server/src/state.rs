@@ -1,6 +1,5 @@
 use axum::http::StatusCode;
 use goose::builtin_extension::register_builtin_extensions;
-use goose::config::{Config, GooseMode};
 use goose::execution::manager::AgentManager;
 use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
@@ -109,10 +108,7 @@ impl AppState {
     }
 
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {
-        let mode = Config::global().get_goose_mode().unwrap_or(GooseMode::Auto);
-        self.agent_manager
-            .get_or_create_agent(session_id, mode)
-            .await
+        self.agent_manager.get_or_create_agent(session_id).await
     }
 
     pub async fn get_agent_for_route(
