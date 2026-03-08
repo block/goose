@@ -55,6 +55,7 @@ dirs = { workspace = true }
 rcgen = "0.13"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
 aws-lc-rs = "1.16.0"
+a2a = { version = "1.27.2", path = "../a2a", features = ["server", "axum"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.55.0" }
