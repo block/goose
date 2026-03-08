@@ -430,6 +430,7 @@ mod tests {
                 fast_model_config: None,
                 request_params: None,
                 reasoning: None,
+                reasoning_effort: None,
             },
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),

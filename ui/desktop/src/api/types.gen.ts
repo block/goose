@@ -690,6 +690,7 @@ export type ModelConfig = {
     max_tokens?: number | null;
     model_name: string;
     reasoning?: boolean | null;
+    reasoning_effort?: ReasoningEffort | null;
     /**
      * Provider-specific request parameters (e.g., anthropic_beta headers)
      */
@@ -971,6 +972,19 @@ export type ReasoningContent = {
     text: string;
 };
 
+/**
+ * Controls how much reasoning effort the model applies.
+ *
+ * Maps to provider-specific parameters:
+ * - OpenAI: `reasoning_effort` param ("low"/"medium"/"high")
+ * - Anthropic: maps to `ThinkingEffort` (Low/Medium/High)
+ */
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
+export type ReasoningEffortResponse = {
+    level?: string | null;
+};
+
 export type Recipe = {
     activities?: Array<string> | null;
     author?: Author | null;
@@ -1227,6 +1241,10 @@ export type SessionsQuery = {
 export type SetProviderRequest = {
     model: string;
     provider: string;
+};
+
+export type SetReasoningEffortRequest = {
+    level?: string | null;
 };
 
 export type SetSlashCommandRequest = {
@@ -2670,6 +2688,32 @@ export type ReadConfigResponses = {
      */
     200: unknown;
 };
+
+export type GetReasoningEffortData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/reasoning-effort';
+};
+
+export type GetReasoningEffortResponses = {
+    200: ReasoningEffortResponse;
+};
+
+export type GetReasoningEffortResponse = GetReasoningEffortResponses[keyof GetReasoningEffortResponses];
+
+export type SetReasoningEffortData = {
+    body: SetReasoningEffortRequest;
+    path?: never;
+    query?: never;
+    url: '/config/reasoning-effort';
+};
+
+export type SetReasoningEffortResponses = {
+    200: ReasoningEffortResponse;
+};
+
+export type SetReasoningEffortResponse = SetReasoningEffortResponses[keyof SetReasoningEffortResponses];
 
 export type RecoverConfigData = {
     body?: never;

@@ -565,6 +565,7 @@ mod tests {
                     fast_model_config: None,
                     request_params: None,
                     reasoning: None,
+                    reasoning_effort: None,
                 },
                 max_tool_responses: None,
             }

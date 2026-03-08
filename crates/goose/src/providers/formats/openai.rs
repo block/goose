@@ -762,22 +762,37 @@ pub fn create_request(
 
     let is_reasoning_model = model_config.is_openai_reasoning_model();
 
+    // Determine reasoning effort with priority: ModelConfig.reasoning_effort > model name suffix > live env var > default
+    let live_effort = crate::model::parse_reasoning_effort();
+
     let (model_name, reasoning_effort) = if is_reasoning_model {
         let parts: Vec<&str> = model_config.model_name.split('-').collect();
         let last_part = parts.last().unwrap();
 
-        match *last_part {
+        let (base_name, suffix_effort) = match *last_part {
             "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
+                let base = parts[..parts.len() - 1].join("-");
+                (base, Some(last_part.to_string()))
             }
-            _ => (
-                model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
-        }
+            _ => (model_config.model_name.to_string(), None),
+        };
+
+        // Priority: ModelConfig field > model name suffix > live env var > default "medium"
+        let effective_effort = model_config
+            .reasoning_effort
+            .map(|e| e.as_openai_str().to_string())
+            .or(suffix_effort)
+            .or_else(|| live_effort.map(|e| e.as_openai_str().to_string()))
+            .unwrap_or_else(|| "medium".to_string());
+
+        (base_name, Some(effective_effort))
     } else {
-        (model_config.model_name.to_string(), None)
+        // For non-reasoning models, apply effort only if explicitly set
+        let effort = model_config
+            .reasoning_effort
+            .map(|e| e.as_openai_str().to_string())
+            .or_else(|| live_effort.map(|e| e.as_openai_str().to_string()));
+        (model_config.model_name.to_string(), effort)
     };
 
     let system_message = json!({
@@ -1441,6 +1456,7 @@ mod tests {
             fast_model_config: None,
             request_params: None,
             reasoning: None,
+            reasoning_effort: None,
         };
         let request = create_request(
             &model_config,
@@ -1482,6 +1498,7 @@ mod tests {
             fast_model_config: None,
             request_params: None,
             reasoning: None,
+            reasoning_effort: None,
         };
         let request = create_request(
             &model_config,
@@ -1513,6 +1530,8 @@ mod tests {
 
     #[test]
     fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
+        // Ensure no env var interference from parallel tests
+        std::env::remove_var("GOOSE_REASONING_EFFORT");
         // Test custom reasoning effort for O3 model
         let model_config = ModelConfig {
             model_name: "o3-mini-high".to_string(),
@@ -1524,6 +1543,7 @@ mod tests {
             fast_model_config: None,
             request_params: None,
             reasoning: None,
+            reasoning_effort: None,
         };
         let request = create_request(
             &model_config,

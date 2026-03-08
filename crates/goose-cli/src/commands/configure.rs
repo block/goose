@@ -1271,6 +1271,11 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
             "Configure how secrets are stored (keyring vs file)",
         )
         .item(
+            "reasoning_effort",
+            "Reasoning Effort",
+            "Control how deeply the model reasons (Low/Medium/High)",
+        )
+        .item(
             "experiment",
             "Toggle Experiment",
             "Enable or disable an experiment feature",
@@ -1304,6 +1309,9 @@ pub async fn configure_settings_dialog() -> anyhow::Result<()> {
         }
         "keyring" => {
             configure_keyring_dialog()?;
+        }
+        "reasoning_effort" => {
+            configure_reasoning_effort_dialog()?;
         }
         "experiment" => {
             toggle_experiments_dialog()?;
@@ -1474,6 +1482,41 @@ pub fn configure_keyring_dialog() -> anyhow::Result<()> {
         }
         _ => unreachable!(),
     };
+
+    Ok(())
+}
+
+pub fn configure_reasoning_effort_dialog() -> anyhow::Result<()> {
+    let config = Config::global();
+
+    if std::env::var("GOOSE_REASONING_EFFORT").is_ok() {
+        let _ = cliclack::log::info(
+            "Notice: GOOSE_REASONING_EFFORT environment variable is set and will override the configuration here.",
+        );
+    }
+
+    let current_effort: Option<String> = config.get_param("GOOSE_REASONING_EFFORT").ok();
+    let current_label = current_effort
+        .as_deref()
+        .unwrap_or("Not set (provider default)");
+    let _ = cliclack::log::info(format!("Current reasoning effort: {}", current_label));
+
+    let effort: &str = cliclack::select("Select default reasoning effort:")
+        .item("low", "Low", "Faster responses, lighter reasoning")
+        .item("medium", "Medium", "Balanced speed and reasoning depth")
+        .item("high", "High", "Deep reasoning, slower responses")
+        .initial_value(current_effort.as_deref().unwrap_or("medium"))
+        .interact()?;
+
+    config.set_param("GOOSE_REASONING_EFFORT", effort)?;
+
+    let description = match effort {
+        "low" => "Low - faster responses, lighter reasoning",
+        "medium" => "Medium - balanced speed and depth",
+        "high" => "High - deep reasoning, slower responses",
+        _ => effort,
+    };
+    cliclack::outro(format!("Reasoning effort set to: {}", description))?;
 
     Ok(())
 }

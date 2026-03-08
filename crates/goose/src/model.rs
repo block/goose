@@ -34,6 +34,55 @@ fn find_predefined_model(model_name: &str) -> Option<PredefinedModel> {
         .find(|m| m.name == model_name)
 }
 
+/// Controls how much reasoning effort the model applies.
+///
+/// Maps to provider-specific parameters:
+/// - OpenAI: `reasoning_effort` param ("low"/"medium"/"high")
+/// - Anthropic: maps to `ThinkingEffort` (Low/Medium/High)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ReasoningEffort {
+    Low,
+    Medium,
+    High,
+}
+
+impl ReasoningEffort {
+    pub fn as_openai_str(&self) -> &str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+        }
+    }
+
+    pub fn as_anthropic_budget_tokens(&self) -> i64 {
+        match self {
+            Self::Low => 4_000,
+            Self::Medium => 16_000,
+            Self::High => 32_000,
+        }
+    }
+}
+
+impl std::fmt::Display for ReasoningEffort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_openai_str())
+    }
+}
+
+/// Parse reasoning effort from the `GOOSE_REASONING_EFFORT` environment variable.
+pub fn parse_reasoning_effort() -> Option<ReasoningEffort> {
+    std::env::var("GOOSE_REASONING_EFFORT")
+        .ok()
+        .and_then(|v| match v.to_lowercase().as_str() {
+            "low" => Some(ReasoningEffort::Low),
+            "medium" | "med" => Some(ReasoningEffort::Medium),
+            "high" => Some(ReasoningEffort::High),
+            _ => None,
+        })
+}
+
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Environment variable '{0}' not found")]
@@ -59,6 +108,10 @@ pub struct ModelConfig {
     pub request_params: Option<HashMap<String, Value>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<bool>,
+    /// Granular reasoning effort level (Low/Medium/High).
+    /// Takes priority over the boolean `reasoning` field when set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<ReasoningEffort>,
 }
 
 impl ModelConfig {
@@ -107,6 +160,7 @@ impl ModelConfig {
             fast_model_config: None,
             request_params,
             reasoning: None,
+            reasoning_effort: parse_reasoning_effort(),
         })
     }
 
@@ -263,6 +317,11 @@ impl ModelConfig {
 
     pub fn with_request_params(mut self, params: Option<HashMap<String, Value>>) -> Self {
         self.request_params = params;
+        self
+    }
+
+    pub fn with_reasoning_effort(mut self, effort: Option<ReasoningEffort>) -> Self {
+        self.reasoning_effort = effort;
         self
     }
 
@@ -502,6 +561,97 @@ mod tests {
             );
             assert!(!ModelConfig::new_or_fail("goose-claude-sonnet-4").is_openai_reasoning_model());
             assert!(!ModelConfig::new_or_fail("llama-3-70b").is_openai_reasoning_model());
+        }
+    }
+
+    mod reasoning_effort {
+        use super::*;
+
+        #[test]
+        fn display_formats_lowercase() {
+            assert_eq!(ReasoningEffort::Low.to_string(), "low");
+            assert_eq!(ReasoningEffort::Medium.to_string(), "medium");
+            assert_eq!(ReasoningEffort::High.to_string(), "high");
+        }
+
+        #[test]
+        fn openai_str_values() {
+            assert_eq!(ReasoningEffort::Low.as_openai_str(), "low");
+            assert_eq!(ReasoningEffort::Medium.as_openai_str(), "medium");
+            assert_eq!(ReasoningEffort::High.as_openai_str(), "high");
+        }
+
+        #[test]
+        fn anthropic_budget_tokens() {
+            assert_eq!(ReasoningEffort::Low.as_anthropic_budget_tokens(), 4000);
+            assert_eq!(ReasoningEffort::Medium.as_anthropic_budget_tokens(), 16000);
+            assert_eq!(ReasoningEffort::High.as_anthropic_budget_tokens(), 32000);
+        }
+
+        #[test]
+        fn parse_from_env_var() {
+            let _guard = env_lock::lock_env([("GOOSE_REASONING_EFFORT", Some("high"))]);
+            assert_eq!(parse_reasoning_effort(), Some(ReasoningEffort::High));
+        }
+
+        #[test]
+        fn parse_medium_alias() {
+            let _guard = env_lock::lock_env([("GOOSE_REASONING_EFFORT", Some("med"))]);
+            assert_eq!(parse_reasoning_effort(), Some(ReasoningEffort::Medium));
+        }
+
+        #[test]
+        fn parse_case_insensitive() {
+            let _guard = env_lock::lock_env([("GOOSE_REASONING_EFFORT", Some("HIGH"))]);
+            assert_eq!(parse_reasoning_effort(), Some(ReasoningEffort::High));
+        }
+
+        #[test]
+        fn parse_invalid_returns_none() {
+            let _guard = env_lock::lock_env([("GOOSE_REASONING_EFFORT", Some("ultra"))]);
+            assert_eq!(parse_reasoning_effort(), None);
+        }
+
+        #[test]
+        fn parse_unset_returns_none() {
+            let _guard = env_lock::lock_env([("GOOSE_REASONING_EFFORT", None::<&str>)]);
+            assert_eq!(parse_reasoning_effort(), None);
+        }
+
+        #[test]
+        fn builder_sets_effort_on_default_config() {
+            let config = ModelConfig {
+                model_name: "test-model".to_string(),
+                ..Default::default()
+            }
+            .with_reasoning_effort(Some(ReasoningEffort::Low));
+            assert_eq!(config.reasoning_effort, Some(ReasoningEffort::Low));
+        }
+
+        #[test]
+        fn builder_method() {
+            let config = ModelConfig {
+                model_name: "test".to_string(),
+                ..Default::default()
+            }
+            .with_reasoning_effort(Some(ReasoningEffort::High));
+            assert_eq!(config.reasoning_effort, Some(ReasoningEffort::High));
+        }
+
+        #[test]
+        fn serde_roundtrip() {
+            let effort = ReasoningEffort::Medium;
+            let json = serde_json::to_string(&effort).unwrap();
+            assert_eq!(json, "\"medium\"");
+            let parsed: ReasoningEffort = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, effort);
+        }
+
+        #[test]
+        fn copy_semantics() {
+            let effort = ReasoningEffort::High;
+            let copied = effort;
+            assert_eq!(effort, copied);
         }
     }
 }

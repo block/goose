@@ -26,6 +26,7 @@ pub struct AppState {
     pub gateway_manager: Arc<GatewayManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
     pub inference_runtime: Arc<InferenceRuntime>,
+    pub reasoning_effort: Arc<tokio::sync::RwLock<Option<goose::model::ReasoningEffort>>>,
 }
 
 impl AppState {
@@ -44,6 +45,7 @@ impl AppState {
             gateway_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
             inference_runtime: InferenceRuntime::get_or_init(),
+            reasoning_effort: Arc::new(tokio::sync::RwLock::new(None)),
         }))
     }
 

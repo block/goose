@@ -885,6 +885,94 @@ pub async fn configure_provider_oauth(
     Ok(Json("OAuth configuration completed".to_string()))
 }
 
+// === Reasoning Effort ===
+
+#[derive(Debug, serde::Deserialize, utoipa::ToSchema)]
+pub struct SetReasoningEffortRequest {
+    pub level: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, utoipa::ToSchema)]
+pub struct ReasoningEffortResponse {
+    pub level: Option<String>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/config/reasoning-effort",
+    responses((status = 200, body = ReasoningEffortResponse)),
+    tag = "config_management"
+)]
+pub async fn get_reasoning_effort(
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<AppState>>,
+) -> Json<ReasoningEffortResponse> {
+    let effort = state.reasoning_effort.read().await;
+    // If no runtime value, check persisted config
+    let level = match effort.as_ref() {
+        Some(e) => Some(e.to_string()),
+        None => {
+            let config = Config::global();
+            config
+                .get("GOOSE_REASONING_EFFORT", false)
+                .ok()
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+        }
+    };
+    Json(ReasoningEffortResponse { level })
+}
+
+#[utoipa::path(
+    post,
+    path = "/config/reasoning-effort",
+    request_body = SetReasoningEffortRequest,
+    responses((status = 200, body = ReasoningEffortResponse)),
+    tag = "config_management"
+)]
+pub async fn set_reasoning_effort(
+    axum::extract::State(state): axum::extract::State<std::sync::Arc<AppState>>,
+    Json(req): Json<SetReasoningEffortRequest>,
+) -> Result<Json<ReasoningEffortResponse>, ErrorResponse> {
+    let effort = match req.level.as_deref() {
+        Some(l) => {
+            let parsed = match l.to_lowercase().as_str() {
+                "low" => Some(goose::model::ReasoningEffort::Low),
+                "medium" | "med" => Some(goose::model::ReasoningEffort::Medium),
+                "high" => Some(goose::model::ReasoningEffort::High),
+                _ => {
+                    return Err(ErrorResponse::bad_request(format!(
+                        "Invalid reasoning effort level '{}'. Valid values: low, medium, high",
+                        l
+                    )));
+                }
+            };
+            parsed
+        }
+        None => None,
+    };
+
+    // Update runtime state
+    *state.reasoning_effort.write().await = effort;
+
+    // Persist to durable config so it survives restarts
+    let config = Config::global();
+    match &effort {
+        Some(e) => {
+            let _ = config.set(
+                "GOOSE_REASONING_EFFORT",
+                &serde_json::Value::String(e.to_string()),
+                false,
+            );
+        }
+        None => {
+            let _ = config.delete("GOOSE_REASONING_EFFORT");
+        }
+    }
+
+    Ok(Json(ReasoningEffortResponse {
+        level: effort.map(|e| e.to_string()),
+    }))
+}
+
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -924,6 +1012,10 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route(
             "/config/providers/{name}/oauth",
             post(configure_provider_oauth),
+        )
+        .route(
+            "/config/reasoning-effort",
+            get(get_reasoning_effort).post(set_reasoning_effort),
         )
         .with_state(state)
 }

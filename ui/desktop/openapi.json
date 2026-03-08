@@ -1455,6 +1455,54 @@
         }
       }
     },
+    "/config/reasoning-effort": {
+      "get": {
+        "tags": [
+          "config_management"
+        ],
+        "operationId": "get_reasoning_effort",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReasoningEffortResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "config_management"
+        ],
+        "operationId": "set_reasoning_effort",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetReasoningEffortRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReasoningEffortResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/config/recover": {
       "post": {
         "tags": [
@@ -5830,6 +5878,14 @@
             "type": "boolean",
             "nullable": true
           },
+          "reasoning_effort": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ReasoningEffort"
+              }
+            ],
+            "nullable": true
+          },
           "request_params": {
             "type": "object",
             "description": "Provider-specific request parameters (e.g., anthropic_beta headers)",
@@ -6580,6 +6636,24 @@
         "properties": {
           "text": {
             "type": "string"
+          }
+        }
+      },
+      "ReasoningEffort": {
+        "type": "string",
+        "description": "Controls how much reasoning effort the model applies.\n\nMaps to provider-specific parameters:\n- OpenAI: `reasoning_effort` param (\"low\"/\"medium\"/\"high\")\n- Anthropic: maps to `ThinkingEffort` (Low/Medium/High)",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "ReasoningEffortResponse": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -7471,6 +7545,15 @@
           },
           "provider": {
             "type": "string"
+          }
+        }
+      },
+      "SetReasoningEffortRequest": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

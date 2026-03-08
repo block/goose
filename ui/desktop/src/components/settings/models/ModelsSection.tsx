@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { View } from '../../../utils/navigationUtils';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
+import { ReasoningEffortSection } from './ReasoningEffortSection';
 import { useConfig } from '../../ConfigContext';
 import {
   UNKNOWN_PROVIDER_MSG,
@@ -100,6 +101,17 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
             </div>
           )}
           <ModelSettingsButtons setView={setView} />
+        </CardContent>
+      </Card>
+      <Card className="pb-2 rounded-lg">
+        <CardHeader className="pb-0">
+          <CardTitle>Reasoning Effort</CardTitle>
+          <CardDescription>
+            Control how deeply the model reasons before responding
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-2">
+          <ReasoningEffortSection />
         </CardContent>
       </Card>
       <Card className="pb-2 rounded-lg">

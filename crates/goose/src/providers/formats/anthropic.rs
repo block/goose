@@ -453,6 +453,21 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
 }
 
 pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
+    // Priority: ModelConfig.reasoning_effort > GOOSE_REASONING_EFFORT env var > CLAUDE_THINKING_EFFORT > default "high"
+    if let Some(effort) = model_config.reasoning_effort {
+        return match effort {
+            crate::model::ReasoningEffort::Low => ThinkingEffort::Low,
+            crate::model::ReasoningEffort::Medium => ThinkingEffort::Medium,
+            crate::model::ReasoningEffort::High => ThinkingEffort::High,
+        };
+    }
+    if let Some(effort) = crate::model::parse_reasoning_effort() {
+        return match effort {
+            crate::model::ReasoningEffort::Low => ThinkingEffort::Low,
+            crate::model::ReasoningEffort::Medium => ThinkingEffort::Medium,
+            crate::model::ReasoningEffort::High => ThinkingEffort::High,
+        };
+    }
     match model_config.get_config_param::<String>("effort", "CLAUDE_THINKING_EFFORT") {
         Some(s) => s.parse().unwrap_or_else(|e| {
             tracing::warn!("{e}, defaulting to 'high'");

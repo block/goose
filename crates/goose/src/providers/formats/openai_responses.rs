@@ -811,6 +811,7 @@ mod tests {
             fast_model_config: None,
             request_params: None,
             reasoning: None,
+            reasoning_effort: None,
         };
 
         let messages = vec![
