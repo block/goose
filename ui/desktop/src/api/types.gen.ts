@@ -1069,6 +1069,10 @@ export type RestartAgentResponse = {
 export type ResumeAgentRequest = {
     load_model_and_extensions: boolean;
     session_id: string;
+    /**
+     * Override the base system prompt template (same as in StartAgentRequest)
+     */
+    system_prompt?: string | null;
 };
 
 export type ResumeAgentResponse = {
@@ -1261,6 +1265,11 @@ export type StartAgentRequest = {
     recipe?: Recipe | null;
     recipe_deeplink?: string | null;
     recipe_id?: string | null;
+    /**
+     * Override the base system prompt template. Replaces system.md entirely.
+     * The template has access to the same context (extensions, current_date_time, etc.)
+     */
+    system_prompt?: string | null;
     working_dir: string;
 };
 

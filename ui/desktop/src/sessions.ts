@@ -27,17 +27,17 @@ function resolveResourcePath(p: string): string {
 }
 
 /**
- * Build a Recipe from the whitelabel config.
- * This replaces the default system prompt entirely — the agent becomes
- * whatever the whitelabel config says it is.
+ * Build the system prompt override from the whitelabel config.
+ * This replaces system.md entirely — the agent becomes whatever the
+ * whitelabel config says it is. The override is a Tera template with
+ * access to {{ extensions }}, {{ current_date_time }}, etc.
  *
  * Returns undefined if no whitelabel customization is configured.
  */
-function buildWhiteLabelRecipe(): Recipe | undefined {
+export function buildWhiteLabelSystemPrompt(): string | undefined {
   const config = getWhiteLabelConfig();
   const { defaults } = config;
 
-  // Nothing to do if no system prompt, skills, or tools defined
   if (!defaults.systemPrompt && !defaults.skills?.length && !defaults.tools?.length) {
     return undefined;
   }
@@ -88,11 +88,7 @@ function buildWhiteLabelRecipe(): Recipe | undefined {
 
   if (parts.length === 0) return undefined;
 
-  return {
-    title: config.branding.appName,
-    description: config.branding.tagline || config.branding.appName,
-    instructions: parts.join('\n\n'),
-  };
+  return parts.join('\n\n');
 }
 
 export function shouldShowNewChatTitle(session: Session): boolean {
@@ -134,6 +130,7 @@ export async function createSession(
     recipe?: Recipe;
     recipe_id?: string;
     extension_overrides?: ExtensionConfig[];
+    system_prompt?: string;
   } = {
     working_dir: workingDir,
   };
@@ -144,12 +141,10 @@ export async function createSession(
     body.recipe = await decodeRecipe(options.recipeDeeplink);
   }
 
-  // If no explicit recipe was provided, inject the whitelabel recipe
-  if (!body.recipe && !body.recipe_id) {
-    const wlRecipe = buildWhiteLabelRecipe();
-    if (wlRecipe) {
-      body.recipe = wlRecipe;
-    }
+  // Apply whitelabel system prompt override (replaces system.md entirely)
+  const wlSystemPrompt = buildWhiteLabelSystemPrompt();
+  if (wlSystemPrompt) {
+    body.system_prompt = wlSystemPrompt;
   }
 
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {

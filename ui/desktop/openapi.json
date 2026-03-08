@@ -6927,6 +6927,11 @@
           },
           "session_id": {
             "type": "string"
+          },
+          "system_prompt": {
+            "type": "string",
+            "description": "Override the base system prompt template (same as in StartAgentRequest)",
+            "nullable": true
           }
         }
       },
@@ -7587,6 +7592,11 @@
           },
           "recipe_id": {
             "type": "string",
+            "nullable": true
+          },
+          "system_prompt": {
+            "type": "string",
+            "description": "Override the base system prompt template. Replaces system.md entirely.\nThe template has access to the same context (extensions, current_date_time, etc.)",
             "nullable": true
           },
           "working_dir": {
