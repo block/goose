@@ -4517,6 +4517,7 @@ dependencies = [
  "tree-sitter-ruby",
  "tree-sitter-rust",
  "tree-sitter-swift",
+ "tree-sitter-typescript",
  "umya-spreadsheet",
  "url",
  "which 8.0.0",
