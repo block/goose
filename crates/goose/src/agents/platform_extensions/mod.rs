@@ -8,6 +8,7 @@ pub mod ext_manager;
 pub mod summon;
 pub mod todo;
 pub mod tom;
+pub mod warpgrep;
 
 use std::collections::HashMap;
 
@@ -142,6 +143,18 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 default_enabled: true,
                 unprefixed_tools: false,
                 client_factory: |ctx| Box::new(tom::TomClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
+            warpgrep::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: warpgrep::EXTENSION_NAME,
+                display_name: "WarpGrep",
+                description: "Semantic codebase search powered by Morph",
+                default_enabled: false,
+                unprefixed_tools: true,
+                client_factory: |ctx| Box::new(warpgrep::WarpGrepClient::new(ctx).unwrap()),
             },
         );
 
