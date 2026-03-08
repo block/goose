@@ -72,7 +72,8 @@ export async function fetchModelsForProviders(
       const models = response.data || [];
       return { provider: p, models, error: null, warning: null };
     } catch (e: unknown) {
-      const fallbackModels = p.metadata.known_models?.map((m) => m.name) || [];
+      const fallbackModels =
+        p.name !== 'local' ? p.metadata.known_models?.map((m) => m.name) || [] : [];
       if (fallbackModels.length > 0) {
         console.warn(`Failed to fetch models for ${p.name}:`, getErrorMessage(e));
         return {
