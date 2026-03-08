@@ -1,0 +1,46 @@
+import * as SwitchPrimitives from '@radix-ui/react-switch';
+import * as React from 'react';
+import { cn } from '@/utils';
+
+export const Switch = React.forwardRef<
+  React.ElementRef<typeof SwitchPrimitives.Root>,
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root> & {
+    variant?: 'default' | 'mono' | 'surface';
+  }
+>(({ className, variant = 'default', ...props }, ref) => (
+  <SwitchPrimitives.Root
+    className={cn(
+      'peer inline-flex h-[16px] w-[28px] shrink-0 cursor-pointer items-center rounded-full border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
+      variant === 'default'
+        ? [
+            // Ensure the off-state is visible on light backgrounds (e.g. Cards in Catalogs/Tools).
+            // Use a slightly stronger surface + border so the track doesn't disappear on white cards.
+            'data-[state=unchecked]:bg-background-medium data-[state=unchecked]:border-border-strong',
+            // Make the on-state clearly distinct.
+            'data-[state=checked]:bg-border-accent data-[state=checked]:border-border-accent',
+          ].join(' ')
+        : variant === 'surface'
+          ? [
+              // Surface variant: maximize on/off affordance using the neutral border color.
+              // ON:  track neutral-400, thumb white
+              // OFF: track white, thumb neutral-400
+              'data-[state=checked]:bg-border-default data-[state=checked]:border-border-default',
+              'data-[state=unchecked]:bg-background-default data-[state=unchecked]:border-border-default',
+            ].join(' ')
+          : 'data-[state=checked]:bg-text-default data-[state=unchecked]:bg-background-muted data-[state=unchecked]:border-border-default data-[state=checked]:border-text-default',
+      className
+    )}
+    {...props}
+    ref={ref}
+  >
+    <SwitchPrimitives.Thumb
+      className={cn(
+        'pointer-events-none block h-3 w-3 rounded-full shadow-lg ring-1 ring-border-default transition-transform',
+        variant === 'surface'
+          ? 'data-[state=checked]:bg-background-default data-[state=unchecked]:bg-border-default data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
+          : 'bg-background-default data-[state=checked]:translate-x-3 data-[state=unchecked]:translate-x-0'
+      )}
+    />
+  </SwitchPrimitives.Root>
+));
+Switch.displayName = SwitchPrimitives.Root.displayName;
