@@ -183,6 +183,8 @@ env-lock = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 opentelemetry_sdk = { workspace = true, features = ["testing"] }
 goose-test-support = { path = "../goose-test-support" }
+bytes.workspace = true
+http.workspace = true
 
 [[example]]
 name = "agent"

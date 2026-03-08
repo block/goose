@@ -60,14 +60,24 @@ fn resolve_ollama_num_ctx(model_config: &ModelConfig) -> Option<usize> {
 }
 
 fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
-    let Some(limit) = resolve_ollama_num_ctx(model_config) else {
-        return;
-    };
-
     if let Some(obj) = payload.as_object_mut() {
-        let options = obj.entry("options").or_insert_with(|| json!({}));
-        if let Some(options_obj) = options.as_object_mut() {
-            options_obj.insert("num_ctx".to_string(), json!(limit));
+        // Ollama does not support stream_options; remove it to prevent hangs.
+        obj.remove("stream_options");
+
+        // Convert max_completion_tokens to Ollama's options.num_predict.
+        if let Some(max_tokens) = obj.remove("max_completion_tokens") {
+            let options = obj.entry("options").or_insert_with(|| json!({}));
+            if let Some(options_obj) = options.as_object_mut() {
+                options_obj.entry("num_predict").or_insert(max_tokens);
+            }
+        }
+
+        // Apply num_ctx from context limit settings.
+        if let Some(limit) = resolve_ollama_num_ctx(model_config) {
+            let options = obj.entry("options").or_insert_with(|| json!({}));
+            if let Some(options_obj) = options.as_object_mut() {
+                options_obj.insert("num_ctx".to_string(), json!(limit));
+            }
         }
     }
 }
@@ -282,9 +292,14 @@ impl Provider for OllamaProvider {
     }
 }
 
+/// Per-chunk timeout for Ollama streaming responses.
+/// If no new data arrives within this duration, the stream is considered stalled.
+const OLLAMA_CHUNK_TIMEOUT_SECS: u64 = 30;
+
 /// Ollama-specific streaming handler with XML tool call fallback.
 /// Uses the Ollama format module which buffers text when XML tool calls are detected,
 /// preventing duplicate content from being emitted to the UI.
+/// Includes a per-chunk timeout to detect stalled Ollama connections.
 fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStream, ProviderError> {
     let stream = response.bytes_stream().map_err(std::io::Error::other);
 
@@ -295,12 +310,27 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
 
         let message_stream = response_to_streaming_message_ollama(framed);
         pin!(message_stream);
-        while let Some(message) = message_stream.next().await {
-            let (message, usage) = message.map_err(|e|
-                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-            )?;
-            log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
-            yield (message, usage);
+
+        let chunk_timeout = Duration::from_secs(OLLAMA_CHUNK_TIMEOUT_SECS);
+        loop {
+            match tokio::time::timeout(chunk_timeout, message_stream.next()).await {
+                Ok(Some(message)) => {
+                    let (message, usage) = message.map_err(|e|
+                        ProviderError::RequestFailed(format!("Stream decode error: {}", e))
+                    )?;
+                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                    yield (message, usage);
+                }
+                Ok(None) => break,
+                Err(_) => {
+                    Err(ProviderError::RequestFailed(
+                        format!("Ollama stream stalled: no data received for {}s. \
+                            This may indicate the model is overwhelmed by the request payload. \
+                            Try a smaller model or reduce the number of tools.",
+                            OLLAMA_CHUNK_TIMEOUT_SECS)
+                    ))?;
+                }
+            }
         }
     }))
 }
@@ -339,5 +369,137 @@ mod tests {
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
         assert!(payload.get("options").is_none());
+    }
+
+    // Reproduces issue #7715: the generic OpenAI create_request produces fields
+    // that Ollama does not support, causing it to hang indefinitely.
+    #[test]
+    fn test_raw_create_request_contains_unsupported_ollama_fields() {
+        use crate::providers::formats::ollama::create_request;
+        use crate::providers::utils::ImageFormat;
+
+        let model_config = ModelConfig::new("llama3.1")
+            .unwrap()
+            .with_max_tokens(Some(4096));
+        let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
+
+        let payload = create_request(
+            &model_config,
+            "You are a helpful assistant.",
+            &messages,
+            &[],
+            &ImageFormat::OpenAi,
+            true,
+        )
+        .unwrap();
+
+        // Before the fix, the payload includes fields unsupported by Ollama.
+        assert!(
+            payload.get("stream_options").is_some(),
+            "create_request should produce stream_options (unsupported by Ollama)"
+        );
+        assert!(
+            payload.get("max_completion_tokens").is_some(),
+            "create_request should produce max_completion_tokens (unsupported by Ollama)"
+        );
+    }
+
+    // Verifies the fix for issue #7715: apply_ollama_options strips stream_options
+    // and converts max_completion_tokens to options.num_predict.
+    #[test]
+    fn test_apply_ollama_options_strips_unsupported_fields() {
+        use crate::providers::formats::ollama::create_request;
+        use crate::providers::utils::ImageFormat;
+
+        let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
+        let model_config = ModelConfig::new("llama3.1")
+            .unwrap()
+            .with_max_tokens(Some(4096));
+        let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
+
+        let mut payload = create_request(
+            &model_config,
+            "You are a helpful assistant.",
+            &messages,
+            &[],
+            &ImageFormat::OpenAi,
+            true,
+        )
+        .unwrap();
+
+        apply_ollama_options(&mut payload, &model_config);
+
+        assert!(
+            payload.get("stream_options").is_none(),
+            "stream_options should be removed for Ollama"
+        );
+        assert!(
+            payload.get("max_completion_tokens").is_none(),
+            "max_completion_tokens should be removed for Ollama"
+        );
+        assert_eq!(
+            payload["options"]["num_predict"], 4096,
+            "max_completion_tokens should be moved to options.num_predict"
+        );
+        assert_eq!(payload["stream"], true, "stream field should be preserved");
+    }
+
+    // Verifies the streaming timeout fires when a stream stalls, preventing
+    // the infinite hang described in issue #7715.
+    #[tokio::test]
+    async fn test_stream_ollama_timeout_on_stall() {
+        use std::convert::Infallible;
+
+        // Build a fake HTTP response that sends one chunk then stalls forever.
+        let (tx, rx) = tokio::sync::mpsc::channel::<Result<bytes::Bytes, Infallible>>(1);
+        tx.send(Ok(bytes::Bytes::from(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"},\"index\":0}],\
+             \"model\":\"test\",\"object\":\"chat.completion.chunk\",\"created\":0}\n",
+        )))
+        .await
+        .unwrap();
+        // Keep tx alive so the stream doesn't end; it just stops sending.
+        let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+        let body = reqwest::Body::wrap_stream(stream);
+        let response = http::Response::builder().status(200).body(body).unwrap();
+        let response: reqwest::Response = response.into();
+
+        let log = RequestLog::start(
+            &ModelConfig::new("test").unwrap(),
+            &json!({"model": "test"}),
+        )
+        .unwrap();
+
+        let mut msg_stream = stream_ollama(response, log).unwrap();
+
+        // The stream should timeout within OLLAMA_CHUNK_TIMEOUT_SECS.
+        let result =
+            tokio::time::timeout(Duration::from_secs(OLLAMA_CHUNK_TIMEOUT_SECS + 5), async {
+                let mut last_err = None;
+                while let Some(item) = msg_stream.next().await {
+                    if let Err(e) = item {
+                        last_err = Some(e);
+                        break;
+                    }
+                }
+                last_err
+            })
+            .await;
+
+        match result {
+            Ok(Some(err)) => {
+                let err_msg = err.to_string();
+                assert!(
+                    err_msg.contains("stream stalled"),
+                    "Expected stall timeout error, got: {}",
+                    err_msg
+                );
+            }
+            Ok(None) => panic!("Expected timeout error but stream completed normally"),
+            Err(_) => panic!("Outer timeout elapsed -- per-chunk timeout did not fire"),
+        }
+
+        // Keep tx alive so the inner stream doesn't close prematurely.
+        drop(tx);
     }
 }
