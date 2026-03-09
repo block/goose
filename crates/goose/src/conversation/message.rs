@@ -108,6 +108,7 @@ pub struct ToolResponse {
 pub struct ToolConfirmationRequest {
     pub id: String,
     pub tool_name: String,
+    #[schema(value_type = Object)]
     pub arguments: JsonObject,
     pub prompt: Option<String>,
 }
@@ -119,6 +120,7 @@ pub enum ActionRequiredData {
     ToolConfirmation {
         id: String,
         tool_name: String,
+        #[schema(value_type = Object)]
         arguments: JsonObject,
         prompt: Option<String>,
     },
@@ -185,7 +187,9 @@ pub struct ReasoningContent {
 /// Content passed inside a message, which can be both simple content and tool content
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MessageContent {
+    #[schema(value_type = Object)]
     Text(TextContent),
+    #[schema(value_type = Object)]
     Image(ImageContent),
     ToolRequest(ToolRequest),
     ToolResponse(ToolResponse),
@@ -661,6 +665,7 @@ impl MessageMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     pub id: Option<String>,
+    #[schema(value_type = String)]
     pub role: Role,
     pub created: i64,
     #[serde(deserialize_with = "deserialize_sanitized_content")]

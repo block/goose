@@ -55,7 +55,7 @@ tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = "0.3"
 urlencoding = "2.1"
-utoipa = "4.1"
+utoipa = "5.3"
 uuid = { version = "1.11", features = ["v4"] }
 webbrowser = "1.0"
 which = "8.0.0"

@@ -250,6 +250,7 @@ pub enum ExtensionConfig {
         #[schema(required)]
         description: String,
         /// The tools provided by the frontend
+        #[schema(value_type = Vec<Object>)]
         tools: Vec<Tool>,
         /// Instructions for how to use these tools
         instructions: Option<String>,

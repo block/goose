@@ -4367,7 +4367,7 @@ dependencies = [
  "unicode-normalization",
  "url",
  "urlencoding",
- "utoipa 4.2.3",
+ "utoipa",
  "uuid",
  "v_htmlescape",
  "webbrowser",
@@ -4568,7 +4568,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "url",
- "utoipa 4.2.3",
+ "utoipa",
  "uuid",
  "winreg 0.55.0",
  "wiremock",
@@ -7027,7 +7027,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "utoipa 5.4.0",
+ "utoipa",
 ]
 
 [[package]]
@@ -7455,7 +7455,6 @@ dependencies = [
  "proc-macro-error-attr",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
  "version_check",
 ]
 
@@ -11403,18 +11402,6 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "utoipa"
-version = "4.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5afb1a60e207dca502682537fefcfd9921e71d0b83e9576060f09abc6efab23"
-dependencies = [
- "indexmap 2.13.0",
- "serde",
- "serde_json",
- "utoipa-gen 4.3.1",
-]
-
-[[package]]
-name = "utoipa"
 version = "5.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fcc29c80c21c31608227e0912b2d7fddba57ad76b606890627ba8ee7964e993"
@@ -11422,20 +11409,7 @@ dependencies = [
  "indexmap 2.13.0",
  "serde",
  "serde_json",
- "utoipa-gen 5.4.0",
-]
-
-[[package]]
-name = "utoipa-gen"
-version = "4.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20c24e8ab68ff9ee746aad22d39b5535601e6416d1b0feeabf78be986a5c4392"
-dependencies = [
- "proc-macro-error",
- "proc-macro2",
- "quote",
- "regex",
- "syn 2.0.114",
+ "utoipa-gen",
 ]
 
 [[package]]
@@ -11446,6 +11420,7 @@ checksum = "6d79d08d92ab8af4c5e8a6da20c47ae3f61a0f1dabc1997cdf2d082b757ca08b"
 dependencies = [
  "proc-macro2",
  "quote",
+ "regex",
  "syn 2.0.114",
 ]
 

@@ -19,6 +19,7 @@ import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import { CallToolResponse, Content, EmbeddedResource } from '../api';
 import McpAppRenderer from './McpApps/McpAppRenderer';
+import type { McpAppToolResult } from './McpApps/types';
 import ToolApprovalButtons from './ToolApprovalButtons';
 
 interface ToolGraphNode {
@@ -69,7 +70,7 @@ function getToolResultContent(toolResult: Record<string, unknown>): Content[] {
     return [];
   }
   const value = toolResult.value as CallToolResponse;
-  return value.content.filter((item) => {
+  return (value.content as unknown as Content[]).filter((item) => {
     const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
     return !annotations?.audience || annotations.audience.includes('user');
   });
@@ -119,8 +120,10 @@ function McpAppWrapper({
   const toolInput = { arguments: toolArguments || {} };
 
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
-  const toolResult =
-    resultWithMeta?.status === 'success' && resultWithMeta.value ? resultWithMeta.value : undefined;
+  const toolResult: McpAppToolResult | undefined =
+    resultWithMeta?.status === 'success' && resultWithMeta.value
+      ? (resultWithMeta.value as unknown as McpAppToolResult)
+      : undefined;
 
   if (!resourceUri) return null;
   if (requestWithMeta.toolCall.status !== 'success') return null;

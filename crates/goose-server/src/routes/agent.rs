@@ -136,6 +136,7 @@ pub struct CallToolRequest {
 
 #[derive(Serialize, utoipa::ToSchema)]
 pub struct CallToolResponse {
+    #[schema(value_type = Vec<Object>)]
     content: Vec<Content>,
     #[serde(skip_serializing_if = "Option::is_none")]
     structured_content: Option<Value>,

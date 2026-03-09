@@ -1,4 +1,5 @@
 use crate::state::AppState;
+use crate::tunnel::TunnelInfo;
 use axum::{
     extract::State,
     http::StatusCode,

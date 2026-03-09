@@ -185,7 +185,9 @@ function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[
       newContent?.type === 'text' &&
       incomingMsg.content.length === 1
     ) {
-      lastContent.text += newContent.text;
+      (lastContent as unknown as { text: string }).text += (
+        newContent as unknown as { text: string }
+      ).text;
     } else {
       lastMsg.content.push(...incomingMsg.content);
     }
