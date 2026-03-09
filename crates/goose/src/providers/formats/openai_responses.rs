@@ -1,4 +1,5 @@
 use crate::conversation::message::{Message, MessageContent};
+use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use anyhow::{anyhow, Error};
@@ -253,7 +254,8 @@ pub enum ResponseOutputItemInfo {
     FunctionCall {
         id: String,
         status: String,
-        call_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
         name: String,
         arguments: String,
     },
@@ -341,29 +343,62 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
                     match &response.tool_result {
                         Ok(contents) => {
-                            let text_content: Vec<String> = contents
+                            let has_images = contents
                                 .content
                                 .iter()
-                                .filter_map(|c| {
-                                    if let RawContent::Text(t) = c.deref() {
-                                        Some(t.text.clone())
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect();
+                                .any(|c| matches!(c.deref(), RawContent::Image(_)));
 
-                            if !text_content.is_empty() {
-                                tracing::debug!(
-                                    "Sending function_call_output with call_id: {}",
-                                    response.id
-                                );
-                                input_items.push(json!({
-                                    "type": "function_call_output",
-                                    "call_id": response.id,
-                                    "output": text_content.join("\n")
-                                }));
-                            }
+                            let output = if has_images {
+                                json!(contents
+                                    .content
+                                    .iter()
+                                    .map(|c| match c.deref() {
+                                        RawContent::Text(t) => json!({
+                                            "type": "input_text", "text": t.text
+                                        }),
+                                        RawContent::Resource(r) => json!({
+                                            "type": "input_text",
+                                            "text": extract_text_from_resource(&r.resource)
+                                        }),
+                                        RawContent::Image(image) => json!({
+                                            "type": "input_image",
+                                            "image_url": format!(
+                                                "data:{};base64,{}",
+                                                image.mime_type, image.data
+                                            )
+                                        }),
+                                        RawContent::Audio(_) => json!({
+                                            "type": "input_text", "text": "[Audio content]"
+                                        }),
+                                        RawContent::ResourceLink(_) => json!({
+                                            "type": "input_text", "text": "[Resource link]"
+                                        }),
+                                    })
+                                    .collect::<Vec<Value>>())
+                            } else {
+                                json!(contents
+                                    .content
+                                    .iter()
+                                    .filter_map(|c| match c.deref() {
+                                        RawContent::Text(t) => Some(t.text.clone()),
+                                        RawContent::Resource(r) => {
+                                            Some(extract_text_from_resource(&r.resource))
+                                        }
+                                        RawContent::Audio(_) => Some("[Audio content]".into()),
+                                        RawContent::ResourceLink(_) => {
+                                            Some("[Resource link]".into())
+                                        }
+                                        RawContent::Image(_) => None,
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join("\n"))
+                            };
+
+                            input_items.push(json!({
+                                "type": "function_call_output",
+                                "call_id": response.id,
+                                "output": output
+                            }));
                         }
                         Err(error_data) => {
                             tracing::debug!(
@@ -482,11 +517,12 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
             }
             ResponseOutputItem::FunctionCall {
                 id,
+                call_id,
                 name,
                 arguments,
                 ..
             } => {
-                tracing::debug!("Received FunctionCall with id: {}, name: {}", id, name);
+                let request_id = call_id.as_ref().unwrap_or(id).clone();
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
@@ -494,7 +530,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 };
 
                 content.push(MessageContent::tool_request(
-                    id.clone(),
+                    request_id,
                     Ok(CallToolRequestParams::new(name.clone())
                         .with_arguments(object(parsed_args))),
                 ));
@@ -559,11 +595,13 @@ fn process_streaming_output_items(
                 }
             }
             ResponseOutputItemInfo::FunctionCall {
+                id,
                 call_id,
                 name,
                 arguments,
                 ..
             } => {
+                let request_id = call_id.unwrap_or(id);
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
@@ -571,7 +609,7 @@ fn process_streaming_output_items(
                 };
 
                 content.push(MessageContent::tool_request(
-                    call_id,
+                    request_id,
                     Ok(CallToolRequestParams::new(name).with_arguments(object(parsed_args))),
                 ));
             }
@@ -846,6 +884,33 @@ mod tests {
             types,
             vec!["assistant", "function_call", "assistant", "function_call"]
         );
+    }
+
+    #[test]
+    fn test_responses_api_to_message_uses_call_id_for_tool_request_id() {
+        let response = ResponsesApiResponse {
+            id: "resp_1".to_string(),
+            object: "response".to_string(),
+            created_at: 0,
+            status: "completed".to_string(),
+            model: "gpt-5.3-codex".to_string(),
+            output: vec![ResponseOutputItem::FunctionCall {
+                id: "fc_123".to_string(),
+                status: "completed".to_string(),
+                call_id: Some("call_abc".to_string()),
+                name: "test__get_person_zip_code".to_string(),
+                arguments: r#"{"name":"Alice Burns"}"#.to_string(),
+            }],
+            reasoning: None,
+            usage: None,
+        };
+
+        let message = responses_api_to_message(&response).unwrap();
+        assert_eq!(message.content.len(), 1);
+        let MessageContent::ToolRequest(tool_request) = &message.content[0] else {
+            panic!("expected tool request content");
+        };
+        assert_eq!(tool_request.id, "call_abc");
     }
 
     #[test]
