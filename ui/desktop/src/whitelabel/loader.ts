@@ -26,7 +26,7 @@ function deepMerge(target: any, source: any): any {
       targetVal !== null
     ) {
       result[key] = deepMerge(targetVal, sourceVal);
-    } else if (sourceVal !== undefined) {
+    } else if (sourceVal !== undefined && sourceVal !== null) {
       result[key] = sourceVal;
     }
   }
@@ -65,7 +65,7 @@ function bundleAssets(config: WhiteLabelConfig, configDir: string, projectRoot: 
   let needsBundle = false;
 
   // Bundle skill directories
-  if (config.defaults.skills) {
+  if (config.defaults?.skills) {
     for (const skill of config.defaults.skills) {
       const resolved = path.resolve(configDir, skill.path);
       if (!fs.existsSync(resolved)) {
@@ -82,7 +82,7 @@ function bundleAssets(config: WhiteLabelConfig, configDir: string, projectRoot: 
   }
 
   // Bundle tool binaries
-  if (config.defaults.tools) {
+  if (config.defaults?.tools) {
     for (const tool of config.defaults.tools) {
       const resolved = path.resolve(configDir, tool.path);
       if (!fs.existsSync(resolved)) {
