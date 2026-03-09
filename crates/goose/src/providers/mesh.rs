@@ -358,7 +358,7 @@ async fn is_mesh_running(port: u16) -> bool {
         .timeout(timeout)
         .send()
         .await
-        .and_then(|r| Ok(r.status().is_success()))
+        .map(|r| r.status().is_success())
         .unwrap_or(false);
 
     if !models_ok {
@@ -556,7 +556,7 @@ async fn ensure_mesh_running(port: u16) -> Result<()> {
 
         // Log progress every 30s
         let elapsed = start.elapsed().as_secs();
-        if elapsed > 0 && elapsed % 30 == 0 {
+        if elapsed > 0 && elapsed.is_multiple_of(30) {
             tracing::info!(
                 "Waiting for mesh-llm... {}s elapsed (may be downloading a model)",
                 elapsed
