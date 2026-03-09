@@ -42,6 +42,8 @@ import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
+import FeedbackBanner from './FeedbackBanner';
+import { useFeedbackPrompt } from '../hooks/useFeedbackPrompt';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
 export const useCurrentModelInfo = () => useContext(CurrentModelContext);
@@ -182,7 +184,7 @@ export default function BaseChat({
     session,
   });
 
-  const { setProviderAndModel } = useModelAndProvider();
+  const { setProviderAndModel, currentModel, currentProvider } = useModelAndProvider();
 
   useEffect(() => {
     if (session?.provider_name && session?.model_config?.model_name) {
@@ -232,6 +234,13 @@ export default function BaseChat({
   }, [messages.length]);
 
   const toolCount = useToolCount(sessionId);
+
+  const { showFeedback, onRate, onDismiss } = useFeedbackPrompt({
+    messageCount: messages.length,
+    chatState,
+    provider: currentProvider,
+    model: currentModel,
+  });
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
@@ -449,6 +458,10 @@ export default function BaseChat({
                     submitElicitationResponse={submitElicitationResponse}
                   />
                 </SearchView>
+
+                {showFeedback && chatState === ChatState.Idle && (
+                  <FeedbackBanner onRate={onRate} onDismiss={onDismiss} />
+                )}
 
                 <div className="block h-8" />
               </>

@@ -26,7 +26,7 @@ export function setTelemetryEnabled(enabled: boolean): void {
   telemetryEnabled = enabled;
 }
 
-function canTrack(): boolean {
+export function canTrack(): boolean {
   return telemetryEnabled === true;
 }
 
@@ -233,6 +233,22 @@ export type AnalyticsEvent =
         version: string;
         method: 'electron-updater' | 'github-fallback';
         action: 'quit_and_install' | 'open_folder_and_quit' | 'open_folder_only';
+      };
+    }
+  // In-session feedback
+  | {
+      name: 'feedback_submitted';
+      properties: {
+        rating: 1 | 2 | 3 | 4;
+        session_message_count: number;
+        provider?: string;
+        model?: string;
+      };
+    }
+  | {
+      name: 'feedback_dismissed';
+      properties: {
+        session_message_count: number;
       };
     };
 // NOTE: slash_command_used is tracked by the backend (posthog.rs) with command_type info
@@ -750,5 +766,33 @@ export function trackUpdateInstallInitiated(
   trackEvent({
     name: 'update_install_initiated',
     properties: { version, method, action },
+  });
+}
+
+// ============================================================================
+// In-Session Feedback Tracking
+// ============================================================================
+
+export function trackFeedbackSubmitted(
+  rating: 1 | 2 | 3 | 4,
+  sessionMessageCount: number,
+  provider?: string,
+  model?: string
+): void {
+  trackEvent({
+    name: 'feedback_submitted',
+    properties: {
+      rating,
+      session_message_count: sessionMessageCount,
+      provider,
+      model,
+    },
+  });
+}
+
+export function trackFeedbackDismissed(sessionMessageCount: number): void {
+  trackEvent({
+    name: 'feedback_dismissed',
+    properties: { session_message_count: sessionMessageCount },
   });
 }
