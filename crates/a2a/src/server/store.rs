@@ -70,13 +70,14 @@ impl TaskStore for InMemoryTaskStore {
             ts_b.cmp(ts_a)
         });
 
-        let page_size = request.page_size.unwrap_or(50).min(100) as usize;
+        let page_size = request.page_size.unwrap_or(50).clamp(0, 100) as usize;
         let start = request
             .page_token
             .as_ref()
             .and_then(|t| t.parse::<usize>().ok())
             .unwrap_or(0);
 
+        let filtered_count = filtered.len();
         let page: Vec<Task> = filtered
             .into_iter()
             .skip(start)
@@ -84,14 +85,14 @@ impl TaskStore for InMemoryTaskStore {
             .cloned()
             .collect();
 
-        let next_token = if start + page_size < tasks.len() {
+        let next_token = if start + page_size < filtered_count {
             (start + page_size).to_string()
         } else {
             String::new()
         };
 
         Ok(ListTasksResponse {
-            total_size: tasks.len() as i32,
+            total_size: filtered_count as i32,
             page_size: page_size as i32,
             next_page_token: next_token,
             tasks: page,

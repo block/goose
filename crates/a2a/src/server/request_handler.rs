@@ -108,39 +108,72 @@ impl<
             user_message: message.clone(),
             task_id: task_id.clone(),
             context_id: task.context_id.clone(),
-            task: Some(working_task),
+            task: Some(working_task.clone()),
             reference_tasks: vec![],
             requested_extensions: vec![],
         };
+
+        // Check if request is blocking (default: false per A2A spec)
+        let blocking = request.configuration.as_ref().is_some_and(|c| c.blocking);
 
         // Create event channel and execute
         let (tx, mut rx) = mpsc::channel::<AgentExecutionEvent>(256);
         let executor = Arc::clone(&self.executor);
 
-        let exec_handle = tokio::spawn(async move { executor.execute(context, tx).await });
+        if blocking {
+            let exec_handle = tokio::spawn(async move { executor.execute(context, tx).await });
 
-        // Process all events
-        let result_manager = ResultManager::new(self.store.clone(), task_id);
+            // Process all events
+            let result_manager = ResultManager::new(self.store.clone(), task_id);
 
-        while let Some(event) = rx.recv().await {
-            result_manager.process_event(&event).await?;
-        }
-
-        // Wait for executor to finish
-        match exec_handle.await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                result_manager.mark_failed(&e.to_string()).await?;
+            while let Some(event) = rx.recv().await {
+                result_manager.process_event(&event).await?;
             }
-            Err(e) => {
-                result_manager
-                    .mark_failed(&format!("executor panicked: {e}"))
-                    .await?;
-            }
-        }
 
-        let final_task = result_manager.current_task().await?;
-        Ok(SendMessageResponse::Task(final_task))
+            // Wait for executor to finish
+            match exec_handle.await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    result_manager.mark_failed(&e.to_string()).await?;
+                }
+                Err(e) => {
+                    result_manager
+                        .mark_failed(&format!("executor panicked: {e}"))
+                        .await?;
+                }
+            }
+
+            let final_task = result_manager.current_task().await?;
+            Ok(SendMessageResponse::Task(final_task))
+        } else {
+            // Non-blocking: spawn background and return Working task
+            let store = self.store.clone();
+            tokio::spawn(async move {
+                let result_manager = ResultManager::new(store, task_id);
+                let exec_handle = tokio::spawn(async move { executor.execute(context, tx).await });
+
+                while let Some(event) = rx.recv().await {
+                    if let Err(e) = result_manager.process_event(&event).await {
+                        tracing::error!("Background event processing failed: {e}");
+                        break;
+                    }
+                }
+
+                match exec_handle.await {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => {
+                        let _ = result_manager.mark_failed(&e.to_string()).await;
+                    }
+                    Err(e) => {
+                        let _ = result_manager
+                            .mark_failed(&format!("executor panicked: {e}"))
+                            .await;
+                    }
+                }
+            });
+
+            Ok(SendMessageResponse::Task(working_task))
+        }
     }
 
     /// Handle a streaming send message request.
@@ -164,7 +197,7 @@ impl<
             user_message: message.clone(),
             task_id: task_id.clone(),
             context_id: task.context_id.clone(),
-            task: Some(working_task),
+            task: Some(working_task.clone()),
             reference_tasks: vec![],
             requested_extensions: vec![],
         };
@@ -274,9 +307,11 @@ impl<
             .push_store
             .as_ref()
             .ok_or(A2AError::PushNotificationNotSupported)?;
-        push_store
-            .save(&request.task_id, request.config.clone())
-            .await
+        let mut config = request.config.clone();
+        if config.id.as_ref().is_none_or(|id| id.is_empty()) {
+            config.id = Some(request.config_id.clone());
+        }
+        push_store.save(&request.task_id, config).await
     }
 
     pub async fn get_push_notification_config(
@@ -303,10 +338,29 @@ impl<
             .push_store
             .as_ref()
             .ok_or(A2AError::PushNotificationNotSupported)?;
-        let configs = push_store.list(&request.task_id).await?;
+        let all_configs = push_store.list(&request.task_id).await?;
+
+        let page_size = request.page_size.unwrap_or(50).clamp(0, 100) as usize;
+        let offset: usize = request
+            .page_token
+            .as_deref()
+            .and_then(|t| t.parse().ok())
+            .unwrap_or(0);
+
+        let page: Vec<_> = all_configs
+            .into_iter()
+            .skip(offset)
+            .take(page_size)
+            .collect();
+        let next_offset = offset + page.len();
+        let next_page_token = if page.len() == page_size && page_size > 0 {
+            Some(next_offset.to_string())
+        } else {
+            None
+        };
         Ok(ListTaskPushNotificationConfigResponse {
-            configs,
-            next_page_token: None,
+            configs: page,
+            next_page_token,
         })
     }
 
@@ -324,9 +378,11 @@ impl<
 
     async fn get_or_create_task(&self, message: &Message) -> Result<Task, A2AError> {
         if let Some(ref task_id) = message.task_id {
-            if let Some(task) = self.store.load(task_id).await? {
-                return Ok(task);
-            }
+            return self
+                .store
+                .load(task_id)
+                .await?
+                .ok_or_else(|| A2AError::task_not_found(task_id));
         }
 
         let context_id = message
@@ -427,7 +483,10 @@ mod tests {
                 extensions: vec![],
                 reference_task_ids: vec![],
             },
-            configuration: None,
+            configuration: Some(crate::types::config::SendMessageConfiguration {
+                blocking: true,
+                ..Default::default()
+            }),
             metadata: None,
         }
     }
@@ -606,5 +665,41 @@ mod tests {
             .await
             .unwrap();
         assert!(listed_after.configs.is_empty());
+    }
+
+    fn send_request_non_blocking(text: &str) -> SendMessageRequest {
+        SendMessageRequest {
+            message: Message {
+                message_id: uuid::Uuid::new_v4().to_string(),
+                role: Role::User,
+                parts: vec![Part::text(text)],
+                context_id: Some("ctx-test".to_string()),
+                task_id: None,
+                metadata: None,
+                extensions: vec![],
+                reference_task_ids: vec![],
+            },
+            configuration: Some(crate::types::config::SendMessageConfiguration {
+                blocking: false,
+                ..Default::default()
+            }),
+            metadata: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_send_message_non_blocking_returns_working() {
+        let handler =
+            DefaultRequestHandler::new(test_agent_card(), InMemoryTaskStore::new(), EchoExecutor);
+
+        let request = send_request_non_blocking("Hello non-blocking!");
+        let response = handler.send_message(&request).await.unwrap();
+
+        match response {
+            SendMessageResponse::Task(task) => {
+                assert_eq!(task.status.state, TaskState::Working);
+            }
+            _ => panic!("Expected Task response for non-blocking"),
+        }
     }
 }
