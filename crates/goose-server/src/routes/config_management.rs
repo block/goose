@@ -957,14 +957,14 @@ pub async fn set_reasoning_effort(
     let config = Config::global();
     match &effort {
         Some(e) => {
-            let _ = config.set(
+            config.set(
                 "GOOSE_REASONING_EFFORT",
                 &serde_json::Value::String(e.to_string()),
                 false,
-            );
+            )?;
         }
         None => {
-            let _ = config.delete("GOOSE_REASONING_EFFORT");
+            config.delete("GOOSE_REASONING_EFFORT")?;
         }
     }
 

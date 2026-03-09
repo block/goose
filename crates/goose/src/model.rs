@@ -73,13 +73,26 @@ impl std::fmt::Display for ReasoningEffort {
 
 /// Parse reasoning effort from the `GOOSE_REASONING_EFFORT` environment variable.
 pub fn parse_reasoning_effort() -> Option<ReasoningEffort> {
-    std::env::var("GOOSE_REASONING_EFFORT")
-        .ok()
-        .and_then(|v| match v.to_lowercase().as_str() {
+    // Priority: env var > persisted config
+    if let Ok(v) = std::env::var("GOOSE_REASONING_EFFORT") {
+        return match v.to_lowercase().as_str() {
             "low" => Some(ReasoningEffort::Low),
             "medium" | "med" => Some(ReasoningEffort::Medium),
             "high" => Some(ReasoningEffort::High),
             _ => None,
+        };
+    }
+    // Fall back to persisted config (set via API or CLI)
+    crate::config::Config::global()
+        .get("GOOSE_REASONING_EFFORT", false)
+        .ok()
+        .and_then(|v| {
+            v.as_str().and_then(|s| match s.to_lowercase().as_str() {
+                "low" => Some(ReasoningEffort::Low),
+                "medium" | "med" => Some(ReasoningEffort::Medium),
+                "high" => Some(ReasoningEffort::High),
+                _ => None,
+            })
         })
 }
 
@@ -160,7 +173,7 @@ impl ModelConfig {
             fast_model_config: None,
             request_params,
             reasoning: None,
-            reasoning_effort: parse_reasoning_effort(),
+            reasoning_effort: None,
         })
     }
 
