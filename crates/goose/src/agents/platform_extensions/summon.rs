@@ -169,6 +169,14 @@ fn parse_frontmatter<T: for<'de> Deserialize<'de>>(content: &str) -> Option<(T, 
 fn parse_skill_content(content: &str, path: PathBuf) -> Option<Source> {
     let (metadata, body): (SkillMetadata, String) = parse_frontmatter(content)?;
 
+    if metadata.name.contains('/') {
+        warn!(
+            "Skill name '{}' contains '/' which is not allowed, skipping",
+            metadata.name
+        );
+        return None;
+    }
+
     Some(Source {
         name: metadata.name,
         kind: SourceKind::Skill,
@@ -703,7 +711,8 @@ impl SummonClient {
             return Ok(Some(source));
         }
 
-        if let Some((skill_name, relative_path)) = name.split_once('/') {
+        if let Some((skill_name, raw_relative_path)) = name.split_once('/') {
+            let relative_path = raw_relative_path.replace('\\', "/");
             if let Some(skill) = sources.iter().find(|s| {
                 s.name == skill_name
                     && matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
@@ -717,17 +726,16 @@ impl SummonClient {
                     if let Ok(rel) = file_path.strip_prefix(&skill.path) {
                         let rel_normalized = rel.to_string_lossy().replace('\\', "/");
                         if rel_normalized == relative_path {
-                            let safe = file_path
+                            let canonical_file = file_path
                                 .canonicalize()
-                                .map(|p| p.starts_with(&canonical_skill_dir))
-                                .unwrap_or(false);
-                            if !safe {
+                                .map_err(|e| format!("Failed to resolve '{}': {}", name, e))?;
+                            if !canonical_file.starts_with(&canonical_skill_dir) {
                                 return Err(format!(
                                     "Refusing to load '{}': file resolves outside the skill directory",
                                     name
                                 ));
                             }
-                            return match std::fs::read_to_string(file_path) {
+                            return match std::fs::read_to_string(&canonical_file) {
                                 Ok(content) => Ok(Some(Source {
                                     name: name.to_string(),
                                     kind: SourceKind::Skill,
@@ -1122,7 +1130,10 @@ impl SummonClient {
                 let sources = self.get_sources(session_id, working_dir).await;
 
                 if let Some((skill_name, _)) = name.split_once('/') {
-                    if let Some(skill) = sources.iter().find(|s| s.name == skill_name) {
+                    if let Some(skill) = sources.iter().find(|s| {
+                        s.name == skill_name
+                            && matches!(s.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
+                    }) {
                         let available: Vec<String> = skill
                             .supporting_files
                             .iter()
@@ -1133,11 +1144,19 @@ impl SummonClient {
                             })
                             .collect();
                         if !available.is_empty() {
+                            let total = available.len();
+                            let display: Vec<_> = available.into_iter().take(10).collect();
+                            let suffix = if total > 10 {
+                                format!(" (and {} more)", total - 10)
+                            } else {
+                                String::new()
+                            };
                             return Err(format!(
-                                "Source '{}' not found. Available files for {}: {}",
+                                "Source '{}' not found. Available files for {}: {}{}",
                                 name,
                                 skill_name,
-                                available.join(", ")
+                                display.join(", "),
+                                suffix
                             ));
                         } else {
                             return Err(format!("Skill '{}' has no supporting files.", skill_name));
@@ -1318,6 +1337,15 @@ impl SummonClient {
             .resolve_source(session_id, source_name, working_dir)
             .await?
             .ok_or_else(|| format!("Source '{}' not found", source_name))?;
+
+        if source_name.contains('/')
+            && matches!(source.kind, SourceKind::Skill | SourceKind::BuiltinSkill)
+        {
+            return Err(format!(
+                "Cannot delegate to supporting file '{}'. Use load() to read it instead.",
+                source_name
+            ));
+        }
 
         let mut recipe = match source.kind {
             SourceKind::Recipe | SourceKind::Subrecipe => {
@@ -2124,6 +2152,92 @@ You review code."#;
             err.contains("my-skill"),
             "error should name the skill: {}",
             err
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_resolve_source_blocks_symlink_outside_skill_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nContent.",
+        )
+        .unwrap();
+
+        let secret_file = outside_dir.path().join("secret.txt");
+        fs::write(&secret_file, "top secret data").unwrap();
+        std::os::unix::fs::symlink(&secret_file, skill_dir.join("evil.md")).unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let result = client
+            .handle_load_source("test", "my-skill/evil.md", temp_dir.path())
+            .await;
+
+        assert!(
+            result.is_err(),
+            "symlink outside skill dir should be blocked"
+        );
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("resolves outside the skill directory"),
+            "error should mention path traversal: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_source_blocks_path_traversal_input() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/my-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: A skill\n---\nContent.",
+        )
+        .unwrap();
+        fs::write(skill_dir.join("legit.md"), "legit content").unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        // ../../../etc/passwd won't match any supporting_files entry, so it returns Ok (not found)
+        // which becomes the "not found" error path in handle_load_source
+        let result = client
+            .handle_load_source("test", "my-skill/../../../etc/passwd", temp_dir.path())
+            .await;
+
+        assert!(result.is_err(), "traversal path should not load content");
+        let err = result.unwrap_err();
+        assert!(
+            !err.contains("root:"),
+            "should not contain /etc/passwd content: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn test_skill_name_with_slash_is_rejected() {
+        let temp_dir = TempDir::new().unwrap();
+
+        let skill_dir = temp_dir.path().join(".goose/skills/bad-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: bad/skill\ndescription: A skill with slash\n---\nContent.",
+        )
+        .unwrap();
+
+        let client = SummonClient::new(create_test_context()).unwrap();
+        let sources = client.get_sources("test", temp_dir.path()).await;
+
+        assert!(
+            !sources.iter().any(|s| s.name == "bad/skill"),
+            "skill with '/' in name should be rejected"
         );
     }
 
