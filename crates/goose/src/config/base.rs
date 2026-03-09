@@ -911,10 +911,12 @@ impl Config {
 
     /// Check if an error string indicates a keyring availability issue that should trigger fallback
     fn is_keyring_availability_error(&self, error_str: &str) -> bool {
-        error_str.contains("keyring")
-            || error_str.contains("DBus error")
-            || error_str.contains("org.freedesktop.secrets")
-            || error_str.contains("couldn't access platform secure storage")
+        let lower = error_str.to_lowercase();
+        lower.contains("keyring")
+            || lower.contains("dbus")
+            || lower.contains("org.freedesktop.secrets")
+            || lower.contains("platform secure storage")
+            || lower.contains("no secret service")
     }
 
     /// Get a keyring entry for the specified service
