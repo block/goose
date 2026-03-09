@@ -567,6 +567,12 @@ function ToolCallView({
         break;
       }
 
+      case 'load':
+        if (args.source) {
+          return `loading skill "${getStringValue(args.source)}"`;
+        }
+        return 'discovering available sources';
+
       case 'create_file':
         if (args.name) {
           return `creating ${getStringValue(args.name)}`;

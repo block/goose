@@ -15,6 +15,7 @@ pub mod sampling;
 pub mod schedule;
 pub mod session;
 pub mod setup;
+pub mod skills;
 pub mod status;
 pub mod telemetry;
 pub mod tunnel;
@@ -36,6 +37,7 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(config_management::routes(state.clone()))
         .merge(prompts::routes())
         .merge(recipe::routes(state.clone()))
+        .merge(skills::routes(state.clone()))
         .merge(session::routes(state.clone()))
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))

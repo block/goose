@@ -1,4 +1,4 @@
-import { Home, MessageSquare, FileText, AppWindow, Clock, Puzzle, Settings } from 'lucide-react';
+import { Home, MessageSquare, FileText, Sparkles, AppWindow, Clock, Puzzle, Settings } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface NavItem {
@@ -15,6 +15,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'home', path: '/', label: 'Home', icon: Home },
   { id: 'chat', path: '/pair', label: 'Chat', icon: MessageSquare, hasSubItems: true },
   { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
+  { id: 'skills', path: '/skills', label: 'Skills', icon: Sparkles },
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },

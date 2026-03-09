@@ -435,6 +435,7 @@ derive_utoipa!(Icon as IconSchema);
         super::routes::local_inference::delete_local_model,
         super::routes::local_inference::get_model_settings,
         super::routes::local_inference::update_model_settings,
+        super::routes::skills::list_skills,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -618,6 +619,10 @@ derive_utoipa!(Icon as IconSchema);
         goose::providers::local_inference::local_model_registry::SamplingConfig,
         DownloadProgress,
         DownloadStatus,
+        super::routes::skills::SkillInfo,
+        super::routes::skills::SkillScope,
+        super::routes::skills::ListSkillsResponse,
+        super::routes::skills::ListSkillsQuery,
     ))
 )]
 pub struct ApiDoc;
