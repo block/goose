@@ -123,12 +123,7 @@ impl Agent {
                                 let mut response = response_msg.lock().await;
                                 *response = response.clone().with_tool_response_with_metadata(
                                     request.id.clone(),
-                                    Ok(rmcp::model::CallToolResult {
-                                        content: vec![Content::text(DECLINED_RESPONSE)],
-                                        structured_content: None,
-                                        is_error: Some(true),
-                                        meta: None,
-                                    }),
+                                    Ok(rmcp::model::CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
                                     request.metadata.as_ref(),
                                 );
                             }

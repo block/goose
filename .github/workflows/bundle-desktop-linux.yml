@@ -134,7 +134,7 @@ jobs:
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
-          npm install
+          npm ci
           # Verify installation
           ls -la node_modules/.bin/ | head -5
 

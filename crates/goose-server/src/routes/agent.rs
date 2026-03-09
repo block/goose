@@ -975,11 +975,12 @@ async fn call_tool(
         _ => None,
     };
 
-    let tool_call = CallToolRequestParams {
-        meta: None,
-        task: None,
-        name: payload.name.into(),
-        arguments,
+    let tool_call = {
+        let mut params = CallToolRequestParams::new(payload.name);
+        if let Some(args) = arguments {
+            params = params.with_arguments(args);
+        }
+        params
     };
 
     let tool_result = agent

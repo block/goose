@@ -4144,7 +4144,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "ahash",
  "anyhow",
@@ -4202,7 +4202,7 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest 0.13.2",
- "rmcp 0.16.0",
+ "rmcp 1.1.0",
  "rubato",
  "schemars 1.2.1",
  "serde",
@@ -4213,6 +4213,7 @@ dependencies = [
  "sha2",
  "shellexpand",
  "sqlx",
+ "strum",
  "symphonia",
  "sys-info",
  "tempfile",
@@ -4253,7 +4254,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "agent-client-protocol-schema",
  "anyhow",
@@ -4271,7 +4272,7 @@ dependencies = [
  "goose-test-support",
  "http-body-util",
  "regex",
- "rmcp 0.16.0",
+ "rmcp 1.1.0",
  "sacp",
  "schemars 1.2.1",
  "serde",
@@ -4290,7 +4291,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4299,12 +4300,11 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "anstream",
  "anyhow",
  "async-trait",
- "axum",
  "base64 0.22.1",
  "bat",
  "bzip2",
@@ -4321,24 +4321,23 @@ dependencies = [
  "goose",
  "goose-acp",
  "goose-mcp",
- "http 1.4.0",
  "indicatif",
  "open",
  "rand 0.10.0",
  "regex",
  "reqwest 0.13.2",
- "rmcp 0.16.0",
+ "rmcp 1.1.0",
  "rustyline",
  "serde",
  "serde_json",
  "serde_yaml",
  "shlex",
+ "strum",
  "tar",
  "tempfile",
  "test-case",
  "tokio",
  "tokio-util",
- "tower-http",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -4352,7 +4351,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4371,7 +4370,7 @@ dependencies = [
  "rayon",
  "regex",
  "reqwest 0.13.2",
- "rmcp 0.16.0",
+ "rmcp 1.1.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -4402,7 +4401,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "anyhow",
  "aws-lc-rs",
@@ -4425,7 +4424,7 @@ dependencies = [
  "rand 0.10.0",
  "rcgen",
  "reqwest 0.13.2",
- "rmcp 0.16.0",
+ "rmcp 1.1.0",
  "rustls 0.23.36",
  "serde",
  "serde_json",
@@ -4452,7 +4451,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -4460,10 +4459,10 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "axum",
- "rmcp 0.16.0",
+ "rmcp 1.1.0",
  "serde_json",
  "tokio",
 ]
@@ -4755,12 +4754,6 @@ dependencies = [
  "http-body 1.0.1",
  "pin-project-lite",
 ]
-
-[[package]]
-name = "http-range-header"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
 
 [[package]]
 name = "httparse"
@@ -7991,9 +7984,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "0.16.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc4c9c94680f75470ee8083a0667988b5d7b5beb70b9f998a8e51de7c682ce60"
+checksum = "d2cb14cb9278a12eae884c9f3c0cfeca2cc28f361211206424a1d7abed95f090"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -8009,7 +8002,7 @@ dependencies = [
  "process-wrap",
  "rand 0.10.0",
  "reqwest 0.13.2",
- "rmcp-macros 0.16.0",
+ "rmcp-macros 1.1.0",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -8052,9 +8045,9 @@ dependencies = [
 
 [[package]]
 name = "rmcp-macros"
-version = "0.16.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90c23c8f26cae4da838fbc3eadfaecf2d549d97c04b558e7bd90526a9c28b42a"
+checksum = "6a02ea81d9482b07e1fe156ac7cf98b6823d51fb84531936a5e1cbb4eec31ad5"
 dependencies = [
  "darling 0.23.0",
  "proc-macro2",
@@ -10596,7 +10589,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
 dependencies = [
  "async-compression",
- "base64 0.22.1",
  "bitflags 2.10.0",
  "bytes",
  "futures-core",
@@ -10604,19 +10596,13 @@ dependencies = [
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
- "http-range-header",
- "httpdate",
  "iri-string",
- "mime",
- "mime_guess",
- "percent-encoding",
  "pin-project-lite",
  "tokio",
  "tokio-util",
  "tower",
  "tower-layer",
  "tower-service",
- "tracing",
 ]
 
 [[package]]

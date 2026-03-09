@@ -66,6 +66,7 @@ keyring = { version = "3.6.2", features = [
     "vendored",
 ] }
 serde_yaml = { workspace = true }
+strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 rand = { workspace = true }

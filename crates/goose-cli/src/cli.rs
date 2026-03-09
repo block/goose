@@ -841,42 +841,6 @@ enum Command {
         reconfigure: bool,
     },
 
-    /// Start a web server with a chat interface
-    #[command(about = "Experimental: Start a web server with a chat interface")]
-    Web {
-        /// Port to run the web server on
-        #[arg(
-            short,
-            long,
-            default_value = "3000",
-            help = "Port to run the web server on"
-        )]
-        port: u16,
-
-        /// Host to bind the web server to
-        #[arg(
-            long,
-            default_value = "127.0.0.1",
-            help = "Host to bind the web server to"
-        )]
-        host: String,
-
-        /// Open browser automatically
-        #[arg(long, help = "Open browser automatically when server starts")]
-        open: bool,
-
-        /// Authentication token for both Basic Auth (password) and Bearer token
-        #[arg(long, help = "Authentication token to secure the web interface")]
-        auth_token: Option<String>,
-
-        /// Allow running without authentication when exposed on the network (unsafe)
-        #[arg(
-            long,
-            help = "Skip auth requirement when exposed on the network (unsafe)"
-        )]
-        no_auth: bool,
-    },
-
     /// Terminal-integrated session (one session per terminal)
     #[command(
         about = "Terminal-integrated goose session",
@@ -1041,7 +1005,6 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Schedule { .. }) => "schedule",
         Some(Command::Update { .. }) => "update",
         Some(Command::Recipe { .. }) => "recipe",
-        Some(Command::Web { .. }) => "web",
         Some(Command::Term { .. }) => "term",
         Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
@@ -1780,13 +1743,6 @@ pub async fn cli() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
-        Some(Command::Web {
-            port,
-            host,
-            open,
-            auth_token,
-            no_auth,
-        }) => crate::commands::web::handle_web(port, host, open, auth_token, no_auth).await,
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
         Some(Command::ValidateExtensions { file }) => {
