@@ -18,3 +18,9 @@ export { StatCard } from './stat-card';
 export type { Tab, TabBarProps, TabGroup } from './tab-bar';
 export { TabBar } from './tab-bar';
 export { TreeItem } from './tree-item';
+
+// GenUI bridge components
+export { gooseComponents } from './goose-components';
+export { GooseGenerativeUI, isGooseUISpec } from './goose-renderer';
+export { Chart } from './chart';
+export type { ChartProps } from './chart';
