@@ -1,11 +1,13 @@
 pub mod anthropic;
 pub mod api_client;
 pub mod auto_detect;
+pub mod avian;
 pub mod azure;
 pub mod azureauth;
 pub mod base;
 pub mod bedrock;
 pub mod canonical;
+pub mod catalog;
 pub mod chatgpt_codex;
 pub mod claude_code;
 pub(crate) mod cli_common;

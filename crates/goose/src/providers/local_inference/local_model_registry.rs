@@ -123,7 +123,6 @@ pub fn get_registry() -> &'static Mutex<LocalModelRegistry> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalModelEntry {
     pub id: String,
-    pub display_name: String,
     pub repo_id: String,
     pub filename: String,
     pub quantization: String,
@@ -305,15 +304,4 @@ impl LocalModelRegistry {
 /// Generate a unique ID for a model from its repo_id and quantization.
 pub fn model_id_from_repo(repo_id: &str, quantization: &str) -> String {
     format!("{}:{}", repo_id, quantization)
-}
-
-/// Generate a display name from repo_id and quantization.
-pub fn display_name_from_repo(repo_id: &str, quantization: &str) -> String {
-    let model_name = repo_id
-        .split('/')
-        .next_back()
-        .unwrap_or(repo_id)
-        .trim_end_matches("-GGUF")
-        .trim_end_matches("-gguf");
-    format!("{} ({})", model_name, quantization)
 }

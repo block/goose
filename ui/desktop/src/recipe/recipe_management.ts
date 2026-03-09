@@ -1,10 +1,11 @@
 import { Recipe, saveRecipe as saveRecipeApi, listRecipes, RecipeManifest } from '../api';
+import { stripEmptyExtensions } from '.';
 
 export const saveRecipe = async (recipe: Recipe, recipeId?: string | null): Promise<string> => {
   try {
     let response = await saveRecipeApi({
       body: {
-        recipe,
+        recipe: stripEmptyExtensions(recipe),
         id: recipeId,
       },
       throwOnError: true,

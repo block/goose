@@ -372,7 +372,6 @@ mod tests {
                     known_models: vec![],
                     model_doc_link: "".to_string(),
                     config_keys: vec![],
-                    allows_unlisted_models: false,
                 }
             }
 
@@ -394,12 +393,8 @@ mod tests {
                 _messages: &[Message],
                 _tools: &[Tool],
             ) -> Result<MessageStream, ProviderError> {
-                let tool_call = CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "test_tool".into(),
-                    arguments: Some(object!({"param": "value"})),
-                };
+                let tool_call = CallToolRequestParams::new("test_tool")
+                    .with_arguments(object!({"param": "value"}));
                 let message = Message::assistant().with_tool_request("call_123", Ok(tool_call));
 
                 let usage = ProviderUsage::new(

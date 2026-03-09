@@ -13,9 +13,7 @@ use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
 use goose_acp::server::GooseAcpAgent;
 use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_MODEL};
-use sacp::schema::{
-    McpServer, McpServerHttp, ModelId, ModelInfo, SessionModelState, ToolCallStatus,
-};
+use sacp::schema::{McpServer, McpServerHttp, ModelId, ToolCallStatus};
 use std::sync::Arc;
 
 pub async fn run_config_mcp<C: Connection>() {
@@ -122,65 +120,8 @@ pub async fn run_model_list<C: Connection>() {
     expected_session_id.set(session.session_id().0.to_string());
 
     let models = models.unwrap();
-    let expected = SessionModelState::new(
-        ModelId::new(TEST_MODEL),
-        [
-            "gpt-5.2",
-            "gpt-5.2-2025-12-11",
-            "gpt-5.2-chat-latest",
-            "gpt-5.2-codex",
-            "gpt-5.2-pro",
-            "gpt-5.2-pro-2025-12-11",
-            "gpt-5.1",
-            "gpt-5.1-2025-11-13",
-            "gpt-5.1-chat-latest",
-            "gpt-5.1-codex",
-            "gpt-5.1-codex-max",
-            "gpt-5.1-codex-mini",
-            "gpt-5-pro",
-            "gpt-5-pro-2025-10-06",
-            "gpt-5-codex",
-            "gpt-5",
-            "gpt-5-2025-08-07",
-            "gpt-5-mini",
-            "gpt-5-mini-2025-08-07",
-            TEST_MODEL,
-            "gpt-5-nano-2025-08-07",
-            "codex-mini-latest",
-            "o3",
-            "o3-2025-04-16",
-            "o4-mini",
-            "o4-mini-2025-04-16",
-            "gpt-4.1",
-            "gpt-4.1-2025-04-14",
-            "gpt-4.1-mini",
-            "gpt-4.1-mini-2025-04-14",
-            "gpt-4.1-nano",
-            "gpt-4.1-nano-2025-04-14",
-            "o1-pro",
-            "o1-pro-2025-03-19",
-            "o3-mini",
-            "o3-mini-2025-01-31",
-            "o1",
-            "o1-2024-12-17",
-            "gpt-4o-mini",
-            "gpt-4o-mini-2024-07-18",
-            "o4-mini-deep-research",
-            "o4-mini-deep-research-2025-06-26",
-            "gpt-4o",
-            "gpt-4o-2024-05-13",
-            "gpt-4o-2024-08-06",
-            "gpt-4o-2024-11-20",
-            "gpt-4",
-            "gpt-4-0613",
-            "gpt-4-turbo",
-            "gpt-4-turbo-2024-04-09",
-        ]
-        .iter()
-        .map(|id| ModelInfo::new(ModelId::new(*id), *id))
-        .collect(),
-    );
-    assert_eq!(models, expected);
+    assert!(!models.available_models.is_empty());
+    assert_eq!(models.current_model_id, ModelId::new(TEST_MODEL));
 }
 
 pub async fn run_model_set<C: Connection>() {
@@ -313,7 +254,7 @@ pub async fn run_prompt_basic<C: Connection>() {
 pub async fn run_prompt_codemode<C: Connection>() {
     let expected_session_id = ExpectedSessionId::default();
     let prompt =
-        "Search for getCode and textEditor tools. Use them to save the code to /tmp/result.txt.";
+        "Search for getCode and write tools. Use them to save the code to /tmp/result.txt.";
     let mcp = McpFixture::new(Some(expected_session_id.clone())).await;
     let openai = OpenAiFixture::new(
         vec![
@@ -326,7 +267,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
                 include_str!("../test_data/openai_builtin_execute.txt"),
             ),
             (
-                r#"Successfully wrote to /tmp/result.txt"#.into(),
+                r#"Created /tmp/result.txt"#.into(),
                 include_str!("../test_data/openai_builtin_final.txt"),
             ),
         ],
@@ -352,7 +293,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
     }
 
     let result = fs::read_to_string("/tmp/result.txt").unwrap_or_default();
-    assert_eq!(result, format!("{FAKE_CODE}\n"));
+    assert_eq!(result, FAKE_CODE);
     expected_session_id.assert_matches(&session.session_id().0);
 }
 

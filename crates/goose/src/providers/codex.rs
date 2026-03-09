@@ -605,7 +605,6 @@ impl ProviderDef for CodexProvider {
                 ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false, true),
             ],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(
@@ -877,12 +876,8 @@ mod tests {
     fn test_prepare_input_tool_request() {
         use rmcp::model::CallToolRequestParams;
         let dir = tempfile::tempdir().unwrap();
-        let tool_call = Ok(CallToolRequestParams {
-            name: "developer__shell".into(),
-            arguments: Some(serde_json::from_value(json!({"cmd": "ls"})).unwrap()),
-            meta: None,
-            task: None,
-        });
+        let tool_call = Ok(CallToolRequestParams::new("developer__shell")
+            .with_arguments(serde_json::from_value(json!({"cmd": "ls"})).unwrap()));
         let messages = vec![Message::new(
             Role::Assistant,
             0,
@@ -897,12 +892,7 @@ mod tests {
     fn test_prepare_input_tool_response() {
         use rmcp::model::{CallToolResult, Content};
         let dir = tempfile::tempdir().unwrap();
-        let result = CallToolResult {
-            content: vec![Content::text("file1.txt\nfile2.txt")],
-            is_error: None,
-            structured_content: None,
-            meta: None,
-        };
+        let result = CallToolResult::success(vec![Content::text("file1.txt\nfile2.txt")]);
         let messages = vec![Message::new(
             Role::User,
             0,

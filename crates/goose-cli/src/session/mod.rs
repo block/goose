@@ -34,11 +34,13 @@ use completion::GooseCompleter;
 use goose::agents::extension::{Envs, ExtensionConfig, PLATFORM_EXTENSIONS};
 use goose::agents::types::RetryConfig;
 use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
+use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
 use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
 use rmcp::model::{ErrorCode, ErrorData};
+use strum::VariantNames;
 
 use goose::config::paths::Paths;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
@@ -326,7 +328,7 @@ impl CliSession {
                     s.push('_');
                     s.push_str(path);
                 }
-                s
+                name_to_key(&s)
             })
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "unnamed".to_string());
@@ -479,7 +481,6 @@ impl CliSession {
         let history_manager = HistoryManager::new();
         history_manager.load(&mut editor);
 
-        output::display_greeting();
         loop {
             self.display_context_usage().await?;
 
@@ -718,14 +719,14 @@ impl CliSession {
             Ok(mode) => mode,
             Err(_) => {
                 output::render_error(&format!(
-                    "Invalid mode '{}'. Mode must be one of: auto, approve, chat, smart_approve",
-                    mode
+                    "Invalid mode '{mode}'. Mode must be one of: {}",
+                    GooseMode::VARIANTS.join(", ")
                 ));
                 return Ok(());
             }
         };
         config.set_goose_mode(mode)?;
-        output::goose_mode_message(&format!("Goose mode set to '{:?}'", mode));
+        output::goose_mode_message(&format!("Goose mode set to '{mode}'"));
         Ok(())
     }
 
@@ -982,6 +983,10 @@ impl CliSession {
 
                                 if permission == Permission::Cancel {
                                     output::render_text("Tool call cancelled. Returning to chat...", Some(Color::Yellow), true);
+                                    self.agent.handle_confirmation(id.clone(), PermissionConfirmation {
+                                        principal_type: PrincipalType::Tool,
+                                        permission: Permission::DenyOnce,
+                                    }).await;
                                     let mut response_message = Message::user();
                                     response_message.content.push(MessageContent::tool_response(
                                         id,
@@ -2026,7 +2031,7 @@ mod tests {
     #[test_case(
         "https://mcp.kiwi.com", 300,
         ExtensionConfig::StreamableHttp {
-            name: "mcp.kiwi.com".into(),
+            name: "mcp_kiwi_com".into(),
             uri: "https://mcp.kiwi.com".into(),
             envs: Envs::default(),
             env_keys: vec![],

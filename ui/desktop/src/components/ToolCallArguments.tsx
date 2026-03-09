@@ -30,8 +30,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
         return (
           <div className="font-sans text-sm mb-2">
             <div className="flex flex-row">
-              <span className="text-text-muted min-w-[140px]">{key}</span>
-              <span className="text-text-muted">{value}</span>
+              <span className="text-text-secondary min-w-[140px]">{key}</span>
+              <span className="text-text-secondary">{value}</span>
             </div>
           </div>
         );
@@ -42,26 +42,29 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
           <div className={`flex flex-row items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
             <button
               onClick={() => toggleKey(key)}
-              className="flex text-left text-text-muted min-w-[140px]"
+              className="flex text-left text-text-secondary min-w-[140px]"
             >
               <span>{key}</span>
             </button>
             <div className={`w-full flex items-stretch ${isExpanded ? '' : 'truncate min-w-0'}`}>
               {isExpanded ? (
                 <div>
-                  <MarkdownContent content={value} className="font-sans text-sm text-text-muted" />
+                  <MarkdownContent
+                    content={value}
+                    className="font-sans text-sm text-text-secondary"
+                  />
                 </div>
               ) : (
                 <button
                   onClick={() => toggleKey(key)}
-                  className={`text-left text-text-muted ${isExpanded ? '' : 'truncate min-w-0'}`}
+                  className={`text-left text-text-secondary ${isExpanded ? '' : 'truncate min-w-0'}`}
                 >
                   {value}
                 </button>
               )}
               <button
                 onClick={() => toggleKey(key)}
-                className="flex flex-row items-stretch grow text-text-muted pr-2"
+                className="flex flex-row items-stretch grow text-text-secondary pr-2"
               >
                 <div className="min-w-2 grow" />
                 <Expand size={5} isExpanded={isExpanded} />
@@ -82,8 +85,8 @@ export function ToolCallArguments({ args }: ToolCallArgumentsProps) {
     return (
       <div className="mb-2">
         <div className="flex flex-row font-sans text-sm">
-          <span className="text-text-muted min-w-[140px]">{key}</span>
-          <pre className="whitespace-pre-wrap text-text-muted overflow-x-auto max-w-full">
+          <span className="text-text-secondary min-w-[140px]">{key}</span>
+          <pre className="whitespace-pre-wrap text-text-secondary overflow-x-auto max-w-full">
             {content}
           </pre>
         </div>

@@ -11,10 +11,9 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use goose::agents::validate_extensions;
-use goose::config::paths::Paths;
 use goose_mcp::{
     mcp_server_runner::{serve, McpCommand},
-    AutoVisualiserRouter, ComputerControllerServer, DeveloperServer, MemoryServer, TutorialServer,
+    AutoVisualiserRouter, ComputerControllerServer, MemoryServer, TutorialServer,
 };
 
 #[derive(Parser)]
@@ -57,15 +56,6 @@ async fn main() -> anyhow::Result<()> {
                 McpCommand::ComputerController => serve(ComputerControllerServer::new()).await?,
                 McpCommand::Memory => serve(MemoryServer::new()).await?,
                 McpCommand::Tutorial => serve(TutorialServer::new()).await?,
-                McpCommand::Developer => {
-                    let bash_env = Paths::config_dir().join(".bash_env");
-                    serve(
-                        DeveloperServer::new()
-                            .extend_path_with_shell(true)
-                            .bash_env_file(Some(bash_env)),
-                    )
-                    .await?
-                }
             }
         }
         Commands::ValidateExtensions { path } => {

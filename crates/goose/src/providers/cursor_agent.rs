@@ -294,7 +294,6 @@ impl ProviderDef for CursorAgentProvider {
                 true, false, true,
             )],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(

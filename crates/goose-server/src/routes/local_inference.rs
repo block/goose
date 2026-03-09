@@ -13,9 +13,8 @@ use goose::providers::local_inference::{
     available_inference_memory_bytes,
     hf_models::{resolve_model_spec, HfGgufFile},
     local_model_registry::{
-        display_name_from_repo, get_registry, is_featured_model, model_id_from_repo,
-        LocalModelEntry, ModelDownloadStatus as RegistryDownloadStatus, ModelSettings,
-        FEATURED_MODELS,
+        get_registry, is_featured_model, model_id_from_repo, LocalModelEntry,
+        ModelDownloadStatus as RegistryDownloadStatus, ModelSettings, FEATURED_MODELS,
     },
     recommend_local_model,
 };
@@ -40,7 +39,6 @@ pub enum ModelDownloadStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LocalModelResponse {
     pub id: String,
-    pub display_name: String,
     pub repo_id: String,
     pub filename: String,
     pub quantization: String,
@@ -94,7 +92,6 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
 
         entries_to_add.push(LocalModelEntry {
             id: model_id,
-            display_name: display_name_from_repo(&repo_id, &quantization),
             repo_id,
             filename: hf_file.filename,
             quantization,
@@ -158,7 +155,6 @@ pub async fn list_local_models(
 
         models.push(LocalModelResponse {
             id: entry.id.clone(),
-            display_name: entry.display_name.clone(),
             repo_id: entry.repo_id.clone(),
             filename: entry.filename.clone(),
             quantization: entry.quantization.clone(),
@@ -175,7 +171,7 @@ pub async fn list_local_models(
         match (b_downloaded, a_downloaded) {
             (true, false) => std::cmp::Ordering::Greater,
             (false, true) => std::cmp::Ordering::Less,
-            _ => a.display_name.cmp(&b.display_name),
+            _ => a.id.cmp(&b.id),
         }
     });
 
@@ -272,7 +268,6 @@ pub async fn download_hf_model(
 
     let entry = LocalModelEntry {
         id: model_id.clone(),
-        display_name: display_name_from_repo(&repo_id, &quantization),
         repo_id,
         filename: hf_file.filename,
         quantization,

@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use super::{
     anthropic::AnthropicProvider,
+    avian::AvianProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
     bedrock::BedrockProvider,
@@ -46,6 +47,7 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
         registry.register::<AnthropicProvider>(true);
+        registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         registry.register::<BedrockProvider>(false);
         registry.register::<LocalInferenceProvider>(false);

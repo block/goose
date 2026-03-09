@@ -12,7 +12,7 @@ import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
 This tutorial covers how to add the [Beads MCP Server](https://github.com/steveyegge/beads) as a goose extension. Beads is a distributed, git-backed issue tracker designed for AI agents. It enables persistent task tracking with dependency management, so multiple goose sessions can coordinate work on complex projects.
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=beads-mcp&id=beads&name=Beads&description=Git-backed%20issue%20tracker%20for%20AI%20agent%20task%20management)
