@@ -385,10 +385,7 @@ async fn is_mesh_running(port: u16) -> bool {
 /// Find the mesh-llm binary on PATH or in ~/.mesh-llm/.
 fn find_mesh_binary() -> Option<std::path::PathBuf> {
     // Check PATH
-    if let Ok(output) = std::process::Command::new("which")
-        .arg("mesh-llm")
-        .output()
-    {
+    if let Ok(output) = std::process::Command::new("which").arg("mesh-llm").output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path.is_empty() {
