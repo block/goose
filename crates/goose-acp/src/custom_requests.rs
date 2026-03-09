@@ -1,3 +1,4 @@
+use sacp::schema::McpServer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -122,3 +123,44 @@ pub struct GetExtensionsResponse {
 /// Empty success response for operations that return no data.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct EmptyResponse {}
+
+/// Start a new session configured by a recipe.
+/// The client parses the recipe YAML, resolves template parameters, and sends
+/// the fully-resolved Recipe as JSON.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct NewSessionWithRecipeRequest {
+    pub cwd: String,
+    /// Fully-resolved Recipe as JSON (Recipe lacks JsonSchema, so we use Value).
+    pub recipe: serde_json::Value,
+    /// Additional MCP servers (additive, on top of recipe extensions).
+    #[serde(default)]
+    pub mcp_servers: Vec<McpServer>,
+}
+
+/// Response after a recipe session is fully initialized.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct NewSessionWithRecipeResponse {
+    pub session_id: String,
+    /// Recipe prompt — client sends as first user message.
+    pub prompt: Option<String>,
+    /// Max turns from recipe settings (client enforces).
+    pub max_turns: Option<usize>,
+    /// Model state (available models, current model).
+    pub model_state: serde_json::Value,
+}
+
+/// Invoke an MCP tool directly, bypassing the LLM.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct CallToolRequest {
+    pub session_id: String,
+    pub tool_name: String,
+    #[serde(default)]
+    pub arguments: serde_json::Map<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct CallToolResponse {
+    pub content: Vec<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_error: Option<bool>,
+}
