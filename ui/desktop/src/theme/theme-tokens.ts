@@ -277,6 +277,7 @@ export function getResolvedTheme(): 'light' | 'dark' {
 /**
  * Apply theme tokens to the document root as CSS custom properties.
  * When called without an argument, resolves the theme from localStorage.
+ * After base tokens, applies any whitelabel theme overrides.
  */
 export function applyThemeTokens(theme?: 'light' | 'dark'): void {
   const resolved = theme ?? getResolvedTheme();
@@ -284,5 +285,21 @@ export function applyThemeTokens(theme?: 'light' | 'dark'): void {
   const root = document.documentElement;
   for (const [key, value] of Object.entries(tokens)) {
     root.style.setProperty(key, value);
+  }
+
+  // Apply whitelabel theme overrides on top
+  try {
+    const wlTheme = __WHITELABEL_CONFIG__?.theme;
+    if (wlTheme) {
+      const overrides = {
+        ...(wlTheme.base ?? {}),
+        ...(resolved === 'dark' ? (wlTheme.dark ?? {}) : (wlTheme.light ?? {})),
+      };
+      for (const [key, value] of Object.entries(overrides)) {
+        root.style.setProperty(key, value);
+      }
+    }
+  } catch {
+    // No whitelabel config — normal build
   }
 }

@@ -9,6 +9,7 @@ import { CondensedRenderer } from './CondensedRenderer';
 import { ExpandedRenderer } from './ExpandedRenderer';
 import { NavigationOverlay } from './navigation';
 import type { SessionStatus, DragHandlers } from './navigation/types';
+import { useWhiteLabel } from '../../whitelabel/WhiteLabelContext';
 
 export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   const {
@@ -26,19 +27,21 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const location = useLocation();
   const { extensionsList } = useConfig();
+  const { isNavItemEnabled } = useWhiteLabel();
 
   const appsExtensionEnabled = !!extensionsList?.find((ext) => ext.name === 'apps')?.enabled;
 
   const visibleItems = useMemo(() => {
     return preferences.itemOrder
       .filter((id) => preferences.enabledItems.includes(id))
+      .filter((id) => isNavItemEnabled(id))
       .map((id) => getNavItemById(id))
       .filter((item): item is NavItem => item !== undefined)
       .filter((item) => {
         if (item.path === '/apps') return appsExtensionEnabled;
         return true;
       });
-  }, [preferences.itemOrder, preferences.enabledItems, appsExtensionEnabled]);
+  }, [preferences.itemOrder, preferences.enabledItems, appsExtensionEnabled, isNavItemEnabled]);
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 

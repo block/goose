@@ -8,6 +8,88 @@ import {
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
+import type { WhiteLabelConfig } from './whitelabel/types';
+import { DEFAULT_WHITELABEL_CONFIG } from './whitelabel/defaults';
+import { RESOURCES_PREFIX } from './whitelabel/constants';
+
+function getWhiteLabelConfig(): WhiteLabelConfig {
+  try {
+    return __WHITELABEL_CONFIG__;
+  } catch {
+    return DEFAULT_WHITELABEL_CONFIG;
+  }
+}
+
+function resolveResourcePath(p: string): string {
+  if (!p.startsWith(RESOURCES_PREFIX)) return p;
+  const resourcesPath = (window.appConfig?.get('GOOSE_RESOURCES_PATH') as string) || '';
+  return p.replace(RESOURCES_PREFIX, resourcesPath + '/whitelabel-resources');
+}
+
+/**
+ * Build the system prompt override from the whitelabel config.
+ * This replaces system.md entirely — the agent becomes whatever the
+ * whitelabel config says it is. The override is a Tera template with
+ * access to {{ extensions }}, {{ current_date_time }}, etc.
+ *
+ * Returns undefined if no whitelabel customization is configured.
+ */
+export function buildWhiteLabelSystemPrompt(): string | undefined {
+  const config = getWhiteLabelConfig();
+  const { defaults } = config;
+
+  if (!defaults.systemPrompt && !defaults.skills?.length && !defaults.tools?.length) {
+    return undefined;
+  }
+
+  const parts: string[] = [];
+
+  // Base system prompt — the agent persona
+  if (defaults.systemPrompt) {
+    parts.push(defaults.systemPrompt.trim());
+  }
+
+  // Skills
+  if (defaults.skills && defaults.skills.length > 0) {
+    const lines = ['# Skills', ''];
+    for (const skill of defaults.skills) {
+      lines.push(`## ${skill.name}`);
+      lines.push(skill.description);
+      lines.push(`Skill directory: \`${resolveResourcePath(skill.path)}\``);
+      lines.push(
+        'Read the SKILL.md in this directory for detailed instructions before starting this type of work.'
+      );
+      lines.push('');
+    }
+    parts.push(lines.join('\n'));
+  }
+
+  // Tools
+  if (defaults.tools && defaults.tools.length > 0) {
+    const lines = ['# Tools', ''];
+    for (const tool of defaults.tools) {
+      lines.push(`## \`${tool.name}\``);
+      lines.push(tool.description);
+      lines.push(`Binary: \`${resolveResourcePath(tool.path)}\``);
+      if (tool.env) {
+        const envList = Object.entries(tool.env)
+          .map(([k, v]) => `  - \`${k}\`: ${v || '(required)'}`)
+          .join('\n');
+        lines.push(`Environment variables:\n${envList}`);
+      }
+      if (tool.helpText) {
+        lines.push('');
+        lines.push(tool.helpText);
+      }
+      lines.push('');
+    }
+    parts.push(lines.join('\n'));
+  }
+
+  if (parts.length === 0) return undefined;
+
+  return parts.join('\n\n');
+}
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -48,6 +130,7 @@ export async function createSession(
     recipe?: Recipe;
     recipe_id?: string;
     extension_overrides?: ExtensionConfig[];
+    system_prompt?: string;
   } = {
     working_dir: workingDir,
   };
@@ -56,6 +139,12 @@ export async function createSession(
     body.recipe_id = options.recipeId;
   } else if (options?.recipeDeeplink) {
     body.recipe = await decodeRecipe(options.recipeDeeplink);
+  }
+
+  // Apply whitelabel system prompt override (replaces system.md entirely)
+  const wlSystemPrompt = buildWhiteLabelSystemPrompt();
+  if (wlSystemPrompt) {
+    body.system_prompt = wlSystemPrompt;
   }
 
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {

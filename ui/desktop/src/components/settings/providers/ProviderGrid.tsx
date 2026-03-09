@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialo
 import CustomProviderForm from './modal/subcomponents/forms/CustomProviderForm';
 import { SwitchModelModal } from '../models/subcomponents/SwitchModelModal';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
+import { useWhiteLabel } from '../../../whitelabel/WhiteLabelContext';
 import type { View } from '../../../utils/navigationUtils';
 
 const GridLayout = memo(function GridLayout({ children }: { children: React.ReactNode }) {
@@ -208,13 +209,15 @@ function ProviderCards({
     [refreshProviders]
   );
 
+  const { isProviderAllowed } = useWhiteLabel();
+
   const providerCards = useMemo(() => {
     // providers needs to be an array
     const providersArray = Array.isArray(providers) ? providers : [];
     // Sort providers alphabetically by display name
-    const sortedProviders = [...providersArray].sort((a, b) =>
-      a.metadata.display_name.localeCompare(b.metadata.display_name)
-    );
+    const sortedProviders = [...providersArray]
+      .filter((p) => isProviderAllowed(p.name))
+      .sort((a, b) => a.metadata.display_name.localeCompare(b.metadata.display_name));
     const cards = sortedProviders.map((provider) => (
       <ProviderCard
         key={provider.name}
@@ -230,7 +233,13 @@ function ProviderCards({
     );
 
     return cards;
-  }, [providers, isOnboarding, configureProviderViaModal, handleProviderLaunchWithModelSelection]);
+  }, [
+    providers,
+    isOnboarding,
+    configureProviderViaModal,
+    handleProviderLaunchWithModelSelection,
+    isProviderAllowed,
+  ]);
 
   const initialData = editingProvider && {
     engine: editingProvider.config.engine,

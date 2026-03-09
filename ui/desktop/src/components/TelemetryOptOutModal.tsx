@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BaseModal } from './ui/BaseModal';
 import { Button } from './ui/button';
-import { Goose } from './icons/Goose';
+import BrandLogo from './BrandLogo';
 import { TELEMETRY_UI_ENABLED } from '../updates';
 import { toastService } from '../toasts';
 import { useConfig } from './ConfigContext';
@@ -103,7 +103,7 @@ export default function TelemetryOptOutModal(props: TelemetryOptOutModalProps) {
     >
       <div className="px-2 py-3">
         <div className="flex justify-center mb-4">
-          <Goose className="size-10 text-text-primary" />
+          <BrandLogo size="lg" />
         </div>
         <h2 className="text-2xl font-regular dark:text-white text-gray-900 text-center mb-3">
           Help improve goose

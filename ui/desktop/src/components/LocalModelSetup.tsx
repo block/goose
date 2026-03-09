@@ -10,7 +10,7 @@ import {
 } from '../api';
 import { toastService } from '../toasts';
 import { trackOnboardingSetupFailed } from '../utils/analytics';
-import { Goose } from './icons';
+import BrandLogo from './BrandLogo';
 
 interface LocalModelSetupProps {
   onSuccess: () => void;
@@ -179,7 +179,7 @@ export function LocalModelSetup({ onSuccess, onCancel }: LocalModelSetupProps) {
       {/* Header */}
       <div className="text-left space-y-3">
         <div className="origin-bottom-left goose-icon-animation">
-          <Goose className="size-6 sm:size-8" />
+          <BrandLogo size="md" />
         </div>
         <h1 className="text-2xl sm:text-4xl font-light">Run Locally</h1>
         <p className="text-text-muted text-base sm:text-lg">

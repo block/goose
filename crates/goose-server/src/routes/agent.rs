@@ -67,6 +67,10 @@ pub struct StartAgentRequest {
     recipe_deeplink: Option<String>,
     #[serde(default)]
     extension_overrides: Option<Vec<ExtensionConfig>>,
+    /// Override the base system prompt template. Replaces system.md entirely.
+    /// The template has access to the same context (extensions, current_date_time, etc.)
+    #[serde(default)]
+    system_prompt: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -89,6 +93,9 @@ pub struct UpdateWorkingDirRequest {
 pub struct ResumeAgentRequest {
     session_id: String,
     load_model_and_extensions: bool,
+    /// Override the base system prompt template (same as in StartAgentRequest)
+    #[serde(default)]
+    system_prompt: Option<String>,
 }
 
 #[derive(Deserialize, utoipa::ToSchema)]
@@ -180,6 +187,7 @@ async fn start_agent(
         recipe_id,
         recipe_deeplink,
         extension_overrides,
+        system_prompt,
     } = payload;
 
     let original_recipe = if let Some(deeplink) = recipe_deeplink {
@@ -292,12 +300,16 @@ async fn start_agent(
     let session_for_spawn = session.clone();
     let state_for_spawn = state.clone();
     let session_id_for_task = session.id.clone();
+    let system_prompt_for_spawn = system_prompt;
     let task = tokio::spawn(async move {
         match state_for_spawn
             .get_agent(session_for_spawn.id.clone())
             .await
         {
             Ok(agent) => {
+                if let Some(ref prompt) = system_prompt_for_spawn {
+                    agent.override_system_prompt(prompt.clone()).await;
+                }
                 let results = agent.load_extensions_from_session(&session_for_spawn).await;
                 tracing::debug!(
                     "Background extension loading completed for session {}",
@@ -360,6 +372,10 @@ async fn resume_agent(
                 message: "Failed to get agent for route".into(),
                 status: code,
             })?;
+
+        if let Some(ref prompt) = payload.system_prompt {
+            agent.override_system_prompt(prompt.clone()).await;
+        }
 
         agent
             .restore_provider_from_session(&session)

@@ -49,8 +49,22 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
+import type { WhiteLabelConfig } from './whitelabel/types';
+import { DEFAULT_WHITELABEL_CONFIG } from './whitelabel/defaults';
+
+function getWhiteLabelConfig(): WhiteLabelConfig {
+  try {
+    return __WHITELABEL_CONFIG__;
+  } catch {
+    return DEFAULT_WHITELABEL_CONFIG;
+  }
+}
+
+const whiteLabelConfig = getWhiteLabelConfig();
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
+import { startWhiteLabelProcesses, stopAllWhiteLabelProcesses } from './whitelabel/processManager';
+import { initWhiteLabelProvider } from './whitelabel/initProvider';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -386,7 +400,7 @@ app.on('open-url', async (_event, url) => {
 app.on('will-finish-launching', () => {
   if (process.platform === 'darwin') {
     app.setAboutPanelOptions({
-      applicationName: 'Goose',
+      applicationName: whiteLabelConfig.branding.appName,
       applicationVersion: app.getVersion(),
     });
   }
@@ -553,7 +567,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   const goosedResult = await startGoosed({
     serverSecret,
-    dir: dir || os.homedir(),
+    dir: dir || whiteLabelConfig.defaults.workingDir || os.homedir(),
     env: { GOOSE_PATH_ROOT: process.env.GOOSE_PATH_ROOT },
     externalGoosed: settings.externalGoosed,
     isPackaged: app.isPackaged,
@@ -575,8 +589,8 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   const { baseUrl, workingDir, process: goosedProcess, errorLog } = goosedResult;
 
   const mainWindowState = windowStateKeeper({
-    defaultWidth: 940,
-    defaultHeight: 800,
+    defaultWidth: whiteLabelConfig.window.width,
+    defaultHeight: whiteLabelConfig.window.height,
   });
 
   const mainWindow = new BrowserWindow({
@@ -588,8 +602,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     y: mainWindowState.y,
     width: mainWindowState.width,
     height: mainWindowState.height,
-    minWidth: 450,
-    resizable: true,
+    minWidth: whiteLabelConfig.window.minWidth,
+    resizable: whiteLabelConfig.window.resizable !== false,
+    alwaysOnTop: whiteLabelConfig.window.alwaysOnTop ?? false,
     useContentSize: true,
     icon: path.join(__dirname, '../images/icon.icns'),
     webPreferences: {
@@ -603,6 +618,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           ...appConfig,
           GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
+          GOOSE_RESOURCES_PATH: app.isPackaged ? process.resourcesPath : process.cwd(),
           REQUEST_DIR: dir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
@@ -674,6 +690,13 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       });
     }
     app.quit();
+  }
+
+  // Auto-configure provider/model/extensions from whitelabel config
+  try {
+    await initWhiteLabelProvider(goosedClient, whiteLabelConfig);
+  } catch (err) {
+    log.warn('[whitelabel] Init failed:', err);
   }
 
   // Let windowStateKeeper manage the window
@@ -1731,6 +1754,12 @@ async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
+  // Start any sidecar processes defined in white-label config
+  if (whiteLabelConfig.processes && whiteLabelConfig.processes.length > 0) {
+    const resourcesPath = app.isPackaged ? process.resourcesPath : process.cwd();
+    await startWhiteLabelProcesses(whiteLabelConfig.processes, resourcesPath);
+  }
+
   registerUpdateIpcHandlers();
 
   // Handle microphone permission requests
@@ -2478,6 +2507,8 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
+  stopAllWhiteLabelProcesses();
+
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
       powerSaveBlocker.stop(blockerId);

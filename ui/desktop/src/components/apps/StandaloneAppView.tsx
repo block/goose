@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
 import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
+import { buildWhiteLabelSystemPrompt } from '../../sessions';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 
@@ -70,6 +71,7 @@ export default function StandaloneAppView() {
           body: {
             session_id: sid,
             load_model_and_extensions: true,
+            system_prompt: buildWhiteLabelSystemPrompt(),
           },
           throwOnError: true,
         });

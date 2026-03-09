@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
+import { buildWhiteLabelSystemPrompt } from '../sessions';
 
 import {
   getSession,
@@ -448,6 +449,7 @@ export function useChatStream({
           body: {
             session_id: sessionId,
             load_model_and_extensions: true,
+            system_prompt: buildWhiteLabelSystemPrompt(),
           },
           throwOnError: true,
         });
