@@ -46,7 +46,7 @@ once_cell = { workspace = true }
 ignore = { workspace = true }
 lopdf = "0.36.0"
 docx-rs = "0.4.7"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+image = { version = "0.25", default-features = false, features = ["default-formats"] }
 umya-spreadsheet = "2.2.3"
 which = {workspace = true}
 lru = { workspace = true }
