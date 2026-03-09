@@ -40,7 +40,7 @@ import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal
 import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { Goose } from './icons';
+import BrandLogo from './BrandLogo';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 
 const CurrentModelContext = createContext<{ model: string; mode: string } | null>(null);
@@ -399,10 +399,7 @@ export default function BaseChat({
               rel="noopener noreferrer"
               className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
             >
-              <Goose className="size-5 goose-icon-animation" />
-              <span className="text-sm leading-none text-text-secondary -translate-y-px">
-                goose
-              </span>
+              <BrandLogo size="sm" />
             </a>
             <EnvironmentBadge className="translate-y-px" />
           </div>

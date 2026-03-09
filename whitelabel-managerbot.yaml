@@ -18,16 +18,24 @@ branding:
   starterPrompts:
     - icon: "bar-chart"
       label: "Sales report"
+      description: "Net sales are up 11% compared to last week. Review the breakdown by location and channel."
       prompt: "Show me my sales for the past week broken down by location"
+      action: "Review →"
     - icon: "users"
       label: "Customer insights"
+      description: "Customer count is steady but average ticket size dropped 3%. Identify your top regulars."
       prompt: "Who are my top customers and what do they typically buy?"
+      action: "Review →"
     - icon: "package"
       label: "Catalog health"
+      description: "12 items are missing descriptions and 3 have no pricing set. Stay ahead of catalog issues."
       prompt: "Check my catalog for missing descriptions, images, or pricing issues"
-    - icon: "map-pin"
-      label: "Location overview"
-      prompt: "List all my locations with their current business hours"
+      action: "Review →"
+
+  homeScreen:
+    showStats: false
+    showRecentChats: true
+    showInsightCards: true
 
 features:
   updatesEnabled: false
@@ -159,3 +167,12 @@ window:
   width: 1100
   height: 850
   minWidth: 500
+
+# Theme token overrides — applied on top of the base theme
+theme:
+  dark:
+    "--color-background-primary": "#0f0f0f"
+    "--color-background-secondary": "#1a1a1a"
+    "--color-text-info": "#4ade80"
+  base:
+    "--font-sans": "'Inter', 'Cash Sans', sans-serif"

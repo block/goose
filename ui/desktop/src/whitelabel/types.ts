@@ -7,7 +7,20 @@
 export interface WhiteLabelStarterPrompt {
   icon: string;
   label: string;
+  /** Optional longer description shown below the label */
+  description?: string;
   prompt: string;
+  /** Optional action label (e.g. "Review →"). Defaults to "Start" */
+  action?: string;
+}
+
+export interface WhiteLabelHomeScreen {
+  /** Show the stats row (total sessions, total tokens). Default: true */
+  showStats?: boolean;
+  /** Show recent chats list. Default: true */
+  showRecentChats?: boolean;
+  /** Show insight cards on the home screen (uses starterPrompts). Default: false, auto-enabled when starterPrompts have descriptions */
+  showInsightCards?: boolean;
 }
 
 export interface WhiteLabelBranding {
@@ -18,6 +31,7 @@ export interface WhiteLabelBranding {
   trayIcon?: string;
   greetings: string[];
   starterPrompts?: WhiteLabelStarterPrompt[];
+  homeScreen?: WhiteLabelHomeScreen;
 }
 
 export interface WhiteLabelFeatures {
@@ -136,4 +150,15 @@ export interface WhiteLabelConfig {
   defaults: WhiteLabelDefaults;
   processes?: WhiteLabelProcess[];
   window: WhiteLabelWindow;
+  /** Theme token overrides applied on top of the base theme */
+  theme?: WhiteLabelTheme;
+}
+
+export interface WhiteLabelTheme {
+  /** Overrides for light theme tokens (e.g. "--color-background-primary": "#fff") */
+  light?: Record<string, string>;
+  /** Overrides for dark theme tokens */
+  dark?: Record<string, string>;
+  /** Overrides applied to both themes (e.g. "--font-sans") */
+  base?: Record<string, string>;
 }

@@ -5,8 +5,10 @@ import { Greeting } from '../common/Greeting';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/button';
 import { ChatSmart } from '../icons/';
-import { Goose } from '../icons/Goose';
+import BrandLogo from '../BrandLogo';
 import { Skeleton } from '../ui/skeleton';
+import { useWhiteLabel } from '../../whitelabel/WhiteLabelContext';
+import { InsightCards } from './InsightCards';
 import {
   getSessionInsights,
   listSessions,
@@ -16,7 +18,11 @@ import {
 import { resumeSession } from '../../sessions';
 import { useNavigation } from '../../hooks/useNavigation';
 
-export function SessionInsights() {
+interface SessionInsightsProps {
+  onInsightClick?: (prompt: string) => void;
+}
+
+export function SessionInsights({ onInsightClick }: SessionInsightsProps) {
   const [insights, setInsights] = useState<ApiSessionInsights | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recentSessions, setRecentSessions] = useState<Session[]>([]);
@@ -24,6 +30,13 @@ export function SessionInsights() {
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const navigate = useNavigate();
   const setView = useNavigation();
+  const { branding } = useWhiteLabel();
+
+  const homeScreen = branding.homeScreen ?? {};
+  const showStats = homeScreen.showStats !== false;
+  const showRecentChats = homeScreen.showRecentChats !== false;
+  const hasInsightCards =
+    homeScreen.showInsightCards || (branding.starterPrompts?.some((sp) => sp.description) ?? false);
 
   useEffect(() => {
     let loadingTimeout: ReturnType<typeof setTimeout>;
@@ -123,7 +136,7 @@ export function SessionInsights() {
       <div className="bg-background-primary rounded-b-2xl mb-0.5">
         <div className="px-8 pb-12 pt-19 space-y-4">
           <div className="origin-bottom-left goose-icon-animation">
-            <Goose className="size-8" />
+            <BrandLogo size="md" />
           </div>
           <Greeting />
         </div>
@@ -216,7 +229,7 @@ export function SessionInsights() {
       <div className="bg-background-primary rounded-b-2xl mb-0.5">
         <div className="px-8 pb-12 pt-19 space-y-4">
           <div className="origin-bottom-left goose-icon-animation">
-            <Goose className="size-8" />
+            <BrandLogo size="md" />
           </div>
           <Greeting />
         </div>
@@ -236,123 +249,115 @@ export function SessionInsights() {
           </div>
         )}
 
-        {/* Top row with three equal columns */}
-        <div className="grid grid-cols-2 gap-0.5">
-          {/* Total Sessions Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
-            <CardContent className="page-transition flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <p className="text-4xl font-mono font-light flex items-end">
-                  {Math.max(insights?.totalSessions ?? 0, 0)}
-                </p>
-                <span className="text-xs text-text-secondary">Total sessions</span>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Insight cards — shown when whitelabel has descriptive starter prompts */}
+        {hasInsightCards && branding.starterPrompts && onInsightClick && (
+          <InsightCards prompts={branding.starterPrompts} onSelect={onInsightClick} />
+        )}
 
-          {/* Average Duration Card */}
-          {/*<Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">*/}
-          {/*  <CardContent className="page-transition flex flex-col justify-end h-full p-0">*/}
-          {/*    <div className="flex flex-col justify-end">*/}
-          {/*      <p className="text-4xl font-mono font-light flex items-end">*/}
-          {/*        {insights?.avgSessionDuration*/}
-          {/*          ? `${insights.avgSessionDuration.toFixed(1)}m`*/}
-          {/*          : '0.0m'}*/}
-          {/*      </p>*/}
-          {/*      <span className="text-xs text-text-secondary">Avg. chat length</span>*/}
-          {/*    </div>*/}
-          {/*  </CardContent>*/}
-          {/*</Card>*/}
+        {/* Stats row */}
+        {showStats && (
+          <div className="grid grid-cols-2 gap-0.5">
+            <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
+              <CardContent className="page-transition flex flex-col justify-end h-full p-0">
+                <div className="flex flex-col justify-end">
+                  <p className="text-4xl font-mono font-light flex items-end">
+                    {Math.max(insights?.totalSessions ?? 0, 0)}
+                  </p>
+                  <span className="text-xs text-text-secondary">Total sessions</span>
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Total Tokens Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
-            <CardContent className="page-transition flex flex-col justify-end h-full p-0">
-              <div className="flex flex-col justify-end">
-                <p className="text-4xl font-mono font-light flex items-end">
-                  {formatTokens(insights?.totalTokens)}
-                </p>
-                <span className="text-xs text-text-secondary">Total tokens</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
+              <CardContent className="page-transition flex flex-col justify-end h-full p-0">
+                <div className="flex flex-col justify-end">
+                  <p className="text-4xl font-mono font-light flex items-end">
+                    {formatTokens(insights?.totalTokens)}
+                  </p>
+                  <span className="text-xs text-text-secondary">Total tokens</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Recent Chats Card */}
-        <div className="grid grid-cols-1 gap-0.5">
-          {/* Recent Chats Card */}
-          <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
-            <CardContent className="page-transition p-0">
-              <div className="flex justify-between items-center mb-4">
-                <CardDescription className="mb-0">
-                  <span className="text-lg text-text-primary">Recent chats</span>
-                </CardDescription>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs text-text-secondary flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-primary"
-                  onClick={navigateToSessionHistory}
-                >
-                  See all
-                </Button>
-              </div>
-              <div className="space-y-1 min-h-[96px] max-h-[140px] overflow-hidden transition-all duration-300 ease-in-out">
-                {isLoadingSessions ? (
-                  <>
-                    <div className="flex items-center justify-between py-1 px-2">
-                      <div className="flex items-center space-x-2">
-                        <Skeleton className="h-4 w-4 rounded-sm" />
-                        <Skeleton className="h-4 w-48" />
+        {showRecentChats && (
+          <div className="grid grid-cols-1 gap-0.5">
+            <Card className="w-full py-6 px-6 border-none rounded-2xl bg-background-primary">
+              <CardContent className="page-transition p-0">
+                <div className="flex justify-between items-center mb-4">
+                  <CardDescription className="mb-0">
+                    <span className="text-lg text-text-primary">Recent chats</span>
+                  </CardDescription>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-text-secondary flex items-center gap-1 !px-0 hover:bg-transparent hover:underline hover:text-text-primary"
+                    onClick={navigateToSessionHistory}
+                  >
+                    See all
+                  </Button>
+                </div>
+                <div className="space-y-1 min-h-[96px] max-h-[140px] overflow-hidden transition-all duration-300 ease-in-out">
+                  {isLoadingSessions ? (
+                    <>
+                      <div className="flex items-center justify-between py-1 px-2">
+                        <div className="flex items-center space-x-2">
+                          <Skeleton className="h-4 w-4 rounded-sm" />
+                          <Skeleton className="h-4 w-48" />
+                        </div>
+                        <Skeleton className="h-4 w-16" />
                       </div>
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                    <div className="flex items-center justify-between py-1 px-2">
-                      <div className="flex items-center space-x-2">
-                        <Skeleton className="h-4 w-4 rounded-sm" />
-                        <Skeleton className="h-4 w-40" />
+                      <div className="flex items-center justify-between py-1 px-2">
+                        <div className="flex items-center space-x-2">
+                          <Skeleton className="h-4 w-4 rounded-sm" />
+                          <Skeleton className="h-4 w-40" />
+                        </div>
+                        <Skeleton className="h-4 w-16" />
                       </div>
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                    <div className="flex items-center justify-between py-1 px-2">
-                      <div className="flex items-center space-x-2">
-                        <Skeleton className="h-4 w-4 rounded-sm" />
-                        <Skeleton className="h-4 w-52" />
+                      <div className="flex items-center justify-between py-1 px-2">
+                        <div className="flex items-center space-x-2">
+                          <Skeleton className="h-4 w-4 rounded-sm" />
+                          <Skeleton className="h-4 w-52" />
+                        </div>
+                        <Skeleton className="h-4 w-16" />
                       </div>
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                  </>
-                ) : recentSessions.length > 0 ? (
-                  recentSessions.map((session, index) => (
-                    <div
-                      key={session.id}
-                      className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-secondary cursor-pointer transition-colors"
-                      onClick={() => handleSessionClick(session)}
-                      role="button"
-                      tabIndex={0}
-                      style={{ animationDelay: `${index * 0.1}s` }}
-                      onKeyDown={async (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          await handleSessionClick(session);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <ChatSmart className="h-4 w-4 text-text-secondary" />
-                        <span className="truncate max-w-[300px]">{session.name}</span>
+                    </>
+                  ) : recentSessions.length > 0 ? (
+                    recentSessions.map((session, index) => (
+                      <div
+                        key={session.id}
+                        className="flex items-center justify-between text-sm py-1 px-2 rounded-md hover:bg-background-secondary cursor-pointer transition-colors"
+                        onClick={() => handleSessionClick(session)}
+                        role="button"
+                        tabIndex={0}
+                        style={{ animationDelay: `${index * 0.1}s` }}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            await handleSessionClick(session);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <ChatSmart className="h-4 w-4 text-text-secondary" />
+                          <span className="truncate max-w-[300px]">{session.name}</span>
+                        </div>
+                        <span className="text-text-secondary font-mono font-light">
+                          {formatDateOnly(session.updated_at)}
+                        </span>
                       </div>
-                      <span className="text-text-secondary font-mono font-light">
-                        {formatDateOnly(session.updated_at)}
-                      </span>
+                    ))
+                  ) : (
+                    <div className="text-text-secondary text-sm py-2">
+                      No recent chat sessions found.
                     </div>
-                  ))
-                ) : (
-                  <div className="text-text-secondary text-sm py-2">
-                    No recent chat sessions found.
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Filler container - extends to fill remaining space */}
         <div className="bg-background-primary rounded-2xl flex-1"></div>

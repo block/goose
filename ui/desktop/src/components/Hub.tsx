@@ -75,7 +75,7 @@ export default function Hub({
   return (
     <div className="flex flex-col h-full min-h-0 bg-background-secondary">
       <div className="flex-1 flex flex-col min-h-[45vh] overflow-hidden mb-0.5 relative">
-        <SessionInsights />
+        <SessionInsights onInsightClick={(prompt) => handleSubmit({ msg: prompt, images: [] })} />
         {isCreatingSession && (
           <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
             <LoadingGoose chatState={ChatState.LoadingConversation} />

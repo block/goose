@@ -22,13 +22,25 @@ branding:
   starterPrompts:
     - icon: "code"
       label: "Code review"
+      description: "3 open PRs need review. Latest has 12 changed files across 4 packages."
       prompt: "Review the current git diff and suggest improvements"
+      action: "Review →"
     - icon: "folder-tree"
       label: "Project setup"
+      description: "Scaffold a new project with Acme's standard CI, linting, and test config."
       prompt: "Set up a new project following our Acme standards"
+      action: "Start →"
     - icon: "message-square"
       label: "Write tests"
+      description: "Test coverage dropped 2% this week. Generate tests for uncovered modules."
       prompt: "Generate unit tests for the current file"
+      action: "Review →"
+
+  # Home screen layout control
+  homeScreen:
+    showStats: true
+    showRecentChats: true
+    showInsightCards: true
 
 features:
   updatesEnabled: false        # Acme manages updates internally
@@ -109,3 +121,15 @@ window:
   width: 1100
   height: 850
   minWidth: 500
+
+# Theme token overrides — applied on top of the base light/dark themes
+# Keys must be valid CSS custom property names from theme-tokens.ts
+# theme:
+#   light:
+#     "--color-background-primary": "#f8f8ff"
+#     "--color-text-info": "#0052cc"
+#   dark:
+#     "--color-background-primary": "#0d1117"
+#     "--color-text-info": "#58a6ff"
+#   base:
+#     "--font-sans": "'Inter', sans-serif"
