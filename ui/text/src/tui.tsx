@@ -1,13 +1,26 @@
+#!/usr/bin/env node
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { Box, Text, render, useApp, useInput, useStdout, measureElement } from "ink";
+import type { DOMElement } from "ink";
 import TextInput from "ink-text-input";
+import meow from "meow";
+import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   SessionNotification,
   RequestPermissionRequest,
   RequestPermissionResponse,
+  ToolCallContent,
+  ToolCallStatus,
+  ToolKind,
 } from "@agentclientprotocol/sdk";
-import { GooseClient } from "@goose/acp";
-import { createHttpStream } from "./transport.js";
+import { GooseClient } from "@block/goose-acp";
+import { renderMarkdown } from "./markdown.js";
+import { buildToolCallCardLines, ToolCallCompact, findFeaturedToolCallId } from "./toolcall.js";
+import type { ToolCallInfo } from "./toolcall.js";
+import { CRANBERRY, TEAL, GOLD, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_DIM, RULE_COLOR } from "./colors.js";
 
 interface PendingPermission {
   toolTitle: string;
@@ -15,15 +28,16 @@ interface PendingPermission {
   resolve: (response: RequestPermissionResponse) => void;
 }
 
-const CRANBERRY = "#C0354A";
-const TEAL = "#3A7D7B";
-const GOLD = "#C4883A";
-const CEDAR = "#6B5344";
+interface Turn {
+  userText: string;
+  toolCalls: Map<string, ToolCallInfo>;
+  toolCallOrder: string[];
+  agentText: string;
+}
 
-const TEXT_PRIMARY = "#E8E4DF";
-const TEXT_SECONDARY = "#8FA4BD";
-const TEXT_DIM = "#5A6D84";
-const RULE_COLOR = "#2E3D54";
+function isErrorStatus(status: string): boolean {
+  return status.startsWith("error") || status.startsWith("failed");
+}
 
 const GOOSE_FRAMES = [
   [
@@ -104,30 +118,11 @@ const PERMISSION_KEYS: Record<string, string> = {
   reject_always: "N",
 };
 
-interface Turn {
-  userText: string;
-  toolCalls: string[];
-  agentText: string;
-}
-
-// ─── Layout constants ───────────────────────────────────────────────────────
-//
-// Every element indents by a multiple of INDENT (3 spaces). This keeps the
-// left edge of user prompts, agent prose, and tool-call badges on a
-// predictable grid so the eye can scan vertically without friction.
-//
-//   col 0   rule / header
-//   col 3   user prompt caret + text, input caret + text
-//   col 5   agent prose, tool badges, loading spinner, permission dialog
-
 const INDENT = 3;
 const CONTENT_INDENT = 5;
-const MAX_PROSE_WIDTH = 76;
 
 function Rule({ width }: { width: number }) {
-  return (
-    <Text color={RULE_COLOR}>{"─".repeat(Math.max(width, 1))}</Text>
-  );
+  return <Text color={RULE_COLOR}>{"─".repeat(Math.max(width, 1))}</Text>;
 }
 
 function Spinner({ idx }: { idx: number }) {
@@ -153,9 +148,7 @@ function Header({
   hasPendingPermission: boolean;
   turnInfo?: { current: number; total: number };
 }) {
-  const isError =
-    status.startsWith("error") || status.startsWith("failed");
-  const statusColor = status === "ready" ? TEAL : isError ? CRANBERRY : TEXT_DIM;
+  const statusColor = status === "ready" ? TEAL : isErrorStatus(status) ? CRANBERRY : TEXT_DIM;
 
   return (
     <Box flexDirection="column" width={width}>
@@ -167,7 +160,10 @@ function Header({
           <Text color={RULE_COLOR}> · </Text>
           <Text color={statusColor}>{status}</Text>
           {loading && !hasPendingPermission && (
-            <Text> <Spinner idx={spinIdx} /></Text>
+            <Text>
+              {" "}
+              <Spinner idx={spinIdx} />
+            </Text>
           )}
         </Box>
         <Box>
@@ -193,25 +189,6 @@ function UserPrompt({ text }: { text: string }) {
       </Text>
       <Text color={TEXT_PRIMARY} bold>
         {text}
-      </Text>
-    </Box>
-  );
-}
-
-function ToolBadge({ title, width }: { title: string; width: number }) {
-  const badgeWidth = Math.min(width - CONTENT_INDENT - 2, 68);
-  return (
-    <Box
-      marginLeft={CONTENT_INDENT}
-      paddingX={1}
-      borderStyle="round"
-      borderColor={CEDAR}
-      borderDimColor
-      width={badgeWidth}
-    >
-      <Text color={TEAL}>⚙ </Text>
-      <Text color={TEXT_SECONDARY} italic>
-        {title}
       </Text>
     </Box>
   );
@@ -286,16 +263,6 @@ function QueuedMessage({ text }: { text: string }) {
   );
 }
 
-function inputBarHeight(input: string, width: number, queued: boolean): number {
-  // Inner text width: width minus border (2), paddingX (2), prompt "❯ " (2)
-  const textWidth = Math.max(width - 2 - 2 - 2, 1);
-  // +1 for the trailing cursor character
-  const contentLen = input.length + 1;
-  const wrappedLines = Math.max(Math.ceil(contentLen / textWidth), 1);
-  const queuedLine = queued ? 1 : 0;
-  return 2 + wrappedLines + queuedLine + 1;
-}
-
 function InputBar({
   width,
   input,
@@ -327,9 +294,7 @@ function InputBar({
             </Text>
             <TextInput value={input} onChange={onChange} onSubmit={onSubmit} />
           </Box>
-          {scrollHint && (
-            <Text color={TEXT_DIM}>shift+↑↓ history</Text>
-          )}
+          {scrollHint && <Text color={TEXT_DIM}>shift+↑↓ history</Text>}
         </Box>
         {queued && (
           <Box>
@@ -343,77 +308,70 @@ function InputBar({
   );
 }
 
-function wrapText(text: string, width: number): string[] {
-  if (width <= 0) return [text];
-  const result: string[] = [];
-  for (const rawLine of text.split("\n")) {
-    if (rawLine.length === 0) {
-      result.push("");
-      continue;
-    }
-    let remaining = rawLine;
-    while (remaining.length > width) {
-      let breakAt = remaining.lastIndexOf(" ", width);
-      if (breakAt <= 0) breakAt = width;
-      result.push(remaining.slice(0, breakAt));
-      remaining = remaining.slice(breakAt).replace(/^ /, "");
-    }
-    result.push(remaining);
-  }
-  return result;
-}
-
-function TurnResponseBody({
+function buildTurnBodyLines({
   turn,
   width,
-  height,
-  scrollOffset,
   loading,
   status,
   spinIdx,
   pendingPermission,
   permissionIdx,
+  expandedToolCall,
 }: {
   turn: Turn;
   width: number;
-  height: number;
-  scrollOffset: number;
   loading: boolean;
   status: string;
   spinIdx: number;
   pendingPermission: PendingPermission | null;
   permissionIdx: number;
-}) {
-  const allLines: React.ReactNode[] = [];
-  const proseWidth = Math.min(width - CONTENT_INDENT - 1, MAX_PROSE_WIDTH);
+  expandedToolCall: string | null;
+}): React.ReactNode[] {
+  const toolCallIds = turn.toolCallOrder;
+  const toolCalls = turn.toolCalls;
+  const featuredId = findFeaturedToolCallId(toolCallIds, toolCalls);
 
-  // blank line between user prompt and response content
-  allLines.push(<Box key="gap-top" height={1} />);
+  const lines: React.ReactNode[] = [];
 
-  for (const tc of turn.toolCalls) {
-    allLines.push(
-      <ToolBadge key={`tc-${allLines.length}`} title={tc} width={width} />,
-    );
+  lines.push(<Box key="gap-top" height={1} />);
+
+  for (const tcId of toolCallIds) {
+    const tc = toolCalls.get(tcId);
+    if (!tc) continue;
+
+    if (tcId === featuredId || expandedToolCall === tcId) {
+      const cardLines = buildToolCallCardLines(tc, CONTENT_INDENT, width, expandedToolCall === tcId, `tc-${tcId}`);
+      lines.push(...cardLines);
+    } else {
+      lines.push(
+        <ToolCallCompact
+          key={`tc-${tcId}`}
+          info={tc}
+          indent={CONTENT_INDENT}
+          width={width}
+        />,
+      );
+    }
   }
 
   if (turn.agentText) {
-    // visual break between tool calls and prose
-    if (turn.toolCalls.length > 0) {
-      allLines.push(<Box key="gap-tools" height={1} />);
+    if (toolCallIds.length > 0) {
+      lines.push(<Box key="gap-agent" height={1} />);
     }
-    const wrapped = wrapText(turn.agentText, proseWidth);
-    for (const line of wrapped) {
-      allLines.push(
-        <Box key={`al-${allLines.length}`} paddingLeft={CONTENT_INDENT}>
-          <Text color={TEXT_PRIMARY}>{line}</Text>
+    const rendered = renderMarkdown(turn.agentText);
+    const mdLines = rendered.split("\n");
+    for (let i = 0; i < mdLines.length; i++) {
+      lines.push(
+        <Box key={`md-${i}`} paddingLeft={CONTENT_INDENT}>
+          <Text>{mdLines[i]}</Text>
         </Box>,
       );
     }
   }
 
   if (loading && !pendingPermission) {
-    allLines.push(
-      <Box key={`load-${allLines.length}`} paddingLeft={CONTENT_INDENT} marginTop={turn.agentText ? 0 : 0}>
+    lines.push(
+      <Box key="loading" paddingLeft={CONTENT_INDENT}>
         <Spinner idx={spinIdx} />
         <Text color={TEXT_DIM} italic>
           {" "}
@@ -424,9 +382,9 @@ function TurnResponseBody({
   }
 
   if (pendingPermission) {
-    allLines.push(
+    lines.push(
       <PermissionDialog
-        key={`perm-${allLines.length}`}
+        key="permission"
         toolTitle={pendingPermission.toolTitle}
         options={pendingPermission.options}
         selectedIdx={permissionIdx}
@@ -435,25 +393,64 @@ function TurnResponseBody({
     );
   }
 
-  const totalLines = allLines.length;
-  const visibleCount = Math.max(height, 1);
-  const maxOffset = Math.max(totalLines - visibleCount, 0);
-  const offset = Math.min(Math.max(scrollOffset, 0), maxOffset);
-  const visible = allLines.slice(offset, offset + visibleCount);
-  const hasAbove = offset > 0;
-  const hasBelow = offset + visibleCount < totalLines;
+  return lines;
+}
+
+function ScrollableBody({
+  lines,
+  width,
+  scrollOffset,
+}: {
+  lines: React.ReactNode[];
+  width: number;
+  scrollOffset: number;
+}) {
+  const ref = useRef<DOMElement>(null);
+  const [measured, setMeasured] = useState(0);
+
+  useEffect(() => {
+    if (ref.current) {
+      const { height } = measureElement(ref.current);
+      if (height !== measured) setMeasured(height);
+    }
+  });
+
+  const total = lines.length;
+  const availableHeight = measured || total;
+  const needsScroll = total > availableHeight;
+  const viewSize = needsScroll
+    ? Math.max(availableHeight - 2, 1)
+    : availableHeight;
+  const maxOffset = Math.max(total - viewSize, 0);
+  const clampedOffset = Math.min(Math.max(scrollOffset, 0), maxOffset);
+  const endIdx = total - clampedOffset;
+  const startIdx = Math.max(endIdx - viewSize, 0);
+  const visible = lines.slice(startIdx, endIdx);
+
+  const hiddenAbove = startIdx;
+  const hiddenBelow = Math.max(total - endIdx, 0);
 
   return (
-    <Box flexDirection="column" height={height} overflowY="hidden">
-      {hasAbove && (
-        <Box justifyContent="center" width={width}>
-          <Text color={TEXT_DIM}>▲ more</Text>
+    <Box ref={ref} flexDirection="column" flexGrow={1}>
+      {needsScroll && (
+        <Box justifyContent="center" width={width} height={1}>
+          {hiddenAbove > 0 ? (
+            <Text color={TEXT_DIM}>▲ {hiddenAbove} more (↑)</Text>
+          ) : (
+            <Text> </Text>
+          )}
         </Box>
       )}
-      {visible}
-      {hasBelow && !hasAbove && visible.length > 1 && (
-        <Box justifyContent="center" width={width}>
-          <Text color={TEXT_DIM}>▼ more</Text>
+      <Box flexDirection="column" flexGrow={1} overflowY="hidden">
+        {visible}
+      </Box>
+      {needsScroll && (
+        <Box justifyContent="center" width={width} height={1}>
+          {hiddenBelow > 0 ? (
+            <Text color={TEXT_DIM}>▼ {hiddenBelow} more (↓)</Text>
+          ) : (
+            <Text> </Text>
+          )}
         </Box>
       )}
     </Box>
@@ -484,9 +481,7 @@ function SplashScreen({
   onInputSubmit: (v: string) => void;
 }) {
   const frame = GOOSE_FRAMES[animFrame % GOOSE_FRAMES.length]!;
-  const isError =
-    status.startsWith("error") || status.startsWith("failed");
-  const statusColor = status === "ready" ? TEAL : isError ? CRANBERRY : TEXT_DIM;
+  const statusColor = status === "ready" ? TEAL : isErrorStatus(status) ? CRANBERRY : TEXT_DIM;
   const inputWidth = Math.min(56, width - 8);
 
   return (
@@ -497,7 +492,6 @@ function SplashScreen({
       width={width}
       height={height}
     >
-      {/* Goose art */}
       <Box flexDirection="column" alignItems="center">
         {frame.map((line, i) => (
           <Text key={i} color={TEXT_PRIMARY}>
@@ -506,7 +500,6 @@ function SplashScreen({
         ))}
       </Box>
 
-      {/* Title + subtitle */}
       <Box marginTop={1}>
         <Text color={TEXT_PRIMARY} bold>
           goose
@@ -514,7 +507,6 @@ function SplashScreen({
       </Box>
       <Text color={TEXT_DIM}>your on-machine AI agent</Text>
 
-      {/* Input or status */}
       {showInput ? (
         <Box flexDirection="column" alignItems="center" marginTop={2}>
           <Box width={inputWidth}>
@@ -546,7 +538,7 @@ function SplashScreen({
   );
 }
 
-export default function App({
+function App({
   serverUrl,
   initialPrompt,
 }: {
@@ -571,6 +563,7 @@ export default function App({
   const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
 
   const [viewTurnIdx, setViewTurnIdx] = useState(-1);
+  const [expandedToolCall, setExpandedToolCall] = useState<string | null>(null);
   const [scrollOffset, setScrollOffset] = useState(0);
 
   const clientRef = useRef<GooseClient | null>(null);
@@ -592,10 +585,10 @@ export default function App({
     if (turns.length > 0) setBannerVisible(false);
   }, [turns]);
 
-  const turnsLen = turns.length;
   useEffect(() => {
-    if (viewTurnIdx === -1) setScrollOffset(0);
-  }, [turnsLen, viewTurnIdx]);
+    setExpandedToolCall(null);
+    setScrollOffset(0);
+  }, [viewTurnIdx, turns.length]);
 
   const appendAgent = useCallback((text: string) => {
     setTurns((prev) => {
@@ -606,21 +599,89 @@ export default function App({
     });
   }, []);
 
-  const appendToolCall = useCallback((title: string) => {
-    setTurns((prev) => {
-      if (prev.length === 0) return prev;
-      const last = { ...prev[prev.length - 1]! };
-      last.toolCalls = [...last.toolCalls, title];
-      return [...prev.slice(0, -1), last];
-    });
-  }, []);
+  const handleToolCall = useCallback(
+    (tc: {
+      toolCallId: string;
+      title: string;
+      status?: ToolCallStatus;
+      kind?: ToolKind;
+      rawInput?: unknown;
+      rawOutput?: unknown;
+      content?: ToolCallContent[];
+      locations?: Array<{ path: string; line?: number | null }>;
+    }) => {
+      setTurns((prev) => {
+        if (prev.length === 0) return prev;
+        const last = { ...prev[prev.length - 1]! };
+        const newMap = new Map(last.toolCalls);
+        const info: ToolCallInfo = {
+          toolCallId: tc.toolCallId,
+          title: tc.title,
+          status: tc.status ?? "pending",
+          kind: tc.kind,
+          rawInput: tc.rawInput,
+          rawOutput: tc.rawOutput,
+          content: tc.content,
+          locations: tc.locations,
+        };
+        newMap.set(tc.toolCallId, info);
+        const newOrder = last.toolCallOrder.includes(tc.toolCallId)
+          ? last.toolCallOrder
+          : [...last.toolCallOrder, tc.toolCallId];
+        return [
+          ...prev.slice(0, -1),
+          { ...last, toolCalls: newMap, toolCallOrder: newOrder },
+        ];
+      });
+    },
+    [],
+  );
+
+  const handleToolCallUpdate = useCallback(
+    (update: {
+      toolCallId: string;
+      title?: string | null;
+      status?: ToolCallStatus | null;
+      kind?: ToolKind | null;
+      rawInput?: unknown;
+      rawOutput?: unknown;
+      content?: ToolCallContent[] | null;
+      locations?: Array<{ path: string; line?: number | null }> | null;
+    }) => {
+      setTurns((prev) => {
+        if (prev.length === 0) return prev;
+        const last = { ...prev[prev.length - 1]! };
+        const newMap = new Map(last.toolCalls);
+        const existing = newMap.get(update.toolCallId);
+        if (!existing) return prev;
+        const updated: ToolCallInfo = { ...existing };
+        if (update.title != null) updated.title = update.title;
+        if (update.status != null) updated.status = update.status;
+        if (update.kind != null) updated.kind = update.kind;
+        if (update.rawInput !== undefined) updated.rawInput = update.rawInput;
+        if (update.rawOutput !== undefined)
+          updated.rawOutput = update.rawOutput;
+        if (update.content != null) updated.content = update.content;
+        if (update.locations != null) updated.locations = update.locations;
+        newMap.set(update.toolCallId, updated);
+        return [...prev.slice(0, -1), { ...last, toolCalls: newMap }];
+      });
+    },
+    [],
+  );
 
   const addUserTurn = useCallback((text: string) => {
     setTurns((prev) => [
       ...prev,
-      { userText: text, toolCalls: [], agentText: "" },
+      {
+        userText: text,
+        toolCalls: new Map(),
+        toolCallOrder: [],
+        agentText: "",
+      },
     ]);
     setViewTurnIdx(-1);
+    setExpandedToolCall(null);
     setScrollOffset(0);
   }, []);
 
@@ -641,48 +702,7 @@ export default function App({
     [pendingPermission],
   );
 
-  const processQueue = useCallback(async () => {
-    if (isProcessingRef.current) return;
-    isProcessingRef.current = true;
-
-    while (queueRef.current.length > 0) {
-      const next = queueRef.current.shift()!;
-      setQueuedMessages([...queueRef.current]);
-
-      const client = clientRef.current;
-      const sid = sessionIdRef.current;
-      if (!client || !sid) break;
-
-      addUserTurn(next);
-      setLoading(true);
-      setStatus("thinking…");
-      streamBuf.current = "";
-
-      try {
-        const result = await client.prompt({
-          sessionId: sid,
-          prompt: [{ type: "text", text: next }],
-        });
-
-        if (streamBuf.current) appendAgent("");
-
-        setStatus(
-          result.stopReason === "end_turn"
-            ? "ready"
-            : `stopped: ${result.stopReason}`,
-        );
-      } catch (e: unknown) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        setStatus(`error: ${errMsg}`);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    isProcessingRef.current = false;
-  }, [appendAgent, addUserTurn]);
-
-  const sendPrompt = useCallback(
+  const executePrompt = useCallback(
     async (text: string) => {
       const client = clientRef.current;
       const sid = sessionIdRef.current;
@@ -711,10 +731,30 @@ export default function App({
         setStatus(`error: ${errMsg}`);
       } finally {
         setLoading(false);
-        if (queueRef.current.length > 0) processQueue();
       }
     },
-    [appendAgent, addUserTurn, processQueue],
+    [appendAgent, addUserTurn],
+  );
+
+  const processQueue = useCallback(async () => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    while (queueRef.current.length > 0) {
+      const next = queueRef.current.shift()!;
+      setQueuedMessages([...queueRef.current]);
+      await executePrompt(next);
+    }
+
+    isProcessingRef.current = false;
+  }, [executePrompt]);
+
+  const sendPrompt = useCallback(
+    async (text: string) => {
+      await executePrompt(text);
+      if (queueRef.current.length > 0) processQueue();
+    },
+    [executePrompt, processQueue],
   );
 
   useEffect(() => {
@@ -723,7 +763,6 @@ export default function App({
     (async () => {
       try {
         setStatus("initializing…");
-        const stream = createHttpStream(serverUrl);
 
         const client = new GooseClient(
           () => ({
@@ -736,7 +775,27 @@ export default function App({
                   appendAgent(update.content.text);
                 }
               } else if (update.sessionUpdate === "tool_call") {
-                appendToolCall(update.title || "tool");
+                handleToolCall({
+                  toolCallId: update.toolCallId,
+                  title: update.title,
+                  status: update.status,
+                  kind: update.kind,
+                  rawInput: update.rawInput,
+                  rawOutput: update.rawOutput,
+                  content: update.content,
+                  locations: update.locations,
+                });
+              } else if (update.sessionUpdate === "tool_call_update") {
+                handleToolCallUpdate({
+                  toolCallId: update.toolCallId,
+                  title: update.title,
+                  status: update.status,
+                  kind: update.kind,
+                  rawInput: update.rawInput,
+                  rawOutput: update.rawOutput,
+                  content: update.content,
+                  locations: update.locations,
+                });
               }
             },
             requestPermission: async (
@@ -754,7 +813,7 @@ export default function App({
               });
             },
           }),
-          stream,
+          serverUrl,
         );
 
         if (cancelled) return;
@@ -783,7 +842,7 @@ export default function App({
         if (initialPrompt && !sentInitialPrompt.current) {
           sentInitialPrompt.current = true;
           await sendPrompt(initialPrompt);
-          if (initialPrompt) setTimeout(() => exit(), 100);
+          setTimeout(() => exit(), 100);
         }
       } catch (e: unknown) {
         if (cancelled) return;
@@ -796,7 +855,15 @@ export default function App({
     return () => {
       cancelled = true;
     };
-  }, [serverUrl, initialPrompt, sendPrompt, appendAgent, appendToolCall, exit]);
+  }, [
+    serverUrl,
+    initialPrompt,
+    sendPrompt,
+    appendAgent,
+    handleToolCall,
+    handleToolCallUpdate,
+    exit,
+  ]);
 
   const handleSubmit = useCallback(
     (value: string) => {
@@ -804,6 +871,7 @@ export default function App({
       if (!trimmed) return;
       setInput("");
       setViewTurnIdx(-1);
+      setExpandedToolCall(null);
       setScrollOffset(0);
 
       if (loading || isProcessingRef.current) {
@@ -825,7 +893,6 @@ export default function App({
       exit();
     }
 
-    // Permission navigation
     if (pendingPermission) {
       const opts = pendingPermission.options;
 
@@ -857,13 +924,34 @@ export default function App({
       return;
     }
 
-    // Turn navigation: shift+arrow
+    if (key.tab) {
+      const effectiveIdx =
+        viewTurnIdx === -1 ? turns.length - 1 : viewTurnIdx;
+      const currentTurn = turns[effectiveIdx];
+      if (!currentTurn || currentTurn.toolCallOrder.length === 0) return;
+
+      const featuredId = findFeaturedToolCallId(currentTurn.toolCallOrder, currentTurn.toolCalls);
+      if (!featuredId) return;
+
+      setExpandedToolCall((prev) => (prev === featuredId ? null : featuredId));
+      return;
+    }
+
+    if (key.upArrow && !key.shift && !key.meta) {
+      setScrollOffset((prev) => prev + 3);
+      return;
+    }
+    if (key.downArrow && !key.shift && !key.meta) {
+      setScrollOffset((prev) => Math.max(prev - 3, 0));
+      return;
+    }
+
     if (key.upArrow && key.shift) {
       setTurns((currentTurns) => {
         if (currentTurns.length <= 1) return currentTurns;
         setViewTurnIdx((prev) => {
-          const effectiveIdx = prev === -1 ? currentTurns.length - 1 : prev;
-          setScrollOffset(0);
+          const effectiveIdx =
+            prev === -1 ? currentTurns.length - 1 : prev;
           return Math.max(effectiveIdx - 1, 0);
         });
         return currentTurns;
@@ -876,44 +964,16 @@ export default function App({
         setViewTurnIdx((prev) => {
           if (prev === -1) return -1;
           const next = prev + 1;
-          setScrollOffset(0);
           return next >= currentTurns.length ? -1 : next;
         });
         return currentTurns;
       });
       return;
     }
-
-    // Scroll within turn
-    if (key.pageUp || (key.upArrow && key.meta)) {
-      setScrollOffset((prev) => Math.max(prev - 5, 0));
-      return;
-    }
-    if (key.pageDown || (key.downArrow && key.meta)) {
-      setScrollOffset((prev) => prev + 5);
-      return;
-    }
   });
-
-  // ── Layout math ───────────────────────────────────────────────────────
-  //
-  // The vertical budget is:
-  //   header (2 lines: title row + rule)
-  //   user prompt (2 lines: blank line above + prompt text)
-  //   body (flex: remaining space)
-  //   input bar (dynamic: border top/bottom + wrapped content lines + margin bottom) — absent in pipe mode
 
   const GUTTER = 2;
   const innerWidth = Math.max(termWidth - GUTTER * 2, 20);
-  const headerLines = 2;
-  const userPromptLines = 2;
-  const inputLines = initialPrompt
-    ? 0
-    : inputBarHeight(input, innerWidth, queuedMessages.length > 0);
-  const bodyHeight = Math.max(
-    termHeight - headerLines - userPromptLines - inputLines - 1,
-    3,
-  );
 
   if (bannerVisible) {
     return (
@@ -941,6 +1001,33 @@ export default function App({
     viewTurnIdx !== -1 && viewTurnIdx < turns.length - 1;
   const isLatest = !isViewingHistory;
 
+  const emptyTurn: Turn = {
+    userText: "",
+    toolCalls: new Map(),
+    toolCallOrder: [],
+    agentText: "",
+  };
+
+  const bodyLines = buildTurnBodyLines({
+    turn: currentTurn ?? emptyTurn,
+    width: innerWidth,
+    loading: isLatest && loading,
+    status,
+    spinIdx,
+    pendingPermission: isLatest ? pendingPermission : null,
+    permissionIdx,
+    expandedToolCall,
+  });
+
+  const allBodyLines = isLatest
+    ? [
+        ...bodyLines,
+        ...queuedMessages.map((text, i) => (
+          <QueuedMessage key={`q-${i}`} text={text} />
+        )),
+      ]
+    : bodyLines;
+
   return (
     <Box
       flexDirection="column"
@@ -965,36 +1052,14 @@ export default function App({
         <>
           <UserPrompt text={currentTurn.userText} />
 
-          <Box flexDirection="column" flexGrow={1} height={bodyHeight}>
-            <TurnResponseBody
-              turn={currentTurn}
-              width={innerWidth}
-              height={
-                bodyHeight -
-                (isLatest && queuedMessages.length > 0
-                  ? queuedMessages.length
-                  : 0)
-              }
-              scrollOffset={scrollOffset}
-              loading={isLatest && loading}
-              status={status}
-              spinIdx={spinIdx}
-              pendingPermission={isLatest ? pendingPermission : null}
-              permissionIdx={permissionIdx}
-            />
-
-            {isLatest &&
-              queuedMessages.map((text, i) => (
-                <QueuedMessage key={`q-${i}`} text={text} />
-              ))}
-          </Box>
+          <ScrollableBody
+            lines={allBodyLines}
+            width={innerWidth}
+            scrollOffset={scrollOffset}
+          />
         </>
       ) : (
-        <Box
-          flexDirection="column"
-          flexGrow={1}
-          height={bodyHeight + userPromptLines}
-        />
+        <Box flexDirection="column" flexGrow={1} />
       )}
 
       {isViewingHistory && (
@@ -1022,3 +1087,123 @@ export default function App({
     </Box>
   );
 }
+
+const cli = meow(
+  `
+  Usage
+    $ goose
+
+  Options
+    --server, -s  Server URL (default: auto-launch bundled server)
+    --text, -t    Send a single prompt and exit
+`,
+  {
+    importMeta: import.meta,
+    flags: {
+      server: { type: "string", shortFlag: "s" },
+      text: { type: "string", shortFlag: "t" },
+    },
+  },
+);
+
+const DEFAULT_PORT = 3284;
+const DEFAULT_URL = `http://127.0.0.1:${DEFAULT_PORT}`;
+
+function findServerBinary(): string | null {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+
+  const candidates = [
+    join(__dirname, "..", "server-binary.json"),
+    join(__dirname, "server-binary.json"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const data = JSON.parse(readFileSync(candidate, "utf-8"));
+      return data.binaryPath ?? null;
+    } catch {
+      // not found here, try next
+    }
+  }
+
+  return null;
+}
+
+async function waitForServer(url: string, timeoutMs = 10_000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`${url}/status`);
+      if (res.ok) return;
+    } catch {
+      // server not ready yet
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(
+    `Server did not become ready at ${url} within ${timeoutMs}ms`,
+  );
+}
+
+let serverProcess: ReturnType<typeof spawn> | null = null;
+
+async function main() {
+  let serverUrl = cli.flags.server;
+
+  if (!serverUrl) {
+    const binary = findServerBinary();
+    if (binary) {
+      serverProcess = spawn(binary, ["--port", String(DEFAULT_PORT)], {
+        stdio: "ignore",
+        detached: false,
+      });
+
+      serverProcess.on("error", (err) => {
+        console.error(`Failed to start goose-acp-server: ${err.message}`);
+        process.exit(1);
+      });
+
+      try {
+        await waitForServer(DEFAULT_URL);
+      } catch (err) {
+        console.error((err as Error).message);
+        serverProcess.kill();
+        process.exit(1);
+      }
+
+      serverUrl = DEFAULT_URL;
+    } else {
+      serverUrl = DEFAULT_URL;
+    }
+  }
+
+  const { waitUntilExit } = render(
+    <App serverUrl={serverUrl} initialPrompt={cli.flags.text} />,
+  );
+
+  await waitUntilExit();
+  cleanup();
+}
+
+function cleanup() {
+  if (serverProcess && !serverProcess.killed) {
+    serverProcess.kill();
+  }
+}
+
+process.on("exit", cleanup);
+process.on("SIGINT", () => {
+  cleanup();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  cleanup();
+  process.exit(0);
+});
+
+main().catch((err) => {
+  console.error(err);
+  cleanup();
+  process.exit(1);
+});
+

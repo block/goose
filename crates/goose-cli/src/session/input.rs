@@ -1,11 +1,12 @@
 use super::completion::GooseCompleter;
 use super::{CompletionCache, HintStatus};
 use anyhow::Result;
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
 use std::sync::Arc;
+use strum::VariantNames;
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -409,6 +410,7 @@ fn get_input_prompt_string() -> String {
 
 fn print_help() {
     let newline_key = get_newline_key().to_ascii_uppercase();
+    let modes = GooseMode::VARIANTS.join(", ");
     println!(
         "Available commands:
 /exit or /quit - Exit the session
@@ -419,7 +421,7 @@ fn print_help() {
 /builtin <names> - Add builtin extensions by name (comma-separated)
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
-/mode <name> - Set the goose mode to use ('auto', 'approve', 'chat', 'smart_approve')
+/mode <name> - Set the goose mode to use ({modes})
 /plan <message_text> -  Enters 'plan' mode with optional message. Create a plan based on the current messages and asks user if they want to act on it.
                         If user acts on the plan, goose mode is set to 'auto' and returns to 'normal' goose mode.
                         To warm up goose before using '/plan', we recommend setting '/mode approve' & putting appropriate context into goose.

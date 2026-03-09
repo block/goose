@@ -41,6 +41,7 @@ export function createHttpStream(serverUrl: string): Stream {
                 const msg = JSON.parse(line.slice(6)) as AnyMessage;
                 pushMessage(msg);
               } catch {
+                // ignore malformed JSON
               }
             }
           }
@@ -51,10 +52,6 @@ export function createHttpStream(serverUrl: string): Stream {
     }
   }
 
-  // POST initialize (no session header) opens a long-lived SSE stream that receives
-  // ALL subsequent responses and notifications. Later POSTs with the session header
-  // are fire-and-forget for requests (responses arrive on the first stream) or
-  // return 202 immediately for notifications/responses.
   let isFirstRequest = true;
 
   const readable = new ReadableStream<AnyMessage>({
@@ -69,7 +66,10 @@ export function createHttpStream(serverUrl: string): Stream {
   const writable = new WritableStream<AnyMessage>({
     async write(msg) {
       const isRequest =
-        "method" in msg && "id" in msg && msg.id !== undefined && msg.id !== null;
+        "method" in msg &&
+        "id" in msg &&
+        msg.id !== undefined &&
+        msg.id !== null;
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
