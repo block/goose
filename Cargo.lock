@@ -6999,17 +6999,17 @@ dependencies = [
 [[package]]
 name = "pctx_code_execution_runtime"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9180fee1264bed9613b65e8702b2bd4ba404a4606d802ac237808e032d476e84"
 dependencies = [
  "anyhow",
  "deno_core",
  "deno_error",
  "pctx_config",
+ "pctx_registry",
  "rmcp 0.14.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "url",
 ]
@@ -7017,8 +7017,6 @@ dependencies = [
 [[package]]
 name = "pctx_code_mode"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1006bf745381b3726592032cbee129f27873296810be199e04dfe759820e96f8"
 dependencies = [
  "futures",
  "pctx_code_execution_runtime",
@@ -7037,8 +7035,6 @@ dependencies = [
 [[package]]
 name = "pctx_codegen"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe8bc4029f5177e4c7a3fd03f702832fe56ef77c34bb165990875fba25980f95"
 dependencies = [
  "biome_formatter",
  "biome_js_formatter",
@@ -7059,8 +7055,6 @@ dependencies = [
 [[package]]
 name = "pctx_config"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f5d3440e3936b1e06f168ce1657dbb0f05e2be63972ddb51050f81a12e771fb"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -7085,8 +7079,6 @@ dependencies = [
 [[package]]
 name = "pctx_deno_transpiler"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d0569477b4b06a749da9d37ddc3f9876444bd532f06bac0709010f0c85efc2d"
 dependencies = [
  "deno_ast",
  "thiserror 2.0.18",
@@ -7095,16 +7087,14 @@ dependencies = [
 [[package]]
 name = "pctx_executor"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d0d78d239a4840d4452bafa4fde7c5ad1f128af85f14c2e3d4c72360551183f"
 dependencies = [
  "deno_core",
  "deno_resolver",
  "futures",
  "node_resolver",
  "pctx_code_execution_runtime",
- "pctx_config",
  "pctx_deno_transpiler",
+ "pctx_registry",
  "pctx_type_check_runtime",
  "regex",
  "serde",
@@ -7117,10 +7107,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pctx_registry"
+version = "0.1.0"
+dependencies = [
+ "deno_error",
+ "pctx_config",
+ "rmcp 0.14.0",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pctx_type_check_runtime"
 version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46d99b3ee5c8b345ba4038552ed4f6776a7a702e9739d35b99ffcc4eb7647e9b"
 dependencies = [
  "deno_ast",
  "deno_core",

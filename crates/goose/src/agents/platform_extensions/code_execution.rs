@@ -1,11 +1,12 @@
 use crate::agents::extension::PlatformExtensionContext;
-use crate::agents::extension_manager::get_tool_owner;
 use crate::agents::mcp_client::{Error, McpClientTrait};
 use anyhow::Result;
 use async_trait::async_trait;
 use indoc::indoc;
-use pctx_code_mode::model::{CallbackConfig, ExecuteInput, GetFunctionDetailsInput};
-use pctx_code_mode::{CallbackRegistry, CodeMode};
+use pctx_code_mode::model::{
+    CallbackConfig, DisclosureStyle, ExecuteBashInput, ExecuteInput, GetFunctionDetailsInput,
+};
+use pctx_code_mode::{tool_descriptions, CodeMode, PctxRegistry};
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeResult, JsonObject,
     ListToolsResult, ProtocolVersion, RawContent, Role, ServerCapabilities, Tool as McpTool,
@@ -27,6 +28,7 @@ pub static EXTENSION_NAME: &str = "code_execution";
 pub struct CodeExecutionClient {
     info: InitializeResult,
     context: PlatformExtensionContext,
+    disclosure_style: DisclosureStyle,
     state: RwLock<Option<CodeModeState>>,
 }
 
@@ -52,7 +54,39 @@ pub struct ExecuteWithToolGraph {
 }
 
 impl CodeExecutionClient {
-    pub fn new(context: PlatformExtensionContext) -> Result<Self> {
+    pub fn new(
+        context: PlatformExtensionContext,
+        disclosure_style: DisclosureStyle,
+    ) -> Result<Self> {
+        let disclosure_style_workflow = match disclosure_style {
+            DisclosureStyle::Catalog => {
+                indoc! {"
+                    1. Use the list_functions and get_function_details tools to discover tools and signatures
+                    2. Write ONE script that calls ALL tools needed for the task, no need to import anything,
+                        all the namespaces returned by list_functions and get_function_details will be available
+                    3. Chain results: use output from one tool as input to the next
+                    4. Only return and console.log data you need, tools could have very large responses.
+                "}
+            }
+            DisclosureStyle::Filesystem => {
+                indoc! {"
+                    1. Use the execute_bash to explore the available typescript function signatures and their input/output types
+                    2. Write ONE script that calls ALL tools needed for the task, no need to import anything,
+                        all the namespaces returned by execute_bash will be available
+                    3. Chain results: use output from one tool as input to the next
+                    4. Only return and console.log data you need, tools could have very large responses.
+                "}
+            }
+            DisclosureStyle::Sidecar => {
+                indoc! {"
+                    1. Review all the available tools
+                    2. Write and execute ONE script via execute_typescript that calls ALL tools needed for the task, no need to import `invoke`, it is globally available.
+                    3. Chain results: use output from one tool as input to the next
+                    4. Only return and console.log data you need, tools could have very large responses.
+                "}
+            }
+        };
+
         let info = InitializeResult {
             protocol_version: ProtocolVersion::V_2025_03_26,
             capabilities: ServerCapabilities {
@@ -75,27 +109,24 @@ impl CodeExecutionClient {
                 icons: None,
                 website_url: None,
             },
-            instructions: Some(indoc! {r#"
-                BATCH MULTIPLE TOOL CALLS INTO ONE execute CALL.
+            instructions: Some(format!(indoc! {r#"
+                BATCH MULTIPLE TOOL CALLS INTO ONE execute_typescript CALL.
 
                 This extension exists to reduce round-trips. When a task requires multiple tool calls:
-                - WRONG: Multiple execute calls, each with one tool
-                - RIGHT: One execute call with a script that calls all needed tools
+                - WRONG: Multiple execute_typescript calls, each with one tool
+                - RIGHT: One execute_typescript call with a script that calls all needed tools
 
                 IMPORTANT: All tool calls are ASYNC. Use await for each call.
 
                 Workflow:
-                    1. Use the list_functions and get_function_details tools to discover tools and signatures
-                    2. Write ONE script that calls ALL tools needed for the task, no need to import anything,
-                       all the namespaces returned by list_functions and get_function_details will be available
-                    3. Chain results: use output from one tool as input to the next
-                    4. Only return and console.log data you need, tools could have very large responses.
-            "#}.to_string()),
+                    {}
+            "#}, disclosure_style_workflow).to_string()),
         };
 
         Ok(Self {
             info,
             context,
+            disclosure_style,
             state: RwLock::new(None),
         })
     }
@@ -111,16 +142,15 @@ impl CodeExecutionClient {
             .get_prefixed_tools_excluding(session_id, EXTENSION_NAME)
             .await
             .ok()?;
+
         let mut cfgs = vec![];
         for tool in tools {
-            let full_name = tool.name.to_string();
-            let (namespace, name) = if let Some((server, tool_name)) = full_name.split_once("__") {
-                (server.to_string(), tool_name.to_string())
-            } else if let Some(owner) = get_tool_owner(&tool) {
-                (owner, full_name)
+            let (name, namespace) = if let Some((server, tool_name)) = tool.name.split_once("__") {
+                (tool_name.to_string(), Some(server.to_string()))
             } else {
-                continue;
+                (tool.name.to_string(), None)
             };
+
             cfgs.push(CallbackConfig {
                 name,
                 namespace,
@@ -165,12 +195,12 @@ impl CodeExecutionClient {
         Ok(code_mode)
     }
 
-    /// Build a CallbackRegistry with all tool callbacks registered
+    /// Build a PctxRegistry with all tool callbacks registered
     fn build_callback_registry(
         &self,
         session_id: &str,
         code_mode: &CodeMode,
-    ) -> Result<CallbackRegistry, String> {
+    ) -> Result<PctxRegistry, String> {
         let manager = self
             .context
             .extension_manager
@@ -178,12 +208,19 @@ impl CodeExecutionClient {
             .and_then(|w| w.upgrade())
             .ok_or("Extension manager not available")?;
 
-        let registry = CallbackRegistry::default();
+        let registry = PctxRegistry::default();
         for cfg in code_mode.callbacks() {
-            let full_name = format!("{}__{}", &cfg.namespace, &cfg.name);
+            let full_name = format!(
+                "{}{}",
+                cfg.namespace
+                    .clone()
+                    .map(|n| format!("{n}__"))
+                    .unwrap_or_default(),
+                &cfg.name
+            );
             let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
             registry
-                .add(&cfg.id(), callback)
+                .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
         }
 
@@ -194,6 +231,8 @@ impl CodeExecutionClient {
     async fn handle_list_functions(&self, session_id: &str) -> Result<Vec<Content>, String> {
         let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.list_functions();
+
+        println!("List Functions output:\n{}", &output.code);
 
         Ok(vec![Content::text(output.code)])
     }
@@ -213,24 +252,26 @@ impl CodeExecutionClient {
         let code_mode = self.get_code_mode(session_id).await?;
         let output = code_mode.get_function_details(input);
 
+        println!("Get Function Details output:\n{}", &output.code);
+
         Ok(vec![Content::text(output.code)])
     }
 
-    /// Handle the execute tool call
-    async fn handle_execute(
+    /// Handle the execute bash tool call
+    async fn handle_execute_bash(
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
-        let args: ExecuteWithToolGraph = arguments
+        let input: ExecuteBashInput = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
             .transpose()
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
-            .ok_or("Missing arguments for execute")?;
+            .ok_or("Missing arguments for execute_bash")?;
+        let command = input.command;
+        println!("Executing bash:\n{command}");
 
         let code_mode = self.get_code_mode(session_id).await?;
-        let registry = self.build_callback_registry(session_id, &code_mode)?;
-        let code = args.input.code.clone();
 
         // Deno runtime is not Send, so we need to run it in a blocking task
         // with its own tokio runtime
@@ -242,13 +283,57 @@ impl CodeExecutionClient {
 
             rt.block_on(async move {
                 code_mode
-                    .execute(&code, Some(registry))
+                    .execute_bash(&command)
                     .await
-                    .map_err(|e| format!("Execution error: {e}"))
+                    .map_err(|e| format!("Typescript execution error: {e}"))
             })
         })
         .await
-        .map_err(|e| format!("Execution task failed: {e}"))??;
+        .map_err(|e| format!("Typescript execution task failed: {e}"))??;
+
+        println!("Execute bash result:\n{}", output.markdown());
+
+        Ok(vec![Content::text(output.markdown())])
+    }
+
+    /// Handle the execute typescript tool call
+    async fn handle_execute_typescript(
+        &self,
+        session_id: &str,
+        arguments: Option<JsonObject>,
+    ) -> Result<Vec<Content>, String> {
+        let args: ExecuteWithToolGraph = arguments
+            .map(|args| serde_json::from_value(Value::Object(args)))
+            .transpose()
+            .map_err(|e| format!("Failed to parse arguments: {e}"))?
+            .ok_or("Missing arguments for execute_typescript")?;
+
+        let code_mode = self.get_code_mode(session_id).await?;
+        let registry = self.build_callback_registry(session_id, &code_mode)?;
+        let code = args.input.code.clone();
+        let disclosure_style = self.disclosure_style;
+
+        println!("Executing typescript ({disclosure_style:?})");
+
+        // Deno runtime is not Send, so we need to run it in a blocking task
+        // with its own tokio runtime
+        let output = tokio::task::spawn_blocking(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| format!("Failed to create runtime: {e}"))?;
+
+            rt.block_on(async move {
+                code_mode
+                    .execute_typescript(&code, disclosure_style, Some(registry))
+                    .await
+                    .map_err(|e| format!("Typescript execution error: {e}"))
+            })
+        })
+        .await
+        .map_err(|e| format!("Typescript execution task failed: {e}"))??;
+
+        println!("Execute typescript result:\n{}", output.markdown());
 
         Ok(vec![Content::text(output.markdown())])
     }
@@ -330,97 +415,79 @@ impl McpClientTrait for CodeExecutionClient {
         }))
         .expect("valid schema");
 
-        Ok(ListToolsResult {
-            tools: vec![
-                McpTool::new(
-                    "list_functions".to_string(),
-                    indoc! {r#"
-                        List all available functions across all namespaces.
-                        
-                        This will not return function input and output types.
-                        After determining which functions are needed use
-                        get_function_details to get input and output type 
-                        information about specific functions.
-                    "#}
-                    .to_string(),
-                    empty_schema,
-                )
-                .annotate(ToolAnnotations {
-                    title: Some("List functions".to_string()),
-                    read_only_hint: Some(true),
-                    destructive_hint: Some(false),
-                    idempotent_hint: Some(true),
-                    open_world_hint: Some(false),
-                }),
-                McpTool::new(
-                    "get_function_details".to_string(),
-                    indoc! {r#"
-                        Get detailed type information for specific functions.
-
-                        Provide a list of function identifiers in the format "Namespace.functionName"
-                        (e.g., "Developer.shell", "Github.createIssue").
-
-                        Returns full TypeScript interface definitions with parameter types,
-                        return types, and descriptions for the requested functions.
-                    "#}
-                    .to_string(),
-                    schema::<GetFunctionDetailsInput>(),
-                )
-                .annotate(ToolAnnotations {
-                    title: Some("Get function details".to_string()),
-                    read_only_hint: Some(true),
-                    destructive_hint: Some(false),
-                    idempotent_hint: Some(true),
-                    open_world_hint: Some(false),
-                }),
-                McpTool::new(
-                    "execute".to_string(),
-                    indoc! {r#"
-                        Execute TypeScript code that calls available functions.
-
-                        SYNTAX - TypeScript with async run() function:
-                        ```typescript
-                        async function run() {
-                            // Access functions via Namespace.functionName({ params }) — always camelCase
-                            const files = await Developer.shell({ command: "ls -la" });
-                            const readme = await Developer.shell({ command: "cat ./README.md" });
-                            return { files, readme };
-                        }
-                        ```
-
-                        TOOL_GRAPH: Always provide tool_graph to describe the execution flow for the UI.
-                        Each node has: tool (Namespace.functionName), description (what it does), depends_on (indices of dependencies).
-                        Example for chained operations:
-                        [
-                          {"tool": "Developer.shell", "description": "list files", "depends_on": []},
-                          {"tool": "Developer.shell", "description": "read README.md", "depends_on": []},
-                          {"tool": "Developer.write", "description": "write output.txt", "depends_on": [0, 1]}
-                        ]
-
-                        KEY RULES:
-                        - Code MUST define an async function named `run()`
-                        - All function calls are async - use `await`
-                        - Function names are always camelCase (e.g., Developer.shell, Github.listIssues, Github.createIssue)
-                        - Return value from `run()` is the result, all `console.log()` output will be returned as well.
-                        - Only functions from `list_functions()` and `console` methods are available — no `fetch()`, `fs`, or other Node/Deno APIs
-                        - Variables don't persist between `execute()` calls - return or log anything you need later
-                        - Code runs in an isolated sandbox with restricted network access
-
-                        HANDLING RETURN VALUES:
-                        - If a function returns `any`, do NOT assume its shape - log it first: `console.log(JSON.stringify(result))`
-                        - Many functions return wrapper objects, not raw arrays - check the response structure before calling .filter(), .map(), etc.
-                        - Always inspect unfamiliar return values with console.log() before processing them
-
-                        TOKEN USAGE WARNING: This tool could return LARGE responses if your code returns big objects.
-                        To minimize tokens:
-                        - Filter/map/reduce data IN YOUR CODE before returning
-                        - Only return specific fields you need (e.g., return {id: result.id, count: items.length})
-                        - Use console.log() for intermediate results instead of returning everything
-                        - Avoid returning full API responses - extract just what you need
-
-                        BEFORE CALLING: Use list_functions or get_function_details to check available functions and their parameters.
-                    "#}
-                    .to_string(),
+        let tools = match self.disclosure_style {
+            DisclosureStyle::Catalog => {
+                vec![
+                    McpTool::new(
+                        "list_functions".to_string(),
+                        tool_descriptions::LIST_FUNCTIONS.to_string(),
+                        empty_schema,
+                    )
+                    .annotate(ToolAnnotations {
+                        title: Some("List functions".to_string()),
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                        open_world_hint: Some(false),
+                    }),
+                    McpTool::new(
+                        "get_function_details".to_string(),
+                        tool_descriptions::GET_FUNCTION_DETAILS.to_string(),
+                        schema::<GetFunctionDetailsInput>(),
+                    )
+                    .annotate(ToolAnnotations {
+                        title: Some("Get function details".to_string()),
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                        open_world_hint: Some(false),
+                    }),
+                    McpTool::new(
+                        "execute_typescript".to_string(),
+                        tool_descriptions::EXECUTE_TYPESCRIPT_CATALOG.to_string(),
+                        schema::<ExecuteWithToolGraph>(),
+                    )
+                    .annotate(ToolAnnotations {
+                        title: Some("Execute TypeScript".to_string()),
+                        read_only_hint: Some(false),
+                        destructive_hint: Some(true),
+                        idempotent_hint: Some(false),
+                        open_world_hint: Some(true),
+                    }),
+                ]
+            }
+            DisclosureStyle::Filesystem => {
+                vec![
+                    McpTool::new(
+                        "execute_bash".to_string(),
+                        tool_descriptions::EXECUTE_BASH.to_string(),
+                        schema::<ExecuteBashInput>(),
+                    )
+                    .annotate(ToolAnnotations {
+                        title: Some("Get function details".to_string()),
+                        read_only_hint: Some(true),
+                        destructive_hint: Some(false),
+                        idempotent_hint: Some(true),
+                        open_world_hint: Some(false),
+                    }),
+                    McpTool::new(
+                        "execute_typescript".to_string(),
+                        tool_descriptions::EXECUTE_TYPESCRIPT_FILESYSTEM.to_string(),
+                        schema::<ExecuteWithToolGraph>(),
+                    )
+                    .annotate(ToolAnnotations {
+                        title: Some("Execute TypeScript".to_string()),
+                        read_only_hint: Some(false),
+                        destructive_hint: Some(true),
+                        idempotent_hint: Some(false),
+                        open_world_hint: Some(true),
+                    }),
+                ]
+            }
+            DisclosureStyle::Sidecar => {
+                vec![McpTool::new(
+                    "execute_typescript".to_string(),
+                    tool_descriptions::EXECUTE_TYPESCRIPT_SIDECAR.to_string(),
                     schema::<ExecuteWithToolGraph>(),
                 )
                 .annotate(ToolAnnotations {
@@ -429,10 +496,14 @@ impl McpClientTrait for CodeExecutionClient {
                     destructive_hint: Some(true),
                     idempotent_hint: Some(false),
                     open_world_hint: Some(true),
-                }),
-            ],
-            next_cursor: None,
+                })]
+            }
+        };
+
+        Ok(ListToolsResult {
             meta: None,
+            next_cursor: None,
+            tools,
         })
     }
 
@@ -444,15 +515,20 @@ impl McpClientTrait for CodeExecutionClient {
         _working_dir: Option<&str>,
         _cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        println!("Calling tool {name}...");
+
         let result = match name {
             "list_functions" => self.handle_list_functions(session_id).await,
             "get_function_details" => {
                 self.handle_get_function_details(session_id, arguments)
                     .await
             }
-            "execute" => self.handle_execute(session_id, arguments).await,
+            "execute_bash" => self.handle_execute_bash(session_id, arguments).await,
+            "execute_typescript" => self.handle_execute_typescript(session_id, arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
         };
+
+        println!("Tool Res error = {}", result.is_err());
 
         match result {
             Ok(content) => Ok(CallToolResult::success(content)),
@@ -468,26 +544,39 @@ impl McpClientTrait for CodeExecutionClient {
 
     async fn get_moim(&self, session_id: &str) -> Option<String> {
         let code_mode = self.get_code_mode(session_id).await.ok()?;
-        let available: Vec<_> = code_mode
-            .list_functions()
-            .functions
-            .iter()
-            .map(|f| format!("{}.{}", &f.namespace, &f.name))
-            .collect();
+
+        let disclosure_style_moim = match self.disclosure_style {
+            DisclosureStyle::Catalog => {
+                let available: Vec<_> = code_mode
+                    .list_functions()
+                    .functions
+                    .iter()
+                    .map(|f| format!("{}.{}", &f.namespace, &f.name))
+                    .collect();
+                format!("Available namespaces: {}
+
+                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.", available.join(", "))
+            }
+            DisclosureStyle::Filesystem => "Use execute_bash to search and read the tool signatures and input/output types before calling execute_typescript.".into(),
+            DisclosureStyle::Sidecar => "Prioritize calling tools with the execute_typescript tool, especially when multiple tools can be called in one script.".into(),
+        };
 
         Some(format!(
             indoc::indoc! {r#"
-                ALWAYS batch multiple tool operations into ONE execute call.
-                - WRONG: Separate execute calls for read file, then write file
-                - RIGHT: One execute with an async run() function that reads AND writes
+                ALWAYS batch multiple tool operations into ONE execute_typescript call.
+                - WRONG: Separate execute_typescript calls for read file, then write file
+                - RIGHT: One execute_typescript with an async run() function that reads AND writes AND logs/returns as little information as needed for the next step.
 
-                Available namespaces: {}
-
-                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling unfamiliar tools.
+                {}
             "#},
-            available.join(", ")
+            disclosure_style_moim
         ))
     }
+}
+
+pub fn get_disclosure_style() -> DisclosureStyle {
+    let style_env = std::env::var("CODE_MODE_DISCLOSURE_STYLE").unwrap_or("catalog".to_string());
+    serde_json::from_value(serde_json::json!(style_env)).unwrap_or_default()
 }
 
 struct CodeModeState {

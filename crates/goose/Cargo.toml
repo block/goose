@@ -135,7 +135,9 @@ tree-sitter-rust = { workspace = true }
 tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
-pctx_code_mode = { version = "^0.2.3", optional = true }
+# pctx_code_mode = { version = "^0.2.3", optional = true }
+# pctx_code_mode = { git = "https://github.com/portofcontext/pctx", branch = "ts-sidecar", optional = true}
+pctx_code_mode = { path = "/Users/elias/repos/portofcontext/pctx/crates/pctx_code_mode",  optional = true}
 unbinder = "0.1.7"
 pulldown-cmark = "0.13.0"
 llama-cpp-2 = { version = "0.1.137", features = ["sampler"] }

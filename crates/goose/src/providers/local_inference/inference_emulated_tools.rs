@@ -206,7 +206,9 @@ impl StreamingEmulatorParser {
                 ParserState::Normal => {
                     // Check for ```execute block (code mode)
                     if self.code_mode_enabled {
-                        if let Some((before, after)) = self.buffer.split_once("```execute\n") {
+                        if let Some((before, after)) =
+                            self.buffer.split_once("```execute_typescript\n")
+                        {
                             if !before.trim().is_empty() {
                                 results.push(EmulatorAction::Text(before.to_string()));
                             }
@@ -215,8 +217,8 @@ impl StreamingEmulatorParser {
                             continue;
                         }
                         // Also handle without newline after tag (accumulating)
-                        if self.buffer.ends_with("```execute") {
-                            let before = self.buffer.trim_end_matches("```execute");
+                        if self.buffer.ends_with("```execute_typescript") {
+                            let before = self.buffer.trim_end_matches("```execute_typescript");
                             if !before.trim().is_empty() {
                                 results.push(EmulatorAction::Text(before.to_string()));
                             }
