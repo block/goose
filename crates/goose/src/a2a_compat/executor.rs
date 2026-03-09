@@ -23,14 +23,14 @@ use crate::execution::manager::AgentManager;
 /// Creates a fresh agent session per A2A task via the `AgentManager`.
 pub struct GooseAgentExecutor {
     agent_manager: Arc<AgentManager>,
-    cancel_token: CancellationToken,
+    cancel_tokens: std::sync::Mutex<std::collections::HashMap<String, CancellationToken>>,
 }
 
 impl GooseAgentExecutor {
     pub fn new(agent_manager: Arc<AgentManager>) -> Self {
         Self {
             agent_manager,
-            cancel_token: CancellationToken::new(),
+            cancel_tokens: std::sync::Mutex::new(std::collections::HashMap::new()),
         }
     }
 
@@ -101,8 +101,13 @@ impl AgentExecutor for GooseAgentExecutor {
                 message: e.to_string(),
             })?;
 
+        let cancel_token = CancellationToken::new();
+        self.cancel_tokens
+            .lock()
+            .unwrap()
+            .insert(context.task_id.clone(), cancel_token.clone());
         let stream_result = agent
-            .reply(goose_msg, session_config, Some(self.cancel_token.clone()))
+            .reply(goose_msg, session_config, Some(cancel_token))
             .await;
 
         let mut stream = match stream_result {
@@ -203,10 +208,12 @@ impl AgentExecutor for GooseAgentExecutor {
 
     async fn cancel(
         &self,
-        _task_id: &str,
+        task_id: &str,
         _event_tx: mpsc::Sender<AgentExecutionEvent>,
     ) -> Result<(), A2AError> {
-        self.cancel_token.cancel();
+        if let Some(token) = self.cancel_tokens.lock().unwrap().remove(task_id) {
+            token.cancel();
+        }
         Ok(())
     }
 }

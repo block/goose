@@ -21,11 +21,15 @@ use goose::a2a_compat::{build_agent_card, skill, GooseAgentExecutor};
 use crate::state::AppState;
 
 /// Build the A2A sub-router and nest it under `/a2a`.
+///
+/// The agent card's interface URL is set to `https://127.0.0.1/a2a`
+/// as a default. Clients typically resolve the URL from the discovery
+/// endpoint they used to fetch the card.
 pub fn routes(state: Arc<AppState>) -> Router {
     let card = build_agent_card(
         "Goose",
         "A general-purpose AI agent powered by LLMs",
-        "/a2a",
+        "https://127.0.0.1/a2a",
         vec![skill(
             "general",
             "General-purpose task execution",
@@ -48,12 +52,16 @@ mod tests {
         let card = build_agent_card(
             "Goose",
             "A general-purpose AI agent",
-            "http://localhost:3000",
+            "https://127.0.0.1:3000/a2a",
             vec![skill("coding", "Write and edit code", vec!["code".into()])],
         );
         assert_eq!(card.name, "Goose");
         assert!(!card.description.is_empty());
         assert!(!card.supported_interfaces.is_empty());
+        assert_eq!(
+            card.supported_interfaces[0].url,
+            "https://127.0.0.1:3000/a2a"
+        );
         assert!(card.capabilities.unwrap().streaming);
     }
 }
