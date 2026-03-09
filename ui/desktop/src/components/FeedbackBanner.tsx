@@ -12,15 +12,67 @@ const ratingOptions: Array<{ rating: 1 | 2 | 3 | 4; emoji: string; label: string
   { rating: 4, emoji: '\u{1F929}', label: 'Great' },
 ];
 
+const DISCORD_URL = 'https://discord.gg/goose-oss';
+
 export default function FeedbackBanner({ onRate, onDismiss }: FeedbackBannerProps) {
-  const [submitted, setSubmitted] = useState(false);
+  const [submittedRating, setSubmittedRating] = useState<1 | 2 | 3 | 4 | null>(null);
 
   const handleRate = (rating: 1 | 2 | 3 | 4) => {
-    setSubmitted(true);
-    setTimeout(() => onRate(rating), 1000);
+    setSubmittedRating(rating);
+    if (rating > 1) {
+      setTimeout(() => onRate(rating), 1000);
+    }
   };
 
-  if (submitted) {
+  const handleDismissAfterLowRating = () => {
+    if (submittedRating) {
+      onRate(submittedRating);
+    }
+  };
+
+  if (submittedRating === 1) {
+    return (
+      <div className="flex flex-col items-center gap-1.5 py-2 animate-[fadein_300ms_ease-in_forwards]">
+        <span className="text-xs text-text-secondary">
+          Sorry to hear that. Let us know how we can improve:
+        </span>
+        <div className="flex items-center gap-3 text-xs">
+          <a
+            href={DISCORD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleDismissAfterLowRating}
+            className="text-text-secondary underline hover:text-text-primary transition-colors"
+          >
+            Chat on Discord
+          </a>
+          <button
+            onClick={handleDismissAfterLowRating}
+            className="ml-1 p-0.5 rounded text-text-secondary hover:text-text-primary hover:bg-background-secondary transition-colors cursor-pointer"
+            title="Dismiss"
+            aria-label="Dismiss"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (submittedRating) {
     return (
       <div className="flex items-center justify-center py-2 text-xs text-text-secondary animate-[fadein_300ms_ease-in_forwards]">
         Thanks for the feedback!

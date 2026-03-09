@@ -3,7 +3,7 @@ import { canTrack, trackFeedbackSubmitted, trackFeedbackDismissed } from '../uti
 import { ChatState } from '../types/chatState';
 
 const EXCHANGE_INTERVAL = 5; // Show after every Nth exchange
-const IN_SESSION_COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
+const IN_SESSION_COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
 const CROSS_SESSION_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 interface UseFeedbackPromptOptions {
