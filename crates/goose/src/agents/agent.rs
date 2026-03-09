@@ -362,7 +362,7 @@ impl Agent {
                     .unwrap_or(crate::model::DEFAULT_CONTEXT_LIMIT);
                 let compaction_threshold = Config::global()
                     .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
-                    .ok();
+                    .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
                 crate::context_mgmt::compute_tool_call_cutoff(context_limit, compaction_threshold)
             }
         };

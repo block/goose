@@ -18,10 +18,11 @@ use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
-/// Feature flag to enable/disable tool pair summarization.
-/// Set to `false` to disable summarizing old tool call/response pairs.
-/// TODO: Re-enable once tool summarization stability issues are resolved.
-const ENABLE_TOOL_PAIR_SUMMARIZATION: bool = false;
+fn tool_pair_summarization_enabled() -> bool {
+    Config::global()
+        .get_param::<bool>("GOOSE_TOOL_PAIR_SUMMARIZATION")
+        .unwrap_or(true)
+}
 
 const CONVERSATION_CONTINUATION_TEXT: &str =
     "Your context was compacted. The previous message contains a summary of the conversation so far.
@@ -420,15 +421,18 @@ fn format_message_for_compacting(msg: &Message) -> String {
 }
 
 /// Compute a smart tool call cutoff based on the effective context budget.
-/// When a compaction threshold is set, the effective budget is context_limit * threshold,
-/// since compaction will fire at that point anyway.
-/// Returns effective_limit / 10_000, clamped to [10, 500].
-pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: Option<f64>) -> usize {
-    let effective_limit = match compaction_threshold {
-        Some(t) if t > 0.0 && t < 1.0 => (context_limit as f64 * t) as usize,
-        _ => context_limit,
+/// The effective budget is `context_limit * compaction_threshold` because
+/// compaction fires at that point — there's no value keeping more unsummarized
+/// tool calls than we can fit before the next compaction.
+/// Returns 3 * effective_limit / 20_000, clamped to [10, 500].
+pub fn compute_tool_call_cutoff(context_limit: usize, compaction_threshold: f64) -> usize {
+    let threshold = if compaction_threshold > 0.0 && compaction_threshold <= 1.0 {
+        compaction_threshold
+    } else {
+        DEFAULT_COMPACTION_THRESHOLD
     };
-    (effective_limit / 10_000).clamp(10, 500)
+    let effective_limit = (context_limit as f64 * threshold) as usize;
+    (3 * effective_limit / 20_000).clamp(10, 500)
 }
 
 /// Find tool call IDs to summarize. Returns the oldest unsummarized tool call IDs
@@ -507,16 +511,16 @@ pub async fn summarize_tool_call(
     let summarization_request = vec![user_message];
 
     let system_prompt = indoc! {r#"
-                Your task is to summarize a tool call & response pair to save tokens
+                Your task is to summarize a tool call & response pair to save tokens.
 
-                reply with a single message that describe what happened. Typically a toolcall
-                is asks for something using a bunch of parameters and then the result is also some
+                Reply with a single message that describes what happened. Typically a tool call
+                asks for something using a bunch of parameters and then the result is also some
                 structured output. So the tool might ask to look up something on github and the
                 reply might be a json document. So you could reply with something like:
 
-                "[Historical tool call summary] A call to github was made to get the project status"
+                "A call to github was made to get the project status"
 
-                if that is what it was. Always start your reply with "[Historical tool call summary]".
+                if that is what it was.
             "#};
 
     let (mut response, _) = provider
@@ -538,7 +542,7 @@ pub fn maybe_summarize_tool_pairs(
     protect_last_n: usize,
 ) -> JoinHandle<Vec<(Message, String)>> {
     tokio::spawn(async move {
-        if !ENABLE_TOOL_PAIR_SUMMARIZATION {
+        if !tool_pair_summarization_enabled() {
             return Vec::new();
         }
 
@@ -753,9 +757,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_tool_pair_summarization_workflow() {
-        let summary_response = Message::assistant().with_text(
-            "[Historical tool call summary] Tool call to list files and response with file listing",
-        );
+        let summary_response = Message::assistant()
+            .with_text("Tool call to list files and response with file listing");
         let provider = MockProvider::new(summary_response, 1000);
 
         let mut messages = vec![Message::user().with_text("list files").with_id("msg_1")];
@@ -797,10 +800,8 @@ mod tests {
         assert!(summary.metadata.agent_visible);
         assert!(!summary.metadata.user_visible);
         assert!(
-            summary
-                .as_concat_text()
-                .starts_with("[Historical tool call summary]"),
-            "Summary should have historical framing prefix"
+            summary.as_concat_text().contains("Tool call"),
+            "Summary should describe the tool call"
         );
 
         let mut updated_messages = conversation.messages().clone();
@@ -844,8 +845,7 @@ mod tests {
             .find(|m| {
                 m.metadata.agent_visible
                     && !m.metadata.user_visible
-                    && m.as_concat_text()
-                        .contains("[Historical tool call summary]")
+                    && m.as_concat_text().contains("Tool call")
             })
             .unwrap();
         assert!(
@@ -859,19 +859,21 @@ mod tests {
 
     #[test]
     fn test_compute_tool_call_cutoff_scales_with_context() {
-        // No threshold (uses full context)
-        assert_eq!(compute_tool_call_cutoff(128_000, None), 12);
-        assert_eq!(compute_tool_call_cutoff(200_000, None), 20);
-        assert_eq!(compute_tool_call_cutoff(1_000_000, None), 100);
-        // Clamp at minimum
-        assert_eq!(compute_tool_call_cutoff(50_000, None), 10);
-        assert_eq!(compute_tool_call_cutoff(10_000, None), 10);
+        // Default threshold (0.8)
+        assert_eq!(compute_tool_call_cutoff(128_000, 0.8), 15); // 102K effective
+        assert_eq!(compute_tool_call_cutoff(200_000, 0.8), 24); // 160K effective
+        assert_eq!(compute_tool_call_cutoff(1_000_000, 0.8), 120); // 800K effective
+                                                                   // Clamp at minimum
+        assert_eq!(compute_tool_call_cutoff(50_000, 0.8), 10);
+        assert_eq!(compute_tool_call_cutoff(10_000, 0.8), 10);
         // Clamp at maximum (500)
-        assert_eq!(compute_tool_call_cutoff(10_000_000, None), 500);
-        // With compaction threshold — uses effective budget
-        assert_eq!(compute_tool_call_cutoff(200_000, Some(0.3)), 10); // 60K effective
-        assert_eq!(compute_tool_call_cutoff(1_000_000, Some(0.5)), 50); // 500K effective
-        assert_eq!(compute_tool_call_cutoff(200_000, Some(0.8)), 16); // 160K effective
+        assert_eq!(compute_tool_call_cutoff(10_000_000, 0.8), 500);
+        // Lower compaction threshold means earlier summarization
+        assert_eq!(compute_tool_call_cutoff(200_000, 0.3), 10); // 60K effective
+        assert_eq!(compute_tool_call_cutoff(1_000_000, 0.5), 75); // 500K effective
+                                                                  // Invalid threshold falls back to default 0.8
+        assert_eq!(compute_tool_call_cutoff(200_000, 0.0), 24); // falls back to 0.8
+        assert_eq!(compute_tool_call_cutoff(200_000, -1.0), 24); // falls back to 0.8
     }
 
     #[test]
