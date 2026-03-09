@@ -107,12 +107,23 @@ export default function BaseChat({
 
   const recipe = session?.recipe;
 
+  const resolvedInitialMessage = useMemo((): UserInput | undefined => {
+    if (!initialMessage) return undefined;
+    if (recipe?.prompt && session?.user_recipe_values) {
+      return {
+        ...initialMessage,
+        msg: substituteParameters(initialMessage.msg, session.user_recipe_values),
+      };
+    }
+    return initialMessage;
+  }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
+
   useAutoSubmit({
     sessionId,
     session,
     messages,
     chatState,
-    initialMessage,
+    initialMessage: resolvedInitialMessage,
     handleSubmit,
   });
 
