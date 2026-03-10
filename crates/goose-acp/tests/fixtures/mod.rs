@@ -3,6 +3,7 @@
 
 use async_trait::async_trait;
 use fs_err as fs;
+pub use goose::acp::{map_permission_response, PermissionDecision, PermissionMapping};
 use goose::builtin_extension::register_builtin_extensions;
 use goose::config::{GooseMode, PermissionManager};
 use goose::providers::api_client::{ApiClient, AuthMethod as ApiAuthMethod};
@@ -12,7 +13,6 @@ use goose::providers::provider_registry::ProviderConstructor;
 use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
-pub use goose::acp::{map_permission_response, PermissionDecision, PermissionMapping};
 use sacp::schema::{AuthMethod, McpServer, SessionModelState, ToolCallStatus};
 use std::collections::VecDeque;
 use std::future::Future;

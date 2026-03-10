@@ -1,6 +1,7 @@
 use crate::custom_requests::*;
 use anyhow::Result;
 use fs_err as fs;
+use goose::acp::PermissionDecision;
 use goose::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use goose::agents::{Agent, AgentConfig, ExtensionConfig, GoosePlatform, SessionConfig};
 use goose::builtin_extension::register_builtin_extensions;
@@ -12,7 +13,6 @@ use goose::config::Config;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
-use goose::acp::PermissionDecision;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
