@@ -511,7 +511,7 @@ const getServerSecret = (settings: Settings): string => {
     return settings.externalGoosed.secret;
   }
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return 'test';
+    return process.env.GOOSE_SERVER__SECRET_KEY || GENERATED_SECRET;
   }
   return GENERATED_SECRET;
 };
