@@ -3824,28 +3824,6 @@
           }
         }
       },
-      "AudioContentBlock": {
-        "type": "object",
-        "required": [
-          "type",
-          "data",
-          "mimeType"
-        ],
-        "properties": {
-          "data": {
-            "type": "string"
-          },
-          "mimeType": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "audio"
-            ]
-          }
-        }
-      },
       "Author": {
         "type": "object",
         "properties": {
@@ -4052,12 +4030,40 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawTextContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawImageContent"
               }
@@ -4066,6 +4072,20 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawEmbeddedResource"
               }
             ]
@@ -4073,12 +4093,40 @@
           {
             "allOf": [
               {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
                 "$ref": "#/components/schemas/RawAudioContent"
               }
             ]
           },
           {
             "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
               {
                 "$ref": "#/components/schemas/RawResource"
               }
@@ -4089,19 +4137,109 @@
       "ContentBlock": {
         "oneOf": [
           {
-            "$ref": "#/components/schemas/TextContentBlock"
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "text"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawTextContent"
+              }
+            ]
           },
           {
-            "$ref": "#/components/schemas/ImageContentBlock"
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "image"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawImageContent"
+              }
+            ]
           },
           {
-            "$ref": "#/components/schemas/ResourceContentBlock"
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawEmbeddedResource"
+              }
+            ]
           },
           {
-            "$ref": "#/components/schemas/AudioContentBlock"
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "audio"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawAudioContent"
+              }
+            ]
           },
           {
-            "$ref": "#/components/schemas/ResourceLinkContentBlock"
+            "allOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "resource_link"
+                    ]
+                  }
+                }
+              },
+              {
+                "$ref": "#/components/schemas/RawResource"
+              }
+            ]
           }
         ]
       },
@@ -5159,31 +5297,6 @@
           },
           "mimeType": {
             "type": "string"
-          }
-        }
-      },
-      "ImageContentBlock": {
-        "type": "object",
-        "required": [
-          "type",
-          "data",
-          "mimeType"
-        ],
-        "properties": {
-          "_meta": {
-            "type": "object"
-          },
-          "data": {
-            "type": "string"
-          },
-          "mimeType": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "image"
-            ]
           }
         }
       },
@@ -6877,27 +6990,6 @@
           }
         }
       },
-      "ResourceContentBlock": {
-        "type": "object",
-        "required": [
-          "type",
-          "resource"
-        ],
-        "properties": {
-          "_meta": {
-            "type": "object"
-          },
-          "resource": {
-            "type": "object"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "resource"
-            ]
-          }
-        }
-      },
       "ResourceContents": {
         "anyOf": [
           {
@@ -6945,40 +7037,6 @@
             }
           }
         ]
-      },
-      "ResourceLinkContentBlock": {
-        "type": "object",
-        "required": [
-          "type",
-          "uri",
-          "name"
-        ],
-        "properties": {
-          "_meta": {
-            "type": "object"
-          },
-          "description": {
-            "type": "string"
-          },
-          "mimeType": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "resource_link"
-            ]
-          },
-          "uri": {
-            "type": "string"
-          }
-        }
       },
       "ResourceMetadata": {
         "type": "object",
@@ -7105,10 +7163,16 @@
       "Role": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "user"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "assistant"
+            ]
           }
         ]
       },
@@ -7840,13 +7904,22 @@
       "TaskSupport": {
         "oneOf": [
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "forbidden"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "optional"
+            ]
           },
           {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "required"
+            ]
           }
         ]
       },
@@ -7915,27 +7988,6 @@
           },
           "text": {
             "type": "string"
-          }
-        }
-      },
-      "TextContentBlock": {
-        "type": "object",
-        "required": [
-          "type",
-          "text"
-        ],
-        "properties": {
-          "_meta": {
-            "type": "object"
-          },
-          "text": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "text"
-            ]
           }
         }
       },
