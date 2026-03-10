@@ -12,11 +12,8 @@ use goose::providers::provider_registry::ProviderConstructor;
 use goose::session_context::SESSION_ID_HEADER;
 use goose_acp::server::{serve, GooseAcpAgent};
 use goose_test_support::{ExpectedSessionId, TEST_MODEL};
-use sacp::schema::{
-    AuthMethod, McpServer, PermissionOptionKind, RequestPermissionOutcome,
-    RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
-    SessionModelState, ToolCallStatus,
-};
+pub use goose::acp::{map_permission_response, PermissionDecision, PermissionMapping};
+use sacp::schema::{AuthMethod, McpServer, SessionModelState, ToolCallStatus};
 use std::collections::VecDeque;
 use std::future::Future;
 use std::path::Path;
@@ -26,49 +23,6 @@ use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PermissionDecision {
-    AllowAlways,
-    AllowOnce,
-    RejectOnce,
-    RejectAlways,
-    Cancel,
-}
-
-#[derive(Default)]
-pub struct PermissionMapping;
-
-pub fn map_permission_response(
-    _mapping: &PermissionMapping,
-    req: &RequestPermissionRequest,
-    decision: PermissionDecision,
-) -> RequestPermissionResponse {
-    let outcome = match decision {
-        PermissionDecision::Cancel => RequestPermissionOutcome::Cancelled,
-        PermissionDecision::AllowAlways => select_option(req, PermissionOptionKind::AllowAlways),
-        PermissionDecision::AllowOnce => select_option(req, PermissionOptionKind::AllowOnce),
-        PermissionDecision::RejectOnce => select_option(req, PermissionOptionKind::RejectOnce),
-        PermissionDecision::RejectAlways => select_option(req, PermissionOptionKind::RejectAlways),
-    };
-
-    RequestPermissionResponse::new(outcome)
-}
-
-fn select_option(
-    req: &RequestPermissionRequest,
-    kind: PermissionOptionKind,
-) -> RequestPermissionOutcome {
-    req.options
-        .iter()
-        .find(|opt| opt.kind == kind)
-        .map(|opt| {
-            RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
-                opt.option_id.clone(),
-            ))
-        })
-        .unwrap_or(RequestPermissionOutcome::Cancelled)
-}
 
 pub struct OpenAiFixture {
     _server: MockServer,

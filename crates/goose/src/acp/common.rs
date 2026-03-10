@@ -1,7 +1,11 @@
+use std::str::FromStr;
+
+use crate::permission::Permission;
 use sacp::schema::{
     PermissionOption, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
     RequestPermissionResponse, SelectedPermissionOutcome, ToolCallStatus,
 };
+use strum::{Display, EnumString};
 
 #[derive(Clone, Debug)]
 pub struct PermissionMapping {
@@ -20,7 +24,8 @@ impl Default for PermissionMapping {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Display, EnumString)]
+#[strum(serialize_all = "snake_case")]
 pub enum PermissionDecision {
     AllowAlways,
     AllowOnce,
@@ -30,13 +35,49 @@ pub enum PermissionDecision {
 }
 
 impl PermissionDecision {
-    pub(crate) fn should_record_rejection(self) -> bool {
+    pub fn should_record_rejection(self) -> bool {
         matches!(
             self,
             PermissionDecision::RejectAlways
                 | PermissionDecision::RejectOnce
                 | PermissionDecision::Cancel
         )
+    }
+}
+
+impl From<Permission> for PermissionDecision {
+    fn from(p: Permission) -> Self {
+        match p {
+            Permission::AlwaysAllow => Self::AllowAlways,
+            Permission::AllowOnce => Self::AllowOnce,
+            Permission::DenyOnce => Self::RejectOnce,
+            Permission::AlwaysDeny => Self::RejectAlways,
+            Permission::Cancel => Self::Cancel,
+        }
+    }
+}
+
+impl From<PermissionDecision> for Permission {
+    fn from(d: PermissionDecision) -> Self {
+        match d {
+            PermissionDecision::AllowAlways => Self::AlwaysAllow,
+            PermissionDecision::AllowOnce => Self::AllowOnce,
+            PermissionDecision::RejectOnce => Self::DenyOnce,
+            PermissionDecision::RejectAlways => Self::AlwaysDeny,
+            PermissionDecision::Cancel => Self::Cancel,
+        }
+    }
+}
+
+impl From<&RequestPermissionOutcome> for PermissionDecision {
+    fn from(outcome: &RequestPermissionOutcome) -> Self {
+        match outcome {
+            RequestPermissionOutcome::Cancelled => Self::Cancel,
+            RequestPermissionOutcome::Selected(selected) => {
+                Self::from_str(&selected.option_id.0).unwrap_or(Self::Cancel)
+            }
+            _ => Self::Cancel,
+        }
     }
 }
 
@@ -243,5 +284,43 @@ mod tests {
             response.outcome,
             RequestPermissionOutcome::Cancelled
         ));
+    }
+
+    #[test_case(Permission::AlwaysAllow, PermissionDecision::AllowAlways; "always_allow")]
+    #[test_case(Permission::AllowOnce, PermissionDecision::AllowOnce; "allow_once")]
+    #[test_case(Permission::DenyOnce, PermissionDecision::RejectOnce; "deny_once")]
+    #[test_case(Permission::AlwaysDeny, PermissionDecision::RejectAlways; "always_deny")]
+    #[test_case(Permission::Cancel, PermissionDecision::Cancel; "cancel")]
+    fn test_permission_to_decision(input: Permission, expected: PermissionDecision) {
+        assert_eq!(PermissionDecision::from(input), expected);
+    }
+
+    #[test_case(PermissionDecision::AllowAlways, Permission::AlwaysAllow; "allow_always")]
+    #[test_case(PermissionDecision::AllowOnce, Permission::AllowOnce; "allow_once")]
+    #[test_case(PermissionDecision::RejectOnce, Permission::DenyOnce; "reject_once")]
+    #[test_case(PermissionDecision::RejectAlways, Permission::AlwaysDeny; "reject_always")]
+    #[test_case(PermissionDecision::Cancel, Permission::Cancel; "cancel")]
+    fn test_decision_to_permission(input: PermissionDecision, expected: Permission) {
+        assert_eq!(Permission::from(input), expected);
+    }
+
+    #[test_case("allow_once", PermissionDecision::AllowOnce; "allow_once")]
+    #[test_case("allow_always", PermissionDecision::AllowAlways; "allow_always")]
+    #[test_case("reject_once", PermissionDecision::RejectOnce; "reject_once")]
+    #[test_case("reject_always", PermissionDecision::RejectAlways; "reject_always")]
+    #[test_case("unknown", PermissionDecision::Cancel; "unknown_maps_to_cancel")]
+    fn test_outcome_to_decision(option_id: &str, expected: PermissionDecision) {
+        let outcome = RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(
+            PermissionOptionId::new(option_id.to_string()),
+        ));
+        assert_eq!(PermissionDecision::from(&outcome), expected);
+    }
+
+    #[test]
+    fn test_cancelled_outcome_to_decision() {
+        assert_eq!(
+            PermissionDecision::from(&RequestPermissionOutcome::Cancelled),
+            PermissionDecision::Cancel
+        );
     }
 }

@@ -12,6 +12,7 @@ use goose::config::Config;
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
 use goose::conversation::Conversation;
 use goose::mcp_utils::ToolResult;
+use goose::acp::PermissionDecision;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
@@ -591,24 +592,9 @@ impl GooseAcpAgent {
 }
 
 fn outcome_to_confirmation(outcome: &RequestPermissionOutcome) -> PermissionConfirmation {
-    let permission = match outcome {
-        RequestPermissionOutcome::Cancelled => Permission::Cancel,
-        RequestPermissionOutcome::Selected(selected) => {
-            match serde_json::from_value::<PermissionOptionKind>(serde_json::Value::String(
-                selected.option_id.0.to_string(),
-            )) {
-                Ok(PermissionOptionKind::AllowAlways) => Permission::AlwaysAllow,
-                Ok(PermissionOptionKind::AllowOnce) => Permission::AllowOnce,
-                Ok(PermissionOptionKind::RejectOnce) => Permission::DenyOnce,
-                Ok(PermissionOptionKind::RejectAlways) => Permission::AlwaysDeny,
-                _ => Permission::Cancel,
-            }
-        }
-        _ => Permission::Cancel,
-    };
     PermissionConfirmation {
         principal_type: PrincipalType::Tool,
-        permission,
+        permission: Permission::from(PermissionDecision::from(outcome)),
     }
 }
 

@@ -118,7 +118,7 @@ impl Connection for ClientToAgentConnection {
             let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
 
             tokio::spawn(async move {
-                let permission_mapping = PermissionMapping;
+                let permission_mapping = PermissionMapping::default();
 
                 let result = ClientToAgent::builder()
                     .on_receive_notification(

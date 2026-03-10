@@ -64,26 +64,11 @@ impl ClientToProviderSession {
                         MessageContent::ActionRequired(action) => {
                             if let ActionRequiredData::ToolConfirmation { id, .. } = action.data {
                                 saw_tool = true;
-                                if matches!(
-                                    decision,
-                                    PermissionDecision::RejectAlways
-                                        | PermissionDecision::RejectOnce
-                                        | PermissionDecision::Cancel
-                                ) {
-                                    tool_error = true;
-                                }
-
-                                let permission = match decision {
-                                    PermissionDecision::AllowAlways => Permission::AlwaysAllow,
-                                    PermissionDecision::AllowOnce => Permission::AllowOnce,
-                                    PermissionDecision::RejectAlways => Permission::AlwaysDeny,
-                                    PermissionDecision::RejectOnce => Permission::DenyOnce,
-                                    PermissionDecision::Cancel => Permission::Cancel,
-                                };
+                                tool_error |= decision.should_record_rejection();
 
                                 let confirmation = PermissionConfirmation {
                                     principal_type: PrincipalType::Tool,
-                                    permission,
+                                    permission: Permission::from(decision),
                                 };
 
                                 let handled = provider

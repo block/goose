@@ -380,7 +380,7 @@ impl Provider for AcpProvider {
 
                         pending_confirmations.lock().await.remove(&request_id);
 
-                        let decision = permission_decision_from_confirmation(&confirmation);
+                        let decision = PermissionDecision::from(confirmation.permission);
                         if decision.should_record_rejection() {
                             rejected_tool_calls.lock().await.insert(request.tool_call.tool_call_id.0.to_string());
                         }
@@ -852,18 +852,6 @@ fn build_action_required_message(request: &RequestPermissionRequest) -> Option<M
             )
             .user_only(),
     )
-}
-
-fn permission_decision_from_confirmation(
-    confirmation: &PermissionConfirmation,
-) -> PermissionDecision {
-    match confirmation.permission {
-        Permission::AlwaysAllow => PermissionDecision::AllowAlways,
-        Permission::AllowOnce => PermissionDecision::AllowOnce,
-        Permission::DenyOnce => PermissionDecision::RejectOnce,
-        Permission::AlwaysDeny => PermissionDecision::RejectAlways,
-        Permission::Cancel => PermissionDecision::Cancel,
-    }
 }
 
 fn permission_decision_from_mode(goose_mode: GooseMode) -> Option<PermissionDecision> {
