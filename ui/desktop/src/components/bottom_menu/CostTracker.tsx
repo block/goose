@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useModelAndProvider } from '../ModelAndProviderContext';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { fetchCanonicalModelInfo } from '../../utils/canonical';
@@ -15,10 +14,11 @@ interface CostTrackerProps {
       totalCost: number;
     };
   };
+  model?: string | null;
+  provider?: string | null;
 }
 
-export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts }: CostTrackerProps) {
-  const { currentModel, currentProvider } = useModelAndProvider();
+export function CostTracker({ inputTokens = 0, outputTokens = 0, sessionCosts, model: currentModel, provider: currentProvider }: CostTrackerProps) {
   const [costInfo, setCostInfo] = useState<ModelInfoData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPricing, setShowPricing] = useState(true);

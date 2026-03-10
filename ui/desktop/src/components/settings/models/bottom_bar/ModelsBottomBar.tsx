@@ -24,6 +24,8 @@ interface ModelsBottomBarProps {
   dropdownRef: React.RefObject<HTMLDivElement>;
   setView: (view: View) => void;
   alerts: Alert[];
+  sessionModel?: string | null;
+  sessionProvider?: string | null;
 }
 
 export default function ModelsBottomBar({
@@ -31,8 +33,25 @@ export default function ModelsBottomBar({
   dropdownRef,
   setView,
   alerts,
+  sessionModel,
+  sessionProvider,
 }: ModelsBottomBarProps) {
-  const { currentModel, currentProvider } = useModelAndProvider();
+  // Local override for when the user changes the model in the modal,
+  // before the session object is re-fetched from the backend.
+  const [modelOverride, setModelOverride] = useState<{ model: string; provider: string } | null>(null);
+
+  // Fall back to config defaults when no session exists yet (e.g. new/empty chat)
+  const { currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
+  const currentModel = modelOverride?.model ?? sessionModel ?? configModel;
+  const currentProvider = modelOverride?.provider ?? sessionProvider ?? configProvider;
+
+  // Clear override when the session data catches up
+  useEffect(() => {
+    if (modelOverride && sessionModel === modelOverride.model && sessionProvider === modelOverride.provider) {
+      setModelOverride(null);
+    }
+  }, [sessionModel, sessionProvider, modelOverride]);
+
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
@@ -139,6 +158,10 @@ export default function ModelsBottomBar({
     setDisplayModelName(getModelDisplayName(currentModel));
   }, [currentModel]);
 
+  const handleModelSelected = (model: string, provider: string) => {
+    setModelOverride({ model, provider });
+  };
+
   return (
     <div className="relative flex items-center" ref={dropdownRef}>
       <BottomMenuAlertPopover alerts={alerts} />
@@ -182,6 +205,9 @@ export default function ModelsBottomBar({
           sessionId={sessionId}
           setView={setView}
           onClose={() => setIsAddModelModalOpen(false)}
+          sessionModel={currentModel}
+          sessionProvider={currentProvider}
+          onModelSelected={(model, provider) => handleModelSelected(model, provider)}
         />
       ) : null}
 

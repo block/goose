@@ -90,6 +90,8 @@ interface ChatInputProps {
   append?: (message: Message) => void;
   onWorkingDirChange?: (newDir: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  sessionModel?: string | null;
+  sessionProvider?: string | null;
 }
 
 export default function ChatInput({
@@ -117,6 +119,8 @@ export default function ChatInput({
   append: _append,
   onWorkingDirChange,
   inputRef,
+  sessionModel,
+  sessionProvider,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -139,7 +143,7 @@ export default function ChatInput({
     null
   ) as React.RefObject<HTMLDivElement>;
   const { getProviders } = useConfig();
-  const { getCurrentModelAndProvider, currentModel, currentProvider } = useModelAndProvider();
+  const { getCurrentModelAndProvider } = useModelAndProvider();
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
@@ -421,7 +425,7 @@ export default function ChatInput({
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentModel, currentProvider]);
+  }, [sessionModel, sessionProvider]);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
@@ -1509,6 +1513,8 @@ export default function ChatInput({
                   inputTokens={accumulatedInputTokens}
                   outputTokens={accumulatedOutputTokens}
                   sessionCosts={sessionCosts}
+                  model={sessionModel}
+                  provider={sessionProvider}
                 />
               </div>
             </>
@@ -1520,6 +1526,8 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
+                sessionModel={sessionModel}
+                sessionProvider={sessionProvider}
               />
             </div>
           </Tooltip>

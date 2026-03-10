@@ -84,9 +84,11 @@ type SwitchModelModalProps = {
   sessionId: string | null;
   onClose: () => void;
   setView: (view: View) => void;
-  onModelSelected?: (model: string) => void;
+  onModelSelected?: (model: string, provider: string) => void;
   initialProvider?: string | null;
   titleOverride?: string;
+  sessionModel?: string | null;
+  sessionProvider?: string | null;
 };
 export const SwitchModelModal = ({
   sessionId,
@@ -95,9 +97,14 @@ export const SwitchModelModal = ({
   onModelSelected,
   initialProvider,
   titleOverride,
+  sessionModel,
+  sessionProvider,
 }: SwitchModelModalProps) => {
   const { getProviders, read, upsert } = useConfig();
-  const { changeModel, currentModel, currentProvider } = useModelAndProvider();
+  const { changeModel, currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
+  // Use session-specific model/provider if available, otherwise fall back to config defaults
+  const currentModel = sessionModel ?? configModel;
+  const currentProvider = sessionProvider ?? configProvider;
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   type ModelOption = { value: string; label: string; provider: string; isDisabled?: boolean };
   const [modelOptions, setModelOptions] = useState<{ options: ModelOption[] }[]>([]);
@@ -243,7 +250,7 @@ export const SwitchModelModal = ({
       }
 
       await changeModel(sessionId, modelObj);
-      onModelSelected?.(modelObj.name);
+      onModelSelected?.(modelObj.name, modelObj.provider || '');
 
       trackModelChanged(modelObj.provider || '', modelObj.name);
 

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useModelAndProvider } from '../components/ModelAndProviderContext';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { Session } from '../api';
 
@@ -26,7 +25,8 @@ export const useCostTracking = ({
     };
   }>({});
 
-  const { currentModel, currentProvider } = useModelAndProvider();
+  const currentModel = session?.model_config?.model_name ?? null;
+  const currentProvider = session?.provider_name ?? null;
   const prevModelRef = useRef<string | undefined>(undefined);
   const prevProviderRef = useRef<string | undefined>(undefined);
 
