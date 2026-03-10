@@ -318,10 +318,13 @@ impl CodeExecutionClient {
                 .output
                 .as_ref()
                 .and_then(|v| v.get("text_result"))
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .unwrap_or("Tool returned rich content.");
-            let mut contents = vec![Content::text(text_fallback)];
+                .and_then(|v| match v {
+                    Value::String(s) if !s.is_empty() => Some(s.clone()),
+                    Value::Null | Value::String(_) => None,
+                    other => Some(other.to_string()),
+                })
+                .unwrap_or_else(|| "Tool returned rich content.".to_string());
+            let mut contents = vec![Content::text(&text_fallback)];
             contents.extend(rich_contents);
             Ok(contents)
         } else {
