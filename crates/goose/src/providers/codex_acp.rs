@@ -96,6 +96,23 @@ fn map_goose_mode(goose_mode: GooseMode) -> (&'static str, &'static str) {
     match goose_mode {
         GooseMode::Auto => ("never", "danger-full-access"),
         GooseMode::SmartApprove => ("on-request", "workspace-write"),
-        GooseMode::Approve | GooseMode::Chat => ("on-request", "read-only"),
+        GooseMode::Approve => ("on-request", "workspace-write"),
+        GooseMode::Chat => ("never", "read-only"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_case::test_case;
+
+    #[test_case(GooseMode::Auto, "never", "danger-full-access")]
+    #[test_case(GooseMode::SmartApprove, "on-request", "workspace-write")]
+    #[test_case(GooseMode::Approve, "on-request", "workspace-write")]
+    #[test_case(GooseMode::Chat, "never", "read-only")]
+    fn test_map_goose_mode(mode: GooseMode, expected_approval: &str, expected_sandbox: &str) {
+        let (approval, sandbox) = map_goose_mode(mode);
+        assert_eq!(approval, expected_approval);
+        assert_eq!(sandbox, expected_sandbox);
     }
 }
