@@ -266,19 +266,22 @@ export const SwitchModelModal = ({
     }
   }, [attemptedSubmit, validateForm]);
 
+  // Initialize predefined model selection from session/config model.
+  // Separate effect so it re-runs when currentModel loads asynchronously.
+  useEffect(() => {
+    if (!usePredefinedModels || !currentModel) return;
+    const models = getPredefinedModelsFromEnv();
+    const matchingModel = models.find((m) => m.name === currentModel);
+    if (matchingModel) {
+      setSelectedPredefinedModel(matchingModel);
+    }
+  }, [usePredefinedModels, currentModel]);
+
   useEffect(() => {
     // Load predefined models if enabled
     if (usePredefinedModels) {
       const models = getPredefinedModelsFromEnv();
       setPredefinedModels(models);
-
-      // Initialize selected predefined model with current model (session-scoped or config default)
-      if (currentModel) {
-        const matchingModel = models.find((m) => m.name === currentModel);
-        if (matchingModel) {
-          setSelectedPredefinedModel(matchingModel);
-        }
-      }
     }
 
     // Load providers for manual model selection
