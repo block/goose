@@ -511,7 +511,13 @@ const getServerSecret = (settings: Settings): string => {
     return settings.externalGoosed.secret;
   }
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
-    return process.env.GOOSE_SERVER__SECRET_KEY || GENERATED_SECRET;
+    if (!process.env.GOOSE_SERVER__SECRET_KEY) {
+      throw new Error(
+        'GOOSE_SERVER__SECRET_KEY must be set when using GOOSE_EXTERNAL_BACKEND. ' +
+          'Set it to the same value on both the server and the desktop client.'
+      );
+    }
+    return process.env.GOOSE_SERVER__SECRET_KEY;
   }
   return GENERATED_SECRET;
 };
