@@ -290,24 +290,22 @@ impl CodeExecutionClient {
         let mut rich_contents = Vec::new();
         if let Some(ref val) = output.output {
             let store = content_store.lock().unwrap();
-            collect_rich_content(val, &store, &mut rich_contents);
+            let mut seen = std::collections::HashSet::new();
+            collect_rich_content(val, &store, &mut rich_contents, &mut seen);
         }
 
         // If the entire return value was just a content ref, return only
         // the resolved rich content. Otherwise return the text output
         // (with refs intact) plus the rich content alongside it.
-        // Only treat as a pure content ref if the object is exactly the shape
-        // we created (just _goose_content_ref + text_result, nothing extra).
+        // Only treat as a pure content ref if the wrapper has our sentinel key,
+        // which distinguishes it from real tool objects that happen to contain
+        // _goose_content_ref (injected) alongside their own fields.
         let is_pure_ref = output
             .output
             .as_ref()
-            .and_then(|v| v.as_object())
-            .is_some_and(|m| {
-                m.contains_key("_goose_content_ref")
-                    && m.len() <= 2
-                    && m.keys()
-                        .all(|k| k == "_goose_content_ref" || k == "text_result")
-            });
+            .and_then(|v| v.get("_goose_pure_ref"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
         if is_pure_ref && !rich_contents.is_empty() {
             // Always include a text fallback so providers that only serialize
@@ -418,6 +416,7 @@ fn create_tool_callback(
                                     }
                                     _ => Ok(json!({
                                         "_goose_content_ref": token,
+                                        "_goose_pure_ref": true,
                                         "text_result": text_value,
                                     })),
                                 }
@@ -445,26 +444,30 @@ fn format_output(success: bool, return_val: &str, stderr: &str) -> String {
 }
 
 /// Recursively walk a JSON value, collecting rich content for any
-/// `_goose_content_ref` tokens found.
+/// `_goose_content_ref` tokens found. Each token is only resolved once
+/// to avoid duplicating content when the same ref appears multiple times.
 fn collect_rich_content(
     val: &Value,
     store: &HashMap<String, Vec<Content>>,
     rich: &mut Vec<Content>,
+    seen: &mut std::collections::HashSet<String>,
 ) {
     match val {
         Value::Object(map) => {
             if let Some(Value::String(token)) = map.get("_goose_content_ref") {
-                if let Some(stored) = store.get(token) {
-                    rich.extend(stored.iter().cloned());
+                if seen.insert(token.clone()) {
+                    if let Some(stored) = store.get(token) {
+                        rich.extend(stored.iter().cloned());
+                    }
                 }
             }
             for v in map.values() {
-                collect_rich_content(v, store, rich);
+                collect_rich_content(v, store, rich, seen);
             }
         }
         Value::Array(arr) => {
             for v in arr {
-                collect_rich_content(v, store, rich);
+                collect_rich_content(v, store, rich, seen);
             }
         }
         _ => {}
