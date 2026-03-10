@@ -312,9 +312,16 @@ impl CodeExecutionClient {
         if is_pure_ref && !rich_contents.is_empty() {
             // Always include a text fallback so providers that only serialize
             // text content (OpenAI, Codex, Anthropic) still produce a tool result
-            // for the model. The rich content carries audience metadata and will
-            // be filtered by downstream audience logic.
-            let mut contents = vec![Content::text("Tool returned rich content.")];
+            // for the model. Preserve the original text_result if the callback
+            // returned one, so the model still sees meaningful textual data.
+            let text_fallback = output
+                .output
+                .as_ref()
+                .and_then(|v| v.get("text_result"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .unwrap_or("Tool returned rich content.");
+            let mut contents = vec![Content::text(text_fallback)];
             contents.extend(rich_contents);
             Ok(contents)
         } else {
