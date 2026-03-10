@@ -36,6 +36,12 @@ export type McpAppToolInputPartial = McpUiToolInputPartialNotification['params']
 
 export type McpAppToolCancelled = McpUiToolCancelledNotification['params'];
 
+/**
+ * Callback fired when the display mode changes, either via user-initiated
+ * host-side controls or app-initiated `ui/request-display-mode` changes.
+ */
+export type OnDisplayModeChange = (mode: GooseDisplayMode) => void;
+
 export type SamplingMessage = {
   role: 'user' | 'assistant';
   content: { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
