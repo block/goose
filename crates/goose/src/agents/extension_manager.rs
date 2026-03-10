@@ -233,7 +233,7 @@ async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
     provider: SharedProvider,
-    working_dir: Option<&PathBuf>,
+    working_dir: &PathBuf,
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
@@ -244,21 +244,14 @@ async fn child_process_client(
         command.env("PATH", path);
     }
 
-    // Use explicitly passed working_dir, falling back to GOOSE_WORKING_DIR env var
-    let effective_working_dir = working_dir
-        .map(|p| p.to_path_buf())
-        .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from));
-
-    if let Some(ref dir) = effective_working_dir {
-        if dir.exists() && dir.is_dir() {
-            tracing::info!("Setting MCP process working directory: {:?}", dir);
-            command.current_dir(dir);
-        } else {
-            tracing::warn!(
-                "Working directory doesn't exist or isn't a directory: {:?}",
-                dir
-            );
-        }
+    if working_dir.exists() && working_dir.is_dir() {
+        tracing::info!("Setting MCP process working directory: {:?}", working_dir);
+        command.current_dir(working_dir);
+    } else {
+        tracing::warn!(
+            "Working directory doesn't exist or isn't a directory: {:?}",
+            working_dir
+        );
     }
 
     let (transport, mut stderr) = TokioChildProcess::builder(command)
@@ -281,6 +274,7 @@ async fn child_process_client(
         docker_container,
         client_name,
         capabilities,
+        working_dir.clone(),
     )
     .await;
 
@@ -402,6 +396,7 @@ pub(crate) fn substitute_env_vars(value: &str, env_map: &HashMap<String, String>
 const GOOSE_USER_AGENT: reqwest::header::HeaderValue =
     reqwest::header::HeaderValue::from_static(concat!("goose/", env!("CARGO_PKG_VERSION")));
 
+#[allow(clippy::too_many_arguments)]
 async fn create_streamable_http_client(
     uri: &str,
     timeout: Option<u64>,
@@ -410,6 +405,7 @@ async fn create_streamable_http_client(
     provider: SharedProvider,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    roots_dir: &std::path::Path,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut default_headers = HeaderMap::new();
 
@@ -447,6 +443,7 @@ async fn create_streamable_http_client(
         provider.clone(),
         client_name.clone(),
         capabilities.clone(),
+        roots_dir.to_path_buf(),
     )
     .await;
 
@@ -477,6 +474,7 @@ async fn create_streamable_http_client(
                 provider,
                 client_name,
                 capabilities,
+                roots_dir.to_path_buf(),
             )
             .await?,
         ))
@@ -563,6 +561,11 @@ impl ExtensionManager {
 
         let mut temp_dir = None;
 
+        let effective_working_dir = working_dir
+            .clone()
+            .or_else(|| std::env::var("GOOSE_WORKING_DIR").ok().map(PathBuf::from))
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
         let client: Box<dyn McpClientTrait> = match &config {
             ExtensionConfig::Sse { .. } => {
                 return Err(ExtensionError::ConfigError(
@@ -597,6 +600,7 @@ impl ExtensionManager {
                     self.provider.clone(),
                     self.client_name.clone(),
                     capability,
+                    &effective_working_dir,
                 )
                 .await?
             }
@@ -646,10 +650,6 @@ impl ExtensionManager {
                                 .arg(&normalized_name);
                         });
 
-                        let effective_working_dir = working_dir
-                            .clone()
-                            .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
                         let capabilities = GooseMcpClientCapabilities {
                             mcpui: self.capabilities.mcpui,
                         };
@@ -658,7 +658,7 @@ impl ExtensionManager {
                             command,
                             &Some(timeout_secs),
                             self.provider.clone(),
-                            Some(&effective_working_dir),
+                            &effective_working_dir,
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             capabilities,
@@ -681,6 +681,7 @@ impl ExtensionManager {
                                 self.provider.clone(),
                                 self.client_name.clone(),
                                 capabilities,
+                                effective_working_dir.clone(),
                             )
                             .await?,
                         )
@@ -729,9 +730,6 @@ impl ExtensionManager {
                     })
                 };
 
-                let effective_working_dir = working_dir
-                    .clone()
-                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
                 let capabilities = GooseMcpClientCapabilities {
                     mcpui: self.capabilities.mcpui,
                 };
@@ -739,7 +737,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    Some(&effective_working_dir),
+                    &effective_working_dir,
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     capabilities,
@@ -767,11 +765,6 @@ impl ExtensionManager {
                     command.arg("python").arg(file_path.to_str().unwrap());
                 });
 
-                // Compute working_dir for InlinePython (runs as child process via uvx)
-                let effective_working_dir = working_dir
-                    .clone()
-                    .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-
                 let capabilities = GooseMcpClientCapabilities {
                     mcpui: self.capabilities.mcpui,
                 };
@@ -780,7 +773,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    Some(&effective_working_dir),
+                    &effective_working_dir,
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     capabilities,
@@ -852,6 +845,15 @@ impl ExtensionManager {
         self.extensions.lock().await.remove(&sanitized_name);
         self.invalidate_tools_cache_and_bump_version().await;
         Ok(())
+    }
+
+    pub async fn update_working_dir(&self, new_dir: &std::path::Path) {
+        let extensions = self.extensions.lock().await;
+        for (name, ext) in extensions.iter() {
+            if let Err(e) = ext.client.update_working_dir(new_dir.to_path_buf()).await {
+                tracing::warn!(extension = %name, error = %e, "failed to update roots");
+            }
+        }
     }
 
     pub async fn get_extension_and_tool_counts(&self, session_id: &str) -> (usize, usize) {

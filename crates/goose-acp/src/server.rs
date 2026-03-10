@@ -1172,10 +1172,20 @@ impl GooseAcpAgent {
         }
         self.session_manager
             .update(&req.session_id)
-            .working_dir(path)
+            .working_dir(path.clone())
             .apply()
             .await
             .map_err(|e| sacp::Error::internal_error().data(e.to_string()))?;
+
+        // Notify MCP servers so roots stay in sync with the new working directory.
+        if let Some(session) = self.sessions.lock().await.get(&req.session_id) {
+            session
+                .agent
+                .extension_manager
+                .update_working_dir(&path)
+                .await;
+        }
+
         Ok(EmptyResponse {})
     }
 
