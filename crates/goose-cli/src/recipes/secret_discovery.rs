@@ -1,6 +1,7 @@
 use crate::recipes::search_recipe::load_recipe_file;
 use goose::agents::extension::ExtensionConfig;
 use goose::recipe::Recipe;
+use regex::Regex;
 use std::collections::HashSet;
 
 /// Represents a secret requirement discovered from a recipe extension
@@ -96,9 +97,9 @@ fn discover_recipe_secrets_recursive(
             visited_recipes.insert(sub_recipe.path.clone());
 
             match load_sub_recipe(&sub_recipe.path) {
-                Ok(loaded_recipe) => {
+                Ok((loaded_recipe, parent_dir)) => {
                     let sub_secrets =
-                        discover_recipe_secrets_recursive(&loaded_recipe, visited_recipes);
+                        discover_sub_recipe_secrets(&loaded_recipe, &parent_dir, visited_recipes);
                     for sub_secret in sub_secrets {
                         if seen_keys.insert(sub_secret.key.clone()) {
                             secrets.push(sub_secret);
@@ -115,14 +116,32 @@ fn discover_recipe_secrets_recursive(
     secrets
 }
 
-/// Loads a recipe from a file path for sub-recipe secret discovery
+/// Discovers secrets from a loaded sub-recipe, resolving `{{ recipe_dir }}` in nested
+/// sub-recipe paths so they can be loaded without triggering confusing lookup failures.
+fn discover_sub_recipe_secrets(
+    recipe: &Recipe,
+    parent_dir: &str,
+    visited_recipes: &mut HashSet<String>,
+) -> Vec<SecretRequirement> {
+    let re = Regex::new(r"\{\{\s*recipe_dir\s*\}\}").expect("valid regex");
+    let mut resolved = recipe.clone();
+    if let Some(ref mut sub_recipes) = resolved.sub_recipes {
+        for sr in sub_recipes.iter_mut() {
+            sr.path = re.replace_all(&sr.path, parent_dir).into_owned();
+        }
+    }
+    discover_recipe_secrets_recursive(&resolved, visited_recipes)
+}
+
+/// Loads a recipe from a file path for sub-recipe secret discovery.
 ///
-/// For secret discovery, we only need the recipe structure (extensions and env_keys),
-/// not parameter-substituted content, so we parse the raw YAML directly for speed and robustness.
-fn load_sub_recipe(recipe_path: &str) -> Result<Recipe, Box<dyn std::error::Error>> {
+/// Returns the parsed recipe along with its parent directory path, which is
+/// needed to resolve `{{ recipe_dir }}` in any nested sub-recipe paths.
+fn load_sub_recipe(recipe_path: &str) -> Result<(Recipe, String), Box<dyn std::error::Error>> {
     let recipe_file = load_recipe_file(recipe_path)?;
     let recipe: Recipe = serde_yaml::from_str(&recipe_file.content)?;
-    Ok(recipe)
+    let parent_dir = recipe_file.parent_dir.display().to_string();
+    Ok((recipe, parent_dir))
 }
 
 #[cfg(test)]
