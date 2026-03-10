@@ -47,7 +47,8 @@ interface UseChatStreamReturn {
   ) => Promise<void>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
-  clearSessionLoadError: () => void;
+  clearProviderUnavailable: () => void;
+  providerUnavailable: boolean;
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
@@ -63,6 +64,7 @@ interface StreamState {
   session: Session | undefined;
   chatState: ChatState;
   sessionLoadError: string | undefined;
+  providerUnavailable: boolean;
   tokenState: TokenState;
   notifications: NotificationEvent[];
 }
@@ -89,10 +91,10 @@ type StreamAction =
         session: Session;
         messages: Message[];
         tokenState: TokenState;
-        error: string;
       };
     }
   | { type: 'RESET_FOR_NEW_SESSION' }
+  | { type: 'CLEAR_PROVIDER_UNAVAILABLE' }
   | { type: 'START_STREAMING' }
   | { type: 'STREAM_ERROR'; payload: string }
   | { type: 'STREAM_FINISH'; payload?: string };
@@ -111,6 +113,7 @@ const initialState: StreamState = {
   session: undefined,
   chatState: ChatState.Idle,
   sessionLoadError: undefined,
+  providerUnavailable: false,
   tokenState: initialTokenState,
   notifications: [],
 };
@@ -146,6 +149,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         tokenState: action.payload.tokenState,
         chatState: ChatState.Idle,
         sessionLoadError: undefined,
+        providerUnavailable: false,
       };
 
     case 'SESSION_LOADED_WITH_ERROR':
@@ -155,7 +159,8 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         messages: action.payload.messages,
         tokenState: action.payload.tokenState,
         chatState: ChatState.Idle,
-        sessionLoadError: action.payload.error,
+        sessionLoadError: undefined,
+        providerUnavailable: true,
       };
 
     case 'RESET_FOR_NEW_SESSION':
@@ -164,8 +169,12 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         messages: [],
         session: undefined,
         sessionLoadError: undefined,
+        providerUnavailable: false,
         chatState: ChatState.LoadingConversation,
       };
+
+    case 'CLEAR_PROVIDER_UNAVAILABLE':
+      return { ...state, providerUnavailable: false };
 
     case 'START_STREAMING':
       return {
@@ -533,7 +542,6 @@ export function useChatStream({
                 accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
                 accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
               },
-              error: errorMessage(error),
             },
           });
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
@@ -854,8 +862,8 @@ export function useChatStream({
     dispatch({ type: 'SET_CHAT_STATE', payload: newState });
   }, []);
 
-  const clearSessionLoadError = useCallback(() => {
-    dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
+  const clearProviderUnavailable = useCallback(() => {
+    dispatch({ type: 'CLEAR_PROVIDER_UNAVAILABLE' });
   }, []);
 
   const cached = resultsCache.get(sessionId);
@@ -875,11 +883,12 @@ export function useChatStream({
 
   return {
     sessionLoadError: state.sessionLoadError,
+    providerUnavailable: state.providerUnavailable,
     messages: maybe_cached_messages,
     session: maybe_cached_session,
     chatState: state.chatState,
     setChatState,
-    clearSessionLoadError,
+    clearProviderUnavailable,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

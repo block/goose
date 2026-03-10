@@ -92,7 +92,8 @@ export default function BaseChat({
     messages,
     chatState,
     setChatState,
-    clearSessionLoadError,
+    clearProviderUnavailable,
+    providerUnavailable,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -469,7 +470,7 @@ export default function BaseChat({
             </div>
           )}
 
-          {sessionLoadError && messages.length > 0 && (
+          {providerUnavailable && messages.length > 0 && (
             <div className="absolute bottom-16 left-4 right-4 z-30 rounded-lg border border-yellow-500/50 bg-yellow-500/10 px-4 py-3 flex items-start gap-3 backdrop-blur-sm">
               <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
@@ -482,7 +483,7 @@ export default function BaseChat({
                 </p>
               </div>
               <button
-                onClick={clearSessionLoadError}
+                onClick={clearProviderUnavailable}
                 className="px-4 py-2 text-center cursor-pointer text-text-primary border border-border-primary hover:bg-background-secondary rounded-lg transition-all duration-150 shrink-0"
               >
                 Continue
@@ -491,7 +492,7 @@ export default function BaseChat({
           )}
         </div>
 
-        {!sessionLoadError && (
+        {!providerUnavailable && (
           <div
             className={`relative z-10 ${disableAnimation ? '' : 'animate-[fadein_400ms_ease-in_forwards]'}`}
           >
