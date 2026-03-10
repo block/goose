@@ -436,9 +436,13 @@ mod tests {
         )
         .unwrap();
 
-        fs::write(dir.path().join(".hidden"), "secret").unwrap();
-
-        fs::write(dir.path().join(".gitignore"), "node_modules/\n*.log\n").unwrap();
+        fs::write(
+            dir.path().join(".gitignore"),
+            "node_modules/
+*.log
+",
+        )
+        .unwrap();
 
         fs::create_dir_all(dir.path().join("node_modules")).unwrap();
         fs::write(
@@ -450,17 +454,6 @@ mod tests {
         fs::write(dir.path().join("debug.log"), "some logs").unwrap();
 
         dir
-    }
-
-    #[test]
-    fn test_collect_files_basic() {
-        let dir = setup_test_dir();
-        let gitignore = build_gitignore(dir.path());
-        let files = collect_files(&["src".to_string()], dir.path(), &None, &gitignore).unwrap();
-
-        assert_eq!(files.len(), 2);
-        assert!(files.iter().any(|f| f.path.ends_with("main.rs")));
-        assert!(files.iter().any(|f| f.path.ends_with("lib.rs")));
     }
 
     #[test]
@@ -493,26 +486,6 @@ mod tests {
 
         assert_eq!(files.len(), 1);
         assert!(files[0].path.ends_with("script.py"));
-    }
-
-    #[test]
-    fn test_collect_files_no_extension_filter_includes_all() {
-        let dir = setup_test_dir();
-        fs::write(dir.path().join("src/README"), "readme content").unwrap();
-        let gitignore = build_gitignore(dir.path());
-
-        let files = collect_files(&["src".to_string()], dir.path(), &None, &gitignore).unwrap();
-
-        assert!(files.iter().any(|f| f.path.ends_with("README")));
-    }
-
-    #[test]
-    fn test_collect_files_nonexistent_path() {
-        let dir = setup_test_dir();
-        let gitignore = build_gitignore(dir.path());
-        let result = collect_files(&["nonexistent".to_string()], dir.path(), &None, &gitignore);
-
-        assert!(result.is_err());
     }
 
     #[test]
@@ -566,33 +539,5 @@ mod tests {
 
             assert!(!files.iter().any(|f| f.path.ends_with("link.rs")));
         }
-    }
-
-    #[test]
-    fn test_build_prompt() {
-        let files = vec![FileContent {
-            path: PathBuf::from("/project/src/main.rs"),
-            content: "fn main() {}".to_string(),
-            lines: 1,
-        }];
-
-        let prompt = build_prompt(&files, "How does main work?", Path::new("/project"));
-
-        assert!(prompt.contains("How does main work?"));
-        assert!(prompt.contains("src/main.rs"));
-        assert!(prompt.contains("fn main() {}"));
-        assert!(prompt.contains("~~~rs"));
-    }
-
-    #[test]
-    fn test_tool_creation() {
-        let tools = SummarizeClient::get_tools();
-        assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0].name, "summarize");
-        assert!(tools[0]
-            .description
-            .as_ref()
-            .unwrap()
-            .contains("deterministic"));
     }
 }

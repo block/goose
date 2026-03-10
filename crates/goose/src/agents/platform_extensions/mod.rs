@@ -111,7 +111,7 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
                 name: summarize::EXTENSION_NAME,
                 display_name: "Summarize",
                 description: "Load files/directories and get an LLM summary in a single call",
-                default_enabled: true,
+                default_enabled: false,
                 unprefixed_tools: false,
                 client_factory: |ctx| Box::new(summarize::SummarizeClient::new(ctx).unwrap()),
             },
