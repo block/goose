@@ -20,12 +20,12 @@ Remotion is free for individuals and small teams, but requires a [commercial lic
 
 ## Configuration
 
-Enable the [Skills extension](/docs/mcp/skills-mcp) to allow goose to load and use Agent Skills.
+Enable the [Summon extension](/docs/mcp/summon-mcp) to allow goose to load and use Agent Skills.
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   <GooseBuiltinInstaller
-    extensionName="Skills"
+    extensionName="Summon"
   />
   </TabItem>
   <TabItem value="cli" label="goose CLI">
@@ -44,7 +44,7 @@ Enable the [Skills extension](/docs/mcp/skills-mcp) to allow goose to load and u
   │
   ◆  Enable extensions: (use "space" to toggle and "enter" to submit)
   // highlight-start    
-  │  ● skills
+  │  ● summon
   // highlight-end
   |
   └  Extension settings updated successfully
@@ -72,8 +72,8 @@ End with 'Deployed to production 🚀'
 ### goose Output
 
 ```
-─── load_skill | skills ───────────────────────────────────────
-name: remotion-best-practices
+─── load | summon ───────────────────────────────────────
+source: remotion-best-practices
 
 reading ~/.agents/skills/remotion-best-practices/rules/animations.md
 

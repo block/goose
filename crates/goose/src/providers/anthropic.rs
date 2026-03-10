@@ -8,21 +8,18 @@ use std::io;
 use tokio::pin;
 use tokio_util::io::StreamReader;
 
-use super::api_client::{ApiClient, ApiResponse, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
+use super::api_client::{ApiClient, AuthMethod};
+use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::errors::ProviderError;
 use super::formats::anthropic::{
-    create_request, get_usage, response_to_message, response_to_streaming_message,
+    create_request, response_to_streaming_message, thinking_type, ThinkingType,
 };
 use super::openai_compatible::handle_status_openai_compat;
 use super::openai_compatible::map_http_error_to_provider_error;
-use super::utils::get_model;
+use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::retry::ProviderRetry;
 use crate::providers::utils::RequestLog;
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
@@ -31,6 +28,9 @@ const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
+    // Claude 4.6 models
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
     // Claude 4.5 models with aliases
     "claude-sonnet-4-5",
     "claude-sonnet-4-5-20250929",
@@ -59,7 +59,7 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL.to_string());
+        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL, ANTHROPIC_PROVIDER_NAME)?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
@@ -110,10 +110,19 @@ impl AnthropicProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
+        let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+        if !supports_streaming {
+            return Err(anyhow::anyhow!(
+                "Anthropic provider does not support non-streaming mode. All Claude models support streaming. \
+                Please remove 'supports_streaming: false' from your provider configuration."
+            ));
+        }
+
         Ok(Self {
             api_client,
             model,
-            supports_streaming: config.supports_streaming.unwrap_or(true),
+            supports_streaming,
             name: config.name.clone(),
         })
     }
@@ -121,59 +130,14 @@ impl AnthropicProvider {
     fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
         let mut headers = Vec::new();
 
-        let is_thinking_enabled = std::env::var("CLAUDE_THINKING_ENABLED").is_ok();
         if self.model.model_name.starts_with("claude-3-7-sonnet-") {
-            if is_thinking_enabled {
+            if thinking_type(&self.model) == ThinkingType::Enabled {
                 headers.push(("anthropic-beta", "output-128k-2025-02-19"));
             }
             headers.push(("anthropic-beta", "token-efficient-tools-2025-02-19"));
         }
 
         headers
-    }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<ApiResponse, ProviderError> {
-        let mut request = self.api_client.request(session_id, "v1/messages");
-
-        for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
-        }
-
-        Ok(request.api_post(payload).await?)
-    }
-
-    fn anthropic_api_call_result(response: ApiResponse) -> Result<Value, ProviderError> {
-        match response.status {
-            StatusCode::OK => response.payload.ok_or_else(|| {
-                ProviderError::RequestFailed("Response body is not valid JSON".to_string())
-            }),
-            _ => {
-                if response.status == StatusCode::BAD_REQUEST {
-                    if let Some(error_msg) = response
-                        .payload
-                        .as_ref()
-                        .and_then(|p| p.get("error"))
-                        .and_then(|e| e.get("message"))
-                        .and_then(|m| m.as_str())
-                    {
-                        let msg = error_msg.to_string();
-                        if msg.to_lowercase().contains("too long")
-                            || msg.to_lowercase().contains("too many")
-                        {
-                            return Err(ProviderError::ContextLengthExceeded(msg));
-                        }
-                    }
-                }
-                Err(map_http_error_to_provider_error(
-                    response.status,
-                    response.payload,
-                ))
-            }
-        }
     }
 }
 
@@ -194,12 +158,13 @@ impl ProviderDef for AnthropicProvider {
             models,
             ANTHROPIC_DOC_URL,
             vec![
-                ConfigKey::new("ANTHROPIC_API_KEY", true, true, None),
+                ConfigKey::new("ANTHROPIC_API_KEY", true, true, None, true),
                 ConfigKey::new(
                     "ANTHROPIC_HOST",
                     true,
                     false,
                     Some("https://api.anthropic.com"),
+                    false,
                 ),
             ],
         )
@@ -221,42 +186,6 @@ impl Provider for AnthropicProvider {
 
     fn get_model_config(&self) -> ModelConfig {
         self.model.clone()
-    }
-
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let payload = create_request(model_config, system, messages, tools)?;
-
-        let response = self
-            .with_retry(|| async { self.post(session_id, &payload).await })
-            .await?;
-
-        let json_response = Self::anthropic_api_call_result(response)?;
-
-        let message = response_to_message(&json_response)?;
-        let usage = get_usage(&json_response)?;
-        tracing::debug!("🔍 Anthropic non-streaming parsed usage: input_tokens={:?}, output_tokens={:?}, total_tokens={:?}",
-                usage.input_tokens, usage.output_tokens, usage.total_tokens);
-
-        let response_model = get_model(&json_response);
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        log.write(&json_response, Some(&usage))?;
-        let provider_usage = ProviderUsage::new(response_model, usage);
-        tracing::debug!(
-            "🔍 Anthropic non-streaming returning ProviderUsage: {:?}",
-            provider_usage
-        );
-        Ok((message, provider_usage))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -286,30 +215,34 @@ impl Provider for AnthropicProvider {
 
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(&self.model, system, messages, tools)?;
+        let mut payload = create_request(model_config, system, messages, tools)?;
         payload
             .as_object_mut()
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut request = self.api_client.request(Some(session_id), "v1/messages");
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let conditional_headers = self.get_conditional_headers();
+        let mut log = RequestLog::start(model_config, &payload)?;
 
-        for (key, value) in self.get_conditional_headers() {
-            request = request.header(key, value)?;
-        }
-
-        let resp = request.response_post(&payload).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
-        let response = handle_status_openai_compat(resp).await.inspect_err(|e| {
-            let _ = log.error(e);
-        })?;
+        let response = self
+            .with_retry(|| async {
+                let mut request = self.api_client.request(Some(session_id), "v1/messages");
+                for (key, value) in &conditional_headers {
+                    request = request.header(key, value)?;
+                }
+                let resp = request.response_post(&payload).await?;
+                handle_status_openai_compat(resp).await
+            })
+            .await
+            .inspect_err(|e| {
+                let _ = log.error(e);
+            })?;
 
         let stream = response.bytes_stream().map_err(io::Error::other);
 
@@ -325,9 +258,5 @@ impl Provider for AnthropicProvider {
                 yield (message, usage);
             }
         }))
-    }
-
-    fn supports_streaming(&self) -> bool {
-        self.supports_streaming
     }
 }

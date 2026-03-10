@@ -16,7 +16,7 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 <!-- REMOTE SETUP -->
 <TabItem value="remote" label="Apify Remote MCP" default>
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
    [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp.apify.com&id=apify&name=Apify&description=Extract%20data%20from%20any%20website%20with%20thousands%20of%20scrapers%2C%20crawlers%2C%20and%20automations%20on%20Apify%20Store&header=Authorization%3DBearer%20YOUR_APIFY_TOKEN)
@@ -77,7 +77,7 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 <!-- LOCAL SETUP -->
 <TabItem value="local" label="Apify Local MCP">
 
-:::tip TLDR
+:::tip Quick Install
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=npx&arg=@apify/actors-mcp-server&arg=start&id=mcp_apify_local&name=Apify%20Local%20MCP%20Server&description=Run%20Apify%20MCP%20server%20locally%20using%20your%20token&env=APIFY_TOKEN%3DYour%20Apify%20Token)

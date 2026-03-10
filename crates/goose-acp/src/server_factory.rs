@@ -38,9 +38,7 @@ impl AcpServer {
             Box::pin(async move {
                 let config_path = config_dir.join(goose::config::base::CONFIG_YAML_NAME);
                 let config = goose::config::Config::new(&config_path, "goose")?;
-                let provider_name = config
-                    .get_goose_provider()
-                    .map_err(|_| anyhow::anyhow!("No provider configured"))?;
+                let provider_name = config.get_goose_provider()?;
                 goose::providers::create(&provider_name, model_config, extensions).await
             })
         });

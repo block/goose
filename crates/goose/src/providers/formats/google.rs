@@ -227,38 +227,6 @@ enum SignedTextHandling {
     SignedTextAsRegularText,
 }
 
-pub fn process_response_part(
-    part: &Value,
-    last_signature: &mut Option<String>,
-) -> Option<MessageContent> {
-    let has_signature = part.get(THOUGHT_SIGNATURE_KEY).is_some();
-    let handling = if has_signature {
-        SignedTextHandling::SignedTextAsThinking
-    } else {
-        SignedTextHandling::SignedTextAsRegularText
-    };
-    process_response_part_impl(part, last_signature, handling)
-}
-
-/// Gemini 2.x includes thoughtSignature on first chunk as metadata, not actual thinking.
-fn process_response_part_for_model(
-    part: &Value,
-    last_signature: &mut Option<String>,
-    model_version: Option<&str>,
-) -> Option<MessageContent> {
-    let is_gemini_2 = model_version
-        .map(|m| m.starts_with("gemini-2"))
-        .unwrap_or(false);
-
-    let has_signature = part.get(THOUGHT_SIGNATURE_KEY).is_some();
-    let handling = if has_signature && !is_gemini_2 {
-        SignedTextHandling::SignedTextAsThinking
-    } else {
-        SignedTextHandling::SignedTextAsRegularText
-    };
-    process_response_part_impl(part, last_signature, handling)
-}
-
 fn process_response_part_non_streaming(
     part: &Value,
     last_signature: &mut Option<String>,
@@ -324,11 +292,12 @@ fn process_response_part_impl(
 
             Some(MessageContent::tool_request_with_metadata(
                 id,
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: name.to_string().into(),
-                    arguments,
+                Ok({
+                    let mut params = CallToolRequestParams::new(name.to_string());
+                    if let Some(args) = arguments {
+                        params = params.with_arguments(args);
+                    }
+                    params
                 }),
                 metadata.as_ref(),
             ))
@@ -488,8 +457,6 @@ where
                 }
             }
 
-            let model_version = chunk.get("modelVersion").and_then(|v| v.as_str());
-
             let parts = chunk
                 .get("candidates")
                 .and_then(|v| v.as_array())
@@ -500,7 +467,9 @@ where
 
             if let Some(parts) = parts {
                 for part in parts {
-                    if let Some(content) = process_response_part_for_model(part, &mut last_signature, model_version) {
+                    // Always emit text as regular text during streaming — we can't
+                    // know yet whether function calls will follow.
+                    if let Some(content) = process_response_part_impl(part, &mut last_signature, SignedTextHandling::SignedTextAsRegularText) {
                         let message = Message::new(
                             Role::Assistant,
                             chrono::Utc::now().timestamp(),
@@ -579,17 +548,8 @@ fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
     }
 
     let thinking_level_str = model_config
-        .request_params
-        .as_ref()
-        .and_then(|params| params.get("thinking_level"))
-        .and_then(|v| v.as_str())
+        .get_config_param::<String>("thinking_level", "GEMINI3_THINKING_LEVEL")
         .map(|s| s.to_lowercase())
-        .or_else(|| {
-            crate::config::Config::global()
-                .get_param::<String>("gemini3_thinking_level")
-                .ok()
-                .map(|s| s.to_lowercase())
-        })
         .unwrap_or_else(|| "low".to_string());
 
     let thinking_level = match thinking_level_str.as_str() {
@@ -624,18 +584,11 @@ pub fn create_request(
 
     let thinking_config = get_thinking_config(model_config);
 
-    let generation_config = if model_config.temperature.is_some()
-        || model_config.max_tokens.is_some()
-        || thinking_config.is_some()
-    {
-        Some(GenerationConfig {
-            temperature: model_config.temperature.map(|t| t as f64),
-            max_output_tokens: model_config.max_tokens,
-            thinking_config,
-        })
-    } else {
-        None
-    };
+    let generation_config = Some(GenerationConfig {
+        temperature: model_config.temperature.map(|t| t as f64),
+        max_output_tokens: Some(model_config.max_output_tokens()),
+        thinking_config,
+    });
 
     let request = GoogleRequest {
         system_instruction: SystemInstruction {
@@ -688,12 +641,7 @@ mod tests {
             0,
             vec![MessageContent::tool_response(
                 id.to_string(),
-                Ok(CallToolResult {
-                    content: tool_response,
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(CallToolResult::success(tool_response)),
             )],
         )
     }
@@ -767,21 +715,11 @@ mod tests {
         let messages = vec![
             set_up_tool_request_message(
                 "id",
-                CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "tool_name".into(),
-                    arguments: Some(object(arguments.clone())),
-                },
+                CallToolRequestParams::new("tool_name").with_arguments(object(arguments.clone())),
             ),
             set_up_action_required_message(
                 "id2",
-                CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "tool_name_2".into(),
-                    arguments: Some(object(arguments.clone())),
-                },
+                CallToolRequestParams::new("tool_name_2").with_arguments(object(arguments.clone())),
             ),
         ];
         let payload = format_messages(&messages);
@@ -1018,12 +956,7 @@ mod tests {
     }
 
     fn tool_result(text: &str) -> CallToolResult {
-        CallToolResult {
-            content: vec![Content::text(text)],
-            structured_content: None,
-            is_error: Some(false),
-            meta: None,
-        }
+        CallToolResult::success(vec![Content::text(text)])
     }
 
     #[test]
@@ -1192,90 +1125,68 @@ mod tests {
     async fn test_streaming_with_thought_signature() {
         use futures::StreamExt;
 
-        let gemini3_stream = concat!(
-            r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}], "#,
-            r#""modelVersion": "gemini-3-pro"}"#,
-            "\n",
-            r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": " end"}]}}], "modelVersion": "gemini-3-pro"}"#
-        );
-        let lines: Vec<Result<String, anyhow::Error>> =
-            gemini3_stream.lines().map(|l| Ok(l.to_string())).collect();
-        let stream = Box::pin(futures::stream::iter(lines));
-        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
-
-        let mut text_parts = Vec::new();
-        let mut thinking_parts = Vec::new();
-
-        while let Some(result) = message_stream.next().await {
-            let (message, _usage) = result.unwrap();
-            if let Some(msg) = message {
-                match msg.content.first() {
-                    Some(MessageContent::Text(text)) => text_parts.push(text.text.clone()),
-                    Some(MessageContent::Thinking(t)) => thinking_parts.push(t.thinking.clone()),
-                    _ => {}
+        async fn collect_streaming_text(raw: &str) -> (String, usize) {
+            let lines: Vec<Result<String, anyhow::Error>> =
+                raw.lines().map(|l| Ok(l.to_string())).collect();
+            let stream = Box::pin(futures::stream::iter(lines));
+            let mut msg_stream = std::pin::pin!(response_to_streaming_message(stream));
+            let mut text = String::new();
+            let mut thinking = 0usize;
+            while let Some(Ok((message, _))) = msg_stream.next().await {
+                if let Some(msg) = message {
+                    for c in &msg.content {
+                        match c {
+                            MessageContent::Text(t) => text.push_str(&t.text),
+                            MessageContent::Thinking(_) => thinking += 1,
+                            _ => {}
+                        }
+                    }
                 }
             }
+            (text, thinking)
         }
 
-        assert_eq!(thinking_parts, vec!["Begin"]);
-        assert_eq!(text_parts, vec![" end"]);
-
-        let gemini25_stream = concat!(
+        // First chunk signed
+        let (text, thinking) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}], "#,
-            r#""modelVersion": "gemini-2.5-pro"}"#,
+            r#""parts": [{"text": "Hello", "thoughtSignature": "sig1"}]}}], "#,
+            r#""modelVersion": "gemini-3-flash-preview"}"#,
             "\n",
             r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": " end"}]}}], "modelVersion": "gemini-2.5-pro"}"#
-        );
-        let lines: Vec<Result<String, anyhow::Error>> =
-            gemini25_stream.lines().map(|l| Ok(l.to_string())).collect();
-        let stream = Box::pin(futures::stream::iter(lines));
-        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
+            r#""parts": [{"text": " world"}]}}], "modelVersion": "gemini-3-flash-preview"}"#
+        ))
+        .await;
+        assert_eq!(thinking, 0);
+        assert_eq!(text, "Hello world");
 
-        let mut text_parts = Vec::new();
-
-        while let Some(result) = message_stream.next().await {
-            let (message, _usage) = result.unwrap();
-            if let Some(msg) = message {
-                if let Some(MessageContent::Text(text)) = msg.content.first() {
-                    text_parts.push(text.text.clone());
-                }
-            }
-        }
-
-        assert_eq!(text_parts, vec!["Begin", " end"]);
-
-        let unknown_stream = concat!(
+        // Last chunk signed (the reported truncation bug)
+        let (text, thinking) = collect_streaming_text(concat!(
             r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": "Begin", "thoughtSignature": "sig123"}]}}]}"#,
+            r#""parts": [{"text": "SECURITY.md: Project"}]}}], "#,
+            r#""modelVersion": "gemini-3-flash-preview"}"#,
             "\n",
             r#"data: {"candidates": [{"content": {"role": "model", "#,
-            r#""parts": [{"text": " end"}]}}]}"#
-        );
-        let lines: Vec<Result<String, anyhow::Error>> =
-            unknown_stream.lines().map(|l| Ok(l.to_string())).collect();
-        let stream = Box::pin(futures::stream::iter(lines));
-        let mut message_stream = std::pin::pin!(response_to_streaming_message(stream));
+            r#""parts": [{"text": " policies.\n\nRead it?", "thoughtSignature": "sig2"}]}}], "#,
+            r#""modelVersion": "gemini-3-flash-preview"}"#
+        ))
+        .await;
+        assert_eq!(thinking, 0);
+        assert_eq!(text, "SECURITY.md: Project policies.\n\nRead it?");
 
-        let mut text_parts = Vec::new();
-        let mut thinking_parts = Vec::new();
-
-        while let Some(result) = message_stream.next().await {
-            let (message, _usage) = result.unwrap();
-            if let Some(msg) = message {
-                match msg.content.first() {
-                    Some(MessageContent::Text(text)) => text_parts.push(text.text.clone()),
-                    Some(MessageContent::Thinking(t)) => thinking_parts.push(t.thinking.clone()),
-                    _ => {}
-                }
-            }
-        }
-
-        assert_eq!(thinking_parts, vec!["Begin"]);
-        assert_eq!(text_parts, vec![" end"]);
+        // Intermediate chunk signed
+        let (text, thinking) = collect_streaming_text(concat!(
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "one "}]}}], "modelVersion": "gemini-3-flash-preview"}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "two ", "thoughtSignature": "sig3"}]}}], "modelVersion": "gemini-3-flash-preview"}"#,
+            "\n",
+            r#"data: {"candidates": [{"content": {"role": "model", "#,
+            r#""parts": [{"text": "three"}]}}], "modelVersion": "gemini-3-flash-preview"}"#
+        ))
+        .await;
+        assert_eq!(thinking, 0);
+        assert_eq!(text, "one two three");
     }
 
     #[tokio::test]

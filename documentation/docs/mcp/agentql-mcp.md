@@ -12,7 +12,7 @@ import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructi
 
 This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tinyfish-io/agentql-mcp) as a goose extension to extract and transform unstructured web content into structured data.
 
-:::tip TLDR
+:::tip Quick Install
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -74,9 +74,6 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 Let's use the AgentQL extension to gather and structure tech conference data to help plan speaking engagements. 
 
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
 
 ### goose Prompt
 

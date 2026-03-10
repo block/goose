@@ -3,8 +3,8 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
 use crate::providers::utils::{
-    convert_image, detect_image_path, is_valid_function_name, load_image_file, safely_parse_json,
-    sanitize_function_name, ImageFormat,
+    convert_image, detect_image_path, extract_reasoning_effort, is_valid_function_name,
+    load_image_file, safely_parse_json, sanitize_function_name, ImageFormat,
 };
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
@@ -53,6 +53,7 @@ struct Delta {
     role: Option<String>,
     tool_calls: Option<Vec<DeltaToolCall>>,
     reasoning_details: Option<Vec<Value>>,
+    #[serde(alias = "reasoning")]
     reasoning_content: Option<String>,
 }
 
@@ -82,7 +83,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
         let mut output = Vec::new();
         let mut content_array = Vec::new();
         let mut text_array = Vec::new();
-        let mut reasoning_text: Option<String> = None;
+        let mut reasoning_text = String::new();
 
         for content in &message.content {
             match content {
@@ -116,7 +117,7 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
                     continue;
                 }
                 MessageContent::Reasoning(r) => {
-                    reasoning_text = Some(r.text.clone());
+                    reasoning_text.push_str(&r.text);
                 }
                 MessageContent::ToolRequest(request) => match &request.tool_call {
                     Ok(tool_call) => {
@@ -278,15 +279,11 @@ pub fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<
             converted["content"] = json!(null);
         }
 
-        // DeepSeek requires reasoning_content field when tool_calls are present
-        // Set it to the captured reasoning text, or empty string if not present
-        if converted.get("tool_calls").is_some() {
-            let reasoning = reasoning_text.unwrap_or_default();
-            converted["reasoning_content"] = json!(reasoning);
-        } else if let Some(reasoning) = reasoning_text {
-            if !reasoning.is_empty() {
-                converted["reasoning_content"] = json!(reasoning);
-            }
+        // Include reasoning_content only when non-empty.
+        // Kimi rejects empty reasoning_content (""), so we must omit it entirely
+        // when there's no reasoning to send.
+        if !reasoning_text.is_empty() {
+            converted["reasoning_content"] = json!(reasoning_text);
         }
 
         if converted.get("content").is_some() || converted.get("tool_calls").is_some() {
@@ -342,8 +339,11 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
 
     let mut content = Vec::new();
 
-    // Capture reasoning_content if present (for DeepSeek reasoning models)
-    if let Some(reasoning_content) = original.get("reasoning_content") {
+    // Capture reasoning content if present (DeepSeek uses "reasoning_content", vLLM uses "reasoning")
+    let reasoning_value = original
+        .get("reasoning_content")
+        .or_else(|| original.get("reasoning"));
+    if let Some(reasoning_content) = reasoning_value {
         if let Some(reasoning_str) = reasoning_content.as_str() {
             if !reasoning_str.is_empty() {
                 content.push(MessageContent::reasoning(reasoning_str));
@@ -409,12 +409,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request_with_metadata(
                                 id,
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: function_name.into(),
-                                    arguments: Some(object(params)),
-                                }),
+                                Ok(CallToolRequestParams::new(function_name)
+                                    .with_arguments(object(params))),
                                 metadata.as_ref(),
                             ));
                         }
@@ -542,6 +538,7 @@ where
         use futures::StreamExt;
 
         let mut accumulated_reasoning: Vec<Value> = Vec::new();
+        let mut accumulated_reasoning_content = String::new();
 
         'outer: while let Some(response) = stream.next().await {
             if response.as_ref().is_ok_and(|s| s == "data: [DONE]") {
@@ -561,6 +558,9 @@ where
             if !chunk.choices.is_empty() {
                 if let Some(details) = &chunk.choices[0].delta.reasoning_details {
                     accumulated_reasoning.extend(details.iter().cloned());
+                }
+                if let Some(rc) = &chunk.choices[0].delta.reasoning_content {
+                    accumulated_reasoning_content.push_str(rc);
                 }
             }
 
@@ -602,6 +602,9 @@ where
                                     if let Some(details) = &tool_chunk.choices[0].delta.reasoning_details {
                                         accumulated_reasoning.extend(details.iter().cloned());
                                     }
+                                    if let Some(rc) = &tool_chunk.choices[0].delta.reasoning_content {
+                                        accumulated_reasoning_content.push_str(rc);
+                                    }
                                     if let Some(delta_tool_calls) = &tool_chunk.choices[0].delta.tool_calls {
                                         for delta_call in delta_tool_calls {
                                             if let Some(index) = delta_call.index {
@@ -642,6 +645,10 @@ where
                 };
 
                 let mut contents = Vec::new();
+                if !accumulated_reasoning_content.is_empty() {
+                    contents.push(MessageContent::reasoning(&accumulated_reasoning_content));
+                    accumulated_reasoning_content.clear();
+                }
                 let mut sorted_indices: Vec<_> = tool_call_data.keys().cloned().collect();
                 sorted_indices.sort();
 
@@ -659,12 +666,7 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParams {
-                                        meta: None,
-                                        task: None,
-                                        name: function_name.clone().into(),
-                                        arguments: Some(object(params)),
-                                    }),
+                                    Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata,
                                 )
                             },
@@ -758,34 +760,11 @@ pub fn create_request(
         ));
     }
 
-    let is_ox_model = model_config.model_name.starts_with("o1")
-        || model_config.model_name.starts_with("o2")
-        || model_config.model_name.starts_with("o3")
-        || model_config.model_name.starts_with("o4")
-        || model_config.model_name.starts_with("gpt-5");
-
-    // Only extract reasoning effort for O-series models
-    let (model_name, reasoning_effort) = if is_ox_model {
-        let parts: Vec<&str> = model_config.model_name.split('-').collect();
-        let last_part = parts.last().unwrap();
-
-        match *last_part {
-            "low" | "medium" | "high" => {
-                let base_name = parts[..parts.len() - 1].join("-");
-                (base_name, Some(last_part.to_string()))
-            }
-            _ => (
-                model_config.model_name.to_string(),
-                Some("medium".to_string()),
-            ),
-        }
-    } else {
-        // For non-O family models, use the model name as is and no reasoning effort
-        (model_config.model_name.to_string(), None)
-    };
+    let (model_name, reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
+    let is_reasoning_model = reasoning_effort.is_some();
 
     let system_message = json!({
-        "role": if is_ox_model { "developer" } else { "system" },
+        "role": if is_reasoning_model { "developer" } else { "system" },
         "content": system
     });
 
@@ -810,25 +789,21 @@ pub fn create_request(
         payload["tools"] = json!(tools_spec);
     }
 
-    // o1, o3 models currently don't support temperature
-    if !is_ox_model {
+    if !is_reasoning_model {
         if let Some(temp) = model_config.temperature {
             payload["temperature"] = json!(temp);
         }
     }
 
-    // o1 models use max_completion_tokens instead of max_tokens
-    if let Some(tokens) = model_config.max_tokens {
-        let key = if is_ox_model {
-            "max_completion_tokens"
-        } else {
-            "max_tokens"
-        };
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert(key.to_string(), json!(tokens));
-    }
+    let key = if is_reasoning_model {
+        "max_completion_tokens"
+    } else {
+        "max_tokens"
+    };
+    payload
+        .as_object_mut()
+        .unwrap()
+        .insert(key.to_string(), json!(model_config.max_output_tokens()));
 
     if for_streaming {
         payload["stream"] = json!(true);
@@ -987,12 +962,8 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "example".into(),
-                    arguments: Some(object!({"param1": "value1"})),
-                }),
+                Ok(CallToolRequestParams::new("example")
+                    .with_arguments(object!({"param1": "value1"}))),
             ),
         ];
 
@@ -1005,12 +976,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult {
-                content: vec![Content::text("Result")],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
+            Ok(CallToolResult::success(vec![Content::text("Result")])),
         ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
@@ -1033,12 +999,7 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "example".into(),
-                arguments: Some(object!({"param1": "value1"})),
-            }),
+            Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
         )];
 
         // Get the ID from the tool request to use in the response
@@ -1050,12 +1011,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult {
-                content: vec![Content::text("Result")],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
+            Ok(CallToolResult::success(vec![Content::text("Result")])),
         ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
@@ -1343,15 +1299,8 @@ mod tests {
     #[test]
     fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
         // Test that tool calls with None arguments are formatted as "{}" string
-        let message = Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: None, // This is the key case the fix addresses
-            }),
-        );
+        let message = Message::assistant()
+            .with_tool_request("tool1", Ok(CallToolRequestParams::new("test_tool")));
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
 
@@ -1374,12 +1323,8 @@ mod tests {
         // Test that tool calls with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: Some(object!({"param": "value", "number": 42})),
-            }),
+            Ok(CallToolRequestParams::new("test_tool")
+                .with_arguments(object!({"param": "value", "number": 42}))),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1406,12 +1351,7 @@ mod tests {
         // Test that FrontendToolRequest with None arguments are formatted as "{}" string
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "frontend_test_tool".into(),
-                arguments: None, // This is the key case the fix addresses
-            }),
+            Ok(CallToolRequestParams::new("frontend_test_tool")),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1435,12 +1375,8 @@ mod tests {
         // Test that FrontendToolRequest with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "frontend_test_tool".into(),
-                arguments: Some(object!({"action": "click", "element": "button"})),
-            }),
+            Ok(CallToolRequestParams::new("frontend_test_tool")
+                .with_arguments(object!({"action": "click", "element": "button"}))),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1489,8 +1425,9 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(
             &model_config,
@@ -1529,8 +1466,9 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(
             &model_config,
@@ -1570,8 +1508,9 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model: None,
+            fast_model_config: None,
             request_params: None,
+            reasoning: None,
         };
         let request = create_request(
             &model_config,
@@ -1925,12 +1864,8 @@ data: [DONE]"#;
         // Add a tool call to test that reasoning_content works with tool calls
         message = message.with_tool_request(
             "tool1",
-            Ok(rmcp::model::CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: Some(rmcp::object!({"param": "value"})),
-            }),
+            Ok(rmcp::model::CallToolRequestParams::new("test_tool")
+                .with_arguments(rmcp::object!({"param": "value"}))),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);

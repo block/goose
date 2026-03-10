@@ -274,7 +274,7 @@ async fn run_now_handler(
 
     let recipe_version_tag = recipe_version_opt.as_deref().unwrap_or("");
     tracing::info!(
-        counter.goose.recipe_runs = 1,
+        monotonic_counter.goose.recipe_runs = 1,
         recipe_name = %recipe_display_name,
         recipe_version = %recipe_version_tag,
         session_type = "schedule",

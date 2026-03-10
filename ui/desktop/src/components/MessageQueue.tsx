@@ -133,7 +133,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
 
             {/* Queue count */}
             {remainingCount > 0 && (
-              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-background-muted border border-border-default px-2 py-1 rounded-full font-medium">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground bg-background-secondary border border-border-primary px-2 py-1 rounded-full font-medium">
                 <span>+{remainingCount}</span>
               </div>
             )}

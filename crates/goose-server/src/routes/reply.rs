@@ -66,7 +66,7 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
             let result_status = if success { "success" } else { "error" };
 
             tracing::info!(
-                counter.goose.tool_completions = 1,
+                monotonic_counter.goose.tool_completions = 1,
                 tool_name = %tool_name,
                 result = %result_status,
                 "Tool call completed"
@@ -79,8 +79,11 @@ fn track_tool_telemetry(content: &MessageContent, all_messages: &[Message]) {
 #[derive(Debug, Deserialize, Serialize, utoipa::ToSchema)]
 pub struct ChatRequest {
     user_message: Message,
+    /// Override the server's conversation history. Only use this when you need absolute control
+    /// over the conversation state (e.g., administrative tools). For normal operations, the server
+    /// is the source of truth - use truncate/fork endpoints to modify conversation history instead.
     #[serde(default)]
-    conversation_so_far: Option<Vec<Message>>,
+    override_conversation: Option<Vec<Message>>,
     session_id: String,
     recipe_name: Option<String>,
     recipe_version: Option<String>,
@@ -209,7 +212,7 @@ pub async fn reply(
     let session_start = std::time::Instant::now();
 
     tracing::info!(
-        counter.goose.session_starts = 1,
+        monotonic_counter.goose.session_starts = 1,
         session_type = "app",
         interface = "ui",
         "Session started"
@@ -225,7 +228,7 @@ pub async fn reply(
                 .unwrap_or_else(|| "unknown".to_string());
 
             tracing::info!(
-                counter.goose.recipe_runs = 1,
+                monotonic_counter.goose.recipe_runs = 1,
                 recipe_name = %recipe_name,
                 recipe_version = %recipe_version,
                 session_type = "app",
@@ -240,7 +243,7 @@ pub async fn reply(
     let cancel_token = CancellationToken::new();
 
     let user_message = request.user_message;
-    let conversation_so_far = request.conversation_so_far;
+    let override_conversation = request.override_conversation;
 
     let task_cancel = cancel_token.clone();
     let task_tx = tx.clone();
@@ -285,7 +288,7 @@ pub async fn reply(
             retry_config: None,
         };
 
-        let mut all_messages = match conversation_so_far {
+        let mut all_messages = match override_conversation {
             Some(history) => {
                 let conv = Conversation::new_unvalidated(history);
                 if let Err(e) = state
@@ -396,7 +399,7 @@ pub async fn reply(
         if let Ok(session) = state.session_manager().get_session(&session_id, true).await {
             let total_tokens = session.total_tokens.unwrap_or(0);
             tracing::info!(
-                counter.goose.session_completions = 1,
+                monotonic_counter.goose.session_completions = 1,
                 session_type = "app",
                 interface = "ui",
                 exit_type = "normal",
@@ -407,7 +410,7 @@ pub async fn reply(
             );
 
             tracing::info!(
-                counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+                monotonic_counter.goose.session_duration_ms = session_duration.as_millis() as u64,
                 session_type = "app",
                 interface = "ui",
                 "Session duration"
@@ -415,7 +418,7 @@ pub async fn reply(
 
             if total_tokens > 0 {
                 tracing::info!(
-                    counter.goose.session_tokens = total_tokens,
+                    monotonic_counter.goose.session_tokens = total_tokens,
                     session_type = "app",
                     interface = "ui",
                     "Session tokens"
@@ -423,7 +426,7 @@ pub async fn reply(
             }
         } else {
             tracing::info!(
-                counter.goose.session_completions = 1,
+                monotonic_counter.goose.session_completions = 1,
                 session_type = "app",
                 interface = "ui",
                 exit_type = "normal",
@@ -434,7 +437,7 @@ pub async fn reply(
             );
 
             tracing::info!(
-                counter.goose.session_duration_ms = session_duration.as_millis() as u64,
+                monotonic_counter.goose.session_duration_ms = session_duration.as_millis() as u64,
                 session_type = "app",
                 interface = "ui",
                 "Session duration"
@@ -477,7 +480,7 @@ mod tests {
 
         #[tokio::test(flavor = "multi_thread")]
         async fn test_reply_endpoint() {
-            let state = AppState::new().await.unwrap();
+            let state = AppState::new(true).await.unwrap();
 
             let app = routes(state);
 
@@ -489,7 +492,7 @@ mod tests {
                 .body(Body::from(
                     serde_json::to_string(&ChatRequest {
                         user_message: Message::user().with_text("test message"),
-                        conversation_so_far: None,
+                        override_conversation: None,
                         session_id: "test-session".to_string(),
                         recipe_name: None,
                         recipe_version: None,

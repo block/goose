@@ -1,4 +1,5 @@
 use super::base::Config;
+use crate::agents::extension::PLATFORM_EXTENSIONS;
 use crate::agents::ExtensionConfig;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -31,6 +32,15 @@ pub fn name_to_key(name: &str) -> String {
     result.to_lowercase()
 }
 
+pub(crate) fn is_extension_available(config: &ExtensionConfig) -> bool {
+    match config {
+        ExtensionConfig::Platform { name, .. } => {
+            PLATFORM_EXTENSIONS.contains_key(name_to_key(name).as_str())
+        }
+        _ => true,
+    }
+}
+
 fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, ExtensionEntry> {
     let raw: Mapping = config
         .get_param(EXTENSIONS_CONFIG_KEY)
@@ -46,6 +56,9 @@ fn get_extensions_map_with_config(config: &Config) -> IndexMap<String, Extension
     for (k, v) in raw {
         match (k, serde_yaml::from_value::<ExtensionEntry>(v)) {
             (serde_yaml::Value::String(key), Ok(entry)) => {
+                if !is_extension_available(&entry.config) {
+                    continue;
+                }
                 extensions_map.insert(key, entry);
             }
             (k, v) => {
@@ -158,13 +171,44 @@ pub fn resolve_extensions_for_new_session(
     recipe_extensions: Option<&[ExtensionConfig]>,
     override_extensions: Option<Vec<ExtensionConfig>>,
 ) -> Vec<ExtensionConfig> {
-    if let Some(exts) = recipe_extensions {
-        return exts.to_vec();
-    }
+    let extensions = if let Some(exts) = recipe_extensions {
+        exts.to_vec()
+    } else if let Some(exts) = override_extensions {
+        exts
+    } else {
+        get_enabled_extensions()
+    };
 
-    if let Some(exts) = override_extensions {
-        return exts;
-    }
+    extensions
+        .into_iter()
+        .filter(is_extension_available)
+        .collect()
+}
 
-    get_enabled_extensions()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_extension_available_filters_unknown_platform() {
+        let unknown_platform = ExtensionConfig::Platform {
+            name: "definitely_not_real_platform_extension".to_string(),
+            description: "unknown".to_string(),
+            display_name: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        };
+
+        let builtin = ExtensionConfig::Builtin {
+            name: "developer".to_string(),
+            description: "".to_string(),
+            display_name: Some("Developer".to_string()),
+            timeout: None,
+            bundled: None,
+            available_tools: Vec::new(),
+        };
+
+        assert!(!is_extension_available(&unknown_platform));
+        assert!(is_extension_available(&builtin));
+    }
 }

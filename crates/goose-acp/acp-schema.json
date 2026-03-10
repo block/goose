@@ -1,0 +1,520 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GooseExtensions",
+  "$defs": {
+    "AddExtensionRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "config": {
+          "description": "Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform)."
+        }
+      },
+      "required": [
+        "session_id",
+        "config"
+      ],
+      "description": "Add an extension to an active session.\nMethod: `_agent/extensions/add`",
+      "x-side": "agent",
+      "x-method": "extensions/add"
+    },
+    "EmptyResponse": {
+      "type": "object",
+      "description": "Empty success response for operations that return no data.",
+      "x-side": "agent"
+    },
+    "RemoveExtensionRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "name"
+      ],
+      "description": "Remove an extension from an active session.\nMethod: `_agent/extensions/remove`",
+      "x-side": "agent",
+      "x-method": "extensions/remove"
+    },
+    "GetToolsRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "List all tools available in a session.\nMethod: `_agent/tools`",
+      "x-side": "agent",
+      "x-method": "tools"
+    },
+    "GetToolsResponse": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "array",
+          "items": true,
+          "description": "Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`."
+        }
+      },
+      "required": [
+        "tools"
+      ],
+      "x-side": "agent",
+      "x-method": "tools"
+    },
+    "ReadResourceRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "extension_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "uri",
+        "extension_name"
+      ],
+      "description": "Read a resource from an extension.\nMethod: `_agent/resource/read`",
+      "x-side": "agent",
+      "x-method": "resource/read"
+    },
+    "ReadResourceResponse": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "description": "The resource result from the extension (MCP ReadResourceResult)."
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "x-side": "agent",
+      "x-method": "resource/read"
+    },
+    "UpdateWorkingDirRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "working_dir": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "working_dir"
+      ],
+      "description": "Update the working directory for a session.\nMethod: `_agent/working_dir/update`",
+      "x-side": "agent",
+      "x-method": "working_dir/update"
+    },
+    "ListSessionsResponse": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": true
+        }
+      },
+      "required": [
+        "sessions"
+      ],
+      "description": "List all sessions.\nMethod: `_session/list`",
+      "x-side": "agent",
+      "x-method": "session/list"
+    },
+    "GetSessionRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        },
+        "include_messages": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "Get a session by ID.\nMethod: `_session/get`",
+      "x-side": "agent",
+      "x-method": "session/get"
+    },
+    "GetSessionResponse": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "description": "The session object with id, name, working_dir, timestamps, tokens, etc."
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "description": "Get a session response.",
+      "x-side": "agent",
+      "x-method": "session/get"
+    },
+    "DeleteSessionRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "Delete a session.\nMethod: `_session/delete`",
+      "x-side": "agent",
+      "x-method": "session/delete"
+    },
+    "ExportSessionRequest": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id"
+      ],
+      "description": "Export a session as a JSON string.\nMethod: `_session/export`",
+      "x-side": "agent",
+      "x-method": "session/export"
+    },
+    "ExportSessionResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ],
+      "x-side": "agent",
+      "x-method": "session/export"
+    },
+    "ImportSessionRequest": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "data"
+      ],
+      "description": "Import a session from a JSON string.\nMethod: `_session/import`",
+      "x-side": "agent",
+      "x-method": "session/import"
+    },
+    "ImportSessionResponse": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "description": "The imported session object."
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "x-side": "agent",
+      "x-method": "session/import"
+    },
+    "GetExtensionsResponse": {
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": true,
+          "description": "Array of ExtensionEntry objects with `enabled` flag and config details."
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "extensions",
+        "warnings"
+      ],
+      "description": "List configured extensions and any warnings.\nMethod: `_config/extensions`",
+      "x-side": "agent",
+      "x-method": "config/extensions"
+    },
+    "ExtRequest": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AddExtensionRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/extensions/add",
+                  "title": "AddExtensionRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RemoveExtensionRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/extensions/remove",
+                  "title": "RemoveExtensionRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GetToolsRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/tools",
+                  "title": "GetToolsRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ReadResourceRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/resource/read",
+                  "title": "ReadResourceRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UpdateWorkingDirRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/working_dir/update",
+                  "title": "UpdateWorkingDirRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GetSessionRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/session/get",
+                  "title": "GetSessionRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DeleteSessionRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/session/delete",
+                  "title": "DeleteSessionRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ExportSessionRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/session/export",
+                  "title": "ExportSessionRequest"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ImportSessionRequest"
+                    }
+                  ],
+                  "description": "Params for _goose/session/import",
+                  "title": "ImportSessionRequest"
+                }
+              ]
+            },
+            {
+              "description": "Untyped params",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "method"
+      ],
+      "type": "object",
+      "x-docs-ignore": true
+    },
+    "ExtResponse": {
+      "anyOf": [
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/EmptyResponse"
+                        }
+                      ],
+                      "title": "EmptyResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetToolsResponse"
+                        }
+                      ],
+                      "title": "GetToolsResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ReadResourceResponse"
+                        }
+                      ],
+                      "title": "ReadResourceResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListSessionsResponse"
+                        }
+                      ],
+                      "title": "ListSessionsResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetSessionResponse"
+                        }
+                      ],
+                      "title": "GetSessionResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ExportSessionResponse"
+                        }
+                      ],
+                      "title": "ExportSessionResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ImportSessionResponse"
+                        }
+                      ],
+                      "title": "ImportSessionResponse"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetExtensionsResponse"
+                        }
+                      ],
+                      "title": "GetExtensionsResponse"
+                    }
+                  ]
+                },
+                {
+                  "description": "Untyped result"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "Success",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "data": {}
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "error"
+          ],
+          "title": "Error",
+          "type": "object"
+        }
+      ],
+      "x-docs-ignore": true
+    }
+  },
+  "anyOf": [
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtRequest"
+        }
+      ],
+      "description": "Extension request (client → agent)",
+      "title": "Request"
+    },
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtResponse"
+        }
+      ],
+      "description": "Extension response (agent → client)",
+      "title": "Response"
+    }
+  ]
+}

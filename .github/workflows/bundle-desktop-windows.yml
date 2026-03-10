@@ -1,6 +1,7 @@
 name: "Bundle Desktop (Windows)"
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       version:
@@ -136,7 +137,7 @@ jobs:
         run: |
           cd ui/desktop
 
-          npm install
+          npm ci
           node scripts/build-main.js
           node scripts/prepare-platform-binaries.js
           npm run make -- --platform=win32 --arch=x64

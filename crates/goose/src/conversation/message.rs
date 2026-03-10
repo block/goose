@@ -164,6 +164,7 @@ pub struct FrontendToolRequest {
 pub enum SystemNotificationType {
     ThinkingMessage,
     InlineMessage,
+    CreditsExhausted,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -294,12 +295,11 @@ impl MessageContent {
 
                 // Preserve ToolResponse even when content is empty - some providers
                 // (like Google) need to handle empty tool responses specially
+                let mut tool_result = result.clone();
+                tool_result.content = filtered_content;
                 Some(MessageContent::ToolResponse(ToolResponse {
                     id: res.id.clone(),
-                    tool_result: Ok(CallToolResult {
-                        content: filtered_content,
-                        ..result.clone()
-                    }),
+                    tool_result: Ok(tool_result),
                     metadata: res.metadata.clone(),
                 }))
             }
@@ -998,12 +998,8 @@ mod tests {
             .with_text("Hello, I'll help you with that.")
             .with_tool_request(
                 "tool123",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "test_tool".into(),
-                    arguments: Some(object!({"param": "value"})),
-                }),
+                Ok(CallToolRequestParams::new("test_tool")
+                    .with_arguments(object!({"param": "value"}))),
             );
 
         let json_str = serde_json::to_string_pretty(&message).unwrap();
@@ -1119,10 +1115,7 @@ mod tests {
             text: "Hello, world!".to_string(),
         };
 
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
+        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
@@ -1144,10 +1137,7 @@ mod tests {
             .no_annotation(),
         };
 
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
+        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
@@ -1176,10 +1166,7 @@ mod tests {
             .no_annotation(),
         };
 
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: prompt_content,
-        };
+        let prompt_message = PromptMessage::new(PromptMessageRole::User, prompt_content);
 
         let message = Message::from(prompt_message);
 
@@ -1193,12 +1180,12 @@ mod tests {
     #[test]
     fn test_from_prompt_message() {
         // Test user message conversion
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::User,
-            content: PromptMessageContent::Text {
+        let prompt_message = PromptMessage::new(
+            PromptMessageRole::User,
+            PromptMessageContent::Text {
                 text: "Hello, world!".to_string(),
             },
-        };
+        );
 
         let message = Message::from(prompt_message);
         assert_eq!(message.role, Role::User);
@@ -1206,12 +1193,12 @@ mod tests {
         assert_eq!(message.as_concat_text(), "Hello, world!");
 
         // Test assistant message conversion
-        let prompt_message = PromptMessage {
-            role: PromptMessageRole::Assistant,
-            content: PromptMessageContent::Text {
+        let prompt_message = PromptMessage::new(
+            PromptMessageRole::Assistant,
+            PromptMessageContent::Text {
                 text: "I can help with that.".to_string(),
             },
-        };
+        );
 
         let message = Message::from(prompt_message);
         assert_eq!(message.role, Role::Assistant);
@@ -1227,12 +1214,7 @@ mod tests {
 
     #[test]
     fn test_message_with_tool_request() {
-        let tool_call = Ok(CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: "test_tool".into(),
-            arguments: Some(object!({})),
-        });
+        let tool_call = Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({})));
 
         let message = Message::assistant().with_tool_request("req1", tool_call);
         assert!(message.is_tool_call());

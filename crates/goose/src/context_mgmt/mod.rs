@@ -2,6 +2,8 @@ use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_template;
+#[cfg(test)]
+use crate::providers::base::{stream_from_single_message, MessageStream};
 use crate::providers::base::{Provider, ProviderUsage};
 use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
@@ -16,20 +18,25 @@ use tracing::log::warn;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: f64 = 0.8;
 
+/// Feature flag to enable/disable tool pair summarization.
+/// Set to `false` to disable summarizing old tool call/response pairs.
+/// TODO: Re-enable once tool summarization stability issues are resolved.
+const ENABLE_TOOL_PAIR_SUMMARIZATION: bool = false;
+
 const CONVERSATION_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared because a context limit was reached.
+    "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
-Just continue the conversation naturally based on the summarized context";
+Just continue the conversation naturally based on the summarized context.";
 
 const TOOL_LOOP_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared because a context limit was reached.
+    "Your context was compacted. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
 Continue calling tools as necessary to complete the task.";
 
 const MANUAL_COMPACT_CONTINUATION_TEXT: &str =
-    "The previous message contains a summary that was prepared at the user's request.
+    "Your context was compacted at the user's request. The previous message contains a summary of the conversation so far.
 Do not mention that you read a summary or that conversation summarization occurred.
-Just continue the conversation naturally based on the summarized context";
+Just continue the conversation naturally based on the summarized context.";
 
 #[derive(Serialize)]
 struct SummarizeContext {
@@ -507,6 +514,12 @@ pub fn maybe_summarize_tool_pair(
     cutoff: usize,
 ) -> JoinHandle<Option<(Message, String)>> {
     tokio::spawn(async move {
+        // Tool pair summarization is currently disabled via feature flag.
+        // See ENABLE_TOOL_PAIR_SUMMARIZATION constant above.
+        if !ENABLE_TOOL_PAIR_SUMMARIZATION {
+            return None;
+        }
+
         if let Some(tool_id) = tool_id_to_summarize(&conversation, cutoff) {
             match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
             {
@@ -549,8 +562,9 @@ mod tests {
                     max_tokens: None,
                     toolshim: false,
                     toolshim_model: None,
-                    fast_model: None,
+                    fast_model_config: None,
                     request_params: None,
+                    reasoning: None,
                 },
                 max_tool_responses: None,
             }
@@ -568,14 +582,14 @@ mod tests {
             "mock"
         }
 
-        async fn complete_with_model(
+        async fn stream(
             &self,
-            _session_id: Option<&str>,
             _model_config: &ModelConfig,
+            _session_id: &str,
             _system: &str,
             messages: &[Message],
             _tools: &[Tool],
-        ) -> Result<(Message, ProviderUsage), ProviderError> {
+        ) -> Result<MessageStream, ProviderError> {
             // If max_tool_responses is set, fail if we have too many
             if let Some(max) = self.max_tool_responses {
                 let tool_response_count = messages
@@ -595,10 +609,9 @@ mod tests {
                 }
             }
 
-            Ok((
-                self.message.clone(),
-                ProviderUsage::new("mock-model".to_string(), Usage::default()),
-            ))
+            let message = self.message.clone();
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+            Ok(stream_from_single_message(message, usage))
         }
 
         fn get_model_config(&self) -> ModelConfig {
@@ -612,23 +625,13 @@ mod tests {
         let provider = MockProvider::new(response_message, 1);
         let basic_conversation = vec![
             Message::user().with_text("read hello.txt"),
-            Message::assistant().with_tool_request(
-                "tool_0",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "read_file".into(),
-                    arguments: None,
-                }),
-            ),
+            Message::assistant()
+                .with_tool_request("tool_0", Ok(CallToolRequestParams::new("read_file"))),
             Message::user().with_tool_response(
                 "tool_0",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![RawContent::text("hello, world").no_annotation()],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text("hello, world").no_annotation(),
+                ])),
             ),
         ];
 
@@ -655,21 +658,13 @@ mod tests {
         for i in 0..10 {
             messages.push(Message::assistant().with_tool_request(
                 format!("tool_{}", i),
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "read_file".into(),
-                    arguments: None,
-                }),
+                Ok(CallToolRequestParams::new("read_file")),
             ));
             messages.push(Message::user().with_tool_response(
                 format!("tool_{}", i),
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![RawContent::text(format!("response{}", i)).no_annotation()],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
+                Ok(rmcp::model::CallToolResult::success(vec![
+                    RawContent::text(format!("response{}", i)).no_annotation(),
+                ])),
             ));
         }
 
@@ -695,23 +690,15 @@ mod tests {
                 Message::assistant()
                     .with_tool_request(
                         call_id,
-                        Ok(CallToolRequestParams {
-                            task: None,
-                            name: tool_name.to_string().into(),
-                            arguments: None,
-                            meta: None,
-                        }),
+                        Ok(CallToolRequestParams::new(tool_name.to_string())),
                     )
                     .with_id(call_id),
                 Message::user()
                     .with_tool_response(
                         call_id,
-                        Ok(rmcp::model::CallToolResult {
-                            content: vec![RawContent::text(response_text).no_annotation()],
-                            structured_content: None,
-                            is_error: Some(false),
-                            meta: None,
-                        }),
+                        Ok(rmcp::model::CallToolResult::success(vec![
+                            RawContent::text(response_text).no_annotation(),
+                        ])),
                     )
                     .with_id(response_id),
             ]

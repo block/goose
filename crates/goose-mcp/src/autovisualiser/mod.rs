@@ -4,8 +4,8 @@ use indoc::formatdoc;
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
-        CallToolResult, Content, ErrorCode, ErrorData, Implementation, ResourceContents, Role,
-        ServerCapabilities, ServerInfo,
+        CallToolResult, Content, ErrorCode, ErrorData, Implementation, InitializeResult,
+        ResourceContents, Role, ServerCapabilities, ServerInfo,
     },
     tool, tool_handler, tool_router, ServerHandler,
 };
@@ -412,19 +412,12 @@ impl Default for AutoVisualiserRouter {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for AutoVisualiserRouter {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            server_info: Implementation {
-                name: "goose-autovisualiser".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-                title: None,
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            instructions: Some(self.instructions.clone()),
-            ..Default::default()
-        }
+        InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
+            .with_server_info(Implementation::new(
+                "goose-autovisualiser",
+                env!("CARGO_PKG_VERSION"),
+            ))
+            .with_instructions(self.instructions.clone())
     }
 }
 

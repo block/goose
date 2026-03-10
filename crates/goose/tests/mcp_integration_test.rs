@@ -11,14 +11,18 @@ use rmcp::object;
 use tokio_util::sync::CancellationToken;
 
 use goose::agents::extension::{Envs, ExtensionConfig};
-use goose::agents::extension_manager::ExtensionManager;
+use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
+use goose::agents::GoosePlatform;
 use goose::model::ModelConfig;
 
 use test_case::test_case;
 
 use async_trait::async_trait;
 use goose::conversation::message::Message;
-use goose::providers::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use goose::providers::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
 use goose::providers::errors::ProviderError;
 use once_cell::sync::Lazy;
 use std::process::Command;
@@ -68,18 +72,17 @@ impl Provider for MockProvider {
         "mock"
     }
 
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>,
         _model_config: &ModelConfig,
+        _session_id: &str,
         _system: &str,
         _messages: &[Message],
         _tools: &[Tool],
-    ) -> anyhow::Result<(Message, ProviderUsage), ProviderError> {
-        Ok((
-            Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)"),
-            ProviderUsage::new("mock".to_string(), Usage::default()),
-        ))
+    ) -> Result<MessageStream, ProviderError> {
+        let message = Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)");
+        let usage = ProviderUsage::new("mock".to_string(), Usage::default());
+        Ok(stream_from_single_message(message, usage))
     }
 
     fn get_model_config(&self) -> ModelConfig {
@@ -133,42 +136,42 @@ enum TestMode {
 #[test_case(
     vec!["npx", "-y", "@modelcontextprotocol/server-everything@2026.1.14"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "echo".into(), arguments: Some(object!({"message": "Hello, world!" })) },
-        CallToolRequestParams { meta: None, task: None, name: "get-sum".into(), arguments: Some(object!({"a": 1, "b": 2 })) },
-        CallToolRequestParams { meta: None, task: None, name: "trigger-long-running-operation".into(), arguments: Some(object!({"duration": 1, "steps": 5 })) },
-        CallToolRequestParams { meta: None, task: None, name: "get-structured-content".into(), arguments: Some(object!({"location": "New York"})) },
-        CallToolRequestParams { meta: None, task: None, name: "trigger-sampling-request".into(), arguments: Some(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 })) }
+        CallToolRequestParams::new("echo").with_arguments(object!({"message": "Hello, world!" })),
+        CallToolRequestParams::new("get-sum").with_arguments(object!({"a": 1, "b": 2 })),
+        CallToolRequestParams::new("trigger-long-running-operation").with_arguments(object!({"duration": 1, "steps": 5 })),
+        CallToolRequestParams::new("get-structured-content").with_arguments(object!({"location": "New York"})),
+        CallToolRequestParams::new("trigger-sampling-request").with_arguments(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 }))
     ],
     vec![]
 )]
 #[test_case(
     vec!["github-mcp-server", "stdio"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "get_file_contents".into(), arguments: Some(object!({
+        CallToolRequestParams::new("get_file_contents").with_arguments(object!({
             "owner": "block",
             "repo": "goose",
             "path": "README.md",
             "sha": "ab62b863c1666232a67048b6c4e10007a2a5b83c"
-        }))},
+        })),
     ],
     vec!["GITHUB_PERSONAL_ACCESS_TOKEN"]
 )]
 #[test_case(
     vec!["uvx", "mcp-server-fetch"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "fetch".into(), arguments: Some(object!({
+        CallToolRequestParams::new("fetch").with_arguments(object!({
             "url": "https://example.com",
-        })) }
+        }))
     ],
     vec![]
 )]
 #[test_case(
     vec!["uv", "run", "--with", "fastmcp==2.14.4", "fastmcp", "run", "tests/fastmcp_test_server.py"],
     vec![
-        CallToolRequestParams { meta: None, task: None, name: "divide".into(), arguments: Some(object!({
+        CallToolRequestParams::new("divide").with_arguments(object!({
             "dividend": 10,
             "divisor": 2
-        })) }
+        }))
     ],
     vec![]
 )]
@@ -254,7 +257,12 @@ async fn test_replayed_session(
     let session_manager = Arc::new(goose::session::SessionManager::new(
         temp_dir.path().to_path_buf(),
     ));
-    let extension_manager = Arc::new(ExtensionManager::new(provider, session_manager));
+    let extension_manager = Arc::new(ExtensionManager::new(
+        provider,
+        session_manager,
+        GoosePlatform::GooseDesktop.to_string(),
+        ExtensionManagerCapabilities { mcpui: true },
+    ));
 
     #[allow(clippy::redundant_closure_call)]
     let result = (async || -> Result<(), Box<dyn std::error::Error>> {
@@ -263,12 +271,11 @@ async fn test_replayed_session(
             .await?;
         let mut results = Vec::new();
         for tool_call in tool_calls {
-            let tool_call = CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: format!("test__{}", tool_call.name).into(),
-                arguments: tool_call.arguments,
-            };
+            let mut new_call = CallToolRequestParams::new(format!("test__{}", tool_call.name));
+            if let Some(args) = tool_call.arguments {
+                new_call = new_call.with_arguments(args);
+            }
+            let tool_call = new_call;
             let result = extension_manager
                 .dispatch_tool_call(
                     "test-session-id",

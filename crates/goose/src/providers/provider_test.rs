@@ -1,5 +1,6 @@
 use crate::{conversation::message::Message, model::ModelConfig, providers::create};
 use anyhow::Result;
+use futures::StreamExt;
 use rmcp::model::ToolAnnotations;
 use rmcp::{model::Tool, object};
 
@@ -10,6 +11,7 @@ pub async fn test_provider_configuration(
     toolshim_model: Option<String>,
 ) -> Result<()> {
     let model_config = ModelConfig::new(model)?
+        .with_canonical_limits(provider_name)
         .with_max_tokens(Some(50))
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(toolshim_model);
@@ -25,14 +27,22 @@ pub async fn test_provider_configuration(
         vec![]
     };
 
-    let _result = provider
-        .complete(
+    let provider_model_config = provider.get_model_config();
+    let mut stream = provider
+        .stream(
+            &provider_model_config,
             "test-session-id",
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
             &messages,
             &tools.into_iter().collect::<Vec<_>>(),
         )
         .await?;
+
+    let first_chunk = stream
+        .next()
+        .await
+        .ok_or_else(|| anyhow::anyhow!("Provider test stream returned no events"))?;
+    first_chunk?;
 
     Ok(())
 }
@@ -49,11 +59,11 @@ fn create_sample_weather_tool() -> Tool {
             }
         }),
     )
-    .annotate(ToolAnnotations {
-        title: Some("Get weather".to_string()),
-        read_only_hint: Some(true),
-        destructive_hint: Some(false),
-        idempotent_hint: Some(false),
-        open_world_hint: Some(false),
-    })
+    .annotate(
+        ToolAnnotations::with_title("Get weather".to_string())
+            .read_only(true)
+            .destructive(false)
+            .idempotent(false)
+            .open_world(false),
+    )
 }

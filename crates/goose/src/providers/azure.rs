@@ -55,10 +55,16 @@ impl ProviderDef for AzureProvider {
             AZURE_OPENAI_KNOWN_MODELS.to_vec(),
             AZURE_DOC_URL,
             vec![
-                ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None),
-                ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None),
-                ConfigKey::new("AZURE_OPENAI_API_VERSION", true, false, Some("2024-10-21")),
-                ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some("")),
+                ConfigKey::new("AZURE_OPENAI_ENDPOINT", true, false, None, true),
+                ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None, true),
+                ConfigKey::new(
+                    "AZURE_OPENAI_API_VERSION",
+                    true,
+                    false,
+                    Some("2024-10-21"),
+                    false,
+                ),
+                ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some(""), true),
             ],
         )
     }

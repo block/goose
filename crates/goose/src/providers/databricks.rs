@@ -1,27 +1,34 @@
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::io;
 use std::time::Duration;
+use tokio::pin;
+use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::embedding::EmbeddingCapable;
 use super::errors::ProviderError;
-use super::formats::databricks::{create_request, response_to_message};
+use super::formats::databricks::create_request;
+use super::formats::openai_responses::{
+    create_responses_request, responses_api_to_streaming_message,
+};
 use super::oauth;
 use super::openai_compatible::{
-    handle_response_openai_compat, map_http_error_to_provider_error, stream_openai_compat,
+    handle_response_openai_compat, handle_status_openai_compat, map_http_error_to_provider_error,
+    stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{ImageFormat, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
-use crate::providers::formats::openai::get_usage;
 use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
@@ -39,10 +46,8 @@ pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
 const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-claude-sonnet-4-5",
-    "databricks-claude-3-7-sonnet",
     "databricks-meta-llama-3-3-70b-instruct",
     "databricks-meta-llama-3-1-405b-instruct",
-    "databricks-dbrx-instruct",
 ];
 
 pub const DATABRICKS_DOC_URL: &str =
@@ -150,7 +155,8 @@ impl DatabricksProvider {
             fast_retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
         };
-        provider.model = model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL.to_string());
+        provider.model =
+            model.with_fast(DATABRICKS_DEFAULT_FAST_MODEL, DATABRICKS_PROVIDER_NAME)?;
         Ok(provider)
     }
 
@@ -210,9 +216,16 @@ impl DatabricksProvider {
         })
     }
 
+    fn is_responses_model(model_name: &str) -> bool {
+        let normalized = model_name.to_ascii_lowercase();
+        normalized.contains("codex")
+    }
+
     fn get_endpoint_path(&self, model_name: &str, is_embedding: bool) -> String {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
+        } else if Self::is_responses_model(model_name) {
+            "serving-endpoints/responses".to_string()
         } else {
             format!("serving-endpoints/{}/invocations", model_name)
         }
@@ -248,8 +261,8 @@ impl ProviderDef for DatabricksProvider {
             DATABRICKS_KNOWN_MODELS.to_vec(),
             DATABRICKS_DOC_URL,
             vec![
-                ConfigKey::new("DATABRICKS_HOST", true, false, None),
-                ConfigKey::new("DATABRICKS_TOKEN", false, true, None),
+                ConfigKey::new("DATABRICKS_HOST", true, false, None, true),
+                ConfigKey::new("DATABRICKS_TOKEN", false, true, None, true),
             ],
         )
     }
@@ -276,108 +289,87 @@ impl Provider for DatabricksProvider {
         self.model.clone()
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
-    )]
-    async fn complete_with_model(
-        &self,
-        session_id: Option<&str>,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let mut payload =
-            create_request(model_config, system, messages, tools, &self.image_format)?;
-        payload
-            .as_object_mut()
-            .expect("payload should have model key")
-            .remove("model");
-
-        let mut log = RequestLog::start(&self.model, &payload)?;
-
-        // Use fast retry config if this is the fast model
-        let is_fast_model = self
-            .model
-            .fast_model
-            .as_ref()
-            .map(|fast| fast == &model_config.model_name)
-            .unwrap_or(false);
-
-        let retry_config = if is_fast_model {
-            self.fast_retry_config.clone()
-        } else {
-            self.retry_config.clone()
-        };
-
-        let response = self
-            .with_retry_config(
-                || self.post(session_id, payload.clone(), Some(&model_config.model_name)),
-                retry_config,
-            )
-            .await?;
-
-        let message = response_to_message(&response)?;
-        let usage = response.get("usage").map(get_usage).unwrap_or_else(|| {
-            tracing::debug!("Failed to get usage data");
-            Usage::default()
-        });
-        let response_model = get_model(&response);
-        log.write(&response, Some(&usage))?;
-
-        Ok((message, ProviderUsage::new(response_model, usage)))
-    }
-
     async fn stream(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let model_config = self.model.clone();
-
-        let mut payload =
-            create_request(&model_config, system, messages, tools, &self.image_format)?;
-        payload
-            .as_object_mut()
-            .expect("payload should have model key")
-            .remove("model");
-
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("stream".to_string(), Value::Bool(true));
-
         let path = self.get_endpoint_path(&model_config.model_name, false);
-        let mut log = RequestLog::start(&self.model, &payload)?;
-        let response = self
-            .with_retry(|| async {
-                let resp = self
-                    .api_client
-                    .response_post(Some(session_id), &path, &payload)
-                    .await?;
-                if !resp.status().is_success() {
-                    let status = resp.status();
-                    let error_text = resp.text().await.unwrap_or_default();
 
-                    // Parse as JSON if possible to pass to map_http_error_to_provider_error
-                    let json_payload = serde_json::from_str::<Value>(&error_text).ok();
-                    return Err(map_http_error_to_provider_error(status, json_payload));
+        if Self::is_responses_model(&model_config.model_name) {
+            let mut payload = create_responses_request(model_config, system, messages, tools)?;
+            payload["stream"] = Value::Bool(true);
+
+            let mut log = RequestLog::start(model_config, &payload)?;
+
+            let response = self
+                .with_retry(|| async {
+                    let payload_clone = payload.clone();
+                    let resp = self
+                        .api_client
+                        .response_post(Some(session_id), &path, &payload_clone)
+                        .await?;
+                    handle_status_openai_compat(resp).await
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            let stream = response.bytes_stream().map_err(io::Error::other);
+
+            Ok(Box::pin(try_stream! {
+                let stream_reader = StreamReader::new(stream);
+                let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+
+                let message_stream = responses_api_to_streaming_message(framed);
+                pin!(message_stream);
+                while let Some(message) = message_stream.next().await {
+                    let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                    log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
+                    yield (message, usage);
                 }
-                Ok(resp)
-            })
-            .await
-            .inspect_err(|e| {
-                let _ = log.error(e);
-            })?;
+            }))
+        } else {
+            let mut payload =
+                create_request(model_config, system, messages, tools, &self.image_format)?;
+            payload
+                .as_object_mut()
+                .expect("payload should have model key")
+                .remove("model");
 
-        stream_openai_compat(response, log)
-    }
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("stream".to_string(), Value::Bool(true));
 
-    fn supports_streaming(&self) -> bool {
-        true
+            let mut log = RequestLog::start(model_config, &payload)?;
+            let response = self
+                .with_retry(|| async {
+                    let resp = self
+                        .api_client
+                        .response_post(Some(session_id), &path, &payload)
+                        .await?;
+                    if !resp.status().is_success() {
+                        let status = resp.status();
+                        let error_text = resp.text().await.unwrap_or_default();
+
+                        // Parse as JSON if possible to pass to map_http_error_to_provider_error
+                        let json_payload = serde_json::from_str::<Value>(&error_text).ok();
+                        return Err(map_http_error_to_provider_error(status, json_payload));
+                    }
+                    Ok(resp)
+                })
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            stream_openai_compat(response, log)
+        }
     }
 
     fn supports_embeddings(&self) -> bool {

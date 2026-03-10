@@ -15,10 +15,17 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Message } from '../api';
+import { Message, SystemNotificationContent } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
-import { SystemNotificationInline } from './context_management/SystemNotificationInline';
+import {
+  SystemNotificationInline,
+  getInlineSystemNotification,
+} from './context_management/SystemNotificationInline';
+import {
+  CreditsExhaustedNotification,
+  getCreditsExhaustedNotification,
+} from './context_management/CreditsExhaustedNotification';
 import { NotificationEvent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
@@ -36,7 +43,7 @@ interface ProgressiveMessageListProps {
   // Custom render function for messages
   renderMessage?: (message: Message, index: number) => React.ReactNode | null;
   isStreamingMessage?: boolean; // Whether messages are currently being streamed
-  onMessageUpdate?: (messageId: string, newContent: string) => void;
+  onMessageUpdate?: (messageId: string, newContent: string, editType?: 'fork' | 'edit') => void;
   onRenderingComplete?: () => void; // Callback when all messages are rendered
   submitElicitationResponse?: (
     elicitationId: string,
@@ -71,11 +78,19 @@ export default function ProgressiveMessageList({
   const hasOnlyToolResponses = (message: Message) =>
     message.content.every((c) => c.type === 'toolResponse');
 
-  const hasInlineSystemNotification = (message: Message): boolean => {
-    return message.content.some(
-      (content) =>
-        content.type === 'systemNotification' && content.notificationType === 'inlineMessage'
-    );
+  const getSystemNotification = (message: Message): SystemNotificationContent | undefined => {
+    return getCreditsExhaustedNotification(message) ?? getInlineSystemNotification(message);
+  };
+
+  const renderSystemNotification = (notification: SystemNotificationContent) => {
+    switch (notification.notificationType) {
+      case 'creditsExhausted':
+        return <CreditsExhaustedNotification notification={notification} />;
+      case 'inlineMessage':
+        return <SystemNotificationInline notification={notification} />;
+      default:
+        return null;
+    }
   };
 
   // Simple progressive loading - start immediately when component mounts if needed
@@ -188,15 +203,15 @@ export default function ProgressiveMessageList({
           return null;
         }
 
-        // System notifications are never user messages, handle them first
-        if (hasInlineSystemNotification(message)) {
+        const notification = getSystemNotification(message);
+        if (notification) {
           return (
             <div
-              key={message.id ?? `msg-${index}-${message.created}`}
+              key={`notification-${message.id ?? `msg-${index}-${message.created}`}`}
               className={`relative ${index === 0 ? 'mt-0' : 'mt-4'} assistant`}
               data-testid="message-container"
             >
-              <SystemNotificationInline message={message} />
+              {renderSystemNotification(notification)}
             </div>
           );
         }
@@ -256,7 +271,7 @@ export default function ProgressiveMessageList({
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-8">
           <LoadingGoose message={`Loading messages... (${renderedCount}/${messages.length})`} />
-          <div className="text-xs text-text-muted mt-2">
+          <div className="text-xs text-text-secondary mt-2">
             Press Cmd/Ctrl+F to load all messages immediately for search
           </div>
         </div>

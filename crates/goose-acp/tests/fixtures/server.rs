@@ -34,6 +34,13 @@ pub struct ClientToAgentSession {
     notify: Arc<Notify>,
 }
 
+impl ClientToAgentConnection {
+    #[allow(dead_code)]
+    pub fn cx(&self) -> &JrConnectionCx<ClientToAgent> {
+        &self.cx
+    }
+}
+
 #[async_trait]
 impl Connection for ClientToAgentConnection {
     type Session = ClientToAgentSession;

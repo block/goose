@@ -88,7 +88,7 @@ impl Agent {
                         // Log user decision if this was a security alert
                         if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
                             tracing::info!(
-                                counter.goose.prompt_injection_user_decisions = 1,
+                                monotonic_counter.goose.prompt_injection_user_decisions = 1,
                                 decision = ?confirmation.permission,
                                 finding_id = %finding_id,
                                 tool_request_id = %request.id,
@@ -123,12 +123,7 @@ impl Agent {
                                 let mut response = response_msg.lock().await;
                                 *response = response.clone().with_tool_response_with_metadata(
                                     request.id.clone(),
-                                    Ok(rmcp::model::CallToolResult {
-                                        content: vec![Content::text(DECLINED_RESPONSE)],
-                                        structured_content: None,
-                                        is_error: Some(true),
-                                        meta: None,
-                                    }),
+                                    Ok(rmcp::model::CallToolResult::error(vec![Content::text(DECLINED_RESPONSE)])),
                                     request.metadata.as_ref(),
                                 );
                             }

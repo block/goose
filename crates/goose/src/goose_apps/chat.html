@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Chat</title>
+  <script type="application/ld+json">
+    {
+      "@context": "https://goose.ai/schema",
+      "@type": "GooseApp",
+      "name": "chat",
+      "description": "Simple Chat UI",
+      "width": 400,
+      "height": 500,
+      "resizable": true
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { display: flex; flex-direction: column; background: #fff; }
+    
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .message {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      line-height: 1.4;
+      font-size: 14px;
+      word-wrap: break-word;
+    }
+    
+    .message.user {
+      align-self: flex-end;
+      background: #000;
+      color: #fff;
+    }
+    
+    .message.assistant {
+      align-self: flex-start;
+      background: #f0f0f0;
+      color: #000;
+    }
+    
+    .message.loading {
+      font-style: italic;
+      color: #666;
+    }
+    
+    .input-area {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-top: 1px solid #e0e0e0;
+      background: #fafafa;
+    }
+    
+    #messageInput {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      font-size: 14px;
+      outline: none;
+    }
+    
+    #messageInput:focus { border-color: #999; }
+    
+    #sendBtn {
+      padding: 10px 20px;
+      background: #000;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    
+    #sendBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="messages" id="messages"></div>
+  <div class="input-area">
+    <input type="text" id="messageInput" placeholder="Type a message..." />
+    <button id="sendBtn">Send</button>
+  </div>
+
+  <script>
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const conversationHistory = [];
+    const pendingRequests = new Map();
+    let requestId = 0;
+
+    function addMessage(role, text, isLoading = false) {
+      const div = document.createElement('div');
+      div.className = `message ${role}${isLoading ? ' loading' : ''}`;
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    function request(method, params) {
+      return new Promise((resolve, reject) => {
+        const id = ++requestId;
+        pendingRequests.set(id, { resolve, reject });
+        window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
+      });
+    }
+
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+      
+      if ('id' in data && pendingRequests.has(data.id)) {
+        const { resolve, reject } = pendingRequests.get(data.id);
+        pendingRequests.delete(data.id);
+        if (data.error) {
+          reject(new Error(data.error.message || 'Unknown error'));
+        } else {
+          resolve(data.result);
+        }
+      }
+    });
+
+    request('ui/initialize', {}).then(() => {
+      window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', params: {} }, '*');
+    });
+
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      inputEl.value = '';
+      sendBtn.disabled = true;
+
+      addMessage('user', text);
+      conversationHistory.push({ role: 'user', content: { type: 'text', text } });
+
+      const loadingEl = addMessage('assistant', 'Thinking...', true);
+
+      try {
+        const response = await request('sampling/createMessage', {
+          messages: conversationHistory,
+          systemPrompt: 'You are a helpful assistant. Keep responses concise.',
+          maxTokens: 1000
+        });
+
+        const responseText = response.content.text;
+        conversationHistory.push({ role: 'assistant', content: { type: 'text', text: responseText } });
+        
+        loadingEl.textContent = responseText;
+        loadingEl.classList.remove('loading');
+      } catch (err) {
+        loadingEl.textContent = 'Error: ' + err.message;
+        loadingEl.classList.remove('loading');
+      }
+
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    inputEl.focus();
+  </script>
+</body>
+</html>

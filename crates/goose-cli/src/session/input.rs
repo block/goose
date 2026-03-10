@@ -1,11 +1,12 @@
 use super::completion::GooseCompleter;
 use super::{CompletionCache, HintStatus};
 use anyhow::Result;
-use goose::config::Config;
+use goose::config::{Config, GooseMode};
 use rustyline::Editor;
 use shlex;
 use std::collections::HashMap;
 use std::sync::Arc;
+use strum::VariantNames;
 
 #[derive(Debug)]
 pub enum InputResult {
@@ -398,23 +399,18 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
     Some(InputResult::Plan(options))
 }
 
-/// Generates the input prompt string for the CLI interface.
-/// Returns a styled prompt with the goose face "( O)>" followed by a space.
-/// On Windows, returns plain text without ANSI styling for better compatibility.
-/// On other platforms, applies styling using ANSI escape codes.
 fn get_input_prompt_string() -> String {
-    let goose = "( O)>";
+    let goose = "🪿";
     if cfg!(target_os = "windows") {
-        // Use plain text on Windows to avoid ANSI compatibility issues
         format!("{goose} ")
     } else {
-        // On other platforms, use styled prompt with ANSI colors
-        format!("{} ", console::style(goose).cyan().bold())
+        format!("{} ", console::style(goose))
     }
 }
 
 fn print_help() {
     let newline_key = get_newline_key().to_ascii_uppercase();
+    let modes = GooseMode::VARIANTS.join(", ");
     println!(
         "Available commands:
 /exit or /quit - Exit the session
@@ -425,7 +421,7 @@ fn print_help() {
 /builtin <names> - Add builtin extensions by name (comma-separated)
 /prompts [--extension <name>] - List all available prompts, optionally filtered by extension
 /prompt <n> [--info] [key=value...] - Get prompt info or execute a prompt
-/mode <name> - Set the goose mode to use ('auto', 'approve', 'chat', 'smart_approve')
+/mode <name> - Set the goose mode to use ({modes})
 /plan <message_text> -  Enters 'plan' mode with optional message. Create a plan based on the current messages and asks user if they want to act on it.
                         If user acts on the plan, goose mode is set to 'auto' and returns to 'normal' goose mode.
                         To warm up goose before using '/plan', we recommend setting '/mode approve' & putting appropriate context into goose.
@@ -702,38 +698,14 @@ mod tests {
         let prompt = get_input_prompt_string();
 
         // Prompt should always end with a space
-        assert!(prompt.ends_with(" "));
+        assert!(prompt.ends_with(' '));
 
-        // Prompt should contain the goose face
-        assert!(prompt.contains("( O)>"));
+        // Prompt should contain the goose emoji
+        assert!(prompt.contains("🪿"));
 
-        // On Windows, prompt should be plain text without ANSI codes
         #[cfg(target_os = "windows")]
         {
-            assert_eq!(prompt, "( O)> ");
-            // Ensure no ANSI escape sequences
-            assert!(!prompt.contains("\x1b["));
-        }
-
-        // On non-Windows, prompt behavior depends on terminal capabilities
-        #[cfg(not(target_os = "windows"))]
-        {
-            // In CI environments, console crate may strip ANSI codes
-            let is_ci = std::env::var("CI").is_ok();
-
-            if is_ci {
-                // In CI, just verify basic structure - console crate handles ANSI detection
-                assert!(prompt.len() >= "( O)> ".len());
-            } else {
-                // In interactive terminals, expect styling to be applied
-                // Note: This may still vary based on terminal capabilities
-                assert!(prompt.len() >= "( O)> ".len());
-
-                // If ANSI codes are present, they should be valid
-                if prompt.contains("\x1b[") {
-                    assert!(prompt.contains("36") || prompt.contains("1"));
-                }
-            }
+            assert_eq!(prompt, "🪿 ");
         }
     }
 }

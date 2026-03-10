@@ -1,4 +1,4 @@
-use crate::agents::{Agent, AgentConfig};
+use crate::agents::{Agent, AgentConfig, GoosePlatform};
 use crate::config::paths::Paths;
 use crate::config::permission::PermissionManager;
 use crate::config::{Config, GooseMode};
@@ -92,12 +92,33 @@ impl AgentManager {
             Config::global()
                 .get_goose_disable_session_naming()
                 .unwrap_or(false),
+            GoosePlatform::GooseDesktop,
         );
         let agent = Arc::new(Agent::with_config(config));
-        if let Some(provider) = &*self.default_provider.read().await {
-            agent
-                .update_provider(Arc::clone(provider), &session_id)
-                .await?;
+
+        if let Ok(session) = self.session_manager.get_session(&session_id, false).await {
+            if session.provider_name.is_some() {
+                info!(
+                    "Restoring evicted session {} (provider: {:?})",
+                    session_id, session.provider_name
+                );
+                if let Err(e) = agent.restore_provider_from_session(&session).await {
+                    tracing::warn!(
+                        "Failed to restore provider for session {}: {}",
+                        session_id,
+                        e
+                    );
+                }
+            }
+            agent.load_extensions_from_session(&session).await;
+        }
+
+        if agent.provider().await.is_err() {
+            if let Some(provider) = &*self.default_provider.read().await {
+                agent
+                    .update_provider(Arc::clone(provider), &session_id)
+                    .await?;
+            }
         }
 
         let mut sessions = self.sessions.write().await;

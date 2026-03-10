@@ -386,6 +386,7 @@ fn resolve_provider_and_model(
                 output::render_error(&format!("Failed to create model configuration: {}", e));
                 process::exit(1);
             })
+            .with_canonical_limits(&provider_name)
             .with_temperature(temperature)
     };
 

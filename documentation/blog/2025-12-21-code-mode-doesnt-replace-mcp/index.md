@@ -37,7 +37,7 @@ When the concept of Code Mode landed on socials, many people claimed it was a re
 
 ### How goose Implemented Code Mode
 
-[goose](/) took a unique approach by making [Code Mode](/blog/2025/12/15/code-mode-mcp) itself an extension called the Code Execution extension. When active, it wraps your other extensions and exposes them as JavaScript modules, allowing the LLM to see only three tools instead of eighty.
+[goose](/) took a unique approach by making [Code Mode](/blog/2025/12/15/code-mode-mcp) itself an extension called the Code Mode extension. When active, it wraps your other extensions and exposes them as JavaScript modules, allowing the LLM to see only three tools instead of eighty.
 
 When the agent needs to perform a complex task, it writes a script that looks something like this:
 
@@ -103,7 +103,7 @@ Code Mode helps us take a step forward in building agents that can scale to hand
 
 ---
 
-*Ready to try Code Mode? Enable the "Code Execution" extension in [goose](/docs/quickstart) v1.17.0 or later. Join our [Discord](https://discord.gg/goose-oss) to share your experience!*
+*Ready to try Code Mode? Enable the "Code Mode" extension in [goose](/docs/quickstart) v1.17.0 or later. Join our [Discord](https://discord.gg/goose-oss) to share your experience!*
 
 <head>
   <meta property="og:title" content="Code Mode Doesn't Replace MCP (Here's What It Actually Does)" />

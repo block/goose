@@ -6,10 +6,20 @@ use tracing_subscriber::{
     Registry,
 };
 
-use goose::tracing::{langfuse_layer, otlp_layer};
+use goose::otel::otlp;
+use goose::tracing::langfuse_layer;
 
 // Used to ensure we only set up tracing once
 static INIT: Once = Once::new();
+
+fn default_env_filter() -> EnvFilter {
+    EnvFilter::new("")
+        // Keep goose and MCP logs visible without verbose debug payloads.
+        .add_directive("mcp_client=info".parse().unwrap())
+        .add_directive("goose=info".parse().unwrap())
+        .add_directive("goose_cli=info".parse().unwrap())
+        .add_directive(LevelFilter::WARN.into())
+}
 
 /// Sets up the logging infrastructure for the application.
 /// This includes:
@@ -48,18 +58,8 @@ fn setup_logging_internal(name: Option<&str>, force: bool) -> Result<()> {
                 .json();
 
             // Base filter
-            let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                // Set default levels for different modules
-                EnvFilter::new("")
-                    // Set mcp-client to DEBUG
-                    .add_directive("mcp_client=debug".parse().unwrap())
-                    // Set goose module to DEBUG
-                    .add_directive("goose=debug".parse().unwrap())
-                    // Set goose-cli to INFO
-                    .add_directive("goose_cli=info".parse().unwrap())
-                    // Set everything else to WARN
-                    .add_directive(LevelFilter::WARN.into())
-            });
+            let env_filter =
+                EnvFilter::try_from_default_env().unwrap_or_else(|_| default_env_filter());
 
             // Start building the subscriber
             let mut layers = vec![
@@ -68,25 +68,7 @@ fn setup_logging_internal(name: Option<&str>, force: bool) -> Result<()> {
             ];
 
             if !force {
-                if let Ok((otlp_tracing_layer, otlp_metrics_layer, otlp_logs_layer)) =
-                    otlp_layer::init_otlp()
-                {
-                    layers.push(
-                        otlp_tracing_layer
-                            .with_filter(otlp_layer::create_otlp_tracing_filter())
-                            .boxed(),
-                    );
-                    layers.push(
-                        otlp_metrics_layer
-                            .with_filter(otlp_layer::create_otlp_metrics_filter())
-                            .boxed(),
-                    );
-                    layers.push(
-                        otlp_logs_layer
-                            .with_filter(otlp_layer::create_otlp_logs_filter())
-                            .boxed(),
-                    );
-                }
+                layers.extend(otlp::init_otlp_layers(goose::config::Config::global()));
             }
 
             if let Some(langfuse) = langfuse_layer::create_langfuse_observer() {
@@ -204,5 +186,15 @@ mod tests {
                 None => env::remove_var(var),
             }
         }
+    }
+
+    #[test]
+    fn test_default_filter_avoids_debug_by_default() {
+        let filter = super::default_env_filter().to_string();
+        assert!(!filter.contains("mcp_client=debug"));
+        assert!(!filter.contains("goose=debug"));
+        assert!(filter.contains("mcp_client=info"));
+        assert!(filter.contains("goose=info"));
+        assert!(filter.contains("goose_cli=info"));
     }
 }

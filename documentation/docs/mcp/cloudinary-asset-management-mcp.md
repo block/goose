@@ -13,7 +13,7 @@ import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary/asset-management-js) as a goose extension to automate complex image processing workflows that would typically require specialized design software or manual editing.
 
-:::tip TLDR
+:::tip Quick Install
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -75,10 +75,6 @@ Let's use the Cloudinary extension to find and transform product images with adv
 1. Search for specific images in your media library
 2. Apply complex transformations including background removal
 3. Add text overlays with precise positioning
-
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
 
 ### goose Prompt
 ```

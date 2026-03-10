@@ -21,7 +21,7 @@ export async function ensureWinShims(): Promise<void> {
     await fs.promises.mkdir(tgtDir, { recursive: true });
 
     // Copy command-line tools, NOT goosed.exe (which should always be used locally)
-    const shims = ['uvx.exe', 'uv.exe', 'npx.cmd', 'install-node.cmd'];
+    const shims = ['uvx.exe', 'uv.exe', 'npx.cmd'];
 
     await Promise.all(
       shims.map(async (shim) => {

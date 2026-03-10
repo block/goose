@@ -1,14 +1,19 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use serde_json::json;
+use serde_json::Value;
 use std::path::PathBuf;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use std::sync::{Arc, OnceLock};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage};
+use super::base::{
+    stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+    ProviderUsage, Usage,
+};
+use super::cli_common::{error_from_event, extract_usage_tokens};
 use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::GeminiCliCommand;
 use crate::config::search_path::SearchPaths;
 use crate::config::Config;
@@ -16,6 +21,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_subprocess;
+use async_stream::try_stream;
 use futures::future::BoxFuture;
 use rmcp::model::Role;
 use rmcp::model::Tool;
@@ -36,6 +42,8 @@ pub struct GeminiCliProvider {
     model: ModelConfig,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    cli_session_id: Arc<OnceLock<String>>,
 }
 
 impl GeminiCliProvider {
@@ -48,49 +56,43 @@ impl GeminiCliProvider {
             command: resolved_command,
             model,
             name: GEMINI_CLI_PROVIDER_NAME.to_string(),
+            cli_session_id: Arc::new(OnceLock::new()),
         })
     }
 
-    /// Execute gemini CLI command with simple text prompt
-    async fn execute_command(
-        &self,
-        system: &str,
-        messages: &[Message],
-        _tools: &[Tool],
-    ) -> Result<Vec<String>, ProviderError> {
-        // Create a simple prompt combining system + conversation
-        let mut full_prompt = String::new();
+    fn session_id(&self) -> Option<&str> {
+        self.cli_session_id.get().map(|s| s.as_str())
+    }
 
-        let filtered_system = filter_extensions_from_system_prompt(system);
-        full_prompt.push_str(&filtered_system);
-        full_prompt.push_str("\n\n");
+    fn last_user_message_text(messages: &[Message]) -> String {
+        messages
+            .iter()
+            .rev()
+            .find(|m| m.role == Role::User)
+            .map(|m| m.as_concat_text())
+            .unwrap_or_default()
+    }
 
-        // Add conversation history
-        for message in messages.iter().filter(|m| m.is_agent_visible()) {
-            let role_prefix = match message.role {
-                Role::User => "Human: ",
-                Role::Assistant => "Assistant: ",
-            };
-            full_prompt.push_str(role_prefix);
+    /// Build the prompt for the CLI invocation. When resuming a session the CLI
+    /// maintains conversation context internally, so only the latest user
+    /// message is needed. On the first turn (no session yet) the system prompt
+    /// is prepended — there is typically only one user message at that point.
+    fn build_prompt(&self, system: &str, messages: &[Message]) -> String {
+        let user_text = Self::last_user_message_text(messages);
 
-            for content in &message.content {
-                if let MessageContent::Text(text_content) = content {
-                    full_prompt.push_str(&text_content.text);
-                    full_prompt.push('\n');
-                }
+        if self.session_id().is_some() {
+            user_text
+        } else {
+            let filtered_system = filter_extensions_from_system_prompt(system);
+            if filtered_system.is_empty() {
+                user_text
+            } else {
+                format!("{filtered_system}\n\n{user_text}")
             }
-            full_prompt.push('\n');
         }
+    }
 
-        full_prompt.push_str("Assistant: ");
-
-        if std::env::var("GOOSE_GEMINI_CLI_DEBUG").is_ok() {
-            println!("=== GEMINI CLI PROVIDER DEBUG ===");
-            println!("Command: {:?}", self.command);
-            println!("Full prompt: {}", full_prompt);
-            println!("================================");
-        }
-
+    fn build_command(&self, prompt: &str, model_name: &str) -> Command {
         let mut cmd = Command::new(&self.command);
         configure_subprocess(&mut cmd);
 
@@ -98,26 +100,48 @@ impl GeminiCliProvider {
             cmd.env("PATH", path);
         }
 
-        // Only pass model parameter if it's in the known models list
-        if GEMINI_CLI_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("-m").arg(&self.model.model_name);
+        cmd.arg("-m").arg(model_name);
+
+        if let Some(sid) = self.session_id() {
+            cmd.arg("-r").arg(sid);
         }
 
-        if cfg!(windows) {
-            let sanitized_prompt = full_prompt.replace("\r\n", "\\n").replace('\n', "\\n");
+        cmd.arg("-p")
+            .arg(prompt)
+            .arg("--output-format")
+            .arg("stream-json")
+            .arg("--yolo");
 
-            cmd.arg("-p").arg(&sanitized_prompt).arg("--yolo");
-        } else {
-            cmd.arg("-p").arg(&full_prompt).arg("--yolo");
-        }
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd
+    }
 
-        let mut child = cmd.spawn().map_err(|e| {
+    fn spawn_command(
+        &self,
+        system: &str,
+        messages: &[Message],
+        model_name: &str,
+    ) -> Result<
+        (
+            tokio::process::Child,
+            BufReader<tokio::process::ChildStdout>,
+        ),
+        ProviderError,
+    > {
+        let prompt = self.build_prompt(system, messages);
+
+        tracing::debug!(command = ?self.command, "Executing Gemini CLI command");
+
+        let mut cmd = self.build_command(&prompt, model_name);
+
+        let mut child = cmd.kill_on_drop(true).spawn().map_err(|e| {
             ProviderError::RequestFailed(format!(
-                "Failed to spawn Gemini CLI command '{:?}': {}. \
+                "Failed to spawn Gemini CLI command '{}': {e}. \
                 Make sure the Gemini CLI is installed and available in the configured search paths.",
-                self.command, e
+                self.command.display()
             ))
         })?;
 
@@ -126,113 +150,7 @@ impl GeminiCliProvider {
             .take()
             .ok_or_else(|| ProviderError::RequestFailed("Failed to capture stdout".to_string()))?;
 
-        let mut reader = BufReader::new(stdout);
-        let mut lines = Vec::new();
-        let mut line = String::new();
-
-        loop {
-            line.clear();
-            match reader.read_line(&mut line).await {
-                Ok(0) => break, // EOF
-                Ok(_) => {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() && !trimmed.starts_with("Loaded cached credentials") {
-                        lines.push(trimmed.to_string());
-                    }
-                }
-                Err(e) => {
-                    return Err(ProviderError::RequestFailed(format!(
-                        "Failed to read output: {}",
-                        e
-                    )));
-                }
-            }
-        }
-
-        let exit_status = child.wait().await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to wait for command: {}", e))
-        })?;
-
-        if !exit_status.success() {
-            return Err(ProviderError::RequestFailed(format!(
-                "Command failed with exit code: {:?}",
-                exit_status.code()
-            )));
-        }
-
-        tracing::debug!(
-            "Gemini CLI executed successfully, got {} lines",
-            lines.len()
-        );
-
-        Ok(lines)
-    }
-
-    /// Parse simple text response
-    fn parse_response(&self, lines: &[String]) -> Result<(Message, Usage), ProviderError> {
-        // Join all lines into a single response
-        let response_text = lines.join("\n");
-
-        if response_text.trim().is_empty() {
-            return Err(ProviderError::RequestFailed(
-                "Empty response from gemini command".to_string(),
-            ));
-        }
-
-        let message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(response_text)],
-        );
-
-        let usage = Usage::default(); // No usage info available for gemini CLI
-
-        Ok((message, usage))
-    }
-
-    /// Generate a simple session description without calling subprocess
-    fn generate_simple_session_description(
-        &self,
-        messages: &[Message],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Extract the first user message text
-        let description = messages
-            .iter()
-            .find(|m| m.role == Role::User)
-            .and_then(|m| {
-                m.content.iter().find_map(|c| match c {
-                    MessageContent::Text(text_content) => Some(&text_content.text),
-                    _ => None,
-                })
-            })
-            .map(|text| {
-                // Take first few words, limit to 4 words
-                text.split_whitespace()
-                    .take(4)
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
-            .unwrap_or_else(|| "Simple task".to_string());
-
-        if std::env::var("GOOSE_GEMINI_CLI_DEBUG").is_ok() {
-            println!("=== GEMINI CLI PROVIDER DEBUG ===");
-            println!("Generated simple session description: {}", description);
-            println!("Skipped subprocess call for session description");
-            println!("================================");
-        }
-
-        let message = Message::new(
-            Role::Assistant,
-            chrono::Utc::now().timestamp(),
-            vec![MessageContent::text(description.clone())],
-        );
-
-        let usage = Usage::default();
-
-        Ok((
-            message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
-        ))
+        Ok((child, BufReader::new(stdout)))
     }
 }
 
@@ -247,9 +165,10 @@ impl ProviderDef for GeminiCliProvider {
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
-            vec![ConfigKey::from_value_type::<GeminiCliCommand>(true, false)],
+            vec![ConfigKey::from_value_type::<GeminiCliCommand>(
+                true, false, true,
+            )],
         )
-        .with_unlisted_models()
     }
 
     fn from_env(
@@ -267,7 +186,6 @@ impl Provider for GeminiCliProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        // Return the model config with appropriate context limit for Gemini models
         self.model.clone()
     }
 
@@ -279,50 +197,166 @@ impl Provider for GeminiCliProvider {
     }
 
     #[tracing::instrument(
-        skip(self, _model_config, system, messages, tools),
+        skip(self, model_config, system, messages, _tools),
         fields(model_config, input, output, input_tokens, output_tokens, total_tokens)
     )]
-    async fn complete_with_model(
+    async fn stream(
         &self,
-        _session_id: Option<&str>, // CLI has no external session-id flag to propagate.
-        _model_config: &ModelConfig,
+        model_config: &ModelConfig,
+        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        // Check if this is a session description request (short system prompt asking for 4 words or less)
-        if system.contains("four words or less") || system.contains("4 words or less") {
-            return self.generate_simple_session_description(messages);
+        _tools: &[Tool],
+    ) -> Result<MessageStream, ProviderError> {
+        if super::cli_common::is_session_description_request(system) {
+            let (message, provider_usage) = super::cli_common::generate_simple_session_description(
+                &model_config.model_name,
+                messages,
+            )?;
+            return Ok(stream_from_single_message(message, provider_usage));
         }
 
-        // Create a dummy payload for debug tracing
-        let payload = json!({
-            "command": self.command,
-            "model": self.model.model_name,
-            "system": system,
-            "messages": messages.len()
+        let (mut child, mut reader) =
+            self.spawn_command(system, messages, &model_config.model_name)?;
+        let session_id_lock = Arc::clone(&self.cli_session_id);
+        let model_name = model_config.model_name.clone();
+        let message_id = uuid::Uuid::new_v4().to_string();
+
+        let stderr = child.stderr.take();
+        let stderr_drain = tokio::spawn(async move {
+            let mut buf = String::new();
+            if let Some(mut stderr) = stderr {
+                let _ = AsyncReadExt::read_to_string(&mut stderr, &mut buf).await;
+            }
+            buf
         });
 
-        let mut log = RequestLog::start(&self.model, &payload).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
-        })?;
+        Ok(Box::pin(try_stream! {
+            let mut line = String::new();
+            let mut accumulated_usage = Usage::default();
+            let stream_timestamp = chrono::Utc::now().timestamp();
 
-        let lines = self.execute_command(system, messages, tools).await?;
+            loop {
+                line.clear();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let trimmed = line.trim();
+                        if trimmed.is_empty() {
+                            continue;
+                        }
 
-        let (message, usage) = self.parse_response(&lines)?;
+                        if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
+                            match parsed.get("type").and_then(|t| t.as_str()) {
+                                Some("init") => {
+                                    if let Some(sid) =
+                                        parsed.get("session_id").and_then(|s| s.as_str())
+                                    {
+                                        let _ = session_id_lock.set(sid.to_string());
+                                    }
+                                }
+                                Some("message") => {
+                                    let is_assistant = parsed.get("role").and_then(|r| r.as_str())
+                                        == Some("assistant");
+                                    let content = parsed
+                                        .get("content")
+                                        .and_then(|c| c.as_str())
+                                        .unwrap_or("");
+                                    if is_assistant && !content.is_empty() {
+                                        let mut partial = Message::new(
+                                            Role::Assistant,
+                                            stream_timestamp,
+                                            vec![MessageContent::text(content)],
+                                        );
+                                        partial.id = Some(message_id.clone());
+                                        yield (Some(partial), None);
+                                    }
+                                }
+                                Some("result") => {
+                                    if let Some(stats) = parsed.get("stats") {
+                                        accumulated_usage = extract_usage_tokens(stats);
+                                    }
+                                    break;
+                                }
+                                Some("error") => {
+                                    let _ = child.wait().await;
+                                    Err(error_from_event("Gemini CLI", &parsed))?;
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            tracing::warn!(line = trimmed, "Non-JSON line in stream-json output");
+                        }
+                    }
+                    Err(e) => {
+                        let _ = child.wait().await;
+                        Err(ProviderError::RequestFailed(format!(
+                            "Failed to read streaming output: {e}"
+                        )))?;
+                    }
+                }
+            }
 
-        let response = json!({
-            "lines": lines.len(),
-            "usage": usage
-        });
+            let stderr_text = stderr_drain.await.unwrap_or_default();
+            let exit_status = child.wait().await.map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to wait for command: {e}"))
+            })?;
 
-        log.write(&response, Some(&usage)).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to write request log: {}", e))
-        })?;
+            if !exit_status.success() {
+                let stderr_snippet = stderr_text.trim();
+                let detail = if stderr_snippet.is_empty() {
+                    format!("exit code {:?}", exit_status.code())
+                } else {
+                    format!("exit code {:?}: {stderr_snippet}", exit_status.code())
+                };
+                Err(ProviderError::RequestFailed(format!(
+                    "Gemini CLI command failed ({detail})"
+                )))?;
+            }
 
-        Ok((
-            message,
-            ProviderUsage::new(self.model.model_name.clone(), usage),
-        ))
+            let provider_usage = ProviderUsage::new(model_name, accumulated_usage);
+            yield (None, Some(provider_usage));
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_provider() -> GeminiCliProvider {
+        GeminiCliProvider {
+            command: PathBuf::from("gemini"),
+            model: ModelConfig::new("gemini-2.5-pro").unwrap(),
+            name: "gemini-cli".to_string(),
+            cli_session_id: Arc::new(OnceLock::new()),
+        }
+    }
+
+    #[test]
+    fn test_build_prompt_first_and_resume() {
+        let provider = make_provider();
+        let messages = vec![Message::new(
+            Role::User,
+            0,
+            vec![MessageContent::text("Hello")],
+        )];
+
+        let prompt = provider.build_prompt("You are helpful.", &messages);
+        assert!(prompt.contains("You are helpful."));
+        assert!(prompt.contains("Hello"));
+
+        let _ = provider.cli_session_id.set("session-123".to_string());
+        let messages = vec![
+            Message::new(Role::User, 0, vec![MessageContent::text("Hello")]),
+            Message::new(Role::Assistant, 0, vec![MessageContent::text("Hi!")]),
+            Message::new(
+                Role::User,
+                0,
+                vec![MessageContent::text("Follow up question")],
+            ),
+        ];
+        let prompt = provider.build_prompt("You are helpful.", &messages);
+        assert_eq!(prompt, "Follow up question");
     }
 }

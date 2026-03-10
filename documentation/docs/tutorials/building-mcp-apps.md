@@ -583,11 +583,74 @@ csp: {
 
 </details>
 
-See the [MCP Apps Specification](https://github.com/modelcontextprotocol/ext-apps) for details on security and the full protocol.
-
 :::warning Security Consideration
 Only add domains you trust. Each domain you add expands what external content can be loaded or embedded in your app. Keep the list minimal and specific to reduce security risks.
 :::
+
+### Requesting Browser Permissions
+
+MCP Apps can request specific browser permissions using Permission Policy. This is useful for apps that need access to device capabilities like camera, microphone, or location services. These are requests only - the host may not grant them, and apps should use feature detection to handle cases where permissions are unavailable.
+
+To declare permissions for your MCP App, include the `permissions` object in the resource's `_meta.ui` section:
+
+```javascript
+_meta: {
+  ui: {
+    permissions: {
+      camera: true,           // Request camera access
+      microphone: true,       // Request microphone access
+      geolocation: true,      // Request geolocation access
+      clipboardWrite: true,   // Request clipboard write access
+    },
+  },
+}
+```
+
+| Permission | Permission Policy Feature | Use Case |
+|------------|---------------------------|----------|
+| `camera` | `camera` | Video capture, QR code scanning |
+| `microphone` | `microphone` | Audio recording, voice input |
+| `geolocation` | `geolocation` | Location-aware apps, maps |
+| `clipboardWrite` | `clipboard-write` | Copy to clipboard functionality |
+
+All permissions default to `false`. Only request the permissions your app actually needs.
+
+<details>
+<summary>Example: Video recording app</summary>
+
+```javascript
+server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  const { uri } = request.params;
+
+  if (uri === "ui://my-video-app/recorder") {
+    return {
+      contents: [
+        {
+          uri: "ui://my-video-app/recorder",
+          mimeType: "text/html;profile=mcp-app",
+          text: VIDEO_RECORDER_HTML,
+          _meta: {
+            ui: {
+              permissions: {
+                camera: true,
+                microphone: true,
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+});
+```
+
+</details>
+
+:::info User Consent Required
+Even when an MCP App requests permissions, the browser will still prompt the user for consent before granting access. Users can deny permission requests at any time.
+:::
+
+See the [MCP Apps Specification](https://github.com/modelcontextprotocol/ext-apps) for details on security and the full protocol.
 
 
 

@@ -184,7 +184,7 @@ elif [ "$OS" = "windows" ]; then
     echo "Error: Windows currently only supports x86_64 architecture."
     exit 1
   fi
-  FILE="goose-$ARCH-pc-windows-gnu.zip"
+  FILE="goose-$ARCH-pc-windows-msvc.zip"
   EXTRACT_CMD="unzip"
   OUT_FILE="goose.exe"
 else
@@ -197,8 +197,27 @@ DOWNLOAD_URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$FILE"
 # --- 4) Download & extract 'goose' binary ---
 echo "Downloading $RELEASE_TAG release: $FILE..."
 if ! curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
-  echo "Error: Failed to download $DOWNLOAD_URL"
-  exit 1
+  # If the download fails, only fall back to latest stable when no version was specified and canary was not requested).
+  if ! [ -n "${GOOSE_VERSION:-}" ] && [ "${CANARY:-false}" != "true" ]; then
+    LATEST_TAG=$(curl -s https://api.github.com/repos/block/goose/releases/latest | \
+      grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [ -z "$LATEST_TAG" ]; then
+      echo "Error: Failed to download $DOWNLOAD_URL and latest tag unavailable"
+      exit 1
+    fi
+
+    DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_TAG/$FILE"
+    if curl -sLf "$DOWNLOAD_URL" --output "$FILE"; then
+      # Fallback succeeded
+      :
+    else
+      echo "Error: Failed to download from fallback url $DOWNLOAD_URL using latest tag $LATEST_TAG"
+      exit 1
+    fi
+  else
+    echo "Error: Failed to download $DOWNLOAD_URL"
+    exit 1
+  fi
 fi
 
 # Create a temporary directory for extraction
@@ -216,7 +235,7 @@ set +e  # Disable immediate exit on error
 if [ "$EXTRACT_CMD" = "tar" ]; then
   tar -xjf "$FILE" -C "$TMP_DIR" 2> tar_error.log
   extract_exit_code=$?
-  
+
   # Check for tar errors
   if [ $extract_exit_code -ne 0 ]; then
     if grep -iEq "missing.*bzip2|bzip2.*missing|bzip2.*No such file|No such file.*bzip2" tar_error.log; then
@@ -233,7 +252,7 @@ else
   # Use unzip for Windows
   unzip -q "$FILE" -d "$TMP_DIR" 2> unzip_error.log
   extract_exit_code=$?
-  
+
   # Check for unzip errors
   if [ $extract_exit_code -ne 0 ]; then
     echo "Error: Failed to extract $FILE. See details below:"
@@ -303,7 +322,7 @@ fi
 if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
   echo ""
   echo "Warning: goose installed, but $GOOSE_BIN_DIR is not in your PATH."
-  
+
   if [ "$OS" = "windows" ]; then
     echo "To add goose to your PATH in PowerShell:"
     echo ""
@@ -363,9 +382,6 @@ if [[ ":$PATH:" != *":$GOOSE_BIN_DIR:"* ]]; then
     fi
 
   fi
-  
+
   echo ""
 fi
-
-
-

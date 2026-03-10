@@ -11,7 +11,7 @@ This tutorial covers how to add [Cloudflare's MCP Servers](https://github.com/cl
 
 Cloudflare provides multiple specialized MCP servers for different aspects of their platform, allowing you to interact with Workers, DNS, security features, analytics, and development tools.
 
-:::tip TLDR
+:::tip Quick Install
 
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
@@ -130,10 +130,6 @@ Choose one or more servers based on your needs. Here are the most popular config
 ### Debugging Application Issues
 
 Let's use the Observability server to debug performance issues with a Workers application:
-
-:::info LLM
-Anthropic's Claude 4 Sonnet was used for this task.
-:::
 
 #### goose Prompt
 ```

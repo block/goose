@@ -15,7 +15,7 @@
  * - "standalone" — Goose-specific mode for dedicated Electron windows
  */
 
-import { AppRenderer } from '@mcp-ui/client';
+import { AppRenderer, type RequestHandlerExtra } from '@mcp-ui/client';
 import type {
   McpUiDisplayMode,
   McpUiHostContext,
@@ -23,8 +23,9 @@ import type {
   McpUiResourcePermissions,
   McpUiSizeChangedNotification,
 } from '@modelcontextprotocol/ext-apps/app-bridge';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import type { CallToolResult, JSONRPCRequest } from '@modelcontextprotocol/sdk/types.js';
+import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callTool, readResource } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -39,11 +40,68 @@ import {
   McpAppToolInput,
   McpAppToolInputPartial,
   McpAppToolResult,
+  DimensionLayout,
+  OnDisplayModeChange,
+  SamplingCreateMessageParams,
+  SamplingCreateMessageResponse,
 } from './types';
+import {
+  useDisplayMode,
+  AVAILABLE_DISPLAY_MODES,
+  PIP_WIDTH,
+  PIP_HEIGHT,
+  PIP_MARGIN_RIGHT,
+  PIP_MARGIN_BOTTOM,
+} from './useDisplayMode';
 
 const DEFAULT_IFRAME_HEIGHT = 200;
 
-const AVAILABLE_DISPLAY_MODES: McpUiDisplayMode[] = ['inline'];
+const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
+  inline: { width: 'fixed', height: 'unbounded' },
+  fullscreen: { width: 'fixed', height: 'fixed' },
+  standalone: { width: 'fixed', height: 'fixed' },
+  pip: { width: 'fixed', height: 'fixed' },
+  // sidecar: { width: 'fixed', height: 'flexible' }, // example on how to use flexible layout
+};
+
+function getContainerDimensions(
+  displayMode: GooseDisplayMode,
+  measuredWidth: number,
+  measuredHeight: number
+): McpUiHostContext['containerDimensions'] {
+  const layout = DISPLAY_MODE_LAYOUTS[displayMode] ?? DISPLAY_MODE_LAYOUTS.inline;
+
+  // Only require a measurement for axes that are fixed or flexible (unbounded axes are omitted).
+  if (
+    (layout.width !== 'unbounded' && measuredWidth <= 0) ||
+    (layout.height !== 'unbounded' && measuredHeight <= 0)
+  )
+    return undefined;
+
+  const widthDimension = (() => {
+    switch (layout.width) {
+      case 'fixed':
+        return { width: measuredWidth };
+      case 'flexible':
+        return { maxWidth: measuredWidth };
+      case 'unbounded':
+        return {};
+    }
+  })();
+
+  const heightDimension = (() => {
+    switch (layout.height) {
+      case 'fixed':
+        return { height: measuredHeight };
+      case 'flexible':
+        return { maxHeight: measuredHeight };
+      case 'unbounded':
+        return {};
+    }
+  })();
+
+  return { ...widthDimension, ...heightDimension };
+}
 
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
@@ -89,6 +147,7 @@ interface McpAppRendererProps {
   append?: (text: string) => void;
   displayMode?: GooseDisplayMode;
   cachedHtml?: string;
+  onDisplayModeChange?: OnDisplayModeChange;
 }
 
 interface ResourceMeta {
@@ -137,6 +196,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 
   switch (action.type) {
     case 'FETCH_RESOURCE':
+      if (state.status === 'ready') return state;
       return { status: 'loading_resource', html, meta };
 
     case 'RESOURCE_LOADED':
@@ -184,84 +244,192 @@ export default function McpAppRenderer({
   append,
   displayMode = 'inline',
   cachedHtml,
+  onDisplayModeChange,
 }: McpAppRendererProps) {
-  const isExpandedView = displayMode === 'fullscreen' || displayMode === 'standalone';
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { resolvedTheme } = useTheme();
+  const dm = useDisplayMode({ displayMode, onDisplayModeChange, containerRef });
+  const {
+    activeDisplayMode,
+    effectiveDisplayModes,
+    isStandalone,
+    isFullscreen,
+    isPip,
+    isFillsViewport,
+    isInline,
+    appSupportsFullscreen,
+    appSupportsPip,
+    changeDisplayMode,
+    inlineHeight,
+    pipPosition,
+    pipHandlers,
+    fullscreenCloseRef,
+  } = dm;
 
-  const initialState: AppState = cachedHtml
-    ? { status: 'loading_sandbox', html: cachedHtml, meta: DEFAULT_META }
-    : { status: 'idle' };
+  const { resolvedTheme, mcpHostStyles } = useTheme();
 
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  // Survive StrictMode remounts — replay cached results instead of re-fetching,
+  // which prevents the iframe from being torn down and recreated (visible flicker).
+  // Declared before useReducer so the lazy initializer can read them.
+  const fetchedDataRef = useRef<{ html: string; meta: ResourceMeta } | null>(null);
+  const sandboxUrlRef = useRef<{ url: string; csp: McpUiResourceCsp | null } | null>(null);
+
+  const [state, dispatch] = useReducer(appReducer, undefined, (): AppState => {
+    // On StrictMode remount, skip straight to ready if we have all cached data.
+    if (fetchedDataRef.current && sandboxUrlRef.current) {
+      return {
+        status: 'ready',
+        html: fetchedDataRef.current.html,
+        meta: fetchedDataRef.current.meta,
+        sandboxUrl: new URL(sandboxUrlRef.current.url),
+        sandboxCsp: sandboxUrlRef.current.csp,
+      };
+    }
+    if (cachedHtml) {
+      return { status: 'loading_sandbox', html: cachedHtml, meta: DEFAULT_META };
+    }
+    return { status: 'idle' };
+  });
   const [iframeHeight, setIframeHeight] = useState(DEFAULT_IFRAME_HEIGHT);
-  // null = fluid (100% width), number = explicit width from app
-  const [iframeWidth, setIframeWidth] = useState<number | null>(null);
+
+  // Restore iframeHeight from the saved snapshot when returning to inline.
+  // While in fullscreen/pip, handleSizeChanged ignores size notifications, so
+  // iframeHeight may be stale. This ensures the container starts at the correct
+  // height the moment the mode flips back to inline.
+  useEffect(() => {
+    if (isInline) {
+      setIframeHeight(inlineHeight);
+    }
+  }, [isInline, inlineHeight]);
+
+  const effectiveInlineHeight = iframeHeight || DEFAULT_IFRAME_HEIGHT;
+
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
+  const [apiHost, setApiHost] = useState<string | null>(null);
+  const [secretKey, setSecretKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    window.electron.getGoosedHostPort().then(setApiHost);
+    window.electron.getSecretKey().then(setSecretKey);
+  }, []);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
   // replaces HTML only if the server returns different content.
+  //
+  // Retries with exponential backoff when the fetch fails (e.g. the extension hasn't
+  // finished loading yet, causing a transient 500). Cached HTML skips retries since
+  // the app can render immediately with the cached version.
   useEffect(() => {
     if (!sessionId) return;
 
+    // On StrictMode remount, replay the cached result instead of re-fetching.
+    if (fetchedDataRef.current) {
+      const { html: cachedResult, meta: cachedMeta } = fetchedDataRef.current;
+      dispatch({ type: 'RESOURCE_LOADED', html: cachedResult, meta: cachedMeta });
+      return;
+    }
+
+    const MAX_RETRIES = 5;
+    const BASE_DELAY_MS = 500;
+    let cancelled = false;
+
     const fetchResourceData = async () => {
       dispatch({ type: 'FETCH_RESOURCE' });
-      try {
-        const response = await readResource({
-          body: {
-            session_id: sessionId,
-            uri: resourceUri,
-            extension_name: extensionName,
-          },
-        });
 
-        if (response.data) {
-          const content = response.data;
-          const rawMeta = content._meta as
-            | {
-                ui?: {
-                  csp?: McpUiResourceCsp;
-                  permissions?: McpUiResourcePermissions;
-                  prefersBorder?: boolean;
-                };
-              }
-            | undefined;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (cancelled) return;
 
-          dispatch({
-            type: 'RESOURCE_LOADED',
-            html: content.text ?? cachedHtml ?? null,
-            meta: {
+        try {
+          const response = await readResource({
+            body: {
+              session_id: sessionId,
+              uri: resourceUri,
+              extension_name: extensionName,
+            },
+          });
+
+          if (cancelled) return;
+
+          if (response.data) {
+            const content = response.data;
+            const rawMeta = content._meta as
+              | {
+                  ui?: {
+                    csp?: McpUiResourceCsp;
+                    permissions?: McpUiResourcePermissions;
+                    prefersBorder?: boolean;
+                  };
+                }
+              | undefined;
+
+            const resolvedHtml = content.text ?? cachedHtml ?? null;
+            const resolvedMeta = {
               csp: rawMeta?.ui?.csp || null,
               // todo: pass permissions to SDK once it supports sendSandboxResourceReady
               // https://github.com/MCP-UI-Org/mcp-ui/issues/180
               permissions: null,
               prefersBorder: rawMeta?.ui?.prefersBorder ?? true,
-            },
+            };
+
+            if (resolvedHtml) {
+              fetchedDataRef.current = { html: resolvedHtml, meta: resolvedMeta };
+            }
+            dispatch({ type: 'RESOURCE_LOADED', html: resolvedHtml, meta: resolvedMeta });
+            return;
+          }
+        } catch (err) {
+          if (cancelled) return;
+
+          const isLastAttempt = attempt === MAX_RETRIES;
+
+          if (!isLastAttempt && !cachedHtml) {
+            const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+            console.warn(
+              `[McpAppRenderer] Resource fetch attempt ${attempt + 1}/${MAX_RETRIES + 1} failed, retrying in ${delay}ms:`,
+              err
+            );
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+
+          console.error('[McpAppRenderer] Error fetching resource:', err);
+          if (cachedHtml) {
+            console.warn('Failed to fetch fresh resource, using cached version:', err);
+          }
+          dispatch({
+            type: 'RESOURCE_FAILED',
+            message: errorMessage(err, 'Failed to load resource'),
           });
+          return;
         }
-      } catch (err) {
-        console.error('[McpAppRenderer] Error fetching resource:', err);
-        if (cachedHtml) {
-          console.warn('Failed to fetch fresh resource, using cached version:', err);
-        }
-        dispatch({
-          type: 'RESOURCE_FAILED',
-          message: errorMessage(err, 'Failed to load resource'),
-        });
       }
     };
 
     fetchResourceData();
+
+    return () => {
+      cancelled = true;
+    };
   }, [resourceUri, extensionName, sessionId, cachedHtml]);
 
   // Create the sandbox proxy URL once we have HTML and metadata.
-  // Fetched only once — recreating the proxy would destroy iframe state.
+  // On StrictMode remount, reuse the cached URL to avoid recreating the proxy
+  // (which would destroy iframe state and cause a visible flicker).
   const pendingCsp = state.status === 'loading_sandbox' ? state.meta.csp : null;
   useEffect(() => {
     if (state.status !== 'loading_sandbox') return;
 
+    if (sandboxUrlRef.current) {
+      const { url, csp } = sandboxUrlRef.current;
+      dispatch({ type: 'SANDBOX_READY', sandboxUrl: url, sandboxCsp: csp });
+      return;
+    }
+
     fetchMcpAppProxyUrl(pendingCsp).then((url) => {
       if (url) {
+        sandboxUrlRef.current = { url, csp: pendingCsp };
         dispatch({ type: 'SANDBOX_READY', sandboxUrl: url, sandboxCsp: pendingCsp });
       } else {
         dispatch({ type: 'SANDBOX_FAILED', message: 'Failed to initialize sandbox proxy' });
@@ -383,21 +551,66 @@ export default function McpAppRenderer({
     []
   );
 
-  /**
-   * Height: non-positive values are ignored (keeps previous height).
-   * Width: if provided, container uses that width (capped at 100%);
-   * if omitted or non-positive, container is fluid (100%).
-   */
   const handleSizeChanged = useCallback(
-    ({ height, width }: McpUiSizeChangedNotification['params']) => {
-      if (height !== undefined && height > 0) {
+    ({ height }: McpUiSizeChangedNotification['params']) => {
+      if (height !== undefined && height > 0 && isInline) {
         setIframeHeight(height);
       }
-      if (width !== undefined) {
-        setIframeWidth(width > 0 ? width : null);
-      }
     },
-    []
+    [isInline]
+  );
+
+  // Track the container's pixel dimensions so we can report them to apps via containerDimensions.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setContainerWidth((prev) => (prev !== Math.round(width) ? Math.round(width) : prev));
+        setContainerHeight((prev) => (prev !== Math.round(height) ? Math.round(height) : prev));
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const handleFallbackRequest = useCallback(
+    async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
+      if (request.method === 'sampling/createMessage') {
+        if (!sessionId || !apiHost || !secretKey) {
+          throw new Error('Session not initialized for sampling request');
+        }
+        const { messages, systemPrompt, maxTokens } =
+          request.params as unknown as SamplingCreateMessageParams;
+        const response = await fetch(`${apiHost}/sessions/${sessionId}/sampling/message`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Secret-Key': secretKey,
+          },
+          body: JSON.stringify({
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            systemPrompt,
+            maxTokens,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`Sampling request failed: ${response.statusText}`);
+        }
+        return (await response.json()) as SamplingCreateMessageResponse;
+      }
+      return {
+        status: 'error' as const,
+        message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
+      };
+    },
+    [sessionId, apiHost, secretKey]
   );
 
   const handleError = useCallback((err: Error) => {
@@ -433,13 +646,18 @@ export default function McpAppRenderer({
     const context: McpUiHostContext = {
       // todo: toolInfo: {}
       theme: resolvedTheme,
-      // todo: styles: { variables: {}, styles: {} }
-      // 'standalone' is a Goose-specific display mode (dedicated Electron window)
-      // that maps to the spec's inline | fullscreen | pip modes.
-      displayMode: displayMode as McpUiDisplayMode,
-      availableDisplayModes:
-        displayMode === 'standalone' ? [displayMode as McpUiDisplayMode] : AVAILABLE_DISPLAY_MODES,
-      // todo: containerDimensions: {} (depends on displayMode)
+      styles: mcpHostStyles,
+      displayMode: activeDisplayMode as McpUiDisplayMode,
+      availableDisplayModes: isStandalone
+        ? [activeDisplayMode as McpUiDisplayMode]
+        : effectiveDisplayModes.length > 0
+          ? effectiveDisplayModes
+          : AVAILABLE_DISPLAY_MODES,
+      containerDimensions: getContainerDimensions(
+        activeDisplayMode,
+        containerWidth,
+        containerHeight
+      ),
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       userAgent: navigator.userAgent,
@@ -457,7 +675,15 @@ export default function McpAppRenderer({
     };
 
     return context;
-  }, [resolvedTheme, displayMode]);
+  }, [
+    resolvedTheme,
+    mcpHostStyles,
+    activeDisplayMode,
+    isStandalone,
+    containerWidth,
+    containerHeight,
+    effectiveDisplayModes,
+  ]);
 
   const appToolResult = useMemo((): CallToolResult | undefined => {
     if (!toolResult) return undefined;
@@ -466,6 +692,7 @@ export default function McpAppRenderer({
     return {
       content: toolResult.content as unknown as CallToolResult['content'],
       structuredContent: toolResult.structuredContent as { [key: string]: unknown } | undefined,
+      _meta: toolResult._meta,
     };
   }, [toolResult]);
 
@@ -516,30 +743,177 @@ export default function McpAppRenderer({
         onReadResource={handleReadResource}
         onLoggingMessage={handleLoggingMessage}
         onSizeChanged={handleSizeChanged}
+        onFallbackRequest={handleFallbackRequest}
         onError={handleError}
       />
     );
   };
 
+  const showControls = !isStandalone && !isError && (appSupportsFullscreen || appSupportsPip);
+
+  const renderDisplayModeControls = () => {
+    if (!showControls) return null;
+
+    if (activeDisplayMode === 'fullscreen') {
+      return (
+        <div className="no-drag absolute top-3 right-3 z-[60] flex gap-1">
+          {appSupportsPip && (
+            <button
+              onClick={() => changeDisplayMode('pip')}
+              className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+              title="Picture-in-Picture"
+              aria-label="Picture-in-Picture"
+            >
+              <PictureInPicture2 size={16} />
+            </button>
+          )}
+          <button
+            ref={fullscreenCloseRef}
+            onClick={() => changeDisplayMode('inline')}
+            className="cursor-pointer rounded-md bg-black/50 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Exit fullscreen (Esc)"
+            aria-label="Exit fullscreen"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      );
+    }
+
+    if (activeDisplayMode === 'pip') {
+      return (
+        <>
+          {appSupportsFullscreen && (
+            <button
+              onClick={() => changeDisplayMode('fullscreen')}
+              className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+              title="Fullscreen"
+              aria-label="Fullscreen"
+            >
+              <Maximize2 size={14} />
+            </button>
+          )}
+          <button
+            onClick={() => changeDisplayMode('inline')}
+            className="cursor-pointer rounded-md bg-black/50 p-1 text-white backdrop-blur-sm transition-opacity hover:bg-black/70"
+            title="Close"
+            aria-label="Close"
+          >
+            <X size={14} />
+          </button>
+        </>
+      );
+    }
+
+    // Inline mode — show controls on hover or keyboard focus
+    return (
+      <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 transition-opacity group-hover/mcp-app:opacity-100 focus-within:opacity-100">
+        {appSupportsFullscreen && (
+          <button
+            onClick={() => changeDisplayMode('fullscreen')}
+            className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+            title="Fullscreen"
+            aria-label="Fullscreen"
+          >
+            <Maximize2 size={14} />
+          </button>
+        )}
+        {appSupportsPip && (
+          <button
+            onClick={() => changeDisplayMode('pip')}
+            className="cursor-pointer rounded-md bg-black/40 p-1.5 text-white backdrop-blur-sm transition-opacity hover:bg-black/60"
+            title="Picture-in-Picture"
+            aria-label="Picture-in-Picture"
+          >
+            <PictureInPicture2 size={14} />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Single stable container — CSS switches between inline/fullscreen/pip positioning.
+  // The AppRenderer and its iframe are never unmounted, preserving app state across mode changes.
   const containerClasses = cn(
-    'bg-background-default overflow-hidden',
-    iframeWidth === null && '[&_iframe]:!w-full',
-    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20',
-    !isError && !isExpandedView && 'mt-6 mb-2',
-    !isError && !isExpandedView && meta.prefersBorder && 'border border-border-default rounded-lg'
+    'mcp-app-container bg-background-primary [&_iframe]:!w-full',
+    isFillsViewport && 'fixed inset-0 z-[1000] overflow-hidden [&_iframe]:!h-full',
+    isPip &&
+      'fixed z-[900] overflow-y-auto overflow-x-hidden rounded-xl border border-border-primary shadow-2xl',
+    isInline && 'group/mcp-app relative overflow-hidden',
+    isInline && !isError && 'mt-6 mb-2',
+    isInline && !isError && meta.prefersBorder && 'border border-border-primary rounded-lg',
+    isError && 'border border-red-500 rounded-lg bg-red-50 dark:bg-red-900/20'
   );
 
-  const containerStyle = isExpandedView
-    ? { width: '100%', height: '100%' }
-    : {
-        width: iframeWidth !== null ? `${iframeWidth}px` : '100%',
-        maxWidth: '100%',
-        height: `${iframeHeight || DEFAULT_IFRAME_HEIGHT}px`,
-      };
+  const containerStyle: React.CSSProperties = {
+    ...(isFillsViewport
+      ? {}
+      : isPip
+        ? {
+            width: `${PIP_WIDTH}px`,
+            height: `${PIP_HEIGHT}px`,
+            right: `${PIP_MARGIN_RIGHT - pipPosition.x}px`,
+            bottom: `${PIP_MARGIN_BOTTOM - pipPosition.y}px`,
+          }
+        : {
+            width: '100%',
+            height: `${effectiveInlineHeight}px`,
+          }),
+  };
 
   return (
-    <div className={containerClasses} style={containerStyle}>
-      {renderContent()}
-    </div>
+    <>
+      {/* Placeholder in chat flow when app is detached (fullscreen or pip) */}
+      {isFullscreen && (
+        <div
+          className="invisible mt-6 mb-2"
+          style={{ width: '100%', height: `${inlineHeight}px` }}
+        />
+      )}
+      {isPip && (
+        <div
+          className="mt-6 mb-2 flex items-center justify-center rounded-lg border border-dashed border-border-primary bg-black/[0.02] dark:bg-white/[0.02]"
+          style={{ width: '100%', height: `${inlineHeight}px` }}
+        >
+          <button
+            onClick={() => changeDisplayMode('inline')}
+            className="cursor-pointer flex items-center gap-2 rounded-md px-3 py-1.5 text-xs text-text-secondary transition-colors hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/5"
+          >
+            <PictureInPicture2 size={14} />
+            <span>Playing in Picture-in-Picture</span>
+          </button>
+        </div>
+      )}
+
+      {/* Stable app container — never unmounted, only repositioned via CSS */}
+      <div
+        ref={containerRef}
+        className={cn(containerClasses, isPip && 'group/pip')}
+        style={containerStyle}
+      >
+        {isPip && (
+          <div className="pointer-events-none sticky top-1 z-20 flex h-0 items-start justify-between px-1 opacity-0 transition-opacity group-hover/pip:pointer-events-auto group-hover/pip:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100">
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Move Picture-in-Picture window (use arrow keys)"
+              className="pointer-events-auto cursor-grab rounded-md bg-black/50 p-1 text-white backdrop-blur-sm hover:bg-black/70 active:cursor-grabbing"
+              onPointerDown={pipHandlers.onPointerDown}
+              onPointerMove={pipHandlers.onPointerMove}
+              onPointerUp={pipHandlers.onPointerUp}
+              onLostPointerCapture={pipHandlers.onLostPointerCapture}
+              onKeyDown={pipHandlers.onKeyDown}
+            >
+              <GripHorizontal size={14} />
+            </div>
+            <div className="flex gap-1">{renderDisplayModeControls()}</div>
+          </div>
+        )}
+        <div className={cn('relative w-full', !isPip && 'h-full')}>
+          {!isPip && renderDisplayModeControls()}
+          {renderContent()}
+        </div>
+      </div>
+    </>
   );
 }

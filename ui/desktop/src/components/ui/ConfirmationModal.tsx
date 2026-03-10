@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,7 @@ export function ConfirmationModal({
   isOpen,
   title,
   message,
+  detail,
   onConfirm,
   onCancel,
   confirmLabel = 'Yes',
@@ -22,6 +24,7 @@ export function ConfirmationModal({
   isOpen: boolean;
   title: string;
   message: string;
+  detail?: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
   confirmLabel?: string;
@@ -31,17 +34,31 @@ export function ConfirmationModal({
 }) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{message}</DialogDescription>
         </DialogHeader>
 
-        <DialogFooter className="pt-2">
-          <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        {detail && (
+          <div className="overflow-y-auto min-h-0 text-sm text-text-muted break-all">{detail}</div>
+        )}
+
+        <DialogFooter className="pt-2 shrink-0">
+          <Button
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
+          >
             {cancelLabel}
           </Button>
-          <Button variant={confirmVariant} onClick={onConfirm} disabled={isSubmitting}>
+          <Button
+            variant={confirmVariant}
+            onClick={onConfirm}
+            disabled={isSubmitting}
+            className="focus-visible:ring-2 focus-visible:ring-background-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background-default"
+          >
             {isSubmitting ? 'Processing...' : confirmLabel}
           </Button>
         </DialogFooter>

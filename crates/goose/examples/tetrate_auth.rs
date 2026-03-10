@@ -10,13 +10,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create new PKCE auth flow
     let mut auth_flow = TetrateAuth::new()?;
 
-    // Get the auth URL that would be opened
-    let auth_url = auth_flow.get_auth_url();
-    println!("Auth URL: {}", auth_url);
-    println!("\nStarting authentication flow...");
+    println!("Starting authentication flow...");
     println!("This will:");
-    println!("1. Open your browser to the auth page");
-    println!("2. Start a local server on port 3000");
+    println!("1. Start a local server on a dynamic port");
+    println!("2. Open your browser to the auth page");
     println!("3. Wait for the callback\n");
 
     // Complete the full flow

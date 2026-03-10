@@ -135,8 +135,8 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
 
     return (
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50">
-        <div className="bg-background-default border border-border-default rounded-lg p-6 w-[500px] max-w-[90vw]">
-          <h3 className="text-lg font-medium text-text-default mb-4">Edit Session Description</h3>
+        <div className="bg-background-primary border border-border-primary rounded-lg p-6 w-[500px] max-w-[90vw]">
+          <h3 className="text-lg font-medium text-text-primary mb-4">Edit Session Description</h3>
 
           <div className="space-y-4">
             <div>
@@ -145,7 +145,7 @@ const EditSessionModal = React.memo<EditSessionModalProps>(
                 type="text"
                 value={description}
                 onChange={handleInputChange}
-                className="w-full p-3 border border-border-default rounded-lg bg-background-default text-text-default focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full p-3 border border-border-primary rounded-lg bg-background-primary text-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter session description"
                 autoFocus
                 maxLength={200}
@@ -358,15 +358,17 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         const resp = await searchSessions({
           query: { query: debouncedSearchTerm },
         });
-        
+
         if (resp.data) {
           // Response is Vec<Session> - sessions that match the search
           const matchedSessionIds = new Set(resp.data.map((s: { id: string }) => s.id));
           const filtered = sessions.filter((session) => matchedSessionIds.has(session.id));
-          
+
           startTransition(() => {
             setFilteredSessions(filtered);
-            setSearchResults(filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null);
+            setSearchResults(
+              filtered.length > 0 ? { count: filtered.length, currentIndex: 1 } : null
+            );
           });
         }
       };
@@ -534,13 +536,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
     const handleOpenInNewWindow = useCallback((session: Session, e: React.MouseEvent) => {
       e.stopPropagation();
-      window.electron.createChatWindow(
-        undefined,
-        session.working_dir,
-        undefined,
-        session.id,
-        'pair'
-      );
+      window.electron.createChatWindow({
+        dir: session.working_dir,
+        resumeSessionId: session.id,
+        viewType: 'pair',
+      });
     }, []);
 
     const SessionItem = React.memo(function SessionItem({
@@ -617,18 +617,18 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           <div>
             <h3 className="text-base break-words line-clamp-2 w-full mb-1">{displayName}</h3>
             <div className="flex-1 mt-2">
-              <div className="flex items-center text-text-muted text-xs">
+              <div className="flex items-center text-text-secondary text-xs">
                 <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
                 <span>{formatMessageTimestamp(Date.parse(session.updated_at) / 1000)}</span>
               </div>
-              <div className="flex items-center text-text-muted text-xs">
+              <div className="flex items-center text-text-secondary text-xs">
                 <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
                 <span className="truncate">{session.working_dir}</span>
               </div>
             </div>
           </div>
           <div className="flex items-center justify-between mt-1">
-            <div className="flex items-center space-x-3 text-xs text-text-muted">
+            <div className="flex items-center space-x-3 text-xs text-text-secondary">
               <div className="flex items-center">
                 <MessageSquareText className="w-3 h-3 mr-1" />
                 <span className="font-mono">{session.message_count}</span>
@@ -669,21 +669,21 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Open in new window"
             >
-              <ExternalLink className="w-3 h-3 text-text-muted hover:text-text-default" />
+              <ExternalLink className="w-3 h-3 text-text-secondary hover:text-text-primary" />
             </button>
             <button
               onClick={handleEditClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Edit session name"
             >
-              <Edit2 className="w-3 h-3 text-text-muted hover:text-text-default" />
+              <Edit2 className="w-3 h-3 text-text-secondary hover:text-text-primary" />
             </button>
             <button
               onClick={handleDuplicateClick}
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Duplicate session"
             >
-              <Copy className="w-3 h-3 text-text-muted hover:text-text-default" />
+              <Copy className="w-3 h-3 text-text-secondary hover:text-text-primary" />
             </button>
             <button
               onClick={handleDeleteClick}
@@ -697,7 +697,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
               title="Export session"
             >
-              <Download className="w-3 h-3 text-text-muted hover:text-text-default" />
+              <Download className="w-3 h-3 text-text-secondary hover:text-text-primary" />
             </button>
           </div>
         </Card>
@@ -744,7 +744,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const renderActualContent = () => {
       if (error) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-text-muted">
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary">
             <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
             <p className="text-lg mb-2">Error Loading Sessions</p>
             <p className="text-sm text-center mb-4">{error}</p>
@@ -757,7 +757,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       if (sessions.length === 0) {
         return (
-          <div className="flex flex-col justify-center h-full text-text-muted">
+          <div className="flex flex-col justify-center h-full text-text-secondary">
             <MessageSquareText className="h-12 w-12 mb-4" />
             <p className="text-lg mb-2">No chat sessions found</p>
             <p className="text-sm">Your chat history will appear here</p>
@@ -767,7 +767,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       if (dateGroups.length === 0 && searchResults !== null) {
         return (
-          <div className="flex flex-col items-center justify-center h-full text-text-muted mt-4">
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary mt-4">
             <MessageSquareText className="h-12 w-12 mb-4" />
             <p className="text-lg mb-2">No matching sessions found</p>
             <p className="text-sm">Try adjusting your search terms</p>
@@ -779,8 +779,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         <div className="space-y-8">
           {visibleDateGroups.map((group) => (
             <div key={group.label} className="space-y-4">
-              <div className="sticky top-0 z-10 bg-background-default/95 backdrop-blur-sm">
-                <h2 className="text-text-muted">{group.label}</h2>
+              <div className="sticky top-0 z-10 bg-background-primary/95 backdrop-blur-sm">
+                <h2 className="text-text-secondary">{group.label}</h2>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                 {group.sessions.map((session) => (
@@ -800,7 +800,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
           {visibleGroupsCount < dateGroups.length && (
             <div className="flex justify-center py-8">
-              <div className="flex items-center space-x-2 text-text-muted">
+              <div className="flex items-center space-x-2 text-text-secondary">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2"></div>
                 <span>Loading more sessions...</span>
               </div>
@@ -814,7 +814,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       <>
         <MainPanelLayout>
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="bg-background-default px-8 pb-8 pt-16">
+            <div className="bg-background-primary px-8 pb-8 pt-16">
               <div className="flex flex-col page-transition">
                 <div className="flex justify-between items-center mb-1">
                   <h1 className="text-4xl font-light">Chat history</h1>
@@ -828,7 +828,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                     Import Session
                   </Button>
                 </div>
-                <p className="text-sm text-text-muted mb-4">
+                <p className="text-sm text-text-secondary mb-4">
                   View and search your past conversations with Goose. {getSearchShortcutText()} to
                   search.
                 </p>

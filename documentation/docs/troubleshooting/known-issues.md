@@ -446,6 +446,38 @@ If you still encounter a `failed to connect` error, you can try using WSL's [Mir
 
 ---
 
+### Corporate Proxy or Firewall Issues
+
+If you're behind a corporate proxy or firewall and goose cannot connect to your LLM provider, you may see errors like:
+
+```
+error sending request for url (https://api.openai.com/...)
+failed to connect to api.openai.com
+```
+
+goose supports HTTP/HTTPS proxy configuration through standard environment variables and system proxy settings. Environment variables take precedence when both are configured.
+
+**Solution:**
+
+1. **Configure [proxy environment variables](/docs/guides/environment-variables#network-configuration):**
+   ```bash
+   export HTTPS_PROXY="http://proxy.company.com:8080"
+   export NO_PROXY="localhost,127.0.0.1,.internal"
+   ```
+
+2. **Or use system proxy settings:**
+   - **macOS**: System Settings → Network → [select connection] → Details → Proxies
+   - **Windows**: Settings → Network & Internet → Proxy
+
+3. **Restart goose** after configuring proxy settings
+
+If you continue to experience connection issues, verify:
+- Your proxy URL and port are correct
+- You have authentication credentials if required (format: `http://username:password@proxy:port`)
+- Your proxy allows HTTPS connections to your LLM provider's domain
+
+---
+
 ### Airgapped/Offline Environment Issues
 
 If you're working in an airgapped, offline, or corporate-restricted environment, you may encounter issues where MCP server extensions fail to activate or download their runtime dependencies.
