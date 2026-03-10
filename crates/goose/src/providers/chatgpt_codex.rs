@@ -46,15 +46,51 @@ const HTML_AUTO_CLOSE_TIMEOUT_MS: u64 = 2000;
 
 const CHATGPT_CODEX_PROVIDER_NAME: &str = "chatgpt_codex";
 pub const CHATGPT_CODEX_DEFAULT_MODEL: &str = "gpt-5.1-codex";
-pub const CHATGPT_CODEX_KNOWN_MODELS: &[&str] = &[
-    "gpt-5.3-codex",
-    "gpt-5.2-codex",
-    "gpt-5.1-codex",
-    "gpt-5.1-codex-mini",
-    "gpt-5.1-codex-max",
+/// Per-model attributes for known ChatGPT Codex models.
+pub struct ChatGptCodexModelAttrs {
+    pub name: &'static str,
+    pub reasoning_levels: &'static [&'static str],
+}
+
+pub const CHATGPT_CODEX_KNOWN_MODELS: &[ChatGptCodexModelAttrs] = &[
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.3-codex",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.2-codex",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.1-codex",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.1-codex-mini",
+        reasoning_levels: &["medium", "high"],
+    },
+    ChatGptCodexModelAttrs {
+        name: "gpt-5.1-codex-max",
+        reasoning_levels: &["low", "medium", "high", "xhigh"],
+    },
 ];
 
 const CHATGPT_CODEX_DOC_URL: &str = "https://openai.com/chatgpt";
+
+const DEFAULT_REASONING_LEVELS: &[&str] = &["medium", "high"];
+
+/// Returns the valid reasoning effort levels for a given model.
+pub fn reasoning_levels_for_model(model_name: &str) -> &'static [&'static str] {
+    CHATGPT_CODEX_KNOWN_MODELS
+        .iter()
+        .find(|m| m.name == model_name)
+        .map(|m| m.reasoning_levels)
+        .unwrap_or(DEFAULT_REASONING_LEVELS)
+}
+
+fn known_model_names() -> Vec<&'static str> {
+    CHATGPT_CODEX_KNOWN_MODELS.iter().map(|m| m.name).collect()
+}
 
 #[derive(Debug)]
 struct ChatGptCodexAuthState {
@@ -173,6 +209,26 @@ fn build_input_items(messages: &[Message]) -> Result<Vec<Value>> {
     Ok(items)
 }
 
+fn get_reasoning_effort(model_name: &str) -> String {
+    let config = crate::config::Config::global();
+    let effort = config
+        .get_chatgpt_codex_reasoning_effort()
+        .map(String::from)
+        .unwrap_or_else(|_| "medium".to_string());
+
+    let valid_levels = reasoning_levels_for_model(model_name);
+    if valid_levels.contains(&effort.as_str()) {
+        effort
+    } else {
+        tracing::warn!(
+            "Invalid CHATGPT_CODEX_REASONING_EFFORT '{}' for model '{}', using 'medium'",
+            effort,
+            model_name
+        );
+        "medium".to_string()
+    }
+}
+
 fn create_codex_request(
     model_config: &ModelConfig,
     system: &str,
@@ -180,11 +236,13 @@ fn create_codex_request(
     tools: &[Tool],
 ) -> Result<Value> {
     let input_items = build_input_items(messages)?;
+    let reasoning_effort = get_reasoning_effort(&model_config.model_name);
 
     let mut payload = json!({
         "model": model_config.model_name,
         "input": input_items,
         "store": false,
+        "reasoning": {"effort": reasoning_effort},
         "instructions": system,
     });
 
@@ -857,7 +915,7 @@ impl ProviderDef for ChatGptCodexProvider {
             "ChatGPT Codex",
             "Use your ChatGPT Plus/Pro subscription for GPT-5 Codex models via OAuth",
             CHATGPT_CODEX_DEFAULT_MODEL,
-            CHATGPT_CODEX_KNOWN_MODELS.to_vec(),
+            known_model_names(),
             CHATGPT_CODEX_DOC_URL,
             vec![ConfigKey::new_oauth(
                 "CHATGPT_CODEX_TOKEN",
@@ -930,10 +988,7 @@ impl Provider for ChatGptCodexProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        Ok(CHATGPT_CODEX_KNOWN_MODELS
-            .iter()
-            .map(|s| s.to_string())
-            .collect())
+        Ok(known_model_names().into_iter().map(String::from).collect())
     }
 }
 
