@@ -373,7 +373,11 @@ fn collect_file(
     *total_size += content.len();
     if *total_size > MAX_TOTAL_SIZE {
         tracing::debug!("Total content size limit reached, stopping collection");
-        return Err("Total content size limit (1MB) exceeded".to_string());
+        return Err(format!(
+            "Total content size limit exceeded: {} bytes over the {} byte limit",
+            *total_size - MAX_TOTAL_SIZE,
+            MAX_TOTAL_SIZE
+        ));
     }
 
     let lines = content.lines().count();
