@@ -158,12 +158,12 @@ pub trait ConfigValue {
 macro_rules! config_value {
     ($key:ident, $type:ty) => {
         impl Config {
-            paste::paste! {
+            pastey::paste! {
                 pub fn [<get_ $key:lower>](&self) -> Result<$type, ConfigError> {
                     self.get_param(stringify!($key))
                 }
             }
-            paste::paste! {
+            pastey::paste! {
                 pub fn [<set_ $key:lower>](&self, v: impl Into<$type>) -> Result<(), ConfigError> {
                     self.set_param(stringify!($key), &v.into())
                 }
@@ -172,7 +172,7 @@ macro_rules! config_value {
     };
 
     ($key:ident, $inner:ty, $default:expr) => {
-        paste::paste! {
+        pastey::paste! {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
             #[serde(transparent)]
             pub struct [<$key:camel>]($inner);
