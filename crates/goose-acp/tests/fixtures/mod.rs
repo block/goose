@@ -283,6 +283,13 @@ pub trait Connection: Sized {
 pub trait Session {
     fn session_id(&self) -> &sacp::schema::SessionId;
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput;
+    async fn prompt_with_image(
+        &mut self,
+        text: &str,
+        image_b64: &str,
+        mime_type: &str,
+        decision: PermissionDecision,
+    ) -> TestOutput;
     async fn set_model(&self, model_id: &str);
 }
 

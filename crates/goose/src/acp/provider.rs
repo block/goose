@@ -2,9 +2,9 @@ use anyhow::{Context, Result};
 use async_stream::try_stream;
 use rmcp::model::{Role, Tool};
 use sacp::schema::{
-    AuthMethod, ContentBlock, ContentChunk, EnvVariable, HttpHeader, InitializeRequest,
-    InitializeResponse, McpCapabilities, McpServer, McpServerHttp, McpServerStdio,
-    NewSessionRequest, NewSessionResponse, PromptRequest, ProtocolVersion,
+    AuthMethod, ContentBlock, ContentChunk, EnvVariable, HttpHeader, ImageContent,
+    InitializeRequest, InitializeResponse, McpCapabilities, McpServer, McpServerHttp,
+    McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, ProtocolVersion,
     RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse, SessionId,
     SessionNotification, SessionUpdate, SetSessionModeRequest, StopReason, TextContent,
     ToolCallContent,
@@ -793,8 +793,17 @@ fn messages_to_prompt(messages: &[Message]) -> Vec<ContentBlock> {
 
     if let Some(message) = last_user {
         for content in &message.content {
-            if let MessageContent::Text(text) = content {
-                content_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
+            match content {
+                MessageContent::Text(text) => {
+                    content_blocks.push(ContentBlock::Text(TextContent::new(text.text.clone())));
+                }
+                MessageContent::Image(image) => {
+                    content_blocks.push(ContentBlock::Image(ImageContent::new(
+                        &image.data,
+                        &image.mime_type,
+                    )));
+                }
+                _ => {}
             }
         }
     }

@@ -5,8 +5,8 @@ use super::{
 use async_trait::async_trait;
 use goose::config::PermissionManager;
 use sacp::schema::{
-    AuthMethod, ContentBlock, InitializeRequest, LoadSessionRequest, McpServer, NewSessionRequest,
-    PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionModelState,
+    AuthMethod, ContentBlock, ImageContent, InitializeRequest, LoadSessionRequest, McpServer,
+    NewSessionRequest, PromptRequest, ProtocolVersion, RequestPermissionRequest, SessionModelState,
     SessionNotification, SessionUpdate, StopReason, TextContent, ToolCallStatus,
 };
 use sacp::{ClientToAgent, JrConnectionCx};
@@ -33,6 +33,42 @@ pub struct ClientToAgentSession {
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
+}
+
+impl ClientToAgentSession {
+    async fn send_prompt(
+        &mut self,
+        content: Vec<ContentBlock>,
+        decision: PermissionDecision,
+    ) -> TestOutput {
+        *self.permission.lock().unwrap() = decision;
+        self.updates.lock().unwrap().clear();
+
+        let response = self
+            .cx
+            .send_request(PromptRequest::new(self.session_id.clone(), content))
+            .block_task()
+            .await
+            .unwrap();
+
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+
+        let mut updates_len = self.updates.lock().unwrap().len();
+        while updates_len == 0 {
+            self.notify.notified().await;
+            updates_len = self.updates.lock().unwrap().len();
+        }
+
+        let text = collect_agent_text(&self.updates);
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
+        let mut tool_status = extract_tool_status(&self.updates);
+        while tool_status.is_none() && tokio::time::Instant::now() < deadline {
+            tokio::task::yield_now().await;
+            tool_status = extract_tool_status(&self.updates);
+        }
+
+        TestOutput { text, tool_status }
+    }
 }
 
 impl ClientToAgentConnection {
@@ -218,36 +254,25 @@ impl Session for ClientToAgentSession {
     }
 
     async fn prompt(&mut self, text: &str, decision: PermissionDecision) -> TestOutput {
-        *self.permission.lock().unwrap() = decision;
-        self.updates.lock().unwrap().clear();
-
-        let response = self
-            .cx
-            .send_request(PromptRequest::new(
-                self.session_id.clone(),
-                vec![ContentBlock::Text(TextContent::new(text))],
-            ))
-            .block_task()
+        self.send_prompt(vec![ContentBlock::Text(TextContent::new(text))], decision)
             .await
-            .unwrap();
+    }
 
-        assert_eq!(response.stop_reason, StopReason::EndTurn);
-
-        let mut updates_len = self.updates.lock().unwrap().len();
-        while updates_len == 0 {
-            self.notify.notified().await;
-            updates_len = self.updates.lock().unwrap().len();
-        }
-
-        let text = collect_agent_text(&self.updates);
-        let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
-        let mut tool_status = extract_tool_status(&self.updates);
-        while tool_status.is_none() && tokio::time::Instant::now() < deadline {
-            tokio::task::yield_now().await;
-            tool_status = extract_tool_status(&self.updates);
-        }
-
-        TestOutput { text, tool_status }
+    async fn prompt_with_image(
+        &mut self,
+        text: &str,
+        image_b64: &str,
+        mime_type: &str,
+        decision: PermissionDecision,
+    ) -> TestOutput {
+        self.send_prompt(
+            vec![
+                ContentBlock::Image(ImageContent::new(image_b64, mime_type)),
+                ContentBlock::Text(TextContent::new(text)),
+            ],
+            decision,
+        )
+        .await
     }
 
     // HACK: sacp doesn't support session/set_model yet, so we send it as untyped JSON.

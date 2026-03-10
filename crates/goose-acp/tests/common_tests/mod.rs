@@ -9,7 +9,7 @@ use fs_err as fs;
 use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::GooseMode;
 use goose::providers::provider_registry::ProviderConstructor;
-use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_MODEL};
+use goose_test_support::{ExpectedSessionId, McpFixture, FAKE_CODE, TEST_IMAGE_B64, TEST_MODEL};
 use sacp::schema::{McpServer, McpServerHttp, ModelId, ToolCallStatus};
 use std::sync::Arc;
 
@@ -319,6 +319,33 @@ pub async fn run_prompt_image<C: Connection>() {
         )
         .await;
     assert_eq!(output.text, "Hello Goose!\nThis is a test image.");
+    expected_session_id.assert_matches(&session.session_id().0);
+}
+
+pub async fn run_prompt_image_attachment<C: Connection>() {
+    let expected_session_id = ExpectedSessionId::default();
+    let openai = OpenAiFixture::new(
+        vec![(
+            r#""type":"image_url""#.into(),
+            include_str!("../test_data/openai_image_attachment.txt"),
+        )],
+        expected_session_id.clone(),
+    )
+    .await;
+
+    let mut conn = C::new(TestConnectionConfig::default(), openai).await;
+    let (mut session, _) = conn.new_session().await;
+    expected_session_id.set(session.session_id().0.to_string());
+
+    let output = session
+        .prompt_with_image(
+            "Describe what you see in this image",
+            TEST_IMAGE_B64,
+            "image/png",
+            PermissionDecision::Cancel,
+        )
+        .await;
+    assert!(output.text.contains("Hello Goose!"));
     expected_session_id.assert_matches(&session.session_id().0);
 }
 

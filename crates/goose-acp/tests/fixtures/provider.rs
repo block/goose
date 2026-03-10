@@ -33,6 +33,85 @@ pub struct ClientToProviderSession {
     session_id: String,
 }
 
+impl ClientToProviderSession {
+    #[allow(dead_code)]
+    async fn send_message(&mut self, message: Message, decision: PermissionDecision) -> TestOutput {
+        let session_id = self.session_id.clone();
+        let provider = self.provider.lock().await;
+        let model_config = provider.get_model_config();
+        let mut stream = provider
+            .stream(&model_config, &session_id, "", &[message], &[])
+            .await
+            .unwrap();
+        let mut text = String::new();
+        let mut tool_error = false;
+        let mut saw_tool = false;
+
+        while let Some(item) = stream.next().await {
+            let (msg, _) = item.unwrap();
+            if let Some(msg) = msg {
+                for content in msg.content {
+                    match content {
+                        MessageContent::Text(t) => {
+                            text.push_str(&t.text);
+                        }
+                        MessageContent::ToolResponse(resp) => {
+                            saw_tool = true;
+                            if let Ok(result) = resp.tool_result {
+                                tool_error |= result.is_error.unwrap_or(false);
+                            }
+                        }
+                        MessageContent::ActionRequired(action) => {
+                            if let ActionRequiredData::ToolConfirmation { id, .. } = action.data {
+                                saw_tool = true;
+                                if matches!(
+                                    decision,
+                                    PermissionDecision::RejectAlways
+                                        | PermissionDecision::RejectOnce
+                                        | PermissionDecision::Cancel
+                                ) {
+                                    tool_error = true;
+                                }
+
+                                let permission = match decision {
+                                    PermissionDecision::AllowAlways => Permission::AlwaysAllow,
+                                    PermissionDecision::AllowOnce => Permission::AllowOnce,
+                                    PermissionDecision::RejectAlways => Permission::AlwaysDeny,
+                                    PermissionDecision::RejectOnce => Permission::DenyOnce,
+                                    PermissionDecision::Cancel => Permission::Cancel,
+                                };
+
+                                let confirmation = PermissionConfirmation {
+                                    principal_type: PrincipalType::Tool,
+                                    permission,
+                                };
+
+                                let handled = provider
+                                    .handle_permission_confirmation(&id, &confirmation)
+                                    .await;
+                                assert!(handled);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let tool_status = if saw_tool {
+            Some(if tool_error {
+                ToolCallStatus::Failed
+            } else {
+                ToolCallStatus::Completed
+            })
+        } else {
+            None
+        };
+
+        TestOutput { text, tool_status }
+    }
+}
+
 #[async_trait]
 impl Connection for ClientToProviderConnection {
     type Session = ClientToProviderSession;
@@ -140,80 +219,21 @@ impl Session for ClientToProviderSession {
     }
 
     async fn prompt(&mut self, prompt: &str, decision: PermissionDecision) -> TestOutput {
-        let message = Message::user().with_text(prompt);
-        let session_id = self.session_id.clone();
-        let provider = self.provider.lock().await;
-        let model_config = provider.get_model_config();
-        let mut stream = provider
-            .stream(&model_config, &session_id, "", &[message], &[])
+        self.send_message(Message::user().with_text(prompt), decision)
             .await
-            .unwrap();
-        let mut text = String::new();
-        let mut tool_error = false;
-        let mut saw_tool = false;
+    }
 
-        while let Some(item) = stream.next().await {
-            let (msg, _) = item.unwrap();
-            if let Some(msg) = msg {
-                for content in msg.content {
-                    match content {
-                        MessageContent::Text(t) => {
-                            text.push_str(&t.text);
-                        }
-                        MessageContent::ToolResponse(resp) => {
-                            saw_tool = true;
-                            if let Ok(result) = resp.tool_result {
-                                tool_error |= result.is_error.unwrap_or(false);
-                            }
-                        }
-                        MessageContent::ActionRequired(action) => {
-                            if let ActionRequiredData::ToolConfirmation { id, .. } = action.data {
-                                saw_tool = true;
-                                if matches!(
-                                    decision,
-                                    PermissionDecision::RejectAlways
-                                        | PermissionDecision::RejectOnce
-                                        | PermissionDecision::Cancel
-                                ) {
-                                    tool_error = true;
-                                }
-
-                                let permission = match decision {
-                                    PermissionDecision::AllowAlways => Permission::AlwaysAllow,
-                                    PermissionDecision::AllowOnce => Permission::AllowOnce,
-                                    PermissionDecision::RejectAlways => Permission::AlwaysDeny,
-                                    PermissionDecision::RejectOnce => Permission::DenyOnce,
-                                    PermissionDecision::Cancel => Permission::Cancel,
-                                };
-
-                                let confirmation = PermissionConfirmation {
-                                    principal_type: PrincipalType::Tool,
-                                    permission,
-                                };
-
-                                let handled = provider
-                                    .handle_permission_confirmation(&id, &confirmation)
-                                    .await;
-                                assert!(handled);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        }
-
-        let tool_status = if saw_tool {
-            Some(if tool_error {
-                ToolCallStatus::Failed
-            } else {
-                ToolCallStatus::Completed
-            })
-        } else {
-            None
-        };
-
-        TestOutput { text, tool_status }
+    async fn prompt_with_image(
+        &mut self,
+        prompt: &str,
+        image_b64: &str,
+        mime_type: &str,
+        decision: PermissionDecision,
+    ) -> TestOutput {
+        let message = Message::user()
+            .with_image(image_b64, mime_type)
+            .with_text(prompt);
+        self.send_message(message, decision).await
     }
 
     async fn set_model(&self, model_id: &str) {
