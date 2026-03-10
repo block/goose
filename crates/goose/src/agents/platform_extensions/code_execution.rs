@@ -310,7 +310,13 @@ impl CodeExecutionClient {
             });
 
         if is_pure_ref && !rich_contents.is_empty() {
-            Ok(rich_contents)
+            // Always include a text fallback so providers that only serialize
+            // text content (OpenAI, Codex, Anthropic) still produce a tool result
+            // for the model. The rich content carries audience metadata and will
+            // be filtered by downstream audience logic.
+            let mut contents = vec![Content::text("Tool returned rich content.")];
+            contents.extend(rich_contents);
+            Ok(contents)
         } else {
             let return_val = serde_json::to_string_pretty(&output.output)
                 .unwrap_or_else(|_| json!(&output.output).to_string());
