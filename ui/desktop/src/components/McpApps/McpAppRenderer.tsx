@@ -504,9 +504,6 @@ export default function McpAppRenderer({
         },
       });
 
-      // Content blocks arrive with a `type` discriminator (e.g. "text", "image") matching
-      // CallToolResult.content, but the generated ContentBlock union isn't structurally
-      // identical to the SDK's content types (e.g. resource field typing differs).
       return {
         content: (response.data?.content || []) as unknown as CallToolResult['content'],
         isError: response.data?.isError || false,
