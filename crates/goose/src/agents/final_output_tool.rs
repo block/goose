@@ -69,13 +69,13 @@ impl FinalOutputTool {
                 .unwrap()
                 .clone(),
         )
-        .annotate(ToolAnnotations {
-            title: Some("Final Output".to_string()),
-            read_only_hint: Some(false),
-            destructive_hint: Some(false),
-            idempotent_hint: Some(true),
-            open_world_hint: Some(false),
-        })
+        .annotate(
+            ToolAnnotations::with_title("Final Output".to_string())
+                .read_only(false)
+                .destructive(false)
+                .idempotent(true)
+                .open_world(false),
+        )
     }
 
     pub fn system_prompt(&self) -> String {
@@ -123,14 +123,9 @@ impl FinalOutputTool {
                 match result {
                     Ok(parsed_value) => {
                         self.final_output = Some(Self::parsed_final_output_string(parsed_value));
-                        ToolCallResult::from(Ok(rmcp::model::CallToolResult {
-                            content: vec![Content::text(
-                                "Final output successfully collected.".to_string(),
-                            )],
-                            structured_content: None,
-                            is_error: Some(false),
-                            meta: None,
-                        }))
+                        ToolCallResult::from(Ok(rmcp::model::CallToolResult::success(vec![
+                            Content::text("Final output successfully collected.".to_string()),
+                        ])))
                     }
                     Err(error) => ToolCallResult::from(Err(ErrorData {
                         code: ErrorCode::INVALID_PARAMS,
@@ -232,14 +227,10 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: FINAL_OUTPUT_TOOL_NAME.into(),
-            arguments: Some(object!({
+        let tool_call =
+            CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME).with_arguments(object!({
                 "message": "Hello"  // Missing required "count" field
-            })),
-        };
+            }));
 
         let result = tool.execute_tool_call(tool_call).await;
         let tool_result = result.result.await;
@@ -256,18 +247,14 @@ mod tests {
         };
 
         let mut tool = FinalOutputTool::new(response);
-        let tool_call = CallToolRequestParams {
-            meta: None,
-            task: None,
-            name: FINAL_OUTPUT_TOOL_NAME.into(),
-            arguments: Some(object!({
+        let tool_call =
+            CallToolRequestParams::new(FINAL_OUTPUT_TOOL_NAME).with_arguments(object!({
                 "user": {
                     "name": "John",
                     "age": 30
                 },
                 "tags": ["developer", "rust"]
-            })),
-        };
+            }));
 
         let result = tool.execute_tool_call(tool_call).await;
         let tool_result = result.result.await;

@@ -325,12 +325,8 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
                     .get(INPUT_FIELD)
                     .ok_or_else(|| anyhow!("Missing tool_use input"))?;
 
-                let tool_call = CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: name.into(),
-                    arguments: Some(object(input.clone())),
-                };
+                let tool_call =
+                    CallToolRequestParams::new(name).with_arguments(object(input.clone()));
                 message = message.with_tool_request(id, Ok(tool_call));
             }
             Some(THINKING_TYPE) => {
@@ -692,11 +688,7 @@ where
                                 }
                             };
 
-                            let tool_call = CallToolRequestParams{
-                                meta: None, task: None,
-                                name: name.into(),
-                                arguments: Some(object(parsed_args))
-                            };
+                            let tool_call = CallToolRequestParams::new(name).with_arguments(object(parsed_args));
 
                             let mut message = Message::new(
                                 rmcp::model::Role::Assistant,
@@ -1126,12 +1118,8 @@ mod tests {
         let messages = vec![
             Message::assistant().with_tool_request(
                 "tool_1",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "calculator".into(),
-                    arguments: Some(object!({"expression": "2 + 2"})),
-                }),
+                Ok(CallToolRequestParams::new("calculator")
+                    .with_arguments(object!({"expression": "2 + 2"}))),
             ),
             Message::user().with_tool_response(
                 "tool_1",
@@ -1168,22 +1156,10 @@ mod tests {
             Message::user().with_text("Hello"),
             Message::assistant().with_text("").with_tool_request(
                 "tool_1",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "search".into(),
-                    arguments: Some(object!({"query": "test"})),
-                }),
+                Ok(CallToolRequestParams::new("search").with_arguments(object!({"query": "test"}))),
             ),
-            Message::user().with_tool_response(
-                "tool_1",
-                Ok(rmcp::model::CallToolResult {
-                    content: vec![],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
-            ),
+            Message::user()
+                .with_tool_response("tool_1", Ok(rmcp::model::CallToolResult::success(vec![]))),
         ];
 
         let spec = format_messages(&messages);

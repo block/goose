@@ -409,12 +409,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         Ok(params) => {
                             content.push(MessageContent::tool_request_with_metadata(
                                 id,
-                                Ok(CallToolRequestParams {
-                                    meta: None,
-                                    task: None,
-                                    name: function_name.into(),
-                                    arguments: Some(object(params)),
-                                }),
+                                Ok(CallToolRequestParams::new(function_name)
+                                    .with_arguments(object(params))),
                                 metadata.as_ref(),
                             ));
                         }
@@ -670,12 +666,7 @@ where
                             Ok(params) => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
-                                    Ok(CallToolRequestParams {
-                                        meta: None,
-                                        task: None,
-                                        name: function_name.clone().into(),
-                                        arguments: Some(object(params)),
-                                    }),
+                                    Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata,
                                 )
                             },
@@ -984,12 +975,8 @@ mod tests {
             Message::user().with_text("How are you?"),
             Message::assistant().with_tool_request(
                 "tool1",
-                Ok(CallToolRequestParams {
-                    meta: None,
-                    task: None,
-                    name: "example".into(),
-                    arguments: Some(object!({"param1": "value1"})),
-                }),
+                Ok(CallToolRequestParams::new("example")
+                    .with_arguments(object!({"param1": "value1"}))),
             ),
         ];
 
@@ -1002,12 +989,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult {
-                content: vec![Content::text("Result")],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
+            Ok(CallToolResult::success(vec![Content::text("Result")])),
         ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
@@ -1030,12 +1012,7 @@ mod tests {
     fn test_format_messages_multiple_content() -> anyhow::Result<()> {
         let mut messages = vec![Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "example".into(),
-                arguments: Some(object!({"param1": "value1"})),
-            }),
+            Ok(CallToolRequestParams::new("example").with_arguments(object!({"param1": "value1"}))),
         )];
 
         // Get the ID from the tool request to use in the response
@@ -1047,12 +1024,7 @@ mod tests {
 
         messages.push(Message::user().with_tool_response(
             tool_id,
-            Ok(CallToolResult {
-                content: vec![Content::text("Result")],
-                structured_content: None,
-                is_error: Some(false),
-                meta: None,
-            }),
+            Ok(CallToolResult::success(vec![Content::text("Result")])),
         ));
 
         let spec = format_messages(&messages, &ImageFormat::OpenAi);
@@ -1340,15 +1312,8 @@ mod tests {
     #[test]
     fn test_format_messages_tool_request_with_none_arguments() -> anyhow::Result<()> {
         // Test that tool calls with None arguments are formatted as "{}" string
-        let message = Message::assistant().with_tool_request(
-            "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: None, // This is the key case the fix addresses
-            }),
-        );
+        let message = Message::assistant()
+            .with_tool_request("tool1", Ok(CallToolRequestParams::new("test_tool")));
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
 
@@ -1371,12 +1336,8 @@ mod tests {
         // Test that tool calls with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_tool_request(
             "tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: Some(object!({"param": "value", "number": 42})),
-            }),
+            Ok(CallToolRequestParams::new("test_tool")
+                .with_arguments(object!({"param": "value", "number": 42}))),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1403,12 +1364,7 @@ mod tests {
         // Test that FrontendToolRequest with None arguments are formatted as "{}" string
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "frontend_test_tool".into(),
-                arguments: None, // This is the key case the fix addresses
-            }),
+            Ok(CallToolRequestParams::new("frontend_test_tool")),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1432,12 +1388,8 @@ mod tests {
         // Test that FrontendToolRequest with Some arguments are properly JSON-serialized
         let message = Message::assistant().with_frontend_tool_request(
             "frontend_tool1",
-            Ok(CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "frontend_test_tool".into(),
-                arguments: Some(object!({"action": "click", "element": "button"})),
-            }),
+            Ok(CallToolRequestParams::new("frontend_test_tool")
+                .with_arguments(object!({"action": "click", "element": "button"}))),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);
@@ -1925,12 +1877,8 @@ data: [DONE]"#;
         // Add a tool call to test that reasoning_content works with tool calls
         message = message.with_tool_request(
             "tool1",
-            Ok(rmcp::model::CallToolRequestParams {
-                meta: None,
-                task: None,
-                name: "test_tool".into(),
-                arguments: Some(rmcp::object!({"param": "value"})),
-            }),
+            Ok(rmcp::model::CallToolRequestParams::new("test_tool")
+                .with_arguments(rmcp::object!({"param": "value"}))),
         );
 
         let spec = format_messages(&[message], &ImageFormat::OpenAi);

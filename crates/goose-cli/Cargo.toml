@@ -36,6 +36,7 @@ tokio = { workspace = true }
 futures = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
+strum = { workspace = true }
 tempfile = { workspace = true }
 etcetera = { workspace = true }
 rand = { workspace = true }
@@ -52,10 +53,6 @@ tar = "0.4"
 reqwest = { workspace = true, features = ["blocking", "rustls"], default-features = false }
 zip = { version = "^8.0", default-features = false, features = ["deflate"] }
 bzip2 = "0.5"
-# Web server dependencies
-axum = { workspace = true, features = ["ws", "macros"] }
-tower-http = { workspace = true, features = ["cors", "fs", "auth"] }
-http = { workspace = true }
 webbrowser = { workspace = true }
 indicatif = "0.18.1"
 tokio-util = { workspace = true, features = ["compat", "rt"] }

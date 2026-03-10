@@ -8,8 +8,9 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         AnnotateAble, CallToolResult, Content, ErrorCode, ErrorData, Implementation,
-        ListResourcesResult, PaginatedRequestParams, RawResource, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        InitializeResult, ListResourcesResult, PaginatedRequestParams, RawResource,
+        ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
+        ServerCapabilities, ServerInfo,
     },
     schemars::JsonSchema,
     service::RequestContext,
@@ -1584,22 +1585,17 @@ impl ComputerControllerServer {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for ComputerControllerServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            server_info: Implementation {
-                name: "goose-computercontroller".to_string(),
-                version: env!("CARGO_PKG_VERSION").to_owned(),
-                title: None,
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            capabilities: ServerCapabilities::builder()
+        InitializeResult::new(
+            ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
                 .build(),
-            instructions: Some(self.instructions.clone()),
-            ..Default::default()
-        }
+        )
+        .with_server_info(Implementation::new(
+            "goose-computercontroller",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(self.instructions.clone())
     }
 
     async fn list_resources(
@@ -1640,8 +1636,6 @@ impl ServerHandler for ComputerControllerServer {
         })?;
 
         // Clone the resource to return
-        Ok(ReadResourceResult {
-            contents: vec![resource.clone()],
-        })
+        Ok(ReadResourceResult::new(vec![resource.clone()]))
     }
 }
