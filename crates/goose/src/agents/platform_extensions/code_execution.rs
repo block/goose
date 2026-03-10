@@ -529,17 +529,21 @@ impl McpClientTrait for CodeExecutionClient {
 
         let disclosure_style_moim = match self.disclosure_style {
             DisclosureStyle::Catalog => {
-                let available: Vec<_> = code_mode
+                let available_fns: Vec<_> = code_mode
                     .list_functions()
                     .functions
                     .iter()
                     .map(|f| format!("{}.{}", &f.namespace, &f.name))
                     .collect();
-                format!("Available namespaces: {}
+                format!("Available functions: {}
 
-                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.", available.join(", "))
+                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.", available_fns.join(", "))
             }
-            DisclosureStyle::Filesystem => "Use execute_bash to search and read the tool signatures and input/output types before calling execute_typescript.".into(),
+            DisclosureStyle::Filesystem => {
+                let available_filepaths: Vec<_> = code_mode
+                    .virtual_fs().keys().map(String::from).collect();
+                format!("Use execute_bash to search and read the tool signatures and input/output types before calling execute_typescript. The available files are: {}", available_filepaths.join(", "))
+            },
             DisclosureStyle::Sidecar => "Prioritize calling tools with the execute_typescript tool, especially when multiple tools can be called in one script.".into(),
         };
 
