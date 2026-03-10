@@ -124,7 +124,6 @@ function McpAppWrapper({
   const toolInput = { arguments: toolArguments || {} };
 
   const resultWithMeta = toolResponse?.toolResult as ToolResultWithMeta | undefined;
-  // Wire format matches CallToolResult but generated types differ structurally
   const toolResult =
     resultWithMeta?.status === 'success' && resultWithMeta.value
       ? (resultWithMeta.value as unknown as CallToolResult)
