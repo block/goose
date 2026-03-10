@@ -138,6 +138,19 @@ export default function ChatInput({
   const editingMessageIdRef = useRef<string | null>(null);
   const [lastInterruption, setLastInterruption] = useState<string | null>(null);
 
+  // Local override for when the user changes the model in the modal,
+  // before the session object is re-fetched from the backend.
+  const [modelOverride, setModelOverride] = useState<{ model: string; provider: string } | null>(null);
+  const effectiveModel = modelOverride?.model ?? sessionModel ?? null;
+  const effectiveProvider = modelOverride?.provider ?? sessionProvider ?? null;
+
+  // Clear override when the session data catches up
+  useEffect(() => {
+    if (modelOverride && sessionModel === modelOverride.model && sessionProvider === modelOverride.provider) {
+      setModelOverride(null);
+    }
+  }, [sessionModel, sessionProvider, modelOverride]);
+
   const { alerts, addAlert, clearAlerts } = useAlerts();
   const dropdownRef: React.RefObject<HTMLDivElement> = useRef<HTMLDivElement>(
     null
@@ -373,9 +386,10 @@ export default function ChatInput({
       // Reset token limit loaded state
       setIsTokenLimitLoaded(false);
 
-      // Use session-specific model/provider when available, fall back to config defaults
-      let model = sessionModel;
-      let provider = sessionProvider;
+      // Use effective model/provider (includes overrides from in-session model changes),
+      // fall back to config defaults
+      let model = effectiveModel;
+      let provider = effectiveProvider;
       if (!model || !provider) {
         const configModelAndProvider = await getCurrentModelAndProvider();
         model = configModelAndProvider.model;
@@ -427,12 +441,12 @@ export default function ChatInput({
     }
   };
 
-  // Initial load and refresh when model changes (session model takes priority,
+  // Initial load and refresh when model changes (effective model includes overrides,
   // config model is the fallback for Hub/no-session contexts)
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionModel, sessionProvider, configModel, configProvider]);
+  }, [effectiveModel, effectiveProvider, configModel, configProvider]);
 
   // Handle tool count alerts and token usage
   useEffect(() => {
@@ -1520,8 +1534,8 @@ export default function ChatInput({
                   inputTokens={accumulatedInputTokens}
                   outputTokens={accumulatedOutputTokens}
                   sessionCosts={sessionCosts}
-                  model={sessionModel}
-                  provider={sessionProvider}
+                  model={effectiveModel}
+                  provider={effectiveProvider}
                 />
               </div>
             </>
@@ -1533,8 +1547,9 @@ export default function ChatInput({
                 dropdownRef={dropdownRef}
                 setView={setView}
                 alerts={alerts}
-                sessionModel={sessionModel}
-                sessionProvider={sessionProvider}
+                sessionModel={effectiveModel}
+                sessionProvider={effectiveProvider}
+                onModelChanged={setModelOverride}
               />
             </div>
           </Tooltip>

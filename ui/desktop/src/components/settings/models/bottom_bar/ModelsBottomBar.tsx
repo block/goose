@@ -1,6 +1,5 @@
 import { Sliders, Bot, Settings } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { SwitchModelModal } from '../subcomponents/SwitchModelModal';
 import { LeadWorkerSettings } from '../subcomponents/LeadWorkerSettings';
 import { View } from '../../../../utils/navigationUtils';
@@ -26,6 +25,7 @@ interface ModelsBottomBarProps {
   alerts: Alert[];
   sessionModel?: string | null;
   sessionProvider?: string | null;
+  onModelChanged?: (override: { model: string; provider: string }) => void;
 }
 
 export default function ModelsBottomBar({
@@ -35,22 +35,12 @@ export default function ModelsBottomBar({
   alerts,
   sessionModel,
   sessionProvider,
+  onModelChanged,
 }: ModelsBottomBarProps) {
-  // Local override for when the user changes the model in the modal,
-  // before the session object is re-fetched from the backend.
-  const [modelOverride, setModelOverride] = useState<{ model: string; provider: string } | null>(null);
-
-  // Fall back to config defaults when no session exists yet (e.g. new/empty chat)
-  const { currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
-  const currentModel = modelOverride?.model ?? sessionModel ?? configModel;
-  const currentProvider = modelOverride?.provider ?? sessionProvider ?? configProvider;
-
-  // Clear override when the session data catches up
-  useEffect(() => {
-    if (modelOverride && sessionModel === modelOverride.model && sessionProvider === modelOverride.provider) {
-      setModelOverride(null);
-    }
-  }, [sessionModel, sessionProvider, modelOverride]);
+  // ChatInput owns the override state and passes effective model/provider as sessionModel/sessionProvider.
+  // We just consume them here.
+  const currentModel = sessionModel ?? null;
+  const currentProvider = sessionProvider ?? null;
 
   const currentModelInfo = useCurrentModelInfo();
   const { read, getProviders } = useConfig();
@@ -159,7 +149,7 @@ export default function ModelsBottomBar({
   }, [currentModel]);
 
   const handleModelSelected = (model: string, provider: string) => {
-    setModelOverride({ model, provider });
+    onModelChanged?.({ model, provider });
   };
 
   return (
