@@ -400,7 +400,13 @@ fn parse_plan_command(input: String) -> Option<InputResult> {
 }
 
 fn get_input_prompt_string() -> String {
-    "🪿 ".to_string()
+    // Use CHA (Cursor Horizontal Absolute) escape to fix cursor positioning.
+    // The goose emoji (U+1FABF) is 2 columns per unicode-width (Unicode 16.0),
+    // but some terminals (e.g. xterm.js/VS Code) render it as 1 column using
+    // older Unicode width tables. The CHA escape (\x1b[3G) forces the terminal
+    // cursor to column 3 (1-indexed) after the emoji, matching rustyline's
+    // width calculation regardless of the terminal's emoji rendering width.
+    "🪿\x1b[3G ".to_string()
 }
 
 fn print_help() {
